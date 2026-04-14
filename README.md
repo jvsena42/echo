@@ -12,7 +12,7 @@ A mobile flashcards app that fuses Duolingo TinyCards' playfulness, Anki's space
 
 Echo is a Kotlin Multiplatform project with **shared business logic** and **native UIs per platform**:
 
-- `shared/` — KMP module holding domain models, repositories, use-cases, and ViewModels. Platform glue (Pubky FFI, TTS, haptics) via `expect`/`actual`.
+- `shared/` — KMP module holding domain models, repositories (which own the business logic), and ViewModels. Platform glue (Pubky FFI, TTS, haptics) via `expect`/`actual`.
 - `composeApp/` — Android app. Jetpack Compose screens, Jetpack Navigation, Koin DI.
 - `iosApp/` — iOS app. SwiftUI screens, `NavigationStack`, Koin bootstrap.
 
@@ -25,8 +25,8 @@ echo/
 ├── shared/
 │   └── src/
 │       ├── commonMain/kotlin/com/github/jvsena42/eco/
-│       │   ├── domain/        # models + use-cases (pure Kotlin)
-│       │   ├── data/          # repository interfaces, PubkyClient interface
+│       │   ├── domain/        # models (pure Kotlin)
+│       │   ├── data/          # repositories (own business logic) + PubkyClient
 │       │   └── presentation/  # ViewModels (StateFlow-based)
 │       ├── androidMain/       # actuals: Pubky FFI, TTS, haptics
 │       └── iosMain/           # actuals: Pubky FFI, TTS, haptics
@@ -78,7 +78,7 @@ Open [`/iosApp`](./iosApp) in Xcode and run, or use the run widget in your IDE.
 ./gradlew :shared:allTests
 ```
 
-Unit tests for parsers, use-cases, and ViewModels live in `shared/src/commonTest`.
+Unit tests for parsers, repositories, and ViewModels live in `shared/src/commonTest`.
 
 ---
 

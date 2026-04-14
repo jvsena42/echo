@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-Echo is a **Kotlin Multiplatform** flashcards app targeting iOS and Android. Business logic — domain models, repositories, use-cases, and ViewModels — lives in a single `shared` module (`commonMain`). Each platform renders its own native UI: **Jetpack Compose** on Android (`composeApp/androidMain`) and **SwiftUI** on iOS (`iosApp/`). Identity, social graph, tags, and published decks are backed by **Pubky**, accessed through a native binding layer built on top of `pubky-core-ffi-fork`.
+Echo is a **Kotlin Multiplatform** flashcards app targeting iOS and Android. Business logic — domain models, repositories, and ViewModels — lives in a single `shared` module (`commonMain`). Repositories own the business logic; there is no separate use-case layer. Each platform renders its own native UI: **Jetpack Compose** on Android (`composeApp/androidMain`) and **SwiftUI** on iOS (`iosApp/`). Identity, social graph, tags, and published decks are backed by **Pubky**, accessed through a native binding layer built on top of `pubky-core-ffi-fork`.
 
 The v1 product is defined by [`docs/specs.md`](./specs.md) (Paste-to-Import primary flow) and [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md) (screens, components, design system).
 
@@ -87,27 +87,22 @@ Platform UI modules depend on `shared`. `shared` depends only on Kotlin stdlib, 
 Pure Kotlin. No framework imports.
 
 - **Models:** `Deck`, `Card`, `CardContent` (text / image / audio variants — brief §8), `Tag`, `PubkyIdentity`, `ImportDraft`, `ParsedRow`, `SrsGrade` (Again/Hard/Good/Easy), `SrsState`, `StudyQueueItem`, `AppError`.
-- **Use-cases** (one per verb, single public `invoke`):
-  - `ParsePasteUseCase` — spec §6/§7. Takes raw text, returns `ImportDraft` with detected separator, column mapping, parsed rows, dedupe stats, and error flags.
-  - `TriageCardsUseCase` — applies keep/discard/edit decisions from the swipe queue.
-  - `PublishDeckUseCase` — persists cards locally, publishes the deck to Pubky, returns the new deck handle.
-  - `ReviewCardUseCase` — applies an SRS grade, advances the queue.
-  - `FollowUserUseCase`, `UnfollowUserUseCase` — Pubky follows (brief §9.4).
-  - `SignInWithRingUseCase`, `SignOutUseCase` — deeplink session handling (brief §9.1).
+
+Business logic (parse, triage, publish, review, follow, sign-in/out) lives on repositories — see §4.2. There is no separate use-case layer.
 
 ### 4.2 Data (Repositories)
 
-Repositories are the only layer that talks to SQLDelight and Pubky. They expose **`Flow`s** for reads and suspend functions for writes. No UI state lives here.
+Repositories are the only layer that talks to SQLDelight and Pubky, and they also **own the business logic**: parsing, triage, publishing, SRS grading, follow/unfollow, and session handling are all methods on the relevant repo. They expose **`Flow`s** for reads and suspend functions for writes. No UI state lives here.
 
 | Repository | Responsibilities | Backing |
 |---|---|---|
-| `IdentityRepository` | Current session, pubky, capabilities, sign-in/out | Pubky FFI + multiplatform-settings |
-| `DeckRepository` | CRUD + publish/fetch decks | SQLDelight + Pubky FFI |
+| `IdentityRepository` | Current session, pubky, capabilities, `signInWithRing()` / `signOut()` (brief §9.1) | Pubky FFI + multiplatform-settings |
+| `DeckRepository` | CRUD + `publishDeck(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule | SQLDelight + Pubky FFI |
 | `CardRepository` | CRUD cards within a deck | SQLDelight |
-| `ImportRepository` | In-memory import drafts, parsing, dedupe | In-memory + `ParsePasteUseCase` |
+| `ImportRepository` | `parsePaste(rawText, separator, mapping)` per spec §6/§7, `applyTriageDecisions(draft, decisions)`, in-memory drafts, dedupe | In-memory |
 | `TagRepository` | Read/write Pubky tags on decks (brief §9.3) | Pubky FFI |
-| `DiscoveryRepository` | Trending/followed tags, decks by followed users | Pubky FFI |
-| `SrsRepository` | Per-card SRS state, today's due queue | SQLDelight |
+| `DiscoveryRepository` | Trending/followed tags, decks by followed users, `followUser()` / `unfollowUser()` (brief §9.4) | Pubky FFI |
+| `SrsRepository` | Per-card SRS state, today's due queue, `reviewCard(cardId, grade)` | SQLDelight |
 | `MediaRepository` | Image + audio blob storage for cards | Platform file I/O via expect/actual |
 
 All repositories are interfaces in `commonMain`. Implementations are also in `commonMain` where possible; only the FFI- and file-touching parts drop into `androidMain`/`iosMain` actuals.
@@ -118,7 +113,6 @@ KMP ViewModels built on Coroutines. One per screen / sheet in brief §6 and spec
 
 ```kotlin
 class PasteImportViewModel(
-    private val parsePaste: ParsePasteUseCase,
     private val importRepo: ImportRepository,
 ) {
     private val _state = MutableStateFlow(PasteImportUiState.Empty)
@@ -177,20 +171,19 @@ Ties spec §5 (UX flow) to code. Each arrow is an actual function call.
 ┌─ User action ────────────┐   ┌─ Platform UI ────────────┐   ┌─ shared VMs/repos ─────────────┐   ┌─ Pubky / local ─┐
 │ Taps "+" → Paste screen  │ → │ PasteImportScreen        │ → │ PasteImportVM.state = Empty    │   │                 │
 │                          │   │                          │   │                                │   │                 │
-│ Pastes text              │ → │ onTextChanged(text)      │ → │ ImportRepository.parse(text)   │   │                 │
-│                          │   │                          │   │   → ParsePasteUseCase          │   │                 │
+│ Pastes text              │ → │ onTextChanged(text)      │ → │ ImportRepository.parsePaste()  │   │                 │
 │                          │   │                          │   │ _state = Preview(draft)        │   │                 │
+│                          │   │                          │   │                                │   │                 │
 │                          │   │ collectAsState → redraw  │ ← │                                │   │                 │
 │                          │   │ 3 flip-card previews     │   │                                │   │                 │
 │                          │   │                          │   │                                │   │                 │
 │ Overrides separator      │ → │ onSeparatorOverride(…)   │ → │ re-parse → Preview(draft')     │   │                 │
 │                          │   │                          │   │                                │   │                 │
 │ Taps Next                │ → │ nav → TriageScreen       │ → │ TriageVM(draft)                │   │                 │
-│ Swipes keep/discard      │ → │ onSwipe(id, decision)    │ → │ TriageCardsUseCase             │   │                 │
+│ Swipes keep/discard      │ → │ onSwipe(id, decision)    │ → │ ImportRepository.applyTriage…  │   │                 │
 │                          │   │                          │   │                                │   │                 │
 │ Completes triage         │ → │ nav → CommitDeckScreen   │ → │ CommitDeckVM                   │   │                 │
-│ Fills metadata, Publish  │ → │ onPublish(meta)          │ → │ PublishDeckUseCase             │   │                 │
-│                          │   │                          │   │   → DeckRepository.publish()   │ → │ Pubky homeserver│
+│ Fills metadata, Publish  │ → │ onPublish(meta)          │ → │ DeckRepository.publishDeck()   │ → │ Pubky homeserver│
 │                          │   │                          │   │   → local SQLDelight cache     │ → │ SQLDelight      │
 │                          │   │ success screen + haptic  │ ← │ _state = Success(deck)         │   │                 │
 │                          │   │                          │   │                                │   │                 │
@@ -314,7 +307,7 @@ Published decks live under the author's pubky, one record per card plus a manife
 }
 ```
 
-- A side must have at least one populated field; enforced in `PublishDeckUseCase`.
+- A side must have at least one populated field; enforced in `DeckRepository.publishDeck()`.
 - Media refs are relative to the deck path and resolved against `/pub/echo/decks/{deckId}/`.
 
 **Sync algorithm (client side):**
@@ -412,8 +405,7 @@ Koin, single graph shared across platforms.
 
 ```
 shared/commonMain:
-  domainModule        ← use-cases
-  dataModule          ← repositories
+  dataModule          ← repositories (own business logic)
   presentationModule  ← ViewModels
   platformModule      ← expect fun platformModule(): Module
 
@@ -428,7 +420,7 @@ Android bootstraps Koin in `MainActivity.onCreate`. iOS bootstraps in the `@main
 
 ### 9.2 Async
 
-Kotlin Coroutines + Flow everywhere. All public repository and use-case methods are `suspend` or return `Flow`. Swift consumes these via **SKIE** (working assumption — see §12); `@Published` wrappers are generated per VM.
+Kotlin Coroutines + Flow everywhere. All public repository methods are `suspend` or return `Flow`. Swift consumes these via **SKIE** (working assumption — see §12); `@Published` wrappers are generated per VM.
 
 ### 9.3 Error handling
 
@@ -442,7 +434,7 @@ sealed class AppError {
 }
 ```
 
-Use-cases return `Result<T, AppError>` (Arrow `Either` or handwritten — decide at first use). ViewModels map errors to user-facing banners/toasts/snackbars per brief §7.
+Repository methods return `Result<T, AppError>` (Arrow `Either` or handwritten — decide at first use). ViewModels map errors to user-facing banners/toasts/snackbars per brief §7.
 
 ### 9.4 Accessibility
 
@@ -457,7 +449,7 @@ Reserve a `Logger` interface in `commonMain` with no-op default. Platform actual
 ## 10. Testing strategy
 
 - **`commonTest`** — the important tier.
-  - `ParsePasteUseCase`: one test per rule in spec §6, plus every edge case in spec §9.
+  - `ImportRepository.parsePaste()`: one test per rule in spec §6, plus every edge case in spec §9.
   - Repositories against a `FakePubkyClient` and an in-memory SQLDelight driver.
   - ViewModels with [Turbine](https://github.com/cashapp/turbine) asserting state sequences for every spec §10 state.
 - **Android UI** — Compose UI tests (`composeApp/androidUnitTest` or `androidInstrumentedTest`) for Paste → Triage → Commit and Study session.
@@ -486,7 +478,7 @@ Pulled forward from spec §13 plus architecture-specific items.
 4. **Private decks.** If spec §13 Q1 flips in favor of private decks, `DeckRepository` gains a local-only write path and `pubky_uri` stays `NULL` until the user opts in.
 5. **Secret key & session storage** (§7.5). Keychain on iOS, Keystore-backed EncryptedSharedPreferences or multiplatform-settings on Android. Needs a decision before the first real sign-in flow.
 6. **SRS sync.** v1 keeps SRS local. If we ever want cross-device study, `SrsRepository` gains a Pubky-backed write path.
-7. **AI / OCR / URL import** (spec §14) — all reuse `TriageVM` + `CommitDeckVM`. No architectural change needed, only new use-cases and entry screens.
+7. **AI / OCR / URL import** (spec §14) — all reuse `TriageVM` + `CommitDeckVM`. No architectural change needed, only new `ImportRepository` entry points and screens.
 8. **Binding regeneration automation.** Today the fork's `build_android.sh` / `build_ios.sh` are run manually and artifacts are copied in (§7.4). A Gradle task can automate this once the fork API stabilises.
 
 ---
