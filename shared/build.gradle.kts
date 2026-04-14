@@ -24,10 +24,16 @@ kotlin {
     
     sourceSets {
         commonMain.dependencies {
-            // put your Multiplatform dependencies here
+            implementation(libs.kotlinx.coroutines.core)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+        }
+        androidMain.dependencies {
+            implementation(libs.kotlinx.coroutines.android)
+            // JNA is required by the UniFFI-generated Kotlin bindings (uniffi.pubkycore).
+            // `@aar` pulls the Android-flavored artifact with the native .so bundled.
+            implementation("${libs.jna.get().module}:${libs.versions.jna.get()}@aar")
         }
     }
 }

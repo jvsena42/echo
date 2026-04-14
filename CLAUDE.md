@@ -26,7 +26,7 @@ There is no lint command configured yet. There are no unit tests beyond the defa
   - `domain/model/` — pure Kotlin data classes (`Deck`, `Card`, `ImportDraft`, `SrsState`, `AppError`, etc.). No framework imports.
   - `domain/usecase/` — single-verb use-case interfaces (`ParsePasteUseCase`, `PublishDeckUseCase`, `ReviewCardUseCase`, …).
   - `data/repository/` — repository **interfaces only**. Implementations will be added here later, backed by SQLDelight + `PubkyClient`.
-  - `data/pubky/PubkyClient.kt` — the single interface that wraps `pubky-core-ffi-fork`. All Pubky calls must route through this. Binding mechanism (UniFFI vs handwritten expect/actual) is an open question — do not pick one without user confirmation.
+  - `data/pubky/PubkyClient.kt` — the single interface that wraps `pubky-core-ffi-fork`. All Pubky calls must route through this. It is a **thin** 1:1 mirror of the FFI surface (keys, mnemonics, recovery, auth, records, DHT). Do not add deck/card concepts here — those belong in repositories.
   - `presentation/` — KMP ViewModels (one per screen, `StateFlow<UiState>` + `SharedFlow<UiEffect>`). Currently empty; blocked on adding Coroutines + Koin dependencies.
 - `shared/src/{android,ios}Main/` — `expect`/`actual` platform glue only (Pubky FFI, TTS, haptics, file I/O). Nothing else lives here.
 - `composeApp/src/androidMain/` — Android app. Compose screens in `ui/`, Koin in `di/`, `MainActivity` as entry point. Uses Jetpack Navigation Compose.
@@ -39,7 +39,8 @@ There is no lint command configured yet. There are no unit tests beyond the defa
 - **Pubky is the source of truth for published decks.** SQLDelight is a cache + offline buffer, not a parallel database. There are no private/local-only decks in v1 (spec §11).
 - **Paste-to-Import is the v1 primary import flow.** Every other import source (AI, OCR, URL) listed in spec §14 must reuse the same `TriageVM` → `CommitDeckVM` spine. Don't build parallel commit flows.
 - **Parser rules are prescriptive.** `ParsePasteUseCase` must follow the exact rule order in spec §6 and the edge-case table in spec §9. Use them as the test matrix.
-- **Session secret storage** depends on the Pubky FFI binding decision — don't wire multiplatform-settings for secrets until §7 of Architecture.md is resolved.
+- **Pubky bindings are UniFFI-generated and checked in.** Android: `shared/src/androidMain/kotlin/uniffi/pubkycore/pubkycore.kt` + `shared/src/androidMain/jniLibs/`. iOS: `iosApp/iosApp/Frameworks/PubkyCore.xcframework` + `iosApp/iosApp/Pubky/pubkycore.swift`. Regeneration steps live in `docs/Architecture.md §7.4`; do not edit the generated files.
+- **Secret key / session storage is still unresolved** (Architecture.md §7.5). Don't wire multiplatform-settings or any ad-hoc storage for secrets until that decision is made.
 - The project is in early scaffolding. The `Greeting`/`Platform`/`App`/`MainActivity` stubs from the KMP template are still present and used by the running app — leave them in place until the first real screen replaces them.
 
 ### Package

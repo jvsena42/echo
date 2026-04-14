@@ -203,37 +203,52 @@ Every state listed in spec §10 maps to a single `PasteImportUiState` / `TriageU
 
 ---
 
-## 7. Pubky integration (OPEN QUESTION)
+## 7. Pubky integration
 
-All Pubky calls go through a single `PubkyClient` interface in `commonMain`:
+**Decision:** Echo consumes the UniFFI-generated bindings shipped by `pubky-core-ffi-fork` directly. No handwritten FFI, no cinterop. The fork's `build_android.sh` and `build_ios.sh` produce the artifacts we check in; we don't call them from Gradle (yet).
 
-```kotlin
-interface PubkyClient {
-    suspend fun startSignIn(capabilities: List<Capability>): DeeplinkRequest
-    suspend fun completeSignIn(callback: SignInCallback): Session
-    suspend fun publishDeck(deck: Deck): PubkyUri
-    suspend fun fetchDeck(uri: PubkyUri): Deck
-    suspend fun putTag(target: PubkyUri, tag: Tag)
-    suspend fun follow(target: PubkyIdentity)
-    // …
-}
+### 7.1 Shared interface
+
+`com.github.jvsena42.eco.data.pubky.PubkyClient` in `shared/commonMain` is a **thin** Kotlin interface that mirrors the FFI surface one-for-one. It hides the `List<String>` `[status, payload]` convention behind `Result<String>` but does **not** introduce deck/card concepts — higher-level domain operations live in the repositories layer. The interface groups calls into: keys & mnemonics, recovery files, auth/sessions (including the Pubky Ring-style `startAuthFlow` / `awaitAuthApproval` / `parseAuthUrl` flow), records (secret-key and session variants), DHT resolution, and network switching.
+
+### 7.2 Android wiring
+
+- UniFFI-generated `pubkycore.kt` is checked in at `shared/src/androidMain/kotlin/uniffi/pubkycore/pubkycore.kt` (package `uniffi.pubkycore`).
+- Native libraries live at `shared/src/androidMain/jniLibs/{arm64-v8a,armeabi-v7a,x86,x86_64}/libpubkycore.so`. AGP picks them up automatically and merges them into the APK.
+- JNA is required by the generated bindings and declared as an `@aar` dependency on `androidMain` (see `libs.versions.toml` → `jna`).
+- `AndroidPubkyClient` (`shared/src/androidMain/kotlin/com/github/jvsena42/eco/data/pubky/AndroidPubkyClient.kt`) is the `PubkyClient` implementation. Blocking FFI calls are dispatched to `Dispatchers.IO`.
+
+### 7.3 iOS wiring
+
+- `PubkyCore.xcframework` lives at `iosApp/iosApp/Frameworks/PubkyCore.xcframework`.
+- UniFFI-generated `pubkycore.swift` lives at `iosApp/iosApp/Pubky/pubkycore.swift`.
+- `iosApp/iosApp/Pubky/IosPubkyClient.swift` is the Swift implementation that will conform to the Kotlin `PubkyClient` protocol (KMP exposes Kotlin interfaces as Swift protocols).
+- **Xcode wiring the user must do once:** add `PubkyCore.xcframework` to the iosApp target ("Frameworks, Libraries, and Embedded Content" → "Embed & Sign"), add `pubkycore.swift` and `IosPubkyClient.swift` to the target, then enable the commented `import Shared` + protocol conformance in `IosPubkyClient.swift` once the shared framework has been built once.
+
+### 7.4 Regenerating bindings
+
+Run the fork's build scripts, then re-copy the outputs:
+
+```shell
+cd ../pubky-core-ffi-fork
+./build_android.sh
+./build_ios.sh
+# then, from echo/
+cp  ../pubky-core-ffi-fork/bindings/android/pubkycore.kt \
+    shared/src/androidMain/kotlin/uniffi/pubkycore/pubkycore.kt
+cp -R ../pubky-core-ffi-fork/bindings/android/jniLibs/. \
+      shared/src/androidMain/jniLibs/
+cp -R ../pubky-core-ffi-fork/bindings/ios/PubkyCore.xcframework \
+      iosApp/iosApp/Frameworks/
+cp  ../pubky-core-ffi-fork/bindings/ios/pubkycore.swift \
+    iosApp/iosApp/Pubky/pubkycore.swift
 ```
 
-Repositories depend on this interface. The implementation is provided via `expect`/`actual` and wraps `pubky-core-ffi-fork`.
+A future Gradle task can automate this; not worth building until the fork stabilises.
 
-**Binding mechanism — undecided:**
+### 7.5 Session & key storage
 
-- **Option A — UniFFI.** The Rust fork emits UniFFI bindings; Android links `.so` + generated Kotlin, iOS links an XCFramework + generated Swift. `commonMain` defines `expect class PubkyClient`; `androidMain` and `iosMain` actuals delegate to the generated bindings. Upside: one source of truth in Rust, less handwritten glue. Downside: depends on UniFFI support in the fork.
-- **Option B — Handwritten expect/actual.** `commonMain` defines the interface; each platform writes its own actual against whatever the fork exposes natively. Upside: no UniFFI dependency. Downside: two implementations to keep in sync.
-
-**Decision criteria** (to resolve before wiring DI):
-1. What does `pubky-core-ffi-fork` already ship? (UniFFI? JNI? Swift wrappers?)
-2. iOS linking model — static XCFramework vs dynamic?
-3. Rust client thread-safety — is a single instance safe across coroutines?
-4. Where do session secrets live on each platform? (Keychain / EncryptedSharedPreferences)
-5. Deeplink re-entry model — how does the Rust client receive the `echo://login-callback` payload?
-
-**Action:** confirm with the owner of `pubky-core-ffi-fork` before adding Pubky deps to `shared`. Until then, repositories run against a `FakePubkyClient` in tests and development.
+Still open: secret keys and session secrets need secure storage. Android → EncryptedSharedPreferences or Keystore-backed multiplatform-settings; iOS → Keychain via a Swift-side helper injected into shared. Decide before the first real sign-in flow.
 
 ---
 
@@ -387,13 +402,13 @@ Reserve a `Logger` interface in `commonMain` with no-op default. Platform actual
 Pulled forward from spec §13 plus architecture-specific items.
 
 1. **UI strategy final call.** Working assumption: fully native UI per platform. Compose Multiplatform UI is not used. Confirm with design + eng leads before the first screen ships.
-2. **Pubky FFI binding mechanism.** UniFFI vs handwritten expect/actual (§7). Decision criteria listed; needs confirmation with the fork owner.
-3. **Swift ↔ Flow bridge.** SKIE vs KMP-NativeCoroutines. SKIE is the working assumption; revisit if it blocks iOS builds.
-4. **Multi-module split timing.** Single `shared` module for v1; split into `:core / :data / :domain / :feature-*` if build times or ownership boundaries require it.
-5. **Private decks.** If spec §13 Q1 flips in favor of private decks, `DeckRepository` gains a local-only write path and `pubky_uri` stays `NULL` until the user opts in.
-6. **Session secret storage.** Keychain / Keystore via FFI vs multiplatform-settings. Depends on §7.
-7. **SRS sync.** v1 keeps SRS local. If we ever want cross-device study, `SrsRepository` gains a Pubky-backed write path.
-8. **AI / OCR / URL import** (spec §14) — all reuse `TriageVM` + `CommitDeckVM`. No architectural change needed, only new use-cases and entry screens.
+2. **Swift ↔ Flow bridge.** SKIE vs KMP-NativeCoroutines. SKIE is the working assumption; revisit if it blocks iOS builds.
+3. **Multi-module split timing.** Single `shared` module for v1; split into `:core / :data / :domain / :feature-*` if build times or ownership boundaries require it.
+4. **Private decks.** If spec §13 Q1 flips in favor of private decks, `DeckRepository` gains a local-only write path and `pubky_uri` stays `NULL` until the user opts in.
+5. **Secret key & session storage** (§7.5). Keychain on iOS, Keystore-backed EncryptedSharedPreferences or multiplatform-settings on Android. Needs a decision before the first real sign-in flow.
+6. **SRS sync.** v1 keeps SRS local. If we ever want cross-device study, `SrsRepository` gains a Pubky-backed write path.
+7. **AI / OCR / URL import** (spec §14) — all reuse `TriageVM` + `CommitDeckVM`. No architectural change needed, only new use-cases and entry screens.
+8. **Binding regeneration automation.** Today the fork's `build_android.sh` / `build_ios.sh` are run manually and artifacts are copied in (§7.4). A Gradle task can automate this once the fork API stabilises.
 
 ---
 
