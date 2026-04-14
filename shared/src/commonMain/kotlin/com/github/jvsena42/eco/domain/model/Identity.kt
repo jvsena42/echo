@@ -1,5 +1,7 @@
 package com.github.jvsena42.eco.domain.model
 
+import kotlin.jvm.JvmInline
+
 data class PubkyIdentity(
     val pubky: String,
     val displayName: String?,

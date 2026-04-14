@@ -25,7 +25,8 @@ There is no lint command configured yet. There are no unit tests beyond the defa
 - `shared/src/commonMain/kotlin/com/github/jvsena42/eco/` holds all cross-platform code:
   - `domain/model/` — pure Kotlin data classes (`Deck`, `Card`, `ImportDraft`, `SrsState`, `AppError`, etc.). No framework imports.
   - `domain/usecase/` — single-verb use-case interfaces (`ParsePasteUseCase`, `PublishDeckUseCase`, `ReviewCardUseCase`, …).
-  - `data/repository/` — repository **interfaces only**. Implementations will be added here later, backed by SQLDelight + `PubkyClient`.
+  - `data/repository/` — repository interfaces at the top level, implementations under `data/repository/impl/`. Current impls (`DeckRepositoryImpl`, `CardRepositoryImpl`, `MediaRepositoryImpl`) are Pubky-only: they write/read through `PubkyClient` and hold an in-memory per-session cache. No SQLDelight yet — the app is not offline-first, Pubky is the single source of truth.
+  - `data/pubky/` — `PubkyClient` interface + DTOs (`ManifestDto`, `CardDto`, `MediaRefDto`) and path helpers (`PubkyPaths`) that map between domain models and the on-homeserver JSON layout defined in `docs/Architecture.md §8.0`. `SessionProvider` is the tiny read-only abstraction repos use to author writes without depending on `IdentityRepository`.
   - `data/pubky/PubkyClient.kt` — the single interface that wraps `pubky-core-ffi-fork`. All Pubky calls must route through this. It is a **thin** 1:1 mirror of the FFI surface (keys, mnemonics, recovery, auth, records, DHT). Do not add deck/card concepts here — those belong in repositories.
   - `presentation/` — KMP ViewModels (one per screen, `StateFlow<UiState>` + `SharedFlow<UiEffect>`). Currently empty; blocked on adding Coroutines + Koin dependencies.
 - `shared/src/{android,ios}Main/` — `expect`/`actual` platform glue only (Pubky FFI, TTS, haptics, file I/O). Nothing else lives here.
@@ -36,7 +37,8 @@ There is no lint command configured yet. There are no unit tests beyond the defa
 
 - **Do not add Compose Multiplatform UI code for iOS screens.** The working assumption (see `docs/Architecture.md §12` open question #1) is native SwiftUI on iOS. `composeApp` is Android-only despite the name.
 - **ViewModels live in `shared/commonMain`, not in platform modules.** Both Compose and SwiftUI screens consume the same VMs. No `@Composable` or `ObservableObject` in shared code.
-- **Pubky is the source of truth for published decks.** SQLDelight is a cache + offline buffer, not a parallel database. There are no private/local-only decks in v1 (spec §11).
+- **Pubky is the source of truth for published decks.** The app is not offline-first in v1 — repos talk directly to `PubkyClient` and keep only an in-memory cache for the session. A persistent SQLDelight cache may come later. There are no private/local-only decks in v1 (spec §11).
+- **Homeserver layout is fixed.** Decks published under `/pub/echo/decks/{deckId}/{manifest.json, cards/{cardId}.json, media/{sha256}.{ext}}`. Manifest + one record per card + blob-per-media, sync driven by `updated_at`. Full schemas in `docs/Architecture.md §8.0`. Binary media is Base64-encoded on the wire because the FFI `put` takes a `String`.
 - **Paste-to-Import is the v1 primary import flow.** Every other import source (AI, OCR, URL) listed in spec §14 must reuse the same `TriageVM` → `CommitDeckVM` spine. Don't build parallel commit flows.
 - **Parser rules are prescriptive.** `ParsePasteUseCase` must follow the exact rule order in spec §6 and the edge-case table in spec §9. Use them as the test matrix.
 - **Pubky bindings are UniFFI-generated and checked in.** Android: `shared/src/androidMain/kotlin/uniffi/pubkycore/pubkycore.kt` + `shared/src/androidMain/jniLibs/`. iOS: `iosApp/iosApp/Frameworks/PubkyCore.xcframework` + `iosApp/iosApp/Pubky/pubkycore.swift`. Regeneration steps live in `docs/Architecture.md §7.4`; do not edit the generated files.
