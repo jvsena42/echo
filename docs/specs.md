@@ -188,6 +188,24 @@ Every state from §6 of the brief is enumerated here. The designer must produce 
 - Tags from the tags column are written via Pubky's native tag primitive ([§9.3 of brief](../design/DESIGN_GUIDELINE.md)), not a custom Echo system.
 - The author field on the published deck resolves to the user's pubky identity per [§9.2 of brief](../design/DESIGN_GUIDELINE.md).
 
+### 11.1 Published deck shape
+
+Each published deck is stored as multiple records under the author's pubky so that edits and sync stay cheap:
+
+```
+/pub/echo/decks/{deckId}/manifest.json
+/pub/echo/decks/{deckId}/cards/{cardId}.json
+/pub/echo/decks/{deckId}/media/{sha256}.{ext}
+```
+
+- **Manifest** carries deck metadata (title, description, cover, tags) plus an ordered list of card IDs with `updated_at` timestamps. Reordering rewrites only the manifest.
+- **One record per card.** Editing a single card rewrites that card's record and bumps its entry in the manifest — no need to rewrite the whole deck.
+- **Media under the deck path.** Images and audio are stored as blobs keyed by sha256; cards reference them by relative path. Dedupe within a deck is free.
+- **Sync is driven by `updated_at`.** Clients diff the manifest against their cache and only fetch cards whose timestamp advanced. Deletions are implicit: a card ID missing from the manifest is gone.
+- **Last-write-wins** for v1; no multi-device conflict resolution and no tombstones.
+
+See [Architecture.md §8](./Architecture.md#8-data-model--persistence) for the full JSON schemas and Kotlin domain types.
+
 ---
 
 ## 12. Accessibility

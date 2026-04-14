@@ -254,6 +254,85 @@ Still open: secret keys and session secrets need secure storage. Android → Enc
 
 ## 8. Data model & persistence
 
+### 8.0 Homeserver layout (canonical)
+
+Published decks live under the author's pubky, one record per card plus a manifest plus media blobs. SQLDelight is a read cache of this layout — the homeserver is the source of truth (see §8.3).
+
+**Path layout:**
+
+```
+/pub/echo/decks/{deckId}/manifest.json
+/pub/echo/decks/{deckId}/cards/{cardId}.json
+/pub/echo/decks/{deckId}/media/{sha256}.{ext}
+```
+
+- `{deckId}` and `{cardId}` are UUIDv4, generated client-side.
+- `{sha256}` is the hex digest of the blob; acts as a content address and enables per-deck dedupe.
+- `.ext` is informational; MIME is carried in the card's media ref.
+
+**`manifest.json`:**
+
+```json
+{
+  "schema_version": 1,
+  "deck_id": "uuid",
+  "author_pubky": "pk:...",
+  "title": "Spanish A1",
+  "description": "Greetings and basics",
+  "cover_image_ref": { "path": "media/abc123.jpg", "mime": "image/jpeg", "sha256": "abc123" },
+  "tags": ["spanish", "a1"],
+  "created_at": 1739000000000,
+  "updated_at": 1739000500000,
+  "cards": [
+    { "id": "uuid-1", "updated_at": 1739000100000 },
+    { "id": "uuid-2", "updated_at": 1739000200000 }
+  ]
+}
+```
+
+- `cards[]` order **is** the study order.
+- Manifest `updated_at` bumps on any deck-metadata change or any card add/remove/reorder. A per-card edit bumps the card record and its entry in the manifest.
+
+**`cards/{cardId}.json`:**
+
+```json
+{
+  "schema_version": 1,
+  "id": "uuid-1",
+  "deck_id": "uuid",
+  "updated_at": 1739000100000,
+  "front": {
+    "text": "hola",
+    "image_ref": null,
+    "audio_ref": { "path": "media/deadbeef.m4a", "mime": "audio/mp4", "sha256": "deadbeef", "duration_ms": 820 }
+  },
+  "back": {
+    "text": "hello",
+    "image_ref": { "path": "media/cafef00d.jpg", "mime": "image/jpeg", "sha256": "cafef00d", "width": 512, "height": 512 },
+    "audio_ref": null
+  }
+}
+```
+
+- A side must have at least one populated field; enforced in `PublishDeckUseCase`.
+- Media refs are relative to the deck path and resolved against `/pub/echo/decks/{deckId}/`.
+
+**Sync algorithm (client side):**
+
+On deck open:
+1. `GET manifest.json`.
+2. Diff `cards[]` against the local cache by `(id, updated_at)`.
+3. For each entry whose remote `updated_at` is newer: `GET cards/{id}.json`.
+4. For each local ID missing from the remote manifest: delete locally.
+5. For each referenced media `sha256` not in the local blob cache: `GET media/{sha256}.{ext}`.
+
+On local edit:
+1. Write/overwrite the card record with a new `updated_at`.
+2. Update the manifest entry's `updated_at` (and reorder/add/remove if needed).
+3. PUT manifest.
+
+No cross-record transactions. A momentarily stale manifest vs a newer card record is tolerated — the next sync reconciles. Last-write-wins; no tombstones, no conflict resolution in v1.
+
 ### 8.1 SQLDelight schema (sketch)
 
 ```
