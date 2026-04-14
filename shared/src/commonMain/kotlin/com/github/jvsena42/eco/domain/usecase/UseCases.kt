@@ -1,6 +1,5 @@
 package com.github.jvsena42.eco.domain.usecase
 
-import com.github.jvsena42.eco.domain.model.AppError
 import com.github.jvsena42.eco.domain.model.Card
 import com.github.jvsena42.eco.domain.model.ColumnMapping
 import com.github.jvsena42.eco.domain.model.Deck

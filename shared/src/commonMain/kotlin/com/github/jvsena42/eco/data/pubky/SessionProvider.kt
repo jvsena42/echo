@@ -12,4 +12,4 @@ interface SessionProvider {
 }
 
 internal fun SessionProvider.requireSession(): Session =
-    current() ?: throw IllegalStateException("Not signed in")
+    current() ?: error("Not signed in")

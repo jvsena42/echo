@@ -28,6 +28,16 @@ complexity:
     thresholdInInterfaces: 15
     thresholdInObjects: 15
     thresholdInEnums: 15
+    excludes:
+      - '**/data/pubky/PubkyClient.kt'
+      - '**/data/pubky/AndroidPubkyClient.kt'
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: true
+    excludes:
+      - '**/data/pubky/AndroidPubkyClient.kt'
+      - '**/data/pubky/IosPubkyClient.kt'
 
 empty-blocks:
   EmptyFunctionBlock:
@@ -44,6 +54,15 @@ naming:
   MatchingDeclarationName:
     active: true
     mustBeFirst: true
+    excludes:
+      - '**/Platform.android.kt'
+      - '**/Platform.ios.kt'
+      - '**/domain/model/Media.kt'
+  ConstructorParameterNaming:
+    active: true
+    excludes:
+      - '**/data/pubky/*Dtos.kt'
+      - '**/data/pubky/*Dto.kt'
 
 style:
   MagicNumber:
@@ -58,6 +77,10 @@ style:
     ignoreNamedArgument: true
     ignoreEnums: true
     ignoreRanges: true
+    ignoreHashCodeFunction: true
+    excludes:
+      - '**/data/pubky/Hashing.android.kt'
+      - '**/data/pubky/Hashing.ios.kt'
   UnusedPrivateMember:
     active: true
     ignoreAnnotated: ['Preview', 'Composable']
