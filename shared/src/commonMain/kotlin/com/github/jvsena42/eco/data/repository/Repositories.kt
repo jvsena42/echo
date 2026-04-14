@@ -3,7 +3,7 @@ package com.github.jvsena42.eco.data.repository
 import com.github.jvsena42.eco.domain.model.Card
 import com.github.jvsena42.eco.domain.model.Deck
 import com.github.jvsena42.eco.domain.model.ImportDraft
-import com.github.jvsena42.eco.domain.model.PubkyIdentity
+import com.github.jvsena42.eco.domain.model.MediaRef
 import com.github.jvsena42.eco.domain.model.PubkyUri
 import com.github.jvsena42.eco.domain.model.Session
 import com.github.jvsena42.eco.domain.model.SrsState
@@ -15,18 +15,33 @@ interface IdentityRepository {
     suspend fun signOut(): Result<Unit>
 }
 
+/**
+ * Deck persistence against the Pubky homeserver (canonical) and the local cache.
+ *
+ * Layout on the homeserver (see `docs/Architecture.md §8.0`):
+ * ```
+ * /pub/echo/decks/{deckId}/manifest.json
+ * /pub/echo/decks/{deckId}/cards/{cardId}.json
+ * /pub/echo/decks/{deckId}/media/{sha256}.{ext}
+ * ```
+ */
 interface DeckRepository {
     suspend fun getLocal(id: String): Deck?
-    suspend fun fetchRemote(uri: PubkyUri): Result<Deck>
+    suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck>
     suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck>
-    suspend fun delete(id: String): Result<Unit>
+    suspend fun updateMetadata(deck: Deck): Result<Deck>
+    suspend fun delete(deckId: String): Result<Unit>
     suspend fun listOwned(): List<Deck>
+
+    /** Pull-only sync driven by the manifest `updated_at` diff. */
+    suspend fun sync(deckId: String): Result<Deck>
 }
 
 interface CardRepository {
     suspend fun listByDeck(deckId: String): List<Card>
+    suspend fun get(deckId: String, cardId: String): Card?
     suspend fun upsert(card: Card): Result<Unit>
-    suspend fun delete(cardId: String): Result<Unit>
+    suspend fun delete(deckId: String, cardId: String): Result<Unit>
 }
 
 interface ImportRepository {
@@ -52,8 +67,14 @@ interface SrsRepository {
     suspend fun upsert(state: SrsState): Result<Unit>
 }
 
+/**
+ * Blob storage for image and audio media referenced by cards. Blobs live under the owning
+ * deck's Pubky path (`/pub/echo/decks/{deckId}/media/{sha256}.{ext}`) so they sync with the
+ * deck and dedupe by content hash.
+ */
 interface MediaRepository {
-    suspend fun storeImage(bytes: ByteArray, ext: String): Result<String>
-    suspend fun storeAudio(bytes: ByteArray, ext: String): Result<String>
-    suspend fun delete(path: String): Result<Unit>
+    suspend fun putImage(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Image>
+    suspend fun putAudio(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Audio>
+    suspend fun get(deckId: String, ref: MediaRef): Result<ByteArray>
+    suspend fun delete(deckId: String, ref: MediaRef): Result<Unit>
 }
