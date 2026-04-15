@@ -18,6 +18,9 @@ jna = "5.14.0"
 material3 = "1.10.0-alpha05"
 detekt = "1.23.8"
 detektComposeRules = "0.4.22"
+koin = "4.0.2"
+navigationCompose = "2.9.0-beta03"
+kvault = "1.12.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -43,6 +46,12 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 detekt-formatting = { module = "io.gitlab.arturbosch.detekt:detekt-formatting", version.ref = "detekt" }
 detekt-compose-rules = { module = "io.nlopez.compose.rules:detekt", version.ref = "detektComposeRules" }
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
+koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
+koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
+androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
+kvault = { module = "com.liftric:kvault", version.ref = "kvault" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

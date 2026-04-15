@@ -27,12 +27,15 @@ kotlin {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
+            api(libs.koin.core)
+            implementation(libs.kvault)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
+            implementation(libs.koin.android)
             // JNA is required by the UniFFI-generated Kotlin bindings (uniffi.pubkycore).
             // `@aar` pulls the Android-flavored artifact with the native .so bundled.
             implementation("${libs.jna.get().module}:${libs.versions.jna.get()}@aar")

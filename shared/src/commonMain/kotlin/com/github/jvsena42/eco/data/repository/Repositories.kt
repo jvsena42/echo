@@ -11,8 +11,28 @@ import com.github.jvsena42.eco.domain.model.Tag
 
 interface IdentityRepository {
     suspend fun currentSession(): Session?
+    suspend fun loadPersistedSession(): Session?
     suspend fun signIn(): Result<Session>
     suspend fun signOut(): Result<Unit>
+
+    /**
+     * Two-step Pubky Ring sign-in that hands control of "open the deeplink" back to the caller
+     * so the ViewModel — not the repo — owns the UI effect.
+     *
+     * 1. [beginSignIn] calls `startAuthFlow` and returns the auth URL to hand to the OS.
+     * 2. The caller opens the URL and then awaits [AuthFlowHandle.complete], which blocks on
+     *    `awaitAuthApproval`, parses the callback URL, persists the session, and returns it.
+     */
+    suspend fun beginSignIn(capabilities: String = DEFAULT_CAPABILITIES): Result<AuthFlowHandle>
+
+    companion object {
+        const val DEFAULT_CAPABILITIES = "/pub/echo/:rw"
+    }
+}
+
+interface AuthFlowHandle {
+    val authUrl: String
+    suspend fun complete(): Result<Session>
 }
 
 /**

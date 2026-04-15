@@ -146,12 +146,18 @@ class AndroidPubkyClient : PubkyClient {
         }
     }
 
+    /**
+     * FFI convention from `pubky-core-ffi-fork::utils::create_response_vector`:
+     *   `[error.to_string(), data]` → `["false", "<payload>"]` on success,
+     *   `["true", "<message>"]` on error.
+     *
+     * We treat everything that is not the literal `"false"` as an error to stay defensive.
+     */
     private fun List<String>.toResult(): Result<String> {
         if (size < 2) return Result.failure(PubkyError("Unexpected FFI response: $this"))
-        return if (this[0] == "success") {
-            Result.success(this[1])
-        } else {
-            Result.failure(PubkyError(this[1]))
+        return when (this[0]) {
+            "false" -> Result.success(this[1])
+            else -> Result.failure(PubkyError(this[1]))
         }
     }
 }
