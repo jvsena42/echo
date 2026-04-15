@@ -10,6 +10,7 @@ import com.github.jvsena42.eco.data.repository.impl.CardRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.DeckRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.IdentityRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.MediaRepositoryImpl
+import com.github.jvsena42.eco.presentation.home.HomeViewModel
 import com.github.jvsena42.eco.presentation.onboarding.OnboardingViewModel
 import org.koin.dsl.module
 
@@ -35,4 +36,5 @@ val sharedModule = module {
     single<MediaRepository> { MediaRepositoryImpl(get(), get()) }
 
     factory { OnboardingViewModel(identityRepository = get()) }
+    factory { HomeViewModel(identityRepository = get(), deckRepository = get()) }
 }
