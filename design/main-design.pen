@@ -9017,6 +9017,204 @@
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "nwHYV",
+      "x": 2900,
+      "y": 80,
+      "name": "02 Home / Empty State",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$surface-primary",
+      "cornerRadius": "$radius-xl",
+      "layout": "vertical",
+      "children": [
+        {
+          "id": "IFdcq",
+          "type": "ref",
+          "ref": "Iee5N",
+          "name": "sb2"
+        },
+        {
+          "type": "frame",
+          "id": "eIR6F",
+          "name": "wrap2",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 24,
+          "padding": [
+            8,
+            20,
+            20,
+            20
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "8ObiT",
+              "name": "hd2",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Y5adq",
+                  "name": "hd2L",
+                  "fill": "#00000000",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "pWqnp",
+                      "name": "hello",
+                      "fill": "$foreground-muted",
+                      "content": "Good morning,",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "gbgIJ",
+                      "name": "helloN",
+                      "fill": "$foreground-primary",
+                      "content": "Maria 👋",
+                      "fontFamily": "Funnel Sans",
+                      "fontSize": 24,
+                      "fontWeight": "800"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "6wNJm",
+              "name": "emptyCard",
+              "width": "fill_container",
+              "fill": "$surface-card",
+              "cornerRadius": "$radius-xl",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#1A132614",
+                "offset": {
+                  "x": 0,
+                  "y": 10
+                },
+                "blur": 24
+              },
+              "layout": "vertical",
+              "gap": 20,
+              "padding": [
+                36,
+                28
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "7maWS",
+                  "name": "iconWrap",
+                  "width": 140,
+                  "height": 140,
+                  "fill": "$accent-primary-soft",
+                  "cornerRadius": "$radius-xl",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "pqHop",
+                      "width": 72,
+                      "height": 72,
+                      "iconFontName": "layers",
+                      "iconFontFamily": "lucide",
+                      "fill": "$accent-primary"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "dGTtr",
+                  "name": "title",
+                  "fill": "$foreground-primary",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "No decks yet",
+                  "textAlign": "center",
+                  "fontFamily": "Funnel Sans",
+                  "fontSize": 24,
+                  "fontWeight": "800"
+                },
+                {
+                  "type": "text",
+                  "id": "PIB3B",
+                  "name": "sub",
+                  "fill": "$foreground-muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Paste a list, import from a file, or start from scratch — your first deck is one tap away.",
+                  "lineHeight": 1.4,
+                  "textAlign": "center",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "5loUQ",
+              "name": "btnGroup",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "layout": "vertical",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "bmQqo",
+                  "type": "ref",
+                  "ref": "1sozq",
+                  "width": "fill_container",
+                  "name": "primary",
+                  "descendants": {
+                    "h1MHC": {
+                      "content": "Create your first deck"
+                    }
+                  }
+                },
+                {
+                  "id": "2aEsV",
+                  "type": "ref",
+                  "ref": "7KZM9",
+                  "width": "fill_container",
+                  "name": "secondary",
+                  "descendants": {
+                    "YjRk8": {
+                      "content": "Browse examples"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "R1y8t",
+          "type": "ref",
+          "ref": "r5QvT",
+          "name": "tb2"
+        }
+      ]
     }
   ],
   "variables": {
