@@ -3,6 +3,9 @@ package com.github.jvsena42.eco.data.repository.impl
 import com.github.jvsena42.eco.data.pubky.PubkyClient
 import com.github.jvsena42.eco.data.pubky.PubkyPaths
 import com.github.jvsena42.eco.data.pubky.SessionProvider
+import com.github.jvsena42.eco.data.pubky.SessionRevalidator
+import com.github.jvsena42.eco.data.pubky.deleteWithSessionRetry
+import com.github.jvsena42.eco.data.pubky.putWithSessionRetry
 import com.github.jvsena42.eco.data.pubky.requireSession
 import com.github.jvsena42.eco.data.pubky.sha256Hex
 import com.github.jvsena42.eco.data.repository.MediaRepository
@@ -23,6 +26,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 class MediaRepositoryImpl(
     private val pubky: PubkyClient,
     private val session: SessionProvider,
+    private val revalidator: SessionRevalidator,
 ) : MediaRepository {
 
     override suspend fun putImage(
@@ -63,10 +67,10 @@ class MediaRepositoryImpl(
     }
 
     override suspend fun delete(deckId: String, ref: MediaRef): Result<Unit> = runCatching {
-        val s = session.requireSession()
+        val author = session.requireSession().identity.pubky
         val ext = ref.path.substringAfterLast('.', missingDelimiterValue = "")
-        val url = PubkyPaths.media(s.identity.pubky, deckId, ref.sha256, ext)
-        pubky.deleteWithSession(url, s.sessionSecret).getOrThrow()
+        val url = PubkyPaths.media(author, deckId, ref.sha256, ext)
+        pubky.deleteWithSessionRetry(url, session, revalidator).getOrThrow()
         Unit
     }
 
@@ -75,12 +79,12 @@ class MediaRepositoryImpl(
         bytes: ByteArray,
         mime: String,
     ): Pair<String, String> {
-        val s = session.requireSession()
+        val author = session.requireSession().identity.pubky
         val sha = sha256Hex(bytes)
         val ext = mimeToExt(mime)
-        val url = PubkyPaths.media(s.identity.pubky, deckId, sha, ext)
+        val url = PubkyPaths.media(author, deckId, sha, ext)
         val body = Base64.encode(bytes)
-        pubky.putWithSession(url, body, s.sessionSecret).getOrThrow()
+        pubky.putWithSessionRetry(url, body, session, revalidator).getOrThrow()
         return sha to ext
     }
 

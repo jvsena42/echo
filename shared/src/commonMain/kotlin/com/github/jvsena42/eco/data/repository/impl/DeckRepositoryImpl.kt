@@ -5,6 +5,9 @@ import com.github.jvsena42.eco.data.pubky.ManifestDto
 import com.github.jvsena42.eco.data.pubky.PubkyClient
 import com.github.jvsena42.eco.data.pubky.PubkyPaths
 import com.github.jvsena42.eco.data.pubky.SessionProvider
+import com.github.jvsena42.eco.data.pubky.SessionRevalidator
+import com.github.jvsena42.eco.data.pubky.deleteWithSessionRetry
+import com.github.jvsena42.eco.data.pubky.putWithSessionRetry
 import com.github.jvsena42.eco.data.pubky.requireSession
 import com.github.jvsena42.eco.data.pubky.toDomain
 import com.github.jvsena42.eco.data.pubky.toDto
@@ -27,6 +30,7 @@ class DeckRepositoryImpl(
     private val pubky: PubkyClient,
     private val session: SessionProvider,
     private val cardRepo: CardRepository,
+    private val revalidator: SessionRevalidator,
 ) : DeckRepository {
 
     private val cache = mutableMapOf<String, Deck>()
@@ -44,9 +48,7 @@ class DeckRepositoryImpl(
     }
 
     override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> = runCatching {
-        val s = session.requireSession()
-        val author = s.identity.pubky
-        val secret = s.sessionSecret
+        val author = session.requireSession().identity.pubky
 
         require(deck.authorPubky == author) {
             "Deck author mismatch: expected $author, got ${deck.authorPubky}"
@@ -60,7 +62,7 @@ class DeckRepositoryImpl(
         for (card in cards) {
             val url = PubkyPaths.card(author, deck.id, card.id)
             val body = echoJson.encodeToString(card.toDto())
-            pubky.putWithSession(url, body, secret).getOrThrow()
+            pubky.putWithSessionRetry(url, body, session, revalidator).getOrThrow()
         }
 
         val manifestDeck = deck.copy(
@@ -68,38 +70,38 @@ class DeckRepositoryImpl(
         )
         val manifestUrl = PubkyPaths.manifest(author, deck.id)
         val manifestBody = echoJson.encodeToString(manifestDeck.toDto())
-        pubky.putWithSession(manifestUrl, manifestBody, secret).getOrThrow()
+        pubky.putWithSessionRetry(manifestUrl, manifestBody, session, revalidator).getOrThrow()
 
         cacheLock.withLock { cache[manifestDeck.id] = manifestDeck }
         manifestDeck
     }
 
     override suspend fun updateMetadata(deck: Deck): Result<Deck> = runCatching {
-        val s = session.requireSession()
-        require(deck.authorPubky == s.identity.pubky) {
+        require(deck.authorPubky == session.requireSession().identity.pubky) {
             "Deck author mismatch"
         }
         val url = PubkyPaths.manifest(deck.authorPubky, deck.id)
         val body = echoJson.encodeToString(deck.toDto())
-        pubky.putWithSession(url, body, s.sessionSecret).getOrThrow()
+        pubky.putWithSessionRetry(url, body, session, revalidator).getOrThrow()
         cacheLock.withLock { cache[deck.id] = deck }
         deck
     }
 
     override suspend fun delete(deckId: String): Result<Unit> = runCatching {
-        val s = session.requireSession()
-        val author = s.identity.pubky
+        val author = session.requireSession().identity.pubky
         val cached = getLocal(deckId)
         val cardIds = cached?.cardIndex?.map { it.id } ?: emptyList()
         for (cardId in cardIds) {
-            pubky.deleteWithSession(
+            pubky.deleteWithSessionRetry(
                 PubkyPaths.card(author, deckId, cardId),
-                s.sessionSecret,
+                session,
+                revalidator,
             ).getOrThrow()
         }
-        pubky.deleteWithSession(
+        pubky.deleteWithSessionRetry(
             PubkyPaths.manifest(author, deckId),
-            s.sessionSecret,
+            session,
+            revalidator,
         ).getOrThrow()
         cacheLock.withLock { cache.remove(deckId) }
         Unit

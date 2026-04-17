@@ -2,6 +2,7 @@ package com.github.jvsena42.eco.di
 
 import com.github.jvsena42.eco.data.pubky.MutableSessionProvider
 import com.github.jvsena42.eco.data.pubky.SessionProvider
+import com.github.jvsena42.eco.data.pubky.SessionRevalidator
 import com.github.jvsena42.eco.data.repository.CardRepository
 import com.github.jvsena42.eco.data.repository.DeckRepository
 import com.github.jvsena42.eco.data.repository.IdentityRepository
@@ -12,6 +13,7 @@ import com.github.jvsena42.eco.data.repository.impl.ImportRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.DeckRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.IdentityRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.MediaRepositoryImpl
+import com.github.jvsena42.eco.data.repository.impl.SessionRevalidatorImpl
 import com.github.jvsena42.eco.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.eco.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.eco.presentation.decks.DecksLibraryViewModel
@@ -40,9 +42,11 @@ val sharedModule = module {
         )
     }
 
-    single<CardRepository> { CardRepositoryImpl(get(), get()) }
-    single<DeckRepository> { DeckRepositoryImpl(get(), get(), get()) }
-    single<MediaRepository> { MediaRepositoryImpl(get(), get()) }
+    single<SessionRevalidator> { SessionRevalidatorImpl(get(), get(), get()) }
+
+    single<CardRepository> { CardRepositoryImpl(get(), get(), get()) }
+    single<DeckRepository> { DeckRepositoryImpl(get(), get(), get(), get()) }
+    single<MediaRepository> { MediaRepositoryImpl(get(), get(), get()) }
     single<ImportRepository> { ImportRepositoryImpl() }
 
     factory { OnboardingViewModel(identityRepository = get()) }

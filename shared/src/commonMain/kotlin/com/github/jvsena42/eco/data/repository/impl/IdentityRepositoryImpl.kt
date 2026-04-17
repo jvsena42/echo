@@ -2,18 +2,12 @@ package com.github.jvsena42.eco.data.repository.impl
 
 import com.github.jvsena42.eco.data.pubky.MutableSessionProvider
 import com.github.jvsena42.eco.data.pubky.PubkyClient
+import com.github.jvsena42.eco.data.pubky.parseSessionPayload
 import com.github.jvsena42.eco.data.repository.AuthFlowHandle
 import com.github.jvsena42.eco.data.repository.IdentityRepository
 import com.github.jvsena42.eco.data.storage.SecureSessionStore
-import com.github.jvsena42.eco.domain.model.Capability
-import com.github.jvsena42.eco.domain.model.PubkyIdentity
 import com.github.jvsena42.eco.domain.model.Session
 import com.github.jvsena42.eco.util.Log
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * [IdentityRepository] backed by [PubkyClient] and [SecureSessionStore].
@@ -70,7 +64,7 @@ class IdentityRepositoryImpl(
                 .getOrThrow()
             Log.d(TAG, "complete: got session payload=$sessionJson")
 
-            val session = parseSessionPayload(sessionJson)
+            val session = parseSessionPayload(sessionJson, echoJson)
             Log.d(TAG, "complete: parsed session pubky=${session.identity.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
             sessionStore.save(session)
             sessionProvider.set(session)
@@ -79,53 +73,6 @@ class IdentityRepositoryImpl(
         }.onFailure {
             Log.e(TAG, "complete: FAILED — ${it::class.simpleName}: ${it.message}", it)
         }
-    }
-
-    /**
-     * Session payload shape from `pubky-core-ffi-fork::utils::session_to_json_with_secret`:
-     *
-     * ```json
-     * { "pubky": "...", "capabilities": ["/pub/echo/:rw"], "session_secret": "..." }
-     * ```
-     *
-     * Note: the FFI does NOT include a `homeserver` field on the wire. We resolve the
-     * homeserver lazily on first use (or leave it empty here and fill it in elsewhere
-     * when needed). Extra/aliased field names are tolerated so a future FFI bump that
-     * adds `homeserver` continues to work without a code change.
-     */
-    private fun parseSessionPayload(payload: String): Session {
-        val obj: JsonObject = echoJson.parseToJsonElement(payload).jsonObject
-
-        val pubkey = obj.stringField("pubky", "public_key", "publicKey")
-            ?: error("session payload missing 'pubky'")
-        val secret = obj.stringField("session_secret", "sessionSecret", "secret")
-            ?: error("session payload missing 'session_secret'")
-        val homeserver = obj.stringField("homeserver", "home_server").orEmpty()
-        val caps = obj["capabilities"]
-            ?.let { runCatching { it.jsonArray }.getOrNull() }
-            ?.mapNotNull { it.jsonPrimitive.contentOrNull }
-            ?.map(::Capability)
-            ?: emptyList()
-
-        return Session(
-            identity = PubkyIdentity(
-                pubky = pubkey,
-                displayName = null,
-                avatarUrl = null,
-                bio = null,
-            ),
-            sessionSecret = secret,
-            capabilities = caps,
-            homeserver = homeserver,
-        )
-    }
-
-    private fun JsonObject.stringField(vararg names: String): String? {
-        for (name in names) {
-            val v = this[name]?.jsonPrimitive?.contentOrNull
-            if (!v.isNullOrEmpty()) return v
-        }
-        return null
     }
 
     companion object {
