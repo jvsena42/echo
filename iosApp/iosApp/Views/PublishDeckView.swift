@@ -8,6 +8,8 @@ struct PublishDeckView: View {
     @State private var description = ""
     @State private var coverEmoji = "📚"
     @State private var tags: [String] = []
+    @State private var showTagSheet = false
+    @State private var tagInput = ""
     private let cardCount = 42
 
     var body: some View {
@@ -119,16 +121,24 @@ struct PublishDeckView: View {
                         .foregroundColor(EchoColor.foregroundMuted)
                     HStack(spacing: 6) {
                         ForEach(tags, id: \.self) { tag in
-                            TagChipView(tag: tag)
+                            TagChipView(tag: tag, onRemove: {
+                                tags.removeAll { $0 == tag }
+                            })
                         }
-                        Text("+ Add")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(EchoColor.accentSecondary)
-                            .padding(.horizontal, 14)
+                        Button(action: { showTagSheet = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text("Add")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundColor(EchoColor.foregroundMuted)
+                            .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .overlay(
-                                Capsule().stroke(EchoColor.accentSecondary, lineWidth: 1)
+                                Capsule().stroke(EchoColor.borderSubtle, lineWidth: 1.5)
                             )
+                        }
                     }
                 }
 
@@ -174,6 +184,127 @@ struct PublishDeckView: View {
         }
         .background(EchoColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
+        .sheet(isPresented: $showTagSheet) {
+            AddTagSheet(tags: $tags, tagInput: $tagInput)
+        }
+    }
+}
+
+private struct AddTagSheet: View {
+    @Binding var tags: [String]
+    @Binding var tagInput: String
+    @Environment(\.dismiss) private var dismiss
+
+    private let suggestedOptions = ["language", "beginner", "travel", "daily"]
+
+    private var suggestedTags: [String] {
+        suggestedOptions.filter { !tags.contains($0) }
+    }
+
+    var body: some View {
+        VStack(spacing: 20) {
+            // Handle
+            RoundedRectangle(cornerRadius: 2)
+                .fill(EchoColor.borderSubtle)
+                .frame(width: 36, height: 4)
+                .padding(.top, 12)
+
+            VStack(alignment: .leading, spacing: 20) {
+                // Title
+                Text("Add Tag")
+                    .font(.system(size: 20, weight: .heavy))
+                    .foregroundColor(EchoColor.foregroundPrimary)
+
+                // Input row
+                HStack(spacing: 10) {
+                    Text("#")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(EchoColor.accentSecondary)
+                    TextField("Type a tag\u{2026}", text: $tagInput)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(EchoColor.foregroundPrimary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(EchoColor.surfacePrimary)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(EchoColor.borderSubtle, lineWidth: 1.5)
+                )
+
+                // Suggested
+                if !suggestedTags.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("SUGGESTED")
+                            .font(.system(size: 10, weight: .bold))
+                            .kerning(1)
+                            .foregroundColor(EchoColor.foregroundMuted)
+                        HStack(spacing: 6) {
+                            ForEach(suggestedTags, id: \.self) { tag in
+                                TagChipView(tag: tag, onTap: {
+                                    let trimmed = tag.trimmingCharacters(in: .whitespaces).lowercased()
+                                    if !trimmed.isEmpty && !tags.contains(trimmed) {
+                                        tags.append(trimmed)
+                                    }
+                                })
+                            }
+                        }
+                    }
+                }
+
+                // Current tags
+                if !tags.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("CURRENT TAGS")
+                            .font(.system(size: 10, weight: .bold))
+                            .kerning(1)
+                            .foregroundColor(EchoColor.foregroundMuted)
+                        HStack(spacing: 6) {
+                            ForEach(tags, id: \.self) { tag in
+                                TagChipView(tag: tag, onRemove: {
+                                    tags.removeAll { $0 == tag }
+                                })
+                            }
+                        }
+                    }
+                }
+
+                // Add Tag button
+                Button(action: {
+                    let trimmed = tagInput.trimmingCharacters(in: .whitespaces).lowercased()
+                    if !trimmed.isEmpty && !tags.contains(trimmed) {
+                        tags.append(trimmed)
+                        tagInput = ""
+                    }
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .bold))
+                        Text("Add Tag")
+                            .font(.system(size: 16, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(
+                        Capsule()
+                            .fill(tagInput.trimmingCharacters(in: .whitespaces).isEmpty
+                                  ? Color.gray
+                                  : EchoColor.accentPrimary)
+                    )
+                    .shadow(color: EchoColor.accentPrimary.opacity(0.2), radius: 24, x: 0, y: 8)
+                }
+                .disabled(tagInput.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 32)
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.hidden)
+        .presentationBackground(.white)
     }
 }
 

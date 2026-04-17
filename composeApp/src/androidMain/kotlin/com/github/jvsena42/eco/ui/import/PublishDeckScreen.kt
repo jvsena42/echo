@@ -26,15 +26,22 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,7 +93,7 @@ fun PublishDeckRoute(
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun PublishDeckScreen(
     state: PublishDeckUiState,
@@ -98,6 +105,8 @@ private fun PublishDeckScreen(
     onBackClick: () -> Unit,
 ) {
     val colors = EchoTheme.colors
+    var showTagSheet by remember { mutableStateOf(false) }
+    var tagInput by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -231,16 +240,28 @@ private fun PublishDeckScreen(
                 state.tags.forEach { tag ->
                     TagChip(tag = tag, onRemove = { onRemoveTag(tag) })
                 }
-                Text(
-                    text = "+ Add",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.accentSecondary,
+                Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .border(1.dp, colors.accentSecondary, RoundedCornerShape(50))
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                )
+                        .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(50))
+                        .clickable { showTagSheet = true }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Add tag",
+                        tint = colors.foregroundMuted,
+                        modifier = Modifier.size(12.dp),
+                    )
+                    Text(
+                        text = "Add",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.foregroundMuted,
+                    )
+                }
             }
         }
 
@@ -273,6 +294,146 @@ private fun PublishDeckScreen(
         // Error
         state.error?.let { errorText ->
             Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
+        }
+    }
+
+    if (showTagSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showTagSheet = false },
+            sheetState = rememberModalBottomSheetState(),
+            containerColor = colors.surfaceCard,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            dragHandle = {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 36.dp, height = 4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(colors.borderSubtle)
+                    )
+                }
+            },
+        ) {
+            val suggestedTags = remember {
+                listOf("language", "beginner", "travel", "daily")
+            }.filter { it !in state.tags }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                Text(
+                    text = "Add Tag",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = colors.foregroundPrimary,
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.surfacePrimary)
+                        .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = "#",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.accentSecondary,
+                    )
+                    BasicTextField(
+                        value = tagInput,
+                        onValueChange = { tagInput = it },
+                        textStyle = TextStyle(
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.foregroundPrimary,
+                        ),
+                        cursorBrush = SolidColor(colors.accentPrimary),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { inner ->
+                            Box {
+                                if (tagInput.isEmpty()) {
+                                    Text(
+                                        "Type a tag\u2026",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = colors.foregroundMuted,
+                                    )
+                                }
+                                inner()
+                            }
+                        },
+                    )
+                }
+
+                if (suggestedTags.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "SUGGESTED",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            color = colors.foregroundMuted,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            suggestedTags.forEach { tag ->
+                                TagChip(tag = tag, onClick = { onAddTag(tag) })
+                            }
+                        }
+                    }
+                }
+
+                if (state.tags.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "CURRENT TAGS",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            color = colors.foregroundMuted,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            state.tags.forEach { tag ->
+                                TagChip(tag = tag, onRemove = { onRemoveTag(tag) })
+                            }
+                        }
+                    }
+                }
+
+                EchoPrimaryButton(
+                    label = "Add Tag",
+                    onClick = {
+                        onAddTag(tagInput)
+                        tagInput = ""
+                    },
+                    enabled = tagInput.isNotBlank(),
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = null,
+                            tint = colors.foregroundOnAccent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    },
+                )
+            }
         }
     }
 }
