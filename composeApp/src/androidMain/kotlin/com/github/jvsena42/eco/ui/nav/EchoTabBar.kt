@@ -101,7 +101,7 @@ private fun TabItem(
             imageVector = tab.icon,
             contentDescription = tab.label,
             tint = contentColor,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(24.dp),
         )
         Text(
             text = tab.label,

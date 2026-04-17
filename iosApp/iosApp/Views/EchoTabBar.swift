@@ -49,8 +49,8 @@ struct EchoTabBar: View {
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: tab.iconName)
-                    .font(.system(size: 18))
-                    .frame(width: 20, height: 20)
+                    .font(.system(size: 22))
+                    .frame(width: 24, height: 24)
                 Text(tab.rawValue)
                     .font(.system(size: 10, weight: isSelected ? .bold : .semibold))
                     .tracking(0.5)

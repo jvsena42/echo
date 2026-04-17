@@ -7,18 +7,17 @@ struct MainView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Group {
-                switch selectedTab {
-                case .study:
-                    HomeView(greetingName: greetingName, state: .empty)
-                case .decks:
-                    DecksView()
-                case .discover:
-                    DiscoverView()
-                case .profile:
-                    ProfileView()
-                }
+            TabView(selection: $selectedTab) {
+                HomeView(greetingName: greetingName, state: .empty)
+                    .tag(EchoTab.study)
+                DecksView()
+                    .tag(EchoTab.decks)
+                DiscoverView()
+                    .tag(EchoTab.discover)
+                ProfileView()
+                    .tag(EchoTab.profile)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
 
             EchoTabBar(selectedTab: $selectedTab)
         }
