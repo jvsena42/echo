@@ -104,6 +104,7 @@ class ImportRepositoryImpl : ImportRepository {
             "|" to Separator.Pipe,
             " \u2014 " to Separator.EmDash,   // em-dash with spaces
             " \u2013 " to Separator.EmDash,   // en-dash with spaces
+            " - " to Separator.EmDash,         // hyphen-minus with spaces
             ": " to Separator.Colon,
             "," to Separator.Comma,
         )
@@ -217,6 +218,7 @@ class ImportRepositoryImpl : ImportRepository {
             when {
                 text.contains(" \u2014 ") -> " \u2014 "  // em-dash
                 text.contains(" \u2013 ") -> " \u2013 "  // en-dash
+                text.contains(" - ") -> " - "             // hyphen-minus
                 else -> " \u2014 "
             }
         }
