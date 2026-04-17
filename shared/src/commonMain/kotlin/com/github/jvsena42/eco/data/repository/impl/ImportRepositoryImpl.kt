@@ -66,6 +66,21 @@ class ImportRepositoryImpl : ImportRepository {
     }
 
     // --- Separator detection (spec §6 rule order) ---
+    //
+    // After checking structural formats (markdown table, blank-line pairs),
+    // we try each single-character / multi-character delimiter with three
+    // false-positive guards:
+    //
+    //  A) Single-char delimiters (`;`, `|`, `,`): skip a line if the char
+    //     is immediately followed by a space (grammatical punctuation) or
+    //     sandwiched between digits (thousands separator).
+    //  B) Multi-char delimiters (`" — "`): reject if most lines contain
+    //     two or more occurrences (parenthetical inserts).
+    //  C) Balance check: reject if the median front side exceeds 50% of
+    //     the line length (both halves are full sentences → prose).
+    //
+    // Tab is exempt from all guards — it almost never appears as prose
+    // punctuation.
 
     private fun detectSeparator(text: String): Separator {
         val lines = text.split("\n").filter { it.isNotBlank() }
@@ -82,27 +97,88 @@ class ImportRepositoryImpl : ImportRepository {
             return Separator.BlankLine
         }
 
-        // 3-8. Delimiter detection by consistency
+        // 3-8. Delimiter detection
         val candidates = listOf(
-            '\t' to Separator.Tab,
-            ';' to Separator.Semicolon,
-            '|' to Separator.Pipe,
-            '—' to Separator.EmDash,
-            '–' to Separator.EmDash,
-            ':' to Separator.Colon,
-            ',' to Separator.Comma,
+            "\t" to Separator.Tab,
+            ";" to Separator.Semicolon,
+            "|" to Separator.Pipe,
+            " \u2014 " to Separator.EmDash,   // em-dash with spaces
+            " \u2013 " to Separator.EmDash,   // en-dash with spaces
+            ": " to Separator.Colon,
+            "," to Separator.Comma,
         )
 
-        for ((delim, sep) in candidates) {
-            val delimStr = if (sep == Separator.EmDash) " $delim " else if (sep == Separator.Colon) "$delim " else delim.toString()
-            val counts = lines.map { line -> line.split(delimStr).size - 1 }
-            val consistentCount = counts.firstOrNull { it > 0 } ?: continue
-            val consistent = counts.count { it == consistentCount }.toFloat() / counts.size
-            if (consistent >= 0.8f && consistentCount > 0) return sep
+        for ((delimStr, sep) in candidates) {
+            // Tab is unambiguous — simple presence check
+            if (sep == Separator.Tab) {
+                val count = lines.count { it.contains(delimStr) }
+                if (count.toFloat() / lines.size >= 0.8f) return sep
+                continue
+            }
+
+            // (A) For single-char delimiters, only count lines where the
+            //     delimiter acts as a field separator, not punctuation.
+            val qualifying = if (delimStr.length == 1) {
+                lines.filter { line -> isSeparatorUse(line, delimStr[0]) }
+            } else {
+                lines.filter { it.contains(delimStr) }
+            }
+
+            if (qualifying.size.toFloat() / lines.size < 0.8f) continue
+
+            // (B) Multi-char: reject if most lines have 2+ occurrences
+            //     (parenthetical inserts, e.g. "The dog — big — barked")
+            if (delimStr.length > 1) {
+                val multiHit = qualifying.count { line ->
+                    val first = line.indexOf(delimStr)
+                    first >= 0 && line.indexOf(delimStr, first + delimStr.length) >= 0
+                }
+                if (multiHit.toFloat() / qualifying.size > 0.5f) continue
+            }
+
+            // (C) Balance: reject if the median front side is too long.
+            //     Flashcard fronts are short terms (typically ≤ 30 chars).
+            //     If the median front exceeds both an absolute length AND a
+            //     ratio threshold, the delimiter is splitting prose.
+            val frontLengths = qualifying.map { line ->
+                val idx = line.indexOf(delimStr)
+                if (idx <= 0) 0 else idx
+            }
+            val sortedLens = frontLengths.sorted()
+            val medianLen = sortedLens[sortedLens.size / 2]
+            if (medianLen > MAX_FRONT_CHARS) {
+                // Absolute length exceeded — check ratio as confirmation
+                val medianRatio = qualifying.map { line ->
+                    val idx = line.indexOf(delimStr)
+                    if (idx <= 0) 0f else idx.toFloat() / line.length
+                }.sorted().let { it[it.size / 2] }
+                if (medianRatio > MAX_FRONT_RATIO) continue
+            }
+
+            return sep
         }
 
         return Separator.SingleColumn
     }
+
+    /** Returns true when [delim] at its first position in [line] looks like
+     *  a field separator rather than natural punctuation.  Rejects:
+     *  - delimiter immediately followed by a space (`"Yes, I agree"`)
+     *  - delimiter sandwiched between digits (`"1,000"`) */
+    private fun isSeparatorUse(line: String, delim: Char): Boolean {
+        val idx = line.indexOf(delim)
+        if (idx < 0) return false
+        val after = idx + 1
+        // Followed by space → grammatical punctuation
+        if (after < line.length && line[after] == ' ') return false
+        // Between digits → thousands / decimal separator
+        if (idx > 0 && line[idx - 1].isDigit() && after < line.length && line[after].isDigit()) return false
+        return true
+    }
+
+    // Split each line on the *first* occurrence of the delimiter only.
+    // This ensures that delimiters appearing inside the back-side content
+    // are preserved rather than creating spurious extra columns.
 
     private fun splitRows(text: String, separator: Separator): List<List<String>> {
         return when (separator) {
@@ -112,19 +188,38 @@ class ImportRepositoryImpl : ImportRepository {
                 .filter { it.isNotBlank() }
                 .map { listOf(it.trim()) }
             else -> {
-                val delim = separatorToDelimString(separator)
+                val delim = separatorToDelimString(separator, text)
                 text.split("\n")
                     .filter { it.isNotBlank() }
-                    .map { line -> line.split(delim).map { it.trim() } }
+                    .map { line -> splitFirst(line, delim) }
             }
         }
     }
 
-    private fun separatorToDelimString(sep: Separator): String = when (sep) {
+    /** Split [line] on the first occurrence of [delim], returning [front, back].
+     *  If the delimiter is not found, returns the whole line as a single-element list. */
+    private fun splitFirst(line: String, delim: String): List<String> {
+        val idx = line.indexOf(delim)
+        if (idx < 0) return listOf(line.trim())
+        val front = line.substring(0, idx).trim()
+        val back = line.substring(idx + delim.length).trim()
+        return listOf(front, back)
+    }
+
+    /** Return the delimiter string to split on.  For em-dash we pick whichever
+     *  variant (em `—` or en `–`) actually appears in the text. */
+    private fun separatorToDelimString(sep: Separator, text: String = ""): String = when (sep) {
         Separator.Tab -> "\t"
         Separator.Semicolon -> ";"
         Separator.Pipe -> "|"
-        Separator.EmDash -> " — "
+        Separator.EmDash -> {
+            // Prefer the variant present in the text
+            when {
+                text.contains(" \u2014 ") -> " \u2014 "  // em-dash
+                text.contains(" \u2013 ") -> " \u2013 "  // en-dash
+                else -> " \u2014 "
+            }
+        }
         Separator.Colon -> ": "
         Separator.Comma -> ","
         is Separator.Custom -> sep.char.toString()
@@ -152,5 +247,12 @@ class ImportRepositoryImpl : ImportRepository {
     companion object {
         private const val MAX_CHARS = 10_000
         private const val MAX_CARDS = 500
+
+        /** Flashcard fronts rarely exceed 30 characters. */
+        private const val MAX_FRONT_CHARS = 30
+
+        /** If the front is both > MAX_FRONT_CHARS and > 50% of the line,
+         *  the delimiter is splitting prose, not flashcard pairs. */
+        private const val MAX_FRONT_RATIO = 0.50f
     }
 }

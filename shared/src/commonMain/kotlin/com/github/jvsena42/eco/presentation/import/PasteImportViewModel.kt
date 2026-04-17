@@ -1,6 +1,7 @@
 package com.github.jvsena42.eco.presentation.import_flow
 
 import com.github.jvsena42.eco.data.repository.ImportRepository
+import com.github.jvsena42.eco.domain.model.ColumnRole
 import com.github.jvsena42.eco.domain.model.ImportDraft
 import com.github.jvsena42.eco.domain.model.Separator
 import com.github.jvsena42.eco.util.Log
@@ -54,14 +55,17 @@ class PasteImportViewModel(
         parseJob = scope.launch {
             importRepository.parse(text)
                 .onSuccess { draft ->
+                    val mapping = draft.columnMapping.assignments
+                    val frontIdx = mapping.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
+                    val backIdx = mapping.indexOfFirst { it == ColumnRole.Back }.takeIf { it >= 0 } ?: 1
                     _state.update {
                         it.copy(
                             detectedSeparator = draft.separator,
                             cardCount = draft.rows.size,
                             previewCards = draft.rows.take(3).map { row ->
                                 PreviewCard(
-                                    front = row.fields.getOrElse(0) { "" },
-                                    back = row.fields.getOrElse(1) { "" },
+                                    front = row.fields.getOrElse(frontIdx) { "" },
+                                    back = row.fields.getOrElse(backIdx) { "" },
                                 )
                             },
                             isParsed = true,
