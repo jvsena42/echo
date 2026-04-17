@@ -13,9 +13,8 @@ struct RootView: View {
     var body: some View {
         NavigationStack {
             if isSignedIn {
-                HomeView(
-                    greetingName: pubky.map { "pk:\($0.prefix(6))" } ?? "there",
-                    state: .empty
+                MainView(
+                    greetingName: pubky.map { "pk:\($0.prefix(6))" } ?? "there"
                 )
             } else {
                 OnboardingView(

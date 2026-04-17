@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.github.jvsena42.eco.ui.home.HomeRoute
 import com.github.jvsena42.eco.ui.onboarding.OnboardingRoute
 
 @Composable
@@ -14,14 +13,14 @@ fun EchoNavHost() {
         composable(Routes.ONBOARDING) {
             OnboardingRoute(
                 onNavigateHome = {
-                    navController.navigate(Routes.HOME) {
+                    navController.navigate(Routes.MAIN) {
                         popUpTo(Routes.ONBOARDING) { inclusive = true }
                     }
                 },
             )
         }
-        composable(Routes.HOME) {
-            HomeRoute()
+        composable(Routes.MAIN) {
+            MainScreen()
         }
     }
 }
