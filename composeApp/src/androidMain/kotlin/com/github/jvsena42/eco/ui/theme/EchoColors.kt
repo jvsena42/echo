@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 @Immutable
 data class EchoColors(
     val surfacePrimary: Color,
+    val surfaceSecondary: Color,
     val surfaceCard: Color,
     val accentPrimary: Color,
     val accentPrimarySoft: Color,
@@ -19,11 +20,16 @@ data class EchoColors(
     val foregroundSecondary: Color,
     val foregroundMuted: Color,
     val foregroundOnAccent: Color,
+    val borderSubtle: Color,
+    val srsGood: Color,
+    val srsAgain: Color,
     val danger: Color,
+    val dangerSoft: Color,
 )
 
 val EchoLightColors = EchoColors(
     surfacePrimary = Color(0xFFFFFBF5),
+    surfaceSecondary = Color(0xFFFFF4EA),
     surfaceCard = Color(0xFFFFFFFF),
     accentPrimary = Color(0xFFFF5C00),
     accentPrimarySoft = Color(0xFFFFE8D6),
@@ -33,5 +39,9 @@ val EchoLightColors = EchoColors(
     foregroundSecondary = Color(0xFF5A5A66),
     foregroundMuted = Color(0xFF8B8B99),
     foregroundOnAccent = Color(0xFFFFFFFF),
+    borderSubtle = Color(0xFFF0E6D9),
+    srsGood = Color(0xFF21C97A),
+    srsAgain = Color(0xFFFF4E64),
     danger = Color(0xFFD92C2C),
+    dangerSoft = Color(0x14FF4E64),
 )

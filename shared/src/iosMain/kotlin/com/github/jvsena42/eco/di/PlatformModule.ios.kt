@@ -3,9 +3,15 @@ package com.github.jvsena42.eco.di
 import com.github.jvsena42.eco.data.pubky.PubkyClient
 import com.github.jvsena42.eco.data.storage.IosSecureSessionStore
 import com.github.jvsena42.eco.data.storage.SecureSessionStore
+import com.github.jvsena42.eco.presentation.decks.DeckDetailViewModel
+import com.github.jvsena42.eco.presentation.decks.DeckEditorViewModel
+import com.github.jvsena42.eco.presentation.decks.DecksLibraryViewModel
+import com.github.jvsena42.eco.presentation.decks.EditCardViewModel
+import com.github.jvsena42.eco.presentation.home.HomeViewModel
 import com.github.jvsena42.eco.presentation.onboarding.OnboardingViewModel
 import org.koin.core.context.startKoin
 import org.koin.core.module.Module
+import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 
 /**
@@ -28,4 +34,19 @@ private fun iosPlatformModule(pubkyClient: PubkyClient): Module = module {
 object IosDependencies {
     fun onboardingViewModel(): OnboardingViewModel =
         org.koin.core.context.GlobalContext.get().get()
+
+    fun homeViewModel(): HomeViewModel =
+        org.koin.core.context.GlobalContext.get().get()
+
+    fun decksLibraryViewModel(): DecksLibraryViewModel =
+        org.koin.core.context.GlobalContext.get().get()
+
+    fun deckDetailViewModel(deckId: String): DeckDetailViewModel =
+        org.koin.core.context.GlobalContext.get().get { parametersOf(deckId) }
+
+    fun deckEditorViewModel(deckId: String?): DeckEditorViewModel =
+        org.koin.core.context.GlobalContext.get().get { parametersOf(deckId) }
+
+    fun editCardViewModel(deckId: String, cardId: String): EditCardViewModel =
+        org.koin.core.context.GlobalContext.get().get { parametersOf(deckId, cardId) }
 }

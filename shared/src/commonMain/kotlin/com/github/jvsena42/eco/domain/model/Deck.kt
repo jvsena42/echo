@@ -7,6 +7,7 @@ data class Deck(
     val authorPubky: String,
     val title: String,
     val description: String?,
+    val coverEmoji: String? = null,
     val coverImageRef: MediaRef.Image?,
     val tags: List<Tag>,
     val createdAt: Long,

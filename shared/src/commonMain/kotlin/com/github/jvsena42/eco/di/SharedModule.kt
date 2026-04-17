@@ -5,13 +5,22 @@ import com.github.jvsena42.eco.data.pubky.SessionProvider
 import com.github.jvsena42.eco.data.repository.CardRepository
 import com.github.jvsena42.eco.data.repository.DeckRepository
 import com.github.jvsena42.eco.data.repository.IdentityRepository
+import com.github.jvsena42.eco.data.repository.ImportRepository
 import com.github.jvsena42.eco.data.repository.MediaRepository
 import com.github.jvsena42.eco.data.repository.impl.CardRepositoryImpl
+import com.github.jvsena42.eco.data.repository.impl.ImportRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.DeckRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.IdentityRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.MediaRepositoryImpl
+import com.github.jvsena42.eco.presentation.decks.DeckDetailViewModel
+import com.github.jvsena42.eco.presentation.decks.DeckEditorViewModel
+import com.github.jvsena42.eco.presentation.decks.DecksLibraryViewModel
+import com.github.jvsena42.eco.presentation.decks.EditCardViewModel
 import com.github.jvsena42.eco.presentation.home.HomeViewModel
+import com.github.jvsena42.eco.presentation.import_flow.PasteImportViewModel
+import com.github.jvsena42.eco.presentation.import_flow.PublishDeckViewModel
 import com.github.jvsena42.eco.presentation.onboarding.OnboardingViewModel
+import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 
 /**
@@ -34,7 +43,14 @@ val sharedModule = module {
     single<CardRepository> { CardRepositoryImpl(get(), get()) }
     single<DeckRepository> { DeckRepositoryImpl(get(), get(), get()) }
     single<MediaRepository> { MediaRepositoryImpl(get(), get()) }
+    single<ImportRepository> { ImportRepositoryImpl() }
 
     factory { OnboardingViewModel(identityRepository = get()) }
     factory { HomeViewModel(identityRepository = get(), deckRepository = get()) }
+    factory { DecksLibraryViewModel(deckRepository = get(), identityRepository = get()) }
+    factory { params -> DeckDetailViewModel(deckId = params.get(), deckRepository = get(), cardRepository = get(), identityRepository = get()) }
+    factory { params -> DeckEditorViewModel(deckId = params.getOrNull(), deckRepository = get(), cardRepository = get(), identityRepository = get()) }
+    factory { params -> EditCardViewModel(deckId = params.get(0), cardId = params.get(1), cardRepository = get(), deckRepository = get(), mediaRepository = get()) }
+    factory { PasteImportViewModel(importRepository = get()) }
+    factory { PublishDeckViewModel(importRepository = get(), deckRepository = get(), identityRepository = get()) }
 }
