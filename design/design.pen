@@ -1,5 +1,5 @@
 {
-  "version": "2.10",
+  "version": "2.11",
   "children": [
     {
       "type": "text",
@@ -264,6 +264,16 @@
       "height": 844,
       "fill": "$surface-primary",
       "cornerRadius": "$radius-xl",
+      "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#00000040",
+        "offset": {
+          "x": 0,
+          "y": 4
+        },
+        "blur": 4
+      },
       "layout": "vertical",
       "children": [
         {
