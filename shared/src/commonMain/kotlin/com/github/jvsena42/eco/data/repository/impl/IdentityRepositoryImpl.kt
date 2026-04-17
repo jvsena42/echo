@@ -1,11 +1,16 @@
 package com.github.jvsena42.eco.data.repository.impl
 
 import com.github.jvsena42.eco.data.pubky.MutableSessionProvider
+import com.github.jvsena42.eco.data.pubky.ProfileDto
 import com.github.jvsena42.eco.data.pubky.PubkyClient
+import com.github.jvsena42.eco.data.pubky.PubkyPaths
 import com.github.jvsena42.eco.data.pubky.parseSessionPayload
+import com.github.jvsena42.eco.data.pubky.toDomain
+import com.github.jvsena42.eco.data.pubky.toProfileDto
 import com.github.jvsena42.eco.data.repository.AuthFlowHandle
 import com.github.jvsena42.eco.data.repository.IdentityRepository
 import com.github.jvsena42.eco.data.storage.SecureSessionStore
+import com.github.jvsena42.eco.domain.model.PubkyIdentity
 import com.github.jvsena42.eco.domain.model.Session
 import com.github.jvsena42.eco.util.Log
 
@@ -69,10 +74,67 @@ class IdentityRepositoryImpl(
             sessionStore.save(session)
             sessionProvider.set(session)
             Log.d(TAG, "complete: session saved")
+
+            // Best-effort profile fetch — don't fail sign-in if this fails
+            val profile = runCatching { fetchProfile(session.identity.pubky).getOrNull() }.getOrNull()
+            if (profile != null && (profile.displayName != null || profile.bio != null)) {
+                val enriched = session.copy(
+                    identity = session.identity.copy(
+                        displayName = profile.displayName,
+                        avatarUrl = profile.avatarUrl,
+                        bio = profile.bio,
+                    ),
+                )
+                sessionStore.save(enriched)
+                sessionProvider.set(enriched)
+                Log.d(TAG, "complete: session enriched with profile")
+                return@runCatching enriched
+            }
+
             session
         }.onFailure {
             Log.e(TAG, "complete: FAILED — ${it::class.simpleName}: ${it.message}", it)
         }
+    }
+
+    override suspend fun fetchProfile(pubky: String): Result<PubkyIdentity> = runCatching {
+        Log.d(TAG, "fetchProfile: pubky=${pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+        val json = this.pubky.get(PubkyPaths.profile(pubky)).getOrThrow()
+        val dto = echoJson.decodeFromString<ProfileDto>(json)
+        dto.toDomain(pubky)
+    }.onFailure {
+        Log.e(TAG, "fetchProfile: FAILED — ${it::class.simpleName}: ${it.message}", it)
+    }
+
+    override suspend fun updateProfile(name: String?, bio: String?): Result<PubkyIdentity> = runCatching {
+        val session = sessionProvider.current() ?: error("Not signed in")
+        val currentPubky = session.identity.pubky
+        Log.d(TAG, "updateProfile: pubky=${currentPubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+
+        val dto = ProfileDto(
+            name = name,
+            bio = bio,
+            image = session.identity.avatarUrl,
+        )
+        val json = echoJson.encodeToString(ProfileDto.serializer(), dto)
+        val putResult = pubky.putWithSession(PubkyPaths.profile(currentPubky), json, session.sessionSecret)
+
+        if (putResult.isFailure) {
+            val err = putResult.exceptionOrNull()
+            if (err?.message?.contains("403") == true || err?.message?.contains("write access") == true) {
+                error("Please sign out and sign back in to enable profile editing.")
+            }
+            putResult.getOrThrow()
+        }
+
+        val updatedIdentity = dto.toDomain(currentPubky)
+        val updatedSession = session.copy(identity = updatedIdentity)
+        sessionStore.save(updatedSession)
+        sessionProvider.set(updatedSession)
+        Log.d(TAG, "updateProfile: saved")
+        updatedIdentity
+    }.onFailure {
+        Log.e(TAG, "updateProfile: FAILED — ${it::class.simpleName}: ${it.message}", it)
     }
 
     companion object {

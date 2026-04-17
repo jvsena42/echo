@@ -2,6 +2,10 @@ package com.github.jvsena42.eco.data.pubky
 
 internal object PubkyPaths {
     const val APP_NAMESPACE = "pub/echo"
+    private const val PUBKY_APP_NAMESPACE = "pub/pubky.app"
+
+    fun profile(pubky: String): String =
+        "pubky://$pubky/$PUBKY_APP_NAMESPACE/profile.json"
 
     fun deckRoot(authorPubky: String, deckId: String): String =
         "pubky://$authorPubky/$APP_NAMESPACE/decks/$deckId"

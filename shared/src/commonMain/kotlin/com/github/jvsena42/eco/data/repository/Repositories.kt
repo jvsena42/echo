@@ -4,6 +4,7 @@ import com.github.jvsena42.eco.domain.model.Card
 import com.github.jvsena42.eco.domain.model.Deck
 import com.github.jvsena42.eco.domain.model.ImportDraft
 import com.github.jvsena42.eco.domain.model.MediaRef
+import com.github.jvsena42.eco.domain.model.PubkyIdentity
 import com.github.jvsena42.eco.domain.model.PubkyUri
 import com.github.jvsena42.eco.domain.model.Session
 import com.github.jvsena42.eco.domain.model.SrsState
@@ -25,8 +26,14 @@ interface IdentityRepository {
      */
     suspend fun beginSignIn(capabilities: String = DEFAULT_CAPABILITIES): Result<AuthFlowHandle>
 
+    /** Fetch the pubky.app profile for any user (public read). */
+    suspend fun fetchProfile(pubky: String): Result<PubkyIdentity>
+
+    /** Update the current user's pubky.app profile via session-authenticated PUT. */
+    suspend fun updateProfile(name: String?, bio: String?): Result<PubkyIdentity>
+
     companion object {
-        const val DEFAULT_CAPABILITIES = "/pub/echo/:rw"
+        const val DEFAULT_CAPABILITIES = "/pub/echo/:rw,/pub/pubky.app/:rw"
     }
 }
 

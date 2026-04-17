@@ -37,6 +37,11 @@ fun EchoNavHost() {
                 onNavigateImport = {
                     navController.navigate(Routes.IMPORT_PASTE)
                 },
+                onSignOut = {
+                    navController.navigate(Routes.ONBOARDING) {
+                        popUpTo(Routes.MAIN) { inclusive = true }
+                    }
+                },
             )
         }
         composable(

@@ -22,6 +22,7 @@ import com.github.jvsena42.eco.presentation.home.HomeViewModel
 import com.github.jvsena42.eco.presentation.import_flow.PasteImportViewModel
 import com.github.jvsena42.eco.presentation.import_flow.PublishDeckViewModel
 import com.github.jvsena42.eco.presentation.onboarding.OnboardingViewModel
+import com.github.jvsena42.eco.presentation.profile.ProfileViewModel
 import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 
@@ -57,4 +58,5 @@ val sharedModule = module {
     factory { params -> EditCardViewModel(deckId = params.get(0), cardId = params.get(1), cardRepository = get(), deckRepository = get(), mediaRepository = get()) }
     factory { PasteImportViewModel(importRepository = get()) }
     factory { PublishDeckViewModel(importRepository = get(), deckRepository = get(), identityRepository = get()) }
+    factory { ProfileViewModel(identityRepository = get(), deckRepository = get()) }
 }
