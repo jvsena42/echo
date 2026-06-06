@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.eco.platform.Speaker
 import com.github.jvsena42.eco.presentation.decks.EditCardEffect
 import com.github.jvsena42.eco.presentation.decks.EditCardUiState
 import com.github.jvsena42.eco.presentation.decks.EditCardViewModel
@@ -63,6 +64,7 @@ fun EditCardRoute(
     onBack: () -> Unit = {},
 ) {
     val viewModel = koinInject<EditCardViewModel> { parametersOf(deckId, cardId) }
+    val speaker = koinInject<Speaker>()
     DisposableEffect(viewModel) {
         onDispose { viewModel.onDispose() }
     }
@@ -75,7 +77,7 @@ fun EditCardRoute(
                 EditCardEffect.NavigateBack -> currentBack()
                 EditCardEffect.SaveSuccess -> currentBack()
                 EditCardEffect.Deleted -> currentBack()
-                is EditCardEffect.Speak -> { /* handled by platform TTS */ }
+                is EditCardEffect.Speak -> speaker.speak(effect.text)
             }
         }
     }

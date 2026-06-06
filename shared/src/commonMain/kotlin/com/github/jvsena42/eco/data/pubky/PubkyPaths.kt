@@ -19,6 +19,13 @@ internal object PubkyPaths {
     fun media(authorPubky: String, deckId: String, sha256: String, ext: String): String =
         "${deckRoot(authorPubky, deckId)}/media/$sha256.$ext"
 
+    /** Per-card SRS review state, deck-scoped to mirror [card] and avoid cross-deck id collisions. */
+    fun srs(authorPubky: String, deckId: String, cardId: String): String =
+        "${deckRoot(authorPubky, deckId)}/srs/$cardId.json"
+
+    fun srsRoot(authorPubky: String, deckId: String): String =
+        "${deckRoot(authorPubky, deckId)}/srs/"
+
     fun decksList(authorPubky: String): String =
         "pubky://$authorPubky/$APP_NAMESPACE/decks/"
 

@@ -7,6 +7,7 @@ import com.github.jvsena42.eco.domain.model.MediaRef
 import com.github.jvsena42.eco.domain.model.PubkyIdentity
 import com.github.jvsena42.eco.domain.model.PubkyUri
 import com.github.jvsena42.eco.domain.model.Session
+import com.github.jvsena42.eco.domain.model.SrsGrade
 import com.github.jvsena42.eco.domain.model.SrsState
 import com.github.jvsena42.eco.domain.model.Tag
 
@@ -88,10 +89,26 @@ interface DiscoveryRepository {
     suspend fun decksFromFollowing(): List<Deck>
 }
 
+/**
+ * Spaced-repetition state, Pubky-backed (canonical) with an in-memory session cache. Records live at
+ * `/pub/echo/decks/{deckId}/srs/{cardId}.json`. The repo owns SRS grading (the SM-2-lite scheduler in
+ * [com.github.jvsena42.eco.domain.model] is invoked here, not in ViewModels).
+ */
 interface SrsRepository {
+    /** All cards due for review across every owned deck (new cards count as due). */
     suspend fun dueToday(): List<Card>
+
+    /** Cards due for review within a single deck. */
+    suspend fun dueForDeck(deckId: String): List<Card>
+
+    /** Cached review state for a card, if it has been loaded this session. */
     suspend fun stateFor(cardId: String): SrsState?
-    suspend fun upsert(state: SrsState): Result<Unit>
+
+    /** Grade a card: compute the next state via the scheduler, persist it, and return it. */
+    suspend fun review(card: Card, grade: SrsGrade): Result<SrsState>
+
+    /** Persist a review state. [deckId] scopes the homeserver path. */
+    suspend fun upsert(deckId: String, state: SrsState): Result<Unit>
 }
 
 /**

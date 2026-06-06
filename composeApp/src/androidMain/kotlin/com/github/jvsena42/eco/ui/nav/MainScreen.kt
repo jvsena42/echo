@@ -19,6 +19,7 @@ fun MainScreen(
     onNavigateDeckDetail: (String) -> Unit = {},
     onNavigateCreateDeck: () -> Unit = {},
     onNavigateImport: () -> Unit = {},
+    onNavigateStudy: (String?) -> Unit = {},
     onSignOut: () -> Unit = {},
 ) {
     val pagerState = rememberPagerState(pageCount = { EchoTab.entries.size })
@@ -34,6 +35,7 @@ fun MainScreen(
                 EchoTab.STUDY -> HomeRoute(
                     onOpenDeck = onNavigateDeckDetail,
                     onCreateDeck = onNavigateCreateDeck,
+                    onStartStudy = { onNavigateStudy(null) },
                 )
                 EchoTab.DECKS -> DecksRoute(
                     onDeckClick = onNavigateDeckDetail,

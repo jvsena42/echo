@@ -23,6 +23,8 @@ data class EchoColors(
     val borderSubtle: Color,
     val srsGood: Color,
     val srsAgain: Color,
+    val srsHard: Color,
+    val srsEasy: Color,
     val danger: Color,
     val dangerSoft: Color,
 )
@@ -42,6 +44,8 @@ val EchoLightColors = EchoColors(
     borderSubtle = Color(0xFFF0E6D9),
     srsGood = Color(0xFF21C97A),
     srsAgain = Color(0xFFFF4E64),
+    srsHard = Color(0xFFFF8A1F),
+    srsEasy = Color(0xFF3B82F6),
     danger = Color(0xFFD92C2C),
     dangerSoft = Color(0x14FF4E64),
 )

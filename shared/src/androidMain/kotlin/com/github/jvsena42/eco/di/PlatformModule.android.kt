@@ -4,6 +4,8 @@ import com.github.jvsena42.eco.data.pubky.AndroidPubkyClient
 import com.github.jvsena42.eco.data.pubky.PubkyClient
 import com.github.jvsena42.eco.data.storage.AndroidSecureSessionStore
 import com.github.jvsena42.eco.data.storage.SecureSessionStore
+import com.github.jvsena42.eco.platform.AndroidSpeaker
+import com.github.jvsena42.eco.platform.Speaker
 import com.github.jvsena42.eco.presentation.onboarding.OnboardingViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
@@ -18,6 +20,7 @@ private const val PUBKY_RING_PLAY_STORE_URL =
 val androidPlatformModule: Module = module {
     single<PubkyClient> { AndroidPubkyClient() }
     single<SecureSessionStore> { AndroidSecureSessionStore(androidContext()) }
+    single<Speaker> { AndroidSpeaker(androidContext()) }
     factory {
         OnboardingViewModel(
             identityRepository = get(),

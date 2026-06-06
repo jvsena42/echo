@@ -3,12 +3,15 @@ package com.github.jvsena42.eco.di
 import com.github.jvsena42.eco.data.pubky.PubkyClient
 import com.github.jvsena42.eco.data.storage.IosSecureSessionStore
 import com.github.jvsena42.eco.data.storage.SecureSessionStore
+import com.github.jvsena42.eco.platform.IosSpeaker
+import com.github.jvsena42.eco.platform.Speaker
 import com.github.jvsena42.eco.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.eco.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.eco.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.eco.presentation.decks.EditCardViewModel
 import com.github.jvsena42.eco.presentation.home.HomeViewModel
 import com.github.jvsena42.eco.presentation.onboarding.OnboardingViewModel
+import com.github.jvsena42.eco.presentation.study.StudySessionViewModel
 import org.koin.core.context.startKoin
 import org.koin.core.module.Module
 import org.koin.core.parameter.parametersOf
@@ -28,6 +31,7 @@ fun doInitKoin(pubkyClient: PubkyClient) {
 private fun iosPlatformModule(pubkyClient: PubkyClient): Module = module {
     single<PubkyClient> { pubkyClient }
     single<SecureSessionStore> { IosSecureSessionStore() }
+    single<Speaker> { IosSpeaker() }
 }
 
 /** Resolver helper for SwiftUI — avoids depending on Koin Swift bridges in v1. */
@@ -49,4 +53,7 @@ object IosDependencies {
 
     fun editCardViewModel(deckId: String, cardId: String): EditCardViewModel =
         org.koin.core.context.GlobalContext.get().get { parametersOf(deckId, cardId) }
+
+    fun studySessionViewModel(deckId: String?): StudySessionViewModel =
+        org.koin.core.context.GlobalContext.get().get { parametersOf(deckId) }
 }
