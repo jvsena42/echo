@@ -3,6 +3,7 @@ package com.github.jvsena42.eco.presentation.decks
 import com.github.jvsena42.eco.data.repository.CardRepository
 import com.github.jvsena42.eco.data.repository.DeckRepository
 import com.github.jvsena42.eco.data.repository.IdentityRepository
+import com.github.jvsena42.eco.data.repository.SrsRepository
 import com.github.jvsena42.eco.domain.model.Card
 import com.github.jvsena42.eco.domain.model.Deck
 import com.github.jvsena42.eco.util.Log
@@ -24,6 +25,7 @@ class DeckDetailViewModel(
     private val deckRepository: DeckRepository,
     private val cardRepository: CardRepository,
     private val identityRepository: IdentityRepository,
+    private val srsRepository: SrsRepository,
     mainScope: CoroutineScope? = null,
 ) {
     private val scope: CoroutineScope =
@@ -61,8 +63,10 @@ class DeckDetailViewModel(
 
             runCatching { cardRepository.listByDeck(deckId) }
                 .onSuccess { cards ->
-                    _state.value = deck.toContent(cards, myPubky)
-                    Log.d(TAG, "load: cards=${cards.size}")
+                    val dueCount = runCatching { srsRepository.dueForDeck(deckId).size }
+                        .getOrDefault(0)
+                    _state.value = deck.toContent(cards, myPubky, dueCount)
+                    Log.d(TAG, "load: cards=${cards.size} due=$dueCount")
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
@@ -97,7 +101,11 @@ class DeckDetailViewModel(
         scope.cancel()
     }
 
-    private fun Deck.toContent(cards: List<Card>, myPubky: String?): DeckDetailUiState.Content {
+    private fun Deck.toContent(
+        cards: List<Card>,
+        myPubky: String?,
+        dueCount: Int,
+    ): DeckDetailUiState.Content {
         val isOwned = authorPubky == myPubky
         return DeckDetailUiState.Content(
             deckId = id,
@@ -110,7 +118,7 @@ class DeckDetailViewModel(
             isOwned = isOwned,
             tags = tags.map { it.value },
             totalCards = cardCount,
-            dueCards = 0,
+            dueCards = dueCount,
             masteredPercent = "—",
             cardPreviews = cards.map { it.toPreview() },
         )

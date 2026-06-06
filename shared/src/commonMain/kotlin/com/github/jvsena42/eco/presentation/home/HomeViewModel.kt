@@ -2,6 +2,7 @@ package com.github.jvsena42.eco.presentation.home
 
 import com.github.jvsena42.eco.data.repository.DeckRepository
 import com.github.jvsena42.eco.data.repository.IdentityRepository
+import com.github.jvsena42.eco.data.repository.SrsRepository
 import com.github.jvsena42.eco.domain.model.Deck
 import com.github.jvsena42.eco.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 class HomeViewModel(
     private val identityRepository: IdentityRepository,
     private val deckRepository: DeckRepository,
+    private val srsRepository: SrsRepository,
     mainScope: CoroutineScope? = null,
 ) {
     private val scope: CoroutineScope =
@@ -55,11 +57,17 @@ class HomeViewModel(
                     _state.value = if (decks.isEmpty()) {
                         HomeUiState.Empty(greetingName)
                     } else {
+                        val dueByDeck = runCatching { srsRepository.dueToday() }
+                            .getOrDefault(emptyList())
+                            .groupingBy { it.deckId }
+                            .eachCount()
                         HomeUiState.Content(
                             greetingName = greetingName,
-                            dueToday = 0,
+                            dueToday = dueByDeck.values.sum(),
+                            // No persisted session history in v1; "done today" is tracked
+                            // within the study session screen, not here.
                             doneToday = 0,
-                            decks = decks.map { it.toSummary() },
+                            decks = decks.map { it.toSummary(dueByDeck[it.id] ?: 0) },
                         )
                     }
                     Log.d(TAG, "load: decks=${decks.size}")
@@ -95,11 +103,11 @@ class HomeViewModel(
         scope.cancel()
     }
 
-    private fun Deck.toSummary(): DeckSummary = DeckSummary(
+    private fun Deck.toSummary(dueCount: Int): DeckSummary = DeckSummary(
         id = id,
         title = title,
         cardCount = cardCount,
-        dueCount = 0,
+        dueCount = dueCount,
         coverInitial = title.firstOrNull()?.uppercaseChar() ?: '•',
     )
 

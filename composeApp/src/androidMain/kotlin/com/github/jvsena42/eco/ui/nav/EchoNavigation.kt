@@ -12,6 +12,7 @@ import com.github.jvsena42.eco.ui.decks.EditCardRoute
 import com.github.jvsena42.eco.ui.import_flow.PasteRoute
 import com.github.jvsena42.eco.ui.import_flow.PublishDeckRoute
 import com.github.jvsena42.eco.ui.onboarding.OnboardingRoute
+import com.github.jvsena42.eco.ui.study.StudySessionRoute
 
 @Composable
 fun EchoNavHost() {
@@ -37,6 +38,9 @@ fun EchoNavHost() {
                 onNavigateImport = {
                     navController.navigate(Routes.IMPORT_PASTE)
                 },
+                onNavigateStudy = { deckId ->
+                    navController.navigate(Routes.study(deckId))
+                },
                 onSignOut = {
                     navController.navigate(Routes.ONBOARDING) {
                         popUpTo(Routes.MAIN) { inclusive = true }
@@ -53,6 +57,7 @@ fun EchoNavHost() {
                 deckId = deckId,
                 onBack = { navController.popBackStack() },
                 onEditDeck = { id -> navController.navigate(Routes.deckEditor(id)) },
+                onStudy = { id -> navController.navigate(Routes.study(id)) },
             )
         }
         composable(
@@ -110,6 +115,22 @@ fun EchoNavHost() {
                 deckId = deckId,
                 cardId = cardId,
                 onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = Routes.STUDY,
+            arguments = listOf(
+                navArgument("deckId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { backStackEntry ->
+            val deckId = backStackEntry.arguments?.getString("deckId")
+            StudySessionRoute(
+                deckId = deckId,
+                onClose = { navController.popBackStack() },
             )
         }
     }

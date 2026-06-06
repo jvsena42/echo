@@ -8,12 +8,15 @@ import com.github.jvsena42.eco.data.repository.DeckRepository
 import com.github.jvsena42.eco.data.repository.IdentityRepository
 import com.github.jvsena42.eco.data.repository.ImportRepository
 import com.github.jvsena42.eco.data.repository.MediaRepository
+import com.github.jvsena42.eco.data.repository.SrsRepository
 import com.github.jvsena42.eco.data.repository.impl.CardRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.ImportRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.DeckRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.IdentityRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.MediaRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.SessionRevalidatorImpl
+import com.github.jvsena42.eco.data.repository.impl.SrsRepositoryImpl
+import com.github.jvsena42.eco.presentation.study.StudySessionViewModel
 import com.github.jvsena42.eco.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.eco.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.eco.presentation.decks.DecksLibraryViewModel
@@ -49,11 +52,13 @@ val sharedModule = module {
     single<DeckRepository> { DeckRepositoryImpl(get(), get(), get(), get()) }
     single<MediaRepository> { MediaRepositoryImpl(get(), get(), get()) }
     single<ImportRepository> { ImportRepositoryImpl() }
+    single<SrsRepository> { SrsRepositoryImpl(get(), get(), get(), get(), get()) }
 
     factory { OnboardingViewModel(identityRepository = get()) }
-    factory { HomeViewModel(identityRepository = get(), deckRepository = get()) }
+    factory { HomeViewModel(identityRepository = get(), deckRepository = get(), srsRepository = get()) }
     factory { DecksLibraryViewModel(deckRepository = get(), identityRepository = get()) }
-    factory { params -> DeckDetailViewModel(deckId = params.get(), deckRepository = get(), cardRepository = get(), identityRepository = get()) }
+    factory { params -> DeckDetailViewModel(deckId = params.get(), deckRepository = get(), cardRepository = get(), identityRepository = get(), srsRepository = get()) }
+    factory { params -> StudySessionViewModel(deckId = params.getOrNull(), srsRepository = get(), deckRepository = get()) }
     factory { params -> DeckEditorViewModel(deckId = params.getOrNull(), deckRepository = get(), cardRepository = get(), identityRepository = get()) }
     factory { params -> EditCardViewModel(deckId = params.get(0), cardId = params.get(1), cardRepository = get(), deckRepository = get(), mediaRepository = get()) }
     factory { PasteImportViewModel(importRepository = get()) }

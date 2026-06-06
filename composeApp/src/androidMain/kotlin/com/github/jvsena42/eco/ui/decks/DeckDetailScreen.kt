@@ -56,6 +56,7 @@ fun DeckDetailRoute(
     deckId: String,
     onBack: () -> Unit = {},
     onEditDeck: (String) -> Unit = {},
+    onStudy: (String) -> Unit = {},
 ) {
     val viewModel = koinInject<DeckDetailViewModel> { parametersOf(deckId) }
     DisposableEffect(viewModel) {
@@ -64,13 +65,14 @@ fun DeckDetailRoute(
 
     val currentBack by rememberUpdatedState(onBack)
     val currentEditDeck by rememberUpdatedState(onEditDeck)
+    val currentStudy by rememberUpdatedState(onStudy)
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 DeckDetailEffect.NavigateBack -> currentBack()
                 is DeckDetailEffect.NavigateEditDeck -> currentEditDeck(effect.deckId)
-                DeckDetailEffect.NavigateStudy -> { /* handled by parent nav */ }
+                DeckDetailEffect.NavigateStudy -> currentStudy(deckId)
                 is DeckDetailEffect.Share -> { /* handled by platform share sheet */ }
             }
         }
