@@ -61,6 +61,9 @@ interface DeckRepository {
     suspend fun delete(deckId: String): Result<Unit>
     suspend fun listOwned(): List<Deck>
 
+    /** Public decks for any author (their homeserver, read-only). Powers friend profiles + Discover. */
+    suspend fun listByAuthor(authorPubky: String): List<Deck>
+
     /** Pull-only sync driven by the manifest `updated_at` diff. */
     suspend fun sync(deckId: String): Result<Deck>
 }
@@ -81,12 +84,33 @@ interface ImportRepository {
 interface TagRepository {
     suspend fun putTag(deckUri: PubkyUri, tag: Tag): Result<Unit>
     suspend fun removeTag(deckUri: PubkyUri, tag: Tag): Result<Unit>
+
+    /**
+     * Network-wide trending tags. **Deferred** — requires a Nexus-style backend indexer the thin
+     * [com.github.jvsena42.eco.data.pubky.PubkyClient] FFI cannot provide (no global index). Until
+     * then Discover filters tags locally over visible decks via [DiscoveryRepository.decksByTag].
+     */
     suspend fun trending(): List<Tag>
 }
 
+/**
+ * Social graph + discovery. Follows use the pubky.app native primitive (see
+ * [com.github.jvsena42.eco.data.pubky.PubkyPaths.follow]); the repo owns the follow/unfollow logic
+ * and feed building. Tag discovery is a local filter over decks the user can already reach
+ * (following + own) — global tag search is deferred pending an indexer (see [TagRepository.trending]).
+ */
 interface DiscoveryRepository {
-    suspend fun decksByTag(tag: Tag): List<Deck>
+    /** Pubkys the current user follows. */
+    suspend fun following(): List<String>
+    suspend fun isFollowing(pubky: String): Boolean
+    suspend fun followUser(pubky: String): Result<Unit>
+    suspend fun unfollowUser(pubky: String): Result<Unit>
+
+    /** Decks published by people the user follows, newest first. */
     suspend fun decksFromFollowing(): List<Deck>
+
+    /** Visible decks (following + own) carrying [tag]. */
+    suspend fun decksByTag(tag: Tag): List<Deck>
 }
 
 /**

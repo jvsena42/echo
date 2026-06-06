@@ -20,6 +20,7 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.koin.android)
+            implementation(libs.play.services.code.scanner)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)

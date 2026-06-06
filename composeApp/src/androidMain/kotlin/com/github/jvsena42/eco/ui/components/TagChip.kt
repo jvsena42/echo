@@ -26,15 +26,18 @@ fun TagChip(
     tag: String,
     onClick: (() -> Unit)? = null,
     onRemove: (() -> Unit)? = null,
+    selected: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val colors = EchoTheme.colors
     val pillShape = RoundedCornerShape(50)
+    val background = if (selected) colors.accentSecondary else colors.accentSecondarySoft
+    val foreground = if (selected) colors.foregroundOnAccent else colors.accentSecondary
 
     Row(
         modifier = modifier
             .clip(pillShape)
-            .background(colors.accentSecondarySoft)
+            .background(background)
             .then(
                 if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
             )
@@ -45,7 +48,7 @@ fun TagChip(
             text = "#",
             fontSize = 13.sp,
             fontWeight = FontWeight.W700,
-            color = colors.accentSecondary,
+            color = foreground,
         )
 
         Spacer(modifier = Modifier.width(4.dp))
@@ -54,7 +57,7 @@ fun TagChip(
             text = tag,
             fontSize = 13.sp,
             fontWeight = FontWeight.W600,
-            color = colors.accentSecondary,
+            color = foreground,
         )
 
         if (onRemove != null) {
@@ -62,7 +65,7 @@ fun TagChip(
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "Remove tag",
-                tint = colors.accentSecondary,
+                tint = foreground,
                 modifier = Modifier
                     .size(16.dp)
                     .clickable(onClick = onRemove),

@@ -32,6 +32,7 @@ fun DeckTile(
     authorLabel: String,
     coverColor: Color = EchoTheme.colors.accentPrimarySoft,
     onClick: () -> Unit,
+    onAuthorClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = EchoTheme.colors
@@ -99,6 +100,11 @@ fun DeckTile(
                     text = authorLabel,
                     fontSize = 12.sp,
                     color = colors.accentSecondary,
+                    modifier = if (onAuthorClick != null) {
+                        Modifier.clickable(onClick = onAuthorClick)
+                    } else {
+                        Modifier
+                    },
                 )
             }
         }
