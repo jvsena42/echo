@@ -108,13 +108,16 @@ class DeckRepositoryImpl(
     }
 
     override suspend fun listOwned(): List<Deck> {
-        val s = session.current() ?: return emptyList()
-        val author = s.identity.pubky
-        val listJson = pubky.list(PubkyPaths.decksList(author)).getOrNull() ?: return emptyList()
+        val author = session.current()?.identity?.pubky ?: return emptyList()
+        return listByAuthor(author)
+    }
+
+    override suspend fun listByAuthor(authorPubky: String): List<Deck> {
+        val listJson = pubky.list(PubkyPaths.decksList(authorPubky)).getOrNull() ?: return emptyList()
         val deckIds = parseDeckIdsFromList(listJson)
         val decks = mutableListOf<Deck>()
         for (deckId in deckIds) {
-            fetchRemote(author, deckId).getOrNull()?.let { decks.add(it) }
+            fetchRemote(authorPubky, deckId).getOrNull()?.let { decks.add(it) }
         }
         return decks
     }

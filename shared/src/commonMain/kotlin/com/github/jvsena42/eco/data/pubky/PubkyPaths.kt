@@ -29,6 +29,17 @@ internal object PubkyPaths {
     fun decksList(authorPubky: String): String =
         "pubky://$authorPubky/$APP_NAMESPACE/decks/"
 
+    /**
+     * Social follows use the pubky.app native primitive: a record's *existence* under the owner's
+     * `follows/` directory means "owner follows followee". Stored on the follower's homeserver so
+     * listing your own follows is a single [PubkyClient.list] on [followsRoot].
+     */
+    fun followsRoot(ownerPubky: String): String =
+        "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/follows/"
+
+    fun follow(ownerPubky: String, followeePubky: String): String =
+        "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/follows/$followeePubky"
+
     /** Relative `media/<sha>.<ext>` reference stored inside card/manifest records. */
     fun relativeMedia(sha256: String, ext: String): String = "media/$sha256.$ext"
 }

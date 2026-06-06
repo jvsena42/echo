@@ -5,17 +5,21 @@ import com.github.jvsena42.eco.data.pubky.SessionProvider
 import com.github.jvsena42.eco.data.pubky.SessionRevalidator
 import com.github.jvsena42.eco.data.repository.CardRepository
 import com.github.jvsena42.eco.data.repository.DeckRepository
+import com.github.jvsena42.eco.data.repository.DiscoveryRepository
 import com.github.jvsena42.eco.data.repository.IdentityRepository
 import com.github.jvsena42.eco.data.repository.ImportRepository
 import com.github.jvsena42.eco.data.repository.MediaRepository
 import com.github.jvsena42.eco.data.repository.SrsRepository
 import com.github.jvsena42.eco.data.repository.impl.CardRepositoryImpl
+import com.github.jvsena42.eco.data.repository.impl.DiscoveryRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.ImportRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.DeckRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.IdentityRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.MediaRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.SessionRevalidatorImpl
 import com.github.jvsena42.eco.data.repository.impl.SrsRepositoryImpl
+import com.github.jvsena42.eco.presentation.discover.DiscoverViewModel
+import com.github.jvsena42.eco.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.eco.presentation.study.StudySessionViewModel
 import com.github.jvsena42.eco.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.eco.presentation.decks.DeckEditorViewModel
@@ -53,6 +57,7 @@ val sharedModule = module {
     single<MediaRepository> { MediaRepositoryImpl(get(), get(), get()) }
     single<ImportRepository> { ImportRepositoryImpl() }
     single<SrsRepository> { SrsRepositoryImpl(get(), get(), get(), get(), get()) }
+    single<DiscoveryRepository> { DiscoveryRepositoryImpl(get(), get(), get(), get()) }
 
     factory { OnboardingViewModel(identityRepository = get()) }
     factory { HomeViewModel(identityRepository = get(), deckRepository = get(), srsRepository = get()) }
@@ -64,4 +69,13 @@ val sharedModule = module {
     factory { PasteImportViewModel(importRepository = get()) }
     factory { PublishDeckViewModel(importRepository = get(), deckRepository = get(), identityRepository = get()) }
     factory { ProfileViewModel(identityRepository = get(), deckRepository = get()) }
+    factory { DiscoverViewModel(discoveryRepository = get()) }
+    factory { params ->
+        FriendProfileViewModel(
+            targetPubky = params.get(),
+            identityRepository = get(),
+            discoveryRepository = get(),
+            deckRepository = get(),
+        )
+    }
 }

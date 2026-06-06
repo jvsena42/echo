@@ -12,6 +12,7 @@ import com.github.jvsena42.eco.ui.decks.EditCardRoute
 import com.github.jvsena42.eco.ui.import_flow.PasteRoute
 import com.github.jvsena42.eco.ui.import_flow.PublishDeckRoute
 import com.github.jvsena42.eco.ui.onboarding.OnboardingRoute
+import com.github.jvsena42.eco.ui.profile.FriendProfileRoute
 import com.github.jvsena42.eco.ui.study.StudySessionRoute
 
 @Composable
@@ -40,6 +41,9 @@ fun EchoNavHost() {
                 },
                 onNavigateStudy = { deckId ->
                     navController.navigate(Routes.study(deckId))
+                },
+                onNavigateProfile = { pubky ->
+                    navController.navigate(Routes.friendProfile(pubky))
                 },
                 onSignOut = {
                     navController.navigate(Routes.ONBOARDING) {
@@ -131,6 +135,17 @@ fun EchoNavHost() {
             StudySessionRoute(
                 deckId = deckId,
                 onClose = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = Routes.FRIEND_PROFILE,
+            arguments = listOf(navArgument("pubky") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val pubky = backStackEntry.arguments?.getString("pubky") ?: return@composable
+            FriendProfileRoute(
+                pubky = pubky,
+                onBack = { navController.popBackStack() },
+                onOpenDeck = { deckId -> navController.navigate(Routes.deckDetail(deckId)) },
             )
         }
     }

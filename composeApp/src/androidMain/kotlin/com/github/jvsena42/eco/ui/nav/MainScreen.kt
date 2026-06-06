@@ -9,7 +9,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.github.jvsena42.eco.ui.decks.DecksRoute
-import com.github.jvsena42.eco.ui.discover.DiscoverScreen
+import com.github.jvsena42.eco.ui.discover.DiscoverRoute
 import com.github.jvsena42.eco.ui.home.HomeRoute
 import com.github.jvsena42.eco.ui.profile.ProfileRoute
 import kotlinx.coroutines.launch
@@ -20,6 +20,7 @@ fun MainScreen(
     onNavigateCreateDeck: () -> Unit = {},
     onNavigateImport: () -> Unit = {},
     onNavigateStudy: (String?) -> Unit = {},
+    onNavigateProfile: (String) -> Unit = {},
     onSignOut: () -> Unit = {},
 ) {
     val pagerState = rememberPagerState(pageCount = { EchoTab.entries.size })
@@ -42,7 +43,10 @@ fun MainScreen(
                     onImportClick = onNavigateImport,
                     onCreateDeckClick = onNavigateCreateDeck,
                 )
-                EchoTab.DISCOVER -> DiscoverScreen()
+                EchoTab.DISCOVER -> DiscoverRoute(
+                    onOpenProfile = onNavigateProfile,
+                    onOpenDeck = onNavigateDeckDetail,
+                )
                 EchoTab.PROFILE -> ProfileRoute(onSignedOut = onSignOut)
             }
         }

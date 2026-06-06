@@ -9,8 +9,10 @@ import com.github.jvsena42.eco.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.eco.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.eco.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.eco.presentation.decks.EditCardViewModel
+import com.github.jvsena42.eco.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.eco.presentation.home.HomeViewModel
 import com.github.jvsena42.eco.presentation.onboarding.OnboardingViewModel
+import com.github.jvsena42.eco.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.eco.presentation.study.StudySessionViewModel
 import org.koin.core.context.startKoin
 import org.koin.core.module.Module
@@ -56,4 +58,10 @@ object IosDependencies {
 
     fun studySessionViewModel(deckId: String?): StudySessionViewModel =
         org.koin.core.context.GlobalContext.get().get { parametersOf(deckId) }
+
+    fun discoverViewModel(): DiscoverViewModel =
+        org.koin.core.context.GlobalContext.get().get()
+
+    fun friendProfileViewModel(pubky: String): FriendProfileViewModel =
+        org.koin.core.context.GlobalContext.get().get { parametersOf(pubky) }
 }

@@ -21,6 +21,7 @@ detektComposeRules = "0.4.22"
 koin = "4.0.2"
 navigationCompose = "2.9.0-beta03"
 kvault = "1.12.0"
+playServicesCodeScanner = "16.1.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -52,6 +53,7 @@ koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
 androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 kvault = { module = "com.liftric:kvault", version.ref = "kvault" }
+play-services-code-scanner = { module = "com.google.android.gms:play-services-code-scanner", version.ref = "playServicesCodeScanner" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
