@@ -1,0 +1,20 @@
+<journey name="Study loop — reveal and grade due cards">
+  <description>
+    Spaced-repetition session over the deck created in journey 02. New cards count as due.
+    Requires journeys 01 and 02 to have run (signed in, "Animals PT" deck exists).
+  </description>
+  <actions>
+    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Open the Decks tab and tap the "Animals PT" deck</action>
+    <action>Verify the deck detail screen shows a due-cards count greater than zero and a study button</action>
+    <action>Tap the study button to start a session</action>
+    <action>Verify a study card is shown with a position indicator like "1 of 3" and the card front text visible</action>
+    <action>Tap the card to reveal the answer</action>
+    <action>Verify the card back is revealed and four grade buttons are shown (Again, Hard, Good, Easy)</action>
+    <action>Tap "Good"</action>
+    <action>Verify the session advanced to the next card ("2 of 3")</action>
+    <action>Reveal and grade the remaining cards with "Good"</action>
+    <action>Verify a session-complete state is shown (summary or return affordance)</action>
+    <action>Close the study session and verify the app returns to the previous screen</action>
+  </actions>
+</journey>

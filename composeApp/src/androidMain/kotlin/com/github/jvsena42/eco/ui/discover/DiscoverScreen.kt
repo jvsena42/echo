@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -63,7 +64,7 @@ import org.koin.compose.koinInject
 @Composable
 fun DiscoverRoute(
     onOpenProfile: (String) -> Unit = {},
-    onOpenDeck: (String) -> Unit = {},
+    onOpenDeck: (deckId: String, author: String?) -> Unit = { _, _ -> },
 ) {
     val viewModel = koinInject<DiscoverViewModel>()
     DisposableEffect(viewModel) { onDispose { viewModel.onDispose() } }
@@ -77,7 +78,7 @@ fun DiscoverRoute(
             when (effect) {
                 DiscoverEffect.OpenAddFriend -> showAddFriend = true
                 is DiscoverEffect.OpenProfile -> currentOpenProfile(effect.pubky)
-                is DiscoverEffect.OpenDeck -> currentOpenDeck(effect.deckId)
+                is DiscoverEffect.OpenDeck -> currentOpenDeck(effect.deckId, effect.authorPubky)
             }
         }
     }
@@ -103,6 +104,7 @@ fun DiscoverRoute(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DiscoverScreen(
     state: DiscoverUiState,
@@ -113,11 +115,37 @@ private fun DiscoverScreen(
     onRetry: () -> Unit,
 ) {
     val colors = EchoTheme.colors
-    Column(
+    PullToRefreshBox(
+        isRefreshing = state is DiscoverUiState.Loading,
+        onRefresh = onRetry,
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surfacePrimary)
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.statusBars),
+    ) {
+        DiscoverScreenContent(
+            state = state,
+            onTagSelected = onTagSelected,
+            onAddFriend = onAddFriend,
+            onOpenAuthor = onOpenAuthor,
+            onOpenDeck = onOpenDeck,
+            onRetry = onRetry,
+        )
+    }
+}
+
+@Composable
+private fun DiscoverScreenContent(
+    state: DiscoverUiState,
+    onTagSelected: (Tag?) -> Unit,
+    onAddFriend: () -> Unit,
+    onOpenAuthor: (String) -> Unit,
+    onOpenDeck: (String, String) -> Unit,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp)),
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -135,11 +163,23 @@ private fun DiscoverScreen(
                         onTagSelected = onTagSelected,
                     )
                 }
-                DeckGrid(
-                    decks = state.decks,
-                    onOpenDeck = onOpenDeck,
-                    onOpenAuthor = onOpenAuthor,
-                )
+                if (state.trendingTags.isNotEmpty()) {
+                    TrendingSection(
+                        tags = state.trendingTags,
+                        selectedTag = state.selectedTag,
+                        onTagSelected = onTagSelected,
+                    )
+                }
+                val selected = state.selectedTag
+                if (state.decks.isEmpty() && selected != null) {
+                    EmptyTagBlock(tag = selected)
+                } else {
+                    DeckGrid(
+                        decks = state.decks,
+                        onOpenDeck = onOpenDeck,
+                        onOpenAuthor = onOpenAuthor,
+                    )
+                }
             }
             is DiscoverUiState.Error -> ErrorBlock(message = state.message, onRetry = onRetry)
         }
@@ -204,6 +244,51 @@ private fun TagRow(
                 onClick = { onTagSelected(tag) },
             )
         }
+    }
+}
+
+@Composable
+private fun TrendingSection(
+    tags: List<Tag>,
+    selectedTag: Tag?,
+    onTagSelected: (Tag?) -> Unit,
+) {
+    val colors = EchoTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = "Trending on Pubky",
+            color = colors.foregroundSecondary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.W700,
+        )
+        TagRow(
+            tags = tags,
+            selectedTag = selectedTag,
+            onTagSelected = onTagSelected,
+        )
+    }
+}
+
+@Composable
+private fun EmptyTagBlock(tag: Tag) {
+    val colors = EchoTheme.colors
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+    ) {
+        Text(text = "🔍", fontSize = 36.sp)
+        Text(
+            text = "No decks tagged “${tag.value}” yet",
+            color = colors.foregroundPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = "Follow more friends to widen your feed, or tap the tag again to clear it.",
+            color = colors.foregroundMuted,
+            fontSize = 13.sp,
+        )
     }
 }
 

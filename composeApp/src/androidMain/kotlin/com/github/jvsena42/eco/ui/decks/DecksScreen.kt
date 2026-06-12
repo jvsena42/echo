@@ -22,9 +22,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -85,6 +87,7 @@ fun DecksRoute(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DecksScreen(
     state: DecksLibraryUiState,
@@ -94,11 +97,35 @@ fun DecksScreen(
     onRetry: () -> Unit,
 ) {
     val colors = EchoTheme.colors
-    Column(
+    PullToRefreshBox(
+        isRefreshing = state is DecksLibraryUiState.Loading,
+        onRefresh = onRetry,
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surfacePrimary)
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.statusBars),
+    ) {
+        DecksScreenContent(
+            state = state,
+            onDeckClick = onDeckClick,
+            onImportClick = onImportClick,
+            onCreateDeckClick = onCreateDeckClick,
+            onRetry = onRetry,
+        )
+    }
+}
+
+@Composable
+private fun DecksScreenContent(
+    state: DecksLibraryUiState,
+    onDeckClick: (String) -> Unit,
+    onImportClick: () -> Unit,
+    onCreateDeckClick: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp)),
         verticalArrangement = Arrangement.spacedBy(20.dp),

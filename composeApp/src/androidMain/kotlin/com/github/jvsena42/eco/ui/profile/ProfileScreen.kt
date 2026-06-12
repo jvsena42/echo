@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -60,6 +62,7 @@ import org.koin.compose.koinInject
 @Composable
 fun ProfileRoute(
     onSignedOut: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     val viewModel = koinInject<ProfileViewModel>()
     DisposableEffect(viewModel) { onDispose { viewModel.onDispose() } }
@@ -81,6 +84,7 @@ fun ProfileRoute(
     ProfileScreen(
         state = state,
         errorMessage = errorMessage,
+        onOpenSettings = onOpenSettings,
         onEditProfileClick = viewModel::onEditProfileClick,
         onShareClick = viewModel::onShareClick,
         onSignOutClick = viewModel::onSignOutClick,
@@ -97,6 +101,7 @@ fun ProfileRoute(
 private fun ProfileScreen(
     state: ProfileUiState,
     errorMessage: String?,
+    onOpenSettings: () -> Unit,
     onEditProfileClick: () -> Unit,
     onShareClick: () -> Unit,
     onSignOutClick: () -> Unit,
@@ -129,13 +134,35 @@ private fun ProfileScreen(
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp)),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // --- Nav title ---
-        Text(
-            text = "Profile",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = colors.foregroundPrimary,
-        )
+        // --- Nav title + settings entry point ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Profile",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = colors.foregroundPrimary,
+            )
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(colors.surfaceCard)
+                    .border(1.dp, colors.borderSubtle, CircleShape)
+                    .clickable(onClick = onOpenSettings),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = "Settings",
+                    tint = colors.foregroundSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
 
         // --- Profile section ---
         Column(

@@ -1,0 +1,18 @@
+<journey name="Profile and settings — identity, copy pubky, sign out">
+  <description>
+    Own profile, the settings screen (identity info, copy pubky) and sign-out back to
+    onboarding. Run LAST — it ends the session. Requires a signed-in session.
+  </description>
+  <actions>
+    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Open the Profile tab from the bottom tab bar</action>
+    <action>Verify the profile screen shows the user's identity (name or truncated pubky)</action>
+    <action>Tap the settings (gear) button</action>
+    <action>Verify the Settings screen is shown with an Identity section (truncated pubky, homeserver) and a "Sign out" row</action>
+    <action>Tap the copy control next to the pubky and verify no crash occurs</action>
+    <action>Tap "Sign out"</action>
+    <action>Verify a confirmation dialog appears</action>
+    <action>Confirm sign out</action>
+    <action>Verify the app returns to the onboarding screen with the "Sign in with Pubky Ring" button</action>
+  </actions>
+</journey>

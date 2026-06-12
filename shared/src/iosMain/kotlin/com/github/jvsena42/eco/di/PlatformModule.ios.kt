@@ -2,7 +2,9 @@ package com.github.jvsena42.eco.di
 
 import com.github.jvsena42.eco.data.nexus.HttpFetcher
 import com.github.jvsena42.eco.data.nexus.IosHttpFetcher
+import com.github.jvsena42.eco.data.pubky.IosPubkyClientAdapter
 import com.github.jvsena42.eco.data.pubky.PubkyClient
+import com.github.jvsena42.eco.data.pubky.RawPubkyClient
 import com.github.jvsena42.eco.data.storage.IosSecureSessionStore
 import com.github.jvsena42.eco.data.storage.SecureSessionStore
 import com.github.jvsena42.eco.platform.IosSpeaker
@@ -18,6 +20,7 @@ import com.github.jvsena42.eco.presentation.import_flow.PublishDeckViewModel
 import com.github.jvsena42.eco.presentation.onboarding.OnboardingViewModel
 import com.github.jvsena42.eco.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.eco.presentation.profile.ProfileViewModel
+import com.github.jvsena42.eco.presentation.settings.SettingsViewModel
 import com.github.jvsena42.eco.presentation.study.StudySessionViewModel
 import org.koin.core.Koin
 import org.koin.core.context.startKoin
@@ -27,18 +30,19 @@ import org.koin.dsl.module
 import org.koin.mp.KoinPlatform
 
 /**
- * Starts Koin for the iOS app. Swift supplies the [PubkyClient] instance (implemented in
- * Swift in `iosApp/iosApp/Pubky/IosPubkyClient.swift`) because the concrete type crosses the
- * Kotlin/Swift interop boundary and cannot be constructed from Kotlin.
+ * Starts Koin for the iOS app. Swift supplies a [RawPubkyClient] (the dumb `[status, payload]`
+ * pass-through implemented in `iosApp/iosApp/Pubky/IosPubkyClient.swift`); it is wrapped into
+ * the shared [PubkyClient] contract by [IosPubkyClientAdapter] on the Kotlin side, because
+ * `kotlin.Result` and suspend functions cannot be implemented from Swift.
  */
-fun doInitKoin(pubkyClient: PubkyClient) {
+fun doInitKoin(rawPubkyClient: RawPubkyClient) {
     startKoin {
-        modules(sharedModule, iosPlatformModule(pubkyClient))
+        modules(sharedModule, iosPlatformModule(rawPubkyClient))
     }
 }
 
-private fun iosPlatformModule(pubkyClient: PubkyClient): Module = module {
-    single<PubkyClient> { pubkyClient }
+private fun iosPlatformModule(rawPubkyClient: RawPubkyClient): Module = module {
+    single<PubkyClient> { IosPubkyClientAdapter(rawPubkyClient) }
     single<HttpFetcher> { IosHttpFetcher() }
     single<SecureSessionStore> { IosSecureSessionStore() }
     single<Speaker> { IosSpeaker() }
@@ -69,6 +73,8 @@ object IosDependencies {
     fun discoverViewModel(): DiscoverViewModel = koin.get()
 
     fun profileViewModel(): ProfileViewModel = koin.get()
+
+    fun settingsViewModel(): SettingsViewModel = koin.get()
 
     fun pasteImportViewModel(): PasteImportViewModel = koin.get()
 

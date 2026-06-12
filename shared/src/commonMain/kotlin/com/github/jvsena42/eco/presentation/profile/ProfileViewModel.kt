@@ -1,5 +1,6 @@
 package com.github.jvsena42.eco.presentation.profile
 
+import com.github.jvsena42.eco.data.pubky.requiresReauth
 import com.github.jvsena42.eco.data.repository.DeckRepository
 import com.github.jvsena42.eco.data.repository.IdentityRepository
 import com.github.jvsena42.eco.util.Log
@@ -62,7 +63,12 @@ class ProfileViewModel(
             }.getOrNull() ?: session.identity
 
             // Fetch deck stats
-            val decks = runCatching { deckRepository.listOwned() }.getOrElse { emptyList() }
+            val decksResult = runCatching { deckRepository.listOwned() }
+            if (decksResult.exceptionOrNull()?.requiresReauth() == true) {
+                handleSessionExpired()
+                return@launch
+            }
+            val decks = decksResult.getOrElse { emptyList() }
             val deckCount = decks.size
             val cardCount = decks.sumOf { it.cardCount }
 
@@ -133,7 +139,11 @@ class ProfileViewModel(
             }.onFailure { err ->
                 Log.e(TAG, "onSaveClick: FAILED — ${err.message}", err)
                 _state.update { it.copy(isSaving = false) }
-                _effects.emit(ProfileEffect.ShowError(err.message ?: "Could not save profile."))
+                if (err.requiresReauth()) {
+                    handleSessionExpired()
+                } else {
+                    _effects.emit(ProfileEffect.ShowError(err.message ?: "Could not save profile."))
+                }
             }
         }
     }
@@ -143,6 +153,14 @@ class ProfileViewModel(
         if (pubky.isNotBlank()) {
             scope.launch { _effects.emit(ProfileEffect.ShareProfile("pubky://$pubky")) }
         }
+    }
+
+    /** Best-effort sign-out + redirect to onboarding when the session can't be refreshed. */
+    private suspend fun handleSessionExpired() {
+        Log.d(TAG, "handleSessionExpired: session expired — signing out")
+        runCatching { identityRepository.signOut() }
+        _state.update { it.copy(isLoading = false, isSaving = false, showEditSheet = false) }
+        _effects.emit(ProfileEffect.NavigateToOnboarding)
     }
 
     fun onSignOutClick() {

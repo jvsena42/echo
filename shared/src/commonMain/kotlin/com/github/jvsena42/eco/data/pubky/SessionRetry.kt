@@ -14,6 +14,14 @@ internal fun Throwable.isSessionExpired(): Boolean {
 }
 
 /**
+ * Public helper for ViewModels: returns true when a repository failure means the stored
+ * session could not be refreshed and the user has to sign in again. Repos already retry
+ * once via [putWithSessionRetry] and friends, so by the time a failure reaches a ViewModel
+ * a session-expired error is terminal.
+ */
+fun Throwable.requiresReauth(): Boolean = isSessionExpired()
+
+/**
  * Attempt [PubkyClient.putWithSession] with the current session. If it fails with a
  * session-expired error, revalidate once via [revalidator] and retry with the
  * refreshed secret.

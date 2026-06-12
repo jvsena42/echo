@@ -20,8 +20,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+@Suppress("LongParameterList")
 class DeckDetailViewModel(
     private val deckId: String,
+    private val authorPubky: String? = null,
     private val deckRepository: DeckRepository,
     private val cardRepository: CardRepository,
     private val identityRepository: IdentityRepository,
@@ -55,7 +57,15 @@ class DeckDetailViewModel(
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
             val myPubky = session?.identity?.pubky
 
-            val deck = deckRepository.getLocal(deckId)
+            var deck = deckRepository.getLocal(deckId)
+            if (deck == null && authorPubky != null) {
+                Log.d(TAG, "load: cache miss, fetching remote author=$authorPubky")
+                deck = deckRepository.fetchRemote(authorPubky, deckId)
+                    .onFailure { err ->
+                        Log.e(TAG, "load: remote fetch FAILED — ${err::class.simpleName}: ${err.message}", err)
+                    }
+                    .getOrNull()
+            }
             if (deck == null) {
                 _state.value = DeckDetailUiState.Error("Deck not found.")
                 return@launch
@@ -65,8 +75,9 @@ class DeckDetailViewModel(
                 .onSuccess { cards ->
                     val dueCount = runCatching { srsRepository.dueForDeck(deckId).size }
                         .getOrDefault(0)
-                    _state.value = deck.toContent(cards, myPubky, dueCount)
-                    Log.d(TAG, "load: cards=${cards.size} due=$dueCount")
+                    val mastered = masteredPercent(cards)
+                    _state.value = deck.toContent(cards, myPubky, dueCount, mastered)
+                    Log.d(TAG, "load: cards=${cards.size} due=$dueCount mastered=$mastered")
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
@@ -96,15 +107,56 @@ class DeckDetailViewModel(
         scope.launch { _effects.emit(DeckDetailEffect.NavigateEditDeck(deckId)) }
     }
 
+    fun onDeleteDeck() {
+        val current = _state.value as? DeckDetailUiState.Content ?: return
+        _state.value = current.copy(showDeleteConfirm = true)
+    }
+
+    fun onDismissDelete() {
+        val current = _state.value as? DeckDetailUiState.Content ?: return
+        _state.value = current.copy(showDeleteConfirm = false)
+    }
+
+    fun onConfirmDelete() {
+        val current = _state.value as? DeckDetailUiState.Content ?: return
+        _state.value = current.copy(showDeleteConfirm = false)
+        scope.launch {
+            Log.d(TAG, "onConfirmDelete: deckId=$deckId")
+            deckRepository.delete(deckId)
+                .onSuccess { _effects.emit(DeckDetailEffect.Deleted) }
+                .onFailure { err ->
+                    Log.e(TAG, "onConfirmDelete: FAILED — ${err::class.simpleName}: ${err.message}", err)
+                    _state.value = DeckDetailUiState.Error(
+                        err.message ?: "Could not delete deck.",
+                    )
+                }
+        }
+    }
+
     fun onDispose() {
         loadJob?.cancel()
         scope.cancel()
+    }
+
+    /**
+     * Share of cards whose review interval has reached SM-2's "mature" threshold.
+     * `dueForDeck` has already warmed the per-session SRS cache, so [SrsRepository.stateFor]
+     * is a cheap lookup here. "—" until the deck has cards.
+     */
+    private suspend fun masteredPercent(cards: List<Card>): String {
+        if (cards.isEmpty()) return "—"
+        val mastered = cards.count { card ->
+            val state = runCatching { srsRepository.stateFor(card.id) }.getOrNull()
+            state != null && state.intervalDays >= MATURE_INTERVAL_DAYS
+        }
+        return "${mastered * PERCENT / cards.size}%"
     }
 
     private fun Deck.toContent(
         cards: List<Card>,
         myPubky: String?,
         dueCount: Int,
+        mastered: String,
     ): DeckDetailUiState.Content {
         val isOwned = authorPubky == myPubky
         return DeckDetailUiState.Content(
@@ -119,7 +171,7 @@ class DeckDetailViewModel(
             tags = tags.map { it.value },
             totalCards = cardCount,
             dueCards = dueCount,
-            masteredPercent = "—",
+            masteredPercent = mastered,
             cardPreviews = cards.map { it.toPreview() },
         )
     }
@@ -132,6 +184,10 @@ class DeckDetailViewModel(
 
     companion object {
         private const val TAG = "Echo/DeckDetailVM"
+
+        /** SM-2 convention: a card with a ≥21-day interval counts as mature/mastered. */
+        private const val MATURE_INTERVAL_DAYS = 21
+        private const val PERCENT = 100
     }
 }
 
@@ -151,6 +207,7 @@ sealed interface DeckDetailUiState {
         val dueCards: Int,
         val masteredPercent: String,
         val cardPreviews: List<CardPreviewModel>,
+        val showDeleteConfirm: Boolean = false,
     ) : DeckDetailUiState
     data class Error(val message: String) : DeckDetailUiState
 }
@@ -166,4 +223,5 @@ sealed interface DeckDetailEffect {
     data class NavigateEditDeck(val deckId: String) : DeckDetailEffect
     data object NavigateStudy : DeckDetailEffect
     data class Share(val uri: String) : DeckDetailEffect
+    data object Deleted : DeckDetailEffect
 }

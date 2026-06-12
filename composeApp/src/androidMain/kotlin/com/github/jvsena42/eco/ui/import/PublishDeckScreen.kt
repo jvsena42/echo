@@ -28,7 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -45,7 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -89,6 +87,8 @@ fun PublishDeckRoute(
         onAddTag = viewModel::onAddTag,
         onRemoveTag = viewModel::onRemoveTag,
         onPublishClick = viewModel::onPublishClick,
+        onUndoPublish = viewModel::onUndoPublish,
+        onDonePublish = viewModel::onDonePublish,
         onBackClick = viewModel::onBackClick,
     )
 }
@@ -102,11 +102,22 @@ private fun PublishDeckScreen(
     onAddTag: (String) -> Unit,
     onRemoveTag: (String) -> Unit,
     onPublishClick: () -> Unit,
+    onUndoPublish: () -> Unit,
+    onDonePublish: () -> Unit,
     onBackClick: () -> Unit,
 ) {
     val colors = EchoTheme.colors
     var showTagSheet by remember { mutableStateOf(false) }
     var tagInput by remember { mutableStateOf("") }
+
+    if (state.publishedDeckId != null) {
+        PublishedContent(
+            state = state,
+            onUndoPublish = onUndoPublish,
+            onDonePublish = onDonePublish,
+        )
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -209,6 +220,9 @@ private fun PublishDeckScreen(
                     }
                 },
             )
+            state.titleError?.let { errorText ->
+                Text(errorText, fontSize = 12.sp, color = colors.danger)
+            }
         }
 
         // Description
@@ -226,11 +240,16 @@ private fun PublishDeckScreen(
                 cursorBrush = SolidColor(colors.accentPrimary),
                 decorationBox = { inner ->
                     Box {
-                        if (state.description.isEmpty()) Text("Add a short description...", fontSize = 14.sp, color = colors.foregroundMuted)
+                        if (state.description.isEmpty()) {
+                            Text("Add a short description...", fontSize = 14.sp, color = colors.foregroundMuted)
+                        }
                         inner()
                     }
                 },
             )
+            state.descriptionError?.let { errorText ->
+                Text(errorText, fontSize = 12.sp, color = colors.danger)
+            }
         }
 
         // Tags
@@ -287,7 +306,7 @@ private fun PublishDeckScreen(
             label = "Publish deck",
             onClick = onPublishClick,
             loading = state.isPublishing,
-            enabled = state.title.isNotBlank() && !state.isPublishing,
+            enabled = state.canPublish,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -434,6 +453,75 @@ private fun PublishDeckScreen(
                     },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun PublishedContent(
+    state: PublishDeckUiState,
+    onUndoPublish: () -> Unit,
+    onDonePublish: () -> Unit,
+) {
+    val colors = EchoTheme.colors
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.surfacePrimary)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 40.dp)),
+        verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Success indicator
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(colors.srsGood.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Default.Check, "Published", tint = colors.srsGood, modifier = Modifier.size(36.dp))
+        }
+        Text("Deck published!", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = colors.foregroundPrimary)
+        Text(
+            text = "${state.cardCount} cards are now public on your Pubky.",
+            fontSize = 14.sp,
+            color = colors.foregroundSecondary,
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        // Done button
+        EchoPrimaryButton(
+            label = "Done",
+            onClick = onDonePublish,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        // Undo button with countdown
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(CircleShape)
+                .border(1.5.dp, colors.borderSubtle, CircleShape)
+                .clickable(onClick = onUndoPublish)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Undo (${state.undoSecondsRemaining}s)",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.foregroundPrimary,
+            )
+        }
+
+        // Error
+        state.error?.let { errorText ->
+            Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
         }
     }
 }

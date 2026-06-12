@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -41,6 +42,7 @@ class PublishDeckViewModel(
     val effects: SharedFlow<PublishDeckEffect> = _effects.asSharedFlow()
 
     private var publishJob: Job? = null
+    private var undoCountdownJob: Job? = null
 
     init {
         val draft = importRepository.currentDraft()
@@ -50,11 +52,11 @@ class PublishDeckViewModel(
     }
 
     fun onTitleChanged(text: String) {
-        _state.update { it.copy(title = text) }
+        _state.update { it.copy(title = text, titleError = titleErrorFor(text)) }
     }
 
     fun onDescriptionChanged(text: String) {
-        _state.update { it.copy(description = text) }
+        _state.update { it.copy(description = text, descriptionError = descriptionErrorFor(text)) }
     }
 
     fun onCoverEmojiChanged(emoji: String) {
@@ -78,10 +80,7 @@ class PublishDeckViewModel(
     fun onPublishClick() {
         if (publishJob?.isActive == true) return
         val s = _state.value
-        if (s.title.isBlank()) {
-            _state.update { it.copy(error = "Title is required.") }
-            return
-        }
+        if (!validateForPublish(s)) return
 
         val draft = importRepository.currentDraft()
         if (draft == null) {
@@ -132,9 +131,8 @@ class PublishDeckViewModel(
             deckRepository.publish(deck, cards)
                 .onSuccess {
                     Log.d(TAG, "publish: SUCCESS deckId=$deckId")
-                    importRepository.clear()
-                    _state.update { it.copy(isPublishing = false) }
-                    _effects.emit(PublishDeckEffect.Published(deckId))
+                    _state.update { it.copy(isPublishing = false, publishedDeckId = deckId, undoSecondsRemaining = UNDO_WINDOW_SECONDS) }
+                    startUndoCountdown(deckId)
                 }
                 .onFailure { err ->
                     Log.e(TAG, "publish: FAILED — ${err.message}", err)
@@ -143,13 +141,78 @@ class PublishDeckViewModel(
         }
     }
 
+    fun onUndoPublish() {
+        val deckId = _state.value.publishedDeckId ?: return
+        undoCountdownJob?.cancel()
+        scope.launch {
+            Log.d(TAG, "undo: deleting deckId=$deckId")
+            deckRepository.delete(deckId)
+                .onSuccess {
+                    Log.d(TAG, "undo: SUCCESS deckId=$deckId")
+                    _state.update {
+                        it.copy(publishedDeckId = null, undoSecondsRemaining = 0, error = null)
+                    }
+                }
+                .onFailure { err ->
+                    Log.e(TAG, "undo: FAILED — ${err.message}", err)
+                    _state.update { it.copy(error = err.message ?: "Undo failed.") }
+                }
+        }
+    }
+
+    fun onDonePublish() {
+        val deckId = _state.value.publishedDeckId ?: return
+        undoCountdownJob?.cancel()
+        importRepository.clear()
+        scope.launch { _effects.emit(PublishDeckEffect.Published(deckId)) }
+    }
+
+    private fun startUndoCountdown(deckId: String) {
+        undoCountdownJob?.cancel()
+        undoCountdownJob = scope.launch {
+            var remaining = UNDO_WINDOW_SECONDS
+            while (remaining > 0) {
+                delay(COUNTDOWN_TICK_MS)
+                remaining -= 1
+                _state.update { it.copy(undoSecondsRemaining = remaining) }
+            }
+            importRepository.clear()
+            _effects.emit(PublishDeckEffect.Published(deckId))
+        }
+    }
+
+    private fun validateForPublish(s: PublishDeckUiState): Boolean {
+        if (s.title.isBlank()) {
+            _state.update { it.copy(error = "Title is required.") }
+            return false
+        }
+        val titleError = titleErrorFor(s.title)
+        val descriptionError = descriptionErrorFor(s.description)
+        if (titleError != null || descriptionError != null) {
+            _state.update { it.copy(titleError = titleError, descriptionError = descriptionError) }
+            return false
+        }
+        return true
+    }
+
+    private fun titleErrorFor(text: String): String? =
+        if (text.length > TITLE_MAX_LENGTH) "Title must be $TITLE_MAX_LENGTH characters or fewer." else null
+
+    private fun descriptionErrorFor(text: String): String? =
+        if (text.length > DESCRIPTION_MAX_LENGTH) "Description must be $DESCRIPTION_MAX_LENGTH characters or fewer." else null
+
     fun onDispose() {
         publishJob?.cancel()
+        undoCountdownJob?.cancel()
         scope.cancel()
     }
 
     companion object {
         private const val TAG = "Echo/PublishVM"
+        private const val UNDO_WINDOW_SECONDS = 10
+        private const val COUNTDOWN_TICK_MS = 1_000L
+        private const val TITLE_MAX_LENGTH = 120
+        private const val DESCRIPTION_MAX_LENGTH = 500
 
         private fun generateId(): String {
             val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
@@ -165,8 +228,15 @@ data class PublishDeckUiState(
     val tags: List<String> = emptyList(),
     val cardCount: Int = 0,
     val isPublishing: Boolean = false,
+    val publishedDeckId: String? = null,
+    val undoSecondsRemaining: Int = 0,
+    val titleError: String? = null,
+    val descriptionError: String? = null,
     val error: String? = null,
-)
+) {
+    val canPublish: Boolean
+        get() = title.isNotBlank() && titleError == null && descriptionError == null && !isPublishing
+}
 
 sealed interface PublishDeckEffect {
     data object NavigateBack : PublishDeckEffect

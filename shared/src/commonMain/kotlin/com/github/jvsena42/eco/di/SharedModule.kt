@@ -33,6 +33,7 @@ import com.github.jvsena42.eco.presentation.import_flow.PasteImportViewModel
 import com.github.jvsena42.eco.presentation.import_flow.PublishDeckViewModel
 import com.github.jvsena42.eco.presentation.onboarding.OnboardingViewModel
 import com.github.jvsena42.eco.presentation.profile.ProfileViewModel
+import com.github.jvsena42.eco.presentation.settings.SettingsViewModel
 import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 
@@ -70,13 +71,23 @@ val sharedModule = module {
     factory { OnboardingViewModel(identityRepository = get()) }
     factory { HomeViewModel(identityRepository = get(), deckRepository = get(), srsRepository = get()) }
     factory { DecksLibraryViewModel(deckRepository = get(), identityRepository = get()) }
-    factory { params -> DeckDetailViewModel(deckId = params.get(), deckRepository = get(), cardRepository = get(), identityRepository = get(), srsRepository = get()) }
+    factory { params ->
+        DeckDetailViewModel(
+            deckId = params.get(0),
+            authorPubky = params.values.getOrNull(1) as? String,
+            deckRepository = get(),
+            cardRepository = get(),
+            identityRepository = get(),
+            srsRepository = get(),
+        )
+    }
     factory { params -> StudySessionViewModel(deckId = params.getOrNull(), srsRepository = get(), deckRepository = get()) }
     factory { params -> DeckEditorViewModel(deckId = params.getOrNull(), deckRepository = get(), cardRepository = get(), identityRepository = get()) }
     factory { params -> EditCardViewModel(deckId = params.get(0), cardId = params.get(1), cardRepository = get(), deckRepository = get(), mediaRepository = get()) }
     factory { PasteImportViewModel(importRepository = get()) }
     factory { PublishDeckViewModel(importRepository = get(), deckRepository = get(), identityRepository = get()) }
     factory { ProfileViewModel(identityRepository = get(), deckRepository = get()) }
+    factory { params -> SettingsViewModel(identityRepository = get(), appVersion = params.getOrNull() ?: "") }
     factory { DiscoverViewModel(discoveryRepository = get(), tagRepository = get()) }
     factory { params ->
         FriendProfileViewModel(
