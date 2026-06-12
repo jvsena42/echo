@@ -1,5 +1,6 @@
 package com.github.jvsena42.eco.di
 
+import com.github.jvsena42.eco.data.nexus.NexusClient
 import com.github.jvsena42.eco.data.pubky.MutableSessionProvider
 import com.github.jvsena42.eco.data.pubky.SessionProvider
 import com.github.jvsena42.eco.data.pubky.SessionRevalidator
@@ -10,6 +11,7 @@ import com.github.jvsena42.eco.data.repository.IdentityRepository
 import com.github.jvsena42.eco.data.repository.ImportRepository
 import com.github.jvsena42.eco.data.repository.MediaRepository
 import com.github.jvsena42.eco.data.repository.SrsRepository
+import com.github.jvsena42.eco.data.repository.TagRepository
 import com.github.jvsena42.eco.data.repository.impl.CardRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.DiscoveryRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.ImportRepositoryImpl
@@ -18,6 +20,7 @@ import com.github.jvsena42.eco.data.repository.impl.IdentityRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.MediaRepositoryImpl
 import com.github.jvsena42.eco.data.repository.impl.SessionRevalidatorImpl
 import com.github.jvsena42.eco.data.repository.impl.SrsRepositoryImpl
+import com.github.jvsena42.eco.data.repository.impl.TagRepositoryImpl
 import com.github.jvsena42.eco.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.eco.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.eco.presentation.study.StudySessionViewModel
@@ -53,11 +56,16 @@ val sharedModule = module {
     single<SessionRevalidator> { SessionRevalidatorImpl(get(), get(), get()) }
 
     single<CardRepository> { CardRepositoryImpl(get(), get(), get()) }
-    single<DeckRepository> { DeckRepositoryImpl(get(), get(), get(), get()) }
+    single<DeckRepository> { DeckRepositoryImpl(get(), get(), get(), get(), get()) }
     single<MediaRepository> { MediaRepositoryImpl(get(), get(), get()) }
     single<ImportRepository> { ImportRepositoryImpl() }
     single<SrsRepository> { SrsRepositoryImpl(get(), get(), get(), get(), get()) }
     single<DiscoveryRepository> { DiscoveryRepositoryImpl(get(), get(), get(), get()) }
+
+    single { NexusClient(http = get()) }
+    single<TagRepository> {
+        TagRepositoryImpl(pubky = get(), session = get(), revalidator = get(), nexus = get())
+    }
 
     factory { OnboardingViewModel(identityRepository = get()) }
     factory { HomeViewModel(identityRepository = get(), deckRepository = get(), srsRepository = get()) }
@@ -69,7 +77,7 @@ val sharedModule = module {
     factory { PasteImportViewModel(importRepository = get()) }
     factory { PublishDeckViewModel(importRepository = get(), deckRepository = get(), identityRepository = get()) }
     factory { ProfileViewModel(identityRepository = get(), deckRepository = get()) }
-    factory { DiscoverViewModel(discoveryRepository = get()) }
+    factory { DiscoverViewModel(discoveryRepository = get(), tagRepository = get()) }
     factory { params ->
         FriendProfileViewModel(
             targetPubky = params.get(),

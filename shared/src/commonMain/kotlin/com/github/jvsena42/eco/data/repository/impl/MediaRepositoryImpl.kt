@@ -5,7 +5,7 @@ import com.github.jvsena42.eco.data.pubky.PubkyPaths
 import com.github.jvsena42.eco.data.pubky.SessionProvider
 import com.github.jvsena42.eco.data.pubky.SessionRevalidator
 import com.github.jvsena42.eco.data.pubky.deleteWithSessionRetry
-import com.github.jvsena42.eco.data.pubky.putWithSessionRetry
+import com.github.jvsena42.eco.data.pubky.putBytesWithSessionRetry
 import com.github.jvsena42.eco.data.pubky.requireSession
 import com.github.jvsena42.eco.data.pubky.sha256Hex
 import com.github.jvsena42.eco.data.repository.MediaRepository
@@ -18,9 +18,10 @@ import kotlin.io.encoding.ExperimentalEncodingApi
  * `/pub/echo/decks/{deckId}/media/{sha256}.{ext}` keyed by content hash — identical bytes
  * within a deck dedupe automatically.
  *
- * The Pubky FFI `put` surface takes a `String`, so binary content is Base64-encoded on the
- * wire. Callers receive a typed [MediaRef] that carries the relative path the card record
- * should embed.
+ * Blobs are written raw via the binary FFI surface (`putBytesWithSession`) so other Pubky
+ * clients can read them directly; reads come back Base64-encoded from the FFI transport and
+ * are decoded here. Callers receive a typed [MediaRef] that carries the relative path the
+ * card record should embed.
  */
 @OptIn(ExperimentalEncodingApi::class)
 class MediaRepositoryImpl(
@@ -62,7 +63,7 @@ class MediaRepositoryImpl(
         val author = session.requireSession().identity.pubky
         val ext = ref.path.substringAfterLast('.', missingDelimiterValue = "")
         val url = PubkyPaths.media(author, deckId, ref.sha256, ext)
-        val payload = pubky.get(url).getOrThrow()
+        val payload = pubky.getBytes(url).getOrThrow()
         Base64.decode(payload)
     }
 
@@ -83,8 +84,7 @@ class MediaRepositoryImpl(
         val sha = sha256Hex(bytes)
         val ext = mimeToExt(mime)
         val url = PubkyPaths.media(author, deckId, sha, ext)
-        val body = Base64.encode(bytes)
-        pubky.putWithSessionRetry(url, body, session, revalidator).getOrThrow()
+        pubky.putBytesWithSessionRetry(url, bytes, session, revalidator).getOrThrow()
         return sha to ext
     }
 

@@ -40,6 +40,13 @@ internal object PubkyPaths {
     fun follow(ownerPubky: String, followeePubky: String): String =
         "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/follows/$followeePubky"
 
+    /**
+     * pubky.app tag record. Like follows, tags use the ecosystem-native primitive so Nexus
+     * indexes them; the id is content-derived per pubky-app-specs (`PubkyClient.createTagId`).
+     */
+    fun tag(ownerPubky: String, tagId: String): String =
+        "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/tags/$tagId"
+
     /** Relative `media/<sha>.<ext>` reference stored inside card/manifest records. */
     fun relativeMedia(sha256: String, ext: String): String = "media/$sha256.$ext"
 }

@@ -396,6 +396,8 @@ internal interface _UniFFILib : Library {
     ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_create_recovery_file(`secretKey`: RustBuffer.ByValue,`passphrase`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_pubkycore_fn_func_create_tag_id(`uri`: RustBuffer.ByValue,`label`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_decrypt_recovery_file(`recoveryFile`: RustBuffer.ByValue,`passphrase`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_delete_file(`url`: RustBuffer.ByValue,`secretKey`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
@@ -410,13 +412,15 @@ internal interface _UniFFILib : Library {
     ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_get(`url`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_pubkycore_fn_func_get_bytes(`url`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_get_homeserver(`pubky`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_get_public_key_from_secret_key(`secretKey`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_get_signup_token(`homeserverPubky`: RustBuffer.ByValue,`adminPassword`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_pubkycore_fn_func_list(`url`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
+    fun uniffi_pubkycore_fn_func_list(`url`: RustBuffer.ByValue,`cursor`: RustBuffer.ByValue,`reverse`: RustBuffer.ByValue,`limit`: RustBuffer.ByValue,`shallow`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_mnemonic_phrase_to_keypair(`mnemonicPhrase`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
@@ -427,6 +431,10 @@ internal interface _UniFFILib : Library {
     fun uniffi_pubkycore_fn_func_publish_https(`recordName`: RustBuffer.ByValue,`target`: RustBuffer.ByValue,`secretKey`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_put(`url`: RustBuffer.ByValue,`content`: RustBuffer.ByValue,`secretKey`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_pubkycore_fn_func_put_bytes(`url`: RustBuffer.ByValue,`content`: RustBuffer.ByValue,`secretKey`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_pubkycore_fn_func_put_bytes_with_session(`url`: RustBuffer.ByValue,`content`: RustBuffer.ByValue,`sessionSecret`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_put_with_session(`url`: RustBuffer.ByValue,`content`: RustBuffer.ByValue,`sessionSecret`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
@@ -574,6 +582,8 @@ internal interface _UniFFILib : Library {
     ): Short
     fun uniffi_pubkycore_checksum_func_create_recovery_file(
     ): Short
+    fun uniffi_pubkycore_checksum_func_create_tag_id(
+    ): Short
     fun uniffi_pubkycore_checksum_func_decrypt_recovery_file(
     ): Short
     fun uniffi_pubkycore_checksum_func_delete_file(
@@ -587,6 +597,8 @@ internal interface _UniFFILib : Library {
     fun uniffi_pubkycore_checksum_func_generate_secret_key(
     ): Short
     fun uniffi_pubkycore_checksum_func_get(
+    ): Short
+    fun uniffi_pubkycore_checksum_func_get_bytes(
     ): Short
     fun uniffi_pubkycore_checksum_func_get_homeserver(
     ): Short
@@ -605,6 +617,10 @@ internal interface _UniFFILib : Library {
     fun uniffi_pubkycore_checksum_func_publish_https(
     ): Short
     fun uniffi_pubkycore_checksum_func_put(
+    ): Short
+    fun uniffi_pubkycore_checksum_func_put_bytes(
+    ): Short
+    fun uniffi_pubkycore_checksum_func_put_bytes_with_session(
     ): Short
     fun uniffi_pubkycore_checksum_func_put_with_session(
     ): Short
@@ -660,6 +676,9 @@ private fun uniffiCheckApiChecksums(lib: _UniFFILib) {
     if (lib.uniffi_pubkycore_checksum_func_create_recovery_file() != 48846.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_pubkycore_checksum_func_create_tag_id() != 27393.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_pubkycore_checksum_func_decrypt_recovery_file() != 26407.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -681,6 +700,9 @@ private fun uniffiCheckApiChecksums(lib: _UniFFILib) {
     if (lib.uniffi_pubkycore_checksum_func_get() != 6591.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_pubkycore_checksum_func_get_bytes() != 47939.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_pubkycore_checksum_func_get_homeserver() != 40658.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -690,7 +712,7 @@ private fun uniffiCheckApiChecksums(lib: _UniFFILib) {
     if (lib.uniffi_pubkycore_checksum_func_get_signup_token() != 47927.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_pubkycore_checksum_func_list() != 43198.toShort()) {
+    if (lib.uniffi_pubkycore_checksum_func_list() != 63419.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_pubkycore_checksum_func_mnemonic_phrase_to_keypair() != 45784.toShort()) {
@@ -706,6 +728,12 @@ private fun uniffiCheckApiChecksums(lib: _UniFFILib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_pubkycore_checksum_func_put() != 64514.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_pubkycore_checksum_func_put_bytes() != 16335.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_pubkycore_checksum_func_put_bytes_with_session() != 50346.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_pubkycore_checksum_func_put_with_session() != 17390.toShort()) {
@@ -756,6 +784,26 @@ private fun uniffiCheckApiChecksums(lib: _UniFFILib) {
 
 // Public interface members begin here.
 
+
+public object FfiConverterUShort: FfiConverter<UShort, Short> {
+    override fun lift(value: Short): UShort {
+        return value.toUShort()
+    }
+
+    override fun read(buf: ByteBuffer): UShort {
+        return lift(buf.getShort())
+    }
+
+    override fun lower(value: UShort): Short {
+        return value.toShort()
+    }
+
+    override fun allocationSize(value: UShort) = 2
+
+    override fun write(value: UShort, buf: ByteBuffer) {
+        buf.putShort(value.toShort())
+    }
+}
 
 public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
     override fun lift(value: Byte): Boolean {
@@ -828,6 +876,22 @@ public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
         val byteBuf = toUtf8(value)
         buf.putInt(byteBuf.limit())
         buf.put(byteBuf)
+    }
+}
+
+public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
+    override fun read(buf: ByteBuffer): ByteArray {
+        val len = buf.getInt()
+        val byteArr = ByteArray(len)
+        buf.get(byteArr)
+        return byteArr
+    }
+    override fun allocationSize(value: ByteArray): Int {
+        return 4 + value.size
+    }
+    override fun write(value: ByteArray, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        buf.put(value)
     }
 }
 
@@ -1212,6 +1276,64 @@ public object FfiConverterTypeEventListener: FfiConverterCallbackInterface<Event
 
 
 
+public object FfiConverterOptionalUShort: FfiConverterRustBuffer<UShort?> {
+    override fun read(buf: ByteBuffer): UShort? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterUShort.read(buf)
+    }
+
+    override fun allocationSize(value: UShort?): Int {
+        if (value == null) {
+            return 1
+        } else {
+            return 1 + FfiConverterUShort.allocationSize(value)
+        }
+    }
+
+    override fun write(value: UShort?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterUShort.write(value, buf)
+        }
+    }
+}
+
+
+
+
+public object FfiConverterOptionalBoolean: FfiConverterRustBuffer<Boolean?> {
+    override fun read(buf: ByteBuffer): Boolean? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterBoolean.read(buf)
+    }
+
+    override fun allocationSize(value: Boolean?): Int {
+        if (value == null) {
+            return 1
+        } else {
+            return 1 + FfiConverterBoolean.allocationSize(value)
+        }
+    }
+
+    override fun write(value: Boolean?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterBoolean.write(value, buf)
+        }
+    }
+}
+
+
+
+
 public object FfiConverterOptionalString: FfiConverterRustBuffer<String?> {
     override fun read(buf: ByteBuffer): String? {
         if (buf.get().toInt() == 0) {
@@ -1287,6 +1409,14 @@ fun `createRecoveryFile`(`secretKey`: String, `passphrase`: String): List<String
 }
 
 
+fun `createTagId`(`uri`: String, `label`: String): List<String> {
+    return FfiConverterSequenceString.lift(
+    rustCall() { _status ->
+    _UniFFILib.INSTANCE.uniffi_pubkycore_fn_func_create_tag_id(FfiConverterString.lower(`uri`),FfiConverterString.lower(`label`),_status)
+})
+}
+
+
 fun `decryptRecoveryFile`(`recoveryFile`: String, `passphrase`: String): List<String> {
     return FfiConverterSequenceString.lift(
     rustCall() { _status ->
@@ -1343,6 +1473,14 @@ fun `get`(`url`: String): List<String> {
 }
 
 
+fun `getBytes`(`url`: String): List<String> {
+    return FfiConverterSequenceString.lift(
+    rustCall() { _status ->
+    _UniFFILib.INSTANCE.uniffi_pubkycore_fn_func_get_bytes(FfiConverterString.lower(`url`),_status)
+})
+}
+
+
 fun `getHomeserver`(`pubky`: String): List<String> {
     return FfiConverterSequenceString.lift(
     rustCall() { _status ->
@@ -1367,10 +1505,10 @@ fun `getSignupToken`(`homeserverPubky`: String, `adminPassword`: String): List<S
 }
 
 
-fun `list`(`url`: String): List<String> {
+fun `list`(`url`: String, `cursor`: String?, `reverse`: Boolean?, `limit`: UShort?, `shallow`: Boolean?): List<String> {
     return FfiConverterSequenceString.lift(
     rustCall() { _status ->
-    _UniFFILib.INSTANCE.uniffi_pubkycore_fn_func_list(FfiConverterString.lower(`url`),_status)
+    _UniFFILib.INSTANCE.uniffi_pubkycore_fn_func_list(FfiConverterString.lower(`url`),FfiConverterOptionalString.lower(`cursor`),FfiConverterOptionalBoolean.lower(`reverse`),FfiConverterOptionalUShort.lower(`limit`),FfiConverterOptionalBoolean.lower(`shallow`),_status)
 })
 }
 
@@ -1411,6 +1549,22 @@ fun `put`(`url`: String, `content`: String, `secretKey`: String): List<String> {
     return FfiConverterSequenceString.lift(
     rustCall() { _status ->
     _UniFFILib.INSTANCE.uniffi_pubkycore_fn_func_put(FfiConverterString.lower(`url`),FfiConverterString.lower(`content`),FfiConverterString.lower(`secretKey`),_status)
+})
+}
+
+
+fun `putBytes`(`url`: String, `content`: ByteArray, `secretKey`: String): List<String> {
+    return FfiConverterSequenceString.lift(
+    rustCall() { _status ->
+    _UniFFILib.INSTANCE.uniffi_pubkycore_fn_func_put_bytes(FfiConverterString.lower(`url`),FfiConverterByteArray.lower(`content`),FfiConverterString.lower(`secretKey`),_status)
+})
+}
+
+
+fun `putBytesWithSession`(`url`: String, `content`: ByteArray, `sessionSecret`: String): List<String> {
+    return FfiConverterSequenceString.lift(
+    rustCall() { _status ->
+    _UniFFILib.INSTANCE.uniffi_pubkycore_fn_func_put_bytes_with_session(FfiConverterString.lower(`url`),FfiConverterByteArray.lower(`content`),FfiConverterString.lower(`sessionSecret`),_status)
 })
 }
 

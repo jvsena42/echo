@@ -40,6 +40,27 @@ internal suspend fun PubkyClient.putWithSessionRetry(
 }
 
 /**
+ * Same retry pattern for [PubkyClient.putBytesWithSession].
+ */
+internal suspend fun PubkyClient.putBytesWithSessionRetry(
+    url: String,
+    content: ByteArray,
+    session: SessionProvider,
+    revalidator: SessionRevalidator,
+): Result<String> {
+    val secret = session.requireSession().sessionSecret
+    val first = putBytesWithSession(url, content, secret)
+    if (first.isSuccess) return first
+
+    val error = first.exceptionOrNull() ?: return first
+    if (!error.isSessionExpired()) return first
+
+    revalidator.revalidate().getOrElse { return Result.failure(it) }
+    val newSecret = session.requireSession().sessionSecret
+    return putBytesWithSession(url, content, newSecret)
+}
+
+/**
  * Same retry pattern for [PubkyClient.deleteWithSession].
  */
 internal suspend fun PubkyClient.deleteWithSessionRetry(
