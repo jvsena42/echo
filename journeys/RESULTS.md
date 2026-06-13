@@ -3,37 +3,42 @@
 Run against the Echo debug APK on the `emulator-5558` Pixel emulator with Pubky Ring
 installed (staging identity), 2026-06-13.
 
-## 01 — Onboarding / Pubky Ring auth — ✅ UI verified, ⚠️ blocked downstream
+## 01 — Onboarding / Pubky Ring auth — ✅ PASS
 
 | Step | Result |
 | --- | --- |
 | Launch Echo, onboarding shown with "Sign in with Pubky Ring" | PASSED |
-| Tap sign in → Pubky Ring opens with the authorization prompt | PASSED — Ring showed the staging identity, relay `httprelay.pubky.app/inbox`, and the requested capabilities `/pub/echo/:rw` + `/pub/pubky.app/:rw` (exactly what `IdentityRepository.DEFAULT_CAPABILITIES` requests) |
-| Approve in Ring | PASSED — Ring showed "Authorization Successful" with the granted permissions |
-| Echo returns to Home | **FAILED** — Echo surfaced "Auth approval failed: the provided auth request has expired or was cancelled." |
+| Tap sign in → Pubky Ring opens with the authorization prompt | PASSED — staging identity, relay `httprelay.pubky.app/inbox`, capabilities `/pub/echo/:rw` + `/pub/pubky.app/:rw` |
+| Approve in Ring | PASSED — "Authorization Successful" |
+| Echo completes sign-in | PASSED — token decrypted → session exchange → session saved → Home shown greeting the real pubky (`pk:x1kwaq`). Session persists across restarts. |
 
-**Root cause (upstream, not Echo):** the FFI's `await_auth_approval` background poller fails
-~600 ms after `start_auth_flow` — fast failures, not a timeout. The pubky SDK's HTTPS client
-uses pkarr's RFC 7250 RawPublicKey `CertVerifier`, which resolves a host's endpoint public key
-over the DHT and rejects standard CA chains (`!intermediates.is_empty()` → `UnknownIssuer`).
-Against `httprelay.pubky.app` from the emulator this never matches (DHT endpoint resolution /
-CA-cert handling), so the relay poll errors three times and the SDK returns `RequestExpired`.
+**Earlier blocker (now fixed):** sign-in failed instantly with "auth request expired".
+Root cause was a panic in the pubky SDK's HTTPS client — its `icann_http` client used
+reqwest's default rustls config (rustls-platform-verifier), which on Android panics
+("Expect rustls-platform-verifier to be initialized") because the native verifier component
+isn't present. The panic killed the auth-relay poller, surfacing as `RequestExpired`.
+Fixed by making the SDK pin bundled webpki roots for ICANN TLS (pubky/pubky-core#430),
+consumed via the FFI fork's `[patch]`. Surfaced by adding logcat tracing + a panic hook to
+the FFI (`init_logging`).
 
-This lives in `pubky-core` / `pkarr` (the SDK's TLS + DHT layer), below the thin FFI surface and
-below Echo. Pubky Ring reaches the same relay because it uses the OS HTTP stack, not pkarr's
-verifier. The Echo-side Ring integration (auth URL, capabilities, deeplink hand-off, `startAuthFlow`
-/ `awaitAuthApproval` / `parseAuthUrl` wiring) is correct and verified up to Ring's approval.
+**Auto-return caveat:** Echo appends Ring's `x-success`/`x-cancel`/`x-error`/`x-source`
+callbacks (→ `echo://login-callback`, `MainActivity` = singleTask) so Ring re-opens Echo
+after approval. On the installed Ring build the success screen shows an "OK" button and does
+not fire `openXSuccess`, so the user taps back to Echo manually — a Ring-side issue, not Echo.
 
-## 02–06 — blocked on a live session
+## 02 — Paste-to-Import → publish — ✅ PASS
 
-Paste-import→publish, study loop, discover/social, deck delete, and profile/settings/sign-out
-all require a signed-in session and live homeserver HTTPS. Since the same pkarr TLS path gates
-every homeserver read/write, these could not be executed against real data on this emulator.
-The journey specs (`02`–`06`) are authored and ready to run once the relay/TLS path resolves on a
-real device or a DHT-reachable network.
+| Step | Result |
+| --- | --- |
+| Decks tab → "Paste to import" | PASSED |
+| Paste 3 comma-separated lines | PASSED — parser auto-detected "comma", "3 cards", live preview (dog→cachorro, cat→gato, bird→passaro) |
+| Next → publish screen, enter title "Animals PT" | PASSED — "3 cards ready" |
+| Publish deck | PASSED — 4 `put_with_session` writes to the homeserver (3 cards + manifest) succeeded; `SUCCESS deckId=pv0b3aq0ruz6` |
+| Undo window | PASSED — "Deck published! … Undo (6s)" countdown + Done (spec §5.6) |
+| Done → deck detail | PASSED — "Animals PT", Total 3 / Due 3, owner edit/delete/share controls |
 
-## Reproducing 02–06 once auth works
+## 03–06 — runnable
 
-Run the apk, complete journey 01, then drive `journeys/02…06.xml` step by step with the
-`android` CLI (`android screen capture` + `adb shell input` per action), reporting the JSON
-result shape from the journeys skill.
+With sign-in and homeserver writes working, the remaining journeys (study loop, discover,
+deck manage/delete, profile/settings/sign-out) are runnable on the emulator. Drive
+`journeys/03…06.xml` with the `android` CLI (`android screen capture` + `adb shell input`).
