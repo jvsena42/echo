@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -84,19 +85,21 @@ fun HomeEmptyContent(
         EchoPrimaryButton(
             label = "Create your first deck",
             onClick = onCreateDeckClick,
+            modifier = Modifier.testTag("home_create_deck"),
         )
         SecondaryButton(
             label = "Browse examples",
             onClick = onBrowseExamplesClick,
+            modifier = Modifier.testTag("home_browse_examples"),
         )
     }
 }
 
 @Composable
-private fun SecondaryButton(label: String, onClick: () -> Unit) {
+private fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = EchoTheme.colors
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(50))
             .background(colors.accentPrimarySoft)

@@ -8,9 +8,9 @@
   </description>
   <actions>
     <action>Launch the Echo app and verify the Home screen is shown</action>
-    <action>Open the Discover tab from the bottom tab bar</action>
-    <action>Verify the Discover screen is shown with an "Add friend" button</action>
-    <action>Tap "Add friend"</action>
+    <action>Tap the element with resource-id "tab_discover" in the bottom tab bar</action>
+    <action>Verify the Discover screen is shown with an "Add friend" button (resource-id: discover_add_friend)</action>
+    <action>Tap the element with resource-id "discover_add_friend"</action>
     <action>Verify a bottom sheet appears with a "Paste a pubky" input, a "Scan QR" button and an "Open" button</action>
     <action>Dismiss the bottom sheet</action>
     <action>If a "Trending on Pubky" section with tag chips is visible, tap the first trending tag chip and verify the deck list filters (decks with the tag, or a "No decks tagged" empty state)</action>

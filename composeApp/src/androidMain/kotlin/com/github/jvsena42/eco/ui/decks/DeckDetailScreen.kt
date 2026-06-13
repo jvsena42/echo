@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -199,6 +200,7 @@ private fun DeckDetailContent(
                         "Study this deck"
                     },
                     onClick = onStudyClick,
+                    modifier = Modifier.testTag("deck_study"),
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
@@ -302,18 +304,21 @@ private fun HeaderBar(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Edit deck",
                     onClick = onEditClick,
+                    modifier = Modifier.testTag("deck_edit"),
                 )
                 HeaderCircleButton(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Delete deck",
                     tint = colors.danger,
                     onClick = onDeleteClick,
+                    modifier = Modifier.testTag("deck_delete"),
                 )
             }
             HeaderCircleButton(
                 imageVector = Icons.Default.Share,
                 contentDescription = "Share",
                 onClick = onShareClick,
+                modifier = Modifier.testTag("deck_share"),
             )
         }
     }
@@ -324,12 +329,13 @@ private fun HeaderCircleButton(
     imageVector: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified,
     iconSize: Dp = 20.dp,
 ) {
     val colors = EchoTheme.colors
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(40.dp)
             .clip(RoundedCornerShape(50))
             .background(colors.surfaceCard)
@@ -367,7 +373,7 @@ private fun DeleteDeckDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            TextButton(onClick = onConfirm, modifier = Modifier.testTag("deck_delete_confirm")) {
                 Text("Delete", color = colors.danger)
             }
         },

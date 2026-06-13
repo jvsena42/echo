@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -206,6 +207,7 @@ private fun PublishDeckScreen(
                 value = state.title,
                 onValueChange = onTitleChanged,
                 modifier = Modifier
+                    .testTag("publish_title")
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .border(1.dp, colors.borderSubtle, RoundedCornerShape(12.dp))
@@ -232,6 +234,7 @@ private fun PublishDeckScreen(
                 value = state.description,
                 onValueChange = onDescriptionChanged,
                 modifier = Modifier
+                    .testTag("publish_description")
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .border(1.dp, colors.borderSubtle, RoundedCornerShape(12.dp))
@@ -307,7 +310,9 @@ private fun PublishDeckScreen(
             onClick = onPublishClick,
             loading = state.isPublishing,
             enabled = state.canPublish,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .testTag("publish_button")
+                .fillMaxWidth(),
         )
 
         // Error
@@ -497,12 +502,15 @@ private fun PublishedContent(
         EchoPrimaryButton(
             label = "Done",
             onClick = onDonePublish,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .testTag("publish_done")
+                .fillMaxWidth(),
         )
 
         // Undo button with countdown
         Row(
             modifier = Modifier
+                .testTag("publish_undo")
                 .fillMaxWidth()
                 .clip(CircleShape)
                 .border(1.5.dp, colors.borderSubtle, CircleShape)

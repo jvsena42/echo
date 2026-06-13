@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -148,6 +149,7 @@ private fun ProfileScreen(
             )
             Box(
                 modifier = Modifier
+                    .testTag("profile_settings")
                     .size(40.dp)
                     .clip(CircleShape)
                     .background(colors.surfaceCard)
@@ -327,6 +329,7 @@ private fun ProfileScreen(
         // --- Sign out ---
         Row(
             modifier = Modifier
+                .testTag("profile_signout")
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(colors.dangerSoft)

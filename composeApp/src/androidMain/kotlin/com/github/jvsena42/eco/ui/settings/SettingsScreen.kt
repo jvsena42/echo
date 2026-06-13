@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -169,6 +170,7 @@ private fun SettingsScreen(
                     if (state.pubky.isNotBlank()) {
                         Row(
                             modifier = Modifier
+                                .testTag("settings_copy_pubky")
                                 .clip(RoundedCornerShape(50))
                                 .background(colors.surfaceCard)
                                 .clickable(onClick = onCopyPubkyClick)
@@ -209,6 +211,7 @@ private fun SettingsScreen(
         // --- Sign out ---
         Row(
             modifier = Modifier
+                .testTag("settings_signout")
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(colors.dangerSoft)

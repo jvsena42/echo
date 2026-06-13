@@ -6,16 +6,16 @@
   </description>
   <actions>
     <action>Launch the Echo app and verify the Home screen is shown</action>
-    <action>Open the Decks tab from the bottom tab bar</action>
-    <action>Tap the paste-import call-to-action card ("Paste cards" entry point)</action>
-    <action>Verify the "Paste cards" screen is shown with a text area placeholder "Paste your list here"</action>
-    <action>Type the following three lines into the paste field: "dog	cachorro", "cat	gato", "bird	pássaro" (tab-separated)</action>
+    <action>Tap the element with resource-id "tab_decks" in the bottom tab bar</action>
+    <action>Tap the element with resource-id "decks_paste_cta"</action>
+    <action>Verify the "Paste cards" screen is shown with a text area placeholder "Paste your list here" (resource-id: paste_input)</action>
+    <action>Type the following three lines into the field with resource-id "paste_input": "dog,cachorro", "cat,gato", "bird,passaro"</action>
     <action>Verify a live preview appears showing 3 parsed cards with fronts dog, cat, bird</action>
-    <action>Tap "Next"</action>
-    <action>Enter "Animals PT" as the deck title if a title field is shown</action>
-    <action>Tap the publish button</action>
-    <action>Verify a "Deck published!" success state appears with an "Undo" button showing a live countdown (e.g. "Undo (9s)") and a "Done" button</action>
-    <action>Tap "Done"</action>
+    <action>Tap the element with resource-id "paste_next"</action>
+    <action>Enter "Animals PT" into the field with resource-id "publish_title"</action>
+    <action>Tap the element with resource-id "publish_button"</action>
+    <action>Verify a "Deck published!" success state appears with an Undo button showing a live countdown (resource-id: publish_undo) and a Done button (resource-id: publish_done)</action>
+    <action>Tap the element with resource-id "publish_done"</action>
     <action>Verify the deck detail screen for "Animals PT" is shown with 3 cards</action>
   </actions>
 </journey>

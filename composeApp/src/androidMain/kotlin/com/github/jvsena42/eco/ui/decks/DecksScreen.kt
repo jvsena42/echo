@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -176,6 +177,7 @@ private fun PasteCtaCard(onClick: () -> Unit) {
     val colors = EchoTheme.colors
     Box(
         modifier = Modifier
+            .testTag("decks_paste_cta")
             .fillMaxWidth()
             .shadow(
                 elevation = 32.dp,
@@ -272,7 +274,9 @@ private fun DeckGrid(decks: List<DeckTileModel>, onDeckClick: (String) -> Unit) 
                         coverEmoji = deck.coverEmoji,
                         authorLabel = deck.authorLabel,
                         onClick = { onDeckClick(deck.id) },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("deck_tile_${deck.id}"),
                     )
                 }
                 // If odd number of items, add spacer to balance the last row
@@ -324,7 +328,9 @@ private fun EmptyBlock(onCreateDeckClick: () -> Unit) {
         EchoPrimaryButton(
             label = "Create a deck",
             onClick = onCreateDeckClick,
-            modifier = Modifier.padding(top = 8.dp),
+            modifier = Modifier
+                .testTag("decks_create")
+                .padding(top = 8.dp),
         )
     }
 }

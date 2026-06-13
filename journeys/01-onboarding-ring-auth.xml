@@ -6,8 +6,8 @@
   </description>
   <actions>
     <action>Launch the Echo app (package com.github.jvsena42.eco)</action>
-    <action>Verify the onboarding screen is shown with the headline "Learn anything, remember everything." and a "Sign in with Pubky Ring" button</action>
-    <action>Tap "Sign in with Pubky Ring"</action>
+    <action>Verify the onboarding screen is shown with the headline "Learn anything, remember everything." and a "Sign in with Pubky Ring" button (resource-id: onboarding_signin)</action>
+    <action>Tap the element with resource-id "onboarding_signin"</action>
     <action>Verify the Pubky Ring app opens with an authorization prompt for Echo's capabilities</action>
     <action>Approve the authorization request in Pubky Ring (tap its confirm/authorize control)</action>
     <action>Verify Echo returns to the foreground and lands on the Home screen (a greeting header is shown and the bottom tab bar is visible)</action>

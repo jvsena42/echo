@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -110,7 +111,9 @@ private fun PasteScreen(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.accentPrimary,
-                modifier = Modifier.clickable(onClick = onCancelClick),
+                modifier = Modifier
+                    .testTag("paste_cancel")
+                    .clickable(onClick = onCancelClick),
             )
             Text(
                 text = "Paste cards",
@@ -120,6 +123,7 @@ private fun PasteScreen(
             )
             Box(
                 modifier = Modifier
+                    .testTag("paste_next")
                     .clip(RoundedCornerShape(50))
                     .background(if (state.isParsed) colors.accentPrimary else colors.borderSubtle)
                     .clickable(enabled = state.isParsed, onClick = onNextClick)
@@ -139,6 +143,7 @@ private fun PasteScreen(
             value = state.rawText,
             onValueChange = onTextChanged,
             modifier = Modifier
+                .testTag("paste_input")
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = 160.dp)
                 .clip(RoundedCornerShape(16.dp))
