@@ -1,180 +1,244 @@
 import SwiftUI
 
-struct DeckDetailView: View {
-    var deckId: String = ""
-    var onBack: () -> Void = {}
+enum DeckDetailViewState {
+    case loading
+    case content(DeckDetailContent)
+    case error(String)
+}
 
-    // Static preview data until VM is wired via SKIE
-    private let title = "Spanish Basics"
-    private let description = "Core 500 words for everyday conversations. Built for absolute beginners."
-    private let coverEmoji = "🇪🇸"
-    private let authorName = "Maria Lopez"
-    private let authorPubky = "pk:abc123…xyz789"
-    private let authorInitial = "M"
-    private let isOwned = true
-    private let tags = ["spanish", "language", "beginner"]
-    private let totalCards = 42
-    private let dueCards = 12
-    private let masteredPercent = "68%"
-    private let cards: [(front: String, back: String)] = [
-        ("el zorro", "the fox"),
-        ("la casa", "the house"),
-        ("el agua", "the water"),
-    ]
+struct DeckDetailContent {
+    let title: String
+    let description: String?
+    let coverEmoji: String
+    let authorName: String?
+    let authorPubky: String
+    let authorInitial: String
+    let isOwned: Bool
+    let tags: [String]
+    let totalCards: Int
+    let dueCards: Int
+    let masteredPercent: String
+    let cards: [CardPreviewData]
+}
+
+struct CardPreviewData: Identifiable {
+    let id: String
+    let front: String
+    let back: String
+}
+
+/// Pure layout — state comes from the shared `DeckDetailViewModel` via `DeckDetailScreen`.
+struct DeckDetailView: View {
+    var state: DeckDetailViewState = .loading
+    var onBack: () -> Void = {}
+    var onEdit: () -> Void = {}
+    var onDelete: () -> Void = {}
+    var onShare: () -> Void = {}
+    var onStudy: () -> Void = {}
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Header
-                    HStack {
-                        Button(action: onBack) {
-                            ZStack {
-                                Circle()
-                                    .fill(EchoColor.surfaceCard)
-                                    .frame(width: 40, height: 40)
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(EchoColor.foregroundPrimary)
-                            }
-                        }
-                        Spacer()
-                        ZStack {
-                            Circle()
-                                .fill(EchoColor.surfaceCard)
-                                .frame(width: 40, height: 40)
-                            Image(systemName: isOwned ? "bookmark.fill" : "square.and.arrow.up")
-                                .font(.system(size: 14))
-                                .foregroundColor(isOwned ? EchoColor.accentPrimary : EchoColor.foregroundPrimary)
-                        }
-                    }
-
-                    // Cover
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 28)
-                            .fill(EchoColor.accentPrimarySoft)
-                        Text(coverEmoji)
-                            .font(.system(size: isOwned ? 64 : 80))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: isOwned ? 120 : 160)
-
-                    // Badge (owned variant)
-                    if isOwned {
-                        HStack(spacing: 8) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(.white)
-                                Text("IN YOUR LIBRARY")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.white)
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(EchoColor.srsGood))
-                            Text("Last studied 2h ago")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(EchoColor.foregroundMuted)
-                        }
-                    }
-
-                    // Title + Description
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(title)
-                            .font(.system(size: 28, weight: .heavy))
-                            .foregroundColor(EchoColor.foregroundPrimary)
-                        if !isOwned, let desc = description as String? {
-                            Text(desc)
-                                .font(.system(size: 14))
-                                .foregroundColor(EchoColor.foregroundSecondary)
-                                .lineSpacing(4)
-                        }
-                    }
-
-                    // Author
-                    HStack(spacing: 10) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(EchoColor.accentSecondarySoft)
-                                .frame(width: 32, height: 32)
-                            Text(authorInitial)
-                                .font(.system(size: 14, weight: .heavy))
-                                .foregroundColor(EchoColor.accentSecondary)
-                        }
-                        VStack(alignment: .leading) {
-                            Text(authorName)
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(EchoColor.foregroundPrimary)
-                            Text(authorPubky)
-                                .font(.system(size: 11))
-                                .foregroundColor(EchoColor.foregroundMuted)
-                        }
-                        Spacer()
-                        Text(isOwned ? "Following" : "Follow")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(isOwned ? EchoColor.accentSecondary : .white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule().fill(isOwned ? EchoColor.accentSecondarySoft : EchoColor.accentSecondary)
-                            )
-                    }
-
-                    // Tags
-                    HStack(spacing: 8) {
-                        ForEach(tags, id: \.self) { tag in
-                            TagChipView(tag: tag)
-                        }
-                    }
-
-                    // Stats
-                    StatsBarView(totalCards: totalCards, dueCards: dueCards, masteredPercent: masteredPercent)
-
-                    // Card list
-                    VStack(spacing: 8) {
-                        ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
-                            HStack {
-                                Text(card.front)
-                                    .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(EchoColor.foregroundPrimary)
-                                Spacer()
-                                Text(card.back)
-                                    .font(.system(size: 13))
-                                    .foregroundColor(EchoColor.foregroundMuted)
-                            }
-                            .padding(14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(EchoColor.surfaceCard)
-                            )
-                            .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-                        }
-                    }
+            switch state {
+            case .loading:
+                VStack {
+                    header(isOwned: false)
+                    Spacer()
+                    ProgressView()
+                    Spacer()
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
-                .padding(.bottom, 100)
-            }
-
-            // Bottom CTA
-            Button(action: {}) {
-                HStack(spacing: 8) {
-                    Image(systemName: "play.fill").font(.system(size: 16))
-                    Text(isOwned ? "Start studying · \(dueCards) due" : "Study this deck")
-                        .font(.system(size: 17, weight: .bold))
+            case .error(let message):
+                VStack(spacing: 12) {
+                    header(isOwned: false)
+                    Spacer()
+                    Text("Something went wrong")
+                        .font(.system(size: 20, weight: .heavy))
+                        .foregroundColor(EchoColor.foregroundPrimary)
+                    Text(message)
+                        .font(.system(size: 14))
+                        .foregroundColor(EchoColor.foregroundMuted)
+                        .multilineTextAlignment(.center)
+                    Spacer()
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
-                .background(Capsule().fill(EchoColor.accentPrimary))
-                .shadow(color: EchoColor.accentPrimary.opacity(0.2), radius: 24, x: 0, y: 8)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+            case .content(let content):
+                contentBody(content)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
         }
         .background(EchoColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
+    }
+
+    @ViewBuilder
+    private func contentBody(_ content: DeckDetailContent) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                header(isOwned: content.isOwned)
+
+                // Cover
+                ZStack {
+                    RoundedRectangle(cornerRadius: 28)
+                        .fill(EchoColor.accentPrimarySoft)
+                    Text(content.coverEmoji)
+                        .font(.system(size: content.isOwned ? 64 : 80))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: content.isOwned ? 120 : 160)
+
+                // Badge (owned variant)
+                if content.isOwned {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                        Text("IN YOUR LIBRARY")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(EchoColor.srsGood))
+                }
+
+                // Title + Description
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(content.title)
+                        .font(.system(size: 28, weight: .heavy))
+                        .foregroundColor(EchoColor.foregroundPrimary)
+                    if let description = content.description, !description.isEmpty {
+                        Text(description)
+                            .font(.system(size: 14))
+                            .foregroundColor(EchoColor.foregroundSecondary)
+                            .lineSpacing(4)
+                    }
+                }
+
+                // Author
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(EchoColor.accentSecondarySoft)
+                            .frame(width: 32, height: 32)
+                        Text(content.authorInitial)
+                            .font(.system(size: 14, weight: .heavy))
+                            .foregroundColor(EchoColor.accentSecondary)
+                    }
+                    VStack(alignment: .leading) {
+                        Text(content.authorName ?? (content.isOwned ? "You" : "pk:\(content.authorPubky.prefix(6))"))
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(EchoColor.foregroundPrimary)
+                        Text("pk:\(content.authorPubky.prefix(6))…\(content.authorPubky.suffix(6))")
+                            .font(.system(size: 11))
+                            .foregroundColor(EchoColor.foregroundMuted)
+                    }
+                    Spacer()
+                }
+
+                // Tags
+                if !content.tags.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(content.tags, id: \.self) { tag in
+                                TagChipView(tag: tag)
+                            }
+                        }
+                    }
+                }
+
+                // Stats
+                StatsBarView(
+                    totalCards: content.totalCards,
+                    dueCards: content.dueCards,
+                    masteredPercent: content.masteredPercent
+                )
+
+                // Card list
+                VStack(spacing: 8) {
+                    ForEach(content.cards) { card in
+                        HStack {
+                            Text(card.front)
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(EchoColor.foregroundPrimary)
+                            Spacer()
+                            Text(card.back)
+                                .font(.system(size: 13))
+                                .foregroundColor(EchoColor.foregroundMuted)
+                        }
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(EchoColor.surfaceCard)
+                        )
+                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 100)
+        }
+
+        // Bottom CTA
+        Button(action: onStudy) {
+            HStack(spacing: 8) {
+                Image(systemName: "play.fill").font(.system(size: 16))
+                Text(studyLabel)
+                    .font(.system(size: 17, weight: .bold))
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .background(Capsule().fill(EchoColor.accentPrimary))
+            .shadow(color: EchoColor.accentPrimary.opacity(0.2), radius: 24, x: 0, y: 8)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
+    }
+
+    private var studyLabel: String {
+        if case .content(let content) = state, content.isOwned {
+            return "Start studying · \(content.dueCards) due"
+        }
+        return "Study this deck"
+    }
+
+    private var isOwnedContent: Bool {
+        if case .content(let content) = state { return content.isOwned }
+        return false
+    }
+
+    @ViewBuilder
+    private func header(isOwned: Bool) -> some View {
+        HStack(spacing: 10) {
+            Button(action: onBack) {
+                circleIcon(systemName: "chevron.left")
+            }
+            Spacer()
+            if isOwned {
+                Button(action: onEdit) {
+                    circleIcon(systemName: "pencil")
+                }
+                Button(action: onDelete) {
+                    circleIcon(systemName: "trash", tint: EchoColor.srsAgain)
+                }
+            }
+            Button(action: onShare) {
+                circleIcon(systemName: "square.and.arrow.up")
+            }
+        }
+    }
+
+    private func circleIcon(systemName: String, tint: Color = EchoColor.foregroundPrimary) -> some View {
+        ZStack {
+            Circle()
+                .fill(EchoColor.surfaceCard)
+                .frame(width: 40, height: 40)
+            Image(systemName: systemName)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(tint)
+        }
     }
 }
 
@@ -221,5 +285,23 @@ private struct StatColumn: View {
 }
 
 #Preview {
-    DeckDetailView()
+    DeckDetailView(
+        state: .content(DeckDetailContent(
+            title: "Spanish Basics",
+            description: "Core 500 words for everyday conversations.",
+            coverEmoji: "🇪🇸",
+            authorName: "Maria Lopez",
+            authorPubky: "abc123xyz789",
+            authorInitial: "M",
+            isOwned: true,
+            tags: ["spanish", "language", "beginner"],
+            totalCards: 42,
+            dueCards: 12,
+            masteredPercent: "68%",
+            cards: [
+                CardPreviewData(id: "1", front: "el zorro", back: "the fox"),
+                CardPreviewData(id: "2", front: "la casa", back: "the house"),
+            ]
+        ))
+    )
 }

@@ -263,6 +263,14 @@ fun EditCardScreen(
                     },
                 )
             }
+
+            state.frontError?.let { errorText ->
+                Text(
+                    text = errorText,
+                    fontSize = 12.sp,
+                    color = colors.danger,
+                )
+            }
         }
 
         // 4. Back section
@@ -331,6 +339,14 @@ fun EditCardScreen(
                             innerTextField()
                         }
                     },
+                )
+            }
+
+            state.backError?.let { errorText ->
+                Text(
+                    text = errorText,
+                    fontSize = 12.sp,
+                    color = colors.danger,
                 )
             }
         }

@@ -63,6 +63,7 @@ naming:
     excludes:
       - '**/data/pubky/*Dtos.kt'
       - '**/data/pubky/*Dto.kt'
+      - '**/data/nexus/*.kt'
 
 style:
   MagicNumber:

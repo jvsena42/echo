@@ -17,6 +17,8 @@ enum EchoColor {
     static let borderSubtle = Color(red: 0.941, green: 0.902, blue: 0.851)
     static let srsGood = Color(red: 0.129, green: 0.788, blue: 0.478)
     static let srsAgain = Color(red: 1.0, green: 0.306, blue: 0.392)
+    static let srsHard = Color(red: 1.0, green: 0.541, blue: 0.122)
+    static let srsEasy = Color(red: 0.231, green: 0.510, blue: 0.965)
     static let danger = Color(red: 0.851, green: 0.173, blue: 0.173)
     static let dangerSoft = Color(red: 1.0, green: 0.306, blue: 0.392).opacity(0.08)
 }

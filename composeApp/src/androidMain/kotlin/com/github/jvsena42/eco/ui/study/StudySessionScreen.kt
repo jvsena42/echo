@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -155,6 +156,7 @@ private fun ReviewingContent(
         ) {
             Box(
                 modifier = Modifier
+                    .testTag("study_close")
                     .size(40.dp)
                     .clip(RoundedCornerShape(50))
                     .background(colors.surfaceCard)
@@ -210,6 +212,7 @@ private fun ReviewingContent(
         // Card (tap front to reveal). Crossfade doubles as the Reduce-Motion-friendly flip.
         Box(
             modifier = Modifier
+                .testTag("study_card")
                 .fillMaxWidth()
                 .weight(1f)
                 .clip(RoundedCornerShape(28.dp))
@@ -319,6 +322,7 @@ private fun SrsRow(
         buttons.forEach { (grade, color) ->
             Column(
                 modifier = Modifier
+                    .testTag("study_${grade.name.lowercase()}")
                     .weight(1f)
                     .height(72.dp)
                     .clip(RoundedCornerShape(20.dp))

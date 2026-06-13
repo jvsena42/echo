@@ -81,15 +81,16 @@ interface ImportRepository {
     fun clear()
 }
 
+/**
+ * Deck tagging via the pubky.app native tag primitive (records on the tagger's homeserver,
+ * indexed network-wide by Pubky Nexus). Trending reads come from the Nexus REST API; local
+ * tag filtering over visible decks stays on [DiscoveryRepository.decksByTag].
+ */
 interface TagRepository {
     suspend fun putTag(deckUri: PubkyUri, tag: Tag): Result<Unit>
     suspend fun removeTag(deckUri: PubkyUri, tag: Tag): Result<Unit>
 
-    /**
-     * Network-wide trending tags. **Deferred** — requires a Nexus-style backend indexer the thin
-     * [com.github.jvsena42.eco.data.pubky.PubkyClient] FFI cannot provide (no global index). Until
-     * then Discover filters tags locally over visible decks via [DiscoveryRepository.decksByTag].
-     */
+    /** Network-wide trending tags from the Nexus indexer; empty on network failure. */
     suspend fun trending(): List<Tag>
 }
 

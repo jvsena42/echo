@@ -1,5 +1,7 @@
 package com.github.jvsena42.eco.di
 
+import com.github.jvsena42.eco.data.nexus.AndroidHttpFetcher
+import com.github.jvsena42.eco.data.nexus.HttpFetcher
 import com.github.jvsena42.eco.data.pubky.AndroidPubkyClient
 import com.github.jvsena42.eco.data.pubky.PubkyClient
 import com.github.jvsena42.eco.data.storage.AndroidSecureSessionStore
@@ -19,6 +21,7 @@ private const val PUBKY_RING_PLAY_STORE_URL =
 
 val androidPlatformModule: Module = module {
     single<PubkyClient> { AndroidPubkyClient() }
+    single<HttpFetcher> { AndroidHttpFetcher() }
     single<SecureSessionStore> { AndroidSecureSessionStore(androidContext()) }
     single<Speaker> { AndroidSpeaker(androidContext()) }
     factory {

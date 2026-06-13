@@ -64,11 +64,11 @@ class DeckEditorViewModel(
     }
 
     fun onTitleChanged(text: String) {
-        _state.update { it.copy(title = text) }
+        _state.update { it.copy(title = text, titleError = titleErrorFor(text)) }
     }
 
     fun onDescriptionChanged(text: String) {
-        _state.update { it.copy(description = text) }
+        _state.update { it.copy(description = text, descriptionError = descriptionErrorFor(text)) }
     }
 
     fun onCoverEmojiChanged(emoji: String) {
@@ -110,6 +110,12 @@ class DeckEditorViewModel(
         val s = _state.value
         if (s.title.isBlank()) {
             _state.update { it.copy(error = "Title is required.") }
+            return
+        }
+        val titleError = titleErrorFor(s.title)
+        val descriptionError = descriptionErrorFor(s.description)
+        if (titleError != null || descriptionError != null) {
+            _state.update { it.copy(titleError = titleError, descriptionError = descriptionError) }
             return
         }
         saveJob = scope.launch {
@@ -167,6 +173,12 @@ class DeckEditorViewModel(
         scope.cancel()
     }
 
+    private fun titleErrorFor(text: String): String? =
+        if (text.length > TITLE_MAX_LENGTH) "Title must be $TITLE_MAX_LENGTH characters or fewer." else null
+
+    private fun descriptionErrorFor(text: String): String? =
+        if (text.length > DESCRIPTION_MAX_LENGTH) "Description must be $DESCRIPTION_MAX_LENGTH characters or fewer." else null
+
     private fun Card.toEditable(): EditableCardModel = EditableCardModel(
         id = id,
         frontText = front.text ?: "",
@@ -177,12 +189,13 @@ class DeckEditorViewModel(
 
     companion object {
         private const val TAG = "Echo/DeckEditorVM"
+        private const val TITLE_MAX_LENGTH = 120
+        private const val DESCRIPTION_MAX_LENGTH = 500
 
         private fun generateId(): String {
             val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
             return (1..12).map { chars.random() }.joinToString("")
         }
-
     }
 }
 
@@ -194,6 +207,8 @@ data class DeckEditorUiState(
     val tags: List<String> = emptyList(),
     val cards: List<EditableCardModel> = emptyList(),
     val isSaving: Boolean = false,
+    val titleError: String? = null,
+    val descriptionError: String? = null,
     val error: String? = null,
 )
 

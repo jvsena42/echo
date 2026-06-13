@@ -14,6 +14,14 @@ internal fun Throwable.isSessionExpired(): Boolean {
 }
 
 /**
+ * Public helper for ViewModels: returns true when a repository failure means the stored
+ * session could not be refreshed and the user has to sign in again. Repos already retry
+ * once via [putWithSessionRetry] and friends, so by the time a failure reaches a ViewModel
+ * a session-expired error is terminal.
+ */
+fun Throwable.requiresReauth(): Boolean = isSessionExpired()
+
+/**
  * Attempt [PubkyClient.putWithSession] with the current session. If it fails with a
  * session-expired error, revalidate once via [revalidator] and retry with the
  * refreshed secret.
@@ -37,6 +45,27 @@ internal suspend fun PubkyClient.putWithSessionRetry(
     revalidator.revalidate().getOrElse { return Result.failure(it) }
     val newSecret = session.requireSession().sessionSecret
     return putWithSession(url, content, newSecret)
+}
+
+/**
+ * Same retry pattern for [PubkyClient.putBytesWithSession].
+ */
+internal suspend fun PubkyClient.putBytesWithSessionRetry(
+    url: String,
+    content: ByteArray,
+    session: SessionProvider,
+    revalidator: SessionRevalidator,
+): Result<String> {
+    val secret = session.requireSession().sessionSecret
+    val first = putBytesWithSession(url, content, secret)
+    if (first.isSuccess) return first
+
+    val error = first.exceptionOrNull() ?: return first
+    if (!error.isSessionExpired()) return first
+
+    revalidator.revalidate().getOrElse { return Result.failure(it) }
+    val newSecret = session.requireSession().sessionSecret
+    return putBytesWithSession(url, content, newSecret)
 }
 
 /**

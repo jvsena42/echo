@@ -1,28 +1,43 @@
 import SwiftUI
 
-struct DeckEditorView: View {
-    var deckId: String? = nil
-    var onBack: () -> Void = {}
-    var onSaved: (String) -> Void = { _ in }
+struct EditorCardData: Identifiable {
+    let id: String
+    let front: String
+    let back: String
+    let hasImage: Bool
+    let hasAudio: Bool
+}
 
-    // Static preview data until VM is wired via SKIE
-    @State private var title = "Spanish Basics"
-    @State private var description = "Core 500 words for everyday conversations."
-    @State private var coverEmoji = "🇪🇸"
-    @State private var tags = ["spanish", "language"]
-    private let isNew: Bool = true
-    private let cards: [PreviewCard] = [
-        PreviewCard(id: "1", front: "el zorro", back: "the fox", hasImage: false, hasAudio: true),
-        PreviewCard(id: "2", front: "la casa", back: "the house", hasImage: true, hasAudio: false),
-        PreviewCard(id: "3", front: "el agua", back: "the water", hasImage: false, hasAudio: false),
-    ]
+/// Pure layout — state comes from the shared `DeckEditorViewModel` via `DeckEditorScreen`.
+struct DeckEditorView: View {
+    var isNew: Bool = true
+    var coverEmoji: String = ""
+    var title: String = ""
+    var description: String = ""
+    var tags: [String] = []
+    var cards: [EditorCardData] = []
+    var isSaving: Bool = false
+    var titleError: String? = nil
+    var descriptionError: String? = nil
+    var error: String? = nil
+
+    var onTitleChanged: (String) -> Void = { _ in }
+    var onDescriptionChanged: (String) -> Void = { _ in }
+    var onAddTag: (String) -> Void = { _ in }
+    var onRemoveTag: (String) -> Void = { _ in }
+    var onAddCard: () -> Void = {}
+    var onCardTap: (String) -> Void = { _ in }
+    var onClose: () -> Void = {}
+    var onSave: () -> Void = {}
+
+    @State private var showTagSheet = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // Header
                 HStack {
-                    Button(action: onBack) {
+                    Button(action: onClose) {
                         ZStack {
                             Circle()
                                 .fill(EchoColor.surfaceCard)
@@ -37,14 +52,22 @@ struct DeckEditorView: View {
                         .font(.system(size: 18, weight: .heavy))
                         .foregroundColor(EchoColor.foregroundPrimary)
                     Spacer()
-                    Button(action: {}) {
-                        Text("Save")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Capsule().fill(EchoColor.accentPrimary))
+                    Button(action: onSave) {
+                        HStack(spacing: 6) {
+                            if isSaving {
+                                ProgressView()
+                                    .tint(.white)
+                                    .scaleEffect(0.7)
+                            }
+                            Text(isSaving ? "Saving…" : "Save")
+                                .font(.system(size: 14, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(EchoColor.accentPrimary))
                     }
+                    .disabled(isSaving)
                 }
 
                 // Metadata card
@@ -55,7 +78,7 @@ struct DeckEditorView: View {
                             RoundedRectangle(cornerRadius: 14)
                                 .fill(EchoColor.accentPrimarySoft)
                                 .frame(width: 64, height: 64)
-                            Text(coverEmoji)
+                            Text(coverEmoji.isEmpty ? "📚" : coverEmoji)
                                 .font(.system(size: 32))
                         }
                         VStack(alignment: .leading, spacing: 6) {
@@ -63,10 +86,13 @@ struct DeckEditorView: View {
                                 .font(.system(size: 10, weight: .bold))
                                 .kerning(0.8)
                                 .foregroundColor(EchoColor.foregroundMuted)
-                            Text(title.isEmpty ? "Untitled deck" : title)
+                            TextField("Untitled deck", text: binding(title, onTitleChanged))
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(title.isEmpty ? EchoColor.foregroundMuted : EchoColor.foregroundPrimary)
+                                .foregroundColor(EchoColor.foregroundPrimary)
                         }
+                    }
+                    if let titleError {
+                        FieldErrorText(message: titleError)
                     }
 
                     // Description
@@ -75,9 +101,12 @@ struct DeckEditorView: View {
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
                             .foregroundColor(EchoColor.foregroundMuted)
-                        Text(description.isEmpty ? "Add a description..." : description)
+                        TextField("Add a description...", text: binding(description, onDescriptionChanged), axis: .vertical)
                             .font(.system(size: 14))
-                            .foregroundColor(description.isEmpty ? EchoColor.foregroundMuted : EchoColor.foregroundSecondary)
+                            .foregroundColor(EchoColor.foregroundSecondary)
+                    }
+                    if let descriptionError {
+                        FieldErrorText(message: descriptionError)
                     }
 
                     // Tags
@@ -86,20 +115,22 @@ struct DeckEditorView: View {
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
                             .foregroundColor(EchoColor.foregroundMuted)
-                        HStack(spacing: 6) {
-                            ForEach(tags, id: \.self) { tag in
-                                TagChipView(tag: tag, onRemove: {
-                                    tags.removeAll { $0 == tag }
-                                })
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(tags, id: \.self) { tag in
+                                    TagChipView(tag: tag, onRemove: { onRemoveTag(tag) })
+                                }
+                                Button(action: { showTagSheet = true }) {
+                                    Text("+ Add")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(EchoColor.accentSecondary)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .overlay(
+                                            Capsule().stroke(EchoColor.accentSecondary, lineWidth: 1)
+                                        )
+                                }
                             }
-                            Text("+ Add")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(EchoColor.accentSecondary)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .overlay(
-                                    Capsule().stroke(EchoColor.accentSecondary, lineWidth: 1)
-                                )
                         }
                     }
                 }
@@ -110,6 +141,10 @@ struct DeckEditorView: View {
                 )
                 .shadow(color: .black.opacity(0.05), radius: 14, x: 0, y: 4)
 
+                if let error {
+                    FieldErrorText(message: error)
+                }
+
                 // Cards header
                 Text("Cards (\(cards.count))")
                     .font(.system(size: 16, weight: .heavy))
@@ -118,43 +153,46 @@ struct DeckEditorView: View {
                 // Card list
                 VStack(spacing: 10) {
                     ForEach(cards) { card in
-                        HStack(spacing: 12) {
-                            Image(systemName: "line.3.horizontal")
-                                .font(.system(size: 14))
-                                .foregroundColor(EchoColor.foregroundMuted)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(card.front)
-                                    .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(EchoColor.foregroundPrimary)
-                                Text(card.back)
-                                    .font(.system(size: 13))
+                        Button(action: { onCardTap(card.id) }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.system(size: 14))
                                     .foregroundColor(EchoColor.foregroundMuted)
-                            }
-                            Spacer()
-                            HStack(spacing: 6) {
-                                if card.hasImage {
-                                    Image(systemName: "photo")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(EchoColor.accentSecondary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(card.front.isEmpty ? "New card" : card.front)
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundColor(EchoColor.foregroundPrimary)
+                                    Text(card.back)
+                                        .font(.system(size: 13))
+                                        .foregroundColor(EchoColor.foregroundMuted)
                                 }
-                                if card.hasAudio {
-                                    Image(systemName: "mic")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(EchoColor.accentSecondary)
+                                Spacer()
+                                HStack(spacing: 6) {
+                                    if card.hasImage {
+                                        Image(systemName: "photo")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(EchoColor.accentSecondary)
+                                    }
+                                    if card.hasAudio {
+                                        Image(systemName: "mic")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(EchoColor.accentSecondary)
+                                    }
                                 }
                             }
+                            .padding(14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(EchoColor.surfaceCard)
+                            )
+                            .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
                         }
-                        .padding(14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(EchoColor.surfaceCard)
-                        )
-                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+                        .buttonStyle(.plain)
                     }
                 }
 
                 // Add card button
-                Button(action: {}) {
+                Button(action: onAddCard) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .semibold))
@@ -176,17 +214,36 @@ struct DeckEditorView: View {
         }
         .background(EchoColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
+        .sheet(isPresented: $showTagSheet) {
+            AddTagSheet(tags: tags, onAdd: onAddTag, onRemove: onRemoveTag)
+        }
+    }
+
+    private func binding(_ value: String, _ onChange: @escaping (String) -> Void) -> Binding<String> {
+        Binding(get: { value }, set: { onChange($0) })
     }
 }
 
-private struct PreviewCard: Identifiable {
-    let id: String
-    let front: String
-    let back: String
-    let hasImage: Bool
-    let hasAudio: Bool
+/// Small red helper text under a form field.
+struct FieldErrorText: View {
+    let message: String
+
+    var body: some View {
+        Text(message)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(EchoColor.srsAgain)
+    }
 }
 
 #Preview {
-    DeckEditorView()
+    DeckEditorView(
+        coverEmoji: "🇪🇸",
+        title: "Spanish Basics",
+        description: "Core 500 words.",
+        tags: ["spanish", "language"],
+        cards: [
+            EditorCardData(id: "1", front: "el zorro", back: "the fox", hasImage: false, hasAudio: true),
+            EditorCardData(id: "2", front: "la casa", back: "the house", hasImage: true, hasAudio: false),
+        ]
+    )
 }

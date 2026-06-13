@@ -32,6 +32,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
@@ -52,5 +53,10 @@ android {
     }
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+    testOptions {
+        // commonTest code exercises shared classes that log via android.util.Log;
+        // return defaults instead of throwing "not mocked" in local unit tests.
+        unitTests.isReturnDefaultValues = true
     }
 }

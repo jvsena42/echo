@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -227,6 +228,7 @@ private fun CtaBlock(
             },
             loading = isWorking,
             enabled = !isWorking,
+            modifier = Modifier.testTag("onboarding_signin"),
             leadingIcon = {
                 Text(
                     text = "\uD83D\uDD11",
@@ -254,6 +256,7 @@ private fun CtaBlock(
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier
+                .testTag("onboarding_get_ring")
                 .clip(RoundedCornerShape(8.dp))
                 .clickable(enabled = !isWorking, onClick = onGetRingClick)
                 .padding(4.dp),

@@ -1,6 +1,7 @@
 package com.github.jvsena42.eco.presentation.discover
 
 import com.github.jvsena42.eco.data.repository.DiscoveryRepository
+import com.github.jvsena42.eco.data.repository.TagRepository
 import com.github.jvsena42.eco.domain.model.Deck
 import com.github.jvsena42.eco.domain.model.Tag
 import com.github.jvsena42.eco.util.Log
@@ -18,12 +19,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Discover feed: decks from people the user follows, with a tag-chip filter. Trending tags and
- * global search are intentionally absent — they need a backend indexer the FFI can't provide
- * (see [com.github.jvsena42.eco.data.repository.TagRepository.trending]).
+ * Discover feed: decks from people the user follows, with a tag-chip filter. Local feed tags
+ * are merged with network-wide trending tags from the Nexus indexer
+ * ([TagRepository.trending]); trending is best-effort and the feed renders without it.
  */
 class DiscoverViewModel(
     private val discoveryRepository: DiscoveryRepository,
+    private val tagRepository: TagRepository,
     mainScope: CoroutineScope? = null,
 ) {
     private val scope: CoroutineScope =
@@ -58,9 +60,11 @@ class DiscoverViewModel(
                     } else {
                         _state.value = DiscoverUiState.Content(
                             tags = decks.flatMap { it.tags }.distinct(),
+                            trendingTags = emptyList(),
                             selectedTag = null,
                             decks = decks.map { it.toCard() },
                         )
+                        loadTrending()
                     }
                     Log.d(TAG, "load: feed=${decks.size}")
                 }
@@ -68,6 +72,15 @@ class DiscoverViewModel(
                     Log.e(TAG, "load: FAILED — ${err.message}", err)
                     _state.value = DiscoverUiState.Error(err.message ?: "Could not load Discover.")
                 }
+        }
+    }
+
+    /** Trending arrives after first paint — the feed never waits on the indexer. */
+    private fun loadTrending() {
+        scope.launch {
+            val trending = tagRepository.trending()
+            val current = _state.value as? DiscoverUiState.Content ?: return@launch
+            _state.value = current.copy(trendingTags = trending - current.tags.toSet())
         }
     }
 
@@ -116,6 +129,8 @@ sealed interface DiscoverUiState {
     data object Empty : DiscoverUiState
     data class Content(
         val tags: List<Tag>,
+        /** Network-wide trending labels from Nexus, minus ones already in [tags]. */
+        val trendingTags: List<Tag> = emptyList(),
         val selectedTag: Tag?,
         val decks: List<DiscoverDeck>,
     ) : DiscoverUiState

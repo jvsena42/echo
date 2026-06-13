@@ -1,0 +1,19 @@
+<journey name="Discover — trending tags, add friend, follow">
+  <description>
+    Social discovery: trending tag chips from the Nexus staging indexer, add a friend by
+    pubky, follow them, and open one of their decks (foreign-deck remote load).
+    Requires a signed-in session (journey 01). The friend pubky used below must exist on
+    staging and have at least one published Echo deck — substitute a known staging pubky
+    before running, or accept the follow/profile steps as the verification target.
+  </description>
+  <actions>
+    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Tap the element with resource-id "tab_discover" in the bottom tab bar</action>
+    <action>Verify the Discover screen is shown with an "Add friend" button (resource-id: discover_add_friend)</action>
+    <action>Tap the element with resource-id "discover_add_friend"</action>
+    <action>Verify a bottom sheet appears with a "Paste a pubky" input, a "Scan QR" button and an "Open" button</action>
+    <action>Dismiss the bottom sheet</action>
+    <action>If a "Trending on Pubky" section with tag chips is visible, tap the first trending tag chip and verify the deck list filters (decks with the tag, or a "No decks tagged" empty state)</action>
+    <action>If a tag chip is selected, tap it again to clear the filter</action>
+  </actions>
+</journey>

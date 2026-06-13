@@ -58,8 +58,27 @@ interface PubkyClient {
     ): Result<String>
 
     suspend fun put(url: String, content: String, secretKey: String): Result<String>
+
+    /** Raw binary PUT — content lands on the homeserver as-is (no Base64 envelope). */
+    suspend fun putBytes(url: String, content: ByteArray, secretKey: String): Result<String>
+
     suspend fun get(url: String): Result<String>
-    suspend fun list(url: String): Result<String>
+
+    /** Raw binary GET — the FFI returns the payload Base64-encoded for transport. */
+    suspend fun getBytes(url: String): Result<String>
+
+    /**
+     * Directory listing with homeserver pagination. All filters are optional; the
+     * no-arg form lists everything (legacy behaviour).
+     */
+    suspend fun list(
+        url: String,
+        cursor: String? = null,
+        reverse: Boolean? = null,
+        limit: UShort? = null,
+        shallow: Boolean? = null,
+    ): Result<String>
+
     suspend fun deleteFile(url: String, secretKey: String): Result<String>
     suspend fun republishHomeserver(secretKey: String, homeserver: String): Result<String>
 
@@ -70,7 +89,22 @@ interface PubkyClient {
         sessionSecret: String,
     ): Result<String>
 
+    /** Raw binary PUT under session auth — the Pubky Ring flow never exposes the secret key. */
+    suspend fun putBytesWithSession(
+        url: String,
+        content: ByteArray,
+        sessionSecret: String,
+    ): Result<String>
+
     suspend fun deleteWithSession(url: String, sessionSecret: String): Result<String>
+
+    // --- pubky-app-specs helpers ------------------------------------------------
+
+    /**
+     * Derive a pubky-app-specs tag id (Crockford-base32 of half a blake3 hash of
+     * `"$uri:$label"`). [label] must already be sanitized (trimmed, lowercase).
+     */
+    fun createTagId(uri: String, label: String): Result<String>
 
     // --- DHT resolution -------------------------------------------------------
     suspend fun resolve(publicKey: String): Result<String>

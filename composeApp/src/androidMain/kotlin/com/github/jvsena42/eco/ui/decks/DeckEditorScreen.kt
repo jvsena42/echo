@@ -255,6 +255,14 @@ fun DeckEditorScreen(
                             }
                         },
                     )
+
+                    state.titleError?.let { errorText ->
+                        Text(
+                            text = errorText,
+                            fontSize = 12.sp,
+                            color = colors.danger,
+                        )
+                    }
                 }
             }
 
@@ -289,6 +297,14 @@ fun DeckEditorScreen(
                         }
                     },
                 )
+
+                state.descriptionError?.let { errorText ->
+                    Text(
+                        text = errorText,
+                        fontSize = 12.sp,
+                        color = colors.danger,
+                    )
+                }
             }
 
             // Tags section

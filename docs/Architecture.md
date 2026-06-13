@@ -241,7 +241,20 @@ A future Gradle task can automate this; not worth building until the fork stabil
 
 ### 7.5 Session & key storage
 
-Still open: secret keys and session secrets need secure storage. Android → EncryptedSharedPreferences or Keystore-backed multiplatform-settings; iOS → Keychain via a Swift-side helper injected into shared. Decide before the first real sign-in flow.
+**Resolved.** The signed-in `Session` persists through the `SecureSessionStore` interface
+(`data/storage/`), backed by Liftric KVault: `AndroidSecureSessionStore` wraps
+Keystore-backed EncryptedSharedPreferences, `IosSecureSessionStore` wraps the Keychain.
+Secrets never touch multiplatform-settings or ad-hoc storage.
+
+### 7.6 Nexus indexer (global reads)
+
+Global questions a single homeserver cannot answer — trending tags, prefix search — are
+served by the Pubky Nexus REST API (`data/nexus/NexusClient`, default base
+`https://nexus.staging.pubky.app`). The HTTP layer is the one-method `HttpFetcher`
+interface with per-platform impls (HttpURLConnection / NSURLSession) so shared stays free
+of an HTTP client dependency. Writes stay on the homeserver: deck tags are mirrored as
+pubky-app-specs tag records (`/pub/pubky.app/tags/{id}`, id derived via the FFI
+`create_tag_id`) which Nexus indexes network-wide.
 
 ---
 
@@ -476,7 +489,7 @@ Pulled forward from spec §13 plus architecture-specific items.
 2. **Swift ↔ Flow bridge.** SKIE vs KMP-NativeCoroutines. SKIE is the working assumption; revisit if it blocks iOS builds.
 3. **Multi-module split timing.** Single `shared` module for v1; split into `:core / :data / :domain / :feature-*` if build times or ownership boundaries require it.
 4. **Private decks.** If spec §13 Q1 flips in favor of private decks, `DeckRepository` gains a local-only write path and `pubky_uri` stays `NULL` until the user opts in.
-5. **Secret key & session storage** (§7.5). Keychain on iOS, Keystore-backed EncryptedSharedPreferences or multiplatform-settings on Android. Needs a decision before the first real sign-in flow.
+5. **Secret key & session storage** (§7.5). ~~Needs a decision~~ **Resolved**: `SecureSessionStore` via Liftric KVault (Keystore-backed EncryptedSharedPreferences on Android, Keychain on iOS).
 6. **SRS sync.** v1 keeps SRS local. If we ever want cross-device study, `SrsRepository` gains a Pubky-backed write path.
 7. **AI / OCR / URL import** (spec §14) — all reuse `TriageVM` + `CommitDeckVM`. No architectural change needed, only new `ImportRepository` entry points and screens.
 8. **Binding regeneration automation.** Today the fork's `build_android.sh` / `build_ios.sh` are run manually and artifacts are copied in (§7.4). A Gradle task can automate this once the fork API stabilises.

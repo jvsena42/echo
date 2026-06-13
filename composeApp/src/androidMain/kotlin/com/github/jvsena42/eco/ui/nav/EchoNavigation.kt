@@ -13,6 +13,7 @@ import com.github.jvsena42.eco.ui.import_flow.PasteRoute
 import com.github.jvsena42.eco.ui.import_flow.PublishDeckRoute
 import com.github.jvsena42.eco.ui.onboarding.OnboardingRoute
 import com.github.jvsena42.eco.ui.profile.FriendProfileRoute
+import com.github.jvsena42.eco.ui.settings.SettingsRoute
 import com.github.jvsena42.eco.ui.study.StudySessionRoute
 
 @Composable
@@ -30,8 +31,8 @@ fun EchoNavHost() {
         }
         composable(Routes.MAIN) {
             MainScreen(
-                onNavigateDeckDetail = { deckId ->
-                    navController.navigate(Routes.deckDetail(deckId))
+                onNavigateDeckDetail = { deckId, author ->
+                    navController.navigate(Routes.deckDetail(deckId, author))
                 },
                 onNavigateCreateDeck = {
                     navController.navigate(Routes.DECK_EDITOR_NEW)
@@ -45,7 +46,20 @@ fun EchoNavHost() {
                 onNavigateProfile = { pubky ->
                     navController.navigate(Routes.friendProfile(pubky))
                 },
+                onNavigateSettings = {
+                    navController.navigate(Routes.SETTINGS)
+                },
                 onSignOut = {
+                    navController.navigate(Routes.ONBOARDING) {
+                        popUpTo(Routes.MAIN) { inclusive = true }
+                    }
+                },
+            )
+        }
+        composable(Routes.SETTINGS) {
+            SettingsRoute(
+                onBack = { navController.popBackStack() },
+                onSignedOut = {
                     navController.navigate(Routes.ONBOARDING) {
                         popUpTo(Routes.MAIN) { inclusive = true }
                     }
@@ -54,11 +68,20 @@ fun EchoNavHost() {
         }
         composable(
             route = Routes.DECK_DETAIL,
-            arguments = listOf(navArgument("deckId") { type = NavType.StringType }),
+            arguments = listOf(
+                navArgument("deckId") { type = NavType.StringType },
+                navArgument("author") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
         ) { backStackEntry ->
             val deckId = backStackEntry.arguments?.getString("deckId") ?: return@composable
+            val author = backStackEntry.arguments?.getString("author")
             DeckDetailRoute(
                 deckId = deckId,
+                authorPubky = author,
                 onBack = { navController.popBackStack() },
                 onEditDeck = { id -> navController.navigate(Routes.deckEditor(id)) },
                 onStudy = { id -> navController.navigate(Routes.study(id)) },
@@ -145,7 +168,7 @@ fun EchoNavHost() {
             FriendProfileRoute(
                 pubky = pubky,
                 onBack = { navController.popBackStack() },
-                onOpenDeck = { deckId -> navController.navigate(Routes.deckDetail(deckId)) },
+                onOpenDeck = { deckId -> navController.navigate(Routes.deckDetail(deckId, author = pubky)) },
             )
         }
     }

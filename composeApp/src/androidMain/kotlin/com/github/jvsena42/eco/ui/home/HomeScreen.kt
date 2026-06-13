@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +39,7 @@ fun HomeRoute(
     onBrowseExamples: () -> Unit = {},
     onStartStudy: () -> Unit = {},
     onOpenDeck: (String) -> Unit = {},
+    onSignedOut: () -> Unit = {},
 ) {
     val viewModel = koinInject<HomeViewModel>()
     DisposableEffect(viewModel) {
@@ -47,6 +50,7 @@ fun HomeRoute(
     val currentBrowse by rememberUpdatedState(onBrowseExamples)
     val currentStart by rememberUpdatedState(onStartStudy)
     val currentOpen by rememberUpdatedState(onOpenDeck)
+    val currentSignedOut by rememberUpdatedState(onSignedOut)
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -55,6 +59,7 @@ fun HomeRoute(
                 HomeEffect.NavigateBrowseExamples -> currentBrowse()
                 HomeEffect.NavigateStartStudy -> currentStart()
                 is HomeEffect.NavigateDeck -> currentOpen(effect.deckId)
+                HomeEffect.NavigateToOnboarding -> currentSignedOut()
             }
         }
     }
@@ -70,6 +75,7 @@ fun HomeRoute(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     state: HomeUiState,
@@ -80,11 +86,37 @@ fun HomeScreen(
     onRetry: () -> Unit,
 ) {
     val colors = EchoTheme.colors
-    Column(
+    PullToRefreshBox(
+        isRefreshing = state is HomeUiState.Loading,
+        onRefresh = onRetry,
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surfacePrimary)
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.statusBars),
+    ) {
+        HomeScreenContent(
+            state = state,
+            onStartStudyClick = onStartStudyClick,
+            onCreateDeckClick = onCreateDeckClick,
+            onBrowseExamplesClick = onBrowseExamplesClick,
+            onDeckClick = onDeckClick,
+            onRetry = onRetry,
+        )
+    }
+}
+
+@Composable
+private fun HomeScreenContent(
+    state: HomeUiState,
+    onStartStudyClick: () -> Unit,
+    onCreateDeckClick: () -> Unit,
+    onBrowseExamplesClick: () -> Unit,
+    onDeckClick: (String) -> Unit,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp)),
         verticalArrangement = Arrangement.spacedBy(24.dp),

@@ -13,9 +13,11 @@ import com.github.jvsena42.eco.data.pubky.toDomain
 import com.github.jvsena42.eco.data.pubky.toDto
 import com.github.jvsena42.eco.data.repository.CardRepository
 import com.github.jvsena42.eco.data.repository.DeckRepository
+import com.github.jvsena42.eco.data.repository.TagRepository
 import com.github.jvsena42.eco.domain.model.Card
 import com.github.jvsena42.eco.domain.model.CardIndexEntry
 import com.github.jvsena42.eco.domain.model.Deck
+import com.github.jvsena42.eco.util.Log
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -31,6 +33,7 @@ class DeckRepositoryImpl(
     private val session: SessionProvider,
     private val cardRepo: CardRepository,
     private val revalidator: SessionRevalidator,
+    private val tagRepo: TagRepository,
 ) : DeckRepository {
 
     private val cache = mutableMapOf<String, Deck>()
@@ -72,6 +75,14 @@ class DeckRepositoryImpl(
         val manifestBody = echoJson.encodeToString(manifestDeck.toDto())
         pubky.putWithSessionRetry(manifestUrl, manifestBody, session, revalidator).getOrThrow()
 
+        // Mirror deck tags as pubky.app tag records so Nexus indexes them network-wide.
+        // Best-effort: a failed tag write must not fail the publish.
+        for (tag in manifestDeck.tags) {
+            tagRepo.putTag(manifestDeck.pubkyUri, tag).onFailure {
+                Log.e(TAG, "publish: tag '${tag.value}' write failed — ${it.message}", it)
+            }
+        }
+
         cacheLock.withLock { cache[manifestDeck.id] = manifestDeck }
         manifestDeck
     }
@@ -90,19 +101,35 @@ class DeckRepositoryImpl(
     override suspend fun delete(deckId: String): Result<Unit> = runCatching {
         val author = session.requireSession().identity.pubky
         val cached = getLocal(deckId)
-        val cardIds = cached?.cardIndex?.map { it.id } ?: emptyList()
-        for (cardId in cardIds) {
-            pubky.deleteWithSessionRetry(
-                PubkyPaths.card(author, deckId, cardId),
-                session,
-                revalidator,
-            ).getOrThrow()
+
+        // Sweep everything under the deck root (cards, manifest, media blobs, SRS records)
+        // so nothing orphans on the homeserver. The listing itself is the fallback source of
+        // paths when the cache is cold.
+        val deckRoot = "${PubkyPaths.deckRoot(author, deckId)}/"
+        val listedPaths = pubky.list(deckRoot).getOrNull()
+            ?.let(::parsePubkyUrlsFromList)
+            .orEmpty()
+        val fallbackPaths = buildList {
+            cached?.cardIndex?.forEach { add(PubkyPaths.card(author, deckId, it.id)) }
+            add(PubkyPaths.manifest(author, deckId))
         }
-        pubky.deleteWithSessionRetry(
-            PubkyPaths.manifest(author, deckId),
-            session,
-            revalidator,
-        ).getOrThrow()
+        // Manifest last: a half-deleted deck without a manifest disappears from listings
+        // instead of resurfacing as corrupt.
+        val paths = (listedPaths + fallbackPaths).distinct()
+            .sortedBy { it.endsWith("/manifest.json") }
+        for (path in paths) {
+            pubky.deleteWithSessionRetry(path, session, revalidator).getOrThrow()
+        }
+
+        // Remove the pubky.app tag records pointing at the deleted deck (best-effort).
+        cached?.let { deck ->
+            for (tag in deck.tags) {
+                tagRepo.removeTag(deck.pubkyUri, tag).onFailure {
+                    Log.e(TAG, "delete: tag '${tag.value}' removal failed — ${it.message}", it)
+                }
+            }
+        }
+
         cacheLock.withLock { cache.remove(deckId) }
         Unit
     }
@@ -153,6 +180,12 @@ class DeckRepositoryImpl(
      * `/pub/echo/decks/{deckId}/` segments. When the homeserver stabilises, replace with the
      * proper structured parse.
      */
+    /** The FFI `list` payload is a JSON array of `pubky://…` URL strings. */
+    private fun parsePubkyUrlsFromList(payload: String): List<String> =
+        runCatching { echoJson.decodeFromString<List<String>>(payload) }
+            .getOrDefault(emptyList())
+            .filter { it.startsWith("pubky://") }
+
     private fun parseDeckIdsFromList(payload: String): List<String> {
         val marker = "/${PubkyPaths.APP_NAMESPACE}/decks/"
         val ids = linkedSetOf<String>()
@@ -166,5 +199,9 @@ class DeckRepositoryImpl(
             index = end
         }
         return ids.toList()
+    }
+
+    private companion object {
+        const val TAG = "Echo/DeckRepo"
     }
 }

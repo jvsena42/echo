@@ -16,11 +16,12 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun MainScreen(
-    onNavigateDeckDetail: (String) -> Unit = {},
+    onNavigateDeckDetail: (deckId: String, author: String?) -> Unit = { _, _ -> },
     onNavigateCreateDeck: () -> Unit = {},
     onNavigateImport: () -> Unit = {},
     onNavigateStudy: (String?) -> Unit = {},
     onNavigateProfile: (String) -> Unit = {},
+    onNavigateSettings: () -> Unit = {},
     onSignOut: () -> Unit = {},
 ) {
     val pagerState = rememberPagerState(pageCount = { EchoTab.entries.size })
@@ -34,12 +35,13 @@ fun MainScreen(
         ) { page ->
             when (EchoTab.entries[page]) {
                 EchoTab.STUDY -> HomeRoute(
-                    onOpenDeck = onNavigateDeckDetail,
+                    onOpenDeck = { deckId -> onNavigateDeckDetail(deckId, null) },
                     onCreateDeck = onNavigateCreateDeck,
                     onStartStudy = { onNavigateStudy(null) },
+                    onSignedOut = onSignOut,
                 )
                 EchoTab.DECKS -> DecksRoute(
-                    onDeckClick = onNavigateDeckDetail,
+                    onDeckClick = { deckId -> onNavigateDeckDetail(deckId, null) },
                     onImportClick = onNavigateImport,
                     onCreateDeckClick = onNavigateCreateDeck,
                 )
@@ -47,7 +49,10 @@ fun MainScreen(
                     onOpenProfile = onNavigateProfile,
                     onOpenDeck = onNavigateDeckDetail,
                 )
-                EchoTab.PROFILE -> ProfileRoute(onSignedOut = onSignOut)
+                EchoTab.PROFILE -> ProfileRoute(
+                    onSignedOut = onSignOut,
+                    onOpenSettings = onNavigateSettings,
+                )
             }
         }
 

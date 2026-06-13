@@ -69,11 +69,11 @@ class EditCardViewModel(
     }
 
     fun onFrontTextChanged(text: String) {
-        _state.update { it.copy(frontText = text) }
+        _state.update { it.copy(frontText = text, frontError = cardTextErrorFor(text)) }
     }
 
     fun onBackTextChanged(text: String) {
-        _state.update { it.copy(backText = text) }
+        _state.update { it.copy(backText = text, backError = cardTextErrorFor(text)) }
     }
 
     fun onSpeakFront() {
@@ -105,6 +105,12 @@ class EditCardViewModel(
         val s = _state.value
         if (s.frontText.isBlank() && s.backText.isBlank()) {
             _state.update { it.copy(error = "Card must have content.") }
+            return
+        }
+        val frontError = cardTextErrorFor(s.frontText)
+        val backError = cardTextErrorFor(s.backText)
+        if (frontError != null || backError != null) {
+            _state.update { it.copy(frontError = frontError, backError = backError) }
             return
         }
         saveJob = scope.launch {
@@ -163,8 +169,12 @@ class EditCardViewModel(
         scope.cancel()
     }
 
+    private fun cardTextErrorFor(text: String): String? =
+        if (text.length > CARD_TEXT_MAX_LENGTH) "Card text must be $CARD_TEXT_MAX_LENGTH characters or fewer." else null
+
     companion object {
         private const val TAG = "Echo/EditCardVM"
+        private const val CARD_TEXT_MAX_LENGTH = 2000
     }
 }
 
@@ -178,6 +188,8 @@ data class EditCardUiState(
     val hasImage: Boolean = false,
     val hasAudio: Boolean = false,
     val isSaving: Boolean = false,
+    val frontError: String? = null,
+    val backError: String? = null,
     val error: String? = null,
 )
 

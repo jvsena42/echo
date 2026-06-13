@@ -1,5 +1,6 @@
 package com.github.jvsena42.eco.presentation.home
 
+import com.github.jvsena42.eco.data.pubky.requiresReauth
 import com.github.jvsena42.eco.data.repository.DeckRepository
 import com.github.jvsena42.eco.data.repository.IdentityRepository
 import com.github.jvsena42.eco.data.repository.SrsRepository
@@ -74,10 +75,20 @@ class HomeViewModel(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    _state.value = HomeUiState.Error(
-                        greetingName = greetingName,
-                        message = err.message ?: "Could not load decks.",
-                    )
+                    if (err.requiresReauth()) {
+                        Log.d(TAG, "load: session expired — signing out")
+                        runCatching { identityRepository.signOut() }
+                        _state.value = HomeUiState.Error(
+                            greetingName = greetingName,
+                            message = "Your session expired. Please sign in again.",
+                        )
+                        _effects.emit(HomeEffect.NavigateToOnboarding)
+                    } else {
+                        _state.value = HomeUiState.Error(
+                            greetingName = greetingName,
+                            message = err.message ?: "Could not load decks.",
+                        )
+                    }
                 }
         }
     }
@@ -142,4 +153,7 @@ sealed interface HomeEffect {
     data object NavigateBrowseExamples : HomeEffect
     data object NavigateStartStudy : HomeEffect
     data class NavigateDeck(val deckId: String) : HomeEffect
+
+    /** The stored session can no longer be used — the user must sign in again. */
+    data object NavigateToOnboarding : HomeEffect
 }

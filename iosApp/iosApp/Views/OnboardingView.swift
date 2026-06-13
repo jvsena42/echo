@@ -2,12 +2,10 @@ import SwiftUI
 
 /// SwiftUI onboarding screen mirroring the Pencil design (node `l6a3j`).
 ///
-/// NOTE: The shared `OnboardingViewModel` will drive this view once the Kotlin framework
-/// exposes it via the SKIE bridge and `IosPubkyClient` conforms to `PubkyClient`. Until then
-/// this view is a pure presentation stub with local state so designers can iterate on layout.
+/// Pure layout — state comes from the shared `OnboardingViewModel` via `OnboardingScreen`.
 struct OnboardingView: View {
-    @State private var isWorking: Bool = false
-    @State private var errorMessage: String? = nil
+    var isWorking: Bool = false
+    var errorMessage: String? = nil
     var onSignInTapped: () -> Void = {}
     var onInstallTapped: () -> Void = {}
 
@@ -64,11 +62,7 @@ struct OnboardingView: View {
 
     private var ctaBlock: some View {
         VStack(spacing: 12) {
-            Button(action: {
-                errorMessage = nil
-                isWorking = true
-                onSignInTapped()
-            }) {
+            Button(action: onSignInTapped) {
                 HStack(spacing: 10) {
                     Image(systemName: "key.fill").font(.system(size: 20))
                     Text(isWorking ? "Waiting for Pubky Ring…" : "Sign in with Pubky Ring")

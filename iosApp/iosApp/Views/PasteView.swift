@@ -50,10 +50,10 @@ struct PasteView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(rawText.isEmpty() ? EchoColor.borderSubtle : EchoColor.accentPrimary, lineWidth: 2)
+                            .stroke(rawText.isEmpty ? EchoColor.borderSubtle : EchoColor.accentPrimary, lineWidth: 2)
                     )
                     .overlay(alignment: .topLeading) {
-                        if rawText.isEmpty() {
+                        if rawText.isEmpty {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Paste your list here")
                                     .font(.system(size: 16, weight: .semibold))
@@ -100,7 +100,7 @@ struct PasteView: View {
                 }
 
                 // Examples when empty
-                if rawText.isEmpty() {
+                if rawText.isEmpty {
                     Text("PREVIEW")
                         .font(.system(size: 10, weight: .bold))
                         .kerning(0.8)

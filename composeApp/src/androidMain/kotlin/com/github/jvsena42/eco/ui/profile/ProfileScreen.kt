@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +63,7 @@ import org.koin.compose.koinInject
 @Composable
 fun ProfileRoute(
     onSignedOut: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     val viewModel = koinInject<ProfileViewModel>()
     DisposableEffect(viewModel) { onDispose { viewModel.onDispose() } }
@@ -81,6 +85,7 @@ fun ProfileRoute(
     ProfileScreen(
         state = state,
         errorMessage = errorMessage,
+        onOpenSettings = onOpenSettings,
         onEditProfileClick = viewModel::onEditProfileClick,
         onShareClick = viewModel::onShareClick,
         onSignOutClick = viewModel::onSignOutClick,
@@ -97,6 +102,7 @@ fun ProfileRoute(
 private fun ProfileScreen(
     state: ProfileUiState,
     errorMessage: String?,
+    onOpenSettings: () -> Unit,
     onEditProfileClick: () -> Unit,
     onShareClick: () -> Unit,
     onSignOutClick: () -> Unit,
@@ -129,13 +135,36 @@ private fun ProfileScreen(
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp)),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // --- Nav title ---
-        Text(
-            text = "Profile",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = colors.foregroundPrimary,
-        )
+        // --- Nav title + settings entry point ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Profile",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = colors.foregroundPrimary,
+            )
+            Box(
+                modifier = Modifier
+                    .testTag("profile_settings")
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(colors.surfaceCard)
+                    .border(1.dp, colors.borderSubtle, CircleShape)
+                    .clickable(onClick = onOpenSettings),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = "Settings",
+                    tint = colors.foregroundSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
 
         // --- Profile section ---
         Column(
@@ -300,6 +329,7 @@ private fun ProfileScreen(
         // --- Sign out ---
         Row(
             modifier = Modifier
+                .testTag("profile_signout")
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(colors.dangerSoft)

@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import uniffi.pubkycore.auth as ffiAuth
 import uniffi.pubkycore.awaitAuthApproval as ffiAwaitAuthApproval
 import uniffi.pubkycore.createRecoveryFile as ffiCreateRecoveryFile
+import uniffi.pubkycore.createTagId as ffiCreateTagId
 import uniffi.pubkycore.decryptRecoveryFile as ffiDecryptRecoveryFile
 import uniffi.pubkycore.deleteFile as ffiDeleteFile
 import uniffi.pubkycore.deleteWithSession as ffiDeleteWithSession
@@ -12,6 +13,7 @@ import uniffi.pubkycore.generateMnemonicPhrase as ffiGenerateMnemonicPhrase
 import uniffi.pubkycore.generateMnemonicPhraseAndKeypair as ffiGenerateMnemonicPhraseAndKeypair
 import uniffi.pubkycore.generateSecretKey as ffiGenerateSecretKey
 import uniffi.pubkycore.get as ffiGet
+import uniffi.pubkycore.getBytes as ffiGetBytes
 import uniffi.pubkycore.getHomeserver as ffiGetHomeserver
 import uniffi.pubkycore.getPublicKeyFromSecretKey as ffiGetPublicKeyFromSecretKey
 import uniffi.pubkycore.getSignupToken as ffiGetSignupToken
@@ -21,6 +23,8 @@ import uniffi.pubkycore.parseAuthUrl as ffiParseAuthUrl
 import uniffi.pubkycore.publish as ffiPublish
 import uniffi.pubkycore.publishHttps as ffiPublishHttps
 import uniffi.pubkycore.put as ffiPut
+import uniffi.pubkycore.putBytes as ffiPutBytes
+import uniffi.pubkycore.putBytesWithSession as ffiPutBytesWithSession
 import uniffi.pubkycore.putWithSession as ffiPutWithSession
 import uniffi.pubkycore.republishHomeserver as ffiRepublishHomeserver
 import uniffi.pubkycore.resolve as ffiResolve
@@ -102,8 +106,19 @@ class AndroidPubkyClient : PubkyClient {
     override suspend fun put(url: String, content: String, secretKey: String) =
         runFfiSuspend { ffiPut(url, content, secretKey) }
 
+    override suspend fun putBytes(url: String, content: ByteArray, secretKey: String) =
+        runFfiSuspend { ffiPutBytes(url, content, secretKey) }
+
     override suspend fun get(url: String) = runFfiSuspend { ffiGet(url) }
-    override suspend fun list(url: String) = runFfiSuspend { ffiList(url) }
+    override suspend fun getBytes(url: String) = runFfiSuspend { ffiGetBytes(url) }
+    override suspend fun list(
+        url: String,
+        cursor: String?,
+        reverse: Boolean?,
+        limit: UShort?,
+        shallow: Boolean?,
+    ) = runFfiSuspend { ffiList(url, cursor, reverse, limit, shallow) }
+
     override suspend fun deleteFile(url: String, secretKey: String) =
         runFfiSuspend { ffiDeleteFile(url, secretKey) }
 
@@ -114,8 +129,18 @@ class AndroidPubkyClient : PubkyClient {
     override suspend fun putWithSession(url: String, content: String, sessionSecret: String) =
         runFfiSuspend { ffiPutWithSession(url, content, sessionSecret) }
 
+    override suspend fun putBytesWithSession(
+        url: String,
+        content: ByteArray,
+        sessionSecret: String,
+    ) = runFfiSuspend { ffiPutBytesWithSession(url, content, sessionSecret) }
+
     override suspend fun deleteWithSession(url: String, sessionSecret: String) =
         runFfiSuspend { ffiDeleteWithSession(url, sessionSecret) }
+
+    // --- pubky-app-specs helpers ------------------------------------------------
+    override fun createTagId(uri: String, label: String) =
+        runFfi { ffiCreateTagId(uri, label) }
 
     // --- DHT resolution -------------------------------------------------------
     override suspend fun resolve(publicKey: String) = runFfiSuspend { ffiResolve(publicKey) }

@@ -18,8 +18,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -33,7 +36,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -54,11 +61,12 @@ import org.koin.core.parameter.parametersOf
 @Composable
 fun DeckDetailRoute(
     deckId: String,
+    authorPubky: String? = null,
     onBack: () -> Unit = {},
     onEditDeck: (String) -> Unit = {},
     onStudy: (String) -> Unit = {},
 ) {
-    val viewModel = koinInject<DeckDetailViewModel> { parametersOf(deckId) }
+    val viewModel = koinInject<DeckDetailViewModel> { parametersOf(deckId, authorPubky) }
     DisposableEffect(viewModel) {
         onDispose { viewModel.onDispose() }
     }
@@ -74,6 +82,7 @@ fun DeckDetailRoute(
                 is DeckDetailEffect.NavigateEditDeck -> currentEditDeck(effect.deckId)
                 DeckDetailEffect.NavigateStudy -> currentStudy(deckId)
                 is DeckDetailEffect.Share -> { /* handled by platform share sheet */ }
+                DeckDetailEffect.Deleted -> currentBack()
             }
         }
     }
@@ -85,6 +94,9 @@ fun DeckDetailRoute(
         onShareClick = viewModel::onShareClick,
         onStudyClick = viewModel::onStudyClick,
         onEditClick = viewModel::onEditClick,
+        onDeleteClick = viewModel::onDeleteDeck,
+        onConfirmDelete = viewModel::onConfirmDelete,
+        onDismissDelete = viewModel::onDismissDelete,
         onRetry = viewModel::onRefresh,
     )
 }
@@ -96,6 +108,9 @@ fun DeckDetailScreen(
     onShareClick: () -> Unit,
     onStudyClick: () -> Unit,
     onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+    onConfirmDelete: () -> Unit,
+    onDismissDelete: () -> Unit,
     onRetry: () -> Unit,
 ) {
     val colors = EchoTheme.colors
@@ -145,7 +160,15 @@ fun DeckDetailScreen(
                 onBackClick = onBackClick,
                 onShareClick = onShareClick,
                 onStudyClick = onStudyClick,
+                onEditClick = onEditClick,
+                onDeleteClick = onDeleteClick,
             )
+            if (state.showDeleteConfirm) {
+                DeleteDeckDialog(
+                    onConfirm = onConfirmDelete,
+                    onDismiss = onDismissDelete,
+                )
+            }
         }
     }
 }
@@ -157,6 +180,8 @@ private fun DeckDetailContent(
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onStudyClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
 ) {
     val colors = EchoTheme.colors
 
@@ -175,6 +200,7 @@ private fun DeckDetailContent(
                         "Study this deck"
                     },
                     onClick = onStudyClick,
+                    modifier = Modifier.testTag("deck_study"),
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
@@ -195,8 +221,14 @@ private fun DeckDetailContent(
                 .padding(start = 20.dp, end = 20.dp, top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            // Header: Back + Share
-            HeaderBar(onBackClick = onBackClick, onShareClick = onShareClick)
+            // Header: Back + Edit/Delete (owner only) + Share
+            HeaderBar(
+                isOwned = state.isOwned,
+                onBackClick = onBackClick,
+                onShareClick = onShareClick,
+                onEditClick = onEditClick,
+                onDeleteClick = onDeleteClick,
+            )
 
             // Cover
             CoverSection(coverEmoji = state.coverEmoji, isOwned = state.isOwned)
@@ -246,47 +278,111 @@ private fun DeckDetailContent(
 }
 
 @Composable
-private fun HeaderBar(onBackClick: () -> Unit, onShareClick: () -> Unit) {
+private fun HeaderBar(
+    isOwned: Boolean,
+    onBackClick: () -> Unit,
+    onShareClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+) {
     val colors = EchoTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Back circle
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(50))
-                .background(colors.surfaceCard)
-                .clickable(onClick = onBackClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = "Back",
-                tint = colors.foregroundPrimary,
-                modifier = Modifier.size(24.dp),
-            )
-        }
+        HeaderCircleButton(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+            contentDescription = "Back",
+            iconSize = 24.dp,
+            onClick = onBackClick,
+        )
 
-        // Share circle
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(50))
-                .background(colors.surfaceCard)
-                .clickable(onClick = onShareClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (isOwned) {
+                HeaderCircleButton(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit deck",
+                    onClick = onEditClick,
+                    modifier = Modifier.testTag("deck_edit"),
+                )
+                HeaderCircleButton(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete deck",
+                    tint = colors.danger,
+                    onClick = onDeleteClick,
+                    modifier = Modifier.testTag("deck_delete"),
+                )
+            }
+            HeaderCircleButton(
                 imageVector = Icons.Default.Share,
                 contentDescription = "Share",
-                tint = colors.foregroundPrimary,
-                modifier = Modifier.size(20.dp),
+                onClick = onShareClick,
+                modifier = Modifier.testTag("deck_share"),
             )
         }
     }
+}
+
+@Composable
+private fun HeaderCircleButton(
+    imageVector: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = Color.Unspecified,
+    iconSize: Dp = 20.dp,
+) {
+    val colors = EchoTheme.colors
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(50))
+            .background(colors.surfaceCard)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = contentDescription,
+            tint = if (tint == Color.Unspecified) colors.foregroundPrimary else tint,
+            modifier = Modifier.size(iconSize),
+        )
+    }
+}
+
+@Composable
+private fun DeleteDeckDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val colors = EchoTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = colors.surfaceCard,
+        title = {
+            Text(
+                text = "Delete deck",
+                color = colors.foregroundPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+            )
+        },
+        text = {
+            Text(
+                text = "Delete this deck? It will be removed from your homeserver.",
+                color = colors.foregroundSecondary,
+                fontSize = 14.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, modifier = Modifier.testTag("deck_delete_confirm")) {
+                Text("Delete", color = colors.danger)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = colors.foregroundMuted)
+            }
+        },
+    )
 }
 
 @Composable

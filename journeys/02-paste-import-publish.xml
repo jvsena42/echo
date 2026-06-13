@@ -1,0 +1,21 @@
+<journey name="Paste-to-Import — parse, publish, undo window">
+  <description>
+    The v1 primary import flow (spec §5): paste tab-separated lines, preview parsed cards,
+    publish to the homeserver, observe the 10-second undo window, finish to deck detail.
+    Requires a signed-in session (run journey 01 first).
+  </description>
+  <actions>
+    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Tap the element with resource-id "tab_decks" in the bottom tab bar</action>
+    <action>Tap the element with resource-id "decks_paste_cta"</action>
+    <action>Verify the "Paste cards" screen is shown with a text area placeholder "Paste your list here" (resource-id: paste_input)</action>
+    <action>Type the following three lines into the field with resource-id "paste_input": "dog,cachorro", "cat,gato", "bird,passaro"</action>
+    <action>Verify a live preview appears showing 3 parsed cards with fronts dog, cat, bird</action>
+    <action>Tap the element with resource-id "paste_next"</action>
+    <action>Enter "Animals PT" into the field with resource-id "publish_title"</action>
+    <action>Tap the element with resource-id "publish_button"</action>
+    <action>Verify a "Deck published!" success state appears with an Undo button showing a live countdown (resource-id: publish_undo) and a Done button (resource-id: publish_done)</action>
+    <action>Tap the element with resource-id "publish_done"</action>
+    <action>Verify the deck detail screen for "Animals PT" is shown with 3 cards</action>
+  </actions>
+</journey>

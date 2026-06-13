@@ -3,7 +3,8 @@ package com.github.jvsena42.eco.ui.nav
 object Routes {
     const val ONBOARDING = "onboarding"
     const val MAIN = "main"
-    const val DECK_DETAIL = "deck/{deckId}"
+    const val SETTINGS = "settings"
+    const val DECK_DETAIL = "deck/{deckId}?author={author}"
     const val DECK_EDITOR = "deck/editor/{deckId}"
     const val DECK_EDITOR_NEW = "deck/editor/new"
     const val EDIT_CARD = "deck/{deckId}/card/{cardId}/edit"
@@ -17,7 +18,8 @@ object Routes {
     /** Another user's public profile (their decks + follow button). */
     const val FRIEND_PROFILE = "profile/{pubky}"
 
-    fun deckDetail(deckId: String) = "deck/$deckId"
+    fun deckDetail(deckId: String, author: String? = null) =
+        if (author != null) "deck/$deckId?author=$author" else "deck/$deckId"
     fun friendProfile(pubky: String) = "profile/$pubky"
     fun deckEditor(deckId: String) = "deck/editor/$deckId"
     fun editCard(deckId: String, cardId: String) = "deck/$deckId/card/$cardId/edit"

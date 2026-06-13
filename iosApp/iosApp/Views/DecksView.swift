@@ -1,19 +1,26 @@
 import SwiftUI
 
+enum DecksViewState {
+    case loading
+    case empty
+    case content(count: Int, decks: [DeckTileData])
+    case error(String)
+}
+
+struct DeckTileData: Identifiable {
+    let id: String
+    let title: String
+    let cardCount: Int
+    let coverEmoji: String
+    let authorLabel: String
+}
+
+/// Pure layout — state comes from the shared `DecksLibraryViewModel` via `DecksScreen`.
 struct DecksView: View {
+    var state: DecksViewState = .loading
     var onDeckTap: (String) -> Void = { _ in }
     var onImportTap: () -> Void = {}
     var onCreateDeckTap: () -> Void = {}
-
-    // Static preview data until VM is wired via SKIE
-    private let previewDecks: [DeckTileData] = [
-        DeckTileData(id: "1", title: "Spanish Basics", cardCount: 42, coverEmoji: "🇪🇸", authorLabel: "@you", coverColor: nil),
-        DeckTileData(id: "2", title: "Anatomy 101", cardCount: 128, coverEmoji: "🧠", authorLabel: "@you", coverColor: Color(red: 0.914, green: 0.878, blue: 1.0)),
-        DeckTileData(id: "3", title: "Guitar Chords", cardCount: 24, coverEmoji: "🎸", authorLabel: "@you", coverColor: Color(red: 1.0, green: 0.914, blue: 0.702)),
-        DeckTileData(id: "4", title: "Hiragana", cardCount: 46, coverEmoji: "🇯🇵", authorLabel: "@you", coverColor: Color(red: 0.820, green: 0.961, blue: 0.890)),
-        DeckTileData(id: "5", title: "Physics Formulas", cardCount: 31, coverEmoji: "⚛️", authorLabel: "@you", coverColor: Color(red: 0.894, green: 0.878, blue: 1.0)),
-        DeckTileData(id: "6", title: "Wine Regions", cardCount: 18, coverEmoji: "🍷", authorLabel: "@you", coverColor: Color(red: 1.0, green: 0.851, blue: 0.851)),
-    ]
 
     private let columns = [
         GridItem(.flexible(), spacing: 14),
@@ -67,29 +74,49 @@ struct DecksView: View {
                 }
                 .buttonStyle(.plain)
 
-                // Section header
-                HStack {
-                    Text("Library · \(previewDecks.count)")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(EchoColor.foregroundPrimary)
-                    Spacer()
-                    Text("Recent")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(EchoColor.accentPrimary)
-                }
-
-                // Deck grid
-                LazyVGrid(columns: columns, spacing: 14) {
-                    ForEach(previewDecks) { deck in
-                        DeckTileView(
-                            title: deck.title,
-                            cardCount: deck.cardCount,
-                            coverEmoji: deck.coverEmoji,
-                            authorLabel: deck.authorLabel,
-                            coverColor: deck.coverColor ?? EchoColor.accentPrimarySoft,
-                            onTap: { onDeckTap(deck.id) }
-                        )
+                switch state {
+                case .loading:
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                case .empty:
+                    emptyBlock
+                case .content(let count, let decks):
+                    // Section header
+                    HStack {
+                        Text("Library · \(count)")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(EchoColor.foregroundPrimary)
+                        Spacer()
+                        Text("Recent")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(EchoColor.accentPrimary)
                     }
+
+                    // Deck grid
+                    LazyVGrid(columns: columns, spacing: 14) {
+                        ForEach(decks) { deck in
+                            DeckTileView(
+                                title: deck.title,
+                                cardCount: deck.cardCount,
+                                coverEmoji: deck.coverEmoji,
+                                authorLabel: deck.authorLabel,
+                                onTap: { onDeckTap(deck.id) }
+                            )
+                        }
+                    }
+                case .error(let message):
+                    VStack(spacing: 8) {
+                        Text("Something went wrong")
+                            .font(.system(size: 20, weight: .heavy))
+                            .foregroundColor(EchoColor.foregroundPrimary)
+                        Text(message)
+                            .font(.system(size: 14))
+                            .foregroundColor(EchoColor.foregroundMuted)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 40)
                 }
             }
             .padding(.horizontal, 20)
@@ -98,17 +125,39 @@ struct DecksView: View {
         }
         .background(EchoColor.surfacePrimary.ignoresSafeArea())
     }
-}
 
-private struct DeckTileData: Identifiable {
-    let id: String
-    let title: String
-    let cardCount: Int
-    let coverEmoji: String
-    let authorLabel: String
-    let coverColor: Color?
+    private var emptyBlock: some View {
+        VStack(spacing: 14) {
+            Text("📚").font(.system(size: 48))
+            Text("No decks yet")
+                .font(.system(size: 20, weight: .heavy))
+                .foregroundColor(EchoColor.foregroundPrimary)
+            Text("Paste a list or create your first deck from scratch.")
+                .font(.system(size: 14))
+                .foregroundColor(EchoColor.foregroundMuted)
+                .multilineTextAlignment(.center)
+            Button(action: onCreateDeckTap) {
+                Text("Create a deck")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(EchoColor.accentPrimary))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 32)
+    }
 }
 
 #Preview {
-    DecksView()
+    DecksView(
+        state: .content(
+            count: 2,
+            decks: [
+                DeckTileData(id: "1", title: "Spanish Basics", cardCount: 42, coverEmoji: "🇪🇸", authorLabel: "@you"),
+                DeckTileData(id: "2", title: "Anatomy 101", cardCount: 128, coverEmoji: "🧠", authorLabel: "@you"),
+            ]
+        )
+    )
 }
