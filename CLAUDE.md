@@ -50,7 +50,7 @@ Lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `detekt-c
 
 ### Package
 
-Root package is `com.github.jvsena42.eco`. Android namespace is `com.github.jvsena42.eco` (app) and `com.github.jvsena42.eco.shared` (library).
+Root package is `com.github.jvsena42.echo`. Android namespace is `com.github.jvsena42.echo` (app) and `com.github.jvsena42.echo.shared` (library).
 
 ## Where to read before starting work
 

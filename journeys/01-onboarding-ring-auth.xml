@@ -5,7 +5,7 @@
     identity (staging). Echo must be signed out (fresh install or after Settings → Sign out).
   </description>
   <actions>
-    <action>Launch the Echo app (package com.github.jvsena42.eco)</action>
+    <action>Launch the Echo app (package com.github.jvsena42.echo)</action>
     <action>Verify the onboarding screen is shown with the headline "Learn anything, remember everything." and a "Sign in with Pubky Ring" button (resource-id: onboarding_signin)</action>
     <action>Tap the element with resource-id "onboarding_signin"</action>
     <action>Verify the Pubky Ring app opens with an authorization prompt for Echo's capabilities</action>

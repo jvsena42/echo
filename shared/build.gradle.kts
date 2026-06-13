@@ -45,7 +45,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.github.jvsena42.eco.shared"
+    namespace = "com.github.jvsena42.echo.shared"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
