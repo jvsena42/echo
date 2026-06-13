@@ -420,6 +420,8 @@ internal interface _UniFFILib : Library {
     ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_get_signup_token(`homeserverPubky`: RustBuffer.ByValue,`adminPassword`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_pubkycore_fn_func_init_logging(_uniffi_out_err: RustCallStatus, 
+    ): Unit
     fun uniffi_pubkycore_fn_func_list(`url`: RustBuffer.ByValue,`cursor`: RustBuffer.ByValue,`reverse`: RustBuffer.ByValue,`limit`: RustBuffer.ByValue,`shallow`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_pubkycore_fn_func_mnemonic_phrase_to_keypair(`mnemonicPhrase`: RustBuffer.ByValue,_uniffi_out_err: RustCallStatus, 
@@ -606,6 +608,8 @@ internal interface _UniFFILib : Library {
     ): Short
     fun uniffi_pubkycore_checksum_func_get_signup_token(
     ): Short
+    fun uniffi_pubkycore_checksum_func_init_logging(
+    ): Short
     fun uniffi_pubkycore_checksum_func_list(
     ): Short
     fun uniffi_pubkycore_checksum_func_mnemonic_phrase_to_keypair(
@@ -710,6 +714,9 @@ private fun uniffiCheckApiChecksums(lib: _UniFFILib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_pubkycore_checksum_func_get_signup_token() != 47927.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_pubkycore_checksum_func_init_logging() != 21182.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_pubkycore_checksum_func_list() != 63419.toShort()) {
@@ -1503,6 +1510,14 @@ fun `getSignupToken`(`homeserverPubky`: String, `adminPassword`: String): List<S
     _UniFFILib.INSTANCE.uniffi_pubkycore_fn_func_get_signup_token(FfiConverterString.lower(`homeserverPubky`),FfiConverterString.lower(`adminPassword`),_status)
 })
 }
+
+
+fun `initLogging`() =
+    
+    rustCall() { _status ->
+    _UniFFILib.INSTANCE.uniffi_pubkycore_fn_func_init_logging(_status)
+}
+
 
 
 fun `list`(`url`: String, `cursor`: String?, `reverse`: Boolean?, `limit`: UShort?, `shallow`: Boolean?): List<String> {
