@@ -35,19 +35,35 @@ struct RootView: View {
         NavigationStack {
             if isSignedIn {
                 MainView(
-                    greetingName: pubky.map { "pk:\($0.prefix(6))" } ?? "there",
                     onDeckTap: { deckId in deckRoute = .detail(deckId) },
                     onImportTap: { deckRoute = .importPaste },
-                    onCreateDeckTap: { deckRoute = .editorNew }
+                    onCreateDeckTap: { deckRoute = .editorNew },
+                    onSignedOut: { isSignedIn = false }
                 )
                 .navigationDestination(item: $deckRoute) { route in
                     switch route {
                     case .detail(let deckId):
-                        DeckDetailView(deckId: deckId, onBack: { deckRoute = nil })
+                        DeckDetailScreen(
+                            deckId: deckId,
+                            onBack: { deckRoute = nil },
+                            onEditDeck: { id in deckRoute = .editor(id) },
+                            onStudy: {},
+                            onDeleted: { deckRoute = nil }
+                        )
                     case .editor(let deckId):
-                        DeckEditorView(deckId: deckId, onBack: { deckRoute = nil })
+                        DeckEditorScreen(
+                            deckId: deckId,
+                            onBack: { deckRoute = nil },
+                            onEditCard: { d, c in deckRoute = .editCard(d, c) },
+                            onSaved: { id in deckRoute = .detail(id) }
+                        )
                     case .editorNew:
-                        DeckEditorView(onBack: { deckRoute = nil })
+                        DeckEditorScreen(
+                            deckId: nil,
+                            onBack: { deckRoute = nil },
+                            onEditCard: { d, c in deckRoute = .editCard(d, c) },
+                            onSaved: { id in deckRoute = .detail(id) }
+                        )
                     case .editCard(let deckId, let cardId):
                         EditCardView(deckId: deckId, cardId: cardId, onBack: { deckRoute = nil })
                     case .importPaste:
@@ -63,27 +79,13 @@ struct RootView: View {
                     }
                 }
             } else {
-                OnboardingView(
-                    onSignInTapped: handleSignIn,
-                    onInstallTapped: handleInstall,
-                )
+                OnboardingScreen(onSignedIn: { isSignedIn = true })
             }
         }
         .onOpenURL { url in
-            // TODO: parse echo://login-callback query params and forward to the shared VM
-            // once wired. For now just log so the deeplink registration can be verified.
+            // The auth flow completes via the FFI's awaitAuthApproval (relay polling), so the
+            // callback deeplink only needs to bring Echo back to the foreground.
             print("[Echo] received deeplink: \(url.absoluteString)")
-        }
-    }
-
-    private func handleSignIn() {
-        // TODO: call shared `OnboardingViewModel.onSignInClick()` via SKIE bridge and open
-        // the returned auth URL via `UIApplication.shared.open(_:)`.
-    }
-
-    private func handleInstall() {
-        if let url = URL(string: "https://pubky.org/ring") {
-            openURL(url)
         }
     }
 }

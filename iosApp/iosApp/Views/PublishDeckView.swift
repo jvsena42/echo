@@ -185,12 +185,12 @@ struct PublishDeckView: View {
         .background(EchoColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
         .sheet(isPresented: $showTagSheet) {
-            AddTagSheet(tags: $tags, tagInput: $tagInput)
+            PublishAddTagSheet(tags: $tags, tagInput: $tagInput)
         }
     }
 }
 
-private struct AddTagSheet: View {
+private struct PublishAddTagSheet: View {
     @Binding var tags: [String]
     @Binding var tagInput: String
     @Environment(\.dismiss) private var dismiss

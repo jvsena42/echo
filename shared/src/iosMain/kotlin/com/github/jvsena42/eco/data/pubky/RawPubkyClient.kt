@@ -14,6 +14,7 @@ package com.github.jvsena42.eco.data.pubky
  * raw bytes by the Swift side before hitting the FFI, so blobs still land raw on the
  * homeserver.
  */
+@Suppress("TooManyFunctions")
 interface RawPubkyClient {
     // --- Keys & mnemonics -----------------------------------------------------
     fun generateSecretKey(): List<String>

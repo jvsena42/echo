@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
  * across the Swift boundary and decoded back to raw bytes there.
  */
 @OptIn(ExperimentalEncodingApi::class)
+@Suppress("TooManyFunctions", "TooGenericExceptionCaught")
 class IosPubkyClientAdapter(private val raw: RawPubkyClient) : PubkyClient {
 
     // --- Keys & mnemonics -----------------------------------------------------
