@@ -56,7 +56,30 @@ class IdentityRepositoryImpl(
             .onFailure {
                 Log.e(TAG, "beginSignIn: startAuthFlow FAILED — ${it::class.simpleName}: ${it.message}", it)
             }
-            .map { authUrl -> RingAuthFlowHandle(authUrl) }
+            .map { authUrl -> RingAuthFlowHandle(authUrl.withRingCallbacks()) }
+    }
+
+    /**
+     * Append Pubky Ring return-callback params so Ring re-opens Echo after the user approves
+     * (the session itself still arrives over the relay via [AuthFlowHandle.complete]). Ring opens
+     * the matching `x-*` deeplink; [CALLBACK_URL] is registered in the platform manifest/Info.plist.
+     */
+    private fun String.withRingCallbacks(): String {
+        val separator = if (contains('?')) "&" else "?"
+        val cb = encodeUriComponent(CALLBACK_URL)
+        return "$this${separator}x-success=$cb&x-cancel=$cb&x-error=$cb&x-source=$CALLBACK_SOURCE"
+    }
+
+    /** Minimal percent-encoder for the reserved characters in [CALLBACK_URL]. */
+    private fun encodeUriComponent(value: String): String = buildString {
+        for (ch in value) {
+            if (ch.isLetterOrDigit() || ch in "-_.~") append(ch)
+            else for (b in ch.toString().encodeToByteArray()) {
+                append('%')
+                append(((b.toInt() and 0xFF) shr 4).toString(16).uppercase())
+                append((b.toInt() and 0x0F).toString(16).uppercase())
+            }
+        }
     }
 
     private inner class RingAuthFlowHandle(override val authUrl: String) : AuthFlowHandle {
@@ -140,5 +163,9 @@ class IdentityRepositoryImpl(
     companion object {
         private const val TAG = "Echo/IdentityRepo"
         private const val PUBKY_LOG_PREFIX_LEN = 8
+
+        /** Deeplink Pubky Ring re-opens after approval; registered in the platform manifest. */
+        private const val CALLBACK_URL = "echo://login-callback"
+        private const val CALLBACK_SOURCE = "Echo"
     }
 }
