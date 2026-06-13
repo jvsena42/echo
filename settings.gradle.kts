@@ -1,4 +1,4 @@
-rootProject.name = "Eco"
+rootProject.name = "Echo"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

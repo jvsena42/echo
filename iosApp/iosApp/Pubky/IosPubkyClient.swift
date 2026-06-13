@@ -8,94 +8,94 @@ import Shared
 /// `IosPubkyClientAdapter` (see `shared/src/iosMain/.../data/pubky/`).
 ///
 /// Binary payloads cross this boundary Base64-encoded and are decoded to raw `Data` here so
-/// blobs land raw on the homeserver. `Eco.` prefixes disambiguate the module-level UniFFI
+/// blobs land raw on the homeserver. `Echo.` prefixes disambiguate the module-level UniFFI
 /// functions from the protocol methods of the same name.
 final class IosPubkyClient: NSObject, RawPubkyClient {
 
     // MARK: - Keys & mnemonics
 
-    func generateSecretKey() -> [String] { Eco.generateSecretKey() }
+    func generateSecretKey() -> [String] { Echo.generateSecretKey() }
 
     func getPublicKeyFromSecretKey(secretKey: String) -> [String] {
-        Eco.getPublicKeyFromSecretKey(secretKey: secretKey)
+        Echo.getPublicKeyFromSecretKey(secretKey: secretKey)
     }
 
-    func generateMnemonicPhrase() -> [String] { Eco.generateMnemonicPhrase() }
+    func generateMnemonicPhrase() -> [String] { Echo.generateMnemonicPhrase() }
 
-    func generateMnemonicPhraseAndKeypair() -> [String] { Eco.generateMnemonicPhraseAndKeypair() }
+    func generateMnemonicPhraseAndKeypair() -> [String] { Echo.generateMnemonicPhraseAndKeypair() }
 
     func mnemonicPhraseToKeypair(mnemonicPhrase: String) -> [String] {
-        Eco.mnemonicPhraseToKeypair(mnemonicPhrase: mnemonicPhrase)
+        Echo.mnemonicPhraseToKeypair(mnemonicPhrase: mnemonicPhrase)
     }
 
     func validateMnemonicPhrase(mnemonicPhrase: String) -> [String] {
-        Eco.validateMnemonicPhrase(mnemonicPhrase: mnemonicPhrase)
+        Echo.validateMnemonicPhrase(mnemonicPhrase: mnemonicPhrase)
     }
 
     // MARK: - Recovery files
 
     func createRecoveryFile(secretKey: String, passphrase: String) -> [String] {
-        Eco.createRecoveryFile(secretKey: secretKey, passphrase: passphrase)
+        Echo.createRecoveryFile(secretKey: secretKey, passphrase: passphrase)
     }
 
     func decryptRecoveryFile(recoveryFile: String, passphrase: String) -> [String] {
-        Eco.decryptRecoveryFile(recoveryFile: recoveryFile, passphrase: passphrase)
+        Echo.decryptRecoveryFile(recoveryFile: recoveryFile, passphrase: passphrase)
     }
 
     // MARK: - Auth / sessions
 
     func signUp(secretKey: String, homeserver: String, signupToken: String?) -> [String] {
-        Eco.signUp(secretKey: secretKey, homeserver: homeserver, signupToken: signupToken)
+        Echo.signUp(secretKey: secretKey, homeserver: homeserver, signupToken: signupToken)
     }
 
     func getSignupToken(homeserverPubky: String, adminPassword: String) -> [String] {
-        Eco.getSignupToken(homeserverPubky: homeserverPubky, adminPassword: adminPassword)
+        Echo.getSignupToken(homeserverPubky: homeserverPubky, adminPassword: adminPassword)
     }
 
-    func signIn(secretKey: String) -> [String] { Eco.signIn(secretKey: secretKey) }
+    func signIn(secretKey: String) -> [String] { Echo.signIn(secretKey: secretKey) }
 
-    func signOut(sessionSecret: String) -> [String] { Eco.signOut(sessionSecret: sessionSecret) }
+    func signOut(sessionSecret: String) -> [String] { Echo.signOut(sessionSecret: sessionSecret) }
 
     func revalidateSession(sessionSecret: String) -> [String] {
-        Eco.revalidateSession(sessionSecret: sessionSecret)
+        Echo.revalidateSession(sessionSecret: sessionSecret)
     }
 
     func startAuthFlow(capabilities: String) -> [String] {
-        Eco.startAuthFlow(capabilitiesStr: capabilities)
+        Echo.startAuthFlow(capabilitiesStr: capabilities)
     }
 
-    func awaitAuthApproval() -> [String] { Eco.awaitAuthApproval() }
+    func awaitAuthApproval() -> [String] { Echo.awaitAuthApproval() }
 
-    func parseAuthUrl(url: String) -> [String] { Eco.parseAuthUrl(url: url) }
+    func parseAuthUrl(url: String) -> [String] { Echo.parseAuthUrl(url: url) }
 
     func auth(url: String, secretKey: String) -> [String] {
-        Eco.auth(url: url, secretKey: secretKey)
+        Echo.auth(url: url, secretKey: secretKey)
     }
 
     // MARK: - Records (secret-key auth)
 
     func publish(recordName: String, recordContent: String, secretKey: String) -> [String] {
-        Eco.publish(recordName: recordName, recordContent: recordContent, secretKey: secretKey)
+        Echo.publish(recordName: recordName, recordContent: recordContent, secretKey: secretKey)
     }
 
     func publishHttps(recordName: String, target: String, secretKey: String) -> [String] {
-        Eco.publishHttps(recordName: recordName, target: target, secretKey: secretKey)
+        Echo.publishHttps(recordName: recordName, target: target, secretKey: secretKey)
     }
 
     func put(url: String, content: String, secretKey: String) -> [String] {
-        Eco.put(url: url, content: content, secretKey: secretKey)
+        Echo.put(url: url, content: content, secretKey: secretKey)
     }
 
     func putBytesBase64(url: String, contentBase64: String, secretKey: String) -> [String] {
         guard let data = Data(base64Encoded: contentBase64) else {
             return ["true", "Invalid Base64 payload"]
         }
-        return Eco.putBytes(url: url, content: data, secretKey: secretKey)
+        return Echo.putBytes(url: url, content: data, secretKey: secretKey)
     }
 
-    func get(url: String) -> [String] { Eco.get(url: url) }
+    func get(url: String) -> [String] { Echo.get(url: url) }
 
-    func getBytes(url: String) -> [String] { Eco.getBytes(url: url) }
+    func getBytes(url: String) -> [String] { Echo.getBytes(url: url) }
 
     func list(
         url: String,
@@ -104,7 +104,7 @@ final class IosPubkyClient: NSObject, RawPubkyClient {
         limit: KotlinInt?,
         shallow: KotlinBoolean?
     ) -> [String] {
-        Eco.list(
+        Echo.list(
             url: url,
             cursor: cursor,
             reverse: reverse?.boolValue,
@@ -114,17 +114,17 @@ final class IosPubkyClient: NSObject, RawPubkyClient {
     }
 
     func deleteFile(url: String, secretKey: String) -> [String] {
-        Eco.deleteFile(url: url, secretKey: secretKey)
+        Echo.deleteFile(url: url, secretKey: secretKey)
     }
 
     func republishHomeserver(secretKey: String, homeserver: String) -> [String] {
-        Eco.republishHomeserver(secretKey: secretKey, homeserver: homeserver)
+        Echo.republishHomeserver(secretKey: secretKey, homeserver: homeserver)
     }
 
     // MARK: - Records (session auth)
 
     func putWithSession(url: String, content: String, sessionSecret: String) -> [String] {
-        Eco.putWithSession(url: url, content: content, sessionSecret: sessionSecret)
+        Echo.putWithSession(url: url, content: content, sessionSecret: sessionSecret)
     }
 
     func putBytesBase64WithSession(
@@ -135,28 +135,28 @@ final class IosPubkyClient: NSObject, RawPubkyClient {
         guard let data = Data(base64Encoded: contentBase64) else {
             return ["true", "Invalid Base64 payload"]
         }
-        return Eco.putBytesWithSession(url: url, content: data, sessionSecret: sessionSecret)
+        return Echo.putBytesWithSession(url: url, content: data, sessionSecret: sessionSecret)
     }
 
     func deleteWithSession(url: String, sessionSecret: String) -> [String] {
-        Eco.deleteWithSession(url: url, sessionSecret: sessionSecret)
+        Echo.deleteWithSession(url: url, sessionSecret: sessionSecret)
     }
 
     // MARK: - pubky-app-specs helpers
 
     func createTagId(uri: String, label: String) -> [String] {
-        Eco.createTagId(uri: uri, label: label)
+        Echo.createTagId(uri: uri, label: label)
     }
 
     // MARK: - DHT resolution
 
-    func resolve(publicKey: String) -> [String] { Eco.resolve(publicKey: publicKey) }
+    func resolve(publicKey: String) -> [String] { Echo.resolve(publicKey: publicKey) }
 
-    func resolveHttps(publicKey: String) -> [String] { Eco.resolveHttps(publicKey: publicKey) }
+    func resolveHttps(publicKey: String) -> [String] { Echo.resolveHttps(publicKey: publicKey) }
 
-    func getHomeserver(pubky: String) -> [String] { Eco.getHomeserver(pubky: pubky) }
+    func getHomeserver(pubky: String) -> [String] { Echo.getHomeserver(pubky: pubky) }
 
     // MARK: - Network
 
-    func switchNetwork(useTestnet: Bool) -> [String] { Eco.switchNetwork(useTestnet: useTestnet) }
+    func switchNetwork(useTestnet: Bool) -> [String] { Echo.switchNetwork(useTestnet: useTestnet) }
 }
