@@ -128,7 +128,7 @@ private fun DecksScreenContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp)),
+            .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         HeaderRow()
