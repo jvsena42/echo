@@ -5,7 +5,7 @@ import SwiftUI
 /// Pure layout — state comes from the shared `OnboardingViewModel` via `OnboardingScreen`.
 struct OnboardingView: View {
     var isWorking: Bool = false
-    var errorMessage: String? = nil
+    var errorMessage: String?
     var onSignInTapped: () -> Void = {}
     var onInstallTapped: () -> Void = {}
 

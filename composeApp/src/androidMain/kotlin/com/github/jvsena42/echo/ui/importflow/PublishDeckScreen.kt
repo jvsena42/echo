@@ -1,4 +1,4 @@
-package com.github.jvsena42.echo.ui.import_flow
+package com.github.jvsena42.echo.ui.importflow
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,8 +31,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -52,9 +52,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.github.jvsena42.echo.presentation.import_flow.PublishDeckEffect
-import com.github.jvsena42.echo.presentation.import_flow.PublishDeckUiState
-import com.github.jvsena42.echo.presentation.import_flow.PublishDeckViewModel
+import com.github.jvsena42.echo.presentation.importflow.PublishDeckEffect
+import com.github.jvsena42.echo.presentation.importflow.PublishDeckUiState
+import com.github.jvsena42.echo.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.theme.EchoTheme

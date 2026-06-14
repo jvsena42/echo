@@ -1,4 +1,4 @@
-package com.github.jvsena42.echo.ui.import_flow
+package com.github.jvsena42.echo.ui.importflow
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,10 +47,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.echo.domain.model.Separator
-import com.github.jvsena42.echo.presentation.import_flow.PasteImportEffect
-import com.github.jvsena42.echo.presentation.import_flow.PasteImportUiState
-import com.github.jvsena42.echo.presentation.import_flow.PasteImportViewModel
-import com.github.jvsena42.echo.presentation.import_flow.PreviewCard
+import com.github.jvsena42.echo.presentation.importflow.PasteImportEffect
+import com.github.jvsena42.echo.presentation.importflow.PasteImportUiState
+import com.github.jvsena42.echo.presentation.importflow.PasteImportViewModel
+import com.github.jvsena42.echo.presentation.importflow.PreviewCard
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
@@ -187,7 +187,12 @@ private fun PasteScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Default.Check, null, tint = colors.accentSecondary, modifier = Modifier.size(14.dp))
-                    Text("Detected: ${separatorLabel(state.detectedSeparator)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.accentSecondary)
+                    Text(
+                        "Detected: ${separatorLabel(state.detectedSeparator)}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.accentSecondary,
+                    )
                 }
                 Text("${state.cardCount} cards", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.foregroundMuted)
             }
@@ -206,9 +211,19 @@ private fun PasteScreen(
         // Example cards (when empty)
         if (state.rawText.isEmpty()) {
             Text("PREVIEW", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
-            Text("TRY PASTING SOMETHING LIKE", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
+            Text(
+                "TRY PASTING SOMETHING LIKE",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = colors.foregroundMuted,
+            )
             ExampleCard(title = "Vocab list", separator = "em-dash", lines = listOf("hola — hello", "gracias — thank you"))
-            ExampleCard(title = "Glossary", separator = "colon", lines = listOf("mitosis: cell division", "osmosis: water moves across a membrane"))
+            ExampleCard(
+                title = "Glossary",
+                separator = "colon",
+                lines = listOf("mitosis: cell division", "osmosis: water moves across a membrane"),
+            )
             ExampleCard(title = "Notion table", separator = "markdown", lines = listOf("| capital | France |", "| currency | euro |"))
         }
 
@@ -220,7 +235,12 @@ private fun PasteScreen(
         ) {
             Text("🔗", fontSize = 14.sp)
             Spacer(Modifier.width(6.dp))
-            Text("This deck will be public on your profile", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.accentSecondary)
+            Text(
+                "This deck will be public on your profile",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.accentSecondary,
+            )
         }
 
         // Error
@@ -265,7 +285,10 @@ private fun ExampleCard(title: String, separator: String, lines: List<String>) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary)
             Text(
                 separator, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = colors.accentPrimary,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(colors.accentPrimarySoft).padding(horizontal = 8.dp, vertical = 2.dp),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.accentPrimarySoft)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }
         lines.forEach { line -> Text(line, fontSize = 13.sp, color = colors.foregroundSecondary) }

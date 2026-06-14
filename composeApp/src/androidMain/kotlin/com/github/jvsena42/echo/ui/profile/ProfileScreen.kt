@@ -529,8 +529,11 @@ private fun EditProfileSheet(
                     )
                     .clip(CircleShape)
                     .background(
-                        if (!isSaving) colors.accentPrimary
-                        else colors.accentPrimary.copy(alpha = 0.6f),
+                        if (!isSaving) {
+                            colors.accentPrimary
+                        } else {
+                            colors.accentPrimary.copy(alpha = 0.6f)
+                        },
                     )
                     .clickable(enabled = !isSaving, onClick = onSaveClick)
                     .padding(horizontal = 32.dp, vertical = 18.dp),

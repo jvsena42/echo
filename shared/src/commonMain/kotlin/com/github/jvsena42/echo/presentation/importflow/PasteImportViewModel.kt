@@ -1,8 +1,7 @@
-package com.github.jvsena42.echo.presentation.import_flow
+package com.github.jvsena42.echo.presentation.importflow
 
 import com.github.jvsena42.echo.data.repository.ImportRepository
 import com.github.jvsena42.echo.domain.model.ColumnRole
-import com.github.jvsena42.echo.domain.model.ImportDraft
 import com.github.jvsena42.echo.domain.model.Separator
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -62,7 +61,7 @@ class PasteImportViewModel(
                         it.copy(
                             detectedSeparator = draft.separator,
                             cardCount = draft.rows.size,
-                            previewCards = draft.rows.take(3).map { row ->
+                            previewCards = draft.rows.take(PREVIEW_CARD_COUNT).map { row ->
                                 PreviewCard(
                                     front = row.fields.getOrElse(frontIdx) { "" },
                                     back = row.fields.getOrElse(backIdx) { "" },
@@ -104,6 +103,7 @@ class PasteImportViewModel(
 
     companion object {
         private const val TAG = "Echo/PasteVM"
+        private const val PREVIEW_CARD_COUNT = 3
     }
 }
 

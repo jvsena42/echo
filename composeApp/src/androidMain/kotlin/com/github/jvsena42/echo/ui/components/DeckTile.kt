@@ -31,10 +31,10 @@ fun DeckTile(
     cardCount: Int,
     coverEmoji: String,
     authorLabel: String,
-    coverColor: Color = EchoTheme.colors.accentPrimarySoft,
     onClick: () -> Unit,
-    onAuthorClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    coverColor: Color = EchoTheme.colors.accentPrimarySoft,
+    onAuthorClick: (() -> Unit)? = null,
 ) {
     val colors = EchoTheme.colors
     val shape = RoundedCornerShape(20.dp)

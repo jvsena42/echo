@@ -28,8 +28,8 @@ enum DeckRoute: Hashable, Identifiable {
 struct RootView: View {
     @Environment(\.openURL) private var openURL
     @State private var isSignedIn: Bool = false
-    @State private var pubky: String? = nil
-    @State private var deckRoute: DeckRoute? = nil
+    @State private var pubky: String?
+    @State private var deckRoute: DeckRoute?
 
     var body: some View {
         NavigationStack {

@@ -1,4 +1,4 @@
-package com.github.jvsena42.echo.presentation.import_flow
+package com.github.jvsena42.echo.presentation.importflow
 
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository

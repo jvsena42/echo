@@ -4,7 +4,7 @@ import Shared
 /// VM-driven wrapper around the presentational `DeckDetailView`.
 struct DeckDetailScreen: View {
     let deckId: String
-    var authorPubky: String? = nil
+    var authorPubky: String?
     var onBack: () -> Void = {}
     var onEditDeck: (String) -> Void = { _ in }
     var onStudy: () -> Void = {}
@@ -102,4 +102,3 @@ struct DeckDetailScreen: View {
         effectSink = nil
     }
 }
-

@@ -47,8 +47,9 @@ class ImportRepositoryImpl : ImportRepository {
         val seen = mutableSetOf<List<String>>()
         var duplicatesCollapsed = 0
         val deduped = rows.filter { row ->
-            if (seen.add(row.fields)) true
-            else { duplicatesCollapsed++; false }
+            if (seen.add(row.fields)) {
+                true
+            } else { duplicatesCollapsed++; false }
         }
 
         ImportDraft(
@@ -82,6 +83,9 @@ class ImportRepositoryImpl : ImportRepository {
     // Tab is exempt from all guards — it almost never appears as prose
     // punctuation.
 
+    // Prescriptive separator-detection rules (spec §6); the branching mirrors the spec's
+    // rule order and is clearer kept whole than split across helpers.
+    @Suppress("CyclomaticComplexMethod", "ReturnCount", "LoopWithTooManyJumpStatements")
     private fun detectSeparator(text: String): Separator {
         val lines = text.split("\n").filter { it.isNotBlank() }
         if (lines.size < 2) return Separator.SingleColumn
@@ -102,9 +106,9 @@ class ImportRepositoryImpl : ImportRepository {
             "\t" to Separator.Tab,
             ";" to Separator.Semicolon,
             "|" to Separator.Pipe,
-            " \u2014 " to Separator.EmDash,   // em-dash with spaces
-            " \u2013 " to Separator.EmDash,   // en-dash with spaces
-            " - " to Separator.EmDash,         // hyphen-minus with spaces
+            " \u2014 " to Separator.EmDash, // em-dash with spaces
+            " \u2013 " to Separator.EmDash, // en-dash with spaces
+            " - " to Separator.EmDash, // hyphen-minus with spaces
             ": " to Separator.Colon,
             "," to Separator.Comma,
         )
@@ -113,7 +117,7 @@ class ImportRepositoryImpl : ImportRepository {
             // Tab is unambiguous — simple presence check
             if (sep == Separator.Tab) {
                 val count = lines.count { it.contains(delimStr) }
-                if (count.toFloat() / lines.size >= 0.8f) return sep
+                if (count.toFloat() / lines.size >= MIN_DELIMITER_COVERAGE) return sep
                 continue
             }
 
@@ -125,7 +129,7 @@ class ImportRepositoryImpl : ImportRepository {
                 lines.filter { it.contains(delimStr) }
             }
 
-            if (qualifying.size.toFloat() / lines.size < 0.8f) continue
+            if (qualifying.size.toFloat() / lines.size < MIN_DELIMITER_COVERAGE) continue
 
             // (B) Multi-char: reject if most lines have 2+ occurrences
             //     (parenthetical inserts, e.g. "The dog — big — barked")
@@ -134,7 +138,7 @@ class ImportRepositoryImpl : ImportRepository {
                     val first = line.indexOf(delimStr)
                     first >= 0 && line.indexOf(delimStr, first + delimStr.length) >= 0
                 }
-                if (multiHit.toFloat() / qualifying.size > 0.5f) continue
+                if (multiHit.toFloat() / qualifying.size > MAX_MULTI_HIT_RATIO) continue
             }
 
             // (C) Balance: reject if the median front side is too long.
@@ -166,6 +170,7 @@ class ImportRepositoryImpl : ImportRepository {
      *  a field separator rather than natural punctuation.  Rejects:
      *  - delimiter immediately followed by a space (`"Yes, I agree"`)
      *  - delimiter sandwiched between digits (`"1,000"`) */
+    @Suppress("ComplexCondition")
     private fun isSeparatorUse(line: String, delim: Char): Boolean {
         val idx = line.indexOf(delim)
         if (idx < 0) return false
@@ -216,9 +221,9 @@ class ImportRepositoryImpl : ImportRepository {
         Separator.EmDash -> {
             // Prefer the variant present in the text
             when {
-                text.contains(" \u2014 ") -> " \u2014 "  // em-dash
-                text.contains(" \u2013 ") -> " \u2013 "  // en-dash
-                text.contains(" - ") -> " - "             // hyphen-minus
+                text.contains(" \u2014 ") -> " \u2014 " // em-dash
+                text.contains(" \u2013 ") -> " \u2013 " // en-dash
+                text.contains(" - ") -> " - " // hyphen-minus
                 else -> " \u2014 "
             }
         }
@@ -256,5 +261,11 @@ class ImportRepositoryImpl : ImportRepository {
         /** If the front is both > MAX_FRONT_CHARS and > 50% of the line,
          *  the delimiter is splitting prose, not flashcard pairs. */
         private const val MAX_FRONT_RATIO = 0.50f
+
+        /** A delimiter must appear on at least this fraction of lines to qualify. */
+        private const val MIN_DELIMITER_COVERAGE = 0.8f
+
+        /** Reject a multi-char delimiter if more than this fraction of lines hit it twice. */
+        private const val MAX_MULTI_HIT_RATIO = 0.5f
     }
 }

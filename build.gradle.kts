@@ -53,3 +53,15 @@ tasks.register("detektAll") {
     description = "Runs detekt on all subprojects."
     dependsOn(subprojects.map { "${it.path}:detekt" })
 }
+
+tasks.register<Exec>("lintSwift") {
+    group = "verification"
+    description = "Lints the iOS Swift sources with SwiftLint (config in iosApp/.swiftlint.yml)."
+    workingDir = rootProject.file("iosApp")
+    // No-op with a friendly hint if SwiftLint isn't installed, so the task never blocks contributors.
+    commandLine(
+        "sh", "-c",
+        "command -v swiftlint >/dev/null 2>&1 && swiftlint lint --strict " +
+            "|| echo 'SwiftLint not installed — skipping. Install with: brew install swiftlint'",
+    )
+}

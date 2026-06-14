@@ -2,7 +2,6 @@ package com.github.jvsena42.echo.presentation.decks
 
 import com.github.jvsena42.echo.data.repository.CardRepository
 import com.github.jvsena42.echo.data.repository.DeckRepository
-import com.github.jvsena42.echo.data.repository.MediaRepository
 import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.CardSide
 import com.github.jvsena42.echo.util.Log
@@ -26,7 +25,6 @@ class EditCardViewModel(
     private val cardId: String,
     private val cardRepository: CardRepository,
     private val deckRepository: DeckRepository,
-    private val mediaRepository: MediaRepository,
     mainScope: CoroutineScope? = null,
 ) {
     private val scope: CoroutineScope =

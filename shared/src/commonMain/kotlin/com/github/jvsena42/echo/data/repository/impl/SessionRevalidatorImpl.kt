@@ -28,7 +28,7 @@ class SessionRevalidatorImpl(
         runCatching {
             val current = sessionProvider.current()
                 ?: error("Cannot revalidate: no active session")
-            Log.d(TAG, "revalidating session for ${current.identity.pubky.take(8)}…")
+            Log.d(TAG, "revalidating session for ${current.identity.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
             val json = pubky.revalidateSession(current.sessionSecret).getOrThrow()
             val refreshed = parseSessionPayload(json, echoJson)
             sessionStore.save(refreshed)
@@ -42,5 +42,6 @@ class SessionRevalidatorImpl(
 
     companion object {
         private const val TAG = "Echo/SessionRevalidator"
+        private const val PUBKY_LOG_PREFIX_LEN = 8
     }
 }
