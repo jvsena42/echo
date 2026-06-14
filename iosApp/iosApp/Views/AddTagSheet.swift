@@ -28,7 +28,7 @@ struct AddTagSheet: View {
                 .padding(.top, 12)
 
             VStack(alignment: .leading, spacing: 20) {
-                Text("Add Tag")
+                Text("publish_tag_sheet_title")
                     .font(.system(size: 20, weight: .heavy))
                     .foregroundColor(EchoColor.foregroundPrimary)
 
@@ -37,7 +37,7 @@ struct AddTagSheet: View {
                     Text("#")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(EchoColor.accentSecondary)
-                    TextField("Type a tag\u{2026}", text: $tagInput)
+                    TextField("publish_tag_input_placeholder", text: $tagInput)
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(EchoColor.foregroundPrimary)
                         .autocorrectionDisabled()
@@ -57,7 +57,7 @@ struct AddTagSheet: View {
                 // Suggested
                 if !suggestedTags.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("SUGGESTED")
+                        Text("publish_suggested_label")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(1)
                             .foregroundColor(EchoColor.foregroundMuted)
@@ -72,7 +72,7 @@ struct AddTagSheet: View {
                 // Current tags
                 if !tags.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("CURRENT TAGS")
+                        Text("publish_current_tags_label")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(1)
                             .foregroundColor(EchoColor.foregroundMuted)
@@ -93,7 +93,7 @@ struct AddTagSheet: View {
                 }) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
-                        Text("Add Tag")
+                        Text("publish_add_tag_button")
                     }
                 }
                 .buttonStyle(EchoFilledButtonStyle(

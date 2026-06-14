@@ -46,12 +46,14 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.settings.SettingsEffect
 import com.github.jvsena42.echo.presentation.settings.SettingsUiState
 import com.github.jvsena42.echo.presentation.settings.SettingsViewModel
@@ -143,12 +145,12 @@ private fun SettingsScreen(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
+                    contentDescription = stringResource(R.string.settings_back_content_description),
                     modifier = Modifier.size(20.dp),
                 )
             }
             Text(
-                text = "Settings",
+                text = stringResource(R.string.settings_title),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
@@ -156,7 +158,7 @@ private fun SettingsScreen(
         }
 
         // --- Identity section ---
-        SettingsSectionLabel(text = "IDENTITY")
+        SettingsSectionLabel(text = stringResource(R.string.settings_section_identity))
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -164,11 +166,15 @@ private fun SettingsScreen(
                 .background(colors.surfaceSecondary),
         ) {
             SettingsValueRow(
-                label = "Pubky",
+                label = stringResource(R.string.settings_pubky_label),
                 value = if (state.pubky.isNotBlank()) {
-                    "pk:${state.pubky.take(6)}…${state.pubky.takeLast(6)}"
+                    stringResource(
+                        R.string.settings_pubky_truncated,
+                        state.pubky.take(6),
+                        state.pubky.takeLast(6),
+                    )
                 } else {
-                    "Not signed in"
+                    stringResource(R.string.settings_not_signed_in)
                 },
                 trailing = {
                     if (state.pubky.isNotBlank()) {
@@ -183,7 +189,7 @@ private fun SettingsScreen(
                             ),
                         ) {
                             Text(
-                                text = "Copy",
+                                text = stringResource(R.string.settings_copy),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -193,13 +199,13 @@ private fun SettingsScreen(
             )
             SettingsDivider()
             SettingsValueRow(
-                label = "Homeserver",
-                value = state.homeserver.ifBlank { "Unknown" },
+                label = stringResource(R.string.settings_homeserver_label),
+                value = state.homeserver.ifBlank { stringResource(R.string.settings_homeserver_unknown) },
             )
         }
 
         // --- About section ---
-        SettingsSectionLabel(text = "ABOUT")
+        SettingsSectionLabel(text = stringResource(R.string.settings_section_about))
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -207,8 +213,8 @@ private fun SettingsScreen(
                 .background(colors.surfaceSecondary),
         ) {
             SettingsValueRow(
-                label = "App version",
-                value = state.appVersion.ifBlank { "—" },
+                label = stringResource(R.string.settings_app_version_label),
+                value = state.appVersion.ifBlank { stringResource(R.string.settings_app_version_unknown) },
             )
         }
 
@@ -232,7 +238,7 @@ private fun SettingsScreen(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "Sign out",
+                text = stringResource(R.string.settings_sign_out),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -246,7 +252,7 @@ private fun SettingsScreen(
             containerColor = colors.surfaceCard,
             title = {
                 Text(
-                    text = "Sign out?",
+                    text = stringResource(R.string.settings_sign_out_dialog_title),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = colors.foregroundPrimary,
@@ -254,7 +260,7 @@ private fun SettingsScreen(
             },
             text = {
                 Text(
-                    text = "Your decks stay on your homeserver. Signing back in restores everything.",
+                    text = stringResource(R.string.settings_sign_out_dialog_message),
                     fontSize = 14.sp,
                     color = colors.foregroundSecondary,
                     lineHeight = 20.sp,
@@ -268,7 +274,7 @@ private fun SettingsScreen(
                     },
                 ) {
                     Text(
-                        text = "Sign out",
+                        text = stringResource(R.string.settings_sign_out),
                         color = colors.srsAgain,
                         fontWeight = FontWeight.Bold,
                     )
@@ -276,7 +282,7 @@ private fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
-                    Text(text = "Cancel", color = colors.foregroundSecondary)
+                    Text(text = stringResource(R.string.settings_cancel), color = colors.foregroundSecondary)
                 }
             },
         )

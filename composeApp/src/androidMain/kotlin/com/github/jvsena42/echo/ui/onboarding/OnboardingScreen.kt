@@ -35,12 +35,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.onboarding.OnboardingEffect
 import com.github.jvsena42.echo.presentation.onboarding.OnboardingUiState
 import com.github.jvsena42.echo.presentation.onboarding.OnboardingViewModel
@@ -150,7 +152,7 @@ private fun OnboardingContent(
             }
             Spacer(Modifier.height(20.dp))
             Text(
-                text = "Learn anything,\nremember everything.",
+                text = stringResource(R.string.onboarding_hero_title),
                 color = colors.foregroundPrimary,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -159,7 +161,7 @@ private fun OnboardingContent(
             )
             Spacer(Modifier.height(20.dp))
             Text(
-                text = "Spaced repetition that feels like a game. Decks you make, share, and learn from friends.",
+                text = stringResource(R.string.onboarding_hero_subtitle),
                 color = colors.foregroundSecondary,
                 fontSize = 15.sp,
                 textAlign = TextAlign.Center,
@@ -196,7 +198,7 @@ private fun BrandRow() {
         }
         Spacer(Modifier.width(10.dp))
         Text(
-            text = "Echo",
+            text = stringResource(R.string.onboarding_brand_name),
             color = colors.foregroundPrimary,
             fontSize = 24.sp,
             fontWeight = FontWeight.ExtraBold,
@@ -221,9 +223,9 @@ private fun CtaBlock(
         EchoPrimaryButton(
             label = when (state) {
                 OnboardingUiState.Starting,
-                OnboardingUiState.AwaitingApproval -> "Waiting for Pubky Ring…"
-                OnboardingUiState.Verifying -> "Signing in…"
-                else -> "Sign in with Pubky Ring"
+                OnboardingUiState.AwaitingApproval -> stringResource(R.string.onboarding_signin_waiting)
+                OnboardingUiState.Verifying -> stringResource(R.string.onboarding_signin_verifying)
+                else -> stringResource(R.string.onboarding_signin_default)
             },
             onClick = {
                 if (state is OnboardingUiState.Error) onRetry() else onSignInClick()
@@ -239,7 +241,7 @@ private fun CtaBlock(
             },
         )
         Text(
-            text = "No email. No password. Your key, your account.",
+            text = stringResource(R.string.onboarding_no_email_notice),
             color = colors.foregroundMuted,
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
@@ -259,7 +261,7 @@ private fun CtaBlock(
             colors = ButtonDefaults.textButtonColors(contentColor = colors.accentSecondary),
         ) {
             Text(
-                text = "Don't have Pubky Ring? Get the app",
+                text = stringResource(R.string.onboarding_get_ring),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
             )

@@ -52,7 +52,7 @@ struct DeckDetailView: View {
                 VStack(spacing: 12) {
                     header(isOwned: false)
                     Spacer()
-                    Text("Something went wrong")
+                    Text("deck_detail_error_title")
                         .font(.system(size: 20, weight: .heavy))
                         .foregroundColor(EchoColor.foregroundPrimary)
                     Text(message)
@@ -93,7 +93,7 @@ struct DeckDetailView: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.white)
-                        Text("IN YOUR LIBRARY")
+                        Text("deck_detail_in_your_library")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.white)
                     }
@@ -195,9 +195,9 @@ struct DeckDetailView: View {
 
     private var studyLabel: String {
         if case .content(let content) = state, content.isOwned {
-            return "Start studying · \(content.dueCards) due"
+            return String(format: NSLocalizedString("deck_detail_start_studying", comment: ""), content.dueCards)
         }
-        return "Study this deck"
+        return NSLocalizedString("deck_detail_study_this_deck", comment: "")
     }
 
     private var isOwnedContent: Bool {
@@ -247,11 +247,11 @@ private struct StatsBarView: View {
 
     var body: some View {
         HStack {
-            StatColumn(value: "\(totalCards)", label: "Cards", valueColor: EchoColor.foregroundPrimary)
+            StatColumn(value: "\(totalCards)", label: "component_stats_bar_cards", valueColor: EchoColor.foregroundPrimary)
             Divider().frame(height: 32).overlay(EchoColor.borderSubtle)
-            StatColumn(value: "\(dueCards)", label: "Due", valueColor: EchoColor.accentPrimary)
+            StatColumn(value: "\(dueCards)", label: "component_stats_bar_due", valueColor: EchoColor.accentPrimary)
             Divider().frame(height: 32).overlay(EchoColor.borderSubtle)
-            StatColumn(value: masteredPercent, label: "Mastered", valueColor: EchoColor.srsGood)
+            StatColumn(value: masteredPercent, label: "component_stats_bar_mastered", valueColor: EchoColor.srsGood)
         }
         .padding(16)
         .frame(maxWidth: .infinity)
@@ -264,7 +264,7 @@ private struct StatsBarView: View {
 
 private struct StatColumn: View {
     let value: String
-    let label: String
+    let label: LocalizedStringKey
     let valueColor: Color
 
     var body: some View {

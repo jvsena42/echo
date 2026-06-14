@@ -48,12 +48,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.platform.Speaker
 import com.github.jvsena42.echo.presentation.decks.EditCardEffect
 import com.github.jvsena42.echo.presentation.decks.EditCardUiState
@@ -126,7 +128,7 @@ fun EditCardScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Edit card",
+                        text = stringResource(R.string.edit_card_title),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.W800,
                     )
@@ -136,7 +138,7 @@ fun EditCardScreen(
                         onClick = onCancelClick,
                         colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
                     ) {
-                        Text(text = "Cancel", fontSize = 16.sp, fontWeight = FontWeight.W600)
+                        Text(text = stringResource(R.string.edit_card_cancel), fontSize = 16.sp, fontWeight = FontWeight.W600)
                     }
                 },
                 actions = {
@@ -153,7 +155,7 @@ fun EditCardScreen(
                             onClick = onSaveClick,
                             colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
                         ) {
-                            Text(text = "Save", fontSize = 16.sp, fontWeight = FontWeight.W700)
+                            Text(text = stringResource(R.string.edit_card_save), fontSize = 16.sp, fontWeight = FontWeight.W700)
                         }
                     }
                 },
@@ -177,7 +179,12 @@ fun EditCardScreen(
                 onClick = {},
                 label = {
                     Text(
-                        text = "Card ${state.cardIndex} of ${state.totalCards} · ${state.deckTitle}",
+                        text = stringResource(
+                            R.string.edit_card_context,
+                            state.cardIndex,
+                            state.totalCards,
+                            state.deckTitle,
+                        ),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.W600,
                     )
@@ -200,12 +207,12 @@ fun EditCardScreen(
 
             // 2. Front section
             CardTextSection(
-                label = "FRONT",
-                speakDescription = "Speak front",
+                label = stringResource(R.string.edit_card_label_front),
+                speakDescription = stringResource(R.string.edit_card_speak_front),
                 onSpeak = onSpeakFront,
                 value = state.frontText,
                 onValueChange = onFrontTextChanged,
-                placeholder = "Enter front text...",
+                placeholder = stringResource(R.string.edit_card_front_placeholder),
                 textStyle = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.W700),
                 error = state.frontError,
                 focusedBorderColor = colors.accentPrimary,
@@ -213,12 +220,12 @@ fun EditCardScreen(
 
             // 3. Back section
             CardTextSection(
-                label = "BACK",
-                speakDescription = "Speak back",
+                label = stringResource(R.string.edit_card_label_back),
+                speakDescription = stringResource(R.string.edit_card_speak_back),
                 onSpeak = onSpeakBack,
                 value = state.backText,
                 onValueChange = onBackTextChanged,
-                placeholder = "Enter back text...",
+                placeholder = stringResource(R.string.edit_card_back_placeholder),
                 textStyle = TextStyle(fontSize = 16.sp),
                 error = state.backError,
                 focusedBorderColor = colors.accentPrimary,
@@ -238,11 +245,11 @@ fun EditCardScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Image,
-                        contentDescription = "Add image",
+                        contentDescription = stringResource(R.string.edit_card_add_image),
                         modifier = Modifier.size(20.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Image", fontSize = 14.sp)
+                    Text(text = stringResource(R.string.edit_card_image), fontSize = 14.sp)
                 }
 
                 OutlinedButton(
@@ -254,11 +261,11 @@ fun EditCardScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Mic,
-                        contentDescription = "Add audio",
+                        contentDescription = stringResource(R.string.edit_card_add_audio),
                         modifier = Modifier.size(20.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "Audio", fontSize = 14.sp)
+                    Text(text = stringResource(R.string.edit_card_audio), fontSize = 14.sp)
                 }
             }
 
@@ -272,7 +279,7 @@ fun EditCardScreen(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "TAGS",
+                        text = stringResource(R.string.edit_card_label_tags),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.W700,
                         letterSpacing = 0.8.sp,
@@ -293,7 +300,7 @@ fun EditCardScreen(
                         AssistChip(
                             onClick = { onAddTag("new") },
                             label = {
-                                Text(text = "+ Add", fontSize = 13.sp, fontWeight = FontWeight.W600)
+                                Text(text = stringResource(R.string.edit_card_add_tag), fontSize = 13.sp, fontWeight = FontWeight.W600)
                             },
                             shape = RoundedCornerShape(50),
                             colors = AssistChipDefaults.assistChipColors(labelColor = colors.accentSecondary),
@@ -315,11 +322,11 @@ fun EditCardScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete card",
+                    contentDescription = stringResource(R.string.edit_card_delete),
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Delete card", fontSize = 15.sp, fontWeight = FontWeight.W700)
+                Text(text = stringResource(R.string.edit_card_delete), fontSize = 15.sp, fontWeight = FontWeight.W700)
             }
 
             state.error?.let { errorText ->
@@ -372,7 +379,7 @@ private fun CardTextSection(
                     modifier = Modifier.size(14.dp),
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "Speak", fontSize = 12.sp, fontWeight = FontWeight.W600)
+                Text(text = stringResource(R.string.edit_card_speak), fontSize = 12.sp, fontWeight = FontWeight.W600)
             }
         }
 

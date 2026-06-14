@@ -1,5 +1,6 @@
 package com.github.jvsena42.echo.ui.importflow
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -43,12 +44,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.domain.model.Separator
 import com.github.jvsena42.echo.presentation.importflow.PasteImportEffect
 import com.github.jvsena42.echo.presentation.importflow.PasteImportUiState
@@ -103,7 +106,7 @@ private fun PasteScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Paste cards",
+                        text = stringResource(R.string.paste_title),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.ExtraBold,
                     )
@@ -114,7 +117,7 @@ private fun PasteScreen(
                         modifier = Modifier.testTag("paste_cancel"),
                         colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
                     ) {
-                        Text(text = "Cancel", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(text = stringResource(R.string.paste_cancel), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     }
                 },
                 actions = {
@@ -127,7 +130,7 @@ private fun PasteScreen(
                             disabledContentColor = colors.foregroundMuted,
                         ),
                     ) {
-                        Text(text = "Next", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(text = stringResource(R.string.paste_next), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -157,13 +160,13 @@ private fun PasteScreen(
                 placeholder = {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            "Paste your list here",
+                            stringResource(R.string.paste_input_placeholder_title),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = colors.foregroundMuted,
                         )
                         Text(
-                            "one card per line",
+                            stringResource(R.string.paste_input_placeholder_subtitle),
                             fontSize = 13.sp,
                             color = colors.foregroundMuted.copy(alpha = 0.6f),
                         )
@@ -190,7 +193,10 @@ private fun PasteScreen(
                         onClick = {},
                         label = {
                             Text(
-                                "Detected: ${separatorLabel(state.detectedSeparator)}",
+                                stringResource(
+                                    R.string.paste_detected_separator,
+                                    stringResource(separatorLabel(state.detectedSeparator)),
+                                ),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -207,7 +213,7 @@ private fun PasteScreen(
                         border = null,
                     )
                     Text(
-                        "${state.cardCount} cards",
+                        stringResource(R.string.paste_card_count, state.cardCount),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         color = colors.foregroundMuted,
@@ -217,7 +223,7 @@ private fun PasteScreen(
 
             // Preview cards
             if (state.isParsed && state.previewCards.isNotEmpty()) {
-                Text("PREVIEW", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
+                Text(stringResource(R.string.paste_preview_label), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     itemsIndexed(state.previewCards) { index, card ->
                         PreviewCardItem(index = index + 1, total = state.cardCount, front = card.front, back = card.back)
@@ -227,9 +233,9 @@ private fun PasteScreen(
 
             // Example cards (when empty)
             if (state.rawText.isEmpty()) {
-                Text("PREVIEW", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
+                Text(stringResource(R.string.paste_preview_label), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
                 Text(
-                    "TRY PASTING SOMETHING LIKE",
+                    stringResource(R.string.paste_try_pasting_label),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp,
@@ -253,7 +259,7 @@ private fun PasteScreen(
                 Text("🔗", fontSize = 14.sp)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "This deck will be public on your profile",
+                    stringResource(R.string.paste_public_notice),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = colors.accentSecondary,
@@ -280,10 +286,10 @@ private fun PreviewCardItem(index: Int, total: Int, front: String, back: String)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("$index/$total", fontSize = 11.sp, color = colors.foregroundMuted)
-        Text(front.ifBlank { "—" }, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary)
+        Text(stringResource(R.string.paste_card_index, index, total), fontSize = 11.sp, color = colors.foregroundMuted)
+        Text(front.ifBlank { stringResource(R.string.paste_blank_placeholder) }, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary)
         Box(Modifier.width(32.dp).height(2.dp).background(colors.accentPrimary))
-        Text(back.ifBlank { "—" }, fontSize = 14.sp, color = colors.foregroundMuted)
+        Text(back.ifBlank { stringResource(R.string.paste_blank_placeholder) }, fontSize = 14.sp, color = colors.foregroundMuted)
     }
 }
 
@@ -313,17 +319,18 @@ private fun ExampleCard(title: String, separator: String, lines: List<String>) {
     }
 }
 
-private fun separatorLabel(sep: Separator?): String = when (sep) {
-    Separator.Tab -> "tab"
-    Separator.Semicolon -> "semicolon"
-    Separator.Pipe -> "pipe"
-    Separator.EmDash -> "em-dash"
-    Separator.Colon -> "colon"
-    Separator.Comma -> "comma"
-    Separator.BlankLine -> "blank lines"
-    Separator.MarkdownTable -> "markdown"
-    Separator.SingleColumn -> "single column"
-    else -> "auto"
+@StringRes
+private fun separatorLabel(sep: Separator?): Int = when (sep) {
+    Separator.Tab -> R.string.paste_separator_tab
+    Separator.Semicolon -> R.string.paste_separator_semicolon
+    Separator.Pipe -> R.string.paste_separator_pipe
+    Separator.EmDash -> R.string.paste_separator_em_dash
+    Separator.Colon -> R.string.paste_separator_colon
+    Separator.Comma -> R.string.paste_separator_comma
+    Separator.BlankLine -> R.string.paste_separator_blank_lines
+    Separator.MarkdownTable -> R.string.paste_separator_markdown
+    Separator.SingleColumn -> R.string.paste_separator_single_column
+    else -> R.string.paste_separator_auto
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

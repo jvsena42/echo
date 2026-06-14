@@ -15,16 +15,16 @@ struct PasteView: View {
                 // Header
                 HStack {
                     Button(action: onCancel) {
-                        Text("Cancel")
+                        Text("paste_cancel")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(EchoColor.accentPrimary)
                     }
                     Spacer()
-                    Text("Paste cards")
+                    Text("paste_title")
                         .font(.system(size: 18, weight: .heavy))
                         .foregroundColor(EchoColor.foregroundPrimary)
                     Spacer()
-                    Button("Next", action: onNext)
+                    Button("paste_next", action: onNext)
                         .buttonStyle(EchoCompactFilledButtonStyle(
                             fill: isParsed ? EchoColor.accentPrimary : EchoColor.borderSubtle,
                             foreground: isParsed ? .white : EchoColor.foregroundMuted
@@ -50,10 +50,10 @@ struct PasteView: View {
                     .overlay(alignment: .topLeading) {
                         if rawText.isEmpty {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Paste your list here")
+                                Text("paste_input_placeholder_title")
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(EchoColor.foregroundMuted)
-                                Text("one card per line")
+                                Text("paste_input_placeholder_subtitle")
                                     .font(.system(size: 13))
                                     .foregroundColor(EchoColor.foregroundMuted.opacity(0.6))
                             }
@@ -86,7 +86,7 @@ struct PasteView: View {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(EchoColor.accentSecondary)
-                            Text("Detected: \(detectedSeparator)")
+                            Text(String(format: NSLocalizedString("paste_detected_separator", comment: ""), detectedSeparator))
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(EchoColor.accentSecondary)
                         }
@@ -94,7 +94,7 @@ struct PasteView: View {
                         .padding(.vertical, 6)
                         .background(Capsule().fill(EchoColor.accentSecondarySoft))
                         Spacer()
-                        Text("\(cardCount) cards")
+                        Text(String(format: NSLocalizedString("paste_card_count", comment: ""), cardCount))
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(EchoColor.foregroundMuted)
                     }
@@ -102,11 +102,11 @@ struct PasteView: View {
 
                 // Examples when empty
                 if rawText.isEmpty {
-                    Text("PREVIEW")
+                    Text("paste_preview_label")
                         .font(.system(size: 10, weight: .bold))
                         .kerning(0.8)
                         .foregroundColor(EchoColor.foregroundMuted)
-                    Text("TRY PASTING SOMETHING LIKE")
+                    Text("paste_try_pasting_label")
                         .font(.system(size: 10, weight: .bold))
                         .kerning(0.8)
                         .foregroundColor(EchoColor.foregroundMuted)
@@ -123,7 +123,7 @@ struct PasteView: View {
                 // Public notice
                 HStack(spacing: 6) {
                     Text("🔗").font(.system(size: 14))
-                    Text("This deck will be public on your profile")
+                    Text("paste_public_notice")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(EchoColor.accentSecondary)
                 }

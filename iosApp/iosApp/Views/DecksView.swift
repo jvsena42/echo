@@ -32,7 +32,7 @@ struct DecksView: View {
             VStack(alignment: .leading, spacing: 20) {
                 // Header
                 HStack {
-                    Text("Your decks")
+                    Text("decks_title")
                         .font(.system(size: 28, weight: .heavy))
                         .foregroundColor(EchoColor.foregroundPrimary)
                     Spacer()
@@ -53,10 +53,10 @@ struct DecksView: View {
                                 .foregroundColor(.white)
                         }
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Paste to import")
+                            Text("decks_paste_cta_title")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(.white)
-                            Text("Turn any list into a deck")
+                            Text("decks_paste_cta_subtitle")
                                 .font(.system(size: 13))
                                 .foregroundColor(.white.opacity(0.8))
                         }
@@ -84,11 +84,11 @@ struct DecksView: View {
                 case .content(let count, let decks):
                     // Section header
                     HStack {
-                        Text("Library · \(count)")
+                        Text(String(format: NSLocalizedString("decks_library_count", comment: ""), count))
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(EchoColor.foregroundPrimary)
                         Spacer()
-                        Text("Recent")
+                        Text("decks_recent")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(EchoColor.accentPrimary)
                     }
@@ -107,7 +107,7 @@ struct DecksView: View {
                     }
                 case .error(let message):
                     VStack(spacing: 8) {
-                        Text("Something went wrong")
+                        Text("decks_error_title")
                             .font(.system(size: 20, weight: .heavy))
                             .foregroundColor(EchoColor.foregroundPrimary)
                         Text(message)
@@ -129,14 +129,14 @@ struct DecksView: View {
     private var emptyBlock: some View {
         VStack(spacing: 14) {
             Text("📚").font(.system(size: 48))
-            Text("No decks yet")
+            Text("decks_empty_title")
                 .font(.system(size: 20, weight: .heavy))
                 .foregroundColor(EchoColor.foregroundPrimary)
-            Text("Paste a list or create your first deck from scratch.")
+            Text("decks_empty_subtitle")
                 .font(.system(size: 14))
                 .foregroundColor(EchoColor.foregroundMuted)
                 .multilineTextAlignment(.center)
-            Button("Create a deck", action: onCreateDeckTap)
+            Button("decks_empty_create", action: onCreateDeckTap)
                 .buttonStyle(.echoCompactFilled)
         }
         .frame(maxWidth: .infinity)

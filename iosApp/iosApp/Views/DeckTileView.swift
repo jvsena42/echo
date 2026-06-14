@@ -33,7 +33,7 @@ struct DeckTileView: View {
                         .foregroundColor(EchoColor.foregroundPrimary)
                         .lineLimit(1)
                     HStack(spacing: 4) {
-                        Text("\(cardCount) cards")
+                        Text(String(format: NSLocalizedString("component_deck_tile_card_count", comment: ""), cardCount))
                             .font(.system(size: 12))
                             .foregroundColor(EchoColor.foregroundMuted)
                         Text("·")

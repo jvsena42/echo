@@ -7,10 +7,7 @@ struct TagChipView: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Text("#")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(EchoColor.accentSecondary)
-            Text(tag)
+            Text(String(format: NSLocalizedString("component_tag_chip_label", comment: ""), tag))
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(EchoColor.accentSecondary)
             if let onRemove {
@@ -19,6 +16,7 @@ struct TagChipView: View {
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(EchoColor.accentSecondary)
                 }
+                .accessibilityLabel("component_tag_chip_remove")
             }
         }
         .padding(.horizontal, 14)

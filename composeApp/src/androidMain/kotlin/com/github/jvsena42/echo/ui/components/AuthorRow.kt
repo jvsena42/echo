@@ -15,11 +15,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 
 @Composable
@@ -89,7 +91,11 @@ fun AuthorRow(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = if (isFollowing) "Following" else "Follow",
+                text = if (isFollowing) {
+                    stringResource(R.string.component_author_row_following)
+                } else {
+                    stringResource(R.string.component_author_row_follow)
+                },
                 fontSize = 13.sp,
                 fontWeight = FontWeight.W700,
                 color = if (isFollowing) colors.accentSecondary else colors.foregroundOnAccent,
