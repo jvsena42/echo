@@ -26,8 +26,8 @@ fun EchoTabBar(
     val colors = EchoTheme.colors
     ShortNavigationBar(
         modifier = modifier,
-        containerColor = colors.surfacePrimary,
-        contentColor = colors.foregroundPrimary,
+        containerColor = colors.navBarBackground,
+        contentColor = colors.foregroundOnAccent,
     ) {
         EchoTab.entries.forEach { tab ->
             ShortNavigationBarItem(
@@ -42,10 +42,10 @@ fun EchoTabBar(
                 label = { Text(tab.label) },
                 colors = ShortNavigationBarItemDefaults.colors(
                     selectedIconColor = colors.foregroundOnAccent,
-                    selectedTextColor = colors.foregroundPrimary,
+                    selectedTextColor = colors.foregroundOnAccent,
                     selectedIndicatorColor = colors.accentPrimary,
-                    unselectedIconColor = colors.foregroundMuted,
-                    unselectedTextColor = colors.foregroundMuted,
+                    unselectedIconColor = colors.navBarInactive,
+                    unselectedTextColor = colors.navBarInactive,
                 ),
                 modifier = Modifier.testTag("tab_${tab.name.lowercase()}"),
             )

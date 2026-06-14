@@ -39,5 +39,7 @@ struct MainView: View {
                 .tag(EchoTab.profile)
         }
         .tint(EchoColor.accentPrimary)
+        .toolbarBackground(EchoColor.navBarBackground, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
     }
 }

@@ -14,6 +14,8 @@ enum EchoColor {
     static let foregroundSecondary = Color(red: 0.353, green: 0.353, blue: 0.400)
     static let foregroundMuted = Color(red: 0.545, green: 0.545, blue: 0.600)
     static let foregroundOnAccent = Color.white
+    static let navBarBackground = Color(red: 0.102, green: 0.075, blue: 0.149)
+    static let navBarInactive = Color(red: 0.604, green: 0.576, blue: 0.639)
     static let borderSubtle = Color(red: 0.941, green: 0.902, blue: 0.851)
     static let srsGood = Color(red: 0.129, green: 0.788, blue: 0.478)
     static let srsAgain = Color(red: 1.0, green: 0.306, blue: 0.392)
