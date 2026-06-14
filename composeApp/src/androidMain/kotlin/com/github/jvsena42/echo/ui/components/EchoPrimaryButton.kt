@@ -3,12 +3,17 @@ package com.github.jvsena42.echo.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -17,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -83,6 +89,42 @@ fun EchoPrimaryButton(
                     fontSize = 17.sp,
                 )
             }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun EchoPrimaryButtonPreview() {
+    EchoTheme {
+        Column(
+            modifier = Modifier
+                .background(EchoTheme.colors.surfacePrimary)
+                .padding(16.dp),
+        ) {
+            EchoPrimaryButton(
+                label = "Continue",
+                onClick = {},
+            )
+            Spacer(modifier = Modifier.size(12.dp))
+            EchoPrimaryButton(
+                label = "Add deck",
+                onClick = {},
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        tint = EchoTheme.colors.foregroundOnAccent,
+                        modifier = Modifier.size(20.dp),
+                    )
+                },
+            )
+            Spacer(modifier = Modifier.size(12.dp))
+            EchoPrimaryButton(
+                label = "Publishing",
+                onClick = {},
+                loading = true,
+            )
         }
     }
 }

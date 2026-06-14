@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -531,5 +532,30 @@ private fun PublishedContent(
         state.error?.let { errorText ->
             Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Preview
+@Composable
+private fun PublishDeckScreenPreview() {
+    EchoTheme {
+        PublishDeckScreen(
+            state = PublishDeckUiState(
+                title = "Spanish basics",
+                description = "Everyday travel phrases",
+                coverEmoji = "📚",
+                tags = listOf("language", "beginner"),
+                cardCount = 24,
+            ),
+            onTitleChanged = {},
+            onDescriptionChanged = {},
+            onAddTag = {},
+            onRemoveTag = {},
+            onPublishClick = {},
+            onUndoPublish = {},
+            onDonePublish = {},
+            onBackClick = {},
+        )
     }
 }

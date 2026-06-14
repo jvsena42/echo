@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -92,6 +93,34 @@ fun AuthorRow(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.W700,
                 color = if (isFollowing) colors.accentSecondary else colors.foregroundOnAccent,
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun AuthorRowPreview() {
+    EchoTheme {
+        Column(
+            modifier = Modifier
+                .background(EchoTheme.colors.surfacePrimary)
+                .padding(16.dp),
+        ) {
+            AuthorRow(
+                name = "Ada Lovelace",
+                pubky = "pubky:ada1xqz9...",
+                initial = 'A',
+                isFollowing = false,
+                onFollowClick = {},
+            )
+            Spacer(modifier = Modifier.size(12.dp))
+            AuthorRow(
+                name = null,
+                pubky = "pubky:byron7yt2...",
+                initial = 'B',
+                isFollowing = true,
+                onFollowClick = {},
             )
         }
     }

@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.presentation.home.DeckSummary
@@ -243,6 +244,46 @@ private fun DeckRow(deck: DeckSummary, onClick: () -> Unit) {
                 color = colors.foregroundOnAccent,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun HomeContentPreview() {
+    EchoTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(EchoTheme.colors.surfacePrimary)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            HomeContent(
+                state = HomeUiState.Content(
+                    greetingName = "Alex",
+                    dueToday = 24,
+                    doneToday = 9,
+                    decks = listOf(
+                        DeckSummary(
+                            id = "1",
+                            title = "Spanish Basics",
+                            cardCount = 60,
+                            dueCount = 12,
+                            coverInitial = 'S',
+                        ),
+                        DeckSummary(
+                            id = "2",
+                            title = "Kanji N5",
+                            cardCount = 103,
+                            dueCount = 8,
+                            coverInitial = 'K',
+                        ),
+                    ),
+                ),
+                onStartStudyClick = {},
+                onDeckClick = {},
             )
         }
     }

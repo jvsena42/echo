@@ -191,3 +191,33 @@ struct DeckRow: View {
         .buttonStyle(.plain)
     }
 }
+
+private let sampleHomeDecks = [
+    HomeDeckSummary(id: "1", title: "Spanish Basics", cardCount: 42, dueCount: 12, coverInitial: "S"),
+    HomeDeckSummary(id: "2", title: "Bio 101: Cells", cardCount: 28, dueCount: 7, coverInitial: "B"),
+    HomeDeckSummary(id: "3", title: "Guitar Chords", cardCount: 18, dueCount: 5, coverInitial: "G"),
+]
+
+#Preview("Content") {
+    ScrollView {
+        VStack(spacing: 16) {
+            GreetingHeader(name: "Maria")
+            DueTodayHeroCard(dueToday: 24, doneToday: 8, onStartStudy: {})
+            TodaysDecksSection(decks: sampleHomeDecks, onOpenDeck: { _ in })
+        }
+        .padding()
+    }
+    .background(EchoColor.surfacePrimary)
+}
+
+#Preview("Empty") {
+    ScrollView {
+        VStack(spacing: 16) {
+            GreetingHeader(name: "Maria")
+            EmptyStateCard()
+            HomeCtaButtons(onCreateDeck: {}, onBrowseExamples: {})
+        }
+        .padding()
+    }
+    .background(EchoColor.surfacePrimary)
+}

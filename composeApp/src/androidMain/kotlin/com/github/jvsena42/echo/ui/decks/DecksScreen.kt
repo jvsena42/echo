@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -357,5 +358,45 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
         TextButton(onClick = onRetry) {
             Text("Retry", color = colors.accentPrimary)
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Preview
+@Composable
+private fun DecksScreenPreview() {
+    EchoTheme {
+        DecksScreen(
+            state = DecksLibraryUiState.Content(
+                deckCount = 3,
+                decks = listOf(
+                    DeckTileModel(
+                        id = "d1",
+                        title = "Spanish Essentials",
+                        cardCount = 42,
+                        coverEmoji = "🇪🇸",
+                        authorLabel = "You",
+                    ),
+                    DeckTileModel(
+                        id = "d2",
+                        title = "Capital Cities",
+                        cardCount = 50,
+                        coverEmoji = "🌍",
+                        authorLabel = "@alex",
+                    ),
+                    DeckTileModel(
+                        id = "d3",
+                        title = "Chemistry Basics",
+                        cardCount = 30,
+                        coverEmoji = "⚗️",
+                        authorLabel = "You",
+                    ),
+                ),
+            ),
+            onDeckClick = {},
+            onImportClick = {},
+            onCreateDeckClick = {},
+            onRetry = {},
+        )
     }
 }

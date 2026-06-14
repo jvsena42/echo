@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -260,6 +261,19 @@ private fun CtaBlock(
                 .clip(RoundedCornerShape(8.dp))
                 .clickable(enabled = !isWorking, onClick = onGetRingClick)
                 .padding(4.dp),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun OnboardingContentPreview() {
+    EchoTheme {
+        OnboardingContent(
+            state = OnboardingUiState.Idle,
+            onSignInClick = {},
+            onGetRingClick = {},
+            onRetry = {},
         )
     }
 }

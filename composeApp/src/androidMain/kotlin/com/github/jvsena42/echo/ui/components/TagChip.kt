@@ -2,6 +2,7 @@ package com.github.jvsena42.echo.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -70,6 +72,26 @@ fun TagChip(
                     .size(16.dp)
                     .clickable(onClick = onRemove),
             )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun TagChipPreview() {
+    EchoTheme {
+        Row(
+            modifier = Modifier
+                .background(EchoTheme.colors.surfacePrimary)
+                .padding(16.dp),
+        ) {
+            Column {
+                TagChip(tag = "spanish")
+                Spacer(modifier = Modifier.size(8.dp))
+                TagChip(tag = "selected", selected = true)
+                Spacer(modifier = Modifier.size(8.dp))
+                TagChip(tag = "removable", onRemove = {})
+            }
         }
     }
 }

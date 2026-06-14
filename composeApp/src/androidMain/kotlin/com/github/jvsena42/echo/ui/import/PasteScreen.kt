@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,6 +50,7 @@ import com.github.jvsena42.echo.domain.model.Separator
 import com.github.jvsena42.echo.presentation.import_flow.PasteImportEffect
 import com.github.jvsena42.echo.presentation.import_flow.PasteImportUiState
 import com.github.jvsena42.echo.presentation.import_flow.PasteImportViewModel
+import com.github.jvsena42.echo.presentation.import_flow.PreviewCard
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
@@ -281,4 +283,26 @@ private fun separatorLabel(sep: Separator?): String = when (sep) {
     Separator.MarkdownTable -> "markdown"
     Separator.SingleColumn -> "single column"
     else -> "auto"
+}
+
+@Preview
+@Composable
+private fun PasteScreenPreview() {
+    EchoTheme {
+        PasteScreen(
+            state = PasteImportUiState(
+                rawText = "hola — hello\ngracias — thank you",
+                detectedSeparator = Separator.EmDash,
+                cardCount = 2,
+                previewCards = listOf(
+                    PreviewCard(front = "hola", back = "hello"),
+                    PreviewCard(front = "gracias", back = "thank you"),
+                ),
+                isParsed = true,
+            ),
+            onTextChanged = {},
+            onNextClick = {},
+            onCancelClick = {},
+        )
+    }
 }

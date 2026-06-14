@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -210,5 +211,42 @@ private fun DeckGrid(decks: List<FriendDeck>, onOpenDeck: (String) -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun FriendProfileScreenPreview() {
+    EchoTheme {
+        FriendProfileScreen(
+            state = FriendProfileUiState(
+                isLoading = false,
+                pubky = "abcdef1234567890abcdef",
+                displayName = "Grace Hopper",
+                bio = "Compiler pioneer. Decks on debugging and history.",
+                avatarInitial = 'G',
+                isFollowing = true,
+                decks = listOf(
+                    FriendDeck(
+                        id = "1",
+                        title = "Debugging 101",
+                        cardCount = 18,
+                        coverEmoji = "🐛",
+                        tags = listOf("engineering"),
+                    ),
+                    FriendDeck(
+                        id = "2",
+                        title = "Naval history",
+                        cardCount = 30,
+                        coverEmoji = "⚓",
+                        tags = listOf("history"),
+                    ),
+                ),
+            ),
+            onBack = {},
+            onToggleFollow = {},
+            onCopyPubky = {},
+            onOpenDeck = {},
+        )
     }
 }

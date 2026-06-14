@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -489,5 +490,45 @@ private fun CardRow(
                 }
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun DeckEditorScreenPreview() {
+    EchoTheme {
+        DeckEditorScreen(
+            state = DeckEditorUiState(
+                isNew = false,
+                coverEmoji = "🇪🇸",
+                title = "Spanish Essentials",
+                description = "Core vocabulary for everyday conversations.",
+                tags = listOf("language", "spanish"),
+                cards = listOf(
+                    EditableCardModel(
+                        id = "c1",
+                        frontText = "Hola",
+                        backText = "Hello",
+                        hasImage = false,
+                        hasAudio = true,
+                    ),
+                    EditableCardModel(
+                        id = "c2",
+                        frontText = "Gracias",
+                        backText = "Thank you",
+                        hasImage = true,
+                        hasAudio = false,
+                    ),
+                ),
+            ),
+            onCloseClick = {},
+            onSaveClick = {},
+            onTitleChanged = {},
+            onDescriptionChanged = {},
+            onRemoveTag = {},
+            onAddTag = {},
+            onCardClick = {},
+            onAddCard = {},
+        )
     }
 }

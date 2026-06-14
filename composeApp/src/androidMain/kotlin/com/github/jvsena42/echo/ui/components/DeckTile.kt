@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -107,6 +108,28 @@ fun DeckTile(
                     },
                 )
             }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun DeckTilePreview() {
+    EchoTheme {
+        Box(
+            modifier = Modifier
+                .background(EchoTheme.colors.surfacePrimary)
+                .padding(16.dp),
+        ) {
+            DeckTile(
+                title = "Spanish Basics",
+                cardCount = 42,
+                coverEmoji = "🇪🇸",
+                authorLabel = "@ada",
+                onClick = {},
+                onAuthorClick = {},
+                modifier = Modifier.width(180.dp),
+            )
         }
     }
 }

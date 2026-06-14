@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -468,5 +469,41 @@ private fun CardPreviewList(cards: List<CardPreviewModel>) {
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun DeckDetailScreenPreview() {
+    EchoTheme {
+        DeckDetailScreen(
+            state = DeckDetailUiState.Content(
+                deckId = "deck1",
+                title = "Spanish Essentials",
+                description = "Core vocabulary for everyday conversations.",
+                coverEmoji = "🇪🇸",
+                authorName = "Alex",
+                authorPubky = "pk:abcdef123456",
+                authorInitial = 'A',
+                isOwned = true,
+                tags = listOf("language", "spanish", "beginner"),
+                totalCards = 42,
+                dueCards = 8,
+                masteredPercent = "65%",
+                cardPreviews = listOf(
+                    CardPreviewModel(id = "c1", frontText = "Hola", backText = "Hello"),
+                    CardPreviewModel(id = "c2", frontText = "Gracias", backText = "Thank you"),
+                    CardPreviewModel(id = "c3", frontText = "Adiós", backText = "Goodbye"),
+                ),
+            ),
+            onBackClick = {},
+            onShareClick = {},
+            onStudyClick = {},
+            onEditClick = {},
+            onDeleteClick = {},
+            onConfirmDelete = {},
+            onDismissDelete = {},
+            onRetry = {},
+        )
     }
 }

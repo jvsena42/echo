@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -107,5 +108,23 @@ private fun StatColumn(
             fontWeight = FontWeight.W500,
             color = mutedColor,
         )
+    }
+}
+
+@Preview
+@Composable
+private fun StatsBarPreview() {
+    EchoTheme {
+        Box(
+            modifier = Modifier
+                .background(EchoTheme.colors.surfacePrimary)
+                .padding(16.dp),
+        ) {
+            StatsBar(
+                totalCards = 42,
+                dueCards = 8,
+                masteredPercent = "65%",
+            )
+        }
     }
 }

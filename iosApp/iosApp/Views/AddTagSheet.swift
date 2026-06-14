@@ -118,3 +118,11 @@ struct AddTagSheet: View {
         .presentationBackground(.white)
     }
 }
+
+#Preview {
+    AddTagSheet(
+        tags: ["spanish", "beginner"],
+        onAdd: { _ in },
+        onRemove: { _ in }
+    )
+}

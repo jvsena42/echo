@@ -50,6 +50,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -586,6 +587,36 @@ private fun ProfileStatColumn(
             fontSize = 11.sp,
             fontWeight = FontWeight.W500,
             color = colors.foregroundMuted,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Preview
+@Composable
+private fun ProfileScreenPreview() {
+    EchoTheme {
+        ProfileScreen(
+            state = ProfileUiState(
+                isLoading = false,
+                displayName = "Ada Lovelace",
+                pubky = "abcdef1234567890abcdef",
+                bio = "Building decks about computing history.",
+                avatarInitial = 'A',
+                deckCount = 8,
+                cardCount = 240,
+                streakDays = 12,
+            ),
+            errorMessage = null,
+            onOpenSettings = {},
+            onEditProfileClick = {},
+            onShareClick = {},
+            onSignOutClick = {},
+            onDismissEditSheet = {},
+            onEditNameChanged = {},
+            onEditBioChanged = {},
+            onSaveClick = {},
+            onDismissError = {},
         )
     }
 }

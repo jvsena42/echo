@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -335,4 +336,23 @@ private fun SettingsDivider() {
             .height(1.dp)
             .background(EchoTheme.colors.borderSubtle),
     )
+}
+
+@Preview
+@Composable
+private fun SettingsScreenPreview() {
+    EchoTheme {
+        SettingsScreen(
+            state = SettingsUiState(
+                isLoading = false,
+                pubky = "abcdef1234567890abcdef",
+                displayName = "Ada Lovelace",
+                homeserver = "homeserver.pubky.org",
+                appVersion = "1.0.0",
+            ),
+            onBack = {},
+            onCopyPubkyClick = {},
+            onSignOutClick = {},
+        )
+    }
 }

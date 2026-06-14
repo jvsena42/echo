@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -391,5 +392,34 @@ private fun BoxScope.CenteredMessage(
                 color = colors.foregroundOnAccent,
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun StudySessionScreenPreview() {
+    EchoTheme {
+        StudySessionScreen(
+            state = StudySessionUiState.Reviewing(
+                deckTitle = "Spanish basics",
+                position = 3,
+                total = 12,
+                frontText = "hola",
+                backText = "hello",
+                backLabel = "MEANING",
+                revealed = true,
+                intervals = mapOf(
+                    SrsGrade.Again to "1m",
+                    SrsGrade.Hard to "10m",
+                    SrsGrade.Good to "1d",
+                    SrsGrade.Easy to "4d",
+                ),
+            ),
+            onReveal = {},
+            onGrade = {},
+            onSpeak = {},
+            onClose = {},
+            onDone = {},
+        )
     }
 }

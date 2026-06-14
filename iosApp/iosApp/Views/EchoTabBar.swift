@@ -65,3 +65,28 @@ struct EchoTabBar: View {
         .buttonStyle(.plain)
     }
 }
+
+#Preview {
+    StatefulPreviewWrapper(EchoTab.study) { selected in
+        VStack {
+            Spacer()
+            EchoTabBar(selectedTab: selected)
+        }
+        .background(EchoColor.surfacePrimary)
+    }
+}
+
+/// Small helper so previews can drive an `@Binding`-based view interactively.
+private struct StatefulPreviewWrapper<Value, Content: View>: View {
+    @State private var value: Value
+    private let content: (Binding<Value>) -> Content
+
+    init(_ initial: Value, @ViewBuilder content: @escaping (Binding<Value>) -> Content) {
+        _value = State(initialValue: initial)
+        self.content = content
+    }
+
+    var body: some View {
+        content($value)
+    }
+}

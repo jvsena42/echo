@@ -23,9 +23,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.presentation.home.DeckSummary
 import com.github.jvsena42.echo.presentation.home.HomeEffect
 import com.github.jvsena42.echo.presentation.home.HomeUiState
 import com.github.jvsena42.echo.presentation.home.HomeViewModel
@@ -180,5 +182,40 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
         androidx.compose.material3.TextButton(onClick = onRetry) {
             Text("Retry", color = colors.accentPrimary)
         }
+    }
+}
+
+@Preview
+@Composable
+private fun HomeScreenPreview() {
+    EchoTheme {
+        HomeScreen(
+            state = HomeUiState.Content(
+                greetingName = "Alex",
+                dueToday = 24,
+                doneToday = 9,
+                decks = listOf(
+                    DeckSummary(
+                        id = "1",
+                        title = "Spanish Basics",
+                        cardCount = 60,
+                        dueCount = 12,
+                        coverInitial = 'S',
+                    ),
+                    DeckSummary(
+                        id = "2",
+                        title = "Kanji N5",
+                        cardCount = 103,
+                        dueCount = 8,
+                        coverInitial = 'K',
+                    ),
+                ),
+            ),
+            onStartStudyClick = {},
+            onCreateDeckClick = {},
+            onBrowseExamplesClick = {},
+            onDeckClick = {},
+            onRetry = {},
+        )
     }
 }

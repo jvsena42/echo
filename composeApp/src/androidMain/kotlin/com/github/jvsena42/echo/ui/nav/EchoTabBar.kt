@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -112,5 +113,18 @@ private fun TabItem(
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
             letterSpacing = 0.5.sp,
         )
+    }
+}
+
+@Preview
+@Composable
+private fun EchoTabBarPreview() {
+    EchoTheme {
+        Box(modifier = Modifier.background(EchoTheme.colors.surfacePrimary)) {
+            EchoTabBar(
+                selectedTab = EchoTab.DECKS,
+                onTabSelected = {},
+            )
+        }
     }
 }

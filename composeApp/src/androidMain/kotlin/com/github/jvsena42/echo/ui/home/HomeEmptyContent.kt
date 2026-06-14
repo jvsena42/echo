@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
@@ -113,5 +114,24 @@ private fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifi
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
         )
+    }
+}
+
+@Preview
+@Composable
+private fun HomeEmptyContentPreview() {
+    EchoTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(EchoTheme.colors.surfacePrimary)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            HomeEmptyContent(
+                onCreateDeckClick = {},
+                onBrowseExamplesClick = {},
+            )
+        }
     }
 }

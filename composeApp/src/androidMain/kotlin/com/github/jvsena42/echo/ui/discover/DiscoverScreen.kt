@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -489,6 +490,47 @@ private fun AddFriendSheet(
                     )
                 }
             }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun DiscoverScreenPreview() {
+    EchoTheme {
+        Box(modifier = Modifier.background(EchoTheme.colors.surfacePrimary)) {
+            DiscoverScreenContent(
+                state = DiscoverUiState.Content(
+                    tags = listOf(Tag("language"), Tag("science")),
+                    trendingTags = listOf(Tag("travel")),
+                    selectedTag = Tag("language"),
+                    decks = listOf(
+                        DiscoverDeck(
+                            id = "1",
+                            authorPubky = "abc",
+                            title = "Spanish basics",
+                            cardCount = 24,
+                            coverEmoji = "📚",
+                            authorLabel = "Ada",
+                            tags = listOf("language"),
+                        ),
+                        DiscoverDeck(
+                            id = "2",
+                            authorPubky = "def",
+                            title = "Biology 101",
+                            cardCount = 40,
+                            coverEmoji = "🧬",
+                            authorLabel = "Grace",
+                            tags = listOf("science"),
+                        ),
+                    ),
+                ),
+                onTagSelected = {},
+                onAddFriend = {},
+                onOpenAuthor = {},
+                onOpenDeck = { _, _ -> },
+                onRetry = {},
+            )
         }
     }
 }

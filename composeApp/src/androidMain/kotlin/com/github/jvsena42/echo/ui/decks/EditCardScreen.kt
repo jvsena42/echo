@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -510,5 +511,34 @@ fun EditCardScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun EditCardScreenPreview() {
+    EchoTheme {
+        EditCardScreen(
+            state = EditCardUiState(
+                deckTitle = "Spanish Essentials",
+                cardIndex = 3,
+                totalCards = 42,
+                frontText = "Hola",
+                backText = "Hello",
+                tags = listOf("greeting", "basic"),
+                hasImage = false,
+                hasAudio = true,
+                isSaving = false,
+            ),
+            onCancelClick = {},
+            onSaveClick = {},
+            onFrontTextChanged = {},
+            onBackTextChanged = {},
+            onSpeakFront = {},
+            onSpeakBack = {},
+            onRemoveTag = {},
+            onAddTag = {},
+            onDeleteCard = {},
+        )
     }
 }
