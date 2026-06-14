@@ -70,16 +70,20 @@
 
 Echo uses **shared brand tokens** (colors, type scale, illustrations) but **platform-native component patterns**. The same screen should feel native on each OS.
 
+> **Native-first implementation.** Prefer the platform's native component for a given role — **Material 3 Expressive** on Android (`ShortNavigationBar`, `Scaffold`, `TopAppBar`, etc.); native SwiftUI / Liquid Glass on iOS — over a bespoke custom one, **even when it means diverging from these mockups**. The mockups define brand, layout intent, and which tokens to apply — not pixel-exact chrome. Apply Echo's brand tokens (accent color, type scale, radii) *to* native components; don't rebuild native chrome from primitives. Reach for a fully custom component only where Echo's identity genuinely requires it (e.g. the study card flip) and a native equivalent doesn't exist. The payoff is platform-correct spacing, insets, motion, ripple/haptics, and accessibility for free.
+
 | Concern | iOS | Android |
 |---|---|---|
 | System font | SF Pro | Roboto |
-| Top navigation | Large title nav bar (HIG) | Top app bar (Material 3) |
-| Bottom tabs | UITabBar style | Material NavigationBar |
+| Top navigation | Large title nav bar (HIG) | Top app bar (Material 3 Expressive) |
+| Bottom tabs | Native SwiftUI TabView (UITabBar / Liquid Glass) | Material 3 Expressive ShortNavigationBar |
 | Modals | Sheets / page sheets | Bottom sheets / full-screen dialogs |
-| Buttons | HIG filled / tinted / plain | Material filled / tonal / text |
+| Buttons | HIG filled / tinted / plain | Material 3 Expressive filled / tonal / text |
 | Lists | Inset grouped / plain | Material list items |
 | Haptics | UIImpactFeedback (use generously on card flips, SRS taps, streak hits) | HapticFeedbackConstants equivalents |
 | Back navigation | Swipe-from-edge + back chevron | System back gesture + up arrow |
+
+> The earlier custom pill-shaped tab bar (`EchoTabBar`) is **retired**: bottom navigation is now the native `ShortNavigationBar` (Android) and native `TabView`/`UITabBar` (iOS), each tinted with Echo's accent.
 
 Designers should produce **two flows per key screen** (iOS and Android) where the patterns meaningfully diverge. Where they don't (e.g., the study card itself), one shared design is fine.
 

@@ -9,30 +9,35 @@ struct MainView: View {
     var onSignedOut: () -> Void = {}
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
-                HomeScreen(
-                    onOpenDeck: onDeckTap,
-                    onCreateDeck: onCreateDeckTap,
-                    onBrowseExamples: onImportTap,
-                    onStartStudy: {},
-                    onSignedOut: onSignedOut
-                )
-                .tag(EchoTab.study)
-                DecksScreen(
-                    onDeckTap: onDeckTap,
-                    onImportTap: onImportTap,
-                    onCreateDeckTap: onCreateDeckTap
-                )
-                .tag(EchoTab.decks)
-                DiscoverView()
-                    .tag(EchoTab.discover)
-                ProfileView()
-                    .tag(EchoTab.profile)
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+        // Native `TabView` → system `UITabBar` (Liquid Glass on the iOS 26 SDK). We only tint it
+        // with Echo's accent. See `design/DESIGN_GUIDELINE.md §4` (native-first implementation).
+        TabView(selection: $selectedTab) {
+            HomeScreen(
+                onOpenDeck: onDeckTap,
+                onCreateDeck: onCreateDeckTap,
+                onBrowseExamples: onImportTap,
+                onStartStudy: {},
+                onSignedOut: onSignedOut
+            )
+            .tabItem { Label(EchoTab.study.title, systemImage: EchoTab.study.iconName) }
+            .tag(EchoTab.study)
 
-            EchoTabBar(selectedTab: $selectedTab)
+            DecksScreen(
+                onDeckTap: onDeckTap,
+                onImportTap: onImportTap,
+                onCreateDeckTap: onCreateDeckTap
+            )
+            .tabItem { Label(EchoTab.decks.title, systemImage: EchoTab.decks.iconName) }
+            .tag(EchoTab.decks)
+
+            DiscoverView()
+                .tabItem { Label(EchoTab.discover.title, systemImage: EchoTab.discover.iconName) }
+                .tag(EchoTab.discover)
+
+            ProfileView()
+                .tabItem { Label(EchoTab.profile.title, systemImage: EchoTab.profile.iconName) }
+                .tag(EchoTab.profile)
         }
+        .tint(EchoColor.accentPrimary)
     }
 }

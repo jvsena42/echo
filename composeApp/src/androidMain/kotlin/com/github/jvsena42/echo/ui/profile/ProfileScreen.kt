@@ -133,7 +133,7 @@ private fun ProfileScreen(
             .background(colors.surfacePrimary)
             .windowInsetsPadding(WindowInsets.statusBars)
             .verticalScroll(rememberScrollState())
-            .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp)),
+            .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         // --- Nav title + settings entry point ---
