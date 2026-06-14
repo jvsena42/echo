@@ -288,7 +288,11 @@ fun DeckEditorScreen(
                         modifier = Modifier.fillMaxWidth(),
                         textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundSecondary),
                         placeholder = {
-                            Text(text = stringResource(R.string.deck_editor_description_placeholder), fontSize = 14.sp, color = colors.foregroundMuted)
+                            Text(
+                                text = stringResource(R.string.deck_editor_description_placeholder),
+                                fontSize = 14.sp,
+                                color = colors.foregroundMuted,
+                            )
                         },
                         isError = state.descriptionError != null,
                         shape = RoundedCornerShape(12.dp),

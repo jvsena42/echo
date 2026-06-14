@@ -444,7 +444,13 @@ private fun EditProfileSheet(
                         fontWeight = FontWeight.Medium,
                         color = colors.foregroundPrimary,
                     ),
-                    placeholder = { Text(stringResource(R.string.profile_edit_name_placeholder), fontSize = 15.sp, color = colors.foregroundMuted) },
+                    placeholder = {
+                        Text(
+                            stringResource(R.string.profile_edit_name_placeholder),
+                            fontSize = 15.sp,
+                            color = colors.foregroundMuted,
+                        )
+                    },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(

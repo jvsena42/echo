@@ -223,7 +223,13 @@ private fun PasteScreen(
 
             // Preview cards
             if (state.isParsed && state.previewCards.isNotEmpty()) {
-                Text(stringResource(R.string.paste_preview_label), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
+                Text(
+                    stringResource(R.string.paste_preview_label),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    color = colors.foregroundMuted,
+                )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     itemsIndexed(state.previewCards) { index, card ->
                         PreviewCardItem(index = index + 1, total = state.cardCount, front = card.front, back = card.back)
@@ -233,7 +239,13 @@ private fun PasteScreen(
 
             // Example cards (when empty)
             if (state.rawText.isEmpty()) {
-                Text(stringResource(R.string.paste_preview_label), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
+                Text(
+                    stringResource(R.string.paste_preview_label),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    color = colors.foregroundMuted,
+                )
                 Text(
                     stringResource(R.string.paste_try_pasting_label),
                     fontSize = 10.sp,
@@ -287,7 +299,12 @@ private fun PreviewCardItem(index: Int, total: Int, front: String, back: String)
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(stringResource(R.string.paste_card_index, index, total), fontSize = 11.sp, color = colors.foregroundMuted)
-        Text(front.ifBlank { stringResource(R.string.paste_blank_placeholder) }, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary)
+        Text(
+            front.ifBlank { stringResource(R.string.paste_blank_placeholder) },
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = colors.foregroundPrimary,
+        )
         Box(Modifier.width(32.dp).height(2.dp).background(colors.accentPrimary))
         Text(back.ifBlank { stringResource(R.string.paste_blank_placeholder) }, fontSize = 14.sp, color = colors.foregroundMuted)
     }
