@@ -1,5 +1,6 @@
 package com.github.jvsena42.echo.ui.nav
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
@@ -29,6 +30,10 @@ fun MainScreen(
     val selectedTab = EchoTab.entries[pagerState.currentPage]
 
     Scaffold(
+        // The tab screens each apply their own status-bar inset, and the bottom bar consumes the
+        // navigation-bar inset natively. Zero out the Scaffold's content insets so the status-bar
+        // height isn't added twice above each page title.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             EchoTabBar(
                 selectedTab = selectedTab,

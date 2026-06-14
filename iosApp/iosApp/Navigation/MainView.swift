@@ -41,5 +41,8 @@ struct MainView: View {
         .tint(EchoColor.accentPrimary)
         .toolbarBackground(EchoColor.navBarBackground, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        // Tab screens render their own in-content titles, so hide the NavigationStack's empty
+        // navigation bar — otherwise it reserves space above each page title.
+        .navigationBarHidden(true)
     }
 }
