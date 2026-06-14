@@ -71,11 +71,17 @@ struct PasteView: View {
                         let lines = rawText.split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                         isParsed = lines.count >= 2
                         cardCount = lines.count
-                        if rawText.contains(" — ") { detectedSeparator = "em-dash" }
-                        else if rawText.contains("\t") { detectedSeparator = "tab" }
-                        else if rawText.contains(": ") { detectedSeparator = "colon" }
-                        else if rawText.contains(",") { detectedSeparator = "comma" }
-                        else { detectedSeparator = "auto" }
+                        if rawText.contains(" — ") {
+                            detectedSeparator = "em-dash"
+                        } else if rawText.contains("\t") {
+                            detectedSeparator = "tab"
+                        } else if rawText.contains(": ") {
+                            detectedSeparator = "colon"
+                        } else if rawText.contains(",") {
+                            detectedSeparator = "comma"
+                        } else {
+                            detectedSeparator = "auto"
+                        }
                     }
 
                 // Separator chip
@@ -111,7 +117,11 @@ struct PasteView: View {
                         .foregroundColor(EchoColor.foregroundMuted)
 
                     ExampleCardView(title: "Vocab list", separator: "em-dash", lines: ["hola — hello", "gracias — thank you"])
-                    ExampleCardView(title: "Glossary", separator: "colon", lines: ["mitosis: cell division", "osmosis: water moves across a membrane"])
+                    ExampleCardView(
+                        title: "Glossary",
+                        separator: "colon",
+                        lines: ["mitosis: cell division", "osmosis: water moves across a membrane"]
+                    )
                     ExampleCardView(title: "Notion table", separator: "markdown", lines: ["| capital | France |", "| currency | euro |"])
                 }
 

@@ -28,8 +28,8 @@ import com.github.jvsena42.echo.ui.theme.EchoTheme
 fun CardPreviewRow(
     frontText: String,
     backText: String,
-    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     val colors = EchoTheme.colors
     val shape = RoundedCornerShape(14.dp)

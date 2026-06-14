@@ -2,8 +2,8 @@ import SwiftUI
 
 struct TagChipView: View {
     let tag: String
-    var onTap: (() -> Void)? = nil
-    var onRemove: (() -> Void)? = nil
+    var onTap: (() -> Void)?
+    var onRemove: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 4) {

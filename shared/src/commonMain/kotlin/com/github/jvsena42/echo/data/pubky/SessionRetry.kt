@@ -10,7 +10,7 @@ internal fun Throwable.isSessionExpired(): Boolean {
     if (this !is PubkyError) return false
     val msg = message?.lowercase() ?: return false
     return "session" in msg &&
-            ("import" in msg || "expired" in msg || "invalid" in msg)
+        ("import" in msg || "expired" in msg || "invalid" in msg)
 }
 
 /**

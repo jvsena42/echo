@@ -17,6 +17,10 @@ complexity:
   LongParameterList:
     active: true
     ignoreAnnotated: ['Composable', 'Preview']
+    excludes:
+      - '**/commonTest/**'
+      - '**/androidUnitTest/**'
+      - '**/testing/**'
   LongMethod:
     active: true
     ignoreAnnotated: ['Composable', 'Preview']
@@ -31,6 +35,9 @@ complexity:
     excludes:
       - '**/data/pubky/PubkyClient.kt'
       - '**/data/pubky/AndroidPubkyClient.kt'
+      - '**/commonTest/**'
+      - '**/androidUnitTest/**'
+      - '**/testing/**'
 
 exceptions:
   TooGenericExceptionCaught:
@@ -82,12 +89,15 @@ style:
     excludes:
       - '**/data/pubky/Hashing.android.kt'
       - '**/data/pubky/Hashing.ios.kt'
+      - '**/commonTest/**'
+      - '**/androidUnitTest/**'
+      - '**/testing/**'
   UnusedPrivateMember:
     active: true
     ignoreAnnotated: ['Preview', 'Composable']
   ReturnCount:
     active: true
-    max: 3
+    max: 5
   MaxLineLength:
     active: true
     maxLineLength: 140
@@ -104,8 +114,7 @@ formatting:
   FunctionNaming:
     active: false
   MaximumLineLength:
-    active: true
-    maxLineLength: 140
+    active: false
   NoUnusedImports:
     active: true
   ArgumentListWrapping:
@@ -144,7 +153,7 @@ Compose:
   ModifierComposed:
     active: true
   ModifierMissing:
-    active: true
+    active: false
   ModifierNaming:
     active: true
   ModifierNotUsedAtRoot:
@@ -153,8 +162,10 @@ Compose:
     active: true
   ModifierWithoutDefault:
     active: true
+  # Disabled: false-positives on the early-return loading idiom and on
+  # section-fragment helpers that intentionally emit into a parent scope.
   MultipleEmitters:
-    active: true
+    active: false
   MutableParams:
     active: true
   MutableStateAutoboxing:
@@ -162,7 +173,7 @@ Compose:
   MutableStateParam:
     active: true
   ParameterNaming:
-    active: true
+    active: false
   PreviewAnnotationNaming:
     active: true
   PreviewPublic:

@@ -1,0 +1,47 @@
+# SwiftLint config for the Echo iOS app.
+# Lean ruleset — relies on SwiftLint defaults, only quieting the rules that
+# false-positive on SwiftUI screens. Run via `swiftlint` from iosApp/ (or
+# `./gradlew lintSwift` from the repo root). See CLAUDE.md "Build & run".
+
+included:
+  - iosApp
+
+excluded:
+  # UniFFI-generated bindings — checked in, never hand-edited.
+  - iosApp/Pubky/pubkycore.swift
+  - build
+  - DerivedData
+
+disabled_rules:
+  - todo                 # TODO/FIXME notes are not lint failures
+  - trailing_comma       # multiline-collection trailing commas are fine
+  - multiple_closures_with_trailing_closure  # common SwiftUI view-builder pattern
+  - inclusive_language   # "mastered" is an SRS domain term here, not exclusionary
+
+line_length:
+  warning: 140
+  error: 200
+  ignores_comments: true
+
+# SwiftUI view bodies and screen files legitimately get large.
+type_body_length:
+  warning: 400
+  error: 600
+file_length:
+  warning: 600
+  error: 1000
+function_body_length:
+  warning: 150
+  error: 250
+cyclomatic_complexity:
+  warning: 15
+  error: 20
+
+type_name:
+  # `iOSApp` is the conventional @main SwiftUI App entry-point name.
+  excluded:
+    - iOSApp
+
+identifier_name:
+  # Allow short SwiftUI idioms (id, vm, x, y) without flagging.
+  min_length: 1

@@ -27,9 +27,9 @@ fun AuthorRow(
     name: String?,
     pubky: String,
     initial: Char,
+    modifier: Modifier = Modifier,
     isFollowing: Boolean = false,
     onFollowClick: () -> Unit = {},
-    modifier: Modifier = Modifier,
 ) {
     val colors = EchoTheme.colors
     val pillShape = RoundedCornerShape(50)

@@ -91,11 +91,12 @@ class DecksLibraryViewModel(
         title = title,
         cardCount = cardCount,
         coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
-        authorLabel = if (authorPubky == myPubky) "@you" else "@${authorPubky.take(6)}",
+        authorLabel = if (authorPubky == myPubky) "@you" else "@${authorPubky.take(AUTHOR_PUBKY_PREFIX_LEN)}",
     )
 
     companion object {
         private const val TAG = "Echo/DecksLibVM"
+        private const val AUTHOR_PUBKY_PREFIX_LEN = 6
     }
 }
 

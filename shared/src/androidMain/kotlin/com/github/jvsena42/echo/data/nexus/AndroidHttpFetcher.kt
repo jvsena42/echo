@@ -1,9 +1,9 @@
 package com.github.jvsena42.echo.data.nexus
 
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * [HttpFetcher] backed by [HttpURLConnection] — no client library needed for Echo's

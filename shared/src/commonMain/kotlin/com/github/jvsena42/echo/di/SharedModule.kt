@@ -13,28 +13,27 @@ import com.github.jvsena42.echo.data.repository.MediaRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.data.repository.TagRepository
 import com.github.jvsena42.echo.data.repository.impl.CardRepositoryImpl
-import com.github.jvsena42.echo.data.repository.impl.DiscoveryRepositoryImpl
-import com.github.jvsena42.echo.data.repository.impl.ImportRepositoryImpl
 import com.github.jvsena42.echo.data.repository.impl.DeckRepositoryImpl
+import com.github.jvsena42.echo.data.repository.impl.DiscoveryRepositoryImpl
 import com.github.jvsena42.echo.data.repository.impl.IdentityRepositoryImpl
+import com.github.jvsena42.echo.data.repository.impl.ImportRepositoryImpl
 import com.github.jvsena42.echo.data.repository.impl.MediaRepositoryImpl
 import com.github.jvsena42.echo.data.repository.impl.SessionRevalidatorImpl
 import com.github.jvsena42.echo.data.repository.impl.SrsRepositoryImpl
 import com.github.jvsena42.echo.data.repository.impl.TagRepositoryImpl
-import com.github.jvsena42.echo.presentation.discover.DiscoverViewModel
-import com.github.jvsena42.echo.presentation.profile.FriendProfileViewModel
-import com.github.jvsena42.echo.presentation.study.StudySessionViewModel
 import com.github.jvsena42.echo.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.echo.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.echo.presentation.decks.EditCardViewModel
+import com.github.jvsena42.echo.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.echo.presentation.home.HomeViewModel
-import com.github.jvsena42.echo.presentation.import_flow.PasteImportViewModel
-import com.github.jvsena42.echo.presentation.import_flow.PublishDeckViewModel
+import com.github.jvsena42.echo.presentation.importflow.PasteImportViewModel
+import com.github.jvsena42.echo.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.echo.presentation.onboarding.OnboardingViewModel
+import com.github.jvsena42.echo.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.echo.presentation.profile.ProfileViewModel
 import com.github.jvsena42.echo.presentation.settings.SettingsViewModel
-import org.koin.core.parameter.parametersOf
+import com.github.jvsena42.echo.presentation.study.StudySessionViewModel
 import org.koin.dsl.module
 
 /**
@@ -82,8 +81,22 @@ val sharedModule = module {
         )
     }
     factory { params -> StudySessionViewModel(deckId = params.getOrNull(), srsRepository = get(), deckRepository = get()) }
-    factory { params -> DeckEditorViewModel(deckId = params.getOrNull(), deckRepository = get(), cardRepository = get(), identityRepository = get()) }
-    factory { params -> EditCardViewModel(deckId = params.get(0), cardId = params.get(1), cardRepository = get(), deckRepository = get(), mediaRepository = get()) }
+    factory { params ->
+        DeckEditorViewModel(
+            deckId = params.getOrNull(),
+            deckRepository = get(),
+            cardRepository = get(),
+            identityRepository = get(),
+        )
+    }
+    factory { params ->
+        EditCardViewModel(
+            deckId = params.get(0),
+            cardId = params.get(1),
+            cardRepository = get(),
+            deckRepository = get(),
+        )
+    }
     factory { PasteImportViewModel(importRepository = get()) }
     factory { PublishDeckViewModel(importRepository = get(), deckRepository = get(), identityRepository = get()) }
     factory { ProfileViewModel(identityRepository = get(), deckRepository = get()) }

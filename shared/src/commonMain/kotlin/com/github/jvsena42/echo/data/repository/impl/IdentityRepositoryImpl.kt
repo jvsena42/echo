@@ -6,7 +6,6 @@ import com.github.jvsena42.echo.data.pubky.PubkyClient
 import com.github.jvsena42.echo.data.pubky.PubkyPaths
 import com.github.jvsena42.echo.data.pubky.parseSessionPayload
 import com.github.jvsena42.echo.data.pubky.toDomain
-import com.github.jvsena42.echo.data.pubky.toProfileDto
 import com.github.jvsena42.echo.data.repository.AuthFlowHandle
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.data.storage.SecureSessionStore
@@ -73,11 +72,15 @@ class IdentityRepositoryImpl(
     /** Minimal percent-encoder for the reserved characters in [CALLBACK_URL]. */
     private fun encodeUriComponent(value: String): String = buildString {
         for (ch in value) {
-            if (ch.isLetterOrDigit() || ch in "-_.~") append(ch)
-            else for (b in ch.toString().encodeToByteArray()) {
-                append('%')
-                append(((b.toInt() and 0xFF) shr 4).toString(16).uppercase())
-                append((b.toInt() and 0x0F).toString(16).uppercase())
+            if (ch.isLetterOrDigit() || ch in "-_.~") {
+                append(ch)
+            } else {
+                for (b in ch.toString().encodeToByteArray()) {
+                    val byte = b.toInt() and BYTE_MASK
+                    append('%')
+                    append((byte shr NIBBLE_BITS).toString(HEX_RADIX).uppercase())
+                    append((byte and LOW_NIBBLE_MASK).toString(HEX_RADIX).uppercase())
+                }
             }
         }
     }
@@ -163,6 +166,12 @@ class IdentityRepositoryImpl(
     companion object {
         private const val TAG = "Echo/IdentityRepo"
         private const val PUBKY_LOG_PREFIX_LEN = 8
+
+        // Percent-encoding bit math (see [encodeUriComponent]).
+        private const val HEX_RADIX = 16
+        private const val BYTE_MASK = 0xFF
+        private const val LOW_NIBBLE_MASK = 0x0F
+        private const val NIBBLE_BITS = 4
 
         /** Deeplink Pubky Ring re-opens after approval; registered in the platform manifest. */
         private const val CALLBACK_URL = "echo://login-callback"

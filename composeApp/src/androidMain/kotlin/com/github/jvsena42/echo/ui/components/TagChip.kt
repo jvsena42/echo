@@ -26,10 +26,10 @@ import com.github.jvsena42.echo.ui.theme.EchoTheme
 @Composable
 fun TagChip(
     tag: String,
+    modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     onRemove: (() -> Unit)? = null,
     selected: Boolean = false,
-    modifier: Modifier = Modifier,
 ) {
     val colors = EchoTheme.colors
     val pillShape = RoundedCornerShape(50)

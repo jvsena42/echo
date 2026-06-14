@@ -15,8 +15,8 @@ import com.github.jvsena42.echo.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.echo.presentation.decks.EditCardViewModel
 import com.github.jvsena42.echo.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.echo.presentation.home.HomeViewModel
-import com.github.jvsena42.echo.presentation.import_flow.PasteImportViewModel
-import com.github.jvsena42.echo.presentation.import_flow.PublishDeckViewModel
+import com.github.jvsena42.echo.presentation.importflow.PasteImportViewModel
+import com.github.jvsena42.echo.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.echo.presentation.onboarding.OnboardingViewModel
 import com.github.jvsena42.echo.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.echo.presentation.profile.ProfileViewModel

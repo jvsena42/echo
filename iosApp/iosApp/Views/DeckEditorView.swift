@@ -17,9 +17,9 @@ struct DeckEditorView: View {
     var tags: [String] = []
     var cards: [EditorCardData] = []
     var isSaving: Bool = false
-    var titleError: String? = nil
-    var descriptionError: String? = nil
-    var error: String? = nil
+    var titleError: String?
+    var descriptionError: String?
+    var error: String?
 
     var onTitleChanged: (String) -> Void = { _ in }
     var onDescriptionChanged: (String) -> Void = { _ in }

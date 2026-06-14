@@ -29,8 +29,8 @@ import com.github.jvsena42.echo.ui.theme.EchoTheme
 fun EchoSecondaryButton(
     text: String,
     onClick: () -> Unit,
-    icon: ImageVector? = null,
     modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
 ) {
     val colors = EchoTheme.colors
     val pillShape = RoundedCornerShape(50)

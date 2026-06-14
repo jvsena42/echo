@@ -12,12 +12,13 @@ Echo is a Kotlin Multiplatform flashcards app (iOS + Android) that fuses TinyCar
 ./gradlew :composeApp:assembleDebug     # Android debug build
 ./gradlew :shared:allTests              # shared KMP tests
 ./gradlew :shared:compileKotlinMetadata # fast commonMain compile check
-./gradlew detektAll                     # lint all subprojects (detekt + compose rules)
+./gradlew detektAll                     # lint Kotlin on all subprojects (detekt + compose rules)
+./gradlew lintSwift                     # lint iOS Swift (SwiftLint; needs `brew install swiftlint`)
 ```
 
 iOS: open `iosApp/` in Xcode and run. The `shared` module is consumed as a static framework (`baseName = "Shared"`, `isStatic = true`) — see `shared/build.gradle.kts`. **iOS is not yet runnable end-to-end**: `iOSApp.swift` has the Koin bootstrap commented out, blocked on `IosPubkyClient` conforming to the generated `PubkyClient` protocol once the Shared framework is built. The SwiftUI screens are drafted but VM-driven behaviour unlocks only after that.
 
-Lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `detekt-compose-rules`); run `./gradlew detektAll`. There are no unit tests beyond the default stub in `shared/src/commonTest`.
+Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `detekt-compose-rules`); run `./gradlew detektAll` (use `--auto-correct` to fix formatting findings). Swift lint is SwiftLint (`iosApp/.swiftlint.yml`, generated `pubkycore.swift` excluded); run `./gradlew lintSwift` or `swiftlint` from `iosApp/`. There are no unit tests beyond the default stub in `shared/src/commonTest`.
 
 ## Architecture
 

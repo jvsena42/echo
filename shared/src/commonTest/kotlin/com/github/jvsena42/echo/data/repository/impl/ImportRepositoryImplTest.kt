@@ -1,7 +1,6 @@
 package com.github.jvsena42.echo.data.repository.impl
 
 import com.github.jvsena42.echo.domain.model.ColumnRole
-import com.github.jvsena42.echo.domain.model.ParseFlag
 import com.github.jvsena42.echo.domain.model.Separator
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -159,7 +158,7 @@ class ImportRepositoryImplTest {
 
     @Test
     fun enDashSeparator() = runBlocking {
-        val text = "hola \u2013 hello\ngracias \u2013 thank you"  // \u2013 = en-dash
+        val text = "hola \u2013 hello\ngracias \u2013 thank you" // \u2013 = en-dash
         val draft = repo().parse(text).getOrThrow()
         assertEquals(2, draft.rows.size)
         assertEquals("hola", draft.rows[0].fields[0])

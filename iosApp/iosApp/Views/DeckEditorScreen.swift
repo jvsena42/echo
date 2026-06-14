@@ -4,7 +4,7 @@ import Shared
 /// VM-driven wrapper around the presentational `DeckEditorView`.
 /// `deckId == nil` creates a new deck.
 struct DeckEditorScreen: View {
-    var deckId: String? = nil
+    var deckId: String?
     var onBack: () -> Void = {}
     var onEditCard: (String, String) -> Void = { _, _ in }
     var onSaved: (String) -> Void = { _ in }

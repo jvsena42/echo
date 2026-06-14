@@ -9,8 +9,8 @@ import androidx.navigation.navArgument
 import com.github.jvsena42.echo.ui.decks.DeckDetailRoute
 import com.github.jvsena42.echo.ui.decks.DeckEditorRoute
 import com.github.jvsena42.echo.ui.decks.EditCardRoute
-import com.github.jvsena42.echo.ui.import_flow.PasteRoute
-import com.github.jvsena42.echo.ui.import_flow.PublishDeckRoute
+import com.github.jvsena42.echo.ui.importflow.PasteRoute
+import com.github.jvsena42.echo.ui.importflow.PublishDeckRoute
 import com.github.jvsena42.echo.ui.onboarding.OnboardingRoute
 import com.github.jvsena42.echo.ui.profile.FriendProfileRoute
 import com.github.jvsena42.echo.ui.settings.SettingsRoute

@@ -1,7 +1,6 @@
 package com.github.jvsena42.echo.data.nexus
 
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
 import platform.Foundation.NSData
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSString
@@ -10,6 +9,7 @@ import platform.Foundation.NSURLSession
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
 import platform.Foundation.dataTaskWithURL
+import kotlin.coroutines.resume
 
 /**
  * [HttpFetcher] backed by [NSURLSession] — keeps the shared module free of any HTTP
