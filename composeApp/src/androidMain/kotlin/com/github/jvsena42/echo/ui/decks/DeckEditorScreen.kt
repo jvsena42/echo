@@ -50,12 +50,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.decks.DeckEditorEffect
 import com.github.jvsena42.echo.presentation.decks.DeckEditorUiState
 import com.github.jvsena42.echo.presentation.decks.DeckEditorViewModel
@@ -127,7 +129,11 @@ fun DeckEditorScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = if (state.isNew) "New Deck" else "Edit Deck",
+                        text = if (state.isNew) {
+                            stringResource(R.string.deck_editor_title_new)
+                        } else {
+                            stringResource(R.string.deck_editor_title_edit)
+                        },
                         fontSize = 18.sp,
                         fontWeight = FontWeight.W800,
                     )
@@ -146,7 +152,7 @@ fun DeckEditorScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
+                            contentDescription = stringResource(R.string.deck_editor_close),
                             modifier = Modifier.size(20.dp),
                         )
                     }
@@ -165,7 +171,7 @@ fun DeckEditorScreen(
                             onClick = onSaveClick,
                             colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
                         ) {
-                            Text(text = "Save", fontSize = 14.sp, fontWeight = FontWeight.W700)
+                            Text(text = stringResource(R.string.deck_editor_save), fontSize = 14.sp, fontWeight = FontWeight.W700)
                         }
                     }
                 },
@@ -217,7 +223,7 @@ fun DeckEditorScreen(
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Image,
-                                contentDescription = "Cover",
+                                contentDescription = stringResource(R.string.deck_editor_cover),
                                 tint = colors.foregroundMuted,
                                 modifier = Modifier.size(24.dp),
                             )
@@ -230,7 +236,7 @@ fun DeckEditorScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Text(
-                            text = "DECK TITLE",
+                            text = stringResource(R.string.deck_editor_label_title),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.W700,
                             letterSpacing = 0.8.sp,
@@ -248,7 +254,7 @@ fun DeckEditorScreen(
                             ),
                             placeholder = {
                                 Text(
-                                    text = "Enter deck title...",
+                                    text = stringResource(R.string.deck_editor_title_placeholder),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.W700,
                                     color = colors.foregroundMuted,
@@ -269,7 +275,7 @@ fun DeckEditorScreen(
                 // Description section
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "DESCRIPTION",
+                        text = stringResource(R.string.deck_editor_label_description),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.W700,
                         letterSpacing = 0.8.sp,
@@ -282,7 +288,11 @@ fun DeckEditorScreen(
                         modifier = Modifier.fillMaxWidth(),
                         textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundSecondary),
                         placeholder = {
-                            Text(text = "Add a description...", fontSize = 14.sp, color = colors.foregroundMuted)
+                            Text(
+                                text = stringResource(R.string.deck_editor_description_placeholder),
+                                fontSize = 14.sp,
+                                color = colors.foregroundMuted,
+                            )
                         },
                         isError = state.descriptionError != null,
                         shape = RoundedCornerShape(12.dp),
@@ -297,7 +307,7 @@ fun DeckEditorScreen(
                 // Tags section
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "TAGS (PUBKY)",
+                        text = stringResource(R.string.deck_editor_label_tags),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.W700,
                         letterSpacing = 0.8.sp,
@@ -318,7 +328,7 @@ fun DeckEditorScreen(
                         AssistChip(
                             onClick = { onAddTag("new") },
                             label = {
-                                Text(text = "+ Add", fontSize = 13.sp, fontWeight = FontWeight.W600)
+                                Text(text = stringResource(R.string.deck_editor_add_tag), fontSize = 13.sp, fontWeight = FontWeight.W600)
                             },
                             shape = RoundedCornerShape(50),
                             colors = AssistChipDefaults.assistChipColors(labelColor = colors.accentSecondary),
@@ -330,7 +340,7 @@ fun DeckEditorScreen(
 
             // 2. Cards section header
             Text(
-                text = "Cards (${state.cards.size})",
+                text = stringResource(R.string.deck_editor_cards_count, state.cards.size),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.W800,
                 color = colors.foregroundPrimary,
@@ -356,11 +366,11 @@ fun DeckEditorScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Add card",
+                    contentDescription = stringResource(R.string.deck_editor_add_card),
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Add card", fontSize = 15.sp, fontWeight = FontWeight.W700)
+                Text(text = stringResource(R.string.deck_editor_add_card), fontSize = 15.sp, fontWeight = FontWeight.W700)
             }
 
             // 5. Error toast
@@ -411,7 +421,7 @@ private fun CardRow(
         // Drag handle
         Icon(
             imageVector = Icons.Default.DragIndicator,
-            contentDescription = "Reorder",
+            contentDescription = stringResource(R.string.deck_editor_reorder),
             tint = colors.foregroundMuted,
             modifier = Modifier.size(18.dp),
         )
@@ -422,14 +432,14 @@ private fun CardRow(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = card.frontText.ifEmpty { "Front" },
+                text = card.frontText.ifEmpty { stringResource(R.string.deck_editor_card_front_placeholder) },
                 fontSize = 15.sp,
                 fontWeight = FontWeight.W700,
                 color = if (card.frontText.isEmpty()) colors.foregroundMuted else colors.foregroundPrimary,
                 maxLines = 1,
             )
             Text(
-                text = card.backText.ifEmpty { "Back" },
+                text = card.backText.ifEmpty { stringResource(R.string.deck_editor_card_back_placeholder) },
                 fontSize = 13.sp,
                 color = colors.foregroundMuted,
                 maxLines = 1,
@@ -442,7 +452,7 @@ private fun CardRow(
                 if (card.hasImage) {
                     Icon(
                         imageVector = Icons.Default.Image,
-                        contentDescription = "Has image",
+                        contentDescription = stringResource(R.string.deck_editor_has_image),
                         tint = colors.accentSecondary,
                         modifier = Modifier.size(16.dp),
                     )
@@ -450,7 +460,7 @@ private fun CardRow(
                 if (card.hasAudio) {
                     Icon(
                         imageVector = Icons.Default.Mic,
-                        contentDescription = "Has audio",
+                        contentDescription = stringResource(R.string.deck_editor_has_audio),
                         tint = colors.accentSecondary,
                         modifier = Modifier.size(16.dp),
                     )

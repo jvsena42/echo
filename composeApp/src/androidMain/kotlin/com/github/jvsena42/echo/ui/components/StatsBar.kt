@@ -15,10 +15,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 
 @Composable
@@ -42,7 +44,7 @@ fun StatsBar(
         // Total
         StatColumn(
             value = totalCards.toString(),
-            label = "Total",
+            label = stringResource(R.string.component_stats_bar_total),
             valueColor = colors.foregroundPrimary,
             mutedColor = colors.foregroundMuted,
             modifier = Modifier.weight(1f),
@@ -59,7 +61,7 @@ fun StatsBar(
         // Due
         StatColumn(
             value = dueCards.toString(),
-            label = "Due",
+            label = stringResource(R.string.component_stats_bar_due),
             valueColor = colors.accentPrimary,
             mutedColor = colors.foregroundMuted,
             modifier = Modifier.weight(1f),
@@ -76,7 +78,7 @@ fun StatsBar(
         // Mastered
         StatColumn(
             value = masteredPercent,
-            label = "Mastered",
+            label = stringResource(R.string.component_stats_bar_mastered),
             valueColor = colors.srsGood,
             mutedColor = colors.foregroundMuted,
             modifier = Modifier.weight(1f),

@@ -36,7 +36,7 @@ struct HomeView: View {
                         )
                         TodaysDecksSection(decks: decks, onOpenDeck: onOpenDeck)
                     case .error(let message):
-                        Text("Something went wrong")
+                        Text("home_error_title")
                             .font(.system(size: 20, weight: .heavy))
                             .foregroundColor(EchoColor.foregroundPrimary)
                         Text(message)

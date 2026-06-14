@@ -17,11 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.components.EchoSecondaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -60,14 +62,14 @@ fun HomeEmptyContent(
             Text(text = "\uD83D\uDCDA", fontSize = 64.sp)
         }
         Text(
-            text = "No decks yet",
+            text = stringResource(R.string.home_empty_title),
             color = colors.foregroundPrimary,
             fontSize = 24.sp,
             fontWeight = FontWeight.ExtraBold,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = "Paste a list, import from a file, or start from scratch — your first deck is one tap away.",
+            text = stringResource(R.string.home_empty_subtitle),
             color = colors.foregroundMuted,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
@@ -83,12 +85,12 @@ fun HomeEmptyContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         EchoPrimaryButton(
-            label = "Create your first deck",
+            label = stringResource(R.string.home_create_first_deck),
             onClick = onCreateDeckClick,
             modifier = Modifier.testTag("home_create_deck"),
         )
         EchoSecondaryButton(
-            text = "Browse examples",
+            text = stringResource(R.string.home_browse_examples),
             onClick = onBrowseExamplesClick,
             modifier = Modifier
                 .testTag("home_browse_examples")

@@ -48,7 +48,7 @@ struct DeckEditorView: View {
                         }
                     }
                     Spacer()
-                    Text(isNew ? "New Deck" : "Edit Deck")
+                    Text(isNew ? "deck_editor_title_new" : "deck_editor_title_edit")
                         .font(.system(size: 18, weight: .heavy))
                         .foregroundColor(EchoColor.foregroundPrimary)
                     Spacer()
@@ -59,7 +59,7 @@ struct DeckEditorView: View {
                                     .tint(.white)
                                     .scaleEffect(0.7)
                             }
-                            Text(isSaving ? "Saving…" : "Save")
+                            Text(isSaving ? "deck_editor_saving" : "deck_editor_save")
                         }
                     }
                     .buttonStyle(.echoCompactFilled)
@@ -78,11 +78,11 @@ struct DeckEditorView: View {
                                 .font(.system(size: 32))
                         }
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("DECK TITLE")
+                            Text("deck_editor_label_title")
                                 .font(.system(size: 10, weight: .bold))
                                 .kerning(0.8)
                                 .foregroundColor(EchoColor.foregroundMuted)
-                            TextField("Untitled deck", text: binding(title, onTitleChanged))
+                            TextField("deck_editor_title_placeholder_untitled", text: binding(title, onTitleChanged))
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(EchoColor.foregroundPrimary)
                         }
@@ -93,11 +93,11 @@ struct DeckEditorView: View {
 
                     // Description
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("DESCRIPTION")
+                        Text("deck_editor_label_description")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
                             .foregroundColor(EchoColor.foregroundMuted)
-                        TextField("Add a description...", text: binding(description, onDescriptionChanged), axis: .vertical)
+                        TextField("deck_editor_description_placeholder", text: binding(description, onDescriptionChanged), axis: .vertical)
                             .font(.system(size: 14))
                             .foregroundColor(EchoColor.foregroundSecondary)
                     }
@@ -107,7 +107,7 @@ struct DeckEditorView: View {
 
                     // Tags
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("TAGS (PUBKY)")
+                        Text("deck_editor_label_tags")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
                             .foregroundColor(EchoColor.foregroundMuted)
@@ -116,7 +116,7 @@ struct DeckEditorView: View {
                                 ForEach(tags, id: \.self) { tag in
                                     TagChipView(tag: tag, onRemove: { onRemoveTag(tag) })
                                 }
-                                Button("+ Add", action: { showTagSheet = true })
+                                Button("deck_editor_add_tag", action: { showTagSheet = true })
                                     .buttonStyle(EchoOutlineButtonStyle(
                                         stroke: EchoColor.accentSecondary,
                                         foreground: EchoColor.accentSecondary,
@@ -141,7 +141,7 @@ struct DeckEditorView: View {
                 }
 
                 // Cards header
-                Text("Cards (\(cards.count))")
+                Text(String(format: NSLocalizedString("deck_editor_cards_count", comment: ""), cards.count))
                     .font(.system(size: 16, weight: .heavy))
                     .foregroundColor(EchoColor.foregroundPrimary)
 
@@ -154,9 +154,15 @@ struct DeckEditorView: View {
                                     .font(.system(size: 14))
                                     .foregroundColor(EchoColor.foregroundMuted)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(card.front.isEmpty ? "New card" : card.front)
-                                        .font(.system(size: 15, weight: .bold))
-                                        .foregroundColor(EchoColor.foregroundPrimary)
+                                    Group {
+                                        if card.front.isEmpty {
+                                            Text("deck_editor_card_new")
+                                        } else {
+                                            Text(verbatim: card.front)
+                                        }
+                                    }
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(EchoColor.foregroundPrimary)
                                     Text(card.back)
                                         .font(.system(size: 13))
                                         .foregroundColor(EchoColor.foregroundMuted)
@@ -190,7 +196,7 @@ struct DeckEditorView: View {
                 Button(action: onAddCard) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
-                        Text("Add card")
+                        Text("deck_editor_add_card")
                     }
                 }
                 .buttonStyle(.echoOutline)

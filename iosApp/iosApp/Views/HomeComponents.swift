@@ -4,10 +4,10 @@ struct GreetingHeader: View {
     let name: String
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Hello,")
+            Text("home_greeting_hello")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(EchoColor.foregroundMuted)
-            Text("\(name) 👋")
+            Text(String(format: NSLocalizedString("home_greeting_name", comment: ""), name))
                 .font(.system(size: 24, weight: .heavy))
                 .foregroundColor(EchoColor.foregroundPrimary)
         }
@@ -24,11 +24,11 @@ struct EmptyStateCard: View {
                     .frame(width: 140, height: 140)
                 Text("📚").font(.system(size: 64))
             }
-            Text("No decks yet")
+            Text("home_empty_title")
                 .font(.system(size: 24, weight: .heavy))
                 .foregroundColor(EchoColor.foregroundPrimary)
                 .multilineTextAlignment(.center)
-            Text("Paste a list, import from a file, or start from scratch — your first deck is one tap away.")
+            Text("home_empty_subtitle")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(EchoColor.foregroundMuted)
                 .multilineTextAlignment(.center)
@@ -50,10 +50,10 @@ struct HomeCtaButtons: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Button("Create your first deck", action: onCreateDeck)
+            Button("home_create_first_deck", action: onCreateDeck)
                 .buttonStyle(.echoFilled)
                 .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
-            Button("Browse examples", action: onBrowseExamples)
+            Button("home_browse_examples", action: onBrowseExamples)
                 .buttonStyle(.echoSoft)
         }
     }
@@ -71,7 +71,7 @@ struct DueTodayHeroCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("DUE TODAY")
+            Text("home_due_today")
                 .font(.system(size: 11, weight: .bold))
                 .kerning(1)
                 .foregroundColor(EchoColor.accentPrimarySoft)
@@ -81,10 +81,10 @@ struct DueTodayHeroCard: View {
                     .foregroundColor(.white)
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("cards")
+                    Text("home_cards")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
-                    Text("to review")
+                    Text("home_to_review")
                         .font(.system(size: 13))
                         .foregroundColor(EchoColor.accentPrimarySoft)
                 }
@@ -94,14 +94,14 @@ struct DueTodayHeroCard: View {
                 ProgressView(value: progress)
                     .progressViewStyle(.linear)
                     .tint(.white)
-                Text("\(doneToday) of \(dueToday) done · keep going!")
+                Text(String(format: NSLocalizedString("home_progress_done", comment: ""), doneToday, dueToday))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(EchoColor.accentPrimarySoft)
             }
             Button(action: onStartStudy) {
                 HStack(spacing: 8) {
                     Image(systemName: "play.fill")
-                    Text("Start studying")
+                    Text("home_start_studying")
                 }
             }
             .buttonStyle(EchoFilledButtonStyle(fill: EchoColor.surfaceCard, foreground: EchoColor.accentPrimary, verticalPadding: 16))
@@ -119,11 +119,11 @@ struct TodaysDecksSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Today's decks")
+                Text("home_todays_decks")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(EchoColor.foregroundPrimary)
                 Spacer()
-                Text("See all")
+                Text("home_see_all")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(EchoColor.accentSecondary)
             }
@@ -153,7 +153,7 @@ struct DeckRow: View {
                     Text(deck.title)
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(EchoColor.foregroundPrimary)
-                    Text("\(deck.dueCount) due · \(deck.cardCount) cards")
+                    Text(String(format: NSLocalizedString("home_deck_due_cards", comment: ""), deck.dueCount, deck.cardCount))
                         .font(.system(size: 13))
                         .foregroundColor(EchoColor.foregroundMuted)
                 }

@@ -27,10 +27,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.home.DeckSummary
 import com.github.jvsena42.echo.presentation.home.HomeUiState
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -75,7 +77,7 @@ private fun DueTodayHeroCard(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            text = "DUE TODAY",
+            text = stringResource(R.string.home_due_today),
             color = colors.accentPrimarySoft,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
@@ -98,13 +100,13 @@ private fun DueTodayHeroCard(
                 modifier = Modifier.padding(bottom = 12.dp),
             ) {
                 Text(
-                    text = "cards",
+                    text = stringResource(R.string.home_cards),
                     color = colors.foregroundOnAccent,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "to review",
+                    text = stringResource(R.string.home_to_review),
                     color = colors.accentPrimarySoft,
                     fontSize = 13.sp,
                 )
@@ -113,7 +115,7 @@ private fun DueTodayHeroCard(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             ProgressBar(progress = progress)
             Text(
-                text = "$doneToday of $dueToday done · keep going!",
+                text = stringResource(R.string.home_progress_done, doneToday, dueToday),
                 color = colors.accentPrimarySoft,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
@@ -138,7 +140,7 @@ private fun DueTodayHeroCard(
             )
             Spacer(Modifier.size(8.dp))
             Text(
-                text = "Start studying",
+                text = stringResource(R.string.home_start_studying),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -175,13 +177,13 @@ private fun TodaysDecksSection(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = "Today's decks",
+                text = stringResource(R.string.home_todays_decks),
                 color = colors.foregroundPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "See all",
+                text = stringResource(R.string.home_see_all),
                 color = colors.accentSecondary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -234,7 +236,7 @@ private fun DeckRow(deck: DeckSummary, onClick: () -> Unit) {
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "${deck.dueCount} due · ${deck.cardCount} cards",
+                text = stringResource(R.string.home_deck_due_cards, deck.dueCount, deck.cardCount),
                 color = colors.foregroundMuted,
                 fontSize = 13.sp,
             )

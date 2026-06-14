@@ -54,6 +54,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,6 +62,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.profile.ProfileEffect
 import com.github.jvsena42.echo.presentation.profile.ProfileUiState
 import com.github.jvsena42.echo.presentation.profile.ProfileViewModel
@@ -151,7 +153,7 @@ private fun ProfileScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Profile",
+                text = stringResource(R.string.profile_title),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
@@ -170,7 +172,7 @@ private fun ProfileScreen(
             ) {
                 Icon(
                     imageVector = Icons.Filled.Settings,
-                    contentDescription = "Settings",
+                    contentDescription = stringResource(R.string.profile_settings_content_description),
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -206,7 +208,7 @@ private fun ProfileScreen(
 
             // Display name
             Text(
-                text = state.displayName ?: "pk:${state.pubky.take(6)}",
+                text = state.displayName ?: stringResource(R.string.profile_pubky_short, state.pubky.take(6)),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
@@ -217,7 +219,11 @@ private fun ProfileScreen(
                 onClick = {},
                 label = {
                     Text(
-                        text = "pk:${state.pubky.take(6)}…${state.pubky.takeLast(6)}",
+                        text = stringResource(
+                            R.string.profile_pubky_truncated,
+                            state.pubky.take(6),
+                            state.pubky.takeLast(6),
+                        ),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -259,7 +265,7 @@ private fun ProfileScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             EchoPrimaryButton(
-                label = "Edit Profile",
+                label = stringResource(R.string.profile_edit_profile),
                 onClick = onEditProfileClick,
                 modifier = Modifier.weight(1f),
                 leadingIcon = {
@@ -285,7 +291,7 @@ private fun ProfileScreen(
             ) {
                 Icon(
                     painter = painterResource(id = android.R.drawable.ic_menu_share),
-                    contentDescription = "Share",
+                    contentDescription = stringResource(R.string.profile_share_content_description),
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -303,19 +309,19 @@ private fun ProfileScreen(
         ) {
             ProfileStatColumn(
                 value = state.deckCount.toString(),
-                label = "Decks",
+                label = stringResource(R.string.profile_stat_decks),
                 valueColor = colors.foregroundPrimary,
                 modifier = Modifier.weight(1f),
             )
             ProfileStatColumn(
                 value = state.cardCount.toString(),
-                label = "Cards",
+                label = stringResource(R.string.profile_stat_cards),
                 valueColor = colors.accentPrimary,
                 modifier = Modifier.weight(1f),
             )
             ProfileStatColumn(
                 value = state.streakDays.toString(),
-                label = "Day streak",
+                label = stringResource(R.string.profile_stat_day_streak),
                 valueColor = Color(0xFFFFC83D),
                 modifier = Modifier.weight(1f),
             )
@@ -341,7 +347,7 @@ private fun ProfileScreen(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "Sign out",
+                text = stringResource(R.string.profile_sign_out),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -364,7 +370,7 @@ private fun ProfileScreen(
                         onClick = onDismissError,
                         colors = ButtonDefaults.textButtonColors(contentColor = colors.srsAgain),
                     ) {
-                        Text(text = "Dismiss", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(text = stringResource(R.string.profile_dismiss), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 },
             ) {
@@ -414,7 +420,7 @@ private fun EditProfileSheet(
         ) {
             // Sheet title
             Text(
-                text = "Edit Profile",
+                text = stringResource(R.string.profile_edit_profile_sheet_title),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
@@ -423,7 +429,7 @@ private fun EditProfileSheet(
             // Name field
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "NAME",
+                    text = stringResource(R.string.profile_edit_name_label),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
@@ -438,7 +444,13 @@ private fun EditProfileSheet(
                         fontWeight = FontWeight.Medium,
                         color = colors.foregroundPrimary,
                     ),
-                    placeholder = { Text("Your name", fontSize = 15.sp, color = colors.foregroundMuted) },
+                    placeholder = {
+                        Text(
+                            stringResource(R.string.profile_edit_name_placeholder),
+                            fontSize = 15.sp,
+                            color = colors.foregroundMuted,
+                        )
+                    },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -452,7 +464,7 @@ private fun EditProfileSheet(
             // Bio field
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "BIO",
+                    text = stringResource(R.string.profile_edit_bio_label),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
@@ -470,7 +482,7 @@ private fun EditProfileSheet(
                         lineHeight = 22.sp,
                     ),
                     placeholder = {
-                        Text("Tell us about yourself...", fontSize = 15.sp, color = colors.foregroundMuted)
+                        Text(stringResource(R.string.profile_edit_bio_placeholder), fontSize = 15.sp, color = colors.foregroundMuted)
                     },
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -483,7 +495,7 @@ private fun EditProfileSheet(
 
             // Save button
             EchoPrimaryButton(
-                label = "Save",
+                label = stringResource(R.string.profile_save),
                 onClick = onSaveClick,
                 loading = isSaving,
                 leadingIcon = {

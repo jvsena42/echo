@@ -42,12 +42,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.decks.CardPreviewModel
 import com.github.jvsena42.echo.presentation.decks.DeckDetailEffect
 import com.github.jvsena42.echo.presentation.decks.DeckDetailUiState
@@ -141,7 +143,7 @@ fun DeckDetailScreen(
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = "Something went wrong",
+                    text = stringResource(R.string.deck_detail_error_title),
                     color = colors.foregroundPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -153,7 +155,7 @@ fun DeckDetailScreen(
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 TextButton(onClick = onRetry) {
-                    Text("Retry", color = colors.accentPrimary)
+                    Text(stringResource(R.string.deck_detail_retry), color = colors.accentPrimary)
                 }
             }
         }
@@ -199,9 +201,9 @@ private fun DeckDetailContent(
             ) {
                 EchoPrimaryButton(
                     label = if (state.isOwned) {
-                        "Start studying \u00B7 ${state.dueCards} due"
+                        stringResource(R.string.deck_detail_start_studying, state.dueCards)
                     } else {
-                        "Study this deck"
+                        stringResource(R.string.deck_detail_study_this_deck)
                     },
                     onClick = onStudyClick,
                     modifier = Modifier.testTag("deck_study"),
@@ -297,7 +299,7 @@ private fun HeaderBar(
     ) {
         HeaderCircleButton(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-            contentDescription = "Back",
+            contentDescription = stringResource(R.string.deck_detail_back),
             iconSize = 24.dp,
             onClick = onBackClick,
         )
@@ -306,13 +308,13 @@ private fun HeaderBar(
             if (isOwned) {
                 HeaderCircleButton(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit deck",
+                    contentDescription = stringResource(R.string.deck_detail_edit),
                     onClick = onEditClick,
                     modifier = Modifier.testTag("deck_edit"),
                 )
                 HeaderCircleButton(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete deck",
+                    contentDescription = stringResource(R.string.deck_detail_delete),
                     tint = colors.danger,
                     onClick = onDeleteClick,
                     modifier = Modifier.testTag("deck_delete"),
@@ -320,7 +322,7 @@ private fun HeaderBar(
             }
             HeaderCircleButton(
                 imageVector = Icons.Default.Share,
-                contentDescription = "Share",
+                contentDescription = stringResource(R.string.deck_detail_share),
                 onClick = onShareClick,
                 modifier = Modifier.testTag("deck_share"),
             )
@@ -363,7 +365,7 @@ private fun DeleteDeckDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         containerColor = colors.surfaceCard,
         title = {
             Text(
-                text = "Delete deck",
+                text = stringResource(R.string.deck_detail_delete_dialog_title),
                 color = colors.foregroundPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -371,19 +373,19 @@ private fun DeleteDeckDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         },
         text = {
             Text(
-                text = "Delete this deck? It will be removed from your homeserver.",
+                text = stringResource(R.string.deck_detail_delete_dialog_message),
                 color = colors.foregroundSecondary,
                 fontSize = 14.sp,
             )
         },
         confirmButton = {
             TextButton(onClick = onConfirm, modifier = Modifier.testTag("deck_delete_confirm")) {
-                Text("Delete", color = colors.danger)
+                Text(stringResource(R.string.deck_detail_delete_confirm), color = colors.danger)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = colors.foregroundMuted)
+                Text(stringResource(R.string.deck_detail_delete_cancel), color = colors.foregroundMuted)
             }
         },
     )
@@ -421,7 +423,7 @@ private fun OwnedBadgeRow() {
             onClick = {},
             label = {
                 Text(
-                    text = "IN YOUR LIBRARY",
+                    text = stringResource(R.string.deck_detail_in_your_library),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.W700,
                     letterSpacing = 0.5.sp,
@@ -436,7 +438,7 @@ private fun OwnedBadgeRow() {
         )
 
         Text(
-            text = "Last studied...",
+            text = stringResource(R.string.deck_detail_last_studied),
             color = colors.foregroundMuted,
             fontSize = 11.sp,
         )

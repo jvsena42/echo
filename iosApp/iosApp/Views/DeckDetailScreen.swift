@@ -25,11 +25,11 @@ struct DeckDetailScreen: View {
             onShare: { viewModel?.onShareClick() },
             onStudy: { viewModel?.onStudyClick() }
         )
-        .alert("Delete deck?", isPresented: deleteConfirmBinding) {
-            Button("Cancel", role: .cancel) { viewModel?.onDismissDelete() }
-            Button("Delete", role: .destructive) { viewModel?.onConfirmDelete() }
+        .alert("deck_detail_delete_dialog_title", isPresented: deleteConfirmBinding) {
+            Button("deck_detail_delete_cancel", role: .cancel) { viewModel?.onDismissDelete() }
+            Button("deck_detail_delete_confirm", role: .destructive) { viewModel?.onConfirmDelete() }
         } message: {
-            Text("This removes the deck and its cards from your homeserver.")
+            Text("deck_detail_delete_dialog_message")
         }
         .sheet(item: $shareItem) { item in
             ShareSheet(items: [item.text])

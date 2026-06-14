@@ -46,12 +46,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.importflow.PublishDeckEffect
 import com.github.jvsena42.echo.presentation.importflow.PublishDeckUiState
 import com.github.jvsena42.echo.presentation.importflow.PublishDeckViewModel
@@ -143,10 +145,20 @@ private fun PublishDeckScreen(
                     .clickable(onClick = onBackClick),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Back", tint = colors.foregroundPrimary, modifier = Modifier.size(22.dp))
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    stringResource(R.string.publish_back),
+                    tint = colors.foregroundPrimary,
+                    modifier = Modifier.size(22.dp),
+                )
             }
             Spacer(Modifier.weight(1f))
-            Text("New deck", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = colors.foregroundPrimary)
+            Text(
+                stringResource(R.string.publish_title),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = colors.foregroundPrimary,
+            )
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.size(40.dp))
         }
@@ -163,7 +175,12 @@ private fun PublishDeckScreen(
         ) {
             Icon(Icons.Default.Check, null, tint = colors.srsGood, modifier = Modifier.size(20.dp))
             Column {
-                Text("${state.cardCount} cards ready", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary)
+                Text(
+                    stringResource(R.string.publish_cards_ready, state.cardCount),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.foregroundPrimary,
+                )
             }
         }
 
@@ -186,7 +203,13 @@ private fun PublishDeckScreen(
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("COVER", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
+                Text(
+                    stringResource(R.string.publish_cover_label),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    color = colors.foregroundMuted,
+                )
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -196,14 +219,25 @@ private fun PublishDeckScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("🖼️", fontSize = 14.sp)
-                    Text("Change", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.foregroundPrimary)
+                    Text(
+                        stringResource(R.string.publish_cover_change),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.foregroundPrimary,
+                    )
                 }
             }
         }
 
         // Title
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("TITLE", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
+            Text(
+                stringResource(R.string.publish_title_label),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = colors.foregroundMuted,
+            )
             BasicTextField(
                 value = state.title,
                 onValueChange = onTitleChanged,
@@ -218,7 +252,13 @@ private fun PublishDeckScreen(
                 singleLine = true,
                 decorationBox = { inner ->
                     Box {
-                        if (state.title.isEmpty()) Text("Deck title", fontSize = 16.sp, color = colors.foregroundMuted)
+                        if (state.title.isEmpty()) {
+                            Text(
+                                stringResource(R.string.publish_title_placeholder),
+                                fontSize = 16.sp,
+                                color = colors.foregroundMuted,
+                            )
+                        }
                         inner()
                     }
                 },
@@ -230,7 +270,13 @@ private fun PublishDeckScreen(
 
         // Description
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("DESCRIPTION", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
+            Text(
+                stringResource(R.string.publish_description_label),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = colors.foregroundMuted,
+            )
             BasicTextField(
                 value = state.description,
                 onValueChange = onDescriptionChanged,
@@ -245,7 +291,7 @@ private fun PublishDeckScreen(
                 decorationBox = { inner ->
                     Box {
                         if (state.description.isEmpty()) {
-                            Text("Add a short description...", fontSize = 14.sp, color = colors.foregroundMuted)
+                            Text(stringResource(R.string.publish_description_placeholder), fontSize = 14.sp, color = colors.foregroundMuted)
                         }
                         inner()
                     }
@@ -258,7 +304,13 @@ private fun PublishDeckScreen(
 
         // Tags
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("TAGS", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = colors.foregroundMuted)
+            Text(
+                stringResource(R.string.publish_tags_label),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = colors.foregroundMuted,
+            )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 state.tags.forEach { tag ->
                     TagChip(tag = tag, onRemove = { onRemoveTag(tag) })
@@ -274,12 +326,12 @@ private fun PublishDeckScreen(
                 ) {
                     Icon(
                         Icons.Default.Add,
-                        contentDescription = "Add tag",
+                        contentDescription = stringResource(R.string.publish_add_tag),
                         tint = colors.foregroundMuted,
                         modifier = Modifier.size(12.dp),
                     )
                     Text(
-                        text = "Add",
+                        text = stringResource(R.string.publish_add),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = colors.foregroundMuted,
@@ -300,14 +352,19 @@ private fun PublishDeckScreen(
         ) {
             Text("🌐", fontSize = 18.sp)
             Column {
-                Text("Public on your profile", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary)
-                Text("Anyone can find this deck on Discover.", fontSize = 12.sp, color = colors.foregroundSecondary)
+                Text(
+                    stringResource(R.string.publish_public_title),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.foregroundPrimary,
+                )
+                Text(stringResource(R.string.publish_public_subtitle), fontSize = 12.sp, color = colors.foregroundSecondary)
             }
         }
 
         // Publish button
         EchoPrimaryButton(
-            label = "Publish deck",
+            label = stringResource(R.string.publish_button),
             onClick = onPublishClick,
             loading = state.isPublishing,
             enabled = state.canPublish,
@@ -353,7 +410,7 @@ private fun PublishDeckScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 Text(
-                    text = "Add Tag",
+                    text = stringResource(R.string.publish_tag_sheet_title),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = colors.foregroundPrimary,
@@ -390,7 +447,7 @@ private fun PublishDeckScreen(
                             Box {
                                 if (tagInput.isEmpty()) {
                                     Text(
-                                        "Type a tag\u2026",
+                                        stringResource(R.string.publish_tag_input_placeholder),
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = colors.foregroundMuted,
@@ -405,7 +462,7 @@ private fun PublishDeckScreen(
                 if (suggestedTags.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            text = "SUGGESTED",
+                            text = stringResource(R.string.publish_suggested_label),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp,
@@ -425,7 +482,7 @@ private fun PublishDeckScreen(
                 if (state.tags.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            text = "CURRENT TAGS",
+                            text = stringResource(R.string.publish_current_tags_label),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp,
@@ -443,7 +500,7 @@ private fun PublishDeckScreen(
                 }
 
                 EchoPrimaryButton(
-                    label = "Add Tag",
+                    label = stringResource(R.string.publish_add_tag_button),
                     onClick = {
                         onAddTag(tagInput)
                         tagInput = ""
@@ -488,11 +545,21 @@ private fun PublishedContent(
                 .background(colors.srsGood.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Default.Check, "Published", tint = colors.srsGood, modifier = Modifier.size(36.dp))
+            Icon(
+                Icons.Default.Check,
+                stringResource(R.string.publish_published_icon_desc),
+                tint = colors.srsGood,
+                modifier = Modifier.size(36.dp),
+            )
         }
-        Text("Deck published!", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = colors.foregroundPrimary)
         Text(
-            text = "${state.cardCount} cards are now public on your Pubky.",
+            stringResource(R.string.publish_published_title),
+            fontSize = 20.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = colors.foregroundPrimary,
+        )
+        Text(
+            text = stringResource(R.string.publish_published_subtitle, state.cardCount),
             fontSize = 14.sp,
             color = colors.foregroundSecondary,
         )
@@ -501,7 +568,7 @@ private fun PublishedContent(
 
         // Done button
         EchoPrimaryButton(
-            label = "Done",
+            label = stringResource(R.string.publish_done),
             onClick = onDonePublish,
             modifier = Modifier
                 .testTag("publish_done")
@@ -521,7 +588,7 @@ private fun PublishedContent(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Undo (${state.undoSecondsRemaining}s)",
+                text = stringResource(R.string.publish_undo, state.undoSecondsRemaining),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = colors.foregroundPrimary,

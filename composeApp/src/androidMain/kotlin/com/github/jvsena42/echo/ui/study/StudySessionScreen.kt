@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.platform.Speaker
 import com.github.jvsena42.echo.presentation.study.StudySessionEffect
@@ -116,23 +118,29 @@ fun StudySessionScreen(
             )
 
             is StudySessionUiState.Error -> CenteredMessage(
-                title = "Something went wrong",
+                title = stringResource(R.string.study_error_title),
                 subtitle = state.message,
-                actionLabel = "Close",
+                actionLabel = stringResource(R.string.study_close),
                 onAction = onClose,
             )
 
             is StudySessionUiState.Empty -> CenteredMessage(
-                title = "You're all caught up 🎉",
-                subtitle = "No cards due${state.deckTitle.takeIf { it.isNotBlank() }?.let { " in $it" } ?: ""} right now.",
-                actionLabel = "Done",
+                title = stringResource(R.string.study_empty_title),
+                subtitle = state.deckTitle.takeIf { it.isNotBlank() }
+                    ?.let { stringResource(R.string.study_empty_subtitle_deck, it) }
+                    ?: stringResource(R.string.study_empty_subtitle),
+                actionLabel = stringResource(R.string.study_done),
                 onAction = onClose,
             )
 
             is StudySessionUiState.Complete -> CenteredMessage(
-                title = "All done! 🎊",
-                subtitle = "You reviewed ${state.reviewed} card${if (state.reviewed == 1) "" else "s"}.",
-                actionLabel = "Back",
+                title = stringResource(R.string.study_complete_title),
+                subtitle = if (state.reviewed == 1) {
+                    stringResource(R.string.study_complete_subtitle_one)
+                } else {
+                    stringResource(R.string.study_complete_subtitle_many, state.reviewed)
+                },
+                actionLabel = stringResource(R.string.study_back),
                 onAction = onDone,
             )
 
@@ -176,7 +184,7 @@ private fun ReviewingContent(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Close",
+                    contentDescription = stringResource(R.string.study_close),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -189,7 +197,7 @@ private fun ReviewingContent(
                     color = colors.foregroundMuted,
                 )
                 Text(
-                    text = "${state.position} of ${state.total}",
+                    text = stringResource(R.string.study_position_of_total, state.position, state.total),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.W700,
                     color = colors.foregroundPrimary,
@@ -230,7 +238,7 @@ private fun ReviewingContent(
             Crossfade(targetState = state.revealed, label = "cardFace") { revealed ->
                 if (!revealed) {
                     CardFace(
-                        label = "TAP TO REVEAL",
+                        label = stringResource(R.string.study_tap_to_reveal),
                         text = state.frontText,
                         textSize = 44.sp,
                         onSpeak = onSpeak,
@@ -294,12 +302,12 @@ private fun CardFace(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                contentDescription = "Speak",
+                contentDescription = stringResource(R.string.study_speak),
                 modifier = Modifier.size(16.dp),
             )
             Spacer(modifier = Modifier.size(8.dp))
             Text(
-                text = "Speak",
+                text = stringResource(R.string.study_speak),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.W700,
             )

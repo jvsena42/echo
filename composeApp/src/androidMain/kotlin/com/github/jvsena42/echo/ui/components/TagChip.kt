@@ -15,10 +15,12 @@ import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 
 /**
@@ -40,7 +42,7 @@ fun TagChip(
         modifier = modifier,
         label = {
             Text(
-                text = "#$tag",
+                text = stringResource(R.string.component_tag_chip_label, tag),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.W600,
             )
@@ -49,7 +51,7 @@ fun TagChip(
             {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Remove tag",
+                    contentDescription = stringResource(R.string.component_tag_chip_remove),
                     modifier = Modifier
                         .size(16.dp)
                         .clickable(onClick = it),

@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 
@@ -30,16 +31,17 @@ fun EchoTabBar(
         contentColor = colors.foregroundOnAccent,
     ) {
         EchoTab.entries.forEach { tab ->
+            val tabLabel = stringResource(tab.labelRes)
             ShortNavigationBarItem(
                 selected = tab == selectedTab,
                 onClick = { onTabSelected(tab) },
                 icon = {
                     Icon(
                         imageVector = tab.icon,
-                        contentDescription = tab.label,
+                        contentDescription = tabLabel,
                     )
                 },
-                label = { Text(tab.label) },
+                label = { Text(tabLabel) },
                 colors = ShortNavigationBarItemDefaults.colors(
                     selectedIconColor = colors.foregroundOnAccent,
                     selectedTextColor = colors.foregroundOnAccent,

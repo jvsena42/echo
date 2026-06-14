@@ -19,16 +19,16 @@ struct EditCardView: View {
                 // Header
                 HStack {
                     Button(action: onBack) {
-                        Text("Cancel")
+                        Text("edit_card_cancel")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(EchoColor.accentPrimary)
                     }
                     Spacer()
-                    Text("Edit card")
+                    Text("edit_card_title")
                         .font(.system(size: 18, weight: .heavy))
                         .foregroundColor(EchoColor.foregroundPrimary)
                     Spacer()
-                    Button("Save", action: {})
+                    Button("edit_card_save", action: {})
                         .buttonStyle(.echoCompactFilled)
                 }
 
@@ -37,7 +37,7 @@ struct EditCardView: View {
                     Image(systemName: "square.stack.3d.up")
                         .font(.system(size: 12))
                         .foregroundColor(EchoColor.accentSecondary)
-                    Text("Card \(cardIndex) of \(totalCards) · \(deckTitle)")
+                    Text(String(format: NSLocalizedString("edit_card_context", comment: ""), cardIndex, totalCards, deckTitle))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(EchoColor.accentSecondary)
                 }
@@ -50,7 +50,7 @@ struct EditCardView: View {
                 // Front section
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("FRONT")
+                        Text("edit_card_label_front")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
                             .foregroundColor(EchoColor.foregroundMuted)
@@ -58,7 +58,7 @@ struct EditCardView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "speaker.wave.2")
                                 .font(.system(size: 12))
-                            Text("Speak")
+                            Text("edit_card_speak")
                                 .font(.system(size: 12, weight: .semibold))
                         }
                         .foregroundColor(EchoColor.accentPrimary)
@@ -78,7 +78,7 @@ struct EditCardView: View {
                 // Back section
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("BACK")
+                        Text("edit_card_label_back")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
                             .foregroundColor(EchoColor.foregroundMuted)
@@ -86,7 +86,7 @@ struct EditCardView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "speaker.wave.2")
                                 .font(.system(size: 12))
-                            Text("Speak")
+                            Text("edit_card_speak")
                                 .font(.system(size: 12, weight: .semibold))
                         }
                         .foregroundColor(EchoColor.accentPrimary)
@@ -108,7 +108,7 @@ struct EditCardView: View {
                     Button(action: {}) {
                         HStack(spacing: 8) {
                             Image(systemName: "photo")
-                            Text("Image")
+                            Text("edit_card_image")
                         }
                     }
                     .buttonStyle(EchoOutlineButtonStyle(
@@ -120,7 +120,7 @@ struct EditCardView: View {
                     Button(action: {}) {
                         HStack(spacing: 8) {
                             Image(systemName: "mic")
-                            Text("Audio")
+                            Text("edit_card_audio")
                         }
                     }
                     .buttonStyle(EchoOutlineButtonStyle(
@@ -133,7 +133,7 @@ struct EditCardView: View {
 
                 // Tags section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("TAGS")
+                    Text("edit_card_label_tags")
                         .font(.system(size: 10, weight: .bold))
                         .kerning(0.8)
                         .foregroundColor(EchoColor.foregroundMuted)
@@ -141,7 +141,7 @@ struct EditCardView: View {
                         ForEach(tags, id: \.self) { tag in
                             TagChipView(tag: tag)
                         }
-                        Text("+ Add")
+                        Text("edit_card_add_tag")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(EchoColor.accentSecondary)
                             .padding(.horizontal, 14)
@@ -164,7 +164,7 @@ struct EditCardView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "trash")
                             .font(.system(size: 16))
-                        Text("Delete card")
+                        Text("edit_card_delete")
                             .font(.system(size: 15, weight: .bold))
                     }
                     .foregroundColor(EchoColor.srsAgain)

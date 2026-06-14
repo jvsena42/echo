@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -40,6 +41,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.profile.FriendDeck
 import com.github.jvsena42.echo.presentation.profile.FriendProfileEffect
 import com.github.jvsena42.echo.presentation.profile.FriendProfileUiState
@@ -123,7 +125,7 @@ private fun FriendProfileScreen(
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
+                contentDescription = stringResource(R.string.friend_profile_back_content_description),
                 tint = colors.foregroundPrimary,
                 modifier = Modifier.size(20.dp),
             )
@@ -132,7 +134,11 @@ private fun FriendProfileScreen(
         // Header: avatar + name + pubky + follow pill (reused AuthorRow)
         AuthorRow(
             name = state.displayName,
-            pubky = "pk:${state.pubky.take(6)}…${state.pubky.takeLast(6)}",
+            pubky = stringResource(
+                R.string.friend_profile_pubky_truncated,
+                state.pubky.take(6),
+                state.pubky.takeLast(6),
+            ),
             initial = state.avatarInitial,
             isFollowing = state.isFollowing,
             onFollowClick = onToggleFollow,
@@ -149,7 +155,7 @@ private fun FriendProfileScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Copy pubky",
+                text = stringResource(R.string.friend_profile_copy_pubky),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.foregroundMuted,
@@ -168,14 +174,14 @@ private fun FriendProfileScreen(
 
         // Decks
         Text(
-            text = "Public decks · ${state.decks.size}",
+            text = stringResource(R.string.friend_profile_public_decks_count, state.decks.size),
             color = colors.foregroundPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.W700,
         )
         if (state.decks.isEmpty()) {
             Text(
-                text = "No public decks yet.",
+                text = stringResource(R.string.friend_profile_no_public_decks),
                 color = colors.foregroundMuted,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,

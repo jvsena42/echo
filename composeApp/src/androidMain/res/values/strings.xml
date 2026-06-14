@@ -1,3 +1,245 @@
 <resources>
     <string name="app_name">Echo</string>
+
+    <!-- Home -->
+    <string name="home_greeting_hello">Hello,</string>
+    <string name="home_greeting_name">%1$s 👋</string>
+    <string name="home_error_title">Something went wrong</string>
+    <string name="home_retry">Retry</string>
+    <string name="home_due_today">DUE TODAY</string>
+    <string name="home_cards">cards</string>
+    <string name="home_to_review">to review</string>
+    <string name="home_progress_done">%1$d of %2$d done · keep going!</string>
+    <string name="home_start_studying">Start studying</string>
+    <string name="home_todays_decks">Today\'s decks</string>
+    <string name="home_see_all">See all</string>
+    <string name="home_deck_due_cards">%1$d due · %2$d cards</string>
+    <string name="home_empty_title">No decks yet</string>
+    <string name="home_empty_subtitle">Paste a list, import from a file, or start from scratch — your first deck is one tap away.</string>
+    <string name="home_create_first_deck">Create your first deck</string>
+    <string name="home_browse_examples">Browse examples</string>
+
+    <!-- Decks library -->
+    <string name="decks_title">Your decks</string>
+    <string name="decks_search">Search</string>
+    <string name="decks_paste_cta_title">Paste to import</string>
+    <string name="decks_paste_cta_subtitle">Turn any list into a deck</string>
+    <string name="decks_paste_cta_go">Go</string>
+    <string name="decks_library_count">Library · %1$d</string>
+    <string name="decks_recent">Recent</string>
+    <string name="decks_empty_title">No decks yet</string>
+    <string name="decks_empty_subtitle">Create your first deck or paste a list to get started.</string>
+    <string name="decks_empty_create">Create a deck</string>
+    <string name="decks_error_title">Something went wrong</string>
+    <string name="decks_retry">Retry</string>
+
+    <!-- Deck detail -->
+    <string name="deck_detail_error_title">Something went wrong</string>
+    <string name="deck_detail_retry">Retry</string>
+    <string name="deck_detail_start_studying">Start studying · %1$d due</string>
+    <string name="deck_detail_study_this_deck">Study this deck</string>
+    <string name="deck_detail_back">Back</string>
+    <string name="deck_detail_edit">Edit deck</string>
+    <string name="deck_detail_delete">Delete deck</string>
+    <string name="deck_detail_share">Share</string>
+    <string name="deck_detail_delete_dialog_title">Delete deck</string>
+    <string name="deck_detail_delete_dialog_message">Delete this deck? It will be removed from your homeserver.</string>
+    <string name="deck_detail_delete_confirm">Delete</string>
+    <string name="deck_detail_delete_cancel">Cancel</string>
+    <string name="deck_detail_in_your_library">IN YOUR LIBRARY</string>
+    <string name="deck_detail_last_studied">Last studied...</string>
+
+    <!-- Deck editor -->
+    <string name="deck_editor_title_new">New Deck</string>
+    <string name="deck_editor_title_edit">Edit Deck</string>
+    <string name="deck_editor_close">Close</string>
+    <string name="deck_editor_save">Save</string>
+    <string name="deck_editor_cover">Cover</string>
+    <string name="deck_editor_label_title">DECK TITLE</string>
+    <string name="deck_editor_title_placeholder">Enter deck title...</string>
+    <string name="deck_editor_label_description">DESCRIPTION</string>
+    <string name="deck_editor_description_placeholder">Add a description...</string>
+    <string name="deck_editor_label_tags">TAGS (PUBKY)</string>
+    <string name="deck_editor_add_tag">+ Add</string>
+    <string name="deck_editor_cards_count">Cards (%1$d)</string>
+    <string name="deck_editor_add_card">Add card</string>
+    <string name="deck_editor_reorder">Reorder</string>
+    <string name="deck_editor_card_front_placeholder">Front</string>
+    <string name="deck_editor_card_back_placeholder">Back</string>
+    <string name="deck_editor_has_image">Has image</string>
+    <string name="deck_editor_has_audio">Has audio</string>
+
+    <!-- Edit card -->
+    <string name="edit_card_title">Edit card</string>
+    <string name="edit_card_cancel">Cancel</string>
+    <string name="edit_card_save">Save</string>
+    <string name="edit_card_context">Card %1$d of %2$d · %3$s</string>
+    <string name="edit_card_label_front">FRONT</string>
+    <string name="edit_card_speak_front">Speak front</string>
+    <string name="edit_card_front_placeholder">Enter front text...</string>
+    <string name="edit_card_label_back">BACK</string>
+    <string name="edit_card_speak_back">Speak back</string>
+    <string name="edit_card_back_placeholder">Enter back text...</string>
+    <string name="edit_card_add_image">Add image</string>
+    <string name="edit_card_image">Image</string>
+    <string name="edit_card_add_audio">Add audio</string>
+    <string name="edit_card_audio">Audio</string>
+    <string name="edit_card_label_tags">TAGS</string>
+    <string name="edit_card_add_tag">+ Add</string>
+    <string name="edit_card_delete">Delete card</string>
+    <string name="edit_card_speak">Speak</string>
+
+    <!-- Study session -->
+    <string name="study_error_title">Something went wrong</string>
+    <string name="study_close">Close</string>
+    <string name="study_empty_title">You\'re all caught up 🎉</string>
+    <string name="study_empty_subtitle">No cards due right now.</string>
+    <string name="study_empty_subtitle_deck">No cards due in %1$s right now.</string>
+    <string name="study_done">Done</string>
+    <string name="study_complete_title">All done! 🎊</string>
+    <string name="study_complete_subtitle_one">You reviewed 1 card.</string>
+    <string name="study_complete_subtitle_many">You reviewed %1$d cards.</string>
+    <string name="study_back">Back</string>
+    <string name="study_position_of_total">%1$d of %2$d</string>
+    <string name="study_tap_to_reveal">TAP TO REVEAL</string>
+    <string name="study_speak">Speak</string>
+
+    <!-- Discover -->
+    <string name="discover_title">Discover</string>
+    <string name="discover_add_friend">Add friend</string>
+    <string name="discover_trending">Trending on Pubky</string>
+    <string name="discover_empty_tag_emoji">🔍</string>
+    <string name="discover_empty_tag_title">No decks tagged “%1$s” yet</string>
+    <string name="discover_empty_tag_subtitle">Follow more friends to widen your feed, or tap the tag again to clear it.</string>
+    <string name="discover_empty_emoji">👥</string>
+    <string name="discover_empty_title">Follow a friend to see their decks here</string>
+    <string name="discover_empty_subtitle">Add a friend by their pubky to follow them and discover their public decks.</string>
+    <string name="discover_add_a_friend">Add a friend</string>
+    <string name="discover_error_title">Something went wrong</string>
+    <string name="discover_retry">Retry</string>
+    <string name="discover_add_friend_sheet_subtitle">Paste a pubky or scan their QR code to view their profile and follow them.</string>
+    <string name="discover_paste_pubky">Paste a pubky</string>
+    <string name="discover_scan_qr">Scan QR</string>
+    <string name="discover_open">Open</string>
+
+    <!-- Paste import -->
+    <string name="paste_title">Paste cards</string>
+    <string name="paste_cancel">Cancel</string>
+    <string name="paste_next">Next</string>
+    <string name="paste_input_placeholder_title">Paste your list here</string>
+    <string name="paste_input_placeholder_subtitle">one card per line</string>
+    <string name="paste_detected_separator">Detected: %1$s</string>
+    <string name="paste_card_count">%1$d cards</string>
+    <string name="paste_preview_label">PREVIEW</string>
+    <string name="paste_try_pasting_label">TRY PASTING SOMETHING LIKE</string>
+    <string name="paste_public_notice">This deck will be public on your profile</string>
+    <string name="paste_card_index">%1$d/%2$d</string>
+    <string name="paste_blank_placeholder">—</string>
+    <string name="paste_separator_tab">tab</string>
+    <string name="paste_separator_semicolon">semicolon</string>
+    <string name="paste_separator_pipe">pipe</string>
+    <string name="paste_separator_em_dash">em-dash</string>
+    <string name="paste_separator_colon">colon</string>
+    <string name="paste_separator_comma">comma</string>
+    <string name="paste_separator_blank_lines">blank lines</string>
+    <string name="paste_separator_markdown">markdown</string>
+    <string name="paste_separator_single_column">single column</string>
+    <string name="paste_separator_auto">auto</string>
+
+    <!-- Publish deck -->
+    <string name="publish_back">Back</string>
+    <string name="publish_title">New deck</string>
+    <string name="publish_cards_ready">%1$d cards ready</string>
+    <string name="publish_cover_label">COVER</string>
+    <string name="publish_cover_change">Change</string>
+    <string name="publish_title_label">TITLE</string>
+    <string name="publish_title_placeholder">Deck title</string>
+    <string name="publish_description_label">DESCRIPTION</string>
+    <string name="publish_description_placeholder">Add a short description...</string>
+    <string name="publish_tags_label">TAGS</string>
+    <string name="publish_add_tag">Add tag</string>
+    <string name="publish_add">Add</string>
+    <string name="publish_public_title">Public on your profile</string>
+    <string name="publish_public_subtitle">Anyone can find this deck on Discover.</string>
+    <string name="publish_button">Publish deck</string>
+    <string name="publish_tag_sheet_title">Add Tag</string>
+    <string name="publish_tag_input_placeholder">Type a tag…</string>
+    <string name="publish_suggested_label">SUGGESTED</string>
+    <string name="publish_current_tags_label">CURRENT TAGS</string>
+    <string name="publish_add_tag_button">Add Tag</string>
+    <string name="publish_published_icon_desc">Published</string>
+    <string name="publish_published_title">Deck published!</string>
+    <string name="publish_published_subtitle">%1$d cards are now public on your Pubky.</string>
+    <string name="publish_done">Done</string>
+    <string name="publish_undo">Undo (%1$ds)</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_hero_title">Learn anything,\nremember everything.</string>
+    <string name="onboarding_hero_subtitle">Spaced repetition that feels like a game. Decks you make, share, and learn from friends.</string>
+    <string name="onboarding_brand_name">Echo</string>
+    <string name="onboarding_signin_waiting">Waiting for Pubky Ring…</string>
+    <string name="onboarding_signin_verifying">Signing in…</string>
+    <string name="onboarding_signin_default">Sign in with Pubky Ring</string>
+    <string name="onboarding_no_email_notice">No email. No password. Your key, your account.</string>
+    <string name="onboarding_get_ring">Don\'t have Pubky Ring? Get the app</string>
+
+    <!-- Profile -->
+    <string name="profile_title">Profile</string>
+    <string name="profile_settings_content_description">Settings</string>
+    <string name="profile_pubky_short">pk:%1$s</string>
+    <string name="profile_pubky_truncated">pk:%1$s…%2$s</string>
+    <string name="profile_edit_profile">Edit Profile</string>
+    <string name="profile_share_content_description">Share</string>
+    <string name="profile_stat_decks">Decks</string>
+    <string name="profile_stat_cards">Cards</string>
+    <string name="profile_stat_day_streak">Day streak</string>
+    <string name="profile_sign_out">Sign out</string>
+    <string name="profile_dismiss">Dismiss</string>
+    <string name="profile_edit_profile_sheet_title">Edit Profile</string>
+    <string name="profile_edit_name_label">NAME</string>
+    <string name="profile_edit_name_placeholder">Your name</string>
+    <string name="profile_edit_bio_label">BIO</string>
+    <string name="profile_edit_bio_placeholder">Tell us about yourself...</string>
+    <string name="profile_save">Save</string>
+
+    <!-- Friend profile -->
+    <string name="friend_profile_back_content_description">Back</string>
+    <string name="friend_profile_pubky_truncated">pk:%1$s…%2$s</string>
+    <string name="friend_profile_copy_pubky">Copy pubky</string>
+    <string name="friend_profile_public_decks_count">Public decks · %1$d</string>
+    <string name="friend_profile_no_public_decks">No public decks yet.</string>
+
+    <!-- Settings -->
+    <string name="settings_back_content_description">Back</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_identity">IDENTITY</string>
+    <string name="settings_pubky_label">Pubky</string>
+    <string name="settings_pubky_truncated">pk:%1$s…%2$s</string>
+    <string name="settings_not_signed_in">Not signed in</string>
+    <string name="settings_copy">Copy</string>
+    <string name="settings_homeserver_label">Homeserver</string>
+    <string name="settings_homeserver_unknown">Unknown</string>
+    <string name="settings_section_about">ABOUT</string>
+    <string name="settings_app_version_label">App version</string>
+    <string name="settings_app_version_unknown">—</string>
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_sign_out_dialog_title">Sign out?</string>
+    <string name="settings_sign_out_dialog_message">Your decks stay on your homeserver. Signing back in restores everything.</string>
+    <string name="settings_cancel">Cancel</string>
+
+    <!-- Shared components -->
+    <string name="component_deck_tile_card_count">%1$d cards</string>
+    <string name="component_author_row_following">Following</string>
+    <string name="component_author_row_follow">Follow</string>
+    <string name="component_stats_bar_total">Total</string>
+    <string name="component_stats_bar_due">Due</string>
+    <string name="component_stats_bar_mastered">Mastered</string>
+    <string name="component_tag_chip_label">#%1$s</string>
+    <string name="component_tag_chip_remove">Remove tag</string>
+
+    <!-- Navigation / tabs -->
+    <string name="nav_tab_study">STUDY</string>
+    <string name="nav_tab_decks">DECKS</string>
+    <string name="nav_tab_discover">DISCOVER</string>
+    <string name="nav_tab_profile">PROFILE</string>
 </resources>

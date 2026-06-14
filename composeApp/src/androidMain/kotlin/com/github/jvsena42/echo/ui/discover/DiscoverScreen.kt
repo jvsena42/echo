@@ -46,12 +46,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.presentation.discover.DiscoverDeck
 import com.github.jvsena42.echo.presentation.discover.DiscoverEffect
@@ -197,7 +199,7 @@ private fun HeaderRow(onAddFriend: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "Discover",
+            text = stringResource(R.string.discover_title),
             color = colors.foregroundPrimary,
             fontSize = 28.sp,
             fontWeight = FontWeight.ExtraBold,
@@ -219,7 +221,7 @@ private fun HeaderRow(onAddFriend: () -> Unit) {
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "Add friend",
+                text = stringResource(R.string.discover_add_friend),
                 color = colors.accentSecondary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.W700,
@@ -259,7 +261,7 @@ private fun TrendingSection(
     val colors = EchoTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
-            text = "Trending on Pubky",
+            text = stringResource(R.string.discover_trending),
             color = colors.foregroundSecondary,
             fontSize = 13.sp,
             fontWeight = FontWeight.W700,
@@ -280,15 +282,15 @@ private fun EmptyTagBlock(tag: Tag) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
     ) {
-        Text(text = "🔍", fontSize = 36.sp)
+        Text(text = stringResource(R.string.discover_empty_tag_emoji), fontSize = 36.sp)
         Text(
-            text = "No decks tagged “${tag.value}” yet",
+            text = stringResource(R.string.discover_empty_tag_title, tag.value),
             color = colors.foregroundPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Follow more friends to widen your feed, or tap the tag again to clear it.",
+            text = stringResource(R.string.discover_empty_tag_subtitle),
             color = colors.foregroundMuted,
             fontSize = 13.sp,
         )
@@ -346,15 +348,15 @@ private fun EmptyBlock(onAddFriend: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth().padding(top = 64.dp),
     ) {
-        Text(text = "👥", fontSize = 48.sp)
+        Text(text = stringResource(R.string.discover_empty_emoji), fontSize = 48.sp)
         Text(
-            text = "Follow a friend to see their decks here",
+            text = stringResource(R.string.discover_empty_title),
             color = colors.foregroundPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
         )
         Text(
-            text = "Add a friend by their pubky to follow them and discover their public decks.",
+            text = stringResource(R.string.discover_empty_subtitle),
             color = colors.foregroundMuted,
             fontSize = 14.sp,
         )
@@ -367,7 +369,7 @@ private fun EmptyBlock(onAddFriend: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Add a friend",
+                text = stringResource(R.string.discover_add_a_friend),
                 color = colors.foregroundOnAccent,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
@@ -385,14 +387,14 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(top = 64.dp),
     ) {
         Text(
-            text = "Something went wrong",
+            text = stringResource(R.string.discover_error_title),
             color = colors.foregroundPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold,
         )
         Text(text = message, color = colors.foregroundMuted, fontSize = 14.sp)
         TextButton(onClick = onRetry) {
-            Text("Retry", color = colors.accentPrimary)
+            Text(stringResource(R.string.discover_retry), color = colors.accentPrimary)
         }
     }
 }
@@ -425,13 +427,13 @@ private fun AddFriendSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "Add a friend",
+                text = stringResource(R.string.discover_add_a_friend),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
             )
             Text(
-                text = "Paste a pubky or scan their QR code to view their profile and follow them.",
+                text = stringResource(R.string.discover_add_friend_sheet_subtitle),
                 fontSize = 13.sp,
                 color = colors.foregroundMuted,
             )
@@ -450,7 +452,7 @@ private fun AddFriendSheet(
                 decorationBox = { inner ->
                     Box {
                         if (input.isEmpty()) {
-                            Text("Paste a pubky", fontSize = 15.sp, color = colors.foregroundMuted)
+                            Text(stringResource(R.string.discover_paste_pubky), fontSize = 15.sp, color = colors.foregroundMuted)
                         }
                         inner()
                     }
@@ -467,7 +469,7 @@ private fun AddFriendSheet(
                     horizontalArrangement = Arrangement.Center,
                 ) {
                     Text(
-                        text = "Scan QR",
+                        text = stringResource(R.string.discover_scan_qr),
                         color = colors.foregroundSecondary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
@@ -483,7 +485,7 @@ private fun AddFriendSheet(
                     horizontalArrangement = Arrangement.Center,
                 ) {
                     Text(
-                        text = "Open",
+                        text = stringResource(R.string.discover_open),
                         color = colors.foregroundOnAccent,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,

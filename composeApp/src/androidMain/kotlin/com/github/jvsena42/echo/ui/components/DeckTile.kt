@@ -18,11 +18,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 
 @Composable
@@ -86,7 +88,7 @@ fun DeckTile(
             // Meta row
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "$cardCount cards",
+                    text = stringResource(R.string.component_deck_tile_card_count, cardCount),
                     fontSize = 12.sp,
                     color = colors.foregroundMuted,
                 )

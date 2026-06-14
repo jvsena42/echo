@@ -38,11 +38,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.decks.DeckTileModel
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryEffect
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryUiState
@@ -158,14 +160,14 @@ private fun HeaderRow() {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "Your decks",
+            text = stringResource(R.string.decks_title),
             color = colors.foregroundPrimary,
             fontSize = 28.sp,
             fontWeight = FontWeight.ExtraBold,
         )
         Icon(
             imageVector = Icons.Default.Search,
-            contentDescription = "Search",
+            contentDescription = stringResource(R.string.decks_search),
             tint = colors.foregroundPrimary,
             modifier = Modifier.size(24.dp),
         )
@@ -212,13 +214,13 @@ private fun PasteCtaCard(onClick: () -> Unit) {
             // Text column
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Paste to import",
+                    text = stringResource(R.string.decks_paste_cta_title),
                     color = colors.foregroundOnAccent,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.W700,
                 )
                 Text(
-                    text = "Turn any list into a deck",
+                    text = stringResource(R.string.decks_paste_cta_subtitle),
                     color = colors.foregroundOnAccent.copy(alpha = 0.8f),
                     fontSize = 13.sp,
                 )
@@ -227,7 +229,7 @@ private fun PasteCtaCard(onClick: () -> Unit) {
             // Arrow icon
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Go",
+                contentDescription = stringResource(R.string.decks_paste_cta_go),
                 tint = colors.foregroundOnAccent,
                 modifier = Modifier.size(22.dp),
             )
@@ -244,13 +246,13 @@ private fun SectionHeader(deckCount: Int) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "Library \u00B7 $deckCount",
+            text = stringResource(R.string.decks_library_count, deckCount),
             color = colors.foregroundPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.W700,
         )
         Text(
-            text = "Recent",
+            text = stringResource(R.string.decks_recent),
             color = colors.accentPrimary,
             fontSize = 13.sp,
             fontWeight = FontWeight.W600,
@@ -315,18 +317,18 @@ private fun EmptyBlock(onCreateDeckClick: () -> Unit) {
             fontSize = 48.sp,
         )
         Text(
-            text = "No decks yet",
+            text = stringResource(R.string.decks_empty_title),
             color = colors.foregroundPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold,
         )
         Text(
-            text = "Create your first deck or paste a list to get started.",
+            text = stringResource(R.string.decks_empty_subtitle),
             color = colors.foregroundMuted,
             fontSize = 14.sp,
         )
         EchoPrimaryButton(
-            label = "Create a deck",
+            label = stringResource(R.string.decks_empty_create),
             onClick = onCreateDeckClick,
             modifier = Modifier
                 .testTag("decks_create")
@@ -344,7 +346,7 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
         modifier = Modifier.padding(top = 48.dp),
     ) {
         Text(
-            text = "Something went wrong",
+            text = stringResource(R.string.decks_error_title),
             color = colors.foregroundPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold,
@@ -355,7 +357,7 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
             fontSize = 14.sp,
         )
         TextButton(onClick = onRetry) {
-            Text("Retry", color = colors.accentPrimary)
+            Text(stringResource(R.string.decks_retry), color = colors.accentPrimary)
         }
     }
 }

@@ -33,7 +33,7 @@ struct OnboardingView: View {
                     .frame(width: 44, height: 44)
                 Text("🦊").font(.system(size: 24))
             }
-            Text("Echo")
+            Text("onboarding_brand_name")
                 .font(.system(size: 24, weight: .heavy))
                 .foregroundColor(Color(red: 0.11, green: 0.11, blue: 0.12))
         }
@@ -47,12 +47,12 @@ struct OnboardingView: View {
                     .frame(width: 160, height: 160)
                 Text("🦊").font(.system(size: 96))
             }
-            Text("Learn anything,\nremember everything.")
+            Text("onboarding_hero_title")
                 .font(.system(size: 30, weight: .heavy))
                 .foregroundColor(Color(red: 0.11, green: 0.11, blue: 0.12))
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
-            Text("Spaced repetition that feels like a game. Decks you make, share, and learn from friends.")
+            Text("onboarding_hero_subtitle")
                 .font(.system(size: 15))
                 .foregroundColor(Color(red: 0.35, green: 0.35, blue: 0.4))
                 .multilineTextAlignment(.center)
@@ -65,14 +65,14 @@ struct OnboardingView: View {
             Button(action: onSignInTapped) {
                 HStack(spacing: 10) {
                     Image(systemName: "key.fill")
-                    Text(isWorking ? "Waiting for Pubky Ring…" : "Sign in with Pubky Ring")
+                    Text(isWorking ? "onboarding_signin_waiting" : "onboarding_signin_default")
                 }
             }
             .buttonStyle(.echoFilled)
             .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
             .disabled(isWorking)
 
-            Text("No email. No password. Your key, your account.")
+            Text("onboarding_no_email_notice")
                 .font(.system(size: 13))
                 .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.6))
                 .multilineTextAlignment(.center)
@@ -84,7 +84,7 @@ struct OnboardingView: View {
             }
 
             Button(action: onInstallTapped) {
-                Text("Don't have Pubky Ring? Get the app")
+                Text("onboarding_get_ring")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Color(red: 0.48, green: 0.3, blue: 1.0))
             }

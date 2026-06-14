@@ -6,10 +6,10 @@ struct ProfileView: View {
             EchoColor.surfacePrimary.ignoresSafeArea()
             VStack(spacing: 12) {
                 Text("\u{1F464}").font(.system(size: 64))
-                Text("Profile")
+                Text("profile_title")
                     .font(.system(size: 24, weight: .heavy))
                     .foregroundColor(EchoColor.foregroundPrimary)
-                Text("Coming soon")
+                Text("common_coming_soon")
                     .font(.system(size: 14))
                     .foregroundColor(EchoColor.foregroundMuted)
             }

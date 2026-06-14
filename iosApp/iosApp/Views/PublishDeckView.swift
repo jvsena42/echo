@@ -28,7 +28,7 @@ struct PublishDeckView: View {
                         }
                     }
                     Spacer()
-                    Text("New deck")
+                    Text("publish_title")
                         .font(.system(size: 18, weight: .heavy))
                         .foregroundColor(EchoColor.foregroundPrimary)
                     Spacer()
@@ -41,7 +41,7 @@ struct PublishDeckView: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(EchoColor.srsGood)
                     VStack(alignment: .leading) {
-                        Text("\(cardCount) cards ready")
+                        Text(String(format: NSLocalizedString("publish_cards_ready", comment: ""), cardCount))
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(EchoColor.foregroundPrimary)
                     }
@@ -62,13 +62,13 @@ struct PublishDeckView: View {
                         Text(coverEmoji).font(.system(size: 32))
                     }
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("COVER")
+                        Text("publish_cover_label")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
                             .foregroundColor(EchoColor.foregroundMuted)
                         HStack(spacing: 4) {
                             Text("🖼️").font(.system(size: 14))
-                            Text("Change")
+                            Text("publish_cover_change")
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(EchoColor.foregroundPrimary)
                         }
@@ -83,11 +83,11 @@ struct PublishDeckView: View {
 
                 // Title
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("TITLE")
+                    Text("publish_title_label")
                         .font(.system(size: 10, weight: .bold))
                         .kerning(0.8)
                         .foregroundColor(EchoColor.foregroundMuted)
-                    TextField("Deck title", text: $title)
+                    TextField("publish_title_placeholder", text: $title)
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(EchoColor.foregroundPrimary)
                         .padding(14)
@@ -99,11 +99,11 @@ struct PublishDeckView: View {
 
                 // Description
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("DESCRIPTION")
+                    Text("publish_description_label")
                         .font(.system(size: 10, weight: .bold))
                         .kerning(0.8)
                         .foregroundColor(EchoColor.foregroundMuted)
-                    TextField("Add a short description...", text: $description)
+                    TextField("publish_description_placeholder", text: $description)
                         .font(.system(size: 14))
                         .foregroundColor(EchoColor.foregroundSecondary)
                         .padding(14)
@@ -115,7 +115,7 @@ struct PublishDeckView: View {
 
                 // Tags
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("TAGS")
+                    Text("publish_tags_label")
                         .font(.system(size: 10, weight: .bold))
                         .kerning(0.8)
                         .foregroundColor(EchoColor.foregroundMuted)
@@ -128,7 +128,7 @@ struct PublishDeckView: View {
                         Button(action: { showTagSheet = true }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "plus")
-                                Text("Add")
+                                Text("publish_add")
                             }
                         }
                         .buttonStyle(EchoOutlineButtonStyle(
@@ -146,10 +146,10 @@ struct PublishDeckView: View {
                 HStack(spacing: 10) {
                     Text("🌐").font(.system(size: 18))
                     VStack(alignment: .leading) {
-                        Text("Public on your profile")
+                        Text("publish_public_title")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(EchoColor.foregroundPrimary)
-                        Text("Anyone can find this deck on Discover.")
+                        Text("publish_public_subtitle")
                             .font(.system(size: 12))
                             .foregroundColor(EchoColor.foregroundSecondary)
                     }
@@ -165,7 +165,7 @@ struct PublishDeckView: View {
                 Button(action: { onPublished("preview-deck-id") }) {
                     HStack(spacing: 8) {
                         Text("🔗")
-                        Text("Publish deck")
+                        Text("publish_button")
                     }
                 }
                 .buttonStyle(EchoFilledButtonStyle(fill: title.isEmpty ? Color.gray : EchoColor.accentPrimary))
@@ -205,7 +205,7 @@ private struct PublishAddTagSheet: View {
 
             VStack(alignment: .leading, spacing: 20) {
                 // Title
-                Text("Add Tag")
+                Text("publish_tag_sheet_title")
                     .font(.system(size: 20, weight: .heavy))
                     .foregroundColor(EchoColor.foregroundPrimary)
 
@@ -214,7 +214,7 @@ private struct PublishAddTagSheet: View {
                     Text("#")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(EchoColor.accentSecondary)
-                    TextField("Type a tag\u{2026}", text: $tagInput)
+                    TextField("publish_tag_input_placeholder", text: $tagInput)
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(EchoColor.foregroundPrimary)
                 }
@@ -232,7 +232,7 @@ private struct PublishAddTagSheet: View {
                 // Suggested
                 if !suggestedTags.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("SUGGESTED")
+                        Text("publish_suggested_label")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(1)
                             .foregroundColor(EchoColor.foregroundMuted)
@@ -252,7 +252,7 @@ private struct PublishAddTagSheet: View {
                 // Current tags
                 if !tags.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("CURRENT TAGS")
+                        Text("publish_current_tags_label")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(1)
                             .foregroundColor(EchoColor.foregroundMuted)
@@ -276,7 +276,7 @@ private struct PublishAddTagSheet: View {
                 }) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
-                        Text("Add Tag")
+                        Text("publish_add_tag_button")
                     }
                 }
                 .buttonStyle(EchoFilledButtonStyle(
