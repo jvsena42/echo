@@ -28,14 +28,8 @@ struct EditCardView: View {
                         .font(.system(size: 18, weight: .heavy))
                         .foregroundColor(EchoColor.foregroundPrimary)
                     Spacer()
-                    Button(action: {}) {
-                        Text("Save")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Capsule().fill(EchoColor.accentPrimary))
-                    }
+                    Button("Save", action: {})
+                        .buttonStyle(.echoCompactFilled)
                 }
 
                 // Context chip
@@ -114,33 +108,27 @@ struct EditCardView: View {
                     Button(action: {}) {
                         HStack(spacing: 8) {
                             Image(systemName: "photo")
-                                .font(.system(size: 16))
                             Text("Image")
-                                .font(.system(size: 14))
                         }
-                        .foregroundColor(EchoColor.foregroundMuted)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(EchoColor.borderSubtle, lineWidth: 1)
-                        )
                     }
+                    .buttonStyle(EchoOutlineButtonStyle(
+                        stroke: EchoColor.borderSubtle,
+                        foreground: EchoColor.foregroundMuted,
+                        fontSize: 14,
+                        lineWidth: 1
+                    ))
                     Button(action: {}) {
                         HStack(spacing: 8) {
                             Image(systemName: "mic")
-                                .font(.system(size: 16))
                             Text("Audio")
-                                .font(.system(size: 14))
                         }
-                        .foregroundColor(EchoColor.foregroundMuted)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(EchoColor.borderSubtle, lineWidth: 1)
-                        )
                     }
+                    .buttonStyle(EchoOutlineButtonStyle(
+                        stroke: EchoColor.borderSubtle,
+                        foreground: EchoColor.foregroundMuted,
+                        fontSize: 14,
+                        lineWidth: 1
+                    ))
                 }
 
                 // Tags section

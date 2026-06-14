@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -21,8 +22,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -37,6 +44,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -155,19 +163,20 @@ private fun ReviewingContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
+            FilledIconButton(
+                onClick = onClose,
                 modifier = Modifier
                     .testTag("study_close")
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(colors.surfaceCard)
-                    .clickable(onClick = onClose),
-                contentAlignment = Alignment.Center,
+                    .size(40.dp),
+                shape = RoundedCornerShape(50),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = colors.surfaceCard,
+                    contentColor = colors.foregroundPrimary,
+                ),
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Close",
-                    tint = colors.foregroundPrimary,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -192,21 +201,17 @@ private fun ReviewingContent(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Progress bar
-        Box(
+        LinearProgressIndicator(
+            progress = { state.position.toFloat() / state.total.coerceAtLeast(1) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
-                .clip(RoundedCornerShape(50))
-                .background(colors.borderSubtle),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(state.position.toFloat() / state.total.coerceAtLeast(1))
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(colors.accentPrimary),
-            )
-        }
+                .clip(RoundedCornerShape(50)),
+            color = colors.accentPrimary,
+            trackColor = colors.borderSubtle,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+        )
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -255,7 +260,7 @@ private fun ReviewingContent(
 private fun CardFace(
     label: String?,
     text: String,
-    textSize: androidx.compose.ui.unit.TextUnit,
+    textSize: TextUnit,
     onSpeak: () -> Unit,
 ) {
     val colors = EchoTheme.colors
@@ -279,26 +284,24 @@ private fun CardFace(
             color = colors.foregroundPrimary,
             textAlign = TextAlign.Center,
         )
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(colors.accentSecondarySoft)
-                .clickable(onClick = onSpeak)
-                .padding(horizontal = 18.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        FilledTonalButton(
+            onClick = onSpeak,
+            shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = colors.accentSecondarySoft,
+                contentColor = colors.accentSecondary,
+            ),
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                 contentDescription = "Speak",
-                tint = colors.accentSecondary,
                 modifier = Modifier.size(16.dp),
             )
+            Spacer(modifier = Modifier.size(8.dp))
             Text(
                 text = "Speak",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.W700,
-                color = colors.accentSecondary,
             )
         }
     }
@@ -321,29 +324,33 @@ private fun SrsRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         buttons.forEach { (grade, color) ->
-            Column(
+            Button(
+                onClick = { onGrade(grade) },
                 modifier = Modifier
                     .testTag("study_${grade.name.lowercase()}")
                     .weight(1f)
-                    .height(72.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(color)
-                    .clickable { onGrade(grade) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+                    .height(72.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = color,
+                    contentColor = Color.White,
+                ),
             ) {
-                Text(
-                    text = grade.name,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.W700,
-                    color = Color.White,
-                )
-                Text(
-                    text = intervals[grade] ?: "",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.W500,
-                    color = Color.White,
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = grade.name,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.W700,
+                    )
+                    Text(
+                        text = intervals[grade] ?: "",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.W500,
+                    )
+                }
             }
         }
     }
@@ -378,18 +385,19 @@ private fun BoxScope.CenteredMessage(
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(colors.accentPrimary)
-                .clickable(onClick = onAction)
-                .padding(horizontal = 32.dp, vertical = 14.dp),
+        Button(
+            onClick = onAction,
+            shape = RoundedCornerShape(50),
+            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = colors.accentPrimary,
+                contentColor = colors.foregroundOnAccent,
+            ),
         ) {
             Text(
                 text = actionLabel,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.W700,
-                color = colors.foregroundOnAccent,
             )
         }
     }

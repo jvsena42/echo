@@ -44,8 +44,8 @@ fun DeckTile(
             .shadow(
                 elevation = 24.dp,
                 shape = shape,
-                ambientColor = Color(0x261A1326),
-                spotColor = Color(0x261A1326),
+                ambientColor = colors.shadowElevationXHigh,
+                spotColor = colors.shadowElevationXHigh,
             )
             .clip(shape)
             .background(colors.surfaceCard)

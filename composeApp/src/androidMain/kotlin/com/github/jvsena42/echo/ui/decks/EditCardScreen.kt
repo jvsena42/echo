@@ -1,27 +1,22 @@
 package com.github.jvsena42.echo.ui.decks
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -29,10 +24,21 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -41,7 +47,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -98,7 +104,7 @@ fun EditCardRoute(
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun EditCardScreen(
     state: EditCardUiState,
@@ -114,319 +120,154 @@ fun EditCardScreen(
 ) {
     val colors = EchoTheme.colors
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.surfacePrimary)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        // 1. Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Cancel",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.W600,
-                color = colors.accentPrimary,
-                modifier = Modifier.clickable(onClick = onCancelClick),
-            )
-
-            Text(
-                text = "Edit card",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.W800,
-                color = colors.foregroundPrimary,
-            )
-
-            // Save button
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(colors.accentPrimary)
-                    .clickable(enabled = !state.isSaving, onClick = onSaveClick)
-                    .padding(vertical = 8.dp, horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (state.isSaving) {
-                    CircularProgressIndicator(
-                        color = colors.foregroundOnAccent,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(16.dp),
-                    )
-                } else {
+    Scaffold(
+        containerColor = colors.surfacePrimary,
+        topBar = {
+            TopAppBar(
+                title = {
                     Text(
-                        text = "Save",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.W700,
-                        color = colors.foregroundOnAccent,
+                        text = "Edit card",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.W800,
                     )
-                }
-            }
-        }
-
-        // 2. Context chip
-        Row(
+                },
+                navigationIcon = {
+                    TextButton(
+                        onClick = onCancelClick,
+                        colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
+                    ) {
+                        Text(text = "Cancel", fontSize = 16.sp, fontWeight = FontWeight.W600)
+                    }
+                },
+                actions = {
+                    if (state.isSaving) {
+                        CircularProgressIndicator(
+                            color = colors.accentPrimary,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier
+                                .padding(end = 16.dp)
+                                .size(20.dp),
+                        )
+                    } else {
+                        TextButton(
+                            onClick = onSaveClick,
+                            colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
+                        ) {
+                            Text(text = "Save", fontSize = 16.sp, fontWeight = FontWeight.W700)
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = colors.surfacePrimary,
+                    titleContentColor = colors.foregroundPrimary,
+                ),
+            )
+        },
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(colors.accentSecondarySoft)
-                .padding(vertical = 6.dp, horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Icon(
-                imageVector = Icons.Default.Layers,
-                contentDescription = null,
-                tint = colors.accentSecondary,
-                modifier = Modifier.size(14.dp),
-            )
-            Text(
-                text = "Card ${state.cardIndex} of ${state.totalCards} \u00B7 ${state.deckTitle}",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.W600,
-                color = colors.accentSecondary,
-            )
-        }
-
-        // 3. Front section
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "FRONT",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.W700,
-                    letterSpacing = 0.8.sp,
-                    color = colors.foregroundMuted,
-                )
-                Row(
-                    modifier = Modifier.clickable(onClick = onSpeakFront),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                        contentDescription = "Speak front",
-                        tint = colors.accentPrimary,
-                        modifier = Modifier.size(14.dp),
-                    )
+            // 1. Context chip
+            AssistChip(
+                onClick = {},
+                label = {
                     Text(
-                        text = "Speak",
+                        text = "Card ${state.cardIndex} of ${state.totalCards} · ${state.deckTitle}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.W600,
-                        color = colors.accentPrimary,
                     )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Layers,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                    )
+                },
+                shape = RoundedCornerShape(50),
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = colors.accentSecondarySoft,
+                    labelColor = colors.accentSecondary,
+                    leadingIconContentColor = colors.accentSecondary,
+                ),
+                border = null,
+            )
+
+            // 2. Front section
+            CardTextSection(
+                label = "FRONT",
+                speakDescription = "Speak front",
+                onSpeak = onSpeakFront,
+                value = state.frontText,
+                onValueChange = onFrontTextChanged,
+                placeholder = "Enter front text...",
+                textStyle = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.W700),
+                error = state.frontError,
+                focusedBorderColor = colors.accentPrimary,
+            )
+
+            // 3. Back section
+            CardTextSection(
+                label = "BACK",
+                speakDescription = "Speak back",
+                onSpeak = onSpeakBack,
+                value = state.backText,
+                onValueChange = onBackTextChanged,
+                placeholder = "Enter back text...",
+                textStyle = TextStyle(fontSize = 16.sp),
+                error = state.backError,
+                focusedBorderColor = colors.accentPrimary,
+            )
+
+            // 4. Media buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = { /* TODO: image picker */ },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.foregroundMuted),
+                    border = BorderStroke(1.dp, colors.borderSubtle),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = "Add image",
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Image", fontSize = 14.sp)
+                }
+
+                OutlinedButton(
+                    onClick = { /* TODO: audio recorder */ },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.foregroundMuted),
+                    border = BorderStroke(1.dp, colors.borderSubtle),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = "Add audio",
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Audio", fontSize = 14.sp)
                 }
             }
 
+            // 5. Tags section
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .border(
-                        width = 2.dp,
-                        color = colors.accentPrimary,
-                        shape = RoundedCornerShape(16.dp),
-                    )
-                    .padding(16.dp)
-                    .defaultMinSize(minHeight = 100.dp),
-            ) {
-                BasicTextField(
-                    value = state.frontText,
-                    onValueChange = onFrontTextChanged,
-                    textStyle = TextStyle(
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.W700,
-                        color = colors.foregroundPrimary,
-                    ),
-                    cursorBrush = SolidColor(colors.accentPrimary),
-                    modifier = Modifier.fillMaxWidth(),
-                    decorationBox = { innerTextField ->
-                        Box {
-                            if (state.frontText.isEmpty()) {
-                                Text(
-                                    text = "Enter front text...",
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.W700,
-                                    color = colors.foregroundMuted,
-                                )
-                            }
-                            innerTextField()
-                        }
-                    },
-                )
-            }
-
-            state.frontError?.let { errorText ->
-                Text(
-                    text = errorText,
-                    fontSize = 12.sp,
-                    color = colors.danger,
-                )
-            }
-        }
-
-        // 4. Back section
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "BACK",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.W700,
-                    letterSpacing = 0.8.sp,
-                    color = colors.foregroundMuted,
-                )
-                Row(
-                    modifier = Modifier.clickable(onClick = onSpeakBack),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                        contentDescription = "Speak back",
-                        tint = colors.accentPrimary,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Text(
-                        text = "Speak",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.W600,
-                        color = colors.accentPrimary,
-                    )
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(
-                        width = 1.dp,
-                        color = colors.borderSubtle,
-                        shape = RoundedCornerShape(16.dp),
-                    )
-                    .padding(16.dp),
-            ) {
-                BasicTextField(
-                    value = state.backText,
-                    onValueChange = onBackTextChanged,
-                    textStyle = TextStyle(
-                        fontSize = 16.sp,
-                        color = colors.foregroundPrimary,
-                    ),
-                    cursorBrush = SolidColor(colors.accentPrimary),
-                    modifier = Modifier.fillMaxWidth(),
-                    decorationBox = { innerTextField ->
-                        Box {
-                            if (state.backText.isEmpty()) {
-                                Text(
-                                    text = "Enter back text...",
-                                    fontSize = 16.sp,
-                                    color = colors.foregroundMuted,
-                                )
-                            }
-                            innerTextField()
-                        }
-                    },
-                )
-            }
-
-            state.backError?.let { errorText ->
-                Text(
-                    text = errorText,
-                    fontSize = 12.sp,
-                    color = colors.danger,
-                )
-            }
-        }
-
-        // 5. Media buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            // Image button
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .border(
-                        width = 1.dp,
-                        color = colors.borderSubtle,
-                        shape = RoundedCornerShape(14.dp),
-                    )
-                    .clickable { /* TODO: image picker */ }
-                    .padding(vertical = 14.dp, horizontal = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Image,
-                    contentDescription = "Add image",
-                    tint = colors.foregroundMuted,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Image",
-                    fontSize = 14.sp,
-                    color = colors.foregroundMuted,
-                )
-            }
-
-            // Audio button
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .border(
-                        width = 1.dp,
-                        color = colors.borderSubtle,
-                        shape = RoundedCornerShape(14.dp),
-                    )
-                    .clickable { /* TODO: audio recorder */ }
-                    .padding(vertical = 14.dp, horizontal = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = "Add audio",
-                    tint = colors.foregroundMuted,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Audio",
-                    fontSize = 14.sp,
-                    color = colors.foregroundMuted,
-                )
-            }
-        }
-
-        // 6. Tags section
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(
-                        width = 1.dp,
-                        color = colors.borderSubtle,
-                        shape = RoundedCornerShape(16.dp),
-                    )
+                    .background(colors.surfaceCard)
                     .padding(16.dp),
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -449,67 +290,110 @@ fun EditCardScreen(
                             )
                         }
 
-                        // + Add chip
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .border(
-                                    width = 1.dp,
-                                    color = colors.accentSecondary,
-                                    shape = RoundedCornerShape(50),
-                                )
-                                .clickable { onAddTag("new") }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                        ) {
-                            Text(
-                                text = "+ Add",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.W600,
-                                color = colors.accentSecondary,
-                            )
-                        }
+                        AssistChip(
+                            onClick = { onAddTag("new") },
+                            label = {
+                                Text(text = "+ Add", fontSize = 13.sp, fontWeight = FontWeight.W600)
+                            },
+                            shape = RoundedCornerShape(50),
+                            colors = AssistChipDefaults.assistChipColors(labelColor = colors.accentSecondary),
+                            border = BorderStroke(1.dp, colors.accentSecondary),
+                        )
                     }
                 }
             }
+
+            // 6. Delete button
+            FilledTonalButton(
+                onClick = onDeleteCard,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = colors.dangerSoft,
+                    contentColor = colors.srsAgain,
+                ),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete card",
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Delete card", fontSize = 15.sp, fontWeight = FontWeight.W700)
+            }
+
+            state.error?.let { errorText ->
+                Text(
+                    text = errorText,
+                    fontSize = 14.sp,
+                    color = colors.danger,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
+    }
+}
 
-        // 7. Spacer to push delete to bottom
-        Spacer(modifier = Modifier.weight(1f))
-
-        // 8. Delete button
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CardTextSection(
+    label: String,
+    speakDescription: String,
+    onSpeak: () -> Unit,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    textStyle: TextStyle,
+    error: String?,
+    focusedBorderColor: Color,
+) {
+    val colors = EchoTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(colors.dangerSoft)
-                .clickable(onClick = onDeleteCard)
-                .padding(vertical = 16.dp),
-            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = "Delete card",
-                tint = colors.srsAgain,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Delete card",
-                fontSize = 15.sp,
+                text = label,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.W700,
-                color = colors.srsAgain,
+                letterSpacing = 0.8.sp,
+                color = colors.foregroundMuted,
             )
+            TextButton(
+                onClick = onSpeak,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                    contentDescription = speakDescription,
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = "Speak", fontSize = 12.sp, fontWeight = FontWeight.W600)
+            }
         }
 
-        // Error display
-        state.error?.let { errorText ->
-            Text(
-                text = errorText,
-                fontSize = 14.sp,
-                color = colors.danger,
-                modifier = Modifier.fillMaxWidth(),
-            )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = textStyle.copy(color = colors.foregroundPrimary),
+            placeholder = { Text(text = placeholder, style = textStyle, color = colors.foregroundMuted) },
+            isError = error != null,
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = focusedBorderColor,
+                unfocusedBorderColor = colors.borderSubtle,
+                cursorColor = colors.accentPrimary,
+                errorBorderColor = colors.danger,
+            ),
+        )
+
+        error?.let { errorText ->
+            Text(text = errorText, fontSize = 12.sp, color = colors.danger)
         }
     }
 }

@@ -1,7 +1,6 @@
 package com.github.jvsena42.echo.ui.decks
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,8 +22,12 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -335,18 +338,18 @@ private fun HeaderCircleButton(
     iconSize: Dp = 20.dp,
 ) {
     val colors = EchoTheme.colors
-    Box(
-        modifier = modifier
-            .size(40.dp)
-            .clip(RoundedCornerShape(50))
-            .background(colors.surfaceCard)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+    FilledIconButton(
+        onClick = onClick,
+        modifier = modifier.size(40.dp),
+        shape = RoundedCornerShape(50),
+        colors = IconButtonDefaults.filledIconButtonColors(
+            containerColor = colors.surfaceCard,
+            contentColor = if (tint == Color.Unspecified) colors.foregroundPrimary else tint,
+        ),
     ) {
         Icon(
             imageVector = imageVector,
             contentDescription = contentDescription,
-            tint = if (tint == Color.Unspecified) colors.foregroundPrimary else tint,
             modifier = Modifier.size(iconSize),
         )
     }
@@ -414,21 +417,23 @@ private fun OwnedBadgeRow() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Green badge
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(colors.srsGood)
-                .padding(horizontal = 10.dp, vertical = 4.dp),
-        ) {
-            Text(
-                text = "IN YOUR LIBRARY",
-                color = colors.foregroundOnAccent,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.W700,
-                letterSpacing = 0.5.sp,
-            )
-        }
+        AssistChip(
+            onClick = {},
+            label = {
+                Text(
+                    text = "IN YOUR LIBRARY",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.W700,
+                    letterSpacing = 0.5.sp,
+                )
+            },
+            shape = RoundedCornerShape(50),
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = colors.srsGood,
+                labelColor = colors.foregroundOnAccent,
+            ),
+            border = null,
+        )
 
         Text(
             text = "Last studied...",

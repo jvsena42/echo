@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +22,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -251,17 +252,18 @@ private fun CtaBlock(
                 textAlign = TextAlign.Center,
             )
         }
-        Text(
-            text = "Don't have Pubky Ring? Get the app",
-            color = colors.accentSecondary,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .testTag("onboarding_get_ring")
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(enabled = !isWorking, onClick = onGetRingClick)
-                .padding(4.dp),
-        )
+        TextButton(
+            onClick = onGetRingClick,
+            enabled = !isWorking,
+            modifier = Modifier.testTag("onboarding_get_ring"),
+            colors = ButtonDefaults.textButtonColors(contentColor = colors.accentSecondary),
+        ) {
+            Text(
+                text = "Don't have Pubky Ring? Get the app",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 

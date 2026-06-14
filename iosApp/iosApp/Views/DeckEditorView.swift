@@ -60,13 +60,9 @@ struct DeckEditorView: View {
                                     .scaleEffect(0.7)
                             }
                             Text(isSaving ? "Saving…" : "Save")
-                                .font(.system(size: 14, weight: .bold))
                         }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(EchoColor.accentPrimary))
                     }
+                    .buttonStyle(.echoCompactFilled)
                     .disabled(isSaving)
                 }
 
@@ -120,16 +116,15 @@ struct DeckEditorView: View {
                                 ForEach(tags, id: \.self) { tag in
                                     TagChipView(tag: tag, onRemove: { onRemoveTag(tag) })
                                 }
-                                Button(action: { showTagSheet = true }) {
-                                    Text("+ Add")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(EchoColor.accentSecondary)
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 8)
-                                        .overlay(
-                                            Capsule().stroke(EchoColor.accentSecondary, lineWidth: 1)
-                                        )
-                                }
+                                Button("+ Add", action: { showTagSheet = true })
+                                    .buttonStyle(EchoOutlineButtonStyle(
+                                        stroke: EchoColor.accentSecondary,
+                                        foreground: EchoColor.accentSecondary,
+                                        cornerRadius: 50,
+                                        lineWidth: 1,
+                                        fontSize: 13,
+                                        fillWidth: false
+                                    ))
                             }
                         }
                     }
@@ -139,7 +134,7 @@ struct DeckEditorView: View {
                     RoundedRectangle(cornerRadius: 20)
                         .fill(EchoColor.surfaceCard)
                 )
-                .shadow(color: .black.opacity(0.05), radius: 14, x: 0, y: 4)
+                .shadow(color: EchoColor.shadowElevationLow, radius: 14, x: 0, y: 4)
 
                 if let error {
                     FieldErrorText(message: error)
@@ -185,7 +180,7 @@ struct DeckEditorView: View {
                                 RoundedRectangle(cornerRadius: 14)
                                     .fill(EchoColor.surfaceCard)
                             )
-                            .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+                            .shadow(color: EchoColor.shadowElevationLow, radius: 8, x: 0, y: 2)
                         }
                         .buttonStyle(.plain)
                     }
@@ -195,18 +190,10 @@ struct DeckEditorView: View {
                 Button(action: onAddCard) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
                         Text("Add card")
-                            .font(.system(size: 15, weight: .bold))
                     }
-                    .foregroundColor(EchoColor.accentPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(EchoColor.accentPrimary, lineWidth: 1.5)
-                    )
                 }
+                .buttonStyle(.echoOutline)
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)

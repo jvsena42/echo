@@ -1,7 +1,6 @@
 package com.github.jvsena42.echo.ui.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -24,8 +22,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -129,18 +132,18 @@ private fun SettingsScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(colors.surfaceCard)
-                    .clickable(onClick = onBack),
-                contentAlignment = Alignment.Center,
+            FilledIconButton(
+                onClick = onBack,
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = colors.surfaceCard,
+                    contentColor = colors.foregroundPrimary,
+                ),
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = colors.foregroundPrimary,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -169,20 +172,20 @@ private fun SettingsScreen(
                 },
                 trailing = {
                     if (state.pubky.isNotBlank()) {
-                        Row(
-                            modifier = Modifier
-                                .testTag("settings_copy_pubky")
-                                .clip(RoundedCornerShape(50))
-                                .background(colors.surfaceCard)
-                                .clickable(onClick = onCopyPubkyClick)
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                        FilledTonalButton(
+                            onClick = onCopyPubkyClick,
+                            modifier = Modifier.testTag("settings_copy_pubky"),
+                            shape = RoundedCornerShape(50),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = colors.surfaceCard,
+                                contentColor = colors.foregroundMuted,
+                            ),
                         ) {
                             Text(
                                 text = "Copy",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = colors.foregroundMuted,
                             )
                         }
                     }
@@ -210,27 +213,26 @@ private fun SettingsScreen(
         }
 
         // --- Sign out ---
-        Row(
+        FilledTonalButton(
+            onClick = { showSignOutDialog = true },
             modifier = Modifier
                 .testTag("settings_signout")
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(colors.dangerSoft)
-                .clickable(onClick = { showSignOutDialog = true })
-                .padding(horizontal = 18.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = colors.dangerSoft,
+                contentColor = colors.srsAgain,
+            ),
         ) {
             Icon(
                 painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
                 contentDescription = null,
-                tint = colors.srsAgain,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 text = "Sign out",
-                color = colors.srsAgain,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -329,12 +331,9 @@ private fun SettingsValueRow(
 
 @Composable
 private fun SettingsDivider() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .height(1.dp)
-            .background(EchoTheme.colors.borderSubtle),
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        color = EchoTheme.colors.borderSubtle,
     )
 }
 

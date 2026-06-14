@@ -7,22 +7,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 
+/**
+ * Echo tag chip: native Material 3 [InputChip] tinted with the secondary accent and keeping the
+ * Echo `#` prefix as a brand touch. Removable when [onRemove] is supplied.
+ */
 @Composable
 fun TagChip(
     tag: String,
@@ -32,48 +34,38 @@ fun TagChip(
     selected: Boolean = false,
 ) {
     val colors = EchoTheme.colors
-    val pillShape = RoundedCornerShape(50)
-    val background = if (selected) colors.accentSecondary else colors.accentSecondarySoft
-    val foreground = if (selected) colors.foregroundOnAccent else colors.accentSecondary
-
-    Row(
-        modifier = modifier
-            .clip(pillShape)
-            .background(background)
-            .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    InputChip(
+        selected = selected,
+        onClick = onClick ?: {},
+        modifier = modifier,
+        label = {
+            Text(
+                text = "#$tag",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.W600,
             )
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "#",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.W700,
-            color = foreground,
-        )
-
-        Spacer(modifier = Modifier.width(4.dp))
-
-        Text(
-            text = tag,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.W600,
-            color = foreground,
-        )
-
-        if (onRemove != null) {
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Remove tag",
-                tint = foreground,
-                modifier = Modifier
-                    .size(16.dp)
-                    .clickable(onClick = onRemove),
-            )
-        }
-    }
+        },
+        trailingIcon = onRemove?.let {
+            {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Remove tag",
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clickable(onClick = it),
+                )
+            }
+        },
+        colors = InputChipDefaults.inputChipColors(
+            containerColor = colors.accentSecondarySoft,
+            labelColor = colors.accentSecondary,
+            trailingIconColor = colors.accentSecondary,
+            selectedContainerColor = colors.accentSecondary,
+            selectedLabelColor = colors.foregroundOnAccent,
+            selectedTrailingIconColor = colors.foregroundOnAccent,
+        ),
+        border = null,
+    )
 }
 
 @Preview

@@ -23,4 +23,10 @@ enum EchoColor {
     static let srsEasy = Color(red: 0.231, green: 0.510, blue: 0.965)
     static let danger = Color(red: 0.851, green: 0.173, blue: 0.173)
     static let dangerSoft = Color(red: 1.0, green: 0.306, blue: 0.392).opacity(0.08)
+
+    // Shadow tints — accent "glow" and neutral elevation shadows by depth.
+    static let shadowAccent = accentPrimary.opacity(0.2)
+    static let shadowElevationLow = Color.black.opacity(0.05)
+    static let shadowElevationMedium = Color.black.opacity(0.07)
+    static let shadowElevationHigh = Color.black.opacity(0.08)
 }

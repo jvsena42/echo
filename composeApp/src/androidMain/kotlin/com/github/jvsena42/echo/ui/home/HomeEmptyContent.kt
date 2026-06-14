@@ -1,7 +1,6 @@
 package com.github.jvsena42.echo.ui.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -25,6 +23,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
+import com.github.jvsena42.echo.ui.components.EchoSecondaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 
 /**
@@ -42,8 +41,8 @@ fun HomeEmptyContent(
             .shadow(
                 elevation = 24.dp,
                 shape = RoundedCornerShape(28.dp),
-                ambientColor = Color(0x141A1326),
-                spotColor = Color(0x141A1326),
+                ambientColor = colors.shadowElevationHigh,
+                spotColor = colors.shadowElevationHigh,
             )
             .clip(RoundedCornerShape(28.dp))
             .background(colors.surfaceCard)
@@ -88,31 +87,12 @@ fun HomeEmptyContent(
             onClick = onCreateDeckClick,
             modifier = Modifier.testTag("home_create_deck"),
         )
-        SecondaryButton(
-            label = "Browse examples",
+        EchoSecondaryButton(
+            text = "Browse examples",
             onClick = onBrowseExamplesClick,
-            modifier = Modifier.testTag("home_browse_examples"),
-        )
-    }
-}
-
-@Composable
-private fun SecondaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = EchoTheme.colors
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(50))
-            .background(colors.accentPrimarySoft)
-            .clickable(onClick = onClick)
-            .padding(vertical = 20.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            color = colors.accentPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .testTag("home_browse_examples")
+                .fillMaxWidth(),
         )
     }
 }

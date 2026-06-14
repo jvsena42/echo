@@ -40,7 +40,7 @@ struct EmptyStateCard: View {
         .background(
             RoundedRectangle(cornerRadius: 28).fill(EchoColor.surfaceCard)
         )
-        .shadow(color: Color.black.opacity(0.08), radius: 24, x: 0, y: 10)
+        .shadow(color: EchoColor.shadowElevationHigh, radius: 24, x: 0, y: 10)
     }
 }
 
@@ -50,23 +50,11 @@ struct HomeCtaButtons: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Button(action: onCreateDeck) {
-                Text("Create your first deck")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
-                    .background(Capsule().fill(EchoColor.accentPrimary))
-                    .shadow(color: EchoColor.accentPrimary.opacity(0.25), radius: 24, x: 0, y: 8)
-            }
-            Button(action: onBrowseExamples) {
-                Text("Browse examples")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(EchoColor.accentPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
-                    .background(Capsule().fill(EchoColor.accentPrimarySoft))
-            }
+            Button("Create your first deck", action: onCreateDeck)
+                .buttonStyle(.echoFilled)
+                .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
+            Button("Browse examples", action: onBrowseExamples)
+                .buttonStyle(.echoSoft)
         }
     }
 }
@@ -103,31 +91,24 @@ struct DueTodayHeroCard: View {
                 .padding(.bottom, 12)
             }
             VStack(alignment: .leading, spacing: 6) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.white.opacity(0.25)).frame(height: 8)
-                        Capsule().fill(Color.white).frame(width: geo.size.width * progress, height: 8)
-                    }
-                }
-                .frame(height: 8)
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+                    .tint(.white)
                 Text("\(doneToday) of \(dueToday) done · keep going!")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(EchoColor.accentPrimarySoft)
             }
             Button(action: onStartStudy) {
                 HStack(spacing: 8) {
-                    Image(systemName: "play.fill").font(.system(size: 16))
-                    Text("Start studying").font(.system(size: 17, weight: .bold))
+                    Image(systemName: "play.fill")
+                    Text("Start studying")
                 }
-                .foregroundColor(EchoColor.accentPrimary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Capsule().fill(EchoColor.surfaceCard))
             }
+            .buttonStyle(EchoFilledButtonStyle(fill: EchoColor.surfaceCard, foreground: EchoColor.accentPrimary, verticalPadding: 16))
         }
         .padding(24)
         .background(RoundedRectangle(cornerRadius: 28).fill(EchoColor.accentPrimary))
-        .shadow(color: EchoColor.accentPrimary.opacity(0.2), radius: 32, x: 0, y: 12)
+        .shadow(color: EchoColor.shadowAccent, radius: 32, x: 0, y: 12)
     }
 }
 
@@ -186,7 +167,7 @@ struct DeckRow: View {
             }
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 20).fill(EchoColor.surfaceCard))
-            .shadow(color: Color.black.opacity(0.07), radius: 18, x: 0, y: 6)
+            .shadow(color: EchoColor.shadowElevationMedium, radius: 18, x: 0, y: 6)
         }
         .buttonStyle(.plain)
     }

@@ -1,8 +1,7 @@
 package com.github.jvsena42.echo.ui.profile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -21,15 +20,24 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedIconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -44,7 +52,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -57,6 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.echo.presentation.profile.ProfileEffect
 import com.github.jvsena42.echo.presentation.profile.ProfileUiState
 import com.github.jvsena42.echo.presentation.profile.ProfileViewModel
+import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
@@ -148,20 +156,21 @@ private fun ProfileScreen(
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
             )
-            Box(
+            OutlinedIconButton(
+                onClick = onOpenSettings,
                 modifier = Modifier
                     .testTag("profile_settings")
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(colors.surfaceCard)
-                    .border(1.dp, colors.borderSubtle, CircleShape)
-                    .clickable(onClick = onOpenSettings),
-                contentAlignment = Alignment.Center,
+                    .size(40.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.outlinedIconButtonColors(
+                    containerColor = colors.surfaceCard,
+                    contentColor = colors.foregroundSecondary,
+                ),
+                border = BorderStroke(1.dp, colors.borderSubtle),
             ) {
                 Icon(
                     imageVector = Icons.Filled.Settings,
                     contentDescription = "Settings",
-                    tint = colors.foregroundSecondary,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -173,15 +182,15 @@ private fun ProfileScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // Avatar
+            // Avatar (Echo-brand custom)
             Box(
                 modifier = Modifier
                     .size(96.dp)
                     .shadow(
                         elevation = 24.dp,
                         shape = CircleShape,
-                        ambientColor = Color(0x33FF5C00),
-                        spotColor = Color(0x33FF5C00),
+                        ambientColor = colors.shadowAccent,
+                        spotColor = colors.shadowAccent,
                     )
                     .clip(CircleShape)
                     .background(colors.accentPrimary),
@@ -204,27 +213,30 @@ private fun ProfileScreen(
             )
 
             // Pubky badge
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(colors.surfaceSecondary)
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_share),
-                    contentDescription = null,
-                    modifier = Modifier.size(12.dp),
-                    tint = colors.foregroundMuted,
-                )
-                Text(
-                    text = "pk:${state.pubky.take(6)}…${state.pubky.takeLast(6)}",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.foregroundMuted,
-                )
-            }
+            AssistChip(
+                onClick = {},
+                label = {
+                    Text(
+                        text = "pk:${state.pubky.take(6)}…${state.pubky.takeLast(6)}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_share),
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                    )
+                },
+                shape = RoundedCornerShape(50),
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = colors.surfaceSecondary,
+                    labelColor = colors.foregroundMuted,
+                    leadingIconContentColor = colors.foregroundMuted,
+                ),
+                border = null,
+            )
 
             // Bio
             val bio = state.bio
@@ -246,52 +258,34 @@ private fun ProfileScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Edit Profile button
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .shadow(
-                        elevation = 24.dp,
-                        shape = CircleShape,
-                        ambientColor = Color(0x33FF5C00),
-                        spotColor = Color(0x33FF5C00),
+            EchoPrimaryButton(
+                label = "Edit Profile",
+                onClick = onEditProfileClick,
+                modifier = Modifier.weight(1f),
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_edit),
+                        contentDescription = null,
+                        tint = colors.foregroundOnAccent,
+                        modifier = Modifier.size(16.dp),
                     )
-                    .clip(CircleShape)
-                    .background(colors.accentPrimary)
-                    .clickable(onClick = onEditProfileClick)
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_edit),
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "Edit Profile",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+                },
+            )
 
             // Share button
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(colors.surfaceCard)
-                    .border(1.dp, colors.borderSubtle, CircleShape)
-                    .clickable(onClick = onShareClick),
-                contentAlignment = Alignment.Center,
+            OutlinedIconButton(
+                onClick = onShareClick,
+                modifier = Modifier.size(48.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.outlinedIconButtonColors(
+                    containerColor = colors.surfaceCard,
+                    contentColor = colors.foregroundSecondary,
+                ),
+                border = BorderStroke(1.dp, colors.borderSubtle),
             ) {
                 Icon(
                     painter = painterResource(id = android.R.drawable.ic_menu_share),
                     contentDescription = "Share",
-                    tint = colors.foregroundSecondary,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -328,58 +322,53 @@ private fun ProfileScreen(
         }
 
         // --- Sign out ---
-        Row(
+        FilledTonalButton(
+            onClick = onSignOutClick,
             modifier = Modifier
                 .testTag("profile_signout")
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(colors.dangerSoft)
-                .clickable(onClick = onSignOutClick)
-                .padding(horizontal = 18.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = colors.dangerSoft,
+                contentColor = colors.srsAgain,
+            ),
         ) {
             Icon(
                 painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
                 contentDescription = null,
-                tint = colors.srsAgain,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 text = "Sign out",
-                color = colors.srsAgain,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
     }
 
-    // --- Error banner ---
+    // --- Error snackbar ---
     if (errorMessage != null) {
-        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(EchoTheme.colors.dangerSoft)
-                    .clickable(onClick = onDismissError)
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Snackbar(
+                containerColor = colors.dangerSoft,
+                contentColor = colors.srsAgain,
+                action = {
+                    TextButton(
+                        onClick = onDismissError,
+                        colors = ButtonDefaults.textButtonColors(contentColor = colors.srsAgain),
+                    ) {
+                        Text(text = "Dismiss", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
             ) {
-                Text(
-                    text = errorMessage,
-                    fontSize = 13.sp,
-                    color = EchoTheme.colors.srsAgain,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "Dismiss",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = EchoTheme.colors.srsAgain,
-                )
+                Text(text = errorMessage, fontSize = 13.sp)
             }
         }
     }
@@ -416,21 +405,6 @@ private fun EditProfileSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = colors.surfaceCard,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 36.dp, height = 4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(colors.borderSubtle),
-                )
-            }
-        },
     ) {
         Column(
             modifier = Modifier
@@ -455,30 +429,23 @@ private fun EditProfileSheet(
                     letterSpacing = 1.sp,
                     color = colors.foregroundMuted,
                 )
-                BasicTextField(
+                OutlinedTextField(
                     value = editName,
                     onValueChange = onNameChanged,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
-                        .background(colors.surfacePrimary)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     textStyle = TextStyle(
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         color = colors.foregroundPrimary,
                     ),
-                    cursorBrush = SolidColor(colors.accentPrimary),
+                    placeholder = { Text("Your name", fontSize = 15.sp, color = colors.foregroundMuted) },
                     singleLine = true,
-                    decorationBox = { inner ->
-                        Box {
-                            if (editName.isEmpty()) {
-                                Text("Your name", fontSize = 15.sp, color = colors.foregroundMuted)
-                            }
-                            inner()
-                        }
-                    },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.accentPrimary,
+                        unfocusedBorderColor = colors.borderSubtle,
+                        cursorColor = colors.accentPrimary,
+                    ),
                 )
             }
 
@@ -491,77 +458,43 @@ private fun EditProfileSheet(
                     letterSpacing = 1.sp,
                     color = colors.foregroundMuted,
                 )
-                BasicTextField(
+                OutlinedTextField(
                     value = editBio,
                     onValueChange = onBioChanged,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
-                        .background(colors.surfacePrimary)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .heightIn(min = 100.dp),
                     textStyle = TextStyle(
                         fontSize = 15.sp,
                         color = colors.foregroundPrimary,
                         lineHeight = 22.sp,
                     ),
-                    cursorBrush = SolidColor(colors.accentPrimary),
-                    decorationBox = { inner ->
-                        Box(modifier = Modifier.height(100.dp)) {
-                            if (editBio.isEmpty()) {
-                                Text("Tell us about yourself...", fontSize = 15.sp, color = colors.foregroundMuted)
-                            }
-                            inner()
-                        }
+                    placeholder = {
+                        Text("Tell us about yourself...", fontSize = 15.sp, color = colors.foregroundMuted)
                     },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.accentPrimary,
+                        unfocusedBorderColor = colors.borderSubtle,
+                        cursorColor = colors.accentPrimary,
+                    ),
                 )
             }
 
             // Save button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        elevation = 24.dp,
-                        shape = CircleShape,
-                        ambientColor = Color(0x33FF5C00),
-                        spotColor = Color(0x33FF5C00),
-                    )
-                    .clip(CircleShape)
-                    .background(
-                        if (!isSaving) {
-                            colors.accentPrimary
-                        } else {
-                            colors.accentPrimary.copy(alpha = 0.6f)
-                        },
-                    )
-                    .clickable(enabled = !isSaving, onClick = onSaveClick)
-                    .padding(horizontal = 32.dp, vertical = 18.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(18.dp),
-                    )
-                } else {
+            EchoPrimaryButton(
+                label = "Save",
+                onClick = onSaveClick,
+                loading = isSaving,
+                leadingIcon = {
                     Icon(
                         painter = painterResource(id = android.R.drawable.ic_menu_save),
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = colors.foregroundOnAccent,
                         modifier = Modifier.size(18.dp),
                     )
-                }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Save",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+                },
+            )
         }
     }
 }
