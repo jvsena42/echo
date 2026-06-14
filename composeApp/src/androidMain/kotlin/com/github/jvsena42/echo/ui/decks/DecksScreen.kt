@@ -182,8 +182,8 @@ private fun PasteCtaCard(onClick: () -> Unit) {
             .shadow(
                 elevation = 32.dp,
                 shape = RoundedCornerShape(28.dp),
-                ambientColor = Color(0x33FF5C00),
-                spotColor = Color(0x33FF5C00),
+                ambientColor = colors.shadowAccent,
+                spotColor = colors.shadowAccent,
             )
             .clip(RoundedCornerShape(28.dp))
             .background(colors.accentPrimary)

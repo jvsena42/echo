@@ -50,7 +50,7 @@ struct DeckTileView: View {
                 RoundedRectangle(cornerRadius: 20)
                     .fill(EchoColor.surfaceCard)
             )
-            .shadow(color: Color.black.opacity(0.07), radius: 24, x: 0, y: 8)
+            .shadow(color: EchoColor.shadowElevationMedium, radius: 24, x: 0, y: 8)
         }
         .buttonStyle(.plain)
     }

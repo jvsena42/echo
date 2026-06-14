@@ -70,7 +70,7 @@ struct DecksView: View {
                         RoundedRectangle(cornerRadius: 28)
                             .fill(EchoColor.accentPrimary)
                     )
-                    .shadow(color: EchoColor.accentPrimary.opacity(0.2), radius: 32, x: 0, y: 12)
+                    .shadow(color: EchoColor.shadowAccent, radius: 32, x: 0, y: 12)
                 }
                 .buttonStyle(.plain)
 
@@ -136,14 +136,8 @@ struct DecksView: View {
                 .font(.system(size: 14))
                 .foregroundColor(EchoColor.foregroundMuted)
                 .multilineTextAlignment(.center)
-            Button(action: onCreateDeckTap) {
-                Text("Create a deck")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Capsule().fill(EchoColor.accentPrimary))
-            }
+            Button("Create a deck", action: onCreateDeckTap)
+                .buttonStyle(.echoCompactFilled)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 32)

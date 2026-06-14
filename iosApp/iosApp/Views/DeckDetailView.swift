@@ -171,7 +171,7 @@ struct DeckDetailView: View {
                             RoundedRectangle(cornerRadius: 14)
                                 .fill(EchoColor.surfaceCard)
                         )
-                        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+                        .shadow(color: EchoColor.shadowElevationLow, radius: 8, x: 0, y: 2)
                     }
                 }
             }
@@ -183,16 +183,12 @@ struct DeckDetailView: View {
         // Bottom CTA
         Button(action: onStudy) {
             HStack(spacing: 8) {
-                Image(systemName: "play.fill").font(.system(size: 16))
+                Image(systemName: "play.fill")
                 Text(studyLabel)
-                    .font(.system(size: 17, weight: .bold))
             }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
-            .background(Capsule().fill(EchoColor.accentPrimary))
-            .shadow(color: EchoColor.accentPrimary.opacity(0.2), radius: 24, x: 0, y: 8)
         }
+        .buttonStyle(.echoFilled)
+        .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
     }

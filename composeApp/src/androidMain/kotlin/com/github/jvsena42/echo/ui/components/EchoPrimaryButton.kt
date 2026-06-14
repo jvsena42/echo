@@ -1,10 +1,7 @@
 package com.github.jvsena42.echo.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,15 +9,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -28,8 +23,9 @@ import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 
 /**
- * Mirrors Pencil node `xShKh` — pill, `$accent-primary` fill, soft orange outer shadow,
- * leading icon + bold label.
+ * Echo primary action button: native Material 3 [Button] tinted with `accent-primary` and shaped
+ * as a pill (mirrors Pencil node `xShKh`). Per the native-first rule we apply brand tokens to the
+ * native component rather than rebuilding the chrome from primitives.
  */
 @Composable
 fun EchoPrimaryButton(
@@ -41,22 +37,18 @@ fun EchoPrimaryButton(
     leadingIcon: @Composable (() -> Unit)? = null,
 ) {
     val colors = EchoTheme.colors
-    val interactive = enabled && !loading
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 24.dp,
-                shape = CircleShape,
-                ambientColor = Color(0x40FF5C00),
-                spotColor = Color(0x40FF5C00),
-            )
-            .clip(CircleShape)
-            .background(if (interactive) colors.accentPrimary else colors.accentPrimary.copy(alpha = 0.6f))
-            .clickable(enabled = interactive, onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 20.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
+    Button(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        enabled = enabled && !loading,
+        shape = CircleShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = colors.accentPrimary,
+            contentColor = colors.foregroundOnAccent,
+            disabledContainerColor = colors.accentPrimary.copy(alpha = 0.6f),
+            disabledContentColor = colors.foregroundOnAccent,
+        ),
+        contentPadding = ButtonDefaults.ContentPadding,
     ) {
         if (loading) {
             CircularProgressIndicator(
@@ -64,32 +56,16 @@ fun EchoPrimaryButton(
                 strokeWidth = 2.dp,
                 modifier = Modifier.size(20.dp),
             )
-            Text(
-                text = label,
-                color = colors.foregroundOnAccent,
-                fontWeight = FontWeight.Bold,
-                fontSize = 17.sp,
-                modifier = Modifier.padding(start = 10.dp),
-            )
-        } else {
-            if (leadingIcon != null) {
-                leadingIcon()
-                Text(
-                    text = label,
-                    color = colors.foregroundOnAccent,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                    modifier = Modifier.padding(start = 10.dp),
-                )
-            } else {
-                Text(
-                    text = label,
-                    color = colors.foregroundOnAccent,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                )
-            }
+            Spacer(modifier = Modifier.size(10.dp))
+        } else if (leadingIcon != null) {
+            leadingIcon()
+            Spacer(modifier = Modifier.size(10.dp))
         }
+        Text(
+            text = label,
+            fontWeight = FontWeight.Bold,
+            fontSize = 17.sp,
+        )
     }
 }
 

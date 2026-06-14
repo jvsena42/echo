@@ -128,17 +128,17 @@ struct PublishDeckView: View {
                         Button(action: { showTagSheet = true }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "plus")
-                                    .font(.system(size: 10, weight: .semibold))
                                 Text("Add")
-                                    .font(.system(size: 12, weight: .semibold))
                             }
-                            .foregroundColor(EchoColor.foregroundMuted)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .overlay(
-                                Capsule().stroke(EchoColor.borderSubtle, lineWidth: 1.5)
-                            )
                         }
+                        .buttonStyle(EchoOutlineButtonStyle(
+                            stroke: EchoColor.borderSubtle,
+                            foreground: EchoColor.foregroundMuted,
+                            cornerRadius: 50,
+                            lineWidth: 1.5,
+                            fontSize: 12,
+                            fillWidth: false
+                        ))
                     }
                 }
 
@@ -164,18 +164,12 @@ struct PublishDeckView: View {
                 // Publish button
                 Button(action: { onPublished("preview-deck-id") }) {
                     HStack(spacing: 8) {
-                        Text("🔗").font(.system(size: 16))
+                        Text("🔗")
                         Text("Publish deck")
-                            .font(.system(size: 17, weight: .bold))
                     }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
-                    .background(
-                        Capsule().fill(title.isEmpty ? Color.gray : EchoColor.accentPrimary)
-                    )
-                    .shadow(color: EchoColor.accentPrimary.opacity(0.2), radius: 24, x: 0, y: 8)
                 }
+                .buttonStyle(EchoFilledButtonStyle(fill: title.isEmpty ? Color.gray : EchoColor.accentPrimary))
+                .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
                 .disabled(title.isEmpty)
             }
             .padding(.horizontal, 20)
@@ -282,21 +276,14 @@ private struct PublishAddTagSheet: View {
                 }) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .bold))
                         Text("Add Tag")
-                            .font(.system(size: 16, weight: .bold))
                     }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
-                    .background(
-                        Capsule()
-                            .fill(tagInput.trimmingCharacters(in: .whitespaces).isEmpty
-                                  ? Color.gray
-                                  : EchoColor.accentPrimary)
-                    )
-                    .shadow(color: EchoColor.accentPrimary.opacity(0.2), radius: 24, x: 0, y: 8)
                 }
+                .buttonStyle(EchoFilledButtonStyle(
+                    fill: tagInput.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : EchoColor.accentPrimary,
+                    fontSize: 16
+                ))
+                .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
                 .disabled(tagInput.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(.horizontal, 20)

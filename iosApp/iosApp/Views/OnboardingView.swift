@@ -64,18 +64,12 @@ struct OnboardingView: View {
         VStack(spacing: 12) {
             Button(action: onSignInTapped) {
                 HStack(spacing: 10) {
-                    Image(systemName: "key.fill").font(.system(size: 20))
+                    Image(systemName: "key.fill")
                     Text(isWorking ? "Waiting for Pubky Ring…" : "Sign in with Pubky Ring")
-                        .font(.system(size: 17, weight: .bold))
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-                .background(
-                    Capsule().fill(Color(red: 1.0, green: 0.36, blue: 0.0))
-                )
-                .shadow(color: Color(red: 1.0, green: 0.36, blue: 0.0).opacity(0.25), radius: 24, x: 0, y: 8)
             }
+            .buttonStyle(.echoFilled)
+            .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
             .disabled(isWorking)
 
             Text("No email. No password. Your key, your account.")

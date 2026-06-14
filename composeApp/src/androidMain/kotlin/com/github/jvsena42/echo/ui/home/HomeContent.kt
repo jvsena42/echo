@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -59,8 +66,8 @@ private fun DueTodayHeroCard(
             .shadow(
                 elevation = 32.dp,
                 shape = RoundedCornerShape(28.dp),
-                ambientColor = Color(0x33FF5C00),
-                spotColor = Color(0x33FF5C00),
+                ambientColor = colors.shadowAccent,
+                spotColor = colors.shadowAccent,
             )
             .clip(RoundedCornerShape(28.dp))
             .background(colors.accentPrimary)
@@ -112,26 +119,29 @@ private fun DueTodayHeroCard(
                 fontWeight = FontWeight.Medium,
             )
         }
-        Box(
+        Button(
+            onClick = onStartStudyClick,
             modifier = Modifier
                 .testTag("home_start_study")
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(50))
-                .background(colors.surfaceCard)
-                .clickable(onClick = onStartStudyClick)
-                .padding(vertical = 16.dp),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(50),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = colors.surfaceCard,
+                contentColor = colors.accentPrimary,
+            ),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "\u25B6", color = colors.accentPrimary, fontSize = 16.sp)
-                Spacer(Modifier.size(8.dp))
-                Text(
-                    text = "Start studying",
-                    color = colors.accentPrimary,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.size(8.dp))
+            Text(
+                text = "Start studying",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
@@ -139,21 +149,17 @@ private fun DueTodayHeroCard(
 @Composable
 private fun ProgressBar(progress: Float) {
     val colors = EchoTheme.colors
-    Box(
+    LinearProgressIndicator(
+        progress = { progress },
         modifier = Modifier
             .fillMaxWidth()
             .height(8.dp)
-            .clip(RoundedCornerShape(50))
-            .background(Color(0x40FFFFFF)),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction = progress)
-                .height(8.dp)
-                .clip(RoundedCornerShape(50))
-                .background(colors.foregroundOnAccent),
-        )
-    }
+            .clip(RoundedCornerShape(50)),
+        color = colors.foregroundOnAccent,
+        trackColor = Color(0x40FFFFFF),
+        gapSize = 0.dp,
+        drawStopIndicator = {},
+    )
 }
 
 @Composable
@@ -196,8 +202,8 @@ private fun DeckRow(deck: DeckSummary, onClick: () -> Unit) {
             .shadow(
                 elevation = 18.dp,
                 shape = RoundedCornerShape(20.dp),
-                ambientColor = Color(0x121A1326),
-                spotColor = Color(0x121A1326),
+                ambientColor = colors.shadowElevationMedium,
+                spotColor = colors.shadowElevationMedium,
             )
             .clip(RoundedCornerShape(20.dp))
             .background(colors.surfaceCard)

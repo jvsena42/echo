@@ -29,6 +29,12 @@ data class EchoColors(
     val srsEasy: Color,
     val danger: Color,
     val dangerSoft: Color,
+    // Shadow tints — accent "glow" and neutral elevation shadows by depth.
+    val shadowAccent: Color,
+    val shadowElevationLow: Color,
+    val shadowElevationMedium: Color,
+    val shadowElevationHigh: Color,
+    val shadowElevationXHigh: Color,
 )
 
 val EchoLightColors = EchoColors(
@@ -52,4 +58,9 @@ val EchoLightColors = EchoColors(
     srsEasy = Color(0xFF3B82F6),
     danger = Color(0xFFD92C2C),
     dangerSoft = Color(0x14FF4E64),
+    shadowAccent = Color(0x33FF5C00),
+    shadowElevationLow = Color(0x0D1A1326),
+    shadowElevationMedium = Color(0x121A1326),
+    shadowElevationHigh = Color(0x141A1326),
+    shadowElevationXHigh = Color(0x261A1326),
 )

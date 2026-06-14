@@ -93,19 +93,14 @@ struct AddTagSheet: View {
                 }) {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .bold))
                         Text("Add Tag")
-                            .font(.system(size: 16, weight: .bold))
                     }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
-                    .background(
-                        Capsule()
-                            .fill(trimmedInput.isEmpty ? Color.gray : EchoColor.accentPrimary)
-                    )
-                    .shadow(color: EchoColor.accentPrimary.opacity(0.2), radius: 24, x: 0, y: 8)
                 }
+                .buttonStyle(EchoFilledButtonStyle(
+                    fill: trimmedInput.isEmpty ? Color.gray : EchoColor.accentPrimary,
+                    fontSize: 16
+                ))
+                .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
                 .disabled(trimmedInput.isEmpty)
             }
             .padding(.horizontal, 20)

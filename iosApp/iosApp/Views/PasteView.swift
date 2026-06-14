@@ -24,17 +24,12 @@ struct PasteView: View {
                         .font(.system(size: 18, weight: .heavy))
                         .foregroundColor(EchoColor.foregroundPrimary)
                     Spacer()
-                    Button(action: onNext) {
-                        Text("Next")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(isParsed ? .white : EchoColor.foregroundMuted)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                Capsule().fill(isParsed ? EchoColor.accentPrimary : EchoColor.borderSubtle)
-                            )
-                    }
-                    .disabled(!isParsed)
+                    Button("Next", action: onNext)
+                        .buttonStyle(EchoCompactFilledButtonStyle(
+                            fill: isParsed ? EchoColor.accentPrimary : EchoColor.borderSubtle,
+                            foreground: isParsed ? .white : EchoColor.foregroundMuted
+                        ))
+                        .disabled(!isParsed)
                 }
 
                 // Text field
