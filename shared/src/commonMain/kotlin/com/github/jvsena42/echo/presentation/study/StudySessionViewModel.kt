@@ -47,6 +47,9 @@ class StudySessionViewModel(
     private var revealed = false
     private var reviewedCount = 0
     private var deckTitle = ""
+
+    /** id → title, warmed lazily from [DeckRepository.listOwned] so multi-deck sessions can label each card. */
+    private var deckTitles: Map<String, String> = emptyMap()
     private var gradeJob: Job? = null
 
     init {
@@ -58,7 +61,7 @@ class StudySessionViewModel(
     private fun load() {
         scope.launch {
             _state.value = StudySessionUiState.Loading
-            deckTitle = deckId?.let { deckRepository.getLocal(it)?.title }.orEmpty()
+            deckTitle = deckId?.let { resolveDeckTitle(it) }.orEmpty()
             runCatching {
                 if (deckId == null) srsRepository.dueToday() else srsRepository.dueForDeck(deckId)
             }
@@ -126,8 +129,9 @@ class StudySessionViewModel(
             // Cache is warmed by the queue build; a null state means a new (never-reviewed) card.
             val srsState = srsRepository.stateFor(card.id)
             val labels = srsState.previewIntervals(card.id, epochMillis())
+            val title = deckTitle.ifBlank { resolveDeckTitle(card.deckId) }.ifBlank { card.deckId }
             _state.value = StudySessionUiState.Reviewing(
-                deckTitle = deckTitle.ifBlank { card.deckId },
+                deckTitle = title,
                 position = index + 1,
                 total = queue.size,
                 frontText = card.front.text.orEmpty(),
@@ -137,6 +141,22 @@ class StudySessionViewModel(
                 intervals = labels,
             )
         }
+    }
+
+    /**
+     * Resolves a deck title for the header. Tries the in-memory cache first ([DeckRepository.getLocal]);
+     * on a cold cache it falls back to [DeckRepository.listOwned] once, which fetches + caches owned
+     * decks, so a session opened without the deck pre-loaded still shows the name.
+     */
+    private suspend fun resolveDeckTitle(id: String): String {
+        deckRepository.getLocal(id)?.title?.takeIf { it.isNotBlank() }?.let { return it }
+        if (deckTitles.isEmpty()) {
+            deckTitles = runCatching { deckRepository.listOwned() }
+                .onFailure { Log.e(TAG, "resolveDeckTitle: listOwned FAILED — ${it.message}", it) }
+                .getOrDefault(emptyList())
+                .associate { it.id to it.title }
+        }
+        return deckTitles[id].orEmpty()
     }
 
     companion object {

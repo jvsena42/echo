@@ -1027,17 +1027,6 @@
               "children": [
                 {
                   "type": "text",
-                  "id": "A74Ju",
-                  "name": "cardLbl",
-                  "fill": "$accent-primary",
-                  "content": "TRANSLATE TO ENGLISH",
-                  "fontFamily": "Inter",
-                  "fontSize": 11,
-                  "fontWeight": "700",
-                  "letterSpacing": 1.2
-                },
-                {
-                  "type": "text",
                   "id": "gPbPk",
                   "name": "cardWord",
                   "fill": "$foreground-primary",
@@ -1091,7 +1080,41 @@
               "type": "ref",
               "ref": "m6NJx",
               "name": "srs3",
-              "width": "fill_container"
+              "width": "fill_container",
+              "enabled": true,
+              "opacity": 0
+            },
+            {
+              "type": "frame",
+              "id": "E1fs1",
+              "name": "Flip Hint",
+              "width": "fill_container",
+              "fill": "#00000000",
+              "gap": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "N8fOB",
+                  "name": "Flip Icon",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "repeat",
+                  "library": "lucide",
+                  "fill": "$foreground-muted"
+                },
+                {
+                  "type": "text",
+                  "id": "ULVZX",
+                  "name": "Flip Text",
+                  "fill": "$foreground-muted",
+                  "content": "Tap card to reveal answer",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
             }
           ]
         }
