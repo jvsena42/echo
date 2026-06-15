@@ -1,6 +1,9 @@
 package com.github.jvsena42.echo.ui.study
 
-import androidx.compose.animation.Crossfade
+import android.provider.Settings
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -35,11 +39,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -223,44 +230,85 @@ private fun ReviewingContent(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Card (tap front to reveal). Crossfade doubles as the Reduce-Motion-friendly flip.
+        // Card (tap front to reveal) with a 3D flip. Same Box for both faces, so front
+        // and back are always the identical size.
+        val reduceMotion = rememberReduceMotion()
+        val rotation by animateFloatAsState(
+            targetValue = if (state.revealed) 180f else 0f,
+            animationSpec = if (reduceMotion) snap() else tween(durationMillis = 450),
+            label = "cardFlip",
+        )
         Box(
             modifier = Modifier
                 .testTag("study_card")
                 .fillMaxWidth()
                 .weight(1f)
+                .graphicsLayer {
+                    rotationY = rotation
+                    cameraDistance = 12f * density
+                }
                 .clip(RoundedCornerShape(28.dp))
                 .background(colors.surfaceCard)
                 .clickable(enabled = !state.revealed, onClick = onReveal)
                 .padding(24.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Crossfade(targetState = state.revealed, label = "cardFace") { revealed ->
-                if (!revealed) {
-                    CardFace(
-                        label = stringResource(R.string.study_tap_to_reveal),
-                        text = state.frontText,
-                        textSize = 44.sp,
-                        onSpeak = onSpeak,
-                    )
-                } else {
-                    CardFace(
-                        label = state.backLabel,
-                        text = state.backText,
-                        textSize = 38.sp,
-                        onSpeak = onSpeak,
-                    )
-                }
+            if (rotation < 90f) {
+                // Front shows only the prompt; the reveal cue lives in the hint row below.
+                CardFace(
+                    label = null,
+                    text = state.frontText,
+                    textSize = 48.sp,
+                    onSpeak = onSpeak,
+                )
+            } else {
+                // Counter-rotate so the back content is not mirrored.
+                CardFace(
+                    label = state.backLabel,
+                    text = state.backText,
+                    textSize = 42.sp,
+                    onSpeak = onSpeak,
+                    modifier = Modifier.graphicsLayer { rotationY = 180f },
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // SRS grade row — only after reveal
-        if (state.revealed) {
-            SrsRow(intervals = state.intervals, onGrade = onGrade)
-            Spacer(modifier = Modifier.height(8.dp))
+        // SRS grade row — reserve its space always so the card above stays the same
+        // size; only show the buttons (only on the back) once revealed.
+        Box(modifier = Modifier.height(72.dp)) {
+            if (state.revealed) {
+                SrsRow(intervals = state.intervals, onGrade = onGrade)
+            }
         }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Flip hint — shown on the front only; space is reserved on the back too so the
+        // card above keeps the same size across the flip.
+        Box(modifier = Modifier.fillMaxWidth().height(20.dp)) {
+            if (!state.revealed) {
+                FlipHint(modifier = Modifier.align(Alignment.Center))
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+/**
+ * Reads the OS animation scale; returns true when animations are disabled
+ * ("Remove animations" / Reduce Motion), so the flip swaps faces instantly.
+ */
+@Composable
+private fun rememberReduceMotion(): Boolean {
+    val context = LocalContext.current
+    return remember(context) {
+        Settings.Global.getFloat(
+            context.contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f,
+        ) == 0f
     }
 }
 
@@ -270,18 +318,20 @@ private fun CardFace(
     text: String,
     textSize: TextUnit,
     onSpeak: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = EchoTheme.colors
     Column(
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         label?.takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
-                fontSize = 11.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.W700,
-                letterSpacing = 1.2.sp,
+                letterSpacing = 1.5.sp,
                 color = colors.accentPrimary,
             )
         }
@@ -312,6 +362,29 @@ private fun CardFace(
                 fontWeight = FontWeight.W700,
             )
         }
+    }
+}
+
+@Composable
+private fun FlipHint(modifier: Modifier = Modifier) {
+    val colors = EchoTheme.colors
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Autorenew,
+            contentDescription = null,
+            tint = colors.foregroundMuted,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            text = stringResource(R.string.study_flip_hint),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.W500,
+            color = colors.foregroundMuted,
+        )
     }
 }
 
@@ -411,26 +484,43 @@ private fun BoxScope.CenteredMessage(
     }
 }
 
+private val previewReviewing = StudySessionUiState.Reviewing(
+    deckTitle = "Spanish basics",
+    position = 3,
+    total = 12,
+    frontText = "hola",
+    backText = "hello",
+    backLabel = "MEANING",
+    revealed = true,
+    intervals = mapOf(
+        SrsGrade.Again to "1m",
+        SrsGrade.Hard to "10m",
+        SrsGrade.Good to "1d",
+        SrsGrade.Easy to "4d",
+    ),
+)
+
 @Preview
 @Composable
-private fun StudySessionScreenPreview() {
+private fun StudySessionScreenRevealedPreview() {
     EchoTheme {
         StudySessionScreen(
-            state = StudySessionUiState.Reviewing(
-                deckTitle = "Spanish basics",
-                position = 3,
-                total = 12,
-                frontText = "hola",
-                backText = "hello",
-                backLabel = "MEANING",
-                revealed = true,
-                intervals = mapOf(
-                    SrsGrade.Again to "1m",
-                    SrsGrade.Hard to "10m",
-                    SrsGrade.Good to "1d",
-                    SrsGrade.Easy to "4d",
-                ),
-            ),
+            state = previewReviewing,
+            onReveal = {},
+            onGrade = {},
+            onSpeak = {},
+            onClose = {},
+            onDone = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun StudySessionScreenFrontPreview() {
+    EchoTheme {
+        StudySessionScreen(
+            state = previewReviewing.copy(revealed = false),
             onReveal = {},
             onGrade = {},
             onSpeak = {},

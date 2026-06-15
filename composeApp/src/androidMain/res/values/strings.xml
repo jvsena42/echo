@@ -101,7 +101,7 @@
     <string name="study_complete_subtitle_many">You reviewed %1$d cards.</string>
     <string name="study_back">Back</string>
     <string name="study_position_of_total">%1$d of %2$d</string>
-    <string name="study_tap_to_reveal">TAP TO REVEAL</string>
+    <string name="study_flip_hint">Tap card to reveal answer</string>
     <string name="study_speak">Speak</string>
 
     <!-- Discover -->
