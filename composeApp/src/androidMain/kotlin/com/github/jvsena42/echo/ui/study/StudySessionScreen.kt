@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Autorenew
@@ -56,6 +57,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -200,13 +202,22 @@ private fun ReviewingContent(
                     modifier = Modifier.size(20.dp),
                 )
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text(
                     text = state.deckTitle.uppercase(),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.W700,
                     letterSpacing = 1.sp,
                     color = colors.foregroundMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
                     text = stringResource(R.string.study_position_of_total, state.position, state.total),
@@ -488,13 +499,25 @@ private fun SrsButton(
         ) {
             Text(
                 text = grade.name,
-                fontSize = 15.sp,
+                autoSize = TextAutoSize.StepBased(
+                    minFontSize = 11.sp,
+                    maxFontSize = 15.sp,
+                    stepSize = 0.5.sp,
+                ),
                 fontWeight = FontWeight.W700,
+                maxLines = 1,
+                softWrap = false,
             )
             Text(
                 text = interval,
-                fontSize = 11.sp,
+                autoSize = TextAutoSize.StepBased(
+                    minFontSize = 8.sp,
+                    maxFontSize = 11.sp,
+                    stepSize = 0.5.sp,
+                ),
                 fontWeight = FontWeight.W500,
+                maxLines = 1,
+                softWrap = false,
             )
         }
     }
