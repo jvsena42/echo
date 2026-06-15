@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -56,6 +55,7 @@ import com.github.jvsena42.echo.presentation.decks.DeckDetailUiState
 import com.github.jvsena42.echo.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.echo.ui.components.AuthorRow
 import com.github.jvsena42.echo.ui.components.CardPreviewRow
+import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.components.StatsBar
 import com.github.jvsena42.echo.ui.components.TagChip
@@ -127,9 +127,8 @@ fun DeckDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(colors.surfacePrimary),
-                contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(color = colors.accentPrimary)
+                EchoLoadingScreen(message = stringResource(R.string.deck_detail_loading))
             }
         }
 

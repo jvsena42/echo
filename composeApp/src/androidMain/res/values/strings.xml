@@ -6,6 +6,7 @@
     <string name="home_greeting_name">%1$s 👋</string>
     <string name="home_error_title">Something went wrong</string>
     <string name="home_retry">Retry</string>
+    <string name="home_loading">Warming up…</string>
     <string name="home_due_today">DUE TODAY</string>
     <string name="home_cards">cards</string>
     <string name="home_to_review">to review</string>
@@ -31,11 +32,13 @@
     <string name="decks_empty_subtitle">Create your first deck or paste a list to get started.</string>
     <string name="decks_empty_create">Create a deck</string>
     <string name="decks_error_title">Something went wrong</string>
+    <string name="decks_loading">Shuffling your decks…</string>
     <string name="decks_retry">Retry</string>
 
     <!-- Deck detail -->
     <string name="deck_detail_error_title">Something went wrong</string>
     <string name="deck_detail_retry">Retry</string>
+    <string name="deck_detail_loading">Opening deck…</string>
     <string name="deck_detail_start_studying">Start studying · %1$d due</string>
     <string name="deck_detail_study_this_deck">Study this deck</string>
     <string name="deck_detail_back">Back</string>
@@ -92,6 +95,7 @@
     <!-- Study session -->
     <string name="study_error_title">Something went wrong</string>
     <string name="study_close">Close</string>
+    <string name="study_loading">Dealing your cards…</string>
     <string name="study_empty_title">You\'re all caught up 🎉</string>
     <string name="study_empty_subtitle">No cards due right now.</string>
     <string name="study_empty_subtitle_deck">No cards due in %1$s right now.</string>
@@ -116,6 +120,7 @@
     <string name="discover_empty_subtitle">Add a friend by their pubky to follow them and discover their public decks.</string>
     <string name="discover_add_a_friend">Add a friend</string>
     <string name="discover_error_title">Something went wrong</string>
+    <string name="discover_loading">Finding decks to explore…</string>
     <string name="discover_retry">Retry</string>
     <string name="discover_add_friend_sheet_subtitle">Paste a pubky or scan their QR code to view their profile and follow them.</string>
     <string name="discover_paste_pubky">Paste a pubky</string>
@@ -185,6 +190,7 @@
 
     <!-- Profile -->
     <string name="profile_title">Profile</string>
+    <string name="profile_loading">Loading profile…</string>
     <string name="profile_settings_content_description">Settings</string>
     <string name="profile_pubky_short">pk:%1$s</string>
     <string name="profile_pubky_truncated">pk:%1$s…%2$s</string>
@@ -212,6 +218,7 @@
     <!-- Settings -->
     <string name="settings_back_content_description">Back</string>
     <string name="settings_title">Settings</string>
+    <string name="settings_loading">Loading settings…</string>
     <string name="settings_section_identity">IDENTITY</string>
     <string name="settings_pubky_label">Pubky</string>
     <string name="settings_pubky_truncated">pk:%1$s…%2$s</string>

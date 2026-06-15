@@ -21,7 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -50,6 +49,7 @@ import com.github.jvsena42.echo.presentation.decks.DecksLibraryEffect
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryUiState
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.echo.ui.components.DeckTile
+import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
@@ -100,21 +100,29 @@ fun DecksScreen(
     onRetry: () -> Unit,
 ) {
     val colors = EchoTheme.colors
-    PullToRefreshBox(
-        isRefreshing = state is DecksLibraryUiState.Loading,
-        onRefresh = onRetry,
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surfacePrimary)
             .windowInsetsPadding(WindowInsets.statusBars),
     ) {
-        DecksScreenContent(
-            state = state,
-            onDeckClick = onDeckClick,
-            onImportClick = onImportClick,
-            onCreateDeckClick = onCreateDeckClick,
-            onRetry = onRetry,
-        )
+        if (state is DecksLibraryUiState.Loading) {
+            EchoLoadingScreen(message = stringResource(R.string.decks_loading))
+        } else {
+            PullToRefreshBox(
+                isRefreshing = false,
+                onRefresh = onRetry,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                DecksScreenContent(
+                    state = state,
+                    onDeckClick = onDeckClick,
+                    onImportClick = onImportClick,
+                    onCreateDeckClick = onCreateDeckClick,
+                    onRetry = onRetry,
+                )
+            }
+        }
     }
 }
 
@@ -137,7 +145,7 @@ private fun DecksScreenContent(
         PasteCtaCard(onClick = onImportClick)
 
         when (state) {
-            DecksLibraryUiState.Loading -> LoadingBlock()
+            DecksLibraryUiState.Loading -> Unit
             DecksLibraryUiState.Empty -> EmptyBlock(onCreateDeckClick = onCreateDeckClick)
             is DecksLibraryUiState.Content -> {
                 SectionHeader(deckCount = state.deckCount)
@@ -287,18 +295,6 @@ private fun DeckGrid(decks: List<DeckTileModel>, onDeckClick: (String) -> Unit) 
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun LoadingBlock() {
-    val colors = EchoTheme.colors
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        CircularProgressIndicator(color = colors.accentPrimary)
     }
 }
 

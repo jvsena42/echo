@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,6 +47,7 @@ import com.github.jvsena42.echo.presentation.profile.FriendProfileUiState
 import com.github.jvsena42.echo.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.echo.ui.components.AuthorRow
 import com.github.jvsena42.echo.ui.components.DeckTile
+import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
@@ -98,9 +98,8 @@ private fun FriendProfileScreen(
     if (state.isLoading) {
         Box(
             modifier = Modifier.fillMaxSize().background(colors.surfacePrimary),
-            contentAlignment = Alignment.Center,
         ) {
-            CircularProgressIndicator(color = colors.accentPrimary)
+            EchoLoadingScreen(message = stringResource(R.string.profile_loading))
         }
         return
     }

@@ -1,6 +1,5 @@
 package com.github.jvsena42.echo.ui.study
 
-import android.provider.Settings
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -32,7 +31,6 @@ import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -52,7 +50,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +66,8 @@ import com.github.jvsena42.echo.platform.Speaker
 import com.github.jvsena42.echo.presentation.study.StudySessionEffect
 import com.github.jvsena42.echo.presentation.study.StudySessionUiState
 import com.github.jvsena42.echo.presentation.study.StudySessionViewModel
+import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
+import com.github.jvsena42.echo.ui.components.rememberReduceMotion
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
@@ -126,9 +125,8 @@ fun StudySessionScreen(
             .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         when (state) {
-            StudySessionUiState.Loading -> CircularProgressIndicator(
-                color = colors.accentPrimary,
-                modifier = Modifier.align(Alignment.Center),
+            StudySessionUiState.Loading -> EchoLoadingScreen(
+                message = stringResource(R.string.study_loading),
             )
 
             is StudySessionUiState.Error -> CenteredMessage(
@@ -313,22 +311,6 @@ private fun ReviewingContent(
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-    }
-}
-
-/**
- * Reads the OS animation scale; returns true when animations are disabled
- * ("Remove animations" / Reduce Motion), so the flip swaps faces instantly.
- */
-@Composable
-private fun rememberReduceMotion(): Boolean {
-    val context = LocalContext.current
-    return remember(context) {
-        Settings.Global.getFloat(
-            context.contentResolver,
-            Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f,
-        ) == 0f
     }
 }
 
