@@ -1,11 +1,14 @@
 package com.github.jvsena42.echo.ui.study
 
 import android.provider.Settings
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -39,8 +42,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -235,7 +240,11 @@ private fun ReviewingContent(
         val reduceMotion = rememberReduceMotion()
         val rotation by animateFloatAsState(
             targetValue = if (state.revealed) 180f else 0f,
-            animationSpec = if (reduceMotion) snap() else tween(durationMillis = 450),
+            animationSpec = if (reduceMotion) {
+                snap()
+            } else {
+                tween(durationMillis = 700, easing = FastOutSlowInEasing)
+            },
             label = "cardFlip",
         )
         Box(
@@ -279,7 +288,7 @@ private fun ReviewingContent(
         // size; only show the buttons (only on the back) once revealed.
         Box(modifier = Modifier.height(72.dp)) {
             if (state.revealed) {
-                SrsRow(intervals = state.intervals, onGrade = onGrade)
+                SrsRow(intervals = state.intervals, onGrade = onGrade, reduceMotion = reduceMotion)
             }
         }
 
@@ -392,6 +401,7 @@ private fun FlipHint(modifier: Modifier = Modifier) {
 private fun SrsRow(
     intervals: Map<SrsGrade, String>,
     onGrade: (SrsGrade) -> Unit,
+    reduceMotion: Boolean,
 ) {
     val colors = EchoTheme.colors
     val buttons = listOf(
@@ -404,35 +414,88 @@ private fun SrsRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        buttons.forEach { (grade, color) ->
-            Button(
-                onClick = { onGrade(grade) },
-                modifier = Modifier
-                    .testTag("study_${grade.name.lowercase()}")
-                    .weight(1f)
-                    .height(72.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = color,
-                    contentColor = Color.White,
-                ),
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text = grade.name,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.W700,
-                    )
-                    Text(
-                        text = intervals[grade] ?: "",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.W500,
-                    )
-                }
-            }
+        buttons.forEachIndexed { index, (grade, color) ->
+            SrsButton(
+                grade = grade,
+                color = color,
+                interval = intervals[grade] ?: "",
+                index = index,
+                reduceMotion = reduceMotion,
+                onGrade = onGrade,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/**
+ * One grade button. On reveal the buttons fade + rise + scale in with a per-index
+ * stagger; pressing dips the scale for tactile feedback. Both effects are skipped when
+ * the OS has animations disabled.
+ */
+@Composable
+private fun SrsButton(
+    grade: SrsGrade,
+    color: Color,
+    interval: String,
+    index: Int,
+    reduceMotion: Boolean,
+    onGrade: (SrsGrade) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+    val enter by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = if (reduceMotion) {
+            snap()
+        } else {
+            tween(durationMillis = 280, delayMillis = index * 60, easing = FastOutSlowInEasing)
+        },
+        label = "srsEnter",
+    )
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed && !reduceMotion) 0.94f else 1f,
+        animationSpec = tween(durationMillis = 120),
+        label = "srsPress",
+    )
+
+    Button(
+        onClick = { onGrade(grade) },
+        interactionSource = interactionSource,
+        modifier = modifier
+            .testTag("study_${grade.name.lowercase()}")
+            .height(72.dp)
+            .graphicsLayer {
+                alpha = enter
+                val scale = (0.85f + 0.15f * enter) * pressScale
+                scaleX = scale
+                scaleY = scale
+                translationY = (1f - enter) * 20.dp.toPx()
+            },
+        shape = RoundedCornerShape(20.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = color,
+            contentColor = Color.White,
+        ),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = grade.name,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.W700,
+            )
+            Text(
+                text = interval,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.W500,
+            )
         }
     }
 }
