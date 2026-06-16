@@ -14,6 +14,10 @@ data class Deck(
     val updatedAt: Long,
     val cardIndex: List<CardIndexEntry>,
     val lastStudiedAt: Long? = null,
+    /** Opt-in: play TTS audio of the card back during study. */
+    val listenEnabled: Boolean = true,
+    /** Opt-in: pronunciation practice (speech recognition) on the card back during study. */
+    val speakEnabled: Boolean = true,
 ) {
     val cardCount: Int get() = cardIndex.size
     val pubkyUri: PubkyUri get() = PubkyUri("pubky://$authorPubky/pub/echo/decks/$id/manifest.json")

@@ -289,6 +289,8 @@ Published decks live under the author's pubky, one record per card plus a manife
   "tags": ["spanish", "a1"],
   "created_at": 1739000000000,
   "updated_at": 1739000500000,
+  "listen_enabled": true,
+  "speak_enabled": true,
   "cards": [
     { "id": "uuid-1", "updated_at": 1739000100000 },
     { "id": "uuid-2", "updated_at": 1739000200000 }
@@ -298,6 +300,8 @@ Published decks live under the author's pubky, one record per card plus a manife
 
 - `cards[]` order **is** the study order.
 - Manifest `updated_at` bumps on any deck-metadata change or any card add/remove/reorder. A per-card edit bumps the card record and its entry in the manifest.
+- `listen_enabled` / `speak_enabled` are deck-level study opt-ins (TTS playback of the back / pronunciation practice). Both default `true`; manifests written before these fields existed decode to `true`. Additive — schema stays `1`.
+- A media ref (`cover_image_ref`, `image_ref`, `audio_ref`) may instead carry a `"url"` field for a **web image** (e.g. an Unsplash photo). When `url` is set, `path`/`sha256` are empty (`""`) and no blob is stored on the homeserver; the client loads the remote URL directly.
 
 **`cards/{cardId}.json`:**
 
