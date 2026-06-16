@@ -8,7 +8,7 @@ package com.github.jvsena42.echo.data.nexus
  * Implementations must treat non-2xx responses as failures carrying [HttpError].
  */
 interface HttpFetcher {
-    suspend fun get(url: String): Result<String>
+    suspend fun get(url: String, headers: Map<String, String> = emptyMap()): Result<String>
 }
 
 class HttpError(val statusCode: Int, message: String) : RuntimeException(message)

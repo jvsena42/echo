@@ -55,8 +55,11 @@ class FakeHttpFetcher(
         responses[url] = Result.failure(error)
     }
 
-    override suspend fun get(url: String): Result<String> {
+    val requestedHeaders = mutableListOf<Map<String, String>>()
+
+    override suspend fun get(url: String, headers: Map<String, String>): Result<String> {
         requestedUrls.add(url)
+        requestedHeaders.add(headers)
         return responses[url] ?: Result.failure(IllegalStateException("No canned response for $url"))
     }
 }

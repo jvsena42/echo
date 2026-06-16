@@ -8,7 +8,7 @@ import org.koin.android.ext.koin.androidLogger
 class EchoApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        initKoinAndroid {
+        initKoinAndroid(unsplashAccessKey = BuildConfig.UNSPLASH_ACCESS_KEY) {
             androidLogger()
             androidContext(this@EchoApp)
         }

@@ -3,12 +3,14 @@ package com.github.jvsena42.echo.data.nexus
 import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.Foundation.NSData
 import platform.Foundation.NSHTTPURLResponse
+import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.NSString
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLSession
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.create
-import platform.Foundation.dataTaskWithURL
+import platform.Foundation.dataTaskWithRequest
+import platform.Foundation.setValue
 import kotlin.coroutines.resume
 
 /**
@@ -17,12 +19,15 @@ import kotlin.coroutines.resume
  */
 class IosHttpFetcher : HttpFetcher {
 
-    override suspend fun get(url: String): Result<String> {
+    override suspend fun get(url: String, headers: Map<String, String>): Result<String> {
         val nsUrl = NSURL.URLWithString(url)
             ?: return Result.failure(IllegalArgumentException("Invalid URL: $url"))
 
+        val request = NSMutableURLRequest.requestWithURL(nsUrl)
+        headers.forEach { (key, value) -> request.setValue(value, forHTTPHeaderField = key) }
+
         return suspendCancellableCoroutine { continuation ->
-            val task = NSURLSession.sharedSession.dataTaskWithURL(nsUrl) { data, response, error ->
+            val task = NSURLSession.sharedSession.dataTaskWithRequest(request) { data, response, error ->
                 val result: Result<String> = when {
                     error != null ->
                         Result.failure(RuntimeException(error.localizedDescription))
