@@ -24,7 +24,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -60,6 +59,7 @@ import com.github.jvsena42.echo.presentation.discover.DiscoverEffect
 import com.github.jvsena42.echo.presentation.discover.DiscoverUiState
 import com.github.jvsena42.echo.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.echo.ui.components.DeckTile
+import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
@@ -119,22 +119,30 @@ private fun DiscoverScreen(
     onRetry: () -> Unit,
 ) {
     val colors = EchoTheme.colors
-    PullToRefreshBox(
-        isRefreshing = state is DiscoverUiState.Loading,
-        onRefresh = onRetry,
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surfacePrimary)
             .windowInsetsPadding(WindowInsets.statusBars),
     ) {
-        DiscoverScreenContent(
-            state = state,
-            onTagSelected = onTagSelected,
-            onAddFriend = onAddFriend,
-            onOpenAuthor = onOpenAuthor,
-            onOpenDeck = onOpenDeck,
-            onRetry = onRetry,
-        )
+        if (state is DiscoverUiState.Loading) {
+            EchoLoadingScreen(message = stringResource(R.string.discover_loading))
+        } else {
+            PullToRefreshBox(
+                isRefreshing = false,
+                onRefresh = onRetry,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                DiscoverScreenContent(
+                    state = state,
+                    onTagSelected = onTagSelected,
+                    onAddFriend = onAddFriend,
+                    onOpenAuthor = onOpenAuthor,
+                    onOpenDeck = onOpenDeck,
+                    onRetry = onRetry,
+                )
+            }
+        }
     }
 }
 
@@ -157,7 +165,7 @@ private fun DiscoverScreenContent(
         HeaderRow(onAddFriend = onAddFriend)
 
         when (state) {
-            DiscoverUiState.Loading -> LoadingBlock()
+            DiscoverUiState.Loading -> Unit
             DiscoverUiState.Empty -> EmptyBlock(onAddFriend = onAddFriend)
             is DiscoverUiState.Content -> {
                 if (state.tags.isNotEmpty()) {
@@ -326,17 +334,6 @@ private fun DeckGrid(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun LoadingBlock() {
-    val colors = EchoTheme.colors
-    Column(
-        modifier = Modifier.fillMaxSize().padding(top = 80.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        CircularProgressIndicator(color = colors.accentPrimary)
     }
 }
 

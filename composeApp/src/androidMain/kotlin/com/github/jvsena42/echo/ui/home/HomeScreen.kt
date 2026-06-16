@@ -2,6 +2,7 @@ package com.github.jvsena42.echo.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -33,6 +33,7 @@ import com.github.jvsena42.echo.presentation.home.DeckSummary
 import com.github.jvsena42.echo.presentation.home.HomeEffect
 import com.github.jvsena42.echo.presentation.home.HomeUiState
 import com.github.jvsena42.echo.presentation.home.HomeViewModel
+import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
@@ -90,22 +91,30 @@ fun HomeScreen(
     onRetry: () -> Unit,
 ) {
     val colors = EchoTheme.colors
-    PullToRefreshBox(
-        isRefreshing = state is HomeUiState.Loading,
-        onRefresh = onRetry,
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surfacePrimary)
             .windowInsetsPadding(WindowInsets.statusBars),
     ) {
-        HomeScreenContent(
-            state = state,
-            onStartStudyClick = onStartStudyClick,
-            onCreateDeckClick = onCreateDeckClick,
-            onBrowseExamplesClick = onBrowseExamplesClick,
-            onDeckClick = onDeckClick,
-            onRetry = onRetry,
-        )
+        if (state is HomeUiState.Loading) {
+            EchoLoadingScreen(message = stringResource(R.string.home_loading))
+        } else {
+            PullToRefreshBox(
+                isRefreshing = false,
+                onRefresh = onRetry,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                HomeScreenContent(
+                    state = state,
+                    onStartStudyClick = onStartStudyClick,
+                    onCreateDeckClick = onCreateDeckClick,
+                    onBrowseExamplesClick = onBrowseExamplesClick,
+                    onDeckClick = onDeckClick,
+                    onRetry = onRetry,
+                )
+            }
+        }
     }
 }
 
@@ -126,7 +135,7 @@ private fun HomeScreenContent(
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         when (state) {
-            HomeUiState.Loading -> LoadingBlock()
+            HomeUiState.Loading -> Unit
             is HomeUiState.Empty -> {
                 GreetingHeader(name = state.greetingName)
                 HomeEmptyContent(
@@ -147,18 +156,6 @@ private fun HomeScreenContent(
                 ErrorBlock(message = state.message, onRetry = onRetry)
             }
         }
-    }
-}
-
-@Composable
-private fun LoadingBlock() {
-    val colors = EchoTheme.colors
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        CircularProgressIndicator(color = colors.accentPrimary)
     }
 }
 

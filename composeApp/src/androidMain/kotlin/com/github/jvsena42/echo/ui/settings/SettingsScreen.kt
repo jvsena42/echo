@@ -23,7 +23,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -57,6 +56,7 @@ import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.settings.SettingsEffect
 import com.github.jvsena42.echo.presentation.settings.SettingsUiState
 import com.github.jvsena42.echo.presentation.settings.SettingsViewModel
+import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
@@ -112,9 +112,8 @@ private fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(colors.surfacePrimary),
-            contentAlignment = Alignment.Center,
         ) {
-            CircularProgressIndicator(color = colors.accentPrimary)
+            EchoLoadingScreen(message = stringResource(R.string.settings_loading))
         }
         return
     }

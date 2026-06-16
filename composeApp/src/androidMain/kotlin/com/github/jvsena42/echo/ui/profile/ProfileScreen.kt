@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -66,6 +65,7 @@ import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.profile.ProfileEffect
 import com.github.jvsena42.echo.presentation.profile.ProfileUiState
 import com.github.jvsena42.echo.presentation.profile.ProfileViewModel
+import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
@@ -130,9 +130,8 @@ private fun ProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(colors.surfacePrimary),
-            contentAlignment = Alignment.Center,
         ) {
-            CircularProgressIndicator(color = colors.accentPrimary)
+            EchoLoadingScreen(message = stringResource(R.string.profile_loading))
         }
         return
     }
