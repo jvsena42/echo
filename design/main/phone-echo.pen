@@ -1057,7 +1057,7 @@
                       "name": "speakI",
                       "width": 16,
                       "height": 16,
-                      "icon": "volume-2",
+                      "icon": "mic",
                       "library": "lucide",
                       "fill": "$accent-secondary"
                     },
@@ -7312,6 +7312,216 @@
                       ]
                     }
                   ]
+                },
+                {
+                  "type": "frame",
+                  "id": "LrgQ4",
+                  "name": "Card Options",
+                  "width": "fill_container",
+                  "fill": "#00000000",
+                  "layout": "vertical",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ftA0a",
+                      "name": "Card Options Label",
+                      "fill": "$foreground-muted",
+                      "content": "CARD OPTIONS",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "700",
+                      "letterSpacing": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "hZ85N",
+                      "name": "Listen Row",
+                      "width": "fill_container",
+                      "fill": "$surface-card",
+                      "cornerRadius": "$radius-lg",
+                      "stroke": "$border-subtle",
+                      "strokeWidth": 1.5,
+                      "strokeAlignment": "inner",
+                      "gap": 12,
+                      "padding": 14,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "yJrh3",
+                          "name": "Listen Left",
+                          "width": "fill_container",
+                          "fill": "#00000000",
+                          "gap": 10,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "BBSYc",
+                              "name": "Listen Icon",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "headphones",
+                              "library": "lucide",
+                              "fill": "$foreground-primary"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "r8IR9I",
+                              "name": "Listen Text",
+                              "width": "fill_container",
+                              "fill": "#00000000",
+                              "layout": "vertical",
+                              "gap": 2,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "stkhE",
+                                  "name": "Listen Label",
+                                  "fill": "$foreground-primary",
+                                  "content": "Listen",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "p6cCf",
+                                  "name": "Listen Subtitle",
+                                  "fill": "$foreground-muted",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Play audio pronunciation on card back",
+                                  "lineHeight": 1.3,
+                                  "fontFamily": "Inter",
+                                  "fontSize": 11,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "J9861",
+                          "name": "Listen Toggle",
+                          "width": 44,
+                          "height": 26,
+                          "fill": "$accent-primary",
+                          "cornerRadius": "$radius-pill",
+                          "padding": 3,
+                          "justifyContent": "end",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "F7T6P",
+                              "name": "Listen Knob",
+                              "fill": "$foreground-on-accent",
+                              "width": 20,
+                              "height": 20
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QDWzj",
+                      "name": "Speak Row",
+                      "width": "fill_container",
+                      "fill": "$surface-card",
+                      "cornerRadius": "$radius-lg",
+                      "stroke": "$border-subtle",
+                      "strokeWidth": 1.5,
+                      "strokeAlignment": "inner",
+                      "gap": 12,
+                      "padding": 14,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "S16Bhg",
+                          "name": "Speak Left",
+                          "width": "fill_container",
+                          "fill": "#00000000",
+                          "gap": 10,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "s53CeV",
+                              "name": "Speak Icon",
+                              "width": 20,
+                              "height": 20,
+                              "icon": "mic",
+                              "library": "lucide",
+                              "fill": "$foreground-primary"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "hqKQJ",
+                              "name": "Speak Text",
+                              "width": "fill_container",
+                              "fill": "#00000000",
+                              "layout": "vertical",
+                              "gap": 2,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "P3vpBL",
+                                  "name": "Speak Label",
+                                  "fill": "$foreground-primary",
+                                  "content": "Speak",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 14,
+                                  "fontWeight": "600"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "OXCc6",
+                                  "name": "Speak Subtitle",
+                                  "fill": "$foreground-muted",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Test your pronunciation",
+                                  "lineHeight": 1.3,
+                                  "fontFamily": "Inter",
+                                  "fontSize": 11,
+                                  "fontWeight": "500"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Q9kTYb",
+                          "name": "Speak Toggle",
+                          "width": 44,
+                          "height": 26,
+                          "fill": "$accent-primary",
+                          "cornerRadius": "$radius-pill",
+                          "padding": 3,
+                          "justifyContent": "end",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "ellipse",
+                              "id": "bzv72",
+                              "name": "Speak Knob",
+                              "fill": "$foreground-on-accent",
+                              "width": 20,
+                              "height": 20
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
                 }
               ]
             },
@@ -8736,10 +8946,10 @@
                   "type": "text",
                   "id": "nLXGm",
                   "name": "cardLbl",
-                  "fill": "$foreground-muted",
+                  "fill": "$accent-primary",
                   "content": "EL ZORRO",
                   "fontFamily": "Inter",
-                  "fontSize": 11,
+                  "fontSize": 14,
                   "fontWeight": "700",
                   "letterSpacing": 1.5
                 },
@@ -8798,36 +9008,82 @@
                 },
                 {
                   "type": "frame",
-                  "id": "G9AEv",
-                  "name": "speak",
-                  "fill": "$accent-secondary-soft",
-                  "cornerRadius": "$radius-pill",
-                  "gap": 8,
-                  "padding": [
-                    10,
-                    18
-                  ],
+                  "id": "YTSBb",
+                  "name": "audioButtons",
+                  "fill": "#00000000",
+                  "gap": 10,
+                  "justifyContent": "center",
                   "alignItems": "center",
                   "children": [
                     {
-                      "type": "icon",
-                      "id": "212yv",
-                      "name": "speakI",
-                      "width": 16,
-                      "height": 16,
-                      "icon": "volume-2",
-                      "library": "lucide",
-                      "fill": "$accent-secondary"
+                      "type": "frame",
+                      "id": "qvfgq",
+                      "name": "Listen",
+                      "fill": "$accent-primary-soft",
+                      "cornerRadius": "$radius-pill",
+                      "gap": 8,
+                      "padding": [
+                        10,
+                        18
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "UrmVd",
+                          "name": "listenIcon",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "headphones",
+                          "library": "lucide",
+                          "fill": "$accent-primary"
+                        },
+                        {
+                          "type": "text",
+                          "id": "KJoRo",
+                          "name": "listenLabel",
+                          "fill": "$accent-primary",
+                          "content": "Listen",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "700"
+                        }
+                      ]
                     },
                     {
-                      "type": "text",
-                      "id": "J0aVW",
-                      "name": "speakT",
-                      "fill": "$accent-secondary",
-                      "content": "Speak",
-                      "fontFamily": "Inter",
-                      "fontSize": 14,
-                      "fontWeight": "700"
+                      "type": "frame",
+                      "id": "sJIlg",
+                      "name": "Speak",
+                      "fill": "$accent-secondary-soft",
+                      "cornerRadius": "$radius-pill",
+                      "gap": 8,
+                      "padding": [
+                        10,
+                        18
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "U49Ii",
+                          "name": "speakIcon",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "mic",
+                          "library": "lucide",
+                          "fill": "$accent-secondary"
+                        },
+                        {
+                          "type": "text",
+                          "id": "dGPNt",
+                          "name": "speakLabel",
+                          "fill": "$accent-secondary",
+                          "content": "Speak",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "700"
+                        }
+                      ]
                     }
                   ]
                 }
