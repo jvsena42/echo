@@ -15,6 +15,21 @@ data class ParsedRow(
     val isValid: Boolean,
 )
 
+/** A keep/discard decision made during triage (spec §5.5). Rows default to [Keep]. */
+enum class TriageDecision { Keep, Discard }
+
+/** Index of the field mapped to the card front (falls back to 0). */
+fun ImportDraft.frontIndex(): Int =
+    columnMapping.assignments.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
+
+/** Index of the field mapped to the card back (falls back to 1). */
+fun ImportDraft.backIndex(): Int =
+    columnMapping.assignments.indexOfFirst { it == ColumnRole.Back }.takeIf { it >= 0 } ?: 1
+
+/** The (front, back) text pair for [row] using this draft's column mapping. */
+fun ImportDraft.frontBackOf(row: ParsedRow): Pair<String, String> =
+    row.fields.getOrElse(frontIndex()) { "" } to row.fields.getOrElse(backIndex()) { "" }
+
 sealed class Separator {
     data object Auto : Separator()
     data object Tab : Separator()

@@ -45,9 +45,8 @@ class PublishDeckViewModel(
     private var undoCountdownJob: Job? = null
 
     init {
-        val draft = importRepository.currentDraft()
-        if (draft != null) {
-            _state.update { it.copy(cardCount = draft.rows.size) }
+        if (importRepository.currentDraft() != null) {
+            _state.update { it.copy(cardCount = importRepository.keptRows().size) }
         }
     }
 
@@ -90,7 +89,7 @@ class PublishDeckViewModel(
 
         publishJob = scope.launch {
             _state.update { it.copy(isPublishing = true, error = null) }
-            Log.d(TAG, "publish: title=${s.title}, cards=${draft.rows.size}")
+            Log.d(TAG, "publish: title=${s.title}, cards=${importRepository.keptRows().size}")
 
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
@@ -102,8 +101,9 @@ class PublishDeckViewModel(
             val now = epochMillis()
             val deckId = generateId()
             val mapping = draft.columnMapping.assignments
+            val keptRows = importRepository.keptRows()
 
-            val cards = draft.rows.mapIndexed { idx, row ->
+            val cards = keptRows.map { row ->
                 val frontIdx = mapping.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
                 val backIdx = mapping.indexOfFirst { it == ColumnRole.Back }.takeIf { it >= 0 } ?: 1
                 Card(

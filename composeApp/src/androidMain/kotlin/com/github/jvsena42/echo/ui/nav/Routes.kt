@@ -10,6 +10,8 @@ object Routes {
     const val EDIT_CARD = "deck/{deckId}/card/{cardId}/edit"
 
     const val IMPORT_PASTE = "import/paste"
+    const val IMPORT_TRIAGE = "import/triage"
+    const val IMPORT_TRIAGE_EDIT = "import/triage/edit/{rowIndex}"
     const val IMPORT_PUBLISH = "import/publish"
 
     /** Study session. `deckId` omitted = study all due cards across owned decks. */
@@ -24,4 +26,5 @@ object Routes {
     fun deckEditor(deckId: String) = "deck/editor/$deckId"
     fun editCard(deckId: String, cardId: String) = "deck/$deckId/card/$cardId/edit"
     fun study(deckId: String?) = if (deckId != null) "study?deckId=$deckId" else "study"
+    fun triageEditCard(rowIndex: Int) = "import/triage/edit/$rowIndex"
 }

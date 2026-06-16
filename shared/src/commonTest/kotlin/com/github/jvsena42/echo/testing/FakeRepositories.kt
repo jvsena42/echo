@@ -12,6 +12,7 @@ import com.github.jvsena42.echo.domain.model.ColumnMapping
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.ImportDraft
 import com.github.jvsena42.echo.domain.model.ParsedRow
+import com.github.jvsena42.echo.domain.model.TriageDecision
 import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.domain.model.PubkyUri
 import com.github.jvsena42.echo.domain.model.Separator
@@ -160,15 +161,32 @@ class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRep
 
 class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
     var clearCount = 0
+    private val triageDecisions = mutableMapOf<Int, TriageDecision>()
+    private val rowEdits = mutableMapOf<Int, Pair<String, String>>()
 
     override fun currentDraft(): ImportDraft? = draft
 
     override suspend fun parse(rawText: String): Result<ImportDraft> =
         draft?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no draft"))
 
+    override fun decisions(): Map<Int, TriageDecision> = triageDecisions.toMap()
+
+    override fun setDecision(rowIndex: Int, decision: TriageDecision) {
+        triageDecisions[rowIndex] = decision
+    }
+
+    override fun updateRow(rowIndex: Int, front: String, back: String) {
+        rowEdits[rowIndex] = front to back
+    }
+
+    override fun keptRows(): List<ParsedRow> =
+        draft?.rows?.filter { triageDecisions[it.index] != TriageDecision.Discard } ?: emptyList()
+
     override fun clear() {
         clearCount++
         draft = null
+        triageDecisions.clear()
+        rowEdits.clear()
     }
 }
 
