@@ -7211,76 +7211,108 @@
                       "name": "tagsRow",
                       "width": "fill_container",
                       "fill": "#00000000",
-                      "gap": 6,
+                      "layout": "vertical",
+                      "gap": 8,
                       "children": [
                         {
-                          "id": "Qk3Fj",
-                          "type": "ref",
-                          "ref": "Zguuw",
-                          "name": "ft1",
-                          "descendants": {
-                            "Hyk6W": {
-                              "content": "spanish"
+                          "type": "frame",
+                          "id": "Rxd9c",
+                          "name": "tagFlowRow1",
+                          "width": "fill_container",
+                          "fill": "#00000000",
+                          "gap": 6,
+                          "children": [
+                            {
+                              "id": "Qk3Fj",
+                              "type": "ref",
+                              "ref": "Zguuw",
+                              "name": "ft1",
+                              "descendants": {
+                                "Hyk6W": {
+                                  "content": "spanish"
+                                }
+                              }
+                            },
+                            {
+                              "id": "NyZsO",
+                              "type": "ref",
+                              "ref": "Zguuw",
+                              "name": "ft2",
+                              "descendants": {
+                                "Hyk6W": {
+                                  "content": "a1"
+                                }
+                              }
+                            },
+                            {
+                              "id": "jGSXA",
+                              "type": "ref",
+                              "ref": "Zguuw",
+                              "name": "ft3",
+                              "descendants": {
+                                "Hyk6W": {
+                                  "content": "vocab"
+                                }
+                              }
                             }
-                          }
-                        },
-                        {
-                          "id": "NyZsO",
-                          "type": "ref",
-                          "ref": "Zguuw",
-                          "name": "ft2",
-                          "descendants": {
-                            "Hyk6W": {
-                              "content": "a1"
-                            }
-                          }
-                        },
-                        {
-                          "id": "jGSXA",
-                          "type": "ref",
-                          "ref": "Zguuw",
-                          "name": "ft3",
-                          "descendants": {
-                            "Hyk6W": {
-                              "content": "vocab"
-                            }
-                          }
+                          ]
                         },
                         {
                           "type": "frame",
-                          "id": "iJhT7",
-                          "name": "addTag",
+                          "id": "GfNA5",
+                          "name": "tagFlowRow2",
+                          "width": "fill_container",
                           "fill": "#00000000",
-                          "cornerRadius": "$radius-pill",
-                          "stroke": "$border-subtle",
-                          "strokeWidth": 1.5,
-                          "strokeAlignment": "inner",
-                          "gap": 4,
-                          "padding": [
-                            8,
-                            12
-                          ],
-                          "alignItems": "center",
+                          "gap": 6,
                           "children": [
                             {
-                              "type": "icon",
-                              "id": "DYtTF",
-                              "name": "addTagIc",
-                              "width": 12,
-                              "height": 12,
-                              "icon": "plus",
-                              "library": "lucide",
-                              "fill": "$foreground-muted"
+                              "id": "y4zrUi",
+                              "type": "ref",
+                              "ref": "Zguuw",
+                              "name": "ft4",
+                              "descendants": {
+                                "Hyk6W": {
+                                  "content": "basics"
+                                }
+                              }
                             },
                             {
-                              "type": "text",
-                              "id": "fKrOe",
-                              "name": "addTagT",
-                              "fill": "$foreground-muted",
-                              "content": "Add",
-                              "fontFamily": "Inter",
-                              "fontSize": 12,
-                              "fontWeight": "600"
+                              "type": "frame",
+                              "id": "iJhT7",
+                              "name": "addTag",
+                              "fill": "#00000000",
+                              "cornerRadius": "$radius-pill",
+                              "stroke": "$border-subtle",
+                              "strokeWidth": 1.5,
+                              "strokeAlignment": "inner",
+                              "gap": 4,
+                              "padding": [
+                                8,
+                                12
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "DYtTF",
+                                  "name": "addTagIc",
+                                  "width": 12,
+                                  "height": 12,
+                                  "icon": "plus",
+                                  "library": "lucide",
+                                  "fill": "$foreground-muted"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "fKrOe",
+                                  "name": "addTagT",
+                                  "fill": "$foreground-muted",
+                                  "content": "Add",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 12,
+                                  "fontWeight": "600"
+                                }
+                              ]
                             }
                           ]
                         }
