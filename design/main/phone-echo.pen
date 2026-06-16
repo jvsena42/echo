@@ -6033,36 +6033,11 @@
                 },
                 {
                   "type": "frame",
-                  "id": "cvL92",
-                  "name": "nxtWrap",
-                  "fill": "$accent-primary",
-                  "cornerRadius": "$radius-pill",
-                  "effect": {
-                    "type": "shadow",
-                    "shadowType": "outer",
-                    "color": "#FF5C0040",
-                    "offset": {
-                      "x": 0,
-                      "y": 4
-                    },
-                    "blur": 14
-                  },
-                  "padding": [
-                    8,
-                    16
-                  ],
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "3cRsv",
-                      "name": "nxtT",
-                      "fill": "$foreground-on-accent",
-                      "content": "Next",
-                      "fontFamily": "Inter",
-                      "fontSize": 14,
-                      "fontWeight": "700"
-                    }
-                  ]
+                  "id": "bLmnH",
+                  "name": "navSp",
+                  "width": 51,
+                  "height": 20,
+                  "fill": "#00000000"
                 }
               ]
             },
@@ -6234,7 +6209,7 @@
               "type": "frame",
               "id": "AR5KU",
               "name": "previewCards",
-              "width": "fill_container",
+              "width": 390,
               "height": "fill_container",
               "fill": "#00000000",
               "gap": 10,
@@ -6501,6 +6476,42 @@
                       "fontWeight": "600"
                     }
                   ]
+                },
+                {
+                  "type": "frame",
+                  "id": "V7Eqg",
+                  "name": "nxtBtn",
+                  "width": "fill_container",
+                  "fill": "$accent-primary",
+                  "cornerRadius": "$radius-pill",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#FF5C0033",
+                    "offset": {
+                      "x": 0,
+                      "y": 8
+                    },
+                    "blur": 24
+                  },
+                  "padding": [
+                    18,
+                    32
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "fP1DI",
+                      "name": "nxtBL",
+                      "fill": "$foreground-on-accent",
+                      "content": "Next",
+                      "fontFamily": "Funnel Sans",
+                      "fontSize": 17,
+                      "fontWeight": "700"
+                    }
+                  ]
                 }
               ]
             }
@@ -6556,6 +6567,7 @@
                   "type": "frame",
                   "id": "50oUg",
                   "name": "bk",
+                  "width": 72,
                   "gap": 4,
                   "padding": [
                     6,
@@ -6728,43 +6740,6 @@
                   "fontFamily": "Inter",
                   "fontSize": 22,
                   "fontWeight": "500"
-                },
-                {
-                  "type": "frame",
-                  "id": "ZwZJI",
-                  "name": "tcTagsRow",
-                  "fill": "#00000000",
-                  "gap": 6,
-                  "children": [
-                    {
-                      "id": "yTTht",
-                      "type": "ref",
-                      "ref": "Zguuw",
-                      "name": "tag1",
-                      "descendants": {
-                        "Hyk6W": {
-                          "content": "es"
-                        },
-                        "qZB28": {
-                          "enabled": false
-                        }
-                      }
-                    },
-                    {
-                      "id": "5fz9g",
-                      "type": "ref",
-                      "ref": "Zguuw",
-                      "name": "tag2",
-                      "descendants": {
-                        "Hyk6W": {
-                          "content": "vocab"
-                        },
-                        "qZB28": {
-                          "enabled": false
-                        }
-                      }
-                    }
-                  ]
                 }
               ]
             },
