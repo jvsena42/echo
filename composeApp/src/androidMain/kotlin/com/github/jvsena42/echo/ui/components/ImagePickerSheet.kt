@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -25,6 +26,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -123,19 +126,25 @@ fun ImagePickerSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(text = title, fontSize = 20.sp, fontWeight = FontWeight.W800, color = colors.foregroundPrimary)
-                Text(
-                    text = stringResource(R.string.image_sheet_done),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (selectedUrl != null) colors.accentPrimary else colors.foregroundMuted,
-                    modifier = Modifier
-                        .testTag("image_sheet_done")
-                        .clip(RoundedCornerShape(50))
-                        .clickable(enabled = selectedUrl != null) {
-                            selectedUrl?.let { onSelected(ImageSelection.Web(it)) }
-                        }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                )
+                Button(
+                    onClick = { selectedUrl?.let { onSelected(ImageSelection.Web(it)) } },
+                    enabled = selectedUrl != null,
+                    modifier = Modifier.testTag("image_sheet_done"),
+                    shape = RoundedCornerShape(50),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accentPrimary,
+                        contentColor = colors.foregroundOnAccent,
+                        disabledContainerColor = colors.borderSubtle,
+                        disabledContentColor = colors.foregroundMuted,
+                    ),
+                ) {
+                    Text(
+                        text = stringResource(R.string.image_sheet_done),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
 
             subtitle?.let {
