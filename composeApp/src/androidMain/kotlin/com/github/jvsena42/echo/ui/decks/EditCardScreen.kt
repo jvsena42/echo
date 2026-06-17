@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,9 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.AssistChip
@@ -33,8 +30,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,12 +43,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -61,12 +52,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.platform.Speaker
 import com.github.jvsena42.echo.presentation.decks.EditCardEffect
 import com.github.jvsena42.echo.presentation.decks.EditCardUiState
 import com.github.jvsena42.echo.presentation.decks.EditCardViewModel
+import com.github.jvsena42.echo.ui.components.CardSideEditor
 import com.github.jvsena42.echo.ui.components.ImagePickerSheet
 import com.github.jvsena42.echo.ui.components.ImageSelection
 import com.github.jvsena42.echo.ui.components.TagChip
@@ -235,37 +226,37 @@ fun EditCardScreen(
             )
 
             // 2. Front section
-            CardTextSection(
+            CardSideEditor(
                 label = stringResource(R.string.edit_card_label_front),
-                speakDescription = stringResource(R.string.edit_card_speak_front),
-                onSpeak = onSpeakFront,
                 value = state.frontText,
                 onValueChange = onFrontTextChanged,
                 placeholder = stringResource(R.string.edit_card_front_placeholder),
                 textStyle = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.W700),
-                error = state.frontError,
-                focusedBorderColor = colors.accentPrimary,
                 imageModel = state.frontImageRef?.url ?: state.frontPendingBytes,
                 onPickImage = { imagePickerSide = true },
                 onRemoveImage = onRemoveFrontImage,
                 imageTag = "editcard_front_image",
+                fieldTag = "editcard_front",
+                error = state.frontError,
+                onSpeak = onSpeakFront,
+                speakDescription = stringResource(R.string.edit_card_speak_front),
             )
 
             // 3. Back section
-            CardTextSection(
+            CardSideEditor(
                 label = stringResource(R.string.edit_card_label_back),
-                speakDescription = stringResource(R.string.edit_card_speak_back),
-                onSpeak = onSpeakBack,
                 value = state.backText,
                 onValueChange = onBackTextChanged,
                 placeholder = stringResource(R.string.edit_card_back_placeholder),
                 textStyle = TextStyle(fontSize = 16.sp),
-                error = state.backError,
-                focusedBorderColor = colors.accentPrimary,
                 imageModel = state.backImageRef?.url ?: state.backPendingBytes,
                 onPickImage = { imagePickerSide = false },
                 onRemoveImage = onRemoveBackImage,
                 imageTag = "editcard_back_image",
+                fieldTag = "editcard_back",
+                error = state.backError,
+                onSpeak = onSpeakBack,
+                speakDescription = stringResource(R.string.edit_card_speak_back),
             )
 
             // 4. Audio (recording is a future enhancement)
@@ -375,119 +366,6 @@ fun EditCardScreen(
                 imagePickerSide = null
             },
         )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CardTextSection(
-    label: String,
-    speakDescription: String,
-    onSpeak: () -> Unit,
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    textStyle: TextStyle,
-    error: String?,
-    focusedBorderColor: Color,
-    imageModel: Any?,
-    onPickImage: () -> Unit,
-    onRemoveImage: () -> Unit,
-    imageTag: String,
-) {
-    val colors = EchoTheme.colors
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = label,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.W700,
-                letterSpacing = 0.8.sp,
-                color = colors.foregroundMuted,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(
-                    onClick = onPickImage,
-                    modifier = Modifier.testTag("${imageTag}_add"),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
-                ) {
-                    Icon(imageVector = Icons.Default.Image, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(if (imageModel != null) R.string.image_sheet_change else R.string.edit_card_add_image),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.W600,
-                    )
-                }
-                TextButton(
-                    onClick = onSpeak,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                        contentDescription = speakDescription,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = stringResource(R.string.edit_card_speak), fontSize = 12.sp, fontWeight = FontWeight.W600)
-                }
-            }
-        }
-
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
-            textStyle = textStyle.copy(color = colors.foregroundPrimary),
-            placeholder = { Text(text = placeholder, style = textStyle, color = colors.foregroundMuted) },
-            isError = error != null,
-            shape = RoundedCornerShape(16.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = focusedBorderColor,
-                unfocusedBorderColor = colors.borderSubtle,
-                cursorColor = colors.accentPrimary,
-                errorBorderColor = colors.danger,
-            ),
-        )
-
-        imageModel?.let { model ->
-            Row(
-                modifier = Modifier
-                    .testTag("${imageTag}_chip")
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(colors.surfaceSecondary)
-                    .padding(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                AsyncImage(
-                    model = model,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                )
-                Spacer(Modifier.weight(1f))
-                TextButton(
-                    onClick = onRemoveImage,
-                    modifier = Modifier.testTag("${imageTag}_remove"),
-                    colors = ButtonDefaults.textButtonColors(contentColor = colors.srsAgain),
-                ) {
-                    Text(stringResource(R.string.image_sheet_remove), fontSize = 12.sp)
-                }
-            }
-        }
-
-        error?.let { errorText ->
-            Text(text = errorText, fontSize = 12.sp, color = colors.danger)
-        }
     }
 }
 

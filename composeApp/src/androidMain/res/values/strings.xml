@@ -202,7 +202,6 @@
     <string name="image_sheet_front_subtitle">Choose an image for the front of the card</string>
     <string name="image_sheet_back_title">Back image</string>
     <string name="image_sheet_back_subtitle">Choose an image for the back of the card</string>
-    <string name="image_sheet_change">Change image</string>
     <string name="image_sheet_done">Done</string>
     <string name="image_sheet_search_placeholder">Search images…</string>
     <string name="image_sheet_from_gallery">From gallery</string>
