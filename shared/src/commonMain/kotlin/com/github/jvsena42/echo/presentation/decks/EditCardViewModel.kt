@@ -65,6 +65,7 @@ class EditCardViewModel(
                 frontText = card.front.text ?: "",
                 backText = card.back.text ?: "",
                 frontImageRef = card.front.imageRef,
+                backImageRef = card.back.imageRef,
                 hasImage = card.front.imageRef != null || card.back.imageRef != null,
                 hasAudio = card.front.audioRef != null || card.back.audioRef != null,
             )
@@ -85,7 +86,22 @@ class EditCardViewModel(
     }
 
     fun onRemoveFrontImage() {
-        _state.update { it.copy(frontImageRef = null, frontPendingBytes = null, frontPendingMime = null, hasImage = false) }
+        _state.update { it.copy(frontImageRef = null, frontPendingBytes = null, frontPendingMime = null) }
+    }
+
+    /** A web (Unsplash) image was chosen for the card back — saved by URL. */
+    fun onBackImageWebSelected(url: String) {
+        val ref = MediaRef.Image(path = "", mime = "image/jpeg", sha256 = "", width = null, height = null, url = url)
+        _state.update { it.copy(backImageRef = ref, backPendingBytes = null, backPendingMime = null) }
+    }
+
+    /** A gallery image was chosen for the card back — already compressed; uploaded on save. */
+    fun onBackImageGallerySelected(bytes: ByteArray, mime: String) {
+        _state.update { it.copy(backImageRef = null, backPendingBytes = bytes, backPendingMime = mime) }
+    }
+
+    fun onRemoveBackImage() {
+        _state.update { it.copy(backImageRef = null, backPendingBytes = null, backPendingMime = null) }
     }
 
     fun onFrontTextChanged(text: String) {
@@ -140,6 +156,7 @@ class EditCardViewModel(
             val existingCard = cardRepository.get(deckId, cardId)
             val now = epochMillis()
             val frontImage = resolveFrontImage(s)
+            val backImage = resolveBackImage(s)
             val card = Card(
                 id = cardId,
                 deckId = deckId,
@@ -151,7 +168,7 @@ class EditCardViewModel(
                 ),
                 back = CardSide(
                     text = s.backText.ifBlank { null },
-                    imageRef = existingCard?.back?.imageRef,
+                    imageRef = backImage,
                     audioRef = existingCard?.back?.audioRef,
                 ),
             )
@@ -194,6 +211,16 @@ class EditCardViewModel(
         else -> s.frontImageRef
     }
 
+    /** Upload a pending gallery image, or keep the chosen web/existing ref (card back). */
+    private suspend fun resolveBackImage(s: EditCardUiState): MediaRef.Image? = when {
+        s.backPendingBytes != null ->
+            mediaRepository.putImage(deckId, s.backPendingBytes, s.backPendingMime ?: "image/jpeg")
+                .onFailure { Log.e(TAG, "back image upload failed — ${it.message}", it) }
+                .getOrNull()
+
+        else -> s.backImageRef
+    }
+
     fun onDispose() {
         loadJob?.cancel()
         saveJob?.cancel()
@@ -219,6 +246,9 @@ data class EditCardUiState(
     val frontImageRef: MediaRef.Image? = null,
     val frontPendingBytes: ByteArray? = null,
     val frontPendingMime: String? = null,
+    val backImageRef: MediaRef.Image? = null,
+    val backPendingBytes: ByteArray? = null,
+    val backPendingMime: String? = null,
     val hasImage: Boolean = false,
     val hasAudio: Boolean = false,
     val isSaving: Boolean = false,

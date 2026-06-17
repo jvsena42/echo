@@ -114,6 +114,9 @@ fun EditCardRoute(
         onFrontImageWebSelected = viewModel::onFrontImageWebSelected,
         onFrontImageGallerySelected = viewModel::onFrontImageGallerySelected,
         onRemoveFrontImage = viewModel::onRemoveFrontImage,
+        onBackImageWebSelected = viewModel::onBackImageWebSelected,
+        onBackImageGallerySelected = viewModel::onBackImageGallerySelected,
+        onRemoveBackImage = viewModel::onRemoveBackImage,
         onDeleteCard = viewModel::onDeleteCard,
     )
 }
@@ -133,10 +136,14 @@ fun EditCardScreen(
     onFrontImageWebSelected: (String) -> Unit = {},
     onFrontImageGallerySelected: (ByteArray, String) -> Unit = { _, _ -> },
     onRemoveFrontImage: () -> Unit = {},
+    onBackImageWebSelected: (String) -> Unit = {},
+    onBackImageGallerySelected: (ByteArray, String) -> Unit = { _, _ -> },
+    onRemoveBackImage: () -> Unit = {},
     onDeleteCard: () -> Unit,
 ) {
     val colors = EchoTheme.colors
-    var showImageSheet by remember { mutableStateOf(false) }
+    // Which side's image picker is open (true = front, false = back, null = none).
+    var imagePickerSide by remember { mutableStateOf<Boolean?>(null) }
 
     Scaffold(
         containerColor = colors.surfacePrimary,
@@ -238,6 +245,10 @@ fun EditCardScreen(
                 textStyle = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.W700),
                 error = state.frontError,
                 focusedBorderColor = colors.accentPrimary,
+                imageModel = state.frontImageRef?.url ?: state.frontPendingBytes,
+                onPickImage = { imagePickerSide = true },
+                onRemoveImage = onRemoveFrontImage,
+                imageTag = "editcard_front_image",
             )
 
             // 3. Back section
@@ -251,77 +262,27 @@ fun EditCardScreen(
                 textStyle = TextStyle(fontSize = 16.sp),
                 error = state.backError,
                 focusedBorderColor = colors.accentPrimary,
+                imageModel = state.backImageRef?.url ?: state.backPendingBytes,
+                onPickImage = { imagePickerSide = false },
+                onRemoveImage = onRemoveBackImage,
+                imageTag = "editcard_back_image",
             )
 
-            // 4a. Front image preview (when set)
-            state.frontImageRef?.let { imageRef ->
-                Row(
-                    modifier = Modifier
-                        .testTag("editcard_front_image_chip")
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(colors.surfaceSecondary)
-                        .padding(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    AsyncImage(
-                        model = imageRef.url ?: state.frontPendingBytes,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                    )
-                    Text(stringResource(R.string.image_sheet_front_title), fontSize = 13.sp, color = colors.foregroundSecondary)
-                    Spacer(Modifier.weight(1f))
-                    TextButton(
-                        onClick = onRemoveFrontImage,
-                        modifier = Modifier.testTag("editcard_front_image_remove"),
-                        colors = ButtonDefaults.textButtonColors(contentColor = colors.srsAgain),
-                    ) {
-                        Text(stringResource(R.string.image_sheet_remove), fontSize = 12.sp)
-                    }
-                }
-            }
-
-            // 4. Media buttons
-            Row(
+            // 4. Audio (recording is a future enhancement)
+            OutlinedButton(
+                onClick = { /* TODO: audio recorder */ },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.foregroundMuted),
+                border = BorderStroke(1.dp, colors.borderSubtle),
             ) {
-                OutlinedButton(
-                    onClick = { showImageSheet = true },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("editcard_image"),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.foregroundMuted),
-                    border = BorderStroke(1.dp, colors.borderSubtle),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Image,
-                        contentDescription = stringResource(R.string.edit_card_add_image),
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = stringResource(R.string.edit_card_image), fontSize = 14.sp)
-                }
-
-                OutlinedButton(
-                    onClick = { /* TODO: audio recorder */ },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.foregroundMuted),
-                    border = BorderStroke(1.dp, colors.borderSubtle),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Mic,
-                        contentDescription = stringResource(R.string.edit_card_add_audio),
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = stringResource(R.string.edit_card_audio), fontSize = 14.sp)
-                }
+                Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = stringResource(R.string.edit_card_add_audio),
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = stringResource(R.string.edit_card_audio), fontSize = 14.sp)
             }
 
             // 5. Tags section
@@ -395,17 +356,23 @@ fun EditCardScreen(
         }
     }
 
-    if (showImageSheet) {
+    imagePickerSide?.let { isFront ->
         ImagePickerSheet(
-            title = stringResource(R.string.image_sheet_front_title),
-            subtitle = stringResource(R.string.image_sheet_front_subtitle),
-            onDismiss = { showImageSheet = false },
+            title = stringResource(if (isFront) R.string.image_sheet_front_title else R.string.image_sheet_back_title),
+            subtitle = stringResource(if (isFront) R.string.image_sheet_front_subtitle else R.string.image_sheet_back_subtitle),
+            onDismiss = { imagePickerSide = null },
             onSelected = { selection ->
                 when (selection) {
-                    is ImageSelection.Web -> onFrontImageWebSelected(selection.url)
-                    is ImageSelection.Gallery -> onFrontImageGallerySelected(selection.bytes, selection.mime)
+                    is ImageSelection.Web ->
+                        if (isFront) onFrontImageWebSelected(selection.url) else onBackImageWebSelected(selection.url)
+                    is ImageSelection.Gallery ->
+                        if (isFront) {
+                            onFrontImageGallerySelected(selection.bytes, selection.mime)
+                        } else {
+                            onBackImageGallerySelected(selection.bytes, selection.mime)
+                        }
                 }
-                showImageSheet = false
+                imagePickerSide = null
             },
         )
     }
@@ -423,6 +390,10 @@ private fun CardTextSection(
     textStyle: TextStyle,
     error: String?,
     focusedBorderColor: Color,
+    imageModel: Any?,
+    onPickImage: () -> Unit,
+    onRemoveImage: () -> Unit,
+    imageTag: String,
 ) {
     val colors = EchoTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -438,18 +409,34 @@ private fun CardTextSection(
                 letterSpacing = 0.8.sp,
                 color = colors.foregroundMuted,
             )
-            TextButton(
-                onClick = onSpeak,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                    contentDescription = speakDescription,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = stringResource(R.string.edit_card_speak), fontSize = 12.sp, fontWeight = FontWeight.W600)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(
+                    onClick = onPickImage,
+                    modifier = Modifier.testTag("${imageTag}_add"),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
+                ) {
+                    Icon(imageVector = Icons.Default.Image, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(if (imageModel != null) R.string.image_sheet_change else R.string.edit_card_add_image),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.W600,
+                    )
+                }
+                TextButton(
+                    onClick = onSpeak,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                        contentDescription = speakDescription,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = stringResource(R.string.edit_card_speak), fontSize = 12.sp, fontWeight = FontWeight.W600)
+                }
             }
         }
 
@@ -468,6 +455,35 @@ private fun CardTextSection(
                 errorBorderColor = colors.danger,
             ),
         )
+
+        imageModel?.let { model ->
+            Row(
+                modifier = Modifier
+                    .testTag("${imageTag}_chip")
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(colors.surfaceSecondary)
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AsyncImage(
+                    model = model,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+                Spacer(Modifier.weight(1f))
+                TextButton(
+                    onClick = onRemoveImage,
+                    modifier = Modifier.testTag("${imageTag}_remove"),
+                    colors = ButtonDefaults.textButtonColors(contentColor = colors.srsAgain),
+                ) {
+                    Text(stringResource(R.string.image_sheet_remove), fontSize = 12.sp)
+                }
+            }
+        }
 
         error?.let { errorText ->
             Text(text = errorText, fontSize = 12.sp, color = colors.danger)
