@@ -50,8 +50,10 @@ class PublishDeckViewModel(
     private var undoCountdownJob: Job? = null
 
     init {
-        if (importRepository.currentDraft() != null) {
-            _state.update { it.copy(cardCount = importRepository.keptRows().size) }
+        val draft = importRepository.currentDraft()
+        if (draft != null) {
+            val kept = importRepository.keptRows().size
+            _state.update { it.copy(cardCount = kept, discardedCount = draft.rows.size - kept) }
         }
     }
 
@@ -269,6 +271,7 @@ data class PublishDeckUiState(
     val coverEmoji: String = "",
     val tags: List<String> = emptyList(),
     val cardCount: Int = 0,
+    val discardedCount: Int = 0,
     val isPublishing: Boolean = false,
     val publishedDeckId: String? = null,
     val undoSecondsRemaining: Int = 0,

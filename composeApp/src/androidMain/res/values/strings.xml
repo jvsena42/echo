@@ -156,6 +156,7 @@
     <string name="publish_back">Back</string>
     <string name="publish_title">New deck</string>
     <string name="publish_cards_ready">%1$d cards ready</string>
+    <string name="publish_cards_discarded">%1$d discarded in review</string>
     <string name="publish_cover_label">COVER</string>
     <string name="publish_cover_change">Change</string>
     <string name="publish_title_label">TITLE</string>

@@ -26,8 +26,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -46,7 +48,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -179,24 +183,44 @@ private fun PublishDeckScreen(
             Spacer(Modifier.size(40.dp))
         }
 
-        // Cards ready badge
+        // Cards ready badge (design `yFOOS`): peach panel, solid orange check, discarded subtitle.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .background(colors.srsGood.copy(alpha = 0.15f))
+                .background(colors.accentPrimarySoft)
                 .padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Check, null, tint = colors.srsGood, modifier = Modifier.size(20.dp))
-            Column {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(colors.accentPrimary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Check,
+                    null,
+                    tint = colors.foregroundOnAccent,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     stringResource(R.string.publish_cards_ready, state.cardCount),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = colors.foregroundPrimary,
                 )
+                if (state.discardedCount > 0) {
+                    Text(
+                        stringResource(R.string.publish_cards_discarded, state.discardedCount),
+                        fontSize = 12.sp,
+                        color = colors.foregroundSecondary,
+                    )
+                }
             }
         }
 
@@ -270,7 +294,7 @@ private fun PublishDeckScreen(
                     .testTag("publish_title")
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, colors.borderSubtle, RoundedCornerShape(12.dp))
+                    .background(colors.surfaceCard)
                     .padding(14.dp),
                 textStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary),
                 cursorBrush = SolidColor(colors.accentPrimary),
@@ -309,7 +333,7 @@ private fun PublishDeckScreen(
                     .testTag("publish_description")
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, colors.borderSubtle, RoundedCornerShape(12.dp))
+                    .background(colors.surfaceCard)
                     .padding(14.dp),
                 textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundSecondary),
                 cursorBrush = SolidColor(colors.accentPrimary),
@@ -380,6 +404,9 @@ private fun PublishDeckScreen(
                 checked = state.listenEnabled,
                 onToggle = onToggleListen,
                 testTag = "publish_listen_toggle",
+                icon = Icons.AutoMirrored.Filled.VolumeUp,
+                iconColor = colors.accentPrimary,
+                iconBackground = colors.accentPrimarySoft,
             )
             OptionToggleRow(
                 title = stringResource(R.string.publish_speak_title),
@@ -387,6 +414,9 @@ private fun PublishDeckScreen(
                 checked = state.speakEnabled,
                 onToggle = onToggleSpeak,
                 testTag = "publish_speak_toggle",
+                icon = Icons.Default.Mic,
+                iconColor = colors.accentSecondary,
+                iconBackground = colors.accentSecondarySoft,
             )
         }
 
@@ -592,6 +622,9 @@ private fun OptionToggleRow(
     checked: Boolean,
     onToggle: () -> Unit,
     testTag: String,
+    icon: ImageVector,
+    iconColor: Color,
+    iconBackground: Color,
 ) {
     val colors = EchoTheme.colors
     Row(
@@ -604,6 +637,15 @@ private fun OptionToggleRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(iconBackground),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, tint = iconColor, modifier = Modifier.size(18.dp))
+        }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary)
             Text(subtitle, fontSize = 12.sp, color = colors.foregroundSecondary)
