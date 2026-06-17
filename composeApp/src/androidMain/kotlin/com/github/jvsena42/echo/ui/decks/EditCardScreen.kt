@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -166,11 +167,17 @@ fun EditCardScreen(
                                 .size(20.dp),
                         )
                     } else {
-                        TextButton(
+                        Button(
                             onClick = onSaveClick,
-                            colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
+                            modifier = Modifier.padding(end = 12.dp),
+                            shape = RoundedCornerShape(50),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = colors.accentPrimary,
+                                contentColor = colors.foregroundOnAccent,
+                            ),
                         ) {
-                            Text(text = stringResource(R.string.edit_card_save), fontSize = 16.sp, fontWeight = FontWeight.W700)
+                            Text(text = stringResource(R.string.edit_card_save), fontSize = 15.sp, fontWeight = FontWeight.W700)
                         }
                     }
                 },
