@@ -57,6 +57,7 @@ import com.github.jvsena42.echo.presentation.importflow.PasteImportEffect
 import com.github.jvsena42.echo.presentation.importflow.PasteImportUiState
 import com.github.jvsena42.echo.presentation.importflow.PasteImportViewModel
 import com.github.jvsena42.echo.presentation.importflow.PreviewCard
+import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
@@ -281,6 +282,18 @@ private fun PasteScreen(
             // Error
             state.error?.let { errorText ->
                 Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
+            }
+
+            // Bottom Next button (design `MJ1SR`) — primary CTA once cards are parsed.
+            if (state.isParsed) {
+                EchoPrimaryButton(
+                    label = stringResource(R.string.paste_next),
+                    onClick = onNextClick,
+                    enabled = state.isParsed,
+                    modifier = Modifier
+                        .testTag("paste_next_button")
+                        .fillMaxWidth(),
+                )
             }
         }
     }
