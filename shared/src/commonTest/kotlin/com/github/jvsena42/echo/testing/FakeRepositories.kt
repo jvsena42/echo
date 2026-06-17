@@ -9,12 +9,11 @@ import com.github.jvsena42.echo.data.repository.MediaRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.data.repository.TagRepository
 import com.github.jvsena42.echo.domain.model.Card
-import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.ColumnMapping
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.ImportDraft
+import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.ParsedRow
-import com.github.jvsena42.echo.domain.model.TriageDecision
 import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.domain.model.PubkyUri
 import com.github.jvsena42.echo.domain.model.Separator
@@ -22,6 +21,7 @@ import com.github.jvsena42.echo.domain.model.Session
 import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.domain.model.SrsState
 import com.github.jvsena42.echo.domain.model.Tag
+import com.github.jvsena42.echo.domain.model.TriageDecision
 import com.github.jvsena42.echo.domain.model.review
 
 class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRepository {

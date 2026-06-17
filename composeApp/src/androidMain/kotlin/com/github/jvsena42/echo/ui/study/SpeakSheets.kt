@@ -21,10 +21,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,7 +40,7 @@ import com.github.jvsena42.echo.ui.theme.EchoTheme
  * Bottom sheets for Speak pronunciation practice (design sIqOr / n3bMb7 / BlcXn). Rendered based
  * on the current [SpeakPhase]; [SpeakPhase.Idle] shows nothing.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun SpeakSheets(
     phase: SpeakPhase,
@@ -58,6 +61,7 @@ fun SpeakSheets(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics { testTagsAsResourceId = true }
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

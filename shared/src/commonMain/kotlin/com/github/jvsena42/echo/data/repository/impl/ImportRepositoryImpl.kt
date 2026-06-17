@@ -11,6 +11,7 @@ import com.github.jvsena42.echo.domain.model.TriageDecision
 import com.github.jvsena42.echo.domain.model.backIndex
 import com.github.jvsena42.echo.domain.model.frontIndex
 
+@Suppress("TooManyFunctions")
 class ImportRepositoryImpl : ImportRepository {
 
     private var draft: ImportDraft? = null

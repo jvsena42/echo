@@ -9,6 +9,7 @@ import com.github.jvsena42.echo.domain.model.CardIndexEntry
 import com.github.jvsena42.echo.domain.model.CardSide
 import com.github.jvsena42.echo.domain.model.ColumnRole
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.ImportDraft
 import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.util.Log
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@Suppress("TooManyFunctions")
 class PublishDeckViewModel(
     private val importRepository: ImportRepository,
     private val deckRepository: DeckRepository,
@@ -121,21 +123,7 @@ class PublishDeckViewModel(
 
             val now = epochMillis()
             val deckId = generateId()
-            val mapping = draft.columnMapping.assignments
-            val keptRows = importRepository.keptRows()
-
-            val cards = keptRows.map { row ->
-                val frontIdx = mapping.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
-                val backIdx = mapping.indexOfFirst { it == ColumnRole.Back }.takeIf { it >= 0 } ?: 1
-                Card(
-                    id = generateId(),
-                    deckId = deckId,
-                    updatedAt = now,
-                    front = CardSide(text = row.fields.getOrElse(frontIdx) { "" }.takeIf { it.isNotBlank() }),
-                    back = CardSide(text = row.fields.getOrElse(backIdx) { "" }.takeIf { it.isNotBlank() }),
-                )
-            }
-
+            val cards = buildCards(draft, deckId, now)
             val coverImageRef = resolveCoverImage(s, deckId)
 
             val deck = Deck(
@@ -203,6 +191,22 @@ class PublishDeckViewModel(
             }
             importRepository.clear()
             _effects.emit(PublishDeckEffect.Published(deckId))
+        }
+    }
+
+    /** Maps the kept triage rows to [Card]s using the draft's column roles. */
+    private fun buildCards(draft: ImportDraft, deckId: String, now: Long): List<Card> {
+        val mapping = draft.columnMapping.assignments
+        val frontIdx = mapping.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
+        val backIdx = mapping.indexOfFirst { it == ColumnRole.Back }.takeIf { it >= 0 } ?: 1
+        return importRepository.keptRows().map { row ->
+            Card(
+                id = generateId(),
+                deckId = deckId,
+                updatedAt = now,
+                front = CardSide(text = row.fields.getOrElse(frontIdx) { "" }.takeIf { it.isNotBlank() }),
+                back = CardSide(text = row.fields.getOrElse(backIdx) { "" }.takeIf { it.isNotBlank() }),
+            )
         }
     }
 

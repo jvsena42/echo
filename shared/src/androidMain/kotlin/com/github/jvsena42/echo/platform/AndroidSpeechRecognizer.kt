@@ -5,10 +5,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer as AndroidSpeech
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import android.speech.SpeechRecognizer as AndroidSpeech
 
 /**
  * [SpeechRecognizer] backed by Android [android.speech.SpeechRecognizer]. The recognizer must be
@@ -28,6 +28,8 @@ class AndroidSpeechRecognizer(private val context: Context) : SpeechRecognizer {
         }
 
         val recognizer = AndroidSpeech.createSpeechRecognizer(context)
+
+        @Suppress("EmptyFunctionBlock")
         val listener = object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) { trySend(SpeechEvent.Ready) }
             override fun onBeginningOfSpeech() { trySend(SpeechEvent.BeginningOfSpeech) }

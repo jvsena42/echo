@@ -97,6 +97,7 @@ internal fun UnsplashPhotoDto.toDomain() = UnsplashPhoto(
 )
 
 /** Percent-encode a query string (UTF-8) for use in a URL — commonMain has no URLEncoder. */
+@Suppress("MagicNumber") // ASCII boundary (0x80) and hex radix (16) are standard URL-encoding constants.
 private fun String.urlEncode(): String = buildString {
     for (byte in this@urlEncode.encodeToByteArray()) {
         val code = byte.toInt() and 0xFF

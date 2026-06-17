@@ -1,0 +1,27 @@
+<journey name="Triage — edit a card before publishing">
+  <description>
+    The Review-cards triage step (spec §5.5, design U92Nh): paste a list, edit one card's
+    front/back text in triage, keep the rest, publish, and confirm the edit persisted in the
+    deck. Requires a signed-in session (run journey 01 first).
+  </description>
+  <actions>
+    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Tap the element with resource-id "tab_decks" in the bottom tab bar</action>
+    <action>Tap the element with resource-id "decks_paste_cta"</action>
+    <action>Type the following two lines into the field with resource-id "paste_input": "hola,hello", "gracias,thanks"</action>
+    <action>Tap the element with resource-id "paste_next"</action>
+    <action>Verify the "Review cards" triage screen is shown with the first card front "hola" (resource-id: triage_front)</action>
+    <action>Tap the element with resource-id "triage_edit" to edit the first card</action>
+    <action>Verify the edit screen is shown with editable front (resource-id: triage_edit_front) and back (resource-id: triage_edit_back) fields</action>
+    <action>Clear the field with resource-id "triage_edit_front" and type "buenos dias"</action>
+    <action>Clear the field with resource-id "triage_edit_back" and type "good morning"</action>
+    <action>Tap the element with resource-id "triage_edit_save"</action>
+    <action>Verify the triage screen is shown again and the first card front now reads "buenos dias" (resource-id: triage_front)</action>
+    <action>Tap the element with resource-id "triage_keep" to keep the first card</action>
+    <action>Tap the element with resource-id "triage_keep" to keep the second card and advance to Publish</action>
+    <action>Enter "Greetings ES" into the field with resource-id "publish_title"</action>
+    <action>Tap the element with resource-id "publish_button"</action>
+    <action>Tap the element with resource-id "publish_done"</action>
+    <action>Verify the deck detail screen for "Greetings ES" shows a card with front "buenos dias" and back "good morning"</action>
+  </actions>
+</journey>

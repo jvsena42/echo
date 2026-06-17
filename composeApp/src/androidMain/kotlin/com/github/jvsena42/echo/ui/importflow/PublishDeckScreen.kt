@@ -56,11 +56,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.importflow.PublishDeckEffect
 import com.github.jvsena42.echo.presentation.importflow.PublishDeckUiState
 import com.github.jvsena42.echo.presentation.importflow.PublishDeckViewModel
-import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.components.ImagePickerSheet
 import com.github.jvsena42.echo.ui.components.ImageSelection
@@ -108,6 +108,7 @@ fun PublishDeckRoute(
 }
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Suppress("CyclomaticComplexMethod", "LongMethod") // Single-screen form; sections read top-to-bottom.
 @Composable
 private fun PublishDeckScreen(
     state: PublishDeckUiState,

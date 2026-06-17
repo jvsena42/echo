@@ -41,11 +41,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,18 +63,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 
-/** The image a user chose: either a web URL (saved as-is) or compressed gallery bytes. */
-sealed interface ImageSelection {
-    data class Web(val url: String) : ImageSelection
-    data class Gallery(val bytes: ByteArray, val mime: String) : ImageSelection
-}
-
 /**
  * Reusable bottom sheet for choosing an image — web search (Unsplash) + a 3-column grid, plus a
  * "From gallery" button using the system photo picker (no storage permission). Backs both the
  * card-image sheet (cEXuT) and the cover sheet (OQ2QL).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@Suppress("CyclomaticComplexMethod", "LongMethod") // Single sheet; grid/gallery/states read top-to-bottom.
 @Composable
 fun ImagePickerSheet(
     title: String,
@@ -113,6 +111,7 @@ fun ImagePickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics { testTagsAsResourceId = true }
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),

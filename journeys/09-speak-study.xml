@@ -1,0 +1,22 @@
+<journey name="Speak — pronunciation practice in study">
+  <description>
+    The Speak study feature (design aLoMj / sIqOr / n3bMb7 / BlcXn): on a speak-enabled deck,
+    reveal a card back and start pronunciation practice. Actual speech cannot be synthesized in
+    automation, so this journey verifies the permission prompt and the Listening sheet appear and
+    that cancel/retry work; the Correct/Wrong outcome is a manual check. Requires a signed-in
+    session with at least one due card in a speak-enabled deck (run journeys 01–02 first).
+  </description>
+  <actions>
+    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Tap the element with resource-id "tab_decks" in the bottom tab bar</action>
+    <action>Open a deck that was published with the Speak option enabled and start studying it</action>
+    <action>Verify the study card (resource-id: study_card) is shown front-side</action>
+    <action>Tap the card to reveal the back</action>
+    <action>Verify a "Speak" practice button (resource-id: study_speak) is shown on the card back</action>
+    <action>Tap the element with resource-id "study_speak"</action>
+    <action>If the microphone permission has not been granted, verify the Android RECORD_AUDIO permission dialog appears and grant it</action>
+    <action>Verify the Listening sheet appears with a microphone indicator (resource-id: speak_mic) and the target word</action>
+    <action>Manual check (speech not automatable): say the word and verify either the "Perfect!" sheet with Continue (resource-id: speak_continue) or the "Not quite right" sheet with your transcript (resource-id: speak_heard) and Try again (resource-id: speak_retry)</action>
+    <action>Dismiss the Listening sheet and verify the study card is shown again</action>
+  </actions>
+</journey>

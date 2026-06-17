@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
  * value studies one deck (DeckDetail). Grading delegates to [SrsRepository.review], which owns the
  * SM-2-lite scheduler — the VM only sequences the queue and tracks reveal/progress.
  */
+@Suppress("TooManyFunctions")
 class StudySessionViewModel(
     private val deckId: String?,
     private val srsRepository: SrsRepository,
