@@ -11674,7 +11674,7 @@
                   "id": "hvd7M",
                   "name": "sheetTitle",
                   "fill": "$foreground-primary",
-                  "content": "Cover image",
+                  "content": "Back image",
                   "fontFamily": "Funnel Sans",
                   "fontSize": 20,
                   "fontWeight": "800"
