@@ -65,3 +65,21 @@ deck shows the back-card `study_speak` button; tapping it raises the Android REC
 permission dialog at the right time. This emulator image has no on-device speech recognition
 service, so `SpeechRecognizer` reports unavailable and the flow returns to the card without
 crashing — the Listening/Correct/Wrong outcome is a manual check on a device with Google speech.
+
+## 10 — Listen/Speak fixes + design polish — ✅ PASS (re-run 2026-06-17, emulator-5554)
+
+Verified after the Listen/Speak + fidelity fixes (RECORD_AUDIO revoked first to test the fresh
+grant path):
+
+| Step | Result |
+| --- | --- |
+| Study front card (`w1CAm`) | PASSED — word + "Tap card to reveal answer" only; **no Listen/Speak on the front** |
+| Reveal back (`aLoMj`) | PASSED — **"Listen"** pill (peach) + **"Speak"** pill (purple); names + colors now match the design (previously both read "Speak") |
+| Tap **Speak** → mic permission | PASSED — "Allow Echo to record audio?" dialog appears (the user-reported "permission not requested" bug is fixed) |
+| Grant → recognition unavailable | PASSED — Toast "Speech recognition is unavailable on this device" shows instead of silently doing nothing |
+| Paste preview (`MJ1SR`) | PASSED — bottom orange **Next** button shown once parsed |
+| Publish (`yFOOS`) | PASSED — peach "N cards ready" badge with solid orange check; white card fields; **Listen/Speak option rows have leading icons** (peach headphones / purple mic) |
+| Cover image sheet (`OQ2QL`) | PASSED — **Done** is now a pill (disabled-grey until a selection) |
+
+Speech recognition itself still needs a device/emulator with Google speech for the
+Correct/Wrong outcome.
