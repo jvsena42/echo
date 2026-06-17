@@ -18,6 +18,16 @@ data class ParsedRow(
 /** A keep/discard decision made during triage (spec §5.5). Rows default to [Keep]. */
 enum class TriageDecision { Keep, Discard }
 
+/**
+ * An image attached to a draft card side during triage, resolved at publish time:
+ * a web [url] is stored as a remote ref, while gallery [bytes] are uploaded as a blob.
+ */
+data class DraftCardImage(
+    val url: String? = null,
+    val bytes: ByteArray? = null,
+    val mime: String? = null,
+)
+
 /** Index of the field mapped to the card front (falls back to 0). */
 fun ImportDraft.frontIndex(): Int =
     columnMapping.assignments.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0

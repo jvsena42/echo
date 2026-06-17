@@ -2,6 +2,7 @@ package com.github.jvsena42.echo.data.repository
 
 import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.DraftCardImage
 import com.github.jvsena42.echo.domain.model.ImportDraft
 import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.ParsedRow
@@ -87,6 +88,12 @@ interface ImportRepository {
 
     /** Override a draft row's front/back text (triage edit). */
     fun updateRow(rowIndex: Int, front: String, back: String)
+
+    /** Attach/replace an image on a draft card side (triage); `null` clears it. */
+    fun setRowImage(rowIndex: Int, isFront: Boolean, image: DraftCardImage?)
+
+    /** The image attached to a draft card side during triage, if any. */
+    fun rowImage(rowIndex: Int, isFront: Boolean): DraftCardImage?
 
     /** The rows kept after triage, with any edits applied. */
     fun keptRows(): List<ParsedRow>

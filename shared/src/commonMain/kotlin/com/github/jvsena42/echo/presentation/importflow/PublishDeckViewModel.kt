@@ -9,6 +9,7 @@ import com.github.jvsena42.echo.domain.model.CardIndexEntry
 import com.github.jvsena42.echo.domain.model.CardSide
 import com.github.jvsena42.echo.domain.model.ColumnRole
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.DraftCardImage
 import com.github.jvsena42.echo.domain.model.ImportDraft
 import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.Tag
@@ -196,20 +197,45 @@ class PublishDeckViewModel(
         }
     }
 
-    /** Maps the kept triage rows to [Card]s using the draft's column roles. */
-    private fun buildCards(draft: ImportDraft, deckId: String, now: Long): List<Card> {
+    /** Maps the kept triage rows to [Card]s using the draft's column roles, uploading any
+     *  per-row images attached during triage. */
+    private suspend fun buildCards(draft: ImportDraft, deckId: String, now: Long): List<Card> {
         val mapping = draft.columnMapping.assignments
         val frontIdx = mapping.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
         val backIdx = mapping.indexOfFirst { it == ColumnRole.Back }.takeIf { it >= 0 } ?: 1
-        return importRepository.keptRows().map { row ->
-            Card(
-                id = generateId(),
-                deckId = deckId,
-                updatedAt = now,
-                front = CardSide(text = row.fields.getOrElse(frontIdx) { "" }.takeIf { it.isNotBlank() }),
-                back = CardSide(text = row.fields.getOrElse(backIdx) { "" }.takeIf { it.isNotBlank() }),
+        val cards = mutableListOf<Card>()
+        for (row in importRepository.keptRows()) {
+            cards.add(
+                Card(
+                    id = generateId(),
+                    deckId = deckId,
+                    updatedAt = now,
+                    front = CardSide(
+                        text = row.fields.getOrElse(frontIdx) { "" }.takeIf { it.isNotBlank() },
+                        imageRef = resolveDraftImage(importRepository.rowImage(row.index, isFront = true), deckId),
+                    ),
+                    back = CardSide(
+                        text = row.fields.getOrElse(backIdx) { "" }.takeIf { it.isNotBlank() },
+                        imageRef = resolveDraftImage(importRepository.rowImage(row.index, isFront = false), deckId),
+                    ),
+                ),
             )
         }
+        return cards
+    }
+
+    /** Resolves a triage [DraftCardImage]: upload gallery bytes, wrap a web URL, else none. */
+    private suspend fun resolveDraftImage(image: DraftCardImage?, deckId: String): MediaRef.Image? = when {
+        image == null -> null
+        image.bytes != null ->
+            mediaRepository.putImage(deckId, image.bytes, image.mime ?: "image/jpeg")
+                .onFailure { Log.e(TAG, "card image upload failed — ${it.message}", it) }
+                .getOrNull()
+
+        image.url != null ->
+            MediaRef.Image(path = "", mime = "image/jpeg", sha256 = "", width = null, height = null, url = image.url)
+
+        else -> null
     }
 
     /** Builds the cover [MediaRef.Image]: upload gallery bytes, or wrap a web URL, else none. */

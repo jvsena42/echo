@@ -3,6 +3,7 @@ package com.github.jvsena42.echo.data.repository.impl
 import com.github.jvsena42.echo.data.repository.ImportRepository
 import com.github.jvsena42.echo.domain.model.ColumnMapping
 import com.github.jvsena42.echo.domain.model.ColumnRole
+import com.github.jvsena42.echo.domain.model.DraftCardImage
 import com.github.jvsena42.echo.domain.model.ImportDraft
 import com.github.jvsena42.echo.domain.model.ParseFlag
 import com.github.jvsena42.echo.domain.model.ParsedRow
@@ -17,6 +18,8 @@ class ImportRepositoryImpl : ImportRepository {
     private var draft: ImportDraft? = null
     private val triageDecisions = mutableMapOf<Int, TriageDecision>()
     private val rowEdits = mutableMapOf<Int, Pair<String, String>>()
+    private val rowFrontImages = mutableMapOf<Int, DraftCardImage>()
+    private val rowBackImages = mutableMapOf<Int, DraftCardImage>()
 
     override fun currentDraft(): ImportDraft? = draft
 
@@ -29,6 +32,14 @@ class ImportRepositoryImpl : ImportRepository {
     override fun updateRow(rowIndex: Int, front: String, back: String) {
         rowEdits[rowIndex] = front.trim() to back.trim()
     }
+
+    override fun setRowImage(rowIndex: Int, isFront: Boolean, image: DraftCardImage?) {
+        val target = if (isFront) rowFrontImages else rowBackImages
+        if (image == null) target.remove(rowIndex) else target[rowIndex] = image
+    }
+
+    override fun rowImage(rowIndex: Int, isFront: Boolean): DraftCardImage? =
+        if (isFront) rowFrontImages[rowIndex] else rowBackImages[rowIndex]
 
     override fun keptRows(): List<ParsedRow> {
         val d = draft ?: return emptyList()
@@ -54,6 +65,8 @@ class ImportRepositoryImpl : ImportRepository {
         // A fresh parse invalidates any prior triage decisions/edits.
         triageDecisions.clear()
         rowEdits.clear()
+        rowFrontImages.clear()
+        rowBackImages.clear()
         val text = rawText.replace("\r\n", "\n").replace("\r", "\n").trim()
         require(text.isNotEmpty()) { "Nothing to import." }
         require(text.length <= MAX_CHARS) { "Text is too long (max $MAX_CHARS characters)." }
@@ -105,6 +118,8 @@ class ImportRepositoryImpl : ImportRepository {
         draft = null
         triageDecisions.clear()
         rowEdits.clear()
+        rowFrontImages.clear()
+        rowBackImages.clear()
     }
 
     // --- Separator detection (spec §6 rule order) ---

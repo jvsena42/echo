@@ -11,6 +11,7 @@ import com.github.jvsena42.echo.data.repository.TagRepository
 import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.ColumnMapping
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.DraftCardImage
 import com.github.jvsena42.echo.domain.model.ImportDraft
 import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.ParsedRow
@@ -180,6 +181,14 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
     override fun updateRow(rowIndex: Int, front: String, back: String) {
         rowEdits[rowIndex] = front to back
     }
+
+    private val rowImages = mutableMapOf<Pair<Int, Boolean>, DraftCardImage>()
+
+    override fun setRowImage(rowIndex: Int, isFront: Boolean, image: DraftCardImage?) {
+        if (image == null) rowImages.remove(rowIndex to isFront) else rowImages[rowIndex to isFront] = image
+    }
+
+    override fun rowImage(rowIndex: Int, isFront: Boolean): DraftCardImage? = rowImages[rowIndex to isFront]
 
     override fun keptRows(): List<ParsedRow> =
         draft?.rows?.filter { triageDecisions[it.index] != TriageDecision.Discard } ?: emptyList()
