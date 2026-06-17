@@ -97,12 +97,20 @@ val sharedModule = module {
             cardId = params.get(1),
             cardRepository = get(),
             deckRepository = get(),
+            mediaRepository = get(),
         )
     }
     factory { PasteImportViewModel(importRepository = get()) }
     factory { TriageViewModel(importRepository = get()) }
     factory { ImageSheetViewModel(unsplashClient = get()) }
-    factory { PublishDeckViewModel(importRepository = get(), deckRepository = get(), identityRepository = get()) }
+    factory {
+        PublishDeckViewModel(
+            importRepository = get(),
+            deckRepository = get(),
+            identityRepository = get(),
+            mediaRepository = get(),
+        )
+    }
     factory { ProfileViewModel(identityRepository = get(), deckRepository = get()) }
     factory { params -> SettingsViewModel(identityRepository = get(), appVersion = params.getOrNull() ?: "") }
     factory { DiscoverViewModel(discoveryRepository = get(), tagRepository = get()) }

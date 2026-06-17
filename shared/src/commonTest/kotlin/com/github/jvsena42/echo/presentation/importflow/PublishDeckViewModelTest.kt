@@ -3,6 +3,7 @@ package com.github.jvsena42.echo.presentation.importflow
 import com.github.jvsena42.echo.testing.FakeDeckRepository
 import com.github.jvsena42.echo.testing.FakeIdentityRepository
 import com.github.jvsena42.echo.testing.FakeImportRepository
+import com.github.jvsena42.echo.testing.FakeMediaRepository
 import com.github.jvsena42.echo.testing.TEST_PUBKY
 import com.github.jvsena42.echo.testing.testDraft
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -26,11 +27,13 @@ class PublishDeckViewModelTest {
     )
     private val deckRepo = FakeDeckRepository()
     private val identityRepo = FakeIdentityRepository()
+    private val mediaRepo = FakeMediaRepository()
 
     private fun TestScope.viewModel() = PublishDeckViewModel(
         importRepository = importRepo,
         deckRepository = deckRepo,
         identityRepository = identityRepo,
+        mediaRepository = mediaRepo,
         mainScope = this,
     )
 

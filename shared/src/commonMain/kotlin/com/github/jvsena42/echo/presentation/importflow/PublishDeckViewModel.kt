@@ -3,11 +3,13 @@ package com.github.jvsena42.echo.presentation.importflow
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.data.repository.ImportRepository
+import com.github.jvsena42.echo.data.repository.MediaRepository
 import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.CardIndexEntry
 import com.github.jvsena42.echo.domain.model.CardSide
 import com.github.jvsena42.echo.domain.model.ColumnRole
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.util.Log
 import com.github.jvsena42.echo.util.epochMillis
@@ -30,6 +32,7 @@ class PublishDeckViewModel(
     private val importRepository: ImportRepository,
     private val deckRepository: DeckRepository,
     private val identityRepository: IdentityRepository,
+    private val mediaRepository: MediaRepository,
     mainScope: CoroutineScope? = null,
 ) {
     private val scope: CoroutineScope =
@@ -60,6 +63,24 @@ class PublishDeckViewModel(
 
     fun onCoverEmojiChanged(emoji: String) {
         _state.update { it.copy(coverEmoji = emoji) }
+    }
+
+    fun onToggleListen() {
+        _state.update { it.copy(listenEnabled = !it.listenEnabled) }
+    }
+
+    fun onToggleSpeak() {
+        _state.update { it.copy(speakEnabled = !it.speakEnabled) }
+    }
+
+    /** A web (Unsplash) cover image was chosen — saved by URL, no upload. */
+    fun onCoverWebSelected(url: String) {
+        _state.update { it.copy(coverImageUrl = url, coverPendingBytes = null, coverPendingMime = null) }
+    }
+
+    /** A gallery cover image was chosen — already compressed; uploaded on publish. */
+    fun onCoverGallerySelected(bytes: ByteArray, mime: String) {
+        _state.update { it.copy(coverImageUrl = null, coverPendingBytes = bytes, coverPendingMime = mime) }
     }
 
     fun onAddTag(tag: String) {
@@ -115,17 +136,21 @@ class PublishDeckViewModel(
                 )
             }
 
+            val coverImageRef = resolveCoverImage(s, deckId)
+
             val deck = Deck(
                 id = deckId,
                 authorPubky = authorPubky,
                 title = s.title,
                 description = s.description.ifBlank { null },
                 coverEmoji = s.coverEmoji.ifBlank { null },
-                coverImageRef = null,
+                coverImageRef = coverImageRef,
                 tags = s.tags.map { Tag(it) },
                 createdAt = now,
                 updatedAt = now,
                 cardIndex = cards.map { CardIndexEntry(it.id, it.updatedAt) },
+                listenEnabled = s.listenEnabled,
+                speakEnabled = s.speakEnabled,
             )
 
             deckRepository.publish(deck, cards)
@@ -181,6 +206,19 @@ class PublishDeckViewModel(
         }
     }
 
+    /** Builds the cover [MediaRef.Image]: upload gallery bytes, or wrap a web URL, else none. */
+    private suspend fun resolveCoverImage(s: PublishDeckUiState, deckId: String): MediaRef.Image? = when {
+        s.coverPendingBytes != null ->
+            mediaRepository.putImage(deckId, s.coverPendingBytes, s.coverPendingMime ?: "image/jpeg")
+                .onFailure { Log.e(TAG, "cover upload failed — ${it.message}", it) }
+                .getOrNull()
+
+        s.coverImageUrl != null ->
+            MediaRef.Image(path = "", mime = "image/jpeg", sha256 = "", width = null, height = null, url = s.coverImageUrl)
+
+        else -> null
+    }
+
     private fun validateForPublish(s: PublishDeckUiState): Boolean {
         if (s.title.isBlank()) {
             _state.update { it.copy(error = "Title is required.") }
@@ -230,6 +268,11 @@ data class PublishDeckUiState(
     val isPublishing: Boolean = false,
     val publishedDeckId: String? = null,
     val undoSecondsRemaining: Int = 0,
+    val listenEnabled: Boolean = true,
+    val speakEnabled: Boolean = true,
+    val coverImageUrl: String? = null,
+    val coverPendingBytes: ByteArray? = null,
+    val coverPendingMime: String? = null,
     val titleError: String? = null,
     val descriptionError: String? = null,
     val error: String? = null,

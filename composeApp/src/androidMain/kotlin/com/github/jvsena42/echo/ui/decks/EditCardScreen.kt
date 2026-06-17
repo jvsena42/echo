@@ -43,11 +43,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +65,9 @@ import com.github.jvsena42.echo.platform.Speaker
 import com.github.jvsena42.echo.presentation.decks.EditCardEffect
 import com.github.jvsena42.echo.presentation.decks.EditCardUiState
 import com.github.jvsena42.echo.presentation.decks.EditCardViewModel
+import coil3.compose.AsyncImage
+import com.github.jvsena42.echo.ui.components.ImagePickerSheet
+import com.github.jvsena42.echo.ui.components.ImageSelection
 import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
@@ -102,6 +110,9 @@ fun EditCardRoute(
         onSpeakBack = viewModel::onSpeakBack,
         onRemoveTag = viewModel::onRemoveTag,
         onAddTag = viewModel::onAddTag,
+        onFrontImageWebSelected = viewModel::onFrontImageWebSelected,
+        onFrontImageGallerySelected = viewModel::onFrontImageGallerySelected,
+        onRemoveFrontImage = viewModel::onRemoveFrontImage,
         onDeleteCard = viewModel::onDeleteCard,
     )
 }
@@ -118,9 +129,13 @@ fun EditCardScreen(
     onSpeakBack: () -> Unit,
     onRemoveTag: (String) -> Unit,
     onAddTag: (String) -> Unit,
+    onFrontImageWebSelected: (String) -> Unit = {},
+    onFrontImageGallerySelected: (ByteArray, String) -> Unit = { _, _ -> },
+    onRemoveFrontImage: () -> Unit = {},
     onDeleteCard: () -> Unit,
 ) {
     val colors = EchoTheme.colors
+    var showImageSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = colors.surfacePrimary,
@@ -231,14 +246,47 @@ fun EditCardScreen(
                 focusedBorderColor = colors.accentPrimary,
             )
 
+            // 4a. Front image preview (when set)
+            state.frontImageRef?.let { imageRef ->
+                Row(
+                    modifier = Modifier
+                        .testTag("editcard_front_image_chip")
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(colors.surfaceSecondary)
+                        .padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AsyncImage(
+                        model = imageRef.url ?: state.frontPendingBytes,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                    Text(stringResource(R.string.image_sheet_front_title), fontSize = 13.sp, color = colors.foregroundSecondary)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        onClick = onRemoveFrontImage,
+                        modifier = Modifier.testTag("editcard_front_image_remove"),
+                        colors = ButtonDefaults.textButtonColors(contentColor = colors.srsAgain),
+                    ) {
+                        Text(stringResource(R.string.image_sheet_remove), fontSize = 12.sp)
+                    }
+                }
+            }
+
             // 4. Media buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 OutlinedButton(
-                    onClick = { /* TODO: image picker */ },
-                    modifier = Modifier.weight(1f),
+                    onClick = { showImageSheet = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("editcard_image"),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.foregroundMuted),
                     border = BorderStroke(1.dp, colors.borderSubtle),
@@ -338,6 +386,21 @@ fun EditCardScreen(
                 )
             }
         }
+    }
+
+    if (showImageSheet) {
+        ImagePickerSheet(
+            title = stringResource(R.string.image_sheet_front_title),
+            subtitle = stringResource(R.string.image_sheet_front_subtitle),
+            onDismiss = { showImageSheet = false },
+            onSelected = { selection ->
+                when (selection) {
+                    is ImageSelection.Web -> onFrontImageWebSelected(selection.url)
+                    is ImageSelection.Gallery -> onFrontImageGallerySelected(selection.bytes, selection.mime)
+                }
+                showImageSheet = false
+            },
+        )
     }
 }
 
