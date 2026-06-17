@@ -2,6 +2,7 @@ package com.github.jvsena42.echo.ui.study
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
@@ -69,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.platform.Speaker
 import com.github.jvsena42.echo.platform.SpeechEvent
@@ -77,6 +80,7 @@ import com.github.jvsena42.echo.presentation.study.SpeakPhase
 import com.github.jvsena42.echo.presentation.study.StudySessionEffect
 import com.github.jvsena42.echo.presentation.study.StudySessionUiState
 import com.github.jvsena42.echo.presentation.study.StudySessionViewModel
+import com.github.jvsena42.echo.ui.components.CardMediaImage
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.rememberReduceMotion
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -107,7 +111,12 @@ fun StudySessionRoute(
     val micPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) viewModel.onSpeakTest() else viewModel.onSpeechError()
+        if (granted) {
+            viewModel.onSpeakTest()
+        } else {
+            Toast.makeText(context, R.string.speak_permission_denied, Toast.LENGTH_LONG).show()
+            viewModel.onSpeechError()
+        }
     }
 
     fun requestSpeak() {
@@ -124,6 +133,7 @@ fun StudySessionRoute(
                     recognitionJob.value?.cancel()
                     recognitionJob.value = scope.launch {
                         if (!speechRecognizer.isAvailable()) {
+                            Toast.makeText(context, R.string.speak_unavailable, Toast.LENGTH_LONG).show()
                             viewModel.onSpeechError()
                             return@launch
                         }
@@ -344,13 +354,14 @@ private fun ReviewingContent(
             contentAlignment = Alignment.Center,
         ) {
             if (rotation < 90f) {
-                // Front shows only the prompt; the reveal cue lives in the hint row below.
+                // Front shows only the prompt (design `w1CAm`); the reveal cue lives in the hint
+                // row below, and Listen/Speak appear only on the back.
                 CardFace(
                     label = null,
                     text = state.frontText,
                     textSize = 48.sp,
                     onSpeak = onSpeak,
-                    showListen = state.listenEnabled,
+                    showListen = false,
                     onSpeakTest = null,
                 )
             } else {
@@ -362,6 +373,8 @@ private fun ReviewingContent(
                     onSpeak = onSpeak,
                     showListen = state.listenEnabled,
                     onSpeakTest = if (state.speakEnabled) onSpeakTest else null,
+                    imageRef = state.frontImageRef,
+                    deckId = state.deckId,
                     modifier = Modifier.graphicsLayer { rotationY = 180f },
                 )
             }
@@ -399,6 +412,8 @@ private fun CardFace(
     showListen: Boolean,
     onSpeakTest: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    imageRef: MediaRef.Image? = null,
+    deckId: String = "",
 ) {
     val colors = EchoTheme.colors
     Column(
@@ -415,6 +430,17 @@ private fun CardFace(
                 color = colors.accentPrimary,
             )
         }
+        // Front-side image shown as a circular avatar on the card back (design `aLoMj`).
+        imageRef?.let { image ->
+            CardMediaImage(
+                image = image,
+                deckId = deckId,
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(CircleShape)
+                    .background(colors.accentPrimarySoft),
+            )
+        }
         Text(
             text = text,
             fontSize = textSize,
@@ -428,17 +454,17 @@ private fun CardFace(
                     onClick = onSpeak,
                     shape = RoundedCornerShape(50),
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = colors.accentSecondarySoft,
-                        contentColor = colors.accentSecondary,
+                        containerColor = colors.accentPrimarySoft,
+                        contentColor = colors.accentPrimary,
                     ),
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                        contentDescription = stringResource(R.string.study_speak),
+                        contentDescription = stringResource(R.string.study_listen),
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text(text = stringResource(R.string.study_speak), fontSize = 14.sp, fontWeight = FontWeight.W700)
+                    Text(text = stringResource(R.string.study_listen), fontSize = 14.sp, fontWeight = FontWeight.W700)
                 }
             }
             if (onSpeakTest != null) {
@@ -447,17 +473,17 @@ private fun CardFace(
                     modifier = Modifier.testTag("study_speak"),
                     shape = RoundedCornerShape(50),
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = colors.accentPrimarySoft,
-                        contentColor = colors.accentPrimary,
+                        containerColor = colors.accentSecondarySoft,
+                        contentColor = colors.accentSecondary,
                     ),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Mic,
-                        contentDescription = stringResource(R.string.study_speak_practice),
+                        contentDescription = stringResource(R.string.study_speak),
                         modifier = Modifier.size(16.dp),
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text(text = stringResource(R.string.study_speak_practice), fontSize = 14.sp, fontWeight = FontWeight.W700)
+                    Text(text = stringResource(R.string.study_speak), fontSize = 14.sp, fontWeight = FontWeight.W700)
                 }
             }
         }

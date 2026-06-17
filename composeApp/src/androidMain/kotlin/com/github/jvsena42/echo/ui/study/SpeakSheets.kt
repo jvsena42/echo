@@ -95,22 +95,23 @@ private fun ListeningBody(targetWord: String) {
     ) {
         Text(text = targetWord, fontSize = 28.sp, fontWeight = FontWeight.W800, color = colors.accentSecondary)
     }
+    // Solid purple mic in a soft halo ring (design `sIqOr`).
     Box(
         modifier = Modifier
             .size(110.dp)
             .clip(CircleShape)
-            .background(colors.accentSecondary.copy(alpha = 0.10f))
+            .background(colors.accentSecondary.copy(alpha = 0.15f))
             .testTag("speak_mic"),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             modifier = Modifier
-                .size(88.dp)
+                .size(80.dp)
                 .clip(CircleShape)
-                .background(colors.accentSecondary.copy(alpha = 0.18f)),
+                .background(colors.accentSecondary),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Default.Mic, null, tint = colors.accentSecondary, modifier = Modifier.size(36.dp))
+            Icon(Icons.Default.Mic, null, tint = colors.foregroundOnAccent, modifier = Modifier.size(36.dp))
         }
     }
     Text(

@@ -3,6 +3,7 @@ package com.github.jvsena42.echo.presentation.study
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Card
+import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.SpeakMatcher
 import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.domain.model.previewIntervals
@@ -191,6 +192,8 @@ class StudySessionViewModel(
                 listenEnabled = deck?.listenEnabled ?: true,
                 speakEnabled = deck?.speakEnabled ?: true,
                 speakPhase = speakPhase,
+                deckId = card.deckId,
+                frontImageRef = card.front.imageRef,
             )
         }
     }
@@ -235,6 +238,9 @@ sealed interface StudySessionUiState {
         val listenEnabled: Boolean = true,
         val speakEnabled: Boolean = true,
         val speakPhase: SpeakPhase = SpeakPhase.Idle,
+        val deckId: String = "",
+        /** Front-side image, shown as a circular avatar on the card back (design `aLoMj`). */
+        val frontImageRef: MediaRef.Image? = null,
     ) : StudySessionUiState
 
     data class Complete(val reviewed: Int) : StudySessionUiState
