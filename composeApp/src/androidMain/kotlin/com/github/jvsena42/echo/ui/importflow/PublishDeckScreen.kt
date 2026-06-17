@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -264,10 +265,15 @@ private fun PublishDeckScreen(
                         .border(1.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
                         .clickable { showCoverSheet = true }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("🖼️", fontSize = 14.sp)
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        tint = colors.accentPrimary,
+                        modifier = Modifier.size(16.dp),
+                    )
                     Text(
                         stringResource(R.string.publish_cover_change),
                         fontSize = 13.sp,
