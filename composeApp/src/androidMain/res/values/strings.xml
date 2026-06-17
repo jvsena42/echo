@@ -206,6 +206,7 @@
     <string name="image_sheet_remove">Remove image</string>
 
     <!-- Speak (study) -->
+    <string name="study_speak_practice">Speak</string>
     <string name="speak_listening_prompt">Say the word</string>
     <string name="speak_listening_hint">Tap to cancel</string>
     <string name="speak_correct_title">Perfect!</string>
