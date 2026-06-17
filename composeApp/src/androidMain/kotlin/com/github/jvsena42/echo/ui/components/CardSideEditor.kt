@@ -66,7 +66,7 @@ fun CardSideEditor(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(6.dp, RoundedCornerShape(20.dp))
+            .shadow(2.dp, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .background(colors.surfaceCard)
             .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(20.dp))
