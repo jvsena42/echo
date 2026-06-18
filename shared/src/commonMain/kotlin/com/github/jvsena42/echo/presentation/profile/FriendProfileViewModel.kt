@@ -1,15 +1,13 @@
 package com.github.jvsena42.echo.presentation.profile
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.DiscoveryRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -29,11 +27,7 @@ class FriendProfileViewModel(
     private val identityRepository: IdentityRepository,
     private val discoveryRepository: DiscoveryRepository,
     private val deckRepository: DeckRepository,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow(FriendProfileUiState(pubky = targetPubky))
     val state: StateFlow<FriendProfileUiState> = _state.asStateFlow()
 
@@ -51,7 +45,7 @@ class FriendProfileViewModel(
 
     private fun load() {
         if (loadJob?.isActive == true) return
-        loadJob = scope.launch {
+        loadJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
 
             val profile = identityRepository.fetchProfile(targetPubky).getOrNull()
@@ -80,7 +74,7 @@ class FriendProfileViewModel(
 
     fun onToggleFollow() {
         if (followJob?.isActive == true) return
-        followJob = scope.launch {
+        followJob = viewModelScope.launch {
             val wasFollowing = _state.value.isFollowing
             // Optimistic flip; revert on failure.
             _state.update { it.copy(isFollowing = !wasFollowing, isProcessingFollow = true) }
@@ -101,17 +95,11 @@ class FriendProfileViewModel(
     }
 
     fun onCopyPubky() {
-        scope.launch { _effects.emit(FriendProfileEffect.CopyToClipboard(targetPubky)) }
+        viewModelScope.launch { _effects.emit(FriendProfileEffect.CopyToClipboard(targetPubky)) }
     }
 
     fun onOpenDeck(deckId: String) {
-        scope.launch { _effects.emit(FriendProfileEffect.OpenDeck(targetPubky, deckId)) }
-    }
-
-    fun onDispose() {
-        loadJob?.cancel()
-        followJob?.cancel()
-        scope.cancel()
+        viewModelScope.launch { _effects.emit(FriendProfileEffect.OpenDeck(targetPubky, deckId)) }
     }
 
     private fun Deck.toCard(): FriendDeck = FriendDeck(

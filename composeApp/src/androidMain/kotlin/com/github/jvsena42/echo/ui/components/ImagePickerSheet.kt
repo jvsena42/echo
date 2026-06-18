@@ -37,7 +37,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +64,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 
 /**
  * Reusable bottom sheet for choosing an image — web search (Unsplash) + a 3-column grid, plus a
@@ -81,9 +81,8 @@ fun ImagePickerSheet(
     onSelected: (ImageSelection) -> Unit,
 ) {
     val colors = EchoTheme.colors
-    val viewModel = koinInject<ImageSheetViewModel>()
+    val viewModel = koinViewModel<ImageSheetViewModel>()
     val mediaProcessor = koinInject<MediaProcessor>()
-    DisposableEffect(viewModel) { onDispose { viewModel.onDispose() } }
 
     val state by viewModel.state.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)

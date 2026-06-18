@@ -45,7 +45,6 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,6 +87,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 @Composable
@@ -95,13 +95,9 @@ fun StudySessionRoute(
     deckId: String?,
     onClose: () -> Unit = {},
 ) {
-    val viewModel = koinInject<StudySessionViewModel> { parametersOf(deckId) }
+    val viewModel = koinViewModel<StudySessionViewModel> { parametersOf(deckId) }
     val speaker = koinInject<Speaker>()
     val speechRecognizer = koinInject<SpeechRecognizer>()
-
-    DisposableEffect(viewModel) {
-        onDispose { viewModel.onDispose() }
-    }
 
     val currentClose by rememberUpdatedState(onClose)
     val context = LocalContext.current

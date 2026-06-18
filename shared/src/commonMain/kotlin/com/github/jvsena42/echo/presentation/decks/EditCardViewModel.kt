@@ -1,5 +1,7 @@
 package com.github.jvsena42.echo.presentation.decks
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.CardRepository
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.MediaRepository
@@ -8,11 +10,7 @@ import com.github.jvsena42.echo.domain.model.CardSide
 import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.util.Log
 import com.github.jvsena42.echo.util.epochMillis
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -29,11 +27,7 @@ class EditCardViewModel(
     private val cardRepository: CardRepository,
     private val deckRepository: DeckRepository,
     private val mediaRepository: MediaRepository,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow(EditCardUiState())
     val state: StateFlow<EditCardUiState> = _state.asStateFlow()
 
@@ -48,7 +42,7 @@ class EditCardViewModel(
     }
 
     private fun load() {
-        loadJob = scope.launch {
+        loadJob = viewModelScope.launch {
             Log.d(TAG, "load: deckId=$deckId cardId=$cardId")
             val deck = deckRepository.getLocal(deckId)
             val card = cardRepository.get(deckId, cardId)
@@ -58,7 +52,7 @@ class EditCardViewModel(
             }
             val cardIndex = deck?.cardIndex?.indexOfFirst { it.id == cardId }?.plus(1) ?: 0
             val totalCards = deck?.cardCount ?: 0
-            _state.value = EditCardUiState(
+            _state.update { EditCardUiState(
                 deckTitle = deck?.title ?: "",
                 cardIndex = cardIndex,
                 totalCards = totalCards,
@@ -68,7 +62,7 @@ class EditCardViewModel(
                 backImageRef = card.back.imageRef,
                 hasImage = card.front.imageRef != null || card.back.imageRef != null,
                 hasAudio = card.front.audioRef != null || card.back.audioRef != null,
-            )
+            ) }
         }
     }
 
@@ -115,14 +109,14 @@ class EditCardViewModel(
     fun onSpeakFront() {
         val text = _state.value.frontText
         if (text.isNotBlank()) {
-            scope.launch { _effects.emit(EditCardEffect.Speak(text)) }
+            viewModelScope.launch { _effects.emit(EditCardEffect.Speak(text)) }
         }
     }
 
     fun onSpeakBack() {
         val text = _state.value.backText
         if (text.isNotBlank()) {
-            scope.launch { _effects.emit(EditCardEffect.Speak(text)) }
+            viewModelScope.launch { _effects.emit(EditCardEffect.Speak(text)) }
         }
     }
 
@@ -149,7 +143,7 @@ class EditCardViewModel(
             _state.update { it.copy(frontError = frontError, backError = backError) }
             return
         }
-        saveJob = scope.launch {
+        saveJob = viewModelScope.launch {
             _state.update { it.copy(isSaving = true, error = null) }
             Log.d(TAG, "save: cardId=$cardId")
 
@@ -187,7 +181,7 @@ class EditCardViewModel(
     }
 
     fun onDeleteCard() {
-        scope.launch {
+        viewModelScope.launch {
             Log.d(TAG, "delete: cardId=$cardId")
             cardRepository.delete(deckId, cardId)
                 .onSuccess { _effects.emit(EditCardEffect.Deleted) }
@@ -198,7 +192,7 @@ class EditCardViewModel(
     }
 
     fun onCancelClick() {
-        scope.launch { _effects.emit(EditCardEffect.NavigateBack) }
+        viewModelScope.launch { _effects.emit(EditCardEffect.NavigateBack) }
     }
 
     /** Upload a pending gallery image, or keep the chosen web/existing ref. */
@@ -219,12 +213,6 @@ class EditCardViewModel(
                 .getOrNull()
 
         else -> s.backImageRef
-    }
-
-    fun onDispose() {
-        loadJob?.cancel()
-        saveJob?.cancel()
-        scope.cancel()
     }
 
     private fun cardTextErrorFor(text: String): String? =

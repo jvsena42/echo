@@ -1,18 +1,17 @@
 package com.github.jvsena42.echo.presentation.onboarding
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -26,11 +25,7 @@ import kotlinx.coroutines.launch
 class OnboardingViewModel(
     private val identityRepository: IdentityRepository,
     private val pubkyRingInstallUrl: String = DEFAULT_INSTALL_URL,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow<OnboardingUiState>(OnboardingUiState.Idle)
     val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
 
@@ -41,11 +36,11 @@ class OnboardingViewModel(
 
     init {
         Log.d(TAG, "init: checking persisted session")
-        scope.launch {
+        viewModelScope.launch {
             val persisted = identityRepository.loadPersistedSession()
             if (persisted != null) {
                 Log.d(TAG, "init: found persisted session pubky=${persisted.identity.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
-                _state.value = OnboardingUiState.Success(persisted)
+                _state.update { OnboardingUiState.Success(persisted) }
                 _effects.emit(OnboardingEffect.NavigateHome)
             } else {
                 Log.d(TAG, "init: no persisted session")
@@ -58,45 +53,45 @@ class OnboardingViewModel(
             Log.d(TAG, "onSignInClick: ignored — sign-in already in progress")
             return
         }
-        signInJob = scope.launch {
+        signInJob = viewModelScope.launch {
             Log.d(TAG, "onSignInClick: state=Starting, calling beginSignIn")
-            _state.value = OnboardingUiState.Starting
+            _state.update { OnboardingUiState.Starting }
             val handleResult = identityRepository.beginSignIn()
-            val handle = handleResult.getOrElse {
-                Log.e(TAG, "onSignInClick: beginSignIn FAILED — ${it::class.simpleName}: ${it.message}", it)
-                _state.value = OnboardingUiState.Error(
-                    it.message ?: "Could not start Pubky Ring sign-in.",
-                )
+            val handle = handleResult.getOrElse { error ->
+                Log.e(TAG, "onSignInClick: beginSignIn FAILED — ${error::class.simpleName}: ${error.message}", error)
+                _state.update {
+                    OnboardingUiState.Error(error.message ?: "Could not start Pubky Ring sign-in.")
+                }
                 return@launch
             }
             Log.d(TAG, "onSignInClick: got authUrl=${handle.authUrl}")
 
-            _state.value = OnboardingUiState.AwaitingApproval
+            _state.update { OnboardingUiState.AwaitingApproval }
             Log.d(TAG, "onSignInClick: state=AwaitingApproval, emitting OpenDeeplink")
             _effects.emit(OnboardingEffect.OpenDeeplink(handle.authUrl))
 
             Log.d(TAG, "onSignInClick: awaiting Pubky Ring approval…")
             val completion = handle.complete()
-            _state.value = OnboardingUiState.Verifying
+            _state.update { OnboardingUiState.Verifying }
             Log.d(TAG, "onSignInClick: state=Verifying, completion.success=${completion.isSuccess}")
 
             completion
                 .onSuccess { session ->
                     Log.d(TAG, "onSignInClick: SUCCESS pubky=${session.identity.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
-                    _state.value = OnboardingUiState.Success(session)
+                    _state.update { OnboardingUiState.Success(session) }
                     _effects.emit(OnboardingEffect.NavigateHome)
                 }
                 .onFailure { err ->
                     Log.e(TAG, "onSignInClick: completion FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    _state.value = OnboardingUiState.Error(
+                    _state.update { OnboardingUiState.Error(
                         err.message ?: "Sign-in was not completed.",
-                    )
+                    ) }
                 }
         }
     }
 
     fun onGetRingClick() {
-        scope.launch { _effects.emit(OnboardingEffect.OpenInstallPage(pubkyRingInstallUrl)) }
+        viewModelScope.launch { _effects.emit(OnboardingEffect.OpenInstallPage(pubkyRingInstallUrl)) }
     }
 
     /**
@@ -108,18 +103,13 @@ class OnboardingViewModel(
         Log.w(TAG, "onDeeplinkUnavailable: no handler for pubkyauth:// — aborting flow")
         signInJob?.cancel()
         signInJob = null
-        _state.value = OnboardingUiState.Error(
+        _state.update { OnboardingUiState.Error(
             "Pubky Ring isn't installed. Install it to sign in.",
-        )
+        ) }
     }
 
     fun onRetry() {
-        _state.value = OnboardingUiState.Idle
-    }
-
-    fun onDispose() {
-        signInJob?.cancel()
-        scope.cancel()
+        _state.update { OnboardingUiState.Idle }
     }
 
     companion object {

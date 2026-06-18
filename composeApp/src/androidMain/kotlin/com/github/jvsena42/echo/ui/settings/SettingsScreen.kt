@@ -31,7 +31,6 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,7 +58,7 @@ import com.github.jvsena42.echo.presentation.settings.SettingsViewModel
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
-import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 @Composable
@@ -73,8 +72,7 @@ fun SettingsRoute(
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull().orEmpty()
     }
-    val viewModel = koinInject<SettingsViewModel> { parametersOf(appVersion) }
-    DisposableEffect(viewModel) { onDispose { viewModel.onDispose() } }
+    val viewModel = koinViewModel<SettingsViewModel> { parametersOf(appVersion) }
 
     val currentSignedOut by rememberUpdatedState(onSignedOut)
     val clipboard = LocalClipboardManager.current

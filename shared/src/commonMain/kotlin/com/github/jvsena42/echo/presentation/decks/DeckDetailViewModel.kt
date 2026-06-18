@@ -1,5 +1,7 @@
 package com.github.jvsena42.echo.presentation.decks
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.CardRepository
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
@@ -7,17 +9,14 @@ import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @Suppress("LongParameterList")
@@ -28,11 +27,7 @@ class DeckDetailViewModel(
     private val cardRepository: CardRepository,
     private val identityRepository: IdentityRepository,
     private val srsRepository: SrsRepository,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow<DeckDetailUiState>(DeckDetailUiState.Loading)
     val state: StateFlow<DeckDetailUiState> = _state.asStateFlow()
 
@@ -49,9 +44,9 @@ class DeckDetailViewModel(
 
     private fun load() {
         if (loadJob?.isActive == true) return
-        loadJob = scope.launch {
+        loadJob = viewModelScope.launch {
             Log.d(TAG, "load: deckId=$deckId")
-            _state.value = DeckDetailUiState.Loading
+            _state.update { DeckDetailUiState.Loading }
 
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
@@ -67,7 +62,7 @@ class DeckDetailViewModel(
                     .getOrNull()
             }
             if (deck == null) {
-                _state.value = DeckDetailUiState.Error("Deck not found.")
+                _state.update { DeckDetailUiState.Error("Deck not found.") }
                 return@launch
             }
 
@@ -76,66 +71,61 @@ class DeckDetailViewModel(
                     val dueCount = runCatching { srsRepository.dueForDeck(deckId).size }
                         .getOrDefault(0)
                     val mastered = masteredPercent(cards)
-                    _state.value = deck.toContent(cards, myPubky, dueCount, mastered)
+                    _state.update { deck.toContent(cards, myPubky, dueCount, mastered) }
                     Log.d(TAG, "load: cards=${cards.size} due=$dueCount mastered=$mastered")
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    _state.value = DeckDetailUiState.Error(
+                    _state.update { DeckDetailUiState.Error(
                         err.message ?: "Could not load deck.",
-                    )
+                    ) }
                 }
         }
     }
 
     fun onBackClick() {
-        scope.launch { _effects.emit(DeckDetailEffect.NavigateBack) }
+        viewModelScope.launch { _effects.emit(DeckDetailEffect.NavigateBack) }
     }
 
     fun onShareClick() {
-        scope.launch {
+        viewModelScope.launch {
             val deck = deckRepository.getLocal(deckId) ?: return@launch
             _effects.emit(DeckDetailEffect.Share(deck.pubkyUri.value))
         }
     }
 
     fun onStudyClick() {
-        scope.launch { _effects.emit(DeckDetailEffect.NavigateStudy) }
+        viewModelScope.launch { _effects.emit(DeckDetailEffect.NavigateStudy) }
     }
 
     fun onEditClick() {
-        scope.launch { _effects.emit(DeckDetailEffect.NavigateEditDeck(deckId)) }
+        viewModelScope.launch { _effects.emit(DeckDetailEffect.NavigateEditDeck(deckId)) }
     }
 
     fun onDeleteDeck() {
         val current = _state.value as? DeckDetailUiState.Content ?: return
-        _state.value = current.copy(showDeleteConfirm = true)
+        _state.update { current.copy(showDeleteConfirm = true) }
     }
 
     fun onDismissDelete() {
         val current = _state.value as? DeckDetailUiState.Content ?: return
-        _state.value = current.copy(showDeleteConfirm = false)
+        _state.update { current.copy(showDeleteConfirm = false) }
     }
 
     fun onConfirmDelete() {
         val current = _state.value as? DeckDetailUiState.Content ?: return
-        _state.value = current.copy(showDeleteConfirm = false, isDeleting = true)
-        scope.launch {
+        _state.update { current.copy(showDeleteConfirm = false, isDeleting = true) }
+        viewModelScope.launch {
             Log.d(TAG, "onConfirmDelete: deckId=$deckId")
             deckRepository.delete(deckId)
                 .onSuccess { _effects.emit(DeckDetailEffect.Deleted) }
                 .onFailure { err ->
                     Log.e(TAG, "onConfirmDelete: FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    _state.value = DeckDetailUiState.Error(
+                    _state.update { DeckDetailUiState.Error(
                         err.message ?: "Could not delete deck.",
-                    )
+                    ) }
                 }
         }
-    }
-
-    fun onDispose() {
-        loadJob?.cancel()
-        scope.cancel()
     }
 
     /**

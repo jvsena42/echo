@@ -24,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -50,7 +49,7 @@ import com.github.jvsena42.echo.ui.components.DeckTile
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
-import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 @Composable
@@ -59,8 +58,7 @@ fun FriendProfileRoute(
     onBack: () -> Unit = {},
     onOpenDeck: (String) -> Unit = {},
 ) {
-    val viewModel = koinInject<FriendProfileViewModel> { parametersOf(pubky) }
-    DisposableEffect(viewModel) { onDispose { viewModel.onDispose() } }
+    val viewModel = koinViewModel<FriendProfileViewModel> { parametersOf(pubky) }
 
     val currentOpenDeck by rememberUpdatedState(onOpenDeck)
     val clipboard = LocalClipboardManager.current

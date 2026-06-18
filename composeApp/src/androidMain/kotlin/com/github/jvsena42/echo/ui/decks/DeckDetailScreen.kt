@@ -31,7 +31,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -61,7 +60,7 @@ import com.github.jvsena42.echo.ui.components.StatsBar
 import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
-import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 @Composable
@@ -72,10 +71,7 @@ fun DeckDetailRoute(
     onEditDeck: (String) -> Unit = {},
     onStudy: (String) -> Unit = {},
 ) {
-    val viewModel = koinInject<DeckDetailViewModel> { parametersOf(deckId, authorPubky) }
-    DisposableEffect(viewModel) {
-        onDispose { viewModel.onDispose() }
-    }
+    val viewModel = koinViewModel<DeckDetailViewModel> { parametersOf(deckId, authorPubky) }
 
     val currentBack by rememberUpdatedState(onBack)
     val currentEditDeck by rememberUpdatedState(onEditDeck)

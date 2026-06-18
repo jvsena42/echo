@@ -30,7 +30,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -54,7 +53,7 @@ import com.github.jvsena42.echo.presentation.importflow.TriageUiState
 import com.github.jvsena42.echo.presentation.importflow.TriageViewModel
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
-import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun TriageRoute(
@@ -62,8 +61,7 @@ fun TriageRoute(
     onEditCard: (Int) -> Unit = {},
     onNext: () -> Unit = {},
 ) {
-    val viewModel = koinInject<TriageViewModel>()
-    DisposableEffect(viewModel) { onDispose { viewModel.onDispose() } }
+    val viewModel = koinViewModel<TriageViewModel>()
 
     // Re-read the draft each time this screen resumes (e.g. after editing a card).
     LaunchedEffect(viewModel) { viewModel.refresh() }

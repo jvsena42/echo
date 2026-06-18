@@ -26,7 +26,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -49,14 +48,11 @@ import com.github.jvsena42.echo.presentation.onboarding.OnboardingViewModel
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
-import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun OnboardingRoute(onNavigateHome: () -> Unit) {
-    val viewModel = koinInject<OnboardingViewModel>()
-    DisposableEffect(viewModel) {
-        onDispose { viewModel.onDispose() }
-    }
+    val viewModel = koinViewModel<OnboardingViewModel>()
     OnboardingScreen(
         viewModel = viewModel,
         onNavigateHome = onNavigateHome,

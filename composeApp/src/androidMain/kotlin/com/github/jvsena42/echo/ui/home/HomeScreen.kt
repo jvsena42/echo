@@ -16,7 +16,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -36,7 +35,7 @@ import com.github.jvsena42.echo.presentation.home.HomeViewModel
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
-import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun HomeRoute(
@@ -46,10 +45,7 @@ fun HomeRoute(
     onOpenDeck: (String) -> Unit = {},
     onSignedOut: () -> Unit = {},
 ) {
-    val viewModel = koinInject<HomeViewModel>()
-    DisposableEffect(viewModel) {
-        onDispose { viewModel.onDispose() }
-    }
+    val viewModel = koinViewModel<HomeViewModel>()
 
     val currentCreate by rememberUpdatedState(onCreateDeck)
     val currentBrowse by rememberUpdatedState(onBrowseExamples)

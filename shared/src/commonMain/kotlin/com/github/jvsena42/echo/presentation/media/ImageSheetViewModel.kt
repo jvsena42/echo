@@ -1,12 +1,10 @@
 package com.github.jvsena42.echo.presentation.media
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.unsplash.UnsplashClient
 import com.github.jvsena42.echo.data.unsplash.UnsplashPhoto
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,11 +19,7 @@ import kotlinx.coroutines.launch
  */
 class ImageSheetViewModel(
     private val unsplashClient: UnsplashClient,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow(
         ImageSheetUiState(isUnsplashConfigured = unsplashClient.isConfigured),
     )
@@ -39,7 +33,7 @@ class ImageSheetViewModel(
 
     private fun loadInitial() {
         searchJob?.cancel()
-        searchJob = scope.launch {
+        searchJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             unsplashClient.random()
                 .onSuccess { photos -> _state.update { it.copy(photos = photos, isLoading = false) } }
@@ -51,18 +45,13 @@ class ImageSheetViewModel(
         _state.update { it.copy(query = query) }
         if (!unsplashClient.isConfigured) return
         searchJob?.cancel()
-        searchJob = scope.launch {
+        searchJob = viewModelScope.launch {
             delay(DEBOUNCE_MS)
             _state.update { it.copy(isLoading = true, error = null) }
             unsplashClient.search(query)
                 .onSuccess { photos -> _state.update { it.copy(photos = photos, isLoading = false) } }
                 .onFailure { err -> _state.update { it.copy(isLoading = false, error = err.error()) } }
         }
-    }
-
-    fun onDispose() {
-        searchJob?.cancel()
-        scope.cancel()
     }
 
     private fun Throwable.error(): String = message ?: "Could not load images."

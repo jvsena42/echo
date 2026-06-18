@@ -6,12 +6,17 @@ import com.github.jvsena42.echo.testing.FakeImportRepository
 import com.github.jvsena42.echo.testing.FakeMediaRepository
 import com.github.jvsena42.echo.testing.TEST_PUBKY
 import com.github.jvsena42.echo.testing.testDraft
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -29,12 +34,23 @@ class PublishDeckViewModelTest {
     private val identityRepo = FakeIdentityRepository()
     private val mediaRepo = FakeMediaRepository()
 
-    private fun TestScope.viewModel() = PublishDeckViewModel(
+    private val mainDispatcher = StandardTestDispatcher()
+
+    @BeforeTest
+    fun setUp() {
+        Dispatchers.setMain(mainDispatcher)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun viewModel() = PublishDeckViewModel(
         importRepository = importRepo,
         deckRepository = deckRepo,
         identityRepository = identityRepo,
         mediaRepository = mediaRepo,
-        mainScope = this,
     )
 
     // ── validation ───────────────────────────────────────────────────────

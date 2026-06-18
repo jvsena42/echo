@@ -28,6 +28,10 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             api(libs.koin.core)
+            implementation(libs.koin.core.viewmodel)
+            // `api` so the ViewModel type stays visible to the platform UI layers (and the
+            // exported iOS framework) that consume the shared ViewModels.
+            api(libs.androidx.lifecycle.viewmodel)
             implementation(libs.kvault)
         }
         commonTest.dependencies {

@@ -36,7 +36,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +63,7 @@ import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 @Composable
@@ -72,11 +72,8 @@ fun EditCardRoute(
     cardId: String,
     onBack: () -> Unit = {},
 ) {
-    val viewModel = koinInject<EditCardViewModel> { parametersOf(deckId, cardId) }
+    val viewModel = koinViewModel<EditCardViewModel> { parametersOf(deckId, cardId) }
     val speaker = koinInject<Speaker>()
-    DisposableEffect(viewModel) {
-        onDispose { viewModel.onDispose() }
-    }
 
     val currentBack by rememberUpdatedState(onBack)
 
