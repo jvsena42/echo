@@ -1,5 +1,7 @@
 package com.github.jvsena42.echo.presentation.study
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Card
@@ -9,17 +11,14 @@ import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.domain.model.previewIntervals
 import com.github.jvsena42.echo.util.Log
 import com.github.jvsena42.echo.util.epochMillis
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -34,11 +33,7 @@ class StudySessionViewModel(
     private val deckId: String?,
     private val srsRepository: SrsRepository,
     private val deckRepository: DeckRepository,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow<StudySessionUiState>(StudySessionUiState.Loading)
     val state: StateFlow<StudySessionUiState> = _state.asStateFlow()
 
@@ -63,8 +58,8 @@ class StudySessionViewModel(
     fun onRefresh() = load()
 
     private fun load() {
-        scope.launch {
-            _state.value = StudySessionUiState.Loading
+        viewModelScope.launch {
+            _state.update { StudySessionUiState.Loading }
             deckTitle = deckId?.let { resolveDeckTitle(it) }.orEmpty()
             runCatching {
                 if (deckId == null) srsRepository.dueToday() else srsRepository.dueForDeck(deckId)
@@ -78,7 +73,7 @@ class StudySessionViewModel(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err.message}", err)
-                    _state.value = StudySessionUiState.Error(err.message ?: "Could not load cards.")
+                    _state.update { StudySessionUiState.Error(err.message ?: "Could not load cards.") }
                 }
         }
     }
@@ -93,7 +88,7 @@ class StudySessionViewModel(
     fun onGrade(grade: SrsGrade) {
         if (gradeJob?.isActive == true) return
         val card = queue.getOrNull(index) ?: return
-        gradeJob = scope.launch {
+        gradeJob = viewModelScope.launch {
             srsRepository.review(card, grade)
                 .onFailure { Log.e(TAG, "grade: FAILED — ${it.message}", it) }
             reviewedCount++
@@ -110,7 +105,7 @@ class StudySessionViewModel(
         if (s !is StudySessionUiState.Reviewing || !s.revealed || !s.speakEnabled) return
         val expected = queue.getOrNull(index)?.back?.text?.takeIf { it.isNotBlank() } ?: return
         setSpeakPhase(SpeakPhase.Listening)
-        scope.launch { _effects.emit(StudySessionEffect.StartSpeechRecognition(expected)) }
+        viewModelScope.launch { _effects.emit(StudySessionEffect.StartSpeechRecognition(expected)) }
     }
 
     fun onSpeechResult(text: String) {
@@ -133,7 +128,7 @@ class StudySessionViewModel(
     fun onSpeakRetry() {
         val expected = queue.getOrNull(index)?.back?.text?.takeIf { it.isNotBlank() } ?: return
         setSpeakPhase(SpeakPhase.Listening)
-        scope.launch { _effects.emit(StudySessionEffect.StartSpeechRecognition(expected)) }
+        viewModelScope.launch { _effects.emit(StudySessionEffect.StartSpeechRecognition(expected)) }
     }
 
     fun onSpeakDismiss() {
@@ -144,7 +139,7 @@ class StudySessionViewModel(
         speakPhase = phase
         val s = _state.value
         if (s is StudySessionUiState.Reviewing) {
-            _state.value = s.copy(speakPhase = phase)
+            _state.update { s.copy(speakPhase = phase) }
         }
     }
 
@@ -152,35 +147,30 @@ class StudySessionViewModel(
         val card = queue.getOrNull(index) ?: return
         val text = (if (revealed) card.back.text else card.front.text)?.takeIf { it.isNotBlank() }
             ?: return
-        scope.launch { _effects.emit(StudySessionEffect.Speak(text)) }
+        viewModelScope.launch { _effects.emit(StudySessionEffect.Speak(text)) }
     }
 
     fun onClose() {
-        scope.launch { _effects.emit(StudySessionEffect.Close) }
-    }
-
-    fun onDispose() {
-        gradeJob?.cancel()
-        scope.cancel()
+        viewModelScope.launch { _effects.emit(StudySessionEffect.Close) }
     }
 
     private fun emitCurrent() {
         if (queue.isEmpty()) {
-            _state.value = StudySessionUiState.Empty(deckTitle)
+            _state.update { StudySessionUiState.Empty(deckTitle) }
             return
         }
         val card = queue.getOrNull(index)
         if (card == null) {
-            _state.value = StudySessionUiState.Complete(reviewedCount)
+            _state.update { StudySessionUiState.Complete(reviewedCount) }
             return
         }
-        scope.launch {
+        viewModelScope.launch {
             // Cache is warmed by the queue build; a null state means a new (never-reviewed) card.
             val srsState = srsRepository.stateFor(card.id)
             val labels = srsState.previewIntervals(card.id, epochMillis())
             val title = deckTitle.ifBlank { resolveDeckTitle(card.deckId) }.ifBlank { card.deckId }
             val deck = deckRepository.getLocal(card.deckId)
-            _state.value = StudySessionUiState.Reviewing(
+            _state.update { StudySessionUiState.Reviewing(
                 deckTitle = title,
                 position = index + 1,
                 total = queue.size,
@@ -194,7 +184,7 @@ class StudySessionViewModel(
                 speakPhase = speakPhase,
                 deckId = card.deckId,
                 frontImageRef = card.front.imageRef,
-            )
+            ) }
         }
     }
 

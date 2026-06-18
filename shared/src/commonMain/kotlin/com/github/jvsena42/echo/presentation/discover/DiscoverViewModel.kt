@@ -1,21 +1,20 @@
 package com.github.jvsena42.echo.presentation.discover
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.DiscoveryRepository
 import com.github.jvsena42.echo.data.repository.TagRepository
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -26,11 +25,7 @@ import kotlinx.coroutines.launch
 class DiscoverViewModel(
     private val discoveryRepository: DiscoveryRepository,
     private val tagRepository: TagRepository,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow<DiscoverUiState>(DiscoverUiState.Loading)
     val state: StateFlow<DiscoverUiState> = _state.asStateFlow()
 
@@ -50,37 +45,37 @@ class DiscoverViewModel(
 
     private fun load() {
         if (loadJob?.isActive == true) return
-        loadJob = scope.launch {
-            _state.value = DiscoverUiState.Loading
+        loadJob = viewModelScope.launch {
+            _state.update { DiscoverUiState.Loading }
             runCatching { discoveryRepository.decksFromFollowing() }
                 .onSuccess { decks ->
                     feed = decks
                     if (decks.isEmpty()) {
-                        _state.value = DiscoverUiState.Empty
+                        _state.update { DiscoverUiState.Empty }
                     } else {
-                        _state.value = DiscoverUiState.Content(
+                        _state.update { DiscoverUiState.Content(
                             tags = decks.flatMap { it.tags }.distinct(),
                             trendingTags = emptyList(),
                             selectedTag = null,
                             decks = decks.map { it.toCard() },
-                        )
+                        ) }
                         loadTrending()
                     }
                     Log.d(TAG, "load: feed=${decks.size}")
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err.message}", err)
-                    _state.value = DiscoverUiState.Error(err.message ?: "Could not load Discover.")
+                    _state.update { DiscoverUiState.Error(err.message ?: "Could not load Discover.") }
                 }
         }
     }
 
     /** Trending arrives after first paint — the feed never waits on the indexer. */
     private fun loadTrending() {
-        scope.launch {
+        viewModelScope.launch {
             val trending = tagRepository.trending()
             val current = _state.value as? DiscoverUiState.Content ?: return@launch
-            _state.value = current.copy(trendingTags = trending - current.tags.toSet())
+            _state.update { current.copy(trendingTags = trending - current.tags.toSet()) }
         }
     }
 
@@ -88,24 +83,19 @@ class DiscoverViewModel(
         val current = _state.value as? DiscoverUiState.Content ?: return
         val next = if (tag == current.selectedTag) null else tag
         val filtered = if (next == null) feed else feed.filter { next in it.tags }
-        _state.value = current.copy(selectedTag = next, decks = filtered.map { it.toCard() })
+        _state.update { current.copy(selectedTag = next, decks = filtered.map { it.toCard() }) }
     }
 
     fun onAddFriend() {
-        scope.launch { _effects.emit(DiscoverEffect.OpenAddFriend) }
+        viewModelScope.launch { _effects.emit(DiscoverEffect.OpenAddFriend) }
     }
 
     fun onOpenAuthor(pubky: String) {
-        scope.launch { _effects.emit(DiscoverEffect.OpenProfile(pubky)) }
+        viewModelScope.launch { _effects.emit(DiscoverEffect.OpenProfile(pubky)) }
     }
 
     fun onOpenDeck(authorPubky: String, deckId: String) {
-        scope.launch { _effects.emit(DiscoverEffect.OpenDeck(authorPubky, deckId)) }
-    }
-
-    fun onDispose() {
-        loadJob?.cancel()
-        scope.cancel()
+        viewModelScope.launch { _effects.emit(DiscoverEffect.OpenDeck(authorPubky, deckId)) }
     }
 
     private fun Deck.toCard(): DiscoverDeck = DiscoverDeck(

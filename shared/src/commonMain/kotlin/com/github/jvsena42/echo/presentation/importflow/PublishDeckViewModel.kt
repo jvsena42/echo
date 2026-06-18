@@ -1,5 +1,7 @@
 package com.github.jvsena42.echo.presentation.importflow
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.data.repository.ImportRepository
@@ -15,11 +17,7 @@ import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.util.Log
 import com.github.jvsena42.echo.util.epochMillis
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,11 +34,7 @@ class PublishDeckViewModel(
     private val deckRepository: DeckRepository,
     private val identityRepository: IdentityRepository,
     private val mediaRepository: MediaRepository,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow(PublishDeckUiState())
     val state: StateFlow<PublishDeckUiState> = _state.asStateFlow()
 
@@ -99,7 +93,7 @@ class PublishDeckViewModel(
     }
 
     fun onBackClick() {
-        scope.launch { _effects.emit(PublishDeckEffect.NavigateBack) }
+        viewModelScope.launch { _effects.emit(PublishDeckEffect.NavigateBack) }
     }
 
     fun onPublishClick() {
@@ -113,7 +107,7 @@ class PublishDeckViewModel(
             return
         }
 
-        publishJob = scope.launch {
+        publishJob = viewModelScope.launch {
             _state.update { it.copy(isPublishing = true, error = null) }
             Log.d(TAG, "publish: title=${s.title}, cards=${importRepository.keptRows().size}")
 
@@ -160,7 +154,7 @@ class PublishDeckViewModel(
     fun onUndoPublish() {
         val deckId = _state.value.publishedDeckId ?: return
         undoCountdownJob?.cancel()
-        scope.launch {
+        viewModelScope.launch {
             Log.d(TAG, "undo: deleting deckId=$deckId")
             deckRepository.delete(deckId)
                 .onSuccess {
@@ -180,12 +174,12 @@ class PublishDeckViewModel(
         val deckId = _state.value.publishedDeckId ?: return
         undoCountdownJob?.cancel()
         importRepository.clear()
-        scope.launch { _effects.emit(PublishDeckEffect.Published(deckId)) }
+        viewModelScope.launch { _effects.emit(PublishDeckEffect.Published(deckId)) }
     }
 
     private fun startUndoCountdown(deckId: String) {
         undoCountdownJob?.cancel()
-        undoCountdownJob = scope.launch {
+        undoCountdownJob = viewModelScope.launch {
             var remaining = UNDO_WINDOW_SECONDS
             while (remaining > 0) {
                 delay(COUNTDOWN_TICK_MS)
@@ -270,12 +264,6 @@ class PublishDeckViewModel(
 
     private fun descriptionErrorFor(text: String): String? =
         if (text.length > DESCRIPTION_MAX_LENGTH) "Description must be $DESCRIPTION_MAX_LENGTH characters or fewer." else null
-
-    fun onDispose() {
-        publishJob?.cancel()
-        undoCountdownJob?.cancel()
-        scope.cancel()
-    }
 
     companion object {
         private const val TAG = "Echo/PublishVM"

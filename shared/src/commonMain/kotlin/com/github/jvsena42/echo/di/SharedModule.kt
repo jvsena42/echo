@@ -36,6 +36,7 @@ import com.github.jvsena42.echo.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.echo.presentation.profile.ProfileViewModel
 import com.github.jvsena42.echo.presentation.settings.SettingsViewModel
 import com.github.jvsena42.echo.presentation.study.StudySessionViewModel
+import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 /**
@@ -69,10 +70,10 @@ val sharedModule = module {
         TagRepositoryImpl(pubky = get(), session = get(), revalidator = get(), nexus = get())
     }
 
-    factory { OnboardingViewModel(identityRepository = get()) }
-    factory { HomeViewModel(identityRepository = get(), deckRepository = get(), srsRepository = get()) }
-    factory { DecksLibraryViewModel(deckRepository = get(), identityRepository = get()) }
-    factory { params ->
+    viewModel { OnboardingViewModel(identityRepository = get()) }
+    viewModel { HomeViewModel(identityRepository = get(), deckRepository = get(), srsRepository = get()) }
+    viewModel { DecksLibraryViewModel(deckRepository = get(), identityRepository = get()) }
+    viewModel { params ->
         DeckDetailViewModel(
             deckId = params.get(0),
             authorPubky = params.values.getOrNull(1) as? String,
@@ -82,8 +83,8 @@ val sharedModule = module {
             srsRepository = get(),
         )
     }
-    factory { params -> StudySessionViewModel(deckId = params.getOrNull(), srsRepository = get(), deckRepository = get()) }
-    factory { params ->
+    viewModel { params -> StudySessionViewModel(deckId = params.getOrNull(), srsRepository = get(), deckRepository = get()) }
+    viewModel { params ->
         DeckEditorViewModel(
             deckId = params.getOrNull(),
             deckRepository = get(),
@@ -91,7 +92,7 @@ val sharedModule = module {
             identityRepository = get(),
         )
     }
-    factory { params ->
+    viewModel { params ->
         EditCardViewModel(
             deckId = params.get(0),
             cardId = params.get(1),
@@ -100,10 +101,10 @@ val sharedModule = module {
             mediaRepository = get(),
         )
     }
-    factory { PasteImportViewModel(importRepository = get()) }
-    factory { TriageViewModel(importRepository = get()) }
-    factory { ImageSheetViewModel(unsplashClient = get()) }
-    factory {
+    viewModel { PasteImportViewModel(importRepository = get()) }
+    viewModel { TriageViewModel(importRepository = get()) }
+    viewModel { ImageSheetViewModel(unsplashClient = get()) }
+    viewModel {
         PublishDeckViewModel(
             importRepository = get(),
             deckRepository = get(),
@@ -111,10 +112,10 @@ val sharedModule = module {
             mediaRepository = get(),
         )
     }
-    factory { ProfileViewModel(identityRepository = get(), deckRepository = get()) }
-    factory { params -> SettingsViewModel(identityRepository = get(), appVersion = params.getOrNull() ?: "") }
-    factory { DiscoverViewModel(discoveryRepository = get(), tagRepository = get()) }
-    factory { params ->
+    viewModel { ProfileViewModel(identityRepository = get(), deckRepository = get()) }
+    viewModel { params -> SettingsViewModel(identityRepository = get(), appVersion = params.getOrNull() ?: "") }
+    viewModel { DiscoverViewModel(discoveryRepository = get(), tagRepository = get()) }
+    viewModel { params ->
         FriendProfileViewModel(
             targetPubky = params.get(),
             identityRepository = get(),

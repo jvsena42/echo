@@ -1,5 +1,7 @@
 package com.github.jvsena42.echo.presentation.decks
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.CardRepository
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
@@ -10,11 +12,7 @@ import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.util.Log
 import com.github.jvsena42.echo.util.epochMillis
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -29,11 +27,7 @@ class DeckEditorViewModel(
     private val deckRepository: DeckRepository,
     private val cardRepository: CardRepository,
     private val identityRepository: IdentityRepository,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow(DeckEditorUiState())
     val state: StateFlow<DeckEditorUiState> = _state.asStateFlow()
 
@@ -48,18 +42,18 @@ class DeckEditorViewModel(
     }
 
     private fun loadExisting() {
-        loadJob = scope.launch {
+        loadJob = viewModelScope.launch {
             Log.d(TAG, "loadExisting: deckId=$deckId")
             val deck = deckRepository.getLocal(deckId!!) ?: return@launch
             val cards = runCatching { cardRepository.listByDeck(deckId) }.getOrElse { emptyList() }
-            _state.value = DeckEditorUiState(
+            _state.update { DeckEditorUiState(
                 isNew = false,
                 coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.toString() ?: "",
                 title = deck.title,
                 description = deck.description ?: "",
                 tags = deck.tags.map { it.value },
                 cards = cards.map { it.toEditable() },
-            )
+            ) }
         }
     }
 
@@ -98,11 +92,11 @@ class DeckEditorViewModel(
 
     fun onCardClick(cardId: String) {
         val currentDeckId = deckId ?: return
-        scope.launch { _effects.emit(DeckEditorEffect.NavigateEditCard(currentDeckId, cardId)) }
+        viewModelScope.launch { _effects.emit(DeckEditorEffect.NavigateEditCard(currentDeckId, cardId)) }
     }
 
     fun onCloseClick() {
-        scope.launch { _effects.emit(DeckEditorEffect.NavigateBack) }
+        viewModelScope.launch { _effects.emit(DeckEditorEffect.NavigateBack) }
     }
 
     fun onSaveClick() {
@@ -118,7 +112,7 @@ class DeckEditorViewModel(
             _state.update { it.copy(titleError = titleError, descriptionError = descriptionError) }
             return
         }
-        saveJob = scope.launch {
+        saveJob = viewModelScope.launch {
             _state.update { it.copy(isSaving = true, error = null) }
             Log.d(TAG, "save: title=${s.title}, cards=${s.cards.size}")
 
@@ -165,12 +159,6 @@ class DeckEditorViewModel(
                     _state.update { it.copy(isSaving = false, error = err.message ?: "Save failed.") }
                 }
         }
-    }
-
-    fun onDispose() {
-        loadJob?.cancel()
-        saveJob?.cancel()
-        scope.cancel()
     }
 
     private fun titleErrorFor(text: String): String? =

@@ -1,33 +1,28 @@
 package com.github.jvsena42.echo.presentation.home
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.pubky.requiresReauth
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
     private val identityRepository: IdentityRepository,
     private val deckRepository: DeckRepository,
     private val srsRepository: SrsRepository,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
@@ -44,9 +39,9 @@ class HomeViewModel(
 
     private fun load() {
         if (loadJob?.isActive == true) return
-        loadJob = scope.launch {
+        loadJob = viewModelScope.launch {
             Log.d(TAG, "load: fetching session + decks")
-            _state.value = HomeUiState.Loading
+            _state.update { HomeUiState.Loading }
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
             val greetingName = session?.identity?.displayName?.takeIf { it.isNotBlank() }
@@ -55,7 +50,7 @@ class HomeViewModel(
 
             runCatching { deckRepository.listOwned() }
                 .onSuccess { decks ->
-                    _state.value = if (decks.isEmpty()) {
+                    _state.update { if (decks.isEmpty()) {
                         HomeUiState.Empty(greetingName)
                     } else {
                         val dueByDeck = runCatching { srsRepository.dueToday() }
@@ -70,7 +65,7 @@ class HomeViewModel(
                             doneToday = 0,
                             decks = decks.map { it.toSummary(dueByDeck[it.id] ?: 0) },
                         )
-                    }
+                    } }
                     Log.d(TAG, "load: decks=${decks.size}")
                 }
                 .onFailure { err ->
@@ -78,40 +73,35 @@ class HomeViewModel(
                     if (err.requiresReauth()) {
                         Log.d(TAG, "load: session expired — signing out")
                         runCatching { identityRepository.signOut() }
-                        _state.value = HomeUiState.Error(
+                        _state.update { HomeUiState.Error(
                             greetingName = greetingName,
                             message = "Your session expired. Please sign in again.",
-                        )
+                        ) }
                         _effects.emit(HomeEffect.NavigateToOnboarding)
                     } else {
-                        _state.value = HomeUiState.Error(
+                        _state.update { HomeUiState.Error(
                             greetingName = greetingName,
                             message = err.message ?: "Could not load decks.",
-                        )
+                        ) }
                     }
                 }
         }
     }
 
     fun onStartStudyClick() {
-        scope.launch { _effects.emit(HomeEffect.NavigateStartStudy) }
+        viewModelScope.launch { _effects.emit(HomeEffect.NavigateStartStudy) }
     }
 
     fun onCreateDeckClick() {
-        scope.launch { _effects.emit(HomeEffect.NavigateCreateDeck) }
+        viewModelScope.launch { _effects.emit(HomeEffect.NavigateCreateDeck) }
     }
 
     fun onBrowseExamplesClick() {
-        scope.launch { _effects.emit(HomeEffect.NavigateBrowseExamples) }
+        viewModelScope.launch { _effects.emit(HomeEffect.NavigateBrowseExamples) }
     }
 
     fun onDeckClick(deckId: String) {
-        scope.launch { _effects.emit(HomeEffect.NavigateDeck(deckId)) }
-    }
-
-    fun onDispose() {
-        loadJob?.cancel()
-        scope.cancel()
+        viewModelScope.launch { _effects.emit(HomeEffect.NavigateDeck(deckId)) }
     }
 
     private fun Deck.toSummary(dueCount: Int): DeckSummary = DeckSummary(

@@ -39,7 +39,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,15 +68,14 @@ import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
-import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun ProfileRoute(
     onSignedOut: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
-    val viewModel = koinInject<ProfileViewModel>()
-    DisposableEffect(viewModel) { onDispose { viewModel.onDispose() } }
+    val viewModel = koinViewModel<ProfileViewModel>()
 
     val currentSignedOut by rememberUpdatedState(onSignedOut)
     var errorMessage by remember { mutableStateOf<String?>(null) }

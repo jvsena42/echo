@@ -1,12 +1,10 @@
 package com.github.jvsena42.echo.presentation.importflow
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.ImportRepository
 import com.github.jvsena42.echo.domain.model.TriageDecision
 import com.github.jvsena42.echo.domain.model.frontBackOf
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -23,11 +21,7 @@ import kotlinx.coroutines.launch
  */
 class TriageViewModel(
     private val importRepository: ImportRepository,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow(TriageUiState())
     val state: StateFlow<TriageUiState> = _state.asStateFlow()
 
@@ -42,7 +36,7 @@ class TriageViewModel(
     fun refresh() {
         val draft = importRepository.currentDraft()
         if (draft == null) {
-            _state.value = TriageUiState()
+            _state.update { TriageUiState() }
             return
         }
         val decisions = importRepository.decisions()
@@ -85,7 +79,7 @@ class TriageViewModel(
 
     fun onEditClick() {
         val card = _state.value.cards.getOrNull(_state.value.currentIndex) ?: return
-        scope.launch { _effects.emit(TriageEffect.NavigateEditCard(card.rowIndex)) }
+        viewModelScope.launch { _effects.emit(TriageEffect.NavigateEditCard(card.rowIndex)) }
     }
 
     /** Keep every card not yet discarded and go to publish. */
@@ -99,7 +93,7 @@ class TriageViewModel(
     }
 
     fun onBackClick() {
-        scope.launch { _effects.emit(TriageEffect.NavigateBack) }
+        viewModelScope.launch { _effects.emit(TriageEffect.NavigateBack) }
     }
 
     private fun proceed() {
@@ -107,11 +101,7 @@ class TriageViewModel(
             _state.update { it.copy(error = "Keep at least one card to continue.") }
             return
         }
-        scope.launch { _effects.emit(TriageEffect.NavigatePublish) }
-    }
-
-    fun onDispose() {
-        scope.cancel()
+        viewModelScope.launch { _effects.emit(TriageEffect.NavigatePublish) }
     }
 }
 

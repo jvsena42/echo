@@ -5,10 +5,15 @@ import com.github.jvsena42.echo.testing.FakeDeckRepository
 import com.github.jvsena42.echo.testing.FakeSrsRepository
 import com.github.jvsena42.echo.testing.testCard
 import com.github.jvsena42.echo.testing.testDeck
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -20,11 +25,22 @@ class StudySessionViewModelTest {
     private val srsRepo = FakeSrsRepository()
     private val deckRepo = FakeDeckRepository()
 
-    private fun TestScope.viewModel(deckId: String? = "deck1") = StudySessionViewModel(
+    private val mainDispatcher = StandardTestDispatcher()
+
+    @BeforeTest
+    fun setUp() {
+        Dispatchers.setMain(mainDispatcher)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun viewModel(deckId: String? = "deck1") = StudySessionViewModel(
         deckId = deckId,
         srsRepository = srsRepo,
         deckRepository = deckRepo,
-        mainScope = this,
     )
 
     private suspend fun seedDeck() {

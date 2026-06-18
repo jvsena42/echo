@@ -1,14 +1,12 @@
 package com.github.jvsena42.echo.presentation.importflow
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.ImportRepository
 import com.github.jvsena42.echo.domain.model.ColumnRole
 import com.github.jvsena42.echo.domain.model.Separator
 import com.github.jvsena42.echo.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -20,11 +18,7 @@ import kotlinx.coroutines.launch
 
 class PasteImportViewModel(
     private val importRepository: ImportRepository,
-    mainScope: CoroutineScope? = null,
-) {
-    private val scope: CoroutineScope =
-        mainScope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
+) : ViewModel() {
     private val _state = MutableStateFlow(PasteImportUiState())
     val state: StateFlow<PasteImportUiState> = _state.asStateFlow()
 
@@ -51,7 +45,7 @@ class PasteImportViewModel(
 
     private fun doParse(text: String) {
         parseJob?.cancel()
-        parseJob = scope.launch {
+        parseJob = viewModelScope.launch {
             importRepository.parse(text)
                 .onSuccess { draft ->
                     val mapping = draft.columnMapping.assignments
@@ -88,17 +82,12 @@ class PasteImportViewModel(
 
     fun onNextClick() {
         if (!_state.value.isParsed) return
-        scope.launch { _effects.emit(PasteImportEffect.NavigatePublish) }
+        viewModelScope.launch { _effects.emit(PasteImportEffect.NavigatePublish) }
     }
 
     fun onCancelClick() {
         importRepository.clear()
-        scope.launch { _effects.emit(PasteImportEffect.NavigateBack) }
-    }
-
-    fun onDispose() {
-        parseJob?.cancel()
-        scope.cancel()
+        viewModelScope.launch { _effects.emit(PasteImportEffect.NavigateBack) }
     }
 
     companion object {
