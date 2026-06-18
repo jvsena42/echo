@@ -174,6 +174,15 @@ fun DeckDetailScreen(
                     onDismiss = onDismissDelete,
                 )
             }
+            if (state.isDeleting) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(colors.surfacePrimary),
+                ) {
+                    EchoLoadingScreen(message = stringResource(R.string.deck_detail_deleting))
+                }
+            }
         }
     }
 }

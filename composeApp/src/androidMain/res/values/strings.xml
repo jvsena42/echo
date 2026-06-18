@@ -39,6 +39,7 @@
     <string name="deck_detail_error_title">Something went wrong</string>
     <string name="deck_detail_retry">Retry</string>
     <string name="deck_detail_loading">Opening deck…</string>
+    <string name="deck_detail_deleting">Deleting deck…</string>
     <string name="deck_detail_start_studying">Start studying · %1$d due</string>
     <string name="deck_detail_study_this_deck">Study this deck</string>
     <string name="deck_detail_back">Back</string>
