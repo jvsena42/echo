@@ -24,14 +24,14 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
 
 **Business logic is shared; UI is native per platform.** This is the core rule — internalize it before making changes.
 
-- `shared/src/commonMain/kotlin/com/github/jvsena42/eco/` holds all cross-platform code:
+- `shared/src/commonMain/kotlin/com/github/jvsena42/echo/` holds all cross-platform code:
   - `domain/model/` — pure Kotlin data classes (`Deck`, `Card`, `ImportDraft`, `SrsState`, `AppError`, etc.). No framework imports.
   - `data/repository/` — repository interfaces (all 8 in `Repositories.kt`: Identity, Deck, Card, Import, Media, Tag, Discovery, Srs), implementations under `data/repository/impl/`. **Repositories own the business logic** — parsing, triage, publishing, SRS grading, follow/unfollow, sign-in/out all live as methods on the relevant repo rather than in a separate use-case layer. **All 8 are implemented** (`IdentityRepositoryImpl`, `DeckRepositoryImpl`, `CardRepositoryImpl`, `ImportRepositoryImpl` — the paste parser, spec §6 rules + §9 edge cases —, `MediaRepositoryImpl`, `SrsRepositoryImpl`, `DiscoveryRepositoryImpl`, `TagRepositoryImpl`), plus `SessionRevalidatorImpl`. `TagRepositoryImpl` writes pubky-app-specs tag records to the homeserver and reads trending from the Nexus indexer (`data/nexus/NexusClient`, see Architecture.md §7.6). The impls are Pubky-only: they write/read through `PubkyClient` and hold an in-memory per-session cache. No SQLDelight yet — the app is not offline-first, Pubky is the single source of truth.
   - `data/pubky/` — `PubkyClient` interface + DTOs (`ManifestDto`, `CardDto`, `MediaRefDto` in `DeckDtos.kt`, `ProfileDto`) and path helpers (`PubkyPaths`, `Hashing`) that map between domain models and the on-homeserver JSON layout defined in `docs/Architecture.md §8.0`. `SessionProvider`/`MutableSessionProvider` is the tiny read-only abstraction repos use to author writes without depending on `IdentityRepository`. `SessionRevalidator` + `SessionRetry` + `SessionPayloadParser` handle expired-session retry.
   - `data/pubky/PubkyClient.kt` — the single interface that wraps `pubky-core-ffi-fork`. All Pubky calls must route through this. It is a **thin** 1:1 mirror of the FFI surface (keys, mnemonics, recovery, auth, records, DHT). Do not add deck/card concepts here — those belong in repositories. The `actual` impl is `AndroidPubkyClient` (androidMain); the iOS impl (`IosPubkyClient.swift`) is still a stub awaiting framework binding.
   - `data/storage/` — `SecureSessionStore` interface for persisting the signed-in `Session`, backed by the platform keystore via Liftric KVault (`AndroidSecureSessionStore` wraps EncryptedSharedPreferences; `IosSecureSessionStore` wraps Keychain). This resolves the secret-storage open question — see "Non-obvious rules" below.
   - `di/SharedModule.kt` — Koin graph binding repos, ViewModels, and `SessionProvider`; platforms override `PubkyClient` + `SecureSessionStore` via `PlatformModule.{android,ios}.kt`.
-  - `presentation/` — KMP ViewModels, one per screen (`StateFlow<UiState>` + `SharedFlow<UiEffect>`). **Implemented** across `onboarding/` (`OnboardingViewModel` + UiState/Effect), `home/` (`HomeViewModel`), `decks/` (`DecksLibraryViewModel`, `DeckDetailViewModel`, `DeckEditorViewModel`, `EditCardViewModel`), `import/` (`PasteImportViewModel`, `PublishDeckViewModel`), and `profile/` (`ProfileViewModel`). Coroutines + Koin are wired (no longer blocked).
+  - `presentation/` — KMP ViewModels, one per screen, each extending the multiplatform `androidx.lifecycle.ViewModel` (`viewModelScope`) and exposing `StateFlow<UiState>` + `SharedFlow<UiEffect>` (see "Coding conventions" below). **Implemented** across `onboarding/` (`OnboardingViewModel` + UiState/Effect), `home/` (`HomeViewModel`), `decks/` (`DecksLibraryViewModel`, `DeckDetailViewModel`, `DeckEditorViewModel`, `EditCardViewModel`), `import/` (`PasteImportViewModel`, `PublishDeckViewModel`), and `profile/` (`ProfileViewModel`). Coroutines + Koin are wired (no longer blocked).
 - `shared/src/{android,ios}Main/` — `expect`/`actual` platform glue only (Pubky FFI, TTS, haptics, file I/O). Nothing else lives here.
 - `composeApp/src/androidMain/` — Android app. Compose screens in `ui/`, Koin in `di/`, `MainActivity` as entry point. Uses Jetpack Navigation Compose.
 - `iosApp/iosApp/` — iOS app. SwiftUI screens in `Views/`, `NavigationStack` in `Navigation/`, Koin bootstrap in `DI/`. Compose Multiplatform UI is **not** used for iOS screens.
@@ -54,6 +54,58 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
 ### Package
 
 Root package is `com.github.jvsena42.echo`. Android namespace is `com.github.jvsena42.echo` (app) and `com.github.jvsena42.echo.shared` (library).
+
+## Coding conventions
+
+Prescriptive rules, adapted from the sibling Bitkit apps' `AGENTS.md` to Echo's
+shared-logic / native-UI split. These are the canonical conventions — `docs/Architecture.md`
+points here rather than restating them.
+
+### Shared (Kotlin · `shared/commonMain`)
+
+- **ViewModels extend `androidx.lifecycle.ViewModel`** (the multiplatform JetBrains build) and
+  launch work in `viewModelScope`. Do **not** hand-roll a `CoroutineScope`/`SupervisorJob` or an
+  `onDispose()` — `viewModelScope` cancels in `onCleared()`. Never use `GlobalScope`; never
+  `runBlocking` in suspend code.
+- **State:** expose `val state: StateFlow<UiState> = _state.asStateFlow()`. **ALWAYS mutate with
+  `_state.update { … }`; NEVER `_state.value = …`** (atomic read-modify-write). Reading
+  `_state.value` is fine.
+- **Effects:** one-shot effects (navigation, haptics, toasts, clipboard) go through a
+  `MutableSharedFlow(extraBufferCapacity = 4)` exposed as `SharedFlow`, separate from state.
+- **UiState shape:** `sealed interface` for screens with distinct modes (Loading/Empty/Content/Error);
+  a single `data class` with nullable fields otherwise. Keep `UiState`/`Effect`/small helper data
+  classes in the same file, after the ViewModel. (Annotate with `@Immutable` only in the *Android*
+  layer — shared `commonMain` has no Compose dependency.)
+- **Errors:** prefer `runCatching { … }.onSuccess { }.onFailure { }` / `Result` over try/catch; map
+  domain `AppError` into the UI state. Prefer `requireNotNull(x) { "…" }` over `!!`.
+- **DI:** bind ViewModels with Koin's `viewModel { }` DSL (`org.koin.core.module.dsl.viewModel`) in
+  `SharedModule.kt`; repositories stay `single { }`.
+- **Imports:** always import; never inline fully-qualified names (Kotlin and Swift).
+
+### Android (Compose · `composeApp`)
+
+- **Stateful/stateless split:** a `…Route` composable resolves the VM via `koinViewModel()` (NOT
+  `koinInject`), collects state with `collectAsStateWithLifecycle()`, and consumes effects in a
+  `LaunchedEffect`; it delegates to a stateless `…Screen(state, callbacks)`. Pass `viewModel::method`
+  references down — never the ViewModel itself.
+- **No manual VM disposal.** With `koinViewModel()` + `viewModelScope`, drop the old
+  `DisposableEffect { onDispose { viewModel.onDispose() } }` blocks.
+- **`modifier: Modifier = Modifier`** is the first optional parameter and is passed **last** at call sites.
+- **Navigation goes through `NavController.navigateTo()`** (`ui/nav/NavExt.kt`), which dedups the
+  current destination — never raw `navController.navigate(...)`.
+- **Immutable collections (recommended, not yet adopted):** prefer `ImmutableList`/`persistentListOf()`
+  for `UiState` list fields and Compose params, and annotate `UiState`/token data classes `@Immutable`.
+  `kotlinx.collections.immutable` is not yet a dependency — treat this as the target when touching state.
+- No hardcoded user-facing strings — use string resources.
+
+### iOS (SwiftUI · `iosApp`)
+
+- **Consume the shared KMP ViewModels.** Do **not** introduce iOS-side `@Observable` business-logic
+  objects (unlike bitkit-ios) — Echo shares its VMs. Bridge `StateFlow`/`SharedFlow` → SwiftUI per the
+  Architecture §9.2 decision; call the VM's generated `clear()` on disappear (there is no `onDispose()`).
+- Reuse the project's text/components instead of raw `Text().font().foregroundColor()` chains; use
+  `.task` (not `.onAppear`) for async tied to a view's lifetime; mutate state on `@MainActor`; use
+  self-documenting names (`isLoadingDecks`, not `loading`); comment only non-obvious "why".
 
 ## Where to read before starting work
 
