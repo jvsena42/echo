@@ -25,7 +25,7 @@ fun EchoNavHost() {
         composable(Routes.ONBOARDING) {
             OnboardingRoute(
                 onNavigateHome = {
-                    navController.navigate(Routes.MAIN) {
+                    navController.navigateTo(Routes.MAIN) {
                         popUpTo(Routes.ONBOARDING) { inclusive = true }
                     }
                 },
@@ -34,26 +34,26 @@ fun EchoNavHost() {
         composable(Routes.MAIN) {
             MainScreen(
                 onNavigateDeckDetail = { deckId, author ->
-                    navController.navigate(Routes.deckDetail(deckId, author))
+                    navController.navigateTo(Routes.deckDetail(deckId, author))
                 },
                 onNavigateCreateDeck = {
                     // Deck creation always starts at the Paste import flow (design node h9wya).
-                    navController.navigate(Routes.IMPORT_PASTE)
+                    navController.navigateTo(Routes.IMPORT_PASTE)
                 },
                 onNavigateImport = {
-                    navController.navigate(Routes.IMPORT_PASTE)
+                    navController.navigateTo(Routes.IMPORT_PASTE)
                 },
                 onNavigateStudy = { deckId ->
-                    navController.navigate(Routes.study(deckId))
+                    navController.navigateTo(Routes.study(deckId))
                 },
                 onNavigateProfile = { pubky ->
-                    navController.navigate(Routes.friendProfile(pubky))
+                    navController.navigateTo(Routes.friendProfile(pubky))
                 },
                 onNavigateSettings = {
-                    navController.navigate(Routes.SETTINGS)
+                    navController.navigateTo(Routes.SETTINGS)
                 },
                 onSignOut = {
-                    navController.navigate(Routes.ONBOARDING) {
+                    navController.navigateTo(Routes.ONBOARDING) {
                         popUpTo(Routes.MAIN) { inclusive = true }
                     }
                 },
@@ -63,7 +63,7 @@ fun EchoNavHost() {
             SettingsRoute(
                 onBack = { navController.popBackStack() },
                 onSignedOut = {
-                    navController.navigate(Routes.ONBOARDING) {
+                    navController.navigateTo(Routes.ONBOARDING) {
                         popUpTo(Routes.MAIN) { inclusive = true }
                     }
                 },
@@ -86,8 +86,8 @@ fun EchoNavHost() {
                 deckId = deckId,
                 authorPubky = author,
                 onBack = { navController.popBackStack() },
-                onEditDeck = { id -> navController.navigate(Routes.deckEditor(id)) },
-                onStudy = { id -> navController.navigate(Routes.study(id)) },
+                onEditDeck = { id -> navController.navigateTo(Routes.deckEditor(id)) },
+                onStudy = { id -> navController.navigateTo(Routes.study(id)) },
             )
         }
         composable(
@@ -98,10 +98,10 @@ fun EchoNavHost() {
             DeckEditorRoute(
                 deckId = deckId,
                 onBack = { navController.popBackStack() },
-                onEditCard = { dId, cId -> navController.navigate(Routes.editCard(dId, cId)) },
+                onEditCard = { dId, cId -> navController.navigateTo(Routes.editCard(dId, cId)) },
                 onSaved = { savedDeckId ->
                     navController.popBackStack()
-                    navController.navigate(Routes.deckDetail(savedDeckId))
+                    navController.navigateTo(Routes.deckDetail(savedDeckId))
                 },
             )
         }
@@ -109,24 +109,24 @@ fun EchoNavHost() {
             DeckEditorRoute(
                 deckId = null,
                 onBack = { navController.popBackStack() },
-                onEditCard = { dId, cId -> navController.navigate(Routes.editCard(dId, cId)) },
+                onEditCard = { dId, cId -> navController.navigateTo(Routes.editCard(dId, cId)) },
                 onSaved = { savedDeckId ->
                     navController.popBackStack()
-                    navController.navigate(Routes.deckDetail(savedDeckId))
+                    navController.navigateTo(Routes.deckDetail(savedDeckId))
                 },
             )
         }
         composable(Routes.IMPORT_PASTE) {
             PasteRoute(
                 onCancel = { navController.popBackStack() },
-                onNext = { navController.navigate(Routes.IMPORT_TRIAGE) },
+                onNext = { navController.navigateTo(Routes.IMPORT_TRIAGE) },
             )
         }
         composable(Routes.IMPORT_TRIAGE) {
             TriageRoute(
                 onBack = { navController.popBackStack() },
-                onEditCard = { rowIndex -> navController.navigate(Routes.triageEditCard(rowIndex)) },
-                onNext = { navController.navigate(Routes.IMPORT_PUBLISH) },
+                onEditCard = { rowIndex -> navController.navigateTo(Routes.triageEditCard(rowIndex)) },
+                onNext = { navController.navigateTo(Routes.IMPORT_PUBLISH) },
             )
         }
         composable(
@@ -145,7 +145,7 @@ fun EchoNavHost() {
                 onPublished = { deckId ->
                     // Pop both import screens and navigate to deck detail
                     navController.popBackStack(Routes.MAIN, inclusive = false)
-                    navController.navigate(Routes.deckDetail(deckId))
+                    navController.navigateTo(Routes.deckDetail(deckId))
                 },
             )
         }
@@ -188,7 +188,7 @@ fun EchoNavHost() {
             FriendProfileRoute(
                 pubky = pubky,
                 onBack = { navController.popBackStack() },
-                onOpenDeck = { deckId -> navController.navigate(Routes.deckDetail(deckId, author = pubky)) },
+                onOpenDeck = { deckId -> navController.navigateTo(Routes.deckDetail(deckId, author = pubky)) },
             )
         }
     }
