@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -146,7 +146,7 @@ private fun PublishDeckScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surfacePrimary)
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.systemBars)
             .verticalScroll(rememberScrollState())
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 40.dp)),
         verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -679,7 +679,7 @@ private fun PublishedContent(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surfacePrimary)
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.systemBars)
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 40.dp)),
         verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
