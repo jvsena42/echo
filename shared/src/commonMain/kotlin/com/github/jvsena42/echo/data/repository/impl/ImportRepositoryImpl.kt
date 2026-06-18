@@ -3,18 +3,70 @@ package com.github.jvsena42.echo.data.repository.impl
 import com.github.jvsena42.echo.data.repository.ImportRepository
 import com.github.jvsena42.echo.domain.model.ColumnMapping
 import com.github.jvsena42.echo.domain.model.ColumnRole
+import com.github.jvsena42.echo.domain.model.DraftCardImage
 import com.github.jvsena42.echo.domain.model.ImportDraft
 import com.github.jvsena42.echo.domain.model.ParseFlag
 import com.github.jvsena42.echo.domain.model.ParsedRow
 import com.github.jvsena42.echo.domain.model.Separator
+import com.github.jvsena42.echo.domain.model.TriageDecision
+import com.github.jvsena42.echo.domain.model.backIndex
+import com.github.jvsena42.echo.domain.model.frontIndex
 
+@Suppress("TooManyFunctions")
 class ImportRepositoryImpl : ImportRepository {
 
     private var draft: ImportDraft? = null
+    private val triageDecisions = mutableMapOf<Int, TriageDecision>()
+    private val rowEdits = mutableMapOf<Int, Pair<String, String>>()
+    private val rowFrontImages = mutableMapOf<Int, DraftCardImage>()
+    private val rowBackImages = mutableMapOf<Int, DraftCardImage>()
 
     override fun currentDraft(): ImportDraft? = draft
 
+    override fun decisions(): Map<Int, TriageDecision> = triageDecisions.toMap()
+
+    override fun setDecision(rowIndex: Int, decision: TriageDecision) {
+        triageDecisions[rowIndex] = decision
+    }
+
+    override fun updateRow(rowIndex: Int, front: String, back: String) {
+        rowEdits[rowIndex] = front.trim() to back.trim()
+    }
+
+    override fun setRowImage(rowIndex: Int, isFront: Boolean, image: DraftCardImage?) {
+        val target = if (isFront) rowFrontImages else rowBackImages
+        if (image == null) target.remove(rowIndex) else target[rowIndex] = image
+    }
+
+    override fun rowImage(rowIndex: Int, isFront: Boolean): DraftCardImage? =
+        if (isFront) rowFrontImages[rowIndex] else rowBackImages[rowIndex]
+
+    override fun keptRows(): List<ParsedRow> {
+        val d = draft ?: return emptyList()
+        val frontIdx = d.frontIndex()
+        val backIdx = d.backIndex()
+        return d.rows
+            .filter { triageDecisions[it.index] != TriageDecision.Discard }
+            .map { row -> applyEdit(row, frontIdx, backIdx) }
+    }
+
+    /** Returns [row] with any triage edit applied to its front/back fields. */
+    private fun applyEdit(row: ParsedRow, frontIdx: Int, backIdx: Int): ParsedRow {
+        val edit = rowEdits[row.index] ?: return row
+        val (front, back) = edit
+        val fields = row.fields.toMutableList()
+        while (fields.size <= maxOf(frontIdx, backIdx)) fields.add("")
+        fields[frontIdx] = front
+        fields[backIdx] = back
+        return row.copy(fields = fields, isValid = front.isNotBlank() || back.isNotBlank())
+    }
+
     override suspend fun parse(rawText: String): Result<ImportDraft> = runCatching {
+        // A fresh parse invalidates any prior triage decisions/edits.
+        triageDecisions.clear()
+        rowEdits.clear()
+        rowFrontImages.clear()
+        rowBackImages.clear()
         val text = rawText.replace("\r\n", "\n").replace("\r", "\n").trim()
         require(text.isNotEmpty()) { "Nothing to import." }
         require(text.length <= MAX_CHARS) { "Text is too long (max $MAX_CHARS characters)." }
@@ -64,6 +116,10 @@ class ImportRepositoryImpl : ImportRepository {
 
     override fun clear() {
         draft = null
+        triageDecisions.clear()
+        rowEdits.clear()
+        rowFrontImages.clear()
+        rowBackImages.clear()
     }
 
     // --- Separator detection (spec §6 rule order) ---

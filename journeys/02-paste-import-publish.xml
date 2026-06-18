@@ -12,6 +12,12 @@
     <action>Type the following three lines into the field with resource-id "paste_input": "dog,cachorro", "cat,gato", "bird,passaro"</action>
     <action>Verify a live preview appears showing 3 parsed cards with fronts dog, cat, bird</action>
     <action>Tap the element with resource-id "paste_next"</action>
+    <action>Verify the "Review cards" triage screen is shown with a card (resource-id: triage_card), a progress label "1 of 3" (resource-id: triage_progress), and Discard/Edit/Keep action buttons</action>
+    <action>Tap the element with resource-id "triage_keep" to keep the first card</action>
+    <action>Tap the element with resource-id "triage_keep" to keep the second card</action>
+    <action>Tap the element with resource-id "triage_keep" to keep the third (last) card and advance to Publish</action>
+    <action>Verify the "New deck" publish screen is shown with a "Card Options" section</action>
+    <action>Verify the Listen toggle (resource-id: publish_listen_toggle) and Speak toggle (resource-id: publish_speak_toggle) are both ON by default</action>
     <action>Enter "Animals PT" into the field with resource-id "publish_title"</action>
     <action>Tap the element with resource-id "publish_button"</action>
     <action>Verify a "Deck published!" success state appears with an Undo button showing a live countdown (resource-id: publish_undo) and a Done button (resource-id: publish_done)</action>

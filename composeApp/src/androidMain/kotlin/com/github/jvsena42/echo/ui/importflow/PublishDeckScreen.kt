@@ -26,11 +26,16 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -44,7 +49,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -53,11 +61,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.importflow.PublishDeckEffect
 import com.github.jvsena42.echo.presentation.importflow.PublishDeckUiState
 import com.github.jvsena42.echo.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
+import com.github.jvsena42.echo.ui.components.ImagePickerSheet
+import com.github.jvsena42.echo.ui.components.ImageSelection
 import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
@@ -90,6 +101,10 @@ fun PublishDeckRoute(
         onDescriptionChanged = viewModel::onDescriptionChanged,
         onAddTag = viewModel::onAddTag,
         onRemoveTag = viewModel::onRemoveTag,
+        onToggleListen = viewModel::onToggleListen,
+        onToggleSpeak = viewModel::onToggleSpeak,
+        onCoverWebSelected = viewModel::onCoverWebSelected,
+        onCoverGallerySelected = viewModel::onCoverGallerySelected,
         onPublishClick = viewModel::onPublishClick,
         onUndoPublish = viewModel::onUndoPublish,
         onDonePublish = viewModel::onDonePublish,
@@ -98,6 +113,7 @@ fun PublishDeckRoute(
 }
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Suppress("CyclomaticComplexMethod", "LongMethod") // Single-screen form; sections read top-to-bottom.
 @Composable
 private fun PublishDeckScreen(
     state: PublishDeckUiState,
@@ -105,6 +121,10 @@ private fun PublishDeckScreen(
     onDescriptionChanged: (String) -> Unit,
     onAddTag: (String) -> Unit,
     onRemoveTag: (String) -> Unit,
+    onToggleListen: () -> Unit,
+    onToggleSpeak: () -> Unit,
+    onCoverWebSelected: (String) -> Unit,
+    onCoverGallerySelected: (ByteArray, String) -> Unit,
     onPublishClick: () -> Unit,
     onUndoPublish: () -> Unit,
     onDonePublish: () -> Unit,
@@ -112,6 +132,7 @@ private fun PublishDeckScreen(
 ) {
     val colors = EchoTheme.colors
     var showTagSheet by remember { mutableStateOf(false) }
+    var showCoverSheet by remember { mutableStateOf(false) }
     var tagInput by remember { mutableStateOf("") }
 
     if (state.publishedDeckId != null) {
@@ -163,24 +184,44 @@ private fun PublishDeckScreen(
             Spacer(Modifier.size(40.dp))
         }
 
-        // Cards ready badge
+        // Cards ready badge (design `yFOOS`): peach panel, solid orange check, discarded subtitle.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .background(colors.srsGood.copy(alpha = 0.15f))
+                .background(colors.accentPrimarySoft)
                 .padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Check, null, tint = colors.srsGood, modifier = Modifier.size(20.dp))
-            Column {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(colors.accentPrimary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Check,
+                    null,
+                    tint = colors.foregroundOnAccent,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     stringResource(R.string.publish_cards_ready, state.cardCount),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = colors.foregroundPrimary,
                 )
+                if (state.discardedCount > 0) {
+                    Text(
+                        stringResource(R.string.publish_cards_discarded, state.discardedCount),
+                        fontSize = 12.sp,
+                        color = colors.foregroundSecondary,
+                    )
+                }
             }
         }
 
@@ -197,10 +238,17 @@ private fun PublishDeckScreen(
                     .background(colors.accentPrimarySoft),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = state.coverEmoji.ifBlank { "📚" },
-                    fontSize = 32.sp,
-                )
+                val coverModel: Any? = state.coverImageUrl ?: state.coverPendingBytes
+                if (coverModel != null) {
+                    AsyncImage(
+                        model = coverModel,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Text(text = state.coverEmoji.ifBlank { "📚" }, fontSize = 32.sp)
+                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
@@ -212,13 +260,20 @@ private fun PublishDeckScreen(
                 )
                 Row(
                     modifier = Modifier
+                        .testTag("publish_cover_change")
                         .clip(RoundedCornerShape(8.dp))
                         .border(1.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
+                        .clickable { showCoverSheet = true }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("🖼️", fontSize = 14.sp)
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        tint = colors.accentPrimary,
+                        modifier = Modifier.size(16.dp),
+                    )
                     Text(
                         stringResource(R.string.publish_cover_change),
                         fontSize = 13.sp,
@@ -245,7 +300,7 @@ private fun PublishDeckScreen(
                     .testTag("publish_title")
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, colors.borderSubtle, RoundedCornerShape(12.dp))
+                    .background(colors.surfaceCard)
                     .padding(14.dp),
                 textStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary),
                 cursorBrush = SolidColor(colors.accentPrimary),
@@ -284,7 +339,7 @@ private fun PublishDeckScreen(
                     .testTag("publish_description")
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, colors.borderSubtle, RoundedCornerShape(12.dp))
+                    .background(colors.surfaceCard)
                     .padding(14.dp),
                 textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundSecondary),
                 cursorBrush = SolidColor(colors.accentPrimary),
@@ -338,6 +393,37 @@ private fun PublishDeckScreen(
                     )
                 }
             }
+        }
+
+        // Card options (Listen / Speak)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                stringResource(R.string.publish_card_options_label),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                color = colors.foregroundMuted,
+            )
+            OptionToggleRow(
+                title = stringResource(R.string.publish_listen_title),
+                subtitle = stringResource(R.string.publish_listen_subtitle),
+                checked = state.listenEnabled,
+                onToggle = onToggleListen,
+                testTag = "publish_listen_toggle",
+                icon = Icons.AutoMirrored.Filled.VolumeUp,
+                iconColor = colors.accentPrimary,
+                iconBackground = colors.accentPrimarySoft,
+            )
+            OptionToggleRow(
+                title = stringResource(R.string.publish_speak_title),
+                subtitle = stringResource(R.string.publish_speak_subtitle),
+                checked = state.speakEnabled,
+                onToggle = onToggleSpeak,
+                testTag = "publish_speak_toggle",
+                icon = Icons.Default.Mic,
+                iconColor = colors.accentSecondary,
+                iconBackground = colors.accentSecondarySoft,
+            )
         }
 
         // Public on Pubky notice
@@ -518,6 +604,69 @@ private fun PublishDeckScreen(
             }
         }
     }
+
+    if (showCoverSheet) {
+        ImagePickerSheet(
+            title = stringResource(R.string.publish_cover_sheet_title),
+            subtitle = null,
+            onDismiss = { showCoverSheet = false },
+            onSelected = { selection ->
+                when (selection) {
+                    is ImageSelection.Web -> onCoverWebSelected(selection.url)
+                    is ImageSelection.Gallery -> onCoverGallerySelected(selection.bytes, selection.mime)
+                }
+                showCoverSheet = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun OptionToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onToggle: () -> Unit,
+    testTag: String,
+    icon: ImageVector,
+    iconColor: Color,
+    iconBackground: Color,
+) {
+    val colors = EchoTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .border(1.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
+            .background(colors.surfaceCard)
+            .padding(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(iconBackground),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, tint = iconColor, modifier = Modifier.size(18.dp))
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary)
+            Text(subtitle, fontSize = 12.sp, color = colors.foregroundSecondary)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = { onToggle() },
+            modifier = Modifier.testTag(testTag),
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = colors.foregroundOnAccent,
+                checkedTrackColor = colors.accentPrimary,
+                uncheckedTrackColor = colors.borderSubtle,
+            ),
+        )
+    }
 }
 
 @Composable
@@ -619,6 +768,10 @@ private fun PublishDeckScreenPreview() {
             onDescriptionChanged = {},
             onAddTag = {},
             onRemoveTag = {},
+            onToggleListen = {},
+            onToggleSpeak = {},
+            onCoverWebSelected = {},
+            onCoverGallerySelected = { _, _ -> },
             onPublishClick = {},
             onUndoPublish = {},
             onDonePublish = {},

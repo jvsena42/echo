@@ -5,12 +5,15 @@ import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.DiscoveryRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.data.repository.ImportRepository
+import com.github.jvsena42.echo.data.repository.MediaRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.data.repository.TagRepository
 import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.ColumnMapping
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.DraftCardImage
 import com.github.jvsena42.echo.domain.model.ImportDraft
+import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.ParsedRow
 import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.domain.model.PubkyUri
@@ -19,6 +22,7 @@ import com.github.jvsena42.echo.domain.model.Session
 import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.domain.model.SrsState
 import com.github.jvsena42.echo.domain.model.Tag
+import com.github.jvsena42.echo.domain.model.TriageDecision
 import com.github.jvsena42.echo.domain.model.review
 
 class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRepository {
@@ -160,16 +164,59 @@ class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRep
 
 class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
     var clearCount = 0
+    private val triageDecisions = mutableMapOf<Int, TriageDecision>()
+    private val rowEdits = mutableMapOf<Int, Pair<String, String>>()
 
     override fun currentDraft(): ImportDraft? = draft
 
     override suspend fun parse(rawText: String): Result<ImportDraft> =
         draft?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no draft"))
 
+    override fun decisions(): Map<Int, TriageDecision> = triageDecisions.toMap()
+
+    override fun setDecision(rowIndex: Int, decision: TriageDecision) {
+        triageDecisions[rowIndex] = decision
+    }
+
+    override fun updateRow(rowIndex: Int, front: String, back: String) {
+        rowEdits[rowIndex] = front to back
+    }
+
+    private val rowImages = mutableMapOf<Pair<Int, Boolean>, DraftCardImage>()
+
+    override fun setRowImage(rowIndex: Int, isFront: Boolean, image: DraftCardImage?) {
+        if (image == null) rowImages.remove(rowIndex to isFront) else rowImages[rowIndex to isFront] = image
+    }
+
+    override fun rowImage(rowIndex: Int, isFront: Boolean): DraftCardImage? = rowImages[rowIndex to isFront]
+
+    override fun keptRows(): List<ParsedRow> =
+        draft?.rows?.filter { triageDecisions[it.index] != TriageDecision.Discard } ?: emptyList()
+
     override fun clear() {
         clearCount++
         draft = null
+        triageDecisions.clear()
+        rowEdits.clear()
     }
+}
+
+class FakeMediaRepository : MediaRepository {
+    val putImages = mutableListOf<Triple<String, ByteArray, String>>()
+
+    override suspend fun putImage(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Image> {
+        putImages.add(Triple(deckId, bytes, mime))
+        return Result.success(
+            MediaRef.Image(path = "media/fake.jpg", mime = mime, sha256 = "fake", width = null, height = null),
+        )
+    }
+
+    override suspend fun putAudio(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Audio> =
+        Result.success(MediaRef.Audio(path = "media/fake.m4a", mime = mime, sha256 = "fake", durationMs = null))
+
+    override suspend fun get(deckId: String, ref: MediaRef): Result<ByteArray> = Result.success(ByteArray(0))
+
+    override suspend fun delete(deckId: String, ref: MediaRef): Result<Unit> = Result.success(Unit)
 }
 
 fun testDraft(vararg pairs: Pair<String, String>): ImportDraft = ImportDraft(

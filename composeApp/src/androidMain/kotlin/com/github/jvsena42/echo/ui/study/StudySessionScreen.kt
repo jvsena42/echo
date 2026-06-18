@@ -1,5 +1,10 @@
 package com.github.jvsena42.echo.ui.study
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -23,12 +28,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledIconButton
@@ -43,6 +50,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -59,17 +68,25 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.platform.Speaker
+import com.github.jvsena42.echo.platform.SpeechEvent
+import com.github.jvsena42.echo.platform.SpeechRecognizer
+import com.github.jvsena42.echo.presentation.study.SpeakPhase
 import com.github.jvsena42.echo.presentation.study.StudySessionEffect
 import com.github.jvsena42.echo.presentation.study.StudySessionUiState
 import com.github.jvsena42.echo.presentation.study.StudySessionViewModel
+import com.github.jvsena42.echo.ui.components.CardMediaImage
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.rememberReduceMotion
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
@@ -80,28 +97,77 @@ fun StudySessionRoute(
 ) {
     val viewModel = koinInject<StudySessionViewModel> { parametersOf(deckId) }
     val speaker = koinInject<Speaker>()
+    val speechRecognizer = koinInject<SpeechRecognizer>()
 
     DisposableEffect(viewModel) {
         onDispose { viewModel.onDispose() }
     }
 
     val currentClose by rememberUpdatedState(onClose)
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val recognitionJob = remember { mutableStateOf<Job?>(null) }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            viewModel.onSpeakTest()
+        } else {
+            Toast.makeText(context, R.string.speak_permission_denied, Toast.LENGTH_LONG).show()
+            viewModel.onSpeechError()
+        }
+    }
+
+    fun requestSpeak() {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) viewModel.onSpeakTest() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 is StudySessionEffect.Speak -> speaker.speak(effect.text)
+                is StudySessionEffect.StartSpeechRecognition -> {
+                    recognitionJob.value?.cancel()
+                    recognitionJob.value = scope.launch {
+                        if (!speechRecognizer.isAvailable()) {
+                            Toast.makeText(context, R.string.speak_unavailable, Toast.LENGTH_LONG).show()
+                            viewModel.onSpeechError()
+                            return@launch
+                        }
+                        speechRecognizer.listen().collect { event ->
+                            when (event) {
+                                is SpeechEvent.Result -> viewModel.onSpeechResult(event.text)
+                                is SpeechEvent.Error -> viewModel.onSpeechError()
+                                else -> Unit
+                            }
+                        }
+                    }
+                }
                 StudySessionEffect.Close -> currentClose()
             }
         }
     }
 
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    // Stop the recognizer as soon as the speak sheet leaves the listening phase.
+    val listening = (state as? StudySessionUiState.Reviewing)?.speakPhase is SpeakPhase.Listening
+    LaunchedEffect(listening) {
+        if (!listening) recognitionJob.value?.cancel()
+    }
+
     StudySessionScreen(
         state = state,
         onReveal = viewModel::onReveal,
         onGrade = viewModel::onGrade,
         onSpeak = viewModel::onSpeak,
+        onSpeakTest = ::requestSpeak,
+        onSpeakContinue = viewModel::onSpeakDismiss,
+        onSpeakRetry = viewModel::onSpeakRetry,
+        onSpeakCancel = viewModel::onSpeakDismiss,
         onClose = viewModel::onClose,
         onDone = onClose,
     )
@@ -115,6 +181,10 @@ fun StudySessionScreen(
     onSpeak: () -> Unit,
     onClose: () -> Unit,
     onDone: () -> Unit,
+    onSpeakTest: () -> Unit = {},
+    onSpeakContinue: () -> Unit = {},
+    onSpeakRetry: () -> Unit = {},
+    onSpeakCancel: () -> Unit = {},
 ) {
     val colors = EchoTheme.colors
     Box(
@@ -161,9 +231,20 @@ fun StudySessionScreen(
                 onReveal = onReveal,
                 onGrade = onGrade,
                 onSpeak = onSpeak,
+                onSpeakTest = onSpeakTest,
                 onClose = onClose,
             )
         }
+    }
+
+    if (state is StudySessionUiState.Reviewing) {
+        SpeakSheets(
+            phase = state.speakPhase,
+            targetWord = state.backText,
+            onCancel = onSpeakCancel,
+            onContinue = onSpeakContinue,
+            onRetry = onSpeakRetry,
+        )
     }
 }
 
@@ -173,6 +254,7 @@ private fun ReviewingContent(
     onReveal: () -> Unit,
     onGrade: (SrsGrade) -> Unit,
     onSpeak: () -> Unit,
+    onSpeakTest: () -> Unit,
     onClose: () -> Unit,
 ) {
     val colors = EchoTheme.colors
@@ -272,12 +354,15 @@ private fun ReviewingContent(
             contentAlignment = Alignment.Center,
         ) {
             if (rotation < 90f) {
-                // Front shows only the prompt; the reveal cue lives in the hint row below.
+                // Front shows only the prompt (design `w1CAm`); the reveal cue lives in the hint
+                // row below, and Listen/Speak appear only on the back.
                 CardFace(
                     label = null,
                     text = state.frontText,
                     textSize = 48.sp,
                     onSpeak = onSpeak,
+                    showListen = false,
+                    onSpeakTest = null,
                 )
             } else {
                 // Counter-rotate so the back content is not mirrored.
@@ -286,6 +371,10 @@ private fun ReviewingContent(
                     text = state.backText,
                     textSize = 42.sp,
                     onSpeak = onSpeak,
+                    showListen = state.listenEnabled,
+                    onSpeakTest = if (state.speakEnabled) onSpeakTest else null,
+                    imageRef = state.frontImageRef,
+                    deckId = state.deckId,
                     modifier = Modifier.graphicsLayer { rotationY = 180f },
                 )
             }
@@ -320,7 +409,11 @@ private fun CardFace(
     text: String,
     textSize: TextUnit,
     onSpeak: () -> Unit,
+    showListen: Boolean,
+    onSpeakTest: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    imageRef: MediaRef.Image? = null,
+    deckId: String = "",
 ) {
     val colors = EchoTheme.colors
     Column(
@@ -337,6 +430,17 @@ private fun CardFace(
                 color = colors.accentPrimary,
             )
         }
+        // Front-side image shown as a circular avatar on the card back (design `aLoMj`).
+        imageRef?.let { image ->
+            CardMediaImage(
+                image = image,
+                deckId = deckId,
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(CircleShape)
+                    .background(colors.accentPrimarySoft),
+            )
+        }
         Text(
             text = text,
             fontSize = textSize,
@@ -344,25 +448,44 @@ private fun CardFace(
             color = colors.foregroundPrimary,
             textAlign = TextAlign.Center,
         )
-        FilledTonalButton(
-            onClick = onSpeak,
-            shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.filledTonalButtonColors(
-                containerColor = colors.accentSecondarySoft,
-                contentColor = colors.accentSecondary,
-            ),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                contentDescription = stringResource(R.string.study_speak),
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(modifier = Modifier.size(8.dp))
-            Text(
-                text = stringResource(R.string.study_speak),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.W700,
-            )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (showListen) {
+                FilledTonalButton(
+                    onClick = onSpeak,
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = colors.accentPrimarySoft,
+                        contentColor = colors.accentPrimary,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                        contentDescription = stringResource(R.string.study_listen),
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text(text = stringResource(R.string.study_listen), fontSize = 14.sp, fontWeight = FontWeight.W700)
+                }
+            }
+            if (onSpeakTest != null) {
+                FilledTonalButton(
+                    onClick = onSpeakTest,
+                    modifier = Modifier.testTag("study_speak"),
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = colors.accentSecondarySoft,
+                        contentColor = colors.accentSecondary,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = stringResource(R.string.study_speak),
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text(text = stringResource(R.string.study_speak), fontSize = 14.sp, fontWeight = FontWeight.W700)
+                }
+            }
         }
     }
 }

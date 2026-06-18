@@ -11,13 +11,14 @@ import java.net.URL
  */
 class AndroidHttpFetcher : HttpFetcher {
 
-    override suspend fun get(url: String): Result<String> = withContext(Dispatchers.IO) {
+    override suspend fun get(url: String, headers: Map<String, String>): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val connection = URL(url).openConnection() as HttpURLConnection
             try {
                 connection.connectTimeout = TIMEOUT_MS
                 connection.readTimeout = TIMEOUT_MS
                 connection.setRequestProperty("Accept", "application/json")
+                headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
                 val code = connection.responseCode
                 if (code !in SUCCESS_RANGE) {
                     throw HttpError(code, "GET $url failed with HTTP $code")

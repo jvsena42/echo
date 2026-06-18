@@ -1037,41 +1037,6 @@
                   "fontFamily": "Funnel Sans",
                   "fontSize": 48,
                   "fontWeight": "800"
-                },
-                {
-                  "type": "frame",
-                  "id": "rlxS7",
-                  "name": "speak",
-                  "fill": "$accent-secondary-soft",
-                  "cornerRadius": "$radius-pill",
-                  "gap": 8,
-                  "padding": [
-                    10,
-                    18
-                  ],
-                  "alignItems": "center",
-                  "children": [
-                    {
-                      "type": "icon",
-                      "id": "Avarb",
-                      "name": "speakI",
-                      "width": 16,
-                      "height": 16,
-                      "icon": "mic",
-                      "library": "lucide",
-                      "fill": "$accent-secondary"
-                    },
-                    {
-                      "type": "text",
-                      "id": "Ka7n3",
-                      "name": "speakT",
-                      "fill": "$accent-secondary",
-                      "content": "Speak",
-                      "fontFamily": "Inter",
-                      "fontSize": 14,
-                      "fontWeight": "700"
-                    }
-                  ]
                 }
               ]
             },
@@ -11709,7 +11674,7 @@
                   "id": "hvd7M",
                   "name": "sheetTitle",
                   "fill": "$foreground-primary",
-                  "content": "Cover image",
+                  "content": "Back image",
                   "fontFamily": "Funnel Sans",
                   "fontSize": 20,
                   "fontWeight": "800"

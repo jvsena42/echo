@@ -23,6 +23,8 @@ internal data class ManifestDto(
     val created_at: Long,
     val updated_at: Long,
     val cards: List<CardIndexDto> = emptyList(),
+    val listen_enabled: Boolean = true,
+    val speak_enabled: Boolean = true,
 )
 
 @Serializable
@@ -50,12 +52,14 @@ internal data class CardSideDto(
 
 @Serializable
 internal data class MediaRefDto(
-    val path: String,
+    val path: String = "",
     val mime: String,
-    val sha256: String,
+    val sha256: String = "",
     val width: Int? = null,
     val height: Int? = null,
     val duration_ms: Long? = null,
+    /** Set for web images referenced by URL; [path]/[sha256] are then empty. */
+    val url: String? = null,
 )
 
 // --- Mapping ------------------------------------------------------------------
@@ -71,6 +75,8 @@ internal fun Deck.toDto() = ManifestDto(
     created_at = createdAt,
     updated_at = updatedAt,
     cards = cardIndex.map { CardIndexDto(it.id, it.updatedAt) },
+    listen_enabled = listenEnabled,
+    speak_enabled = speakEnabled,
 )
 
 internal fun ManifestDto.toDomain() = Deck(
@@ -84,6 +90,8 @@ internal fun ManifestDto.toDomain() = Deck(
     createdAt = created_at,
     updatedAt = updated_at,
     cardIndex = cards.map { CardIndexEntry(it.id, it.updated_at) },
+    listenEnabled = listen_enabled,
+    speakEnabled = speak_enabled,
 )
 
 internal fun Card.toDto() = CardDto(
@@ -120,6 +128,7 @@ internal fun MediaRef.Image.toDto() = MediaRefDto(
     sha256 = sha256,
     width = width,
     height = height,
+    url = url,
 )
 
 internal fun MediaRef.Audio.toDto() = MediaRefDto(
@@ -135,6 +144,7 @@ internal fun MediaRefDto.toImageDomain() = MediaRef.Image(
     sha256 = sha256,
     width = width,
     height = height,
+    url = url,
 )
 
 internal fun MediaRefDto.toAudioDomain() = MediaRef.Audio(

@@ -106,6 +106,7 @@
     <string name="study_back">Back</string>
     <string name="study_position_of_total">%1$d of %2$d</string>
     <string name="study_flip_hint">Tap card to reveal answer</string>
+    <string name="study_listen">Listen</string>
     <string name="study_speak">Speak</string>
 
     <!-- Discover -->
@@ -155,6 +156,7 @@
     <string name="publish_back">Back</string>
     <string name="publish_title">New deck</string>
     <string name="publish_cards_ready">%1$d cards ready</string>
+    <string name="publish_cards_discarded">%1$d discarded in review</string>
     <string name="publish_cover_label">COVER</string>
     <string name="publish_cover_change">Change</string>
     <string name="publish_title_label">TITLE</string>
@@ -177,6 +179,48 @@
     <string name="publish_published_subtitle">%1$d cards are now public on your Pubky.</string>
     <string name="publish_done">Done</string>
     <string name="publish_undo">Undo (%1$ds)</string>
+    <string name="publish_card_options_label">CARD OPTIONS</string>
+    <string name="publish_listen_title">Listen</string>
+    <string name="publish_listen_subtitle">Play audio pronunciation on card back</string>
+    <string name="publish_speak_title">Speak</string>
+    <string name="publish_speak_subtitle">Test your pronunciation</string>
+    <string name="publish_cover_sheet_title">Cover image</string>
+
+    <!-- Triage / Review cards -->
+    <string name="triage_title">Review cards</string>
+    <string name="triage_approve_all">Approve all</string>
+    <string name="triage_progress">%1$d of %2$d</string>
+    <string name="triage_stats">%1$d kept · %2$d discarded</string>
+    <string name="triage_front_label">FRONT</string>
+    <string name="triage_back_label">BACK</string>
+    <string name="triage_discard">Discard</string>
+    <string name="triage_edit">Edit</string>
+    <string name="triage_keep">Keep</string>
+
+    <!-- Image picker sheet -->
+    <string name="image_sheet_front_title">Front image</string>
+    <string name="image_sheet_front_subtitle">Choose an image for the front of the card</string>
+    <string name="image_sheet_back_title">Back image</string>
+    <string name="image_sheet_back_subtitle">Choose an image for the back of the card</string>
+    <string name="image_sheet_done">Done</string>
+    <string name="image_sheet_search_placeholder">Search images…</string>
+    <string name="image_sheet_from_gallery">From gallery</string>
+    <string name="image_sheet_empty">Search the web or pick from your gallery</string>
+    <string name="image_sheet_no_results">No images found</string>
+    <string name="image_sheet_remove">Remove image</string>
+
+    <!-- Speak (study) -->
+    <string name="speak_listening_prompt">Say the word</string>
+    <string name="speak_listening_hint">Tap to cancel</string>
+    <string name="speak_correct_title">Perfect!</string>
+    <string name="speak_you_said_label">YOU SAID</string>
+    <string name="speak_continue">Continue</string>
+    <string name="speak_wrong_title">Not quite right</string>
+    <string name="speak_you_said">You said</string>
+    <string name="speak_correct_label">Correct</string>
+    <string name="speak_try_again">Try again</string>
+    <string name="speak_permission_denied">Microphone permission is needed to practice speaking.</string>
+    <string name="speak_unavailable">Speech recognition is unavailable on this device.</string>
 
     <!-- Onboarding -->
     <string name="onboarding_hero_title">Learn anything,\nremember everything.</string>

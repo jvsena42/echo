@@ -11,6 +11,8 @@ import com.github.jvsena42.echo.ui.decks.DeckEditorRoute
 import com.github.jvsena42.echo.ui.decks.EditCardRoute
 import com.github.jvsena42.echo.ui.importflow.PasteRoute
 import com.github.jvsena42.echo.ui.importflow.PublishDeckRoute
+import com.github.jvsena42.echo.ui.importflow.TriageEditCardRoute
+import com.github.jvsena42.echo.ui.importflow.TriageRoute
 import com.github.jvsena42.echo.ui.onboarding.OnboardingRoute
 import com.github.jvsena42.echo.ui.profile.FriendProfileRoute
 import com.github.jvsena42.echo.ui.settings.SettingsRoute
@@ -35,7 +37,8 @@ fun EchoNavHost() {
                     navController.navigate(Routes.deckDetail(deckId, author))
                 },
                 onNavigateCreateDeck = {
-                    navController.navigate(Routes.DECK_EDITOR_NEW)
+                    // Deck creation always starts at the Paste import flow (design node h9wya).
+                    navController.navigate(Routes.IMPORT_PASTE)
                 },
                 onNavigateImport = {
                     navController.navigate(Routes.IMPORT_PASTE)
@@ -116,7 +119,24 @@ fun EchoNavHost() {
         composable(Routes.IMPORT_PASTE) {
             PasteRoute(
                 onCancel = { navController.popBackStack() },
+                onNext = { navController.navigate(Routes.IMPORT_TRIAGE) },
+            )
+        }
+        composable(Routes.IMPORT_TRIAGE) {
+            TriageRoute(
+                onBack = { navController.popBackStack() },
+                onEditCard = { rowIndex -> navController.navigate(Routes.triageEditCard(rowIndex)) },
                 onNext = { navController.navigate(Routes.IMPORT_PUBLISH) },
+            )
+        }
+        composable(
+            route = Routes.IMPORT_TRIAGE_EDIT,
+            arguments = listOf(navArgument("rowIndex") { type = NavType.IntType }),
+        ) { backStackEntry ->
+            val rowIndex = backStackEntry.arguments?.getInt("rowIndex") ?: return@composable
+            TriageEditCardRoute(
+                rowIndex = rowIndex,
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.IMPORT_PUBLISH) {

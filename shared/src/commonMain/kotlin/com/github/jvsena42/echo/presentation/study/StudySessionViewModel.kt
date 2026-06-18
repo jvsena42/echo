@@ -3,6 +3,8 @@ package com.github.jvsena42.echo.presentation.study
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Card
+import com.github.jvsena42.echo.domain.model.MediaRef
+import com.github.jvsena42.echo.domain.model.SpeakMatcher
 import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.domain.model.previewIntervals
 import com.github.jvsena42.echo.util.Log
@@ -27,6 +29,7 @@ import kotlinx.coroutines.launch
  * value studies one deck (DeckDetail). Grading delegates to [SrsRepository.review], which owns the
  * SM-2-lite scheduler — the VM only sequences the queue and tracks reveal/progress.
  */
+@Suppress("TooManyFunctions")
 class StudySessionViewModel(
     private val deckId: String?,
     private val srsRepository: SrsRepository,
@@ -47,6 +50,7 @@ class StudySessionViewModel(
     private var revealed = false
     private var reviewedCount = 0
     private var deckTitle = ""
+    private var speakPhase: SpeakPhase = SpeakPhase.Idle
 
     /** id → title, warmed lazily from [DeckRepository.listOwned] so multi-deck sessions can label each card. */
     private var deckTitles: Map<String, String> = emptyMap()
@@ -95,7 +99,52 @@ class StudySessionViewModel(
             reviewedCount++
             index++
             revealed = false
+            speakPhase = SpeakPhase.Idle
             emitCurrent()
+        }
+    }
+
+    /** Start pronunciation practice for the revealed card back (gated on the deck's speak opt-in). */
+    fun onSpeakTest() {
+        val s = _state.value
+        if (s !is StudySessionUiState.Reviewing || !s.revealed || !s.speakEnabled) return
+        val expected = queue.getOrNull(index)?.back?.text?.takeIf { it.isNotBlank() } ?: return
+        setSpeakPhase(SpeakPhase.Listening)
+        scope.launch { _effects.emit(StudySessionEffect.StartSpeechRecognition(expected)) }
+    }
+
+    fun onSpeechResult(text: String) {
+        val expected = queue.getOrNull(index)?.back?.text.orEmpty()
+        val result = SpeakMatcher.match(text, expected)
+        setSpeakPhase(
+            if (result.correct) {
+                SpeakPhase.Correct(result.heard)
+            } else {
+                SpeakPhase.Wrong(heard = result.heard, expected = result.expected)
+            },
+        )
+    }
+
+    fun onSpeechError() {
+        // Treat recognition errors (no match, timeout, etc.) as a dismissal back to the card.
+        setSpeakPhase(SpeakPhase.Idle)
+    }
+
+    fun onSpeakRetry() {
+        val expected = queue.getOrNull(index)?.back?.text?.takeIf { it.isNotBlank() } ?: return
+        setSpeakPhase(SpeakPhase.Listening)
+        scope.launch { _effects.emit(StudySessionEffect.StartSpeechRecognition(expected)) }
+    }
+
+    fun onSpeakDismiss() {
+        setSpeakPhase(SpeakPhase.Idle)
+    }
+
+    private fun setSpeakPhase(phase: SpeakPhase) {
+        speakPhase = phase
+        val s = _state.value
+        if (s is StudySessionUiState.Reviewing) {
+            _state.value = s.copy(speakPhase = phase)
         }
     }
 
@@ -130,6 +179,7 @@ class StudySessionViewModel(
             val srsState = srsRepository.stateFor(card.id)
             val labels = srsState.previewIntervals(card.id, epochMillis())
             val title = deckTitle.ifBlank { resolveDeckTitle(card.deckId) }.ifBlank { card.deckId }
+            val deck = deckRepository.getLocal(card.deckId)
             _state.value = StudySessionUiState.Reviewing(
                 deckTitle = title,
                 position = index + 1,
@@ -139,6 +189,11 @@ class StudySessionViewModel(
                 backLabel = card.front.text?.uppercase(),
                 revealed = revealed,
                 intervals = labels,
+                listenEnabled = deck?.listenEnabled ?: true,
+                speakEnabled = deck?.speakEnabled ?: true,
+                speakPhase = speakPhase,
+                deckId = card.deckId,
+                frontImageRef = card.front.imageRef,
             )
         }
     }
@@ -180,6 +235,12 @@ sealed interface StudySessionUiState {
         val backLabel: String?,
         val revealed: Boolean,
         val intervals: Map<SrsGrade, String>,
+        val listenEnabled: Boolean = true,
+        val speakEnabled: Boolean = true,
+        val speakPhase: SpeakPhase = SpeakPhase.Idle,
+        val deckId: String = "",
+        /** Front-side image, shown as a circular avatar on the card back (design `aLoMj`). */
+        val frontImageRef: MediaRef.Image? = null,
     ) : StudySessionUiState
 
     data class Complete(val reviewed: Int) : StudySessionUiState
@@ -187,7 +248,16 @@ sealed interface StudySessionUiState {
     data class Error(val message: String) : StudySessionUiState
 }
 
+/** Pronunciation-practice sheet state for the current card back. */
+sealed interface SpeakPhase {
+    data object Idle : SpeakPhase
+    data object Listening : SpeakPhase
+    data class Correct(val heard: String) : SpeakPhase
+    data class Wrong(val heard: String, val expected: String) : SpeakPhase
+}
+
 sealed interface StudySessionEffect {
     data class Speak(val text: String) : StudySessionEffect
+    data class StartSpeechRecognition(val expected: String) : StudySessionEffect
     data object Close : StudySessionEffect
 }

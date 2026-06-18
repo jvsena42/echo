@@ -29,6 +29,8 @@ import com.github.jvsena42.echo.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.echo.presentation.home.HomeViewModel
 import com.github.jvsena42.echo.presentation.importflow.PasteImportViewModel
 import com.github.jvsena42.echo.presentation.importflow.PublishDeckViewModel
+import com.github.jvsena42.echo.presentation.importflow.TriageViewModel
+import com.github.jvsena42.echo.presentation.media.ImageSheetViewModel
 import com.github.jvsena42.echo.presentation.onboarding.OnboardingViewModel
 import com.github.jvsena42.echo.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.echo.presentation.profile.ProfileViewModel
@@ -95,10 +97,20 @@ val sharedModule = module {
             cardId = params.get(1),
             cardRepository = get(),
             deckRepository = get(),
+            mediaRepository = get(),
         )
     }
     factory { PasteImportViewModel(importRepository = get()) }
-    factory { PublishDeckViewModel(importRepository = get(), deckRepository = get(), identityRepository = get()) }
+    factory { TriageViewModel(importRepository = get()) }
+    factory { ImageSheetViewModel(unsplashClient = get()) }
+    factory {
+        PublishDeckViewModel(
+            importRepository = get(),
+            deckRepository = get(),
+            identityRepository = get(),
+            mediaRepository = get(),
+        )
+    }
     factory { ProfileViewModel(identityRepository = get(), deckRepository = get()) }
     factory { params -> SettingsViewModel(identityRepository = get(), appVersion = params.getOrNull() ?: "") }
     factory { DiscoverViewModel(discoveryRepository = get(), tagRepository = get()) }

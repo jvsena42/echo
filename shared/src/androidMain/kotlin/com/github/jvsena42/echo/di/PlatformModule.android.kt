@@ -6,8 +6,13 @@ import com.github.jvsena42.echo.data.pubky.AndroidPubkyClient
 import com.github.jvsena42.echo.data.pubky.PubkyClient
 import com.github.jvsena42.echo.data.storage.AndroidSecureSessionStore
 import com.github.jvsena42.echo.data.storage.SecureSessionStore
+import com.github.jvsena42.echo.data.unsplash.UnsplashClient
+import com.github.jvsena42.echo.platform.AndroidMediaProcessor
 import com.github.jvsena42.echo.platform.AndroidSpeaker
+import com.github.jvsena42.echo.platform.AndroidSpeechRecognizer
+import com.github.jvsena42.echo.platform.MediaProcessor
 import com.github.jvsena42.echo.platform.Speaker
+import com.github.jvsena42.echo.platform.SpeechRecognizer
 import com.github.jvsena42.echo.presentation.onboarding.OnboardingViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
@@ -19,11 +24,14 @@ import org.koin.dsl.module
 private const val PUBKY_RING_PLAY_STORE_URL =
     "https://play.google.com/store/apps/details?id=to.pubky.ring"
 
-val androidPlatformModule: Module = module {
+fun androidPlatformModule(unsplashAccessKey: String): Module = module {
     single<PubkyClient> { AndroidPubkyClient() }
     single<HttpFetcher> { AndroidHttpFetcher() }
     single<SecureSessionStore> { AndroidSecureSessionStore(androidContext()) }
     single<Speaker> { AndroidSpeaker(androidContext()) }
+    single<MediaProcessor> { AndroidMediaProcessor() }
+    single<SpeechRecognizer> { AndroidSpeechRecognizer(androidContext()) }
+    single { UnsplashClient(http = get(), accessKey = unsplashAccessKey) }
     factory {
         OnboardingViewModel(
             identityRepository = get(),
@@ -32,9 +40,12 @@ val androidPlatformModule: Module = module {
     }
 }
 
-fun initKoinAndroid(appDeclaration: KoinAppDeclaration = {}) {
+fun initKoinAndroid(
+    unsplashAccessKey: String = "",
+    appDeclaration: KoinAppDeclaration = {},
+) {
     startKoin {
         appDeclaration()
-        modules(sharedModule, androidPlatformModule)
+        modules(sharedModule, androidPlatformModule(unsplashAccessKey))
     }
 }

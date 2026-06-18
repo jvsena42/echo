@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Speak pronunciation practice (study) records audio for on-device speech recognition.
+         Gallery image picking uses the system photo picker, which needs no storage permission. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Android 11+ package visibility: without this, resolveActivity() returns null
          for the `pubkyauth://` deeplink even when Pubky Ring is installed. -->
     <queries>
@@ -15,6 +19,10 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
+        </intent>
+        <!-- Visibility for the on-device speech recognition service (Speak practice). -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 

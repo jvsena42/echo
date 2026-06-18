@@ -2,6 +2,7 @@ package com.github.jvsena42.echo.data.repository.impl
 
 import com.github.jvsena42.echo.domain.model.ColumnRole
 import com.github.jvsena42.echo.domain.model.Separator
+import com.github.jvsena42.echo.domain.model.TriageDecision
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -293,5 +294,43 @@ class ImportRepositoryImplTest {
         assertTrue(r.currentDraft() != null)
         r.clear()
         assertEquals(null, r.currentDraft())
+    }
+
+    @Test
+    fun keptRowsDefaultsToAll() = runBlocking {
+        val r = repo()
+        r.parse("hola — hello\ngracias — thanks\nadios — bye")
+        assertEquals(3, r.keptRows().size)
+    }
+
+    @Test
+    fun discardedRowsAreExcluded() = runBlocking {
+        val r = repo()
+        r.parse("hola — hello\ngracias — thanks\nadios — bye")
+        r.setDecision(1, TriageDecision.Discard)
+        val kept = r.keptRows()
+        assertEquals(2, kept.size)
+        assertEquals("hola", kept[0].fields[0])
+        assertEquals("adios", kept[1].fields[0])
+    }
+
+    @Test
+    fun updateRowAppliesEditToKeptRows() = runBlocking {
+        val r = repo()
+        r.parse("hola — hello\ngracias — thanks")
+        r.updateRow(0, "buenos dias", "good morning")
+        val kept = r.keptRows()
+        assertEquals("buenos dias", kept[0].fields[0])
+        assertEquals("good morning", kept[0].fields[1])
+    }
+
+    @Test
+    fun parseResetsTriageState() = runBlocking {
+        val r = repo()
+        r.parse("a — 1\nb — 2")
+        r.setDecision(0, TriageDecision.Discard)
+        r.parse("c — 3\nd — 4")
+        assertEquals(2, r.keptRows().size)
+        assertTrue(r.decisions().isEmpty())
     }
 }
