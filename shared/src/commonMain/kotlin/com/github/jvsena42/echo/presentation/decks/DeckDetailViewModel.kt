@@ -119,7 +119,7 @@ class DeckDetailViewModel(
 
     fun onConfirmDelete() {
         val current = _state.value as? DeckDetailUiState.Content ?: return
-        _state.value = current.copy(showDeleteConfirm = false)
+        _state.value = current.copy(showDeleteConfirm = false, isDeleting = true)
         scope.launch {
             Log.d(TAG, "onConfirmDelete: deckId=$deckId")
             deckRepository.delete(deckId)
@@ -208,6 +208,7 @@ sealed interface DeckDetailUiState {
         val masteredPercent: String,
         val cardPreviews: List<CardPreviewModel>,
         val showDeleteConfirm: Boolean = false,
+        val isDeleting: Boolean = false,
     ) : DeckDetailUiState
     data class Error(val message: String) : DeckDetailUiState
 }
