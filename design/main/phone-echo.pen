@@ -5477,26 +5477,11 @@
                 },
                 {
                   "type": "frame",
-                  "id": "urHu4",
-                  "name": "nxtWrap",
-                  "fill": "$border-subtle",
-                  "cornerRadius": "$radius-pill",
-                  "padding": [
-                    8,
-                    14
-                  ],
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "MNbOh",
-                      "name": "nxtT",
-                      "fill": "$foreground-muted",
-                      "content": "Next",
-                      "fontFamily": "Inter",
-                      "fontSize": 14,
-                      "fontWeight": "700"
-                    }
-                  ]
+                  "id": "A4O6k",
+                  "name": "navSp",
+                  "width": 51,
+                  "height": 20,
+                  "fill": "#00000000"
                 }
               ]
             },
@@ -9059,113 +9044,127 @@
             },
             {
               "type": "frame",
-              "id": "6wNJm",
-              "name": "emptyCard",
+              "id": "IB66Z",
+              "name": "centerWrap",
               "width": "fill_container",
-              "fill": "$surface-card",
-              "cornerRadius": "$radius-xl",
-              "effect": {
-                "type": "shadow",
-                "shadowType": "outer",
-                "color": "#1A132614",
-                "offset": {
-                  "x": 0,
-                  "y": 10
-                },
-                "blur": 24
-              },
+              "height": "fill_container",
+              "fill": "#00000000",
               "layout": "vertical",
-              "gap": 20,
-              "padding": [
-                36,
-                28
-              ],
+              "gap": 24,
+              "justifyContent": "center",
               "alignItems": "center",
               "children": [
                 {
                   "type": "frame",
-                  "id": "7maWS",
-                  "name": "iconWrap",
-                  "width": 140,
-                  "height": 140,
-                  "fill": "$accent-primary-soft",
+                  "id": "6wNJm",
+                  "name": "emptyCard",
+                  "width": "fill_container",
+                  "fill": "$surface-card",
                   "cornerRadius": "$radius-xl",
-                  "justifyContent": "center",
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#1A132614",
+                    "offset": {
+                      "x": 0,
+                      "y": 10
+                    },
+                    "blur": 24
+                  },
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": [
+                    32,
+                    24
+                  ],
                   "alignItems": "center",
                   "children": [
                     {
-                      "type": "icon",
-                      "id": "pqHop",
-                      "width": 72,
-                      "height": 72,
-                      "icon": "layers",
-                      "library": "lucide",
-                      "fill": "$accent-primary"
+                      "type": "frame",
+                      "id": "7maWS",
+                      "name": "iconWrap",
+                      "width": 100,
+                      "height": 100,
+                      "fill": "$accent-primary-soft",
+                      "cornerRadius": 50,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "pqHop",
+                          "width": 48,
+                          "height": 48,
+                          "icon": "book-open",
+                          "library": "lucide",
+                          "fill": "$accent-primary"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "dGTtr",
+                      "name": "title",
+                      "fill": "$foreground-primary",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Nothing to study yet",
+                      "textAlign": "center",
+                      "fontFamily": "Funnel Sans",
+                      "fontSize": 24,
+                      "fontWeight": "800"
+                    },
+                    {
+                      "type": "text",
+                      "id": "PIB3B",
+                      "name": "sub",
+                      "fill": "$foreground-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Create or import a deck to start your first study session. Cards will appear here when they're ready for review.",
+                      "lineHeight": 1.5,
+                      "textAlign": "center",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
                     }
                   ]
                 },
                 {
-                  "type": "text",
-                  "id": "dGTtr",
-                  "name": "title",
-                  "fill": "$foreground-primary",
-                  "textGrowth": "fixed-width",
+                  "type": "frame",
+                  "id": "5loUQ",
+                  "name": "btnGroup",
                   "width": "fill_container",
-                  "content": "No decks yet",
-                  "textAlign": "center",
-                  "fontFamily": "Funnel Sans",
-                  "fontSize": 24,
-                  "fontWeight": "800"
-                },
-                {
-                  "type": "text",
-                  "id": "PIB3B",
-                  "name": "sub",
-                  "fill": "$foreground-muted",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "Paste a list, import from a file, or start from scratch — your first deck is one tap away.",
-                  "lineHeight": 1.4,
-                  "textAlign": "center",
-                  "fontFamily": "Inter",
-                  "fontSize": 14,
-                  "fontWeight": "500"
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "5loUQ",
-              "name": "btnGroup",
-              "width": "fill_container",
-              "fill": "#00000000",
-              "layout": "vertical",
-              "gap": 12,
-              "alignItems": "center",
-              "children": [
-                {
-                  "id": "bmQqo",
-                  "type": "ref",
-                  "ref": "1sozq",
-                  "width": "fill_container",
-                  "name": "primary",
-                  "descendants": {
-                    "h1MHC": {
-                      "content": "Create your first deck"
+                  "fill": "#00000000",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "bmQqo",
+                      "type": "ref",
+                      "ref": "1sozq",
+                      "width": "fill_container",
+                      "name": "primary",
+                      "descendants": {
+                        "h1MHC": {
+                          "content": "Create a deck"
+                        }
+                      }
+                    },
+                    {
+                      "id": "2aEsV",
+                      "type": "ref",
+                      "ref": "7KZM9",
+                      "width": "fill_container",
+                      "name": "secondary",
+                      "descendants": {
+                        "YjRk8": {
+                          "content": "Browse examples"
+                        }
+                      }
                     }
-                  }
-                },
-                {
-                  "id": "2aEsV",
-                  "type": "ref",
-                  "ref": "7KZM9",
-                  "width": "fill_container",
-                  "name": "secondary",
-                  "descendants": {
-                    "YjRk8": {
-                      "content": "Browse examples"
-                    }
-                  }
+                  ]
                 }
               ]
             }
