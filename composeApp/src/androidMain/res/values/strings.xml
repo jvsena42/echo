@@ -15,9 +15,9 @@
     <string name="home_todays_decks">Today\'s decks</string>
     <string name="home_see_all">See all</string>
     <string name="home_deck_due_cards">%1$d due · %2$d cards</string>
-    <string name="home_empty_title">No decks yet</string>
-    <string name="home_empty_subtitle">Paste a list, import from a file, or start from scratch — your first deck is one tap away.</string>
-    <string name="home_create_first_deck">Create your first deck</string>
+    <string name="home_empty_title">Nothing to study yet</string>
+    <string name="home_empty_subtitle">Create or import a deck to start your first study session. Cards will appear here when they\'re ready for review.</string>
+    <string name="home_create_first_deck">Create a deck</string>
     <string name="home_browse_examples">Browse examples</string>
 
     <!-- Decks library -->

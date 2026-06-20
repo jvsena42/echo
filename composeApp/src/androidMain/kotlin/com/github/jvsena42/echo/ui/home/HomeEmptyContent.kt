@@ -4,12 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,7 +31,8 @@ import com.github.jvsena42.echo.ui.components.EchoSecondaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 
 /**
- * Mirrors Pencil node `nwHYV` — "No decks yet" empty state.
+ * Mirrors Pencil node `nwHYV` — "Nothing to study yet" empty state: a white card with a circular
+ * book-open badge, title + subtitle, followed by the "Create a deck" / "Browse examples" actions.
  */
 @Composable
 fun HomeEmptyContent(
@@ -48,18 +51,23 @@ fun HomeEmptyContent(
             )
             .clip(RoundedCornerShape(28.dp))
             .background(colors.surfaceCard)
-            .padding(horizontal = 28.dp, vertical = 36.dp),
+            .padding(horizontal = 24.dp, vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(140.dp)
-                .clip(RoundedCornerShape(28.dp))
+                .size(100.dp)
+                .clip(CircleShape)
                 .background(colors.accentPrimarySoft),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = "\uD83D\uDCDA", fontSize = 64.sp)
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                contentDescription = null,
+                tint = colors.accentPrimary,
+                modifier = Modifier.size(48.dp),
+            )
         }
         Text(
             text = stringResource(R.string.home_empty_title),
@@ -74,11 +82,9 @@ fun HomeEmptyContent(
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
-            lineHeight = 20.sp,
+            lineHeight = 21.sp,
         )
     }
-
-    Spacer(Modifier.height(4.dp))
 
     Column(
         modifier = Modifier.fillMaxWidth(),

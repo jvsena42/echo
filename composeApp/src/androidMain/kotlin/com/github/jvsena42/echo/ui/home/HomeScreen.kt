@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -123,6 +124,17 @@ private fun HomeScreenContent(
     onDeckClick: (String) -> Unit,
     onRetry: () -> Unit,
 ) {
+    // The empty state centers its card + actions in the space below the greeting (design `nwHYV`),
+    // so it gets a non-scrolling full-height layout instead of the shared scroll column.
+    if (state is HomeUiState.Empty) {
+        HomeEmptyScreen(
+            greetingName = state.greetingName,
+            onCreateDeckClick = onCreateDeckClick,
+            onBrowseExamplesClick = onBrowseExamplesClick,
+        )
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -131,14 +143,6 @@ private fun HomeScreenContent(
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         when (state) {
-            HomeUiState.Loading -> Unit
-            is HomeUiState.Empty -> {
-                GreetingHeader(name = state.greetingName)
-                HomeEmptyContent(
-                    onCreateDeckClick = onCreateDeckClick,
-                    onBrowseExamplesClick = onBrowseExamplesClick,
-                )
-            }
             is HomeUiState.Content -> {
                 GreetingHeader(name = state.greetingName)
                 HomeContent(
@@ -151,6 +155,34 @@ private fun HomeScreenContent(
                 GreetingHeader(name = state.greetingName)
                 ErrorBlock(message = state.message, onRetry = onRetry)
             }
+            HomeUiState.Loading, is HomeUiState.Empty -> Unit
+        }
+    }
+}
+
+@Composable
+private fun HomeEmptyScreen(
+    greetingName: String,
+    onCreateDeckClick: () -> Unit,
+    onBrowseExamplesClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        GreetingHeader(name = greetingName)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+        ) {
+            HomeEmptyContent(
+                onCreateDeckClick = onCreateDeckClick,
+                onBrowseExamplesClick = onBrowseExamplesClick,
+            )
         }
     }
 }
