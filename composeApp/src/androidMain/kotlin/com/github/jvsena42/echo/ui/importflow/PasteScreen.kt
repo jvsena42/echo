@@ -9,11 +9,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -259,19 +262,24 @@ private fun PasteScreen(
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("🔗", fontSize = 14.sp)
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        stringResource(R.string.paste_public_notice),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = colors.accentSecondary,
-                    )
+                // Hide the public notice while the keyboard is open so only the Next
+                // button floats above the IME instead of the notice riding up with it.
+                val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+                if (!imeVisible) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("🔗", fontSize = 14.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            stringResource(R.string.paste_public_notice),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.accentSecondary,
+                        )
+                    }
                 }
 
                 state.error?.let { errorText ->
