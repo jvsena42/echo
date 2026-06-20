@@ -103,7 +103,11 @@ data class PasteImportUiState(
     val previewCards: List<PreviewCard> = emptyList(),
     val isParsed: Boolean = false,
     val error: String? = null,
-)
+) {
+    /** Preview is shown only once at least one parsed card has both a non-blank front and back. */
+    val hasPreviewableCard: Boolean
+        get() = previewCards.any { it.front.isNotBlank() && it.back.isNotBlank() }
+}
 
 data class PreviewCard(
     val front: String,

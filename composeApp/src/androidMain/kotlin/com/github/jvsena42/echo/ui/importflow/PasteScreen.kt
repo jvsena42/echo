@@ -6,12 +6,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -119,19 +122,6 @@ private fun PasteScreen(
                         Text(text = stringResource(R.string.paste_cancel), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     }
                 },
-                actions = {
-                    TextButton(
-                        onClick = onNextClick,
-                        enabled = state.isParsed,
-                        modifier = Modifier.testTag("paste_next"),
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = colors.accentPrimary,
-                            disabledContentColor = colors.foregroundMuted,
-                        ),
-                    ) {
-                        Text(text = stringResource(R.string.paste_next), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = colors.surfacePrimary,
                     titleContentColor = colors.foregroundPrimary,
@@ -143,153 +133,190 @@ private fun PasteScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+                .imePadding(),
         ) {
-            // Text field
-            OutlinedTextField(
-                value = state.rawText,
-                onValueChange = onTextChanged,
+            // Top fixed region: input + detected-separator summary.
+            Column(
                 modifier = Modifier
-                    .testTag("paste_input")
                     .fillMaxWidth()
-                    .heightIn(min = 160.dp),
-                textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundPrimary),
-                placeholder = {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                OutlinedTextField(
+                    value = state.rawText,
+                    onValueChange = onTextChanged,
+                    modifier = Modifier
+                        .testTag("paste_input")
+                        .fillMaxWidth()
+                        .heightIn(min = 160.dp),
+                    textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundPrimary),
+                    placeholder = {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                stringResource(R.string.paste_input_placeholder_title),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.foregroundMuted,
+                            )
+                            Text(
+                                stringResource(R.string.paste_input_placeholder_subtitle),
+                                fontSize = 13.sp,
+                                color = colors.foregroundMuted.copy(alpha = 0.6f),
+                            )
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.accentPrimary,
+                        unfocusedBorderColor = colors.borderSubtle,
+                        cursorColor = colors.accentPrimary,
+                        focusedContainerColor = colors.surfaceCard,
+                        unfocusedContainerColor = colors.surfaceCard,
+                    ),
+                )
+
+                if (state.isParsed && state.detectedSeparator != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AssistChip(
+                            onClick = {},
+                            label = {
+                                Text(
+                                    stringResource(
+                                        R.string.paste_detected_separator,
+                                        stringResource(separatorLabel(state.detectedSeparator)),
+                                    ),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Check, null, modifier = Modifier.size(14.dp))
+                            },
+                            shape = RoundedCornerShape(50),
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = colors.accentSecondarySoft,
+                                labelColor = colors.accentSecondary,
+                                leadingIconContentColor = colors.accentSecondary,
+                            ),
+                            border = null,
+                        )
                         Text(
-                            stringResource(R.string.paste_input_placeholder_title),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            stringResource(R.string.paste_card_count, state.cardCount),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
                             color = colors.foregroundMuted,
                         )
-                        Text(
-                            stringResource(R.string.paste_input_placeholder_subtitle),
-                            fontSize = 13.sp,
-                            color = colors.foregroundMuted.copy(alpha = 0.6f),
-                        )
                     }
-                },
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = colors.accentPrimary,
-                    unfocusedBorderColor = colors.borderSubtle,
-                    cursorColor = colors.accentPrimary,
-                    focusedContainerColor = colors.surfaceCard,
-                    unfocusedContainerColor = colors.surfaceCard,
-                ),
-            )
+                }
+            }
 
-            // Separator chip + card count
-            if (state.isParsed && state.detectedSeparator != null) {
+            // Middle filling region: preview cards (fill height) or example cards.
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(top = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                when {
+                    state.isParsed && state.hasPreviewableCard -> {
+                        Text(
+                            stringResource(R.string.paste_preview_label),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp,
+                            color = colors.foregroundMuted,
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                        )
+                        // contentPadding gives the 8dp card shadow room to render instead of being
+                        // clipped at the LazyRow bounds, and keeps the 20dp screen margin.
+                        LazyRow(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                        ) {
+                            itemsIndexed(state.previewCards) { index, card ->
+                                PreviewCardItem(
+                                    index = index + 1,
+                                    total = state.cardCount,
+                                    front = card.front,
+                                    back = card.back,
+                                    modifier = Modifier.fillMaxHeight(),
+                                )
+                            }
+                        }
+                    }
+
+                    else -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                stringResource(R.string.paste_try_pasting_label),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.8.sp,
+                                color = colors.foregroundMuted,
+                            )
+                            ExampleCard(title = "Vocab list", separator = "em-dash", lines = listOf("hola — hello", "gracias — thank you"))
+                            ExampleCard(
+                                title = "Glossary",
+                                separator = "colon",
+                                lines = listOf("mitosis: cell division", "osmosis: water moves across a membrane"),
+                            )
+                            ExampleCard(
+                                title = "Notion table",
+                                separator = "markdown",
+                                lines = listOf("| capital | France |", "| currency | euro |"),
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Bottom fixed region: public notice, error, and the single Next CTA.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    AssistChip(
-                        onClick = {},
-                        label = {
-                            Text(
-                                stringResource(
-                                    R.string.paste_detected_separator,
-                                    stringResource(separatorLabel(state.detectedSeparator)),
-                                ),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(Icons.Default.Check, null, modifier = Modifier.size(14.dp))
-                        },
-                        shape = RoundedCornerShape(50),
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = colors.accentSecondarySoft,
-                            labelColor = colors.accentSecondary,
-                            leadingIconContentColor = colors.accentSecondary,
-                        ),
-                        border = null,
-                    )
+                    Text("🔗", fontSize = 14.sp)
+                    Spacer(Modifier.width(6.dp))
                     Text(
-                        stringResource(R.string.paste_card_count, state.cardCount),
+                        stringResource(R.string.paste_public_notice),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = colors.foregroundMuted,
+                        color = colors.accentSecondary,
                     )
                 }
-            }
 
-            // Preview cards
-            if (state.isParsed && state.previewCards.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.paste_preview_label),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                    color = colors.foregroundMuted,
-                )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    itemsIndexed(state.previewCards) { index, card ->
-                        PreviewCardItem(index = index + 1, total = state.cardCount, front = card.front, back = card.back)
-                    }
+                state.error?.let { errorText ->
+                    Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
                 }
-            }
 
-            // Example cards (when empty)
-            if (state.rawText.isEmpty()) {
-                Text(
-                    stringResource(R.string.paste_preview_label),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                    color = colors.foregroundMuted,
-                )
-                Text(
-                    stringResource(R.string.paste_try_pasting_label),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                    color = colors.foregroundMuted,
-                )
-                ExampleCard(title = "Vocab list", separator = "em-dash", lines = listOf("hola — hello", "gracias — thank you"))
-                ExampleCard(
-                    title = "Glossary",
-                    separator = "colon",
-                    lines = listOf("mitosis: cell division", "osmosis: water moves across a membrane"),
-                )
-                ExampleCard(title = "Notion table", separator = "markdown", lines = listOf("| capital | France |", "| currency | euro |"))
-            }
-
-            // Public notice
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("🔗", fontSize = 14.sp)
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    stringResource(R.string.paste_public_notice),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = colors.accentSecondary,
-                )
-            }
-
-            // Error
-            state.error?.let { errorText ->
-                Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
-            }
-
-            // Bottom Next button (design `MJ1SR`) — primary CTA once cards are parsed.
-            if (state.isParsed) {
                 EchoPrimaryButton(
                     label = stringResource(R.string.paste_next),
                     onClick = onNextClick,
                     enabled = state.isParsed,
                     modifier = Modifier
-                        .testTag("paste_next_button")
+                        .testTag("paste_next")
                         .fillMaxWidth(),
                 )
             }
@@ -298,26 +325,38 @@ private fun PasteScreen(
 }
 
 @Composable
-private fun PreviewCardItem(index: Int, total: Int, front: String, back: String) {
+private fun PreviewCardItem(
+    index: Int,
+    total: Int,
+    front: String,
+    back: String,
+    modifier: Modifier = Modifier,
+) {
     val colors = EchoTheme.colors
     Column(
-        modifier = Modifier
+        modifier = modifier
             .width(160.dp)
             .shadow(8.dp, RoundedCornerShape(16.dp))
             .clip(RoundedCornerShape(16.dp))
             .background(colors.surfaceCard)
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(stringResource(R.string.paste_card_index, index, total), fontSize = 11.sp, color = colors.foregroundMuted)
-        Text(
-            front.ifBlank { stringResource(R.string.paste_blank_placeholder) },
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = colors.foregroundPrimary,
-        )
-        Box(Modifier.width(32.dp).height(2.dp).background(colors.accentPrimary))
-        Text(back.ifBlank { stringResource(R.string.paste_blank_placeholder) }, fontSize = 14.sp, color = colors.foregroundMuted)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                front.ifBlank { stringResource(R.string.paste_blank_placeholder) },
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.foregroundPrimary,
+            )
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.width(32.dp).height(2.dp).background(colors.accentPrimary))
+            Spacer(Modifier.height(12.dp))
+            Text(back.ifBlank { stringResource(R.string.paste_blank_placeholder) }, fontSize = 14.sp, color = colors.foregroundMuted)
+        }
     }
 }
 
