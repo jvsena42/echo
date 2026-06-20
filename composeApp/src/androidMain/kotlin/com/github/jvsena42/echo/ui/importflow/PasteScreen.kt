@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ButtonDefaults
@@ -177,41 +178,7 @@ private fun PasteScreen(
                 )
 
                 if (state.isParsed && state.detectedSeparator != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        AssistChip(
-                            onClick = {},
-                            label = {
-                                Text(
-                                    stringResource(
-                                        R.string.paste_detected_separator,
-                                        stringResource(separatorLabel(state.detectedSeparator)),
-                                    ),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Check, null, modifier = Modifier.size(14.dp))
-                            },
-                            shape = RoundedCornerShape(50),
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = colors.accentSecondarySoft,
-                                labelColor = colors.accentSecondary,
-                                leadingIconContentColor = colors.accentSecondary,
-                            ),
-                            border = null,
-                        )
-                        Text(
-                            stringResource(R.string.paste_card_count, state.cardCount),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = colors.foregroundMuted,
-                        )
-                    }
+                    ParseSummaryRow(state = state)
                 }
             }
 
@@ -321,6 +288,56 @@ private fun PasteScreen(
                 )
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ParseSummaryRow(state: PasteImportUiState, modifier: Modifier = Modifier) {
+    val colors = EchoTheme.colors
+    val chipError = when {
+        state.noPatternDetected -> stringResource(R.string.paste_chip_no_pattern)
+        state.hasIncompleteCards -> stringResource(R.string.paste_chip_incomplete, state.incompleteCardCount)
+        else -> null
+    }
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AssistChip(
+            onClick = {},
+            label = {
+                Text(
+                    text = chipError ?: stringResource(
+                        R.string.paste_detected_separator,
+                        stringResource(separatorLabel(state.detectedSeparator)),
+                    ),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = if (chipError != null) Icons.Default.Warning else Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                )
+            },
+            shape = RoundedCornerShape(50),
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = if (chipError != null) colors.dangerSoft else colors.accentSecondarySoft,
+                labelColor = if (chipError != null) colors.danger else colors.accentSecondary,
+                leadingIconContentColor = if (chipError != null) colors.danger else colors.accentSecondary,
+            ),
+            border = null,
+        )
+        Text(
+            stringResource(R.string.paste_card_count, state.cardCount),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = colors.foregroundMuted,
+        )
     }
 }
 

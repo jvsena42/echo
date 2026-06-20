@@ -34,6 +34,7 @@ class PasteImportViewModel(
                 it.copy(
                     detectedSeparator = null,
                     cardCount = 0,
+                    incompleteCardCount = 0,
                     previewCards = emptyList(),
                     isParsed = false,
                 )
@@ -51,10 +52,15 @@ class PasteImportViewModel(
                     val mapping = draft.columnMapping.assignments
                     val frontIdx = mapping.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
                     val backIdx = mapping.indexOfFirst { it == ColumnRole.Back }.takeIf { it >= 0 } ?: 1
+                    val incompleteCount = draft.rows.count { row ->
+                        row.fields.getOrElse(frontIdx) { "" }.isBlank() ||
+                            row.fields.getOrElse(backIdx) { "" }.isBlank()
+                    }
                     _state.update {
                         it.copy(
                             detectedSeparator = draft.separator,
                             cardCount = draft.rows.size,
+                            incompleteCardCount = incompleteCount,
                             previewCards = draft.rows.take(PREVIEW_CARD_COUNT).map { row ->
                                 PreviewCard(
                                     front = row.fields.getOrElse(frontIdx) { "" },
@@ -73,6 +79,7 @@ class PasteImportViewModel(
                             error = err.message ?: "Parse failed.",
                             isParsed = false,
                             cardCount = 0,
+                            incompleteCardCount = 0,
                             previewCards = emptyList(),
                         )
                     }
@@ -100,6 +107,7 @@ data class PasteImportUiState(
     val rawText: String = "",
     val detectedSeparator: Separator? = null,
     val cardCount: Int = 0,
+    val incompleteCardCount: Int = 0,
     val previewCards: List<PreviewCard> = emptyList(),
     val isParsed: Boolean = false,
     val error: String? = null,
@@ -107,6 +115,14 @@ data class PasteImportUiState(
     /** Preview is shown only once at least one parsed card has both a non-blank front and back. */
     val hasPreviewableCard: Boolean
         get() = previewCards.any { it.front.isNotBlank() && it.back.isNotBlank() }
+
+    /** No usable front/back delimiter was found, so every line collapsed into a single column. */
+    val noPatternDetected: Boolean
+        get() = isParsed && detectedSeparator == Separator.SingleColumn
+
+    /** True when text was parsed but at least one card is missing a front or back. */
+    val hasIncompleteCards: Boolean
+        get() = isParsed && incompleteCardCount > 0
 }
 
 data class PreviewCard(

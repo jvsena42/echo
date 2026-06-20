@@ -140,6 +140,8 @@
     <string name="paste_preview_label">PREVIEW</string>
     <string name="paste_try_pasting_label">TRY PASTING SOMETHING LIKE</string>
     <string name="paste_public_notice">This deck will be public on your profile</string>
+    <string name="paste_chip_no_pattern">No pattern detected</string>
+    <string name="paste_chip_incomplete">%1$d incomplete</string>
     <string name="paste_card_index">%1$d/%2$d</string>
     <string name="paste_blank_placeholder">—</string>
     <string name="paste_separator_tab">tab</string>
