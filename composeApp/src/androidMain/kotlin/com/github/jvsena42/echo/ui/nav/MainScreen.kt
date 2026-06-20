@@ -53,6 +53,9 @@ fun MainScreen(
                 EchoTab.STUDY -> HomeRoute(
                     onOpenDeck = { deckId -> onNavigateDeckDetail(deckId, null) },
                     onCreateDeck = onNavigateCreateDeck,
+                    onBrowseExamples = {
+                        scope.launch { pagerState.animateScrollToPage(EchoTab.DISCOVER.ordinal) }
+                    },
                     onStartStudy = { onNavigateStudy(null) },
                     onSignedOut = onSignOut,
                 )
