@@ -9,8 +9,11 @@
     <action>Tap the element with resource-id "tab_decks" in the bottom tab bar</action>
     <action>Tap the element with resource-id "decks_paste_cta"</action>
     <action>Verify the "Paste cards" screen is shown with a text area placeholder "Paste your list here" (resource-id: paste_input)</action>
+    <action>Type a single word "dog" (no front/back separator) into the field with resource-id "paste_input"</action>
+    <action>Verify no card preview is shown and the summary chip reads "No pattern detected" (it only becomes a "Detected" chip once a front/back separator is present)</action>
+    <action>Clear the field with resource-id "paste_input"</action>
     <action>Type the following three lines into the field with resource-id "paste_input": "dog,cachorro", "cat,gato", "bird,passaro"</action>
-    <action>Verify a live preview appears showing 3 parsed cards with fronts dog, cat, bird</action>
+    <action>Verify the summary chip now reads "Detected: comma" and a live preview appears showing 3 parsed cards with fronts dog, cat, bird</action>
     <action>Tap the element with resource-id "paste_next"</action>
     <action>Verify the "Review cards" triage screen is shown with a card (resource-id: triage_card), a progress label "1 of 3" (resource-id: triage_progress), and Discard/Edit/Keep action buttons</action>
     <action>Tap the element with resource-id "triage_keep" to keep the first card</action>
