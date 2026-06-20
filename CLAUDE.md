@@ -107,6 +107,16 @@ points here rather than restating them.
   `.task` (not `.onAppear`) for async tied to a view's lifetime; mutate state on `@MainActor`; use
   self-documenting names (`isLoadingDecks`, not `loading`); comment only non-obvious "why".
 
+## Git
+
+- **Always use atomic commits.** Each commit should capture one logical, self-contained change.
+  Don't bundle unrelated changes (e.g. a feature plus a refactor plus a formatting sweep) into a
+  single commit — split them so each commit can be reviewed and reverted independently.
+- **Don't run lint/build after every small edit.** Builds and lint (`./gradlew detektAll`,
+  `assembleDebug`, etc.) are slow — run them at the end of a plan or at strategic checkpoints, not
+  continuously. Verify at those points, then commit.
+- Write focused, descriptive commit messages that explain the change and its rationale.
+
 ## Where to read before starting work
 
 - `docs/Architecture.md` — always. §4 (shared layering), §6 (Paste-to-Import state flow), §7 (Pubky open question), §12 (open questions blocking feature work).
