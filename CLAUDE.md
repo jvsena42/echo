@@ -116,6 +116,9 @@ points here rather than restating them.
   `assembleDebug`, etc.) are slow — run them at the end of a plan or at strategic checkpoints, not
   continuously. Verify at those points, then commit.
 - Write focused, descriptive commit messages that explain the change and its rationale.
+- **Use commit history as context when investigating why a change was made.** Before changing or
+  reverting code, check `git log`/`git blame` (e.g. `git log -p <file>`, `git blame -L`) — the commit
+  message often records the rationale and avoids re-introducing a bug a prior commit fixed.
 
 ## Where to read before starting work
 
