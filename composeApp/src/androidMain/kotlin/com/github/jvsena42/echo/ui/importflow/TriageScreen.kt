@@ -1,6 +1,13 @@
 package com.github.jvsena42.echo.ui.importflow
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,12 +39,19 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -45,15 +59,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.importflow.TriageCard
 import com.github.jvsena42.echo.presentation.importflow.TriageEffect
 import com.github.jvsena42.echo.presentation.importflow.TriageUiState
 import com.github.jvsena42.echo.presentation.importflow.TriageViewModel
+import com.github.jvsena42.echo.ui.components.rememberReduceMotion
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.math.abs
 
 @Composable
 fun TriageRoute(
@@ -102,6 +121,30 @@ private fun TriageScreen(
     onKeep: () -> Unit,
 ) {
     val colors = EchoTheme.colors
+    val reduceMotion = rememberReduceMotion()
+    val scope = rememberCoroutineScope()
+
+    // Fling distance / commit threshold derive from screen width — close enough to the
+    // card's own width (it fills the column minus horizontal padding) for the gesture feel.
+    val screenWidthPx = with(LocalDensity.current) {
+        LocalConfiguration.current.screenWidthDp.dp.toPx()
+    }
+
+    // Latest callbacks captured by the per-card controller below.
+    val currentKeep by rememberUpdatedState(onKeep)
+    val currentDiscard by rememberUpdatedState(onDiscard)
+
+    // A fresh controller per card resets the drag offset to zero for the incoming card.
+    val controller = remember(state.currentIndex, screenWidthPx, reduceMotion) {
+        TriageSwipeController(
+            scope = scope,
+            flingDistance = screenWidthPx * 1.2f,
+            threshold = screenWidthPx * 0.25f,
+            reduceMotion = reduceMotion,
+            onKeep = { currentKeep() },
+            onDiscard = { currentDiscard() },
+        )
+    }
 
     Scaffold(
         containerColor = colors.surfaceSecondary,
@@ -171,21 +214,27 @@ private fun TriageScreen(
 
             val card = state.currentCard
             if (card != null) {
-                TriageCardView(card = card, modifier = Modifier.weight(1f))
+                TriageCardStack(
+                    controller = controller,
+                    current = card,
+                    next = state.cards.getOrNull(state.currentIndex + 1),
+                    reduceMotion = reduceMotion,
+                    modifier = Modifier.weight(1f),
+                )
             } else {
                 Spacer(Modifier.weight(1f))
             }
 
             state.error?.let { Text(it, fontSize = 13.sp, color = colors.danger) }
 
-            // Action buttons: discard / edit / keep
+            // Action buttons mirror the swipe gestures: discard / edit / keep.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CircleActionButton(
-                    onClick = onDiscard,
+                    onClick = { controller.swipe(SwipeDirection.Discard) },
                     tag = "triage_discard",
                     background = colors.dangerSoft,
                     iconTint = colors.srsAgain,
@@ -203,7 +252,7 @@ private fun TriageScreen(
                     Icon(Icons.Default.Edit, stringResource(R.string.triage_edit), modifier = Modifier.size(20.dp))
                 }
                 CircleActionButton(
-                    onClick = onKeep,
+                    onClick = { controller.swipe(SwipeDirection.Keep) },
                     tag = "triage_keep",
                     background = colors.srsGood,
                     iconTint = colors.foregroundOnAccent,
@@ -213,6 +262,161 @@ private fun TriageScreen(
                 }
             }
         }
+    }
+}
+
+private enum class SwipeDirection { Keep, Discard }
+
+/**
+ * Drives the horizontal drag of the top triage card and the commit/fly-off animation.
+ * Recreated per card so [offsetX] (and therefore the gesture) starts clean each time.
+ */
+private class TriageSwipeController(
+    private val scope: CoroutineScope,
+    private val flingDistance: Float,
+    private val threshold: Float,
+    private val reduceMotion: Boolean,
+    private val onKeep: () -> Unit,
+    private val onDiscard: () -> Unit,
+) {
+    val offsetX = Animatable(0f)
+
+    // Entrance scale for the incoming card so the hand-off from the peek card isn't jarring.
+    val enter = Animatable(if (reduceMotion) 1f else 0.96f)
+
+    /** Drag progress toward the commit threshold: +1 fully right (keep), -1 fully left (discard). */
+    val progress: Float get() = (offsetX.value / threshold).coerceIn(-1f, 1f)
+
+    fun onDrag(delta: Float) {
+        scope.launch { offsetX.snapTo(offsetX.value + delta) }
+    }
+
+    // Past the threshold the drag commits; otherwise the card springs back to centre.
+    fun onDragEnd() {
+        when {
+            offsetX.value > threshold -> swipe(SwipeDirection.Keep)
+            offsetX.value < -threshold -> swipe(SwipeDirection.Discard)
+            else -> scope.launch {
+                offsetX.animateTo(
+                    targetValue = 0f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun swipe(direction: SwipeDirection) {
+        scope.launch {
+            if (!reduceMotion) {
+                val target = if (direction == SwipeDirection.Keep) flingDistance else -flingDistance
+                offsetX.animateTo(target, tween(durationMillis = 260, easing = FastOutLinearInEasing))
+            }
+            if (direction == SwipeDirection.Keep) onKeep() else onDiscard()
+        }
+    }
+}
+
+@Composable
+private fun TriageCardStack(
+    controller: TriageSwipeController,
+    current: TriageCard,
+    next: TriageCard?,
+    reduceMotion: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val colors = EchoTheme.colors
+
+    LaunchedEffect(controller) {
+        if (!reduceMotion) controller.enter.animateTo(1f, tween(durationMillis = 220, easing = FastOutSlowInEasing))
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        // Peek card behind the top one; grows toward full size as the top card is dragged away.
+        if (next != null) {
+            TriageCardView(
+                card = next,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val reveal = abs(controller.progress)
+                        val scale = if (reduceMotion) 0.94f else lerp(0.94f, 1f, reveal)
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = if (reduceMotion) 1f else lerp(0.55f, 1f, reveal)
+                        translationY = if (reduceMotion) 0f else lerp(24f, 0f, reveal)
+                    },
+            )
+        }
+
+        // Top card: draggable, tilts and flies off on commit. The decision feedback
+        // icons live inside this layer so they ride along with the card as it moves.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationX = controller.offsetX.value
+                    rotationZ = controller.progress * 8f
+                    val scale = controller.enter.value
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .pointerInput(controller) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { _, dragAmount -> controller.onDrag(dragAmount) },
+                        onDragEnd = { controller.onDragEnd() },
+                        onDragCancel = { controller.onDragEnd() },
+                    )
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            TriageCardView(card = current, modifier = Modifier.fillMaxSize())
+
+            // Approve (right) / disapprove (left) feedback grows in with drag progress.
+            SwipeFeedback(
+                icon = Icons.Default.Check,
+                contentDescription = stringResource(R.string.triage_keep),
+                background = colors.srsGood,
+                iconTint = colors.foregroundOnAccent,
+                progressProvider = { controller.progress.coerceAtLeast(0f) },
+            )
+            SwipeFeedback(
+                icon = Icons.Default.Close,
+                contentDescription = stringResource(R.string.triage_discard),
+                background = colors.srsAgain,
+                iconTint = colors.foregroundOnAccent,
+                progressProvider = { (-controller.progress).coerceAtLeast(0f) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SwipeFeedback(
+    icon: ImageVector,
+    contentDescription: String,
+    background: Color,
+    iconTint: Color,
+    progressProvider: () -> Float,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                val progress = progressProvider()
+                alpha = progress
+                val scale = lerp(0.6f, 1f, progress)
+                scaleX = scale
+                scaleY = scale
+            }
+            .size(96.dp)
+            .clip(CircleShape)
+            .background(background),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription, tint = iconTint, modifier = Modifier.size(48.dp))
     }
 }
 
