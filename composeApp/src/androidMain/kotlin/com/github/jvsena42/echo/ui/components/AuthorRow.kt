@@ -30,6 +30,7 @@ fun AuthorRow(
     pubky: String,
     initial: Char,
     modifier: Modifier = Modifier,
+    isOwned: Boolean = false,
     isFollowing: Boolean = false,
     onFollowClick: () -> Unit = {},
 ) {
@@ -58,48 +59,51 @@ fun AuthorRow(
 
         Spacer(modifier = Modifier.width(10.dp))
 
-        // Name column
+        // Name column — owned decks read "@you" with no pubky subtitle.
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = name ?: pubky,
+                text = if (isOwned) stringResource(R.string.component_author_row_you) else name ?: pubky,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.W700,
                 color = colors.foregroundPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = pubky,
-                fontSize = 11.sp,
-                color = colors.foregroundMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (!isOwned) {
+                Text(
+                    text = pubky,
+                    fontSize = 11.sp,
+                    color = colors.foregroundMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.width(10.dp))
-
-        // Follow button
-        Box(
-            modifier = Modifier
-                .clip(pillShape)
-                .background(
-                    if (isFollowing) colors.accentSecondarySoft else colors.accentSecondary,
+        // Follow button — hidden for your own deck.
+        if (!isOwned) {
+            Spacer(modifier = Modifier.width(10.dp))
+            Box(
+                modifier = Modifier
+                    .clip(pillShape)
+                    .background(
+                        if (isFollowing) colors.accentSecondarySoft else colors.accentSecondary,
+                    )
+                    .clickable(onClick = onFollowClick)
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (isFollowing) {
+                        stringResource(R.string.component_author_row_following)
+                    } else {
+                        stringResource(R.string.component_author_row_follow)
+                    },
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.W700,
+                    color = if (isFollowing) colors.accentSecondary else colors.foregroundOnAccent,
                 )
-                .clickable(onClick = onFollowClick)
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = if (isFollowing) {
-                    stringResource(R.string.component_author_row_following)
-                } else {
-                    stringResource(R.string.component_author_row_follow)
-                },
-                fontSize = 13.sp,
-                fontWeight = FontWeight.W700,
-                color = if (isFollowing) colors.accentSecondary else colors.foregroundOnAccent,
-            )
+            }
         }
     }
 }
@@ -127,6 +131,13 @@ private fun AuthorRowPreview() {
                 initial = 'B',
                 isFollowing = true,
                 onFollowClick = {},
+            )
+            Spacer(modifier = Modifier.size(12.dp))
+            AuthorRow(
+                name = null,
+                pubky = "pubky:you9xqz1...",
+                initial = 'Y',
+                isOwned = true,
             )
         }
     }

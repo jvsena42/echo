@@ -260,6 +260,7 @@ private fun DeckDetailContent(
                 name = state.authorName,
                 pubky = state.authorPubky,
                 initial = state.authorInitial,
+                isOwned = state.isOwned,
                 modifier = Modifier.fillMaxWidth(),
             )
 

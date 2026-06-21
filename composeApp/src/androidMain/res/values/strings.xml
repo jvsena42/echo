@@ -285,6 +285,7 @@
     <string name="component_deck_tile_card_count">%1$d cards</string>
     <string name="component_author_row_following">Following</string>
     <string name="component_author_row_follow">Follow</string>
+    <string name="component_author_row_you">\@you</string>
     <string name="component_stats_bar_total">Total</string>
     <string name="component_stats_bar_due">Due</string>
     <string name="component_stats_bar_mastered">Mastered</string>
