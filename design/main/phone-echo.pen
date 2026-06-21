@@ -5948,7 +5948,7 @@
           "padding": [
             8,
             20,
-            20,
+            34,
             20
           ],
           "children": [
@@ -5996,7 +5996,7 @@
               "id": "mvvUf",
               "name": "pasteField2",
               "width": "fill_container",
-              "height": 120,
+              "height": 96,
               "fill": "$surface-card",
               "cornerRadius": "$radius-lg",
               "stroke": "$accent-primary",
@@ -6159,7 +6159,7 @@
               "type": "frame",
               "id": "AR5KU",
               "name": "previewCards",
-              "width": 390,
+              "width": "fill_container",
               "height": "fill_container",
               "fill": "#00000000",
               "gap": 10,
