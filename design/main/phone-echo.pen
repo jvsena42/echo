@@ -1668,6 +1668,8 @@
               "gap": 8,
               "padding": [
                 18,
+                24,
+                34,
                 24
               ],
               "justifyContent": "center",
@@ -1694,6 +1696,14 @@
                   "fontWeight": "700"
                 }
               ]
+            },
+            {
+              "type": "frame",
+              "id": "z0g4l1",
+              "name": "spacer",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#00000000"
             }
           ]
         }
@@ -8147,16 +8157,6 @@
                           "letterSpacing": 0.5
                         }
                       ]
-                    },
-                    {
-                      "type": "text",
-                      "id": "ugFgf",
-                      "name": "lastStudied",
-                      "fill": "$foreground-muted",
-                      "content": "· Last studied 2h ago",
-                      "fontFamily": "Inter",
-                      "fontSize": 11,
-                      "fontWeight": "500"
                     }
                   ]
                 },
@@ -8451,6 +8451,14 @@
                   ]
                 }
               ]
+            },
+            {
+              "type": "frame",
+              "id": "z81PsD",
+              "name": "spacer",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#00000000"
             },
             {
               "type": "frame",
