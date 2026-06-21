@@ -462,34 +462,24 @@ private fun CoverSection(
 @Composable
 private fun OwnedBadgeRow() {
     val colors = EchoTheme.colors
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        AssistChip(
-            onClick = {},
-            label = {
-                Text(
-                    text = stringResource(R.string.deck_detail_in_your_library),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.W700,
-                    letterSpacing = 0.5.sp,
-                )
-            },
-            shape = RoundedCornerShape(50),
-            colors = AssistChipDefaults.assistChipColors(
-                containerColor = colors.srsGood,
-                labelColor = colors.foregroundOnAccent,
-            ),
-            border = null,
-        )
-
-        Text(
-            text = stringResource(R.string.deck_detail_last_studied),
-            color = colors.foregroundMuted,
-            fontSize = 11.sp,
-        )
-    }
+    // The "last studied" date is not tracked yet, so only the library badge is shown for now.
+    AssistChip(
+        onClick = {},
+        label = {
+            Text(
+                text = stringResource(R.string.deck_detail_in_your_library),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.W700,
+                letterSpacing = 0.5.sp,
+            )
+        },
+        shape = RoundedCornerShape(50),
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = colors.srsGood,
+            labelColor = colors.foregroundOnAccent,
+        ),
+        border = null,
+    )
 }
 
 @Composable

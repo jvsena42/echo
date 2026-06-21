@@ -51,7 +51,6 @@
     <string name="deck_detail_delete_confirm">Delete</string>
     <string name="deck_detail_delete_cancel">Cancel</string>
     <string name="deck_detail_in_your_library">IN YOUR LIBRARY</string>
-    <string name="deck_detail_last_studied">Last studied...</string>
 
     <!-- Deck editor -->
     <string name="deck_editor_title_new">New Deck</string>
