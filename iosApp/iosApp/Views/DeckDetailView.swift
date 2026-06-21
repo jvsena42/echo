@@ -10,6 +10,8 @@ struct DeckDetailContent {
     let title: String
     let description: String?
     let coverEmoji: String
+    let coverImageUrl: String?
+    let coverImageBase64: String?
     let authorName: String?
     let authorPubky: String
     let authorInitial: String
@@ -78,14 +80,10 @@ struct DeckDetailView: View {
                 header(isOwned: content.isOwned)
 
                 // Cover
-                ZStack {
-                    RoundedRectangle(cornerRadius: 28)
-                        .fill(EchoColor.accentPrimarySoft)
-                    Text(content.coverEmoji)
-                        .font(.system(size: content.isOwned ? 64 : 80))
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: content.isOwned ? 120 : 160)
+                coverView(content)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: content.isOwned ? 120 : 160)
+                    .clipShape(RoundedRectangle(cornerRadius: 28))
 
                 // Badge (owned variant)
                 if content.isOwned {
@@ -126,12 +124,18 @@ struct DeckDetailView: View {
                             .foregroundColor(EchoColor.accentSecondary)
                     }
                     VStack(alignment: .leading) {
-                        Text(content.authorName ?? (content.isOwned ? "You" : "pk:\(content.authorPubky.prefix(6))"))
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(EchoColor.foregroundPrimary)
-                        Text("pk:\(content.authorPubky.prefix(6))…\(content.authorPubky.suffix(6))")
-                            .font(.system(size: 11))
-                            .foregroundColor(EchoColor.foregroundMuted)
+                        if content.isOwned {
+                            Text("@you")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(EchoColor.foregroundPrimary)
+                        } else {
+                            Text(content.authorName ?? "pk:\(content.authorPubky.prefix(6))")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(EchoColor.foregroundPrimary)
+                            Text("pk:\(content.authorPubky.prefix(6))…\(content.authorPubky.suffix(6))")
+                                .font(.system(size: 11))
+                                .foregroundColor(EchoColor.foregroundMuted)
+                        }
                     }
                     Spacer()
                 }
@@ -191,6 +195,44 @@ struct DeckDetailView: View {
         .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
+    }
+
+    /// Resolves the cover in priority order: remote URL image → homeserver blob image → emoji box.
+    @ViewBuilder
+    private func coverView(_ content: DeckDetailContent) -> some View {
+        if let urlString = content.coverImageUrl, let url = URL(string: urlString) {
+            AsyncImage(url: url) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                coverFallback(content)
+            }
+        } else if let base64 = content.coverImageBase64,
+                  let data = Data(base64Encoded: base64),
+                  let uiImage = UIImage(data: data) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+        } else {
+            coverFallback(content)
+        }
+    }
+
+    /// Accent-soft box with the cover glyph — shown when a deck has no cover image.
+    private func coverFallback(_ content: DeckDetailContent) -> some View {
+        ZStack {
+            Rectangle()
+                .fill(EchoColor.accentPrimarySoft)
+            Text(coverGlyph(content))
+                .font(.system(size: content.isOwned ? 64 : 80))
+        }
+    }
+
+    /// The deck's emoji, or its title initial when no emoji is set, falling back to a book glyph.
+    private func coverGlyph(_ content: DeckDetailContent) -> String {
+        let emoji = content.coverEmoji.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !emoji.isEmpty { return emoji }
+        if let first = content.title.first { return String(first).uppercased() }
+        return "📚"
     }
 
     private var studyLabel: String {
@@ -280,16 +322,42 @@ private struct StatColumn: View {
     }
 }
 
-#Preview {
+#Preview("Owned · no cover image") {
+    DeckDetailView(
+        state: .content(DeckDetailContent(
+            title: "Spanish Basics",
+            description: "Core 500 words for everyday conversations.",
+            coverEmoji: "",
+            coverImageUrl: nil,
+            coverImageBase64: nil,
+            authorName: nil,
+            authorPubky: "abc123xyz789",
+            authorInitial: "A",
+            isOwned: true,
+            tags: ["spanish", "language", "beginner"],
+            totalCards: 42,
+            dueCards: 12,
+            masteredPercent: "68%",
+            cards: [
+                CardPreviewData(id: "1", front: "el zorro", back: "the fox"),
+                CardPreviewData(id: "2", front: "la casa", back: "the house"),
+            ]
+        ))
+    )
+}
+
+#Preview("Other author · remote cover") {
     DeckDetailView(
         state: .content(DeckDetailContent(
             title: "Spanish Basics",
             description: "Core 500 words for everyday conversations.",
             coverEmoji: "🇪🇸",
+            coverImageUrl: "https://images.unsplash.com/photo-1505765050516-f72dcac9c60e",
+            coverImageBase64: nil,
             authorName: "Maria Lopez",
             authorPubky: "abc123xyz789",
             authorInitial: "M",
-            isOwned: true,
+            isOwned: false,
             tags: ["spanish", "language", "beginner"],
             totalCards: 42,
             dueCards: 12,

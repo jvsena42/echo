@@ -45,6 +45,8 @@ struct DeckDetailScreen: View {
                 title: content.title,
                 description: content.description_,
                 coverEmoji: content.coverEmoji,
+                coverImageUrl: content.coverImageUrl,
+                coverImageBase64: content.coverImageBase64,
                 authorName: content.authorName,
                 authorPubky: content.authorPubky,
                 authorInitial: KotlinInterop.charToString(content.authorInitial),
