@@ -80,6 +80,7 @@ class DeckDetailViewModel(
                     _state.update { deck.toContent(cards, myPubky, dueCount, mastered) }
                     Log.d(TAG, "load: cards=${cards.size} due=$dueCount mastered=$mastered")
                     loadCoverBlob(deck.coverImageRef)
+                    loadAuthorAvatar(deck.authorPubky)
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
@@ -165,6 +166,18 @@ class DeckDetailViewModel(
         }
     }
 
+    /**
+     * Fetches the author's pubky.app profile and folds its avatar URL into the current [Content] so
+     * the author row can show a real picture (falling back to the initial when absent or unset).
+     */
+    private suspend fun loadAuthorAvatar(authorPubky: String) {
+        val avatar = identityRepository.fetchProfile(authorPubky).getOrNull()?.avatarUrl
+        if (avatar.isNullOrBlank()) return
+        _state.update { current ->
+            (current as? DeckDetailUiState.Content)?.copy(authorAvatarUrl = avatar) ?: current
+        }
+    }
+
     private fun Deck.toContent(
         cards: List<Card>,
         myPubky: String?,
@@ -215,6 +228,7 @@ sealed interface DeckDetailUiState {
         val coverImageUrl: String? = null,
         val coverImageBase64: String? = null,
         val authorName: String?,
+        val authorAvatarUrl: String? = null,
         val authorPubky: String,
         val authorInitial: Char,
         val isOwned: Boolean,
