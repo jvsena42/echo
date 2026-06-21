@@ -13,7 +13,6 @@ data class Deck(
     val createdAt: Long,
     val updatedAt: Long,
     val cardIndex: List<CardIndexEntry>,
-    val lastStudiedAt: Long? = null,
     /** Opt-in: play TTS audio of the card back during study. */
     val listenEnabled: Boolean = true,
     /** Opt-in: pronunciation practice (speech recognition) on the card back during study. */

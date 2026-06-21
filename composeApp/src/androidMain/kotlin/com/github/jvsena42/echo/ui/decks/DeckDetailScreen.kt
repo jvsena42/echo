@@ -36,12 +36,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.decks.CardPreviewModel
 import com.github.jvsena42.echo.presentation.decks.DeckDetailEffect
@@ -65,6 +68,8 @@ import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
 fun DeckDetailRoute(
@@ -245,7 +250,12 @@ private fun DeckDetailContent(
             )
 
             // Cover
-            CoverSection(coverEmoji = state.coverEmoji, isOwned = state.isOwned)
+            CoverSection(
+                coverEmoji = state.coverEmoji,
+                coverImageUrl = state.coverImageUrl,
+                coverImageBase64 = state.coverImageBase64,
+                isOwned = state.isOwned,
+            )
 
             // Owned badge
             if (state.isOwned) {
@@ -260,6 +270,8 @@ private fun DeckDetailContent(
                 name = state.authorName,
                 pubky = state.authorPubky,
                 initial = state.authorInitial,
+                avatarUrl = state.authorAvatarUrl,
+                isOwned = state.isOwned,
                 modifier = Modifier.fillMaxWidth(),
             )
 
@@ -399,11 +411,29 @@ private fun DeleteDeckDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     )
 }
 
+/**
+ * Cover in priority order: remote URL → homeserver blob (Base64 bytes loaded by the ViewModel) →
+ * the accent-soft emoji box. Coil renders both a URL string and a decoded [ByteArray] directly.
+ */
+@OptIn(ExperimentalEncodingApi::class)
 @Composable
-private fun CoverSection(coverEmoji: String, isOwned: Boolean) {
+private fun CoverSection(
+    coverEmoji: String,
+    coverImageUrl: String?,
+    coverImageBase64: String?,
+    isOwned: Boolean,
+) {
     val colors = EchoTheme.colors
     val coverHeight = if (isOwned) 120.dp else 160.dp
     val emojiSize = if (isOwned) 64.sp else 80.sp
+
+    val coverModel: Any? = remember(coverImageUrl, coverImageBase64) {
+        when {
+            !coverImageUrl.isNullOrEmpty() -> coverImageUrl
+            !coverImageBase64.isNullOrEmpty() -> runCatching { Base64.decode(coverImageBase64) }.getOrNull()
+            else -> null
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -413,44 +443,43 @@ private fun CoverSection(coverEmoji: String, isOwned: Boolean) {
             .background(colors.accentPrimarySoft),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = coverEmoji,
-            fontSize = emojiSize,
-        )
+        if (coverModel != null) {
+            AsyncImage(
+                model = coverModel,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Text(
+                text = coverEmoji,
+                fontSize = emojiSize,
+            )
+        }
     }
 }
 
 @Composable
 private fun OwnedBadgeRow() {
     val colors = EchoTheme.colors
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        AssistChip(
-            onClick = {},
-            label = {
-                Text(
-                    text = stringResource(R.string.deck_detail_in_your_library),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.W700,
-                    letterSpacing = 0.5.sp,
-                )
-            },
-            shape = RoundedCornerShape(50),
-            colors = AssistChipDefaults.assistChipColors(
-                containerColor = colors.srsGood,
-                labelColor = colors.foregroundOnAccent,
-            ),
-            border = null,
-        )
-
-        Text(
-            text = stringResource(R.string.deck_detail_last_studied),
-            color = colors.foregroundMuted,
-            fontSize = 11.sp,
-        )
-    }
+    // The "last studied" date is not tracked yet, so only the library badge is shown for now.
+    AssistChip(
+        onClick = {},
+        label = {
+            Text(
+                text = stringResource(R.string.deck_detail_in_your_library),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.W700,
+                letterSpacing = 0.5.sp,
+            )
+        },
+        shape = RoundedCornerShape(50),
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = colors.srsGood,
+            labelColor = colors.foregroundOnAccent,
+        ),
+        border = null,
+    )
 }
 
 @Composable

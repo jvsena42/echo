@@ -5,9 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.CardRepository
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
+import com.github.jvsena42.echo.data.repository.MediaRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -18,7 +20,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
+@OptIn(ExperimentalEncodingApi::class)
 @Suppress("LongParameterList")
 class DeckDetailViewModel(
     private val deckId: String,
@@ -27,6 +32,7 @@ class DeckDetailViewModel(
     private val cardRepository: CardRepository,
     private val identityRepository: IdentityRepository,
     private val srsRepository: SrsRepository,
+    private val mediaRepository: MediaRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow<DeckDetailUiState>(DeckDetailUiState.Loading)
     val state: StateFlow<DeckDetailUiState> = _state.asStateFlow()
@@ -73,6 +79,8 @@ class DeckDetailViewModel(
                     val mastered = masteredPercent(cards)
                     _state.update { deck.toContent(cards, myPubky, dueCount, mastered) }
                     Log.d(TAG, "load: cards=${cards.size} due=$dueCount mastered=$mastered")
+                    loadCoverBlob(deck.coverImageRef)
+                    loadAuthorAvatar(deck.authorPubky)
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
@@ -142,6 +150,34 @@ class DeckDetailViewModel(
         return "${mastered * PERCENT / cards.size}%"
     }
 
+    /**
+     * Fetches a homeserver blob cover and folds its Base64 bytes into the current [Content] so the
+     * UI can render the real image. Remote (URL) covers need no fetch — they are already carried by
+     * [DeckDetailUiState.Content.coverImageUrl]. No-ops on null/remote refs or while not in Content.
+     */
+    private suspend fun loadCoverBlob(ref: MediaRef.Image?) {
+        if (ref == null || ref.isRemote) return
+        val bytes = mediaRepository.get(deckId, ref)
+            .onFailure { Log.e(TAG, "loadCoverBlob: FAILED — ${it.message}", it) }
+            .getOrNull() ?: return
+        val encoded = Base64.encode(bytes)
+        _state.update { current ->
+            (current as? DeckDetailUiState.Content)?.copy(coverImageBase64 = encoded) ?: current
+        }
+    }
+
+    /**
+     * Fetches the author's pubky.app profile and folds its avatar URL into the current [Content] so
+     * the author row can show a real picture (falling back to the initial when absent or unset).
+     */
+    private suspend fun loadAuthorAvatar(authorPubky: String) {
+        val avatar = identityRepository.fetchProfile(authorPubky).getOrNull()?.avatarUrl
+        if (avatar.isNullOrBlank()) return
+        _state.update { current ->
+            (current as? DeckDetailUiState.Content)?.copy(authorAvatarUrl = avatar) ?: current
+        }
+    }
+
     private fun Deck.toContent(
         cards: List<Card>,
         myPubky: String?,
@@ -154,6 +190,7 @@ class DeckDetailViewModel(
             title = title,
             description = description,
             coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
+            coverImageUrl = coverImageRef?.url,
             authorName = null,
             authorPubky = authorPubky,
             authorInitial = authorPubky.firstOrNull()?.uppercaseChar() ?: '?',
@@ -188,7 +225,10 @@ sealed interface DeckDetailUiState {
         val title: String,
         val description: String?,
         val coverEmoji: String,
+        val coverImageUrl: String? = null,
+        val coverImageBase64: String? = null,
         val authorName: String?,
+        val authorAvatarUrl: String? = null,
         val authorPubky: String,
         val authorInitial: Char,
         val isOwned: Boolean,

@@ -51,7 +51,6 @@
     <string name="deck_detail_delete_confirm">Delete</string>
     <string name="deck_detail_delete_cancel">Cancel</string>
     <string name="deck_detail_in_your_library">IN YOUR LIBRARY</string>
-    <string name="deck_detail_last_studied">Last studied...</string>
 
     <!-- Deck editor -->
     <string name="deck_editor_title_new">New Deck</string>
@@ -285,6 +284,7 @@
     <string name="component_deck_tile_card_count">%1$d cards</string>
     <string name="component_author_row_following">Following</string>
     <string name="component_author_row_follow">Follow</string>
+    <string name="component_author_row_you">\@you</string>
     <string name="component_stats_bar_total">Total</string>
     <string name="component_stats_bar_due">Due</string>
     <string name="component_stats_bar_mastered">Mastered</string>
