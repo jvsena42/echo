@@ -1,6 +1,7 @@
 package com.github.jvsena42.echo.testing
 
 import com.github.jvsena42.echo.data.repository.AuthFlowHandle
+import com.github.jvsena42.echo.data.repository.CardRepository
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.DiscoveryRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
@@ -94,6 +95,30 @@ class FakeDeckRepository : DeckRepository {
     override suspend fun sync(deckId: String): Result<Deck> =
         decks[deckId]?.let { Result.success(it) }
             ?: Result.failure(IllegalStateException("deck $deckId not found"))
+}
+
+class FakeCardRepository : CardRepository {
+    /** Keyed by deck id, then card id. */
+    val cards = mutableMapOf<String, MutableMap<String, Card>>()
+
+    fun seed(vararg seeded: Card) {
+        seeded.forEach { cards.getOrPut(it.deckId) { mutableMapOf() }[it.id] = it }
+    }
+
+    override suspend fun listByDeck(deckId: String): List<Card> =
+        cards[deckId]?.values?.toList() ?: emptyList()
+
+    override suspend fun get(deckId: String, cardId: String): Card? = cards[deckId]?.get(cardId)
+
+    override suspend fun upsert(card: Card): Result<Unit> {
+        cards.getOrPut(card.deckId) { mutableMapOf() }[card.id] = card
+        return Result.success(Unit)
+    }
+
+    override suspend fun delete(deckId: String, cardId: String): Result<Unit> {
+        cards[deckId]?.remove(cardId)
+        return Result.success(Unit)
+    }
 }
 
 /** Grades through the real scheduler so VM tests see realistic state transitions. */

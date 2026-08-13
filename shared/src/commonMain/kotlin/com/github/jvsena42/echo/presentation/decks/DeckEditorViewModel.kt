@@ -37,6 +37,13 @@ class DeckEditorViewModel(
     private var loadJob: Job? = null
     private var saveJob: Job? = null
 
+    /**
+     * The deck as loaded from the repository. Saving republishes the whole manifest, so the
+     * fields the editor does not expose (cover image, Listen/Speak) must be carried forward
+     * from here or they are destroyed on the homeserver.
+     */
+    private var loadedDeck: Deck? = null
+
     init {
         if (deckId != null) loadExisting()
     }
@@ -45,6 +52,7 @@ class DeckEditorViewModel(
         loadJob = viewModelScope.launch {
             Log.d(TAG, "loadExisting: deckId=$deckId")
             val deck = deckRepository.getLocal(deckId!!) ?: return@launch
+            loadedDeck = deck
             val cards = runCatching { cardRepository.listByDeck(deckId) }.getOrElse { emptyList() }
             _state.update { DeckEditorUiState(
                 isNew = false,
@@ -125,13 +133,27 @@ class DeckEditorViewModel(
 
             val now = epochMillis()
             val actualDeckId = deckId ?: generateId()
+            val existing = loadedDeck ?: deckId?.let { deckRepository.getLocal(it) }
+
+            // Saving republishes every card record, so each side must be rebuilt *from* the
+            // loaded card: the editor only edits text, and dropping the rest would wipe the
+            // card's image and audio off the homeserver.
             val cards = s.cards.map { editableCard ->
+                val original = editableCard.original
+                val front = (original?.front ?: CardSide()).copy(
+                    text = editableCard.frontText.ifBlank { null },
+                )
+                val back = (original?.back ?: CardSide()).copy(
+                    text = editableCard.backText.ifBlank { null },
+                )
+                val unchanged = original != null && original.front == front && original.back == back
                 Card(
                     id = editableCard.id,
                     deckId = actualDeckId,
-                    updatedAt = now,
-                    front = CardSide(text = editableCard.frontText),
-                    back = CardSide(text = editableCard.backText),
+                    // Only bump the timestamp the sync uses when the card actually changed.
+                    updatedAt = if (unchanged) original.updatedAt else now,
+                    front = front,
+                    back = back,
                 )
             }
 
@@ -141,11 +163,14 @@ class DeckEditorViewModel(
                 title = s.title,
                 description = s.description.ifBlank { null },
                 coverEmoji = s.coverEmoji.ifBlank { null },
-                coverImageRef = null,
+                // Not editable here — carry forward, don't destroy.
+                coverImageRef = existing?.coverImageRef,
                 tags = s.tags.map { Tag(it) },
-                createdAt = if (s.isNew) now else deckRepository.getLocal(actualDeckId)?.createdAt ?: now,
+                createdAt = if (s.isNew) now else existing?.createdAt ?: now,
                 updatedAt = now,
                 cardIndex = cards.map { CardIndexEntry(it.id, it.updatedAt) },
+                listenEnabled = existing?.listenEnabled ?: true,
+                speakEnabled = existing?.speakEnabled ?: true,
             )
 
             deckRepository.publish(deck, cards)
@@ -173,6 +198,7 @@ class DeckEditorViewModel(
         backText = back.text ?: "",
         hasImage = front.imageRef != null || back.imageRef != null,
         hasAudio = front.audioRef != null || back.audioRef != null,
+        original = this,
     )
 
     companion object {
@@ -206,6 +232,11 @@ data class EditableCardModel(
     val backText: String,
     val hasImage: Boolean,
     val hasAudio: Boolean,
+    /**
+     * The card this model was loaded from, kept so a save round-trip preserves the image and
+     * audio refs the editor cannot edit. `null` for cards added in this session.
+     */
+    val original: Card? = null,
 )
 
 sealed interface DeckEditorEffect {
