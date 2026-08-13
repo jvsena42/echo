@@ -43,6 +43,7 @@
     <string name="deck_detail_start_studying">Start studying · %1$d due</string>
     <string name="deck_detail_study_this_deck">Study this deck</string>
     <string name="deck_detail_back">Back</string>
+    <string name="deck_detail_back_to_decks">Back to decks</string>
     <string name="deck_detail_edit">Edit deck</string>
     <string name="deck_detail_delete">Delete deck</string>
     <string name="deck_detail_share">Share</string>

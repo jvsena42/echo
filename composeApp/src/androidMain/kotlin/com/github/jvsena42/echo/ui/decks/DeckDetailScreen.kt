@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -137,28 +138,55 @@ fun DeckDetailScreen(
         }
 
         is DeckDetailUiState.Error -> {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(colors.surfacePrimary)
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+                    .statusBarsPadding(),
             ) {
-                Text(
-                    text = stringResource(R.string.deck_detail_error_title),
-                    color = colors.foregroundPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                // Without this the screen is a trap: after a deck is deleted the stale tile
+                // still opens here, "Deck not found" can never be retried away, and the only
+                // way out is the system back gesture.
+                HeaderCircleButton(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = stringResource(R.string.deck_detail_back),
+                    iconSize = 24.dp,
+                    onClick = onBackClick,
+                    modifier = Modifier
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .testTag("deck_detail_back"),
                 )
-                Text(
-                    text = state.message,
-                    color = colors.foregroundMuted,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                TextButton(onClick = onRetry) {
-                    Text(stringResource(R.string.deck_detail_retry), color = colors.accentPrimary)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.deck_detail_error_title),
+                        color = colors.foregroundPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    Text(
+                        text = state.message,
+                        color = colors.foregroundMuted,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    // Retrying a deck that no longer exists can only fail again.
+                    if (state.canRetry) {
+                        TextButton(onClick = onRetry) {
+                            Text(stringResource(R.string.deck_detail_retry), color = colors.accentPrimary)
+                        }
+                    }
+                    TextButton(onClick = onBackClick, modifier = Modifier.testTag("deck_detail_back_to_decks")) {
+                        Text(
+                            text = stringResource(R.string.deck_detail_back_to_decks),
+                            color = if (state.canRetry) colors.foregroundMuted else colors.accentPrimary,
+                        )
+                    }
                 }
             }
         }

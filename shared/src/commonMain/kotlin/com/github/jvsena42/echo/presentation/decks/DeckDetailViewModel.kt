@@ -69,7 +69,7 @@ class DeckDetailViewModel(
                     .getOrNull()
             }
             if (deck == null) {
-                _state.update { DeckDetailUiState.Error("Deck not found.") }
+                _state.update { DeckDetailUiState.Error("Deck not found.", canRetry = false) }
                 return@launch
             }
 
@@ -241,7 +241,11 @@ sealed interface DeckDetailUiState {
         val showDeleteConfirm: Boolean = false,
         val isDeleting: Boolean = false,
     ) : DeckDetailUiState
-    data class Error(val message: String) : DeckDetailUiState
+    data class Error(
+        val message: String,
+        /** False when retrying cannot possibly succeed (e.g. the deck no longer exists). */
+        val canRetry: Boolean = true,
+    ) : DeckDetailUiState
 }
 
 data class CardPreviewModel(
