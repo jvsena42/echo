@@ -147,6 +147,8 @@ class FakeSrsRepository : SrsRepository {
 
     override suspend fun dueToday(): List<Card> = due
     override suspend fun dueForDeck(deckId: String): List<Card> = due.filter { it.deckId == deckId }
+    var nextDue: Long? = null
+    override suspend fun nextDueAt(): Long? = nextDue
     override suspend fun stateFor(cardId: String): SrsState? = states[cardId]
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> {

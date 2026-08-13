@@ -155,6 +155,12 @@ interface SrsRepository {
     /** Cards due for review within a single deck. */
     suspend fun dueForDeck(deckId: String): List<Card>
 
+    /**
+     * When the soonest not-yet-due card comes up for review, or null if nothing is scheduled.
+     * Lets Home say "next review in 4h" instead of showing an empty queue with no explanation.
+     */
+    suspend fun nextDueAt(): Long?
+
     /** Cached review state for a card, if it has been loaded this session. */
     suspend fun stateFor(cardId: String): SrsState?
 

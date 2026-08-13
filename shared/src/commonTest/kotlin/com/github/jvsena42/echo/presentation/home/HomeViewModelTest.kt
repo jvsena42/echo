@@ -105,6 +105,35 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun owningDecksWithNothingDueIsCaughtUpNotEmpty() = runTest {
+        // The bug: after finishing a session, Home showed the zero-decks empty state and told a
+        // user who owns decks to "create or import a deck".
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        srsRepo.due = emptyList()
+        srsRepo.nextDue = 9_999L
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertTrue(state.isCaughtUp)
+        assertEquals(9_999L, state.nextDueAtMillis)
+    }
+
+    @Test
+    fun havingCardsDueIsNotCaughtUp() = runTest {
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        srsRepo.due = listOf(testCard("c1", deckId = "deck1"))
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertTrue(!state.isCaughtUp)
+        assertEquals(null, state.nextDueAtMillis, "next-due lookup should be skipped when cards are due")
+    }
+
+    @Test
     fun genericFailureShowsErrorWithoutSigningOut() = runTest {
         deckRepo.listOwnedError = IllegalStateException("electrum hiccup")
         val vm = viewModel()

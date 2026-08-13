@@ -313,4 +313,7 @@
     <string name="error_auth_failed_message">Echo couldn\'t confirm the authorisation with Pubky Ring. Check your connection and try again.</string>
     <string name="error_generic_title">Something went wrong</string>
     <string name="error_generic_message">Something went wrong. Please try again.</string>
+    <string name="home_caught_up_title">You\'re all caught up</string>
+    <string name="home_caught_up_next_due">Next review in %1$s.</string>
+    <string name="home_caught_up_no_next_due">Nothing scheduled yet — study ahead from any deck.</string>
 </resources>

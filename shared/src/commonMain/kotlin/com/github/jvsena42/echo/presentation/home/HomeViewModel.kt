@@ -66,13 +66,20 @@ class HomeViewModel(
                             .getOrDefault(emptyList())
                             .groupingBy { it.deckId }
                             .eachCount()
+                        val dueCount = dueByDeck.values.sum()
                         HomeUiState.Content(
                             greetingName = greetingName,
-                            dueToday = dueByDeck.values.sum(),
+                            dueToday = dueCount,
                             // No persisted session history in v1; "done today" is tracked
                             // within the study session screen, not here.
                             doneToday = 0,
                             decks = decks.map { it.toSummary(dueByDeck[it.id] ?: 0) },
+                            // Only meaningful when the queue is empty; skip the lookup otherwise.
+                            nextDueAtMillis = if (dueCount == 0) {
+                                runCatching { srsRepository.nextDueAt() }.getOrNull()
+                            } else {
+                                null
+                            },
                         )
                     } }
                     Log.d(TAG, "load: decks=${decks.size}")
@@ -135,7 +142,15 @@ sealed interface HomeUiState {
         val dueToday: Int,
         val doneToday: Int,
         val decks: List<DeckSummary>,
-    ) : HomeUiState
+        /**
+         * When the next card becomes reviewable, if [dueToday] is 0. Lets the UI say "you're
+         * caught up, next review in 4h" instead of reusing the no-decks empty state, which told
+         * users who owned decks to "create or import a deck".
+         */
+        val nextDueAtMillis: Long? = null,
+    ) : HomeUiState {
+        val isCaughtUp: Boolean get() = dueToday == 0
+    }
     data class Error(val greetingName: String, val reason: ErrorReason) : HomeUiState
 }
 
