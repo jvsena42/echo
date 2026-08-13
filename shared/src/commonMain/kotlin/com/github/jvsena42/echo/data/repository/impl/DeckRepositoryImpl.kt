@@ -19,6 +19,10 @@ import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.CardIndexEntry
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.util.Log
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -39,6 +43,12 @@ class DeckRepositoryImpl(
 
     private val cache = mutableMapOf<String, Deck>()
     private val cacheLock = Mutex()
+
+    private val _changes = MutableSharedFlow<Unit>(
+        extraBufferCapacity = CHANGE_BUFFER,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    override val changes: SharedFlow<Unit> = _changes.asSharedFlow()
 
     override suspend fun getLocal(id: String): Deck? = cacheLock.withLock { cache[id] }
 
@@ -85,6 +95,7 @@ class DeckRepositoryImpl(
         }
 
         cacheLock.withLock { cache[manifestDeck.id] = manifestDeck }
+        _changes.tryEmit(Unit)
         manifestDeck
     }
 
@@ -96,6 +107,7 @@ class DeckRepositoryImpl(
         val body = echoJson.encodeToString(deck.toDto())
         pubky.putWithSessionRetry(url, body, session, revalidator).getOrThrow()
         cacheLock.withLock { cache[deck.id] = deck }
+        _changes.tryEmit(Unit)
         deck
     }
 
@@ -132,6 +144,7 @@ class DeckRepositoryImpl(
         }
 
         cacheLock.withLock { cache.remove(deckId) }
+        _changes.tryEmit(Unit)
         Unit
     }
 
@@ -220,5 +233,8 @@ class DeckRepositoryImpl(
 
     private companion object {
         const val TAG = "Echo/DeckRepo"
+
+        /** Room for a burst of mutations while a collector is mid-reload; oldest is dropped. */
+        const val CHANGE_BUFFER = 8
     }
 }

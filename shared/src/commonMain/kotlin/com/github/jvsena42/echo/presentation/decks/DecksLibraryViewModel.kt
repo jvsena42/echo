@@ -30,15 +30,23 @@ class DecksLibraryViewModel(
 
     init {
         load()
+        // Publish and delete run on other destinations while this tab stays composed, so
+        // without this the grid keeps showing "No decks yet" right after a publish, and keeps
+        // listing a deck that was just deleted.
+        viewModelScope.launch {
+            deckRepository.changes.collect { load(silent = true) }
+        }
     }
 
     fun onRefresh() = load()
 
-    private fun load() {
-        if (loadJob?.isActive == true) return
+    /** [silent] keeps existing content on screen while a background refresh runs. */
+    private fun load(silent: Boolean = false) {
+        // Cancel rather than bail out: a change that lands mid-load must not be dropped.
+        loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            Log.d(TAG, "load: fetching decks")
-            _state.update { DecksLibraryUiState.Loading }
+            Log.d(TAG, "load: fetching decks (silent=$silent)")
+            if (!silent) _state.update { DecksLibraryUiState.Loading }
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
             val myPubky = session?.identity?.pubky

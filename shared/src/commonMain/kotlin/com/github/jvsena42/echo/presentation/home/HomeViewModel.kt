@@ -33,15 +33,22 @@ class HomeViewModel(
 
     init {
         load()
+        // Publishing and deleting happen on other destinations while this tab stays composed,
+        // so without this a new deck doesn't show up until the process restarts.
+        viewModelScope.launch {
+            deckRepository.changes.collect { load(silent = true) }
+        }
     }
 
     fun onRefresh() = load()
 
-    private fun load() {
-        if (loadJob?.isActive == true) return
+    /** [silent] keeps existing content on screen while a background refresh runs. */
+    private fun load(silent: Boolean = false) {
+        // Cancel rather than bail out: a change that lands mid-load must not be dropped.
+        loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            Log.d(TAG, "load: fetching session + decks")
-            _state.update { HomeUiState.Loading }
+            Log.d(TAG, "load: fetching session + decks (silent=$silent)")
+            if (!silent) _state.update { HomeUiState.Loading }
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
             val greetingName = session?.identity?.displayName?.takeIf { it.isNotBlank() }

@@ -132,6 +132,37 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun reloadsWhenADeckIsPublishedOrDeleted() = runTest {
+        // Reproduces the reported bug: publish a deck, come back to this tab, and it still
+        // says you have none because the VM only ever loaded once.
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertIs<HomeUiState.Empty>(vm.state.value)
+
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        deckRepo.emitChange()
+        advanceUntilIdle()
+
+        assertIs<HomeUiState.Content>(vm.state.value)
+    }
+
+    @Test
+    fun aBackgroundReloadDoesNotFlashTheLoadingState() = runTest {
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertIs<HomeUiState.Content>(vm.state.value)
+
+        val seen = mutableListOf<HomeUiState>()
+        val job = launch { vm.state.collect { seen.add(it) } }
+        deckRepo.emitChange()
+        advanceUntilIdle()
+        job.cancel()
+
+        assertTrue(seen.none { it is HomeUiState.Loading }, "background refresh flashed the loader")
+    }
+
+    @Test
     fun nonPubkySessionMessageDoesNotTriggerReauth() = runTest {
         // Same message shape, but not a PubkyError — must not be treated as session expiry.
         deckRepo.listOwnedError = IllegalStateException("session expired")

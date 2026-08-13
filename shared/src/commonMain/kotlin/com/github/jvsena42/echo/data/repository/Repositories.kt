@@ -13,6 +13,7 @@ import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.domain.model.SrsState
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.domain.model.TriageDecision
+import kotlinx.coroutines.flow.SharedFlow
 
 interface IdentityRepository {
     suspend fun currentSession(): Session?
@@ -57,6 +58,14 @@ interface AuthFlowHandle {
  * ```
  */
 interface DeckRepository {
+    /**
+     * Emits after every local mutation ([publish], [updateMetadata], [delete]) so screens
+     * showing a deck list can reload. Publish and delete happen on their own full-screen
+     * destinations, and the tab pages that list decks stay composed behind them, so without
+     * this signal a freshly published deck does not appear until the process restarts.
+     */
+    val changes: SharedFlow<Unit>
+
     suspend fun getLocal(id: String): Deck?
     suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck>
     suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck>

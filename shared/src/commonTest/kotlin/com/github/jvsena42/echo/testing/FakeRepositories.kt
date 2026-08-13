@@ -25,6 +25,10 @@ import com.github.jvsena42.echo.domain.model.SrsState
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.domain.model.TriageDecision
 import com.github.jvsena42.echo.domain.model.review
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRepository {
     var signOutCount = 0
@@ -56,6 +60,17 @@ class FakeDeckRepository : DeckRepository {
     val published = mutableListOf<Pair<Deck, List<Card>>>()
     val deleted = mutableListOf<String>()
 
+    private val _changes = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 8,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    override val changes: SharedFlow<Unit> = _changes.asSharedFlow()
+
+    /** Emit a change as the real repository would, without going through a mutation. */
+    fun emitChange() {
+        _changes.tryEmit(Unit)
+    }
+
     /** When set, [listOwned] throws (HomeViewModel wraps the call in runCatching). */
     var listOwnedError: Throwable? = null
     var publishError: Throwable? = null
@@ -70,17 +85,20 @@ class FakeDeckRepository : DeckRepository {
         publishError?.let { return Result.failure(it) }
         published.add(deck to cards)
         decks[deck.id] = deck
+        _changes.tryEmit(Unit)
         return Result.success(deck)
     }
 
     override suspend fun updateMetadata(deck: Deck): Result<Deck> {
         decks[deck.id] = deck
+        _changes.tryEmit(Unit)
         return Result.success(deck)
     }
 
     override suspend fun delete(deckId: String): Result<Unit> {
         deleted.add(deckId)
         decks.remove(deckId)
+        _changes.tryEmit(Unit)
         return Result.success(Unit)
     }
 
