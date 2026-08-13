@@ -27,6 +27,12 @@ class FakePubkyClient : PubkyClient {
     /** When set, the next session-authenticated write/delete fails once with this error. */
     var failNextSessionCallWith: Throwable? = null
 
+    /** When set, every [list] call fails with this error (simulates an unreachable homeserver). */
+    var failListWith: Throwable? = null
+
+    /** When set, every [get] call fails with this error (simulates an unreachable homeserver). */
+    var failGetWith: Throwable? = null
+
     override suspend fun putWithSession(
         url: String,
         content: String,
@@ -56,9 +62,11 @@ class FakePubkyClient : PubkyClient {
         return Result.success("ok")
     }
 
-    override suspend fun get(url: String): Result<String> =
-        store[url]?.let { Result.success(it) }
+    override suspend fun get(url: String): Result<String> {
+        failGetWith?.let { return Result.failure(it) }
+        return store[url]?.let { Result.success(it) }
             ?: Result.failure(PubkyError("not found: $url"))
+    }
 
     override suspend fun getBytes(url: String): Result<String> = get(url)
 
@@ -70,6 +78,7 @@ class FakePubkyClient : PubkyClient {
         shallow: Boolean?,
     ): Result<String> {
         listedPrefixes.add(url)
+        failListWith?.let { return Result.failure(it) }
         val matches = store.keys.filter { it.startsWith(url) }.sorted()
         return Result.success(matches.joinToString(",", "[", "]") { "\"$it\"" })
     }

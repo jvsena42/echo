@@ -1,6 +1,7 @@
 package com.github.jvsena42.echo.data.repository.impl
 
 import com.github.jvsena42.echo.data.pubky.FollowDto
+import com.github.jvsena42.echo.data.pubky.PubkyError
 import com.github.jvsena42.echo.data.pubky.toDto
 import com.github.jvsena42.echo.testing.CountingRevalidator
 import com.github.jvsena42.echo.testing.FakePubkyClient
@@ -12,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -111,5 +113,21 @@ class DiscoveryRepositoryImplTest {
     @Test
     fun decksFromFollowingIsEmptyWithNoFollows() = runTest {
         assertEquals(emptyList(), repo.decksFromFollowing())
+    }
+
+    @Test
+    fun followingThrowsWhenTheHomeserverIsUnreachable() = runTest {
+        // Must not degrade to "you follow nobody" — that is indistinguishable from the real
+        // empty state and hides the fact that the device is offline.
+        pubky.failListWith = PubkyError("HTTP transport error: error sending request for url (...)")
+
+        assertFailsWith<PubkyError> { repo.following() }
+    }
+
+    @Test
+    fun followingReturnsEmptyWhenTheFollowsPathDoesNotExist() = runTest {
+        pubky.failListWith = PubkyError("not found: pubky://$TEST_PUBKY/pub/pubky.app/follows/")
+
+        assertEquals(emptyList(), repo.following())
     }
 }

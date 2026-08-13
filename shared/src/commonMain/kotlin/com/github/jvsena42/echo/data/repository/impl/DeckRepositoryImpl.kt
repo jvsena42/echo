@@ -7,6 +7,7 @@ import com.github.jvsena42.echo.data.pubky.PubkyPaths
 import com.github.jvsena42.echo.data.pubky.SessionProvider
 import com.github.jvsena42.echo.data.pubky.SessionRevalidator
 import com.github.jvsena42.echo.data.pubky.deleteWithSessionRetry
+import com.github.jvsena42.echo.data.pubky.isNotFound
 import com.github.jvsena42.echo.data.pubky.putWithSessionRetry
 import com.github.jvsena42.echo.data.pubky.requireSession
 import com.github.jvsena42.echo.data.pubky.toDomain
@@ -139,13 +140,29 @@ class DeckRepositoryImpl(
         return listByAuthor(author)
     }
 
+    /**
+     * Throws when the homeserver could not be reached. Swallowing that into an empty list
+     * would make an offline device indistinguishable from an account with no decks — and
+     * since Pubky is the only source of truth, that reads to the user as "my decks are gone".
+     * A genuinely absent path (nothing published yet) is still an empty list.
+     */
     override suspend fun listByAuthor(authorPubky: String): List<Deck> {
-        val listJson = pubky.list(PubkyPaths.decksList(authorPubky)).getOrNull() ?: return emptyList()
+        val listJson = pubky.list(PubkyPaths.decksList(authorPubky))
+            .getOrElse { if (it.isNotFound()) return emptyList() else throw it }
         val deckIds = parseDeckIdsFromList(listJson)
         val decks = mutableListOf<Deck>()
+        var firstFailure: Throwable? = null
         for (deckId in deckIds) {
-            fetchRemote(authorPubky, deckId).getOrNull()?.let { decks.add(it) }
+            fetchRemote(authorPubky, deckId)
+                .onSuccess { decks.add(it) }
+                .onFailure { err ->
+                    Log.e(TAG, "listByAuthor: manifest fetch failed for $deckId — ${err.message}", err)
+                    if (firstFailure == null) firstFailure = err
+                }
         }
+        // One unreadable deck shouldn't hide the rest, but if the listing had decks and none
+        // of them could be read, that is a connectivity failure — not an empty library.
+        if (decks.isEmpty() && firstFailure != null) throw requireNotNull(firstFailure)
         return decks
     }
 
