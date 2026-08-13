@@ -27,5 +27,16 @@ data class CardIndexEntry(
     val updatedAt: Long,
 )
 
+/**
+ * Cards in the order the deck's manifest declares. Card records come back keyed by id, so
+ * without this the display order is whatever the random card ids happen to sort to. Cards
+ * missing from [Deck.cardIndex] (added locally, not yet published) keep their relative order
+ * at the end.
+ */
+fun List<Card>.orderedBy(deck: Deck): List<Card> {
+    val position = deck.cardIndex.withIndex().associate { (index, entry) -> entry.id to index }
+    return sortedBy { position[it.id] ?: Int.MAX_VALUE }
+}
+
 @JvmInline
 value class PubkyUri(val value: String)

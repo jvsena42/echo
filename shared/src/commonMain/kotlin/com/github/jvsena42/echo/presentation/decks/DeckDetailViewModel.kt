@@ -10,6 +10,7 @@ import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.MediaRef
+import com.github.jvsena42.echo.domain.model.orderedBy
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -72,7 +73,7 @@ class DeckDetailViewModel(
                 return@launch
             }
 
-            runCatching { cardRepository.listByDeck(deckId) }
+            runCatching { cardRepository.listByDeck(deckId).orderedBy(deck) }
                 .onSuccess { cards ->
                     val dueCount = runCatching { srsRepository.dueForDeck(deckId).size }
                         .getOrDefault(0)

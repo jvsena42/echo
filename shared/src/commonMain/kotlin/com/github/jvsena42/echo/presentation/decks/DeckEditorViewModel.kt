@@ -10,6 +10,7 @@ import com.github.jvsena42.echo.domain.model.CardIndexEntry
 import com.github.jvsena42.echo.domain.model.CardSide
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.Tag
+import com.github.jvsena42.echo.domain.model.orderedBy
 import com.github.jvsena42.echo.util.Log
 import com.github.jvsena42.echo.util.epochMillis
 import kotlinx.coroutines.Job
@@ -53,7 +54,8 @@ class DeckEditorViewModel(
             Log.d(TAG, "loadExisting: deckId=$deckId")
             val deck = deckRepository.getLocal(deckId!!) ?: return@launch
             loadedDeck = deck
-            val cards = runCatching { cardRepository.listByDeck(deckId) }.getOrElse { emptyList() }
+            val cards = runCatching { cardRepository.listByDeck(deckId).orderedBy(deck) }
+                .getOrElse { emptyList() }
             _state.update { DeckEditorUiState(
                 isNew = false,
                 coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.toString() ?: "",
@@ -134,44 +136,8 @@ class DeckEditorViewModel(
             val now = epochMillis()
             val actualDeckId = deckId ?: generateId()
             val existing = loadedDeck ?: deckId?.let { deckRepository.getLocal(it) }
-
-            // Saving republishes every card record, so each side must be rebuilt *from* the
-            // loaded card: the editor only edits text, and dropping the rest would wipe the
-            // card's image and audio off the homeserver.
-            val cards = s.cards.map { editableCard ->
-                val original = editableCard.original
-                val front = (original?.front ?: CardSide()).copy(
-                    text = editableCard.frontText.ifBlank { null },
-                )
-                val back = (original?.back ?: CardSide()).copy(
-                    text = editableCard.backText.ifBlank { null },
-                )
-                val unchanged = original != null && original.front == front && original.back == back
-                Card(
-                    id = editableCard.id,
-                    deckId = actualDeckId,
-                    // Only bump the timestamp the sync uses when the card actually changed.
-                    updatedAt = if (unchanged) original.updatedAt else now,
-                    front = front,
-                    back = back,
-                )
-            }
-
-            val deck = Deck(
-                id = actualDeckId,
-                authorPubky = authorPubky,
-                title = s.title,
-                description = s.description.ifBlank { null },
-                coverEmoji = s.coverEmoji.ifBlank { null },
-                // Not editable here — carry forward, don't destroy.
-                coverImageRef = existing?.coverImageRef,
-                tags = s.tags.map { Tag(it) },
-                createdAt = if (s.isNew) now else existing?.createdAt ?: now,
-                updatedAt = now,
-                cardIndex = cards.map { CardIndexEntry(it.id, it.updatedAt) },
-                listenEnabled = existing?.listenEnabled ?: true,
-                speakEnabled = existing?.speakEnabled ?: true,
-            )
+            val cards = buildCards(s.cards, actualDeckId, now)
+            val deck = buildDeck(s, authorPubky, actualDeckId, existing, cards, now)
 
             deckRepository.publish(deck, cards)
                 .onSuccess {
@@ -212,6 +178,54 @@ class DeckEditorViewModel(
         }
     }
 }
+
+/**
+ * Saving republishes every card record, so each side is rebuilt *from* the loaded card:
+ * the editor only edits text, and dropping the rest would wipe the card's image and audio
+ * off the homeserver.
+ */
+private fun buildCards(
+    editables: List<EditableCardModel>,
+    deckId: String,
+    now: Long,
+): List<Card> = editables.map { editable ->
+    val original = editable.original
+    val front = (original?.front ?: CardSide()).copy(text = editable.frontText.ifBlank { null })
+    val back = (original?.back ?: CardSide()).copy(text = editable.backText.ifBlank { null })
+    val unchanged = original != null && original.front == front && original.back == back
+    Card(
+        id = editable.id,
+        deckId = deckId,
+        // Only bump the timestamp the sync reads when the card actually changed.
+        updatedAt = if (unchanged) original.updatedAt else now,
+        front = front,
+        back = back,
+    )
+}
+
+/** [existing] supplies the fields this editor does not expose, so a save cannot destroy them. */
+@Suppress("LongParameterList")
+private fun buildDeck(
+    s: DeckEditorUiState,
+    authorPubky: String,
+    deckId: String,
+    existing: Deck?,
+    cards: List<Card>,
+    now: Long,
+): Deck = Deck(
+    id = deckId,
+    authorPubky = authorPubky,
+    title = s.title,
+    description = s.description.ifBlank { null },
+    coverEmoji = s.coverEmoji.ifBlank { null },
+    coverImageRef = existing?.coverImageRef,
+    tags = s.tags.map { Tag(it) },
+    createdAt = if (s.isNew) now else existing?.createdAt ?: now,
+    updatedAt = now,
+    cardIndex = cards.map { CardIndexEntry(it.id, it.updatedAt) },
+    listenEnabled = existing?.listenEnabled ?: true,
+    speakEnabled = existing?.speakEnabled ?: true,
+)
 
 data class DeckEditorUiState(
     val isNew: Boolean = true,
