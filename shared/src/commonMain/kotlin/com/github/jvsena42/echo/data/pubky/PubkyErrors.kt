@@ -1,5 +1,7 @@
 package com.github.jvsena42.echo.data.pubky
 
+import com.github.jvsena42.echo.domain.model.ErrorReason
+
 /**
  * Classifiers for FFI failures. Like [isSessionExpired] these match defensively on message
  * substrings, because the FFI error text is not a stable API contract — a miss degrades to
@@ -28,4 +30,16 @@ internal fun Throwable.isNetworkFailure(): Boolean {
         "connection refused" in msg ||
         "failed to resolve" in msg ||
         "network" in msg
+}
+
+/**
+ * Classify a repository failure for the UI. ViewModels put the returned [ErrorReason] into
+ * their state and log the original throwable, so the FFI's diagnostic text never reaches a
+ * user-facing surface.
+ */
+fun Throwable.toErrorReason(): ErrorReason = when {
+    isSessionExpired() -> ErrorReason.SessionExpired
+    isNetworkFailure() -> ErrorReason.Offline
+    isNotFound() -> ErrorReason.NotFound
+    else -> ErrorReason.Unknown
 }

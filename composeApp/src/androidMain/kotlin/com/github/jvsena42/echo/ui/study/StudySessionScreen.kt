@@ -81,6 +81,8 @@ import com.github.jvsena42.echo.presentation.study.StudySessionUiState
 import com.github.jvsena42.echo.presentation.study.StudySessionViewModel
 import com.github.jvsena42.echo.ui.components.CardMediaImage
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
+import com.github.jvsena42.echo.ui.components.errorMessage
+import com.github.jvsena42.echo.ui.components.errorTitle
 import com.github.jvsena42.echo.ui.components.rememberReduceMotion
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.Job
@@ -196,8 +198,8 @@ fun StudySessionScreen(
             )
 
             is StudySessionUiState.Error -> CenteredMessage(
-                title = stringResource(R.string.study_error_title),
-                subtitle = state.message,
+                title = errorTitle(state.reason),
+                subtitle = errorMessage(state.reason),
                 actionLabel = stringResource(R.string.study_close),
                 onAction = onClose,
             )

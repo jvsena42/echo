@@ -2,9 +2,11 @@ package com.github.jvsena42.echo.presentation.discover
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.echo.data.pubky.toErrorReason
 import com.github.jvsena42.echo.data.repository.DiscoveryRepository
 import com.github.jvsena42.echo.data.repository.TagRepository
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
@@ -65,7 +67,7 @@ class DiscoverViewModel(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err.message}", err)
-                    _state.update { DiscoverUiState.Error(err.message ?: "Could not load Discover.") }
+                    _state.update { DiscoverUiState.Error(err.toErrorReason()) }
                 }
         }
     }
@@ -124,7 +126,7 @@ sealed interface DiscoverUiState {
         val selectedTag: Tag?,
         val decks: List<DiscoverDeck>,
     ) : DiscoverUiState
-    data class Error(val message: String) : DiscoverUiState
+    data class Error(val reason: ErrorReason) : DiscoverUiState
 }
 
 data class DiscoverDeck(

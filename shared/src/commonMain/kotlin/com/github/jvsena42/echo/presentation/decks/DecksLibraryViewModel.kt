@@ -2,9 +2,11 @@ package com.github.jvsena42.echo.presentation.decks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.echo.data.pubky.toErrorReason
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -65,9 +67,7 @@ class DecksLibraryViewModel(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    _state.update { DecksLibraryUiState.Error(
-                        message = err.message ?: "Could not load decks.",
-                    ) }
+                    _state.update { DecksLibraryUiState.Error(reason = err.toErrorReason()) }
                 }
         }
     }
@@ -105,7 +105,7 @@ sealed interface DecksLibraryUiState {
         val deckCount: Int,
         val decks: List<DeckTileModel>,
     ) : DecksLibraryUiState
-    data class Error(val message: String) : DecksLibraryUiState
+    data class Error(val reason: ErrorReason) : DecksLibraryUiState
 }
 
 data class DeckTileModel(

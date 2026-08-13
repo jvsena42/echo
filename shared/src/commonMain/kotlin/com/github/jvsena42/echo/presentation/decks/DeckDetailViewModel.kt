@@ -2,6 +2,7 @@ package com.github.jvsena42.echo.presentation.decks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.echo.data.pubky.toErrorReason
 import com.github.jvsena42.echo.data.repository.CardRepository
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
@@ -9,6 +10,7 @@ import com.github.jvsena42.echo.data.repository.MediaRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.orderedBy
 import com.github.jvsena42.echo.util.Log
@@ -69,7 +71,7 @@ class DeckDetailViewModel(
                     .getOrNull()
             }
             if (deck == null) {
-                _state.update { DeckDetailUiState.Error("Deck not found.", canRetry = false) }
+                _state.update { DeckDetailUiState.Error(ErrorReason.NotFound, canRetry = false) }
                 return@launch
             }
 
@@ -85,9 +87,7 @@ class DeckDetailViewModel(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    _state.update { DeckDetailUiState.Error(
-                        err.message ?: "Could not load deck.",
-                    ) }
+                    _state.update { DeckDetailUiState.Error(err.toErrorReason()) }
                 }
         }
     }
@@ -130,9 +130,7 @@ class DeckDetailViewModel(
                 .onSuccess { _effects.emit(DeckDetailEffect.Deleted) }
                 .onFailure { err ->
                     Log.e(TAG, "onConfirmDelete: FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    _state.update { DeckDetailUiState.Error(
-                        err.message ?: "Could not delete deck.",
-                    ) }
+                    _state.update { DeckDetailUiState.Error(err.toErrorReason()) }
                 }
         }
     }
@@ -242,7 +240,7 @@ sealed interface DeckDetailUiState {
         val isDeleting: Boolean = false,
     ) : DeckDetailUiState
     data class Error(
-        val message: String,
+        val reason: ErrorReason,
         /** False when retrying cannot possibly succeed (e.g. the deck no longer exists). */
         val canRetry: Boolean = true,
     ) : DeckDetailUiState

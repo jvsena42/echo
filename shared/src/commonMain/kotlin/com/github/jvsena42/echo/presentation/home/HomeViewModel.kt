@@ -3,10 +3,12 @@ package com.github.jvsena42.echo.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.pubky.requiresReauth
+import com.github.jvsena42.echo.data.pubky.toErrorReason
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -82,13 +84,13 @@ class HomeViewModel(
                         runCatching { identityRepository.signOut() }
                         _state.update { HomeUiState.Error(
                             greetingName = greetingName,
-                            message = "Your session expired. Please sign in again.",
+                            reason = ErrorReason.SessionExpired,
                         ) }
                         _effects.emit(HomeEffect.NavigateToOnboarding)
                     } else {
                         _state.update { HomeUiState.Error(
                             greetingName = greetingName,
-                            message = err.message ?: "Could not load decks.",
+                            reason = err.toErrorReason(),
                         ) }
                     }
                 }
@@ -134,7 +136,7 @@ sealed interface HomeUiState {
         val doneToday: Int,
         val decks: List<DeckSummary>,
     ) : HomeUiState
-    data class Error(val greetingName: String, val message: String) : HomeUiState
+    data class Error(val greetingName: String, val reason: ErrorReason) : HomeUiState
 }
 
 data class DeckSummary(

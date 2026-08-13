@@ -2,9 +2,11 @@ package com.github.jvsena42.echo.presentation.study
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.echo.data.pubky.toErrorReason
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Card
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.SpeakMatcher
 import com.github.jvsena42.echo.domain.model.SrsGrade
@@ -73,7 +75,7 @@ class StudySessionViewModel(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err.message}", err)
-                    _state.update { StudySessionUiState.Error(err.message ?: "Could not load cards.") }
+                    _state.update { StudySessionUiState.Error(err.toErrorReason()) }
                 }
         }
     }
@@ -235,7 +237,7 @@ sealed interface StudySessionUiState {
 
     data class Complete(val reviewed: Int) : StudySessionUiState
 
-    data class Error(val message: String) : StudySessionUiState
+    data class Error(val reason: ErrorReason) : StudySessionUiState
 }
 
 /** Pronunciation-practice sheet state for the current card back. */

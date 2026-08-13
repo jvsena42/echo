@@ -65,6 +65,8 @@ import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.components.StatsBar
 import com.github.jvsena42.echo.ui.components.TagChip
+import com.github.jvsena42.echo.ui.components.errorMessage
+import com.github.jvsena42.echo.ui.components.errorTitle
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -164,13 +166,13 @@ fun DeckDetailScreen(
                     verticalArrangement = Arrangement.Center,
                 ) {
                     Text(
-                        text = stringResource(R.string.deck_detail_error_title),
+                        text = errorTitle(state.reason),
                         color = colors.foregroundPrimary,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.ExtraBold,
                     )
                     Text(
-                        text = state.message,
+                        text = errorMessage(state.reason),
                         color = colors.foregroundMuted,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(top = 8.dp),

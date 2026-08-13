@@ -4,6 +4,7 @@ import com.github.jvsena42.echo.data.pubky.MutableSessionProvider
 import com.github.jvsena42.echo.data.pubky.ProfileDto
 import com.github.jvsena42.echo.data.pubky.PubkyClient
 import com.github.jvsena42.echo.data.pubky.PubkyPaths
+import com.github.jvsena42.echo.data.pubky.isNetworkFailure
 import com.github.jvsena42.echo.data.pubky.parseSessionPayload
 import com.github.jvsena42.echo.data.pubky.toDomain
 import com.github.jvsena42.echo.data.repository.AuthFlowHandle
@@ -12,6 +13,7 @@ import com.github.jvsena42.echo.data.storage.SecureSessionStore
 import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.domain.model.Session
 import com.github.jvsena42.echo.util.Log
+import kotlinx.coroutines.delay
 
 /**
  * [IdentityRepository] backed by [PubkyClient] and [SecureSessionStore].
@@ -88,11 +90,7 @@ class IdentityRepositoryImpl(
     private inner class RingAuthFlowHandle(override val authUrl: String) : AuthFlowHandle {
         override suspend fun complete(): Result<Session> = runCatching {
             Log.d(TAG, "complete: awaiting Pubky Ring approval")
-            val sessionJson = pubky.awaitAuthApproval()
-                .onFailure {
-                    Log.e(TAG, "complete: awaitAuthApproval FAILED — ${it::class.simpleName}: ${it.message}", it)
-                }
-                .getOrThrow()
+            val sessionJson = awaitApprovalWithRetry().getOrThrow()
             Log.d(TAG, "complete: got session payload=$sessionJson")
 
             val session = parseSessionPayload(sessionJson, echoJson)
@@ -120,6 +118,31 @@ class IdentityRepositoryImpl(
             session
         }.onFailure {
             Log.e(TAG, "complete: FAILED — ${it::class.simpleName}: ${it.message}", it)
+        }
+    }
+
+    /**
+     * `awaitAuthApproval` polls the auth relay, and that poll is flaky in practice — signing in
+     * on a device failed twice with `HTTP transport error: error sending request for url
+     * (https://httprelay.pubky.app/inbox/…)` and then succeeded on an identical third attempt.
+     * Retry only transport failures; a declined or expired request is terminal and retrying it
+     * would just make the user wait.
+     */
+    private suspend fun awaitApprovalWithRetry(): Result<String> {
+        repeat(AUTH_RETRIES) { attempt ->
+            val result = pubky.awaitAuthApproval()
+            if (result.isSuccess) return result
+
+            val error = result.exceptionOrNull() ?: return result
+            if (!error.isNetworkFailure()) {
+                Log.e(TAG, "awaitApproval: terminal failure — ${error::class.simpleName}: ${error.message}", error)
+                return result
+            }
+            Log.w(TAG, "awaitApproval: transport failure on attempt ${attempt + 1}, retrying — ${error.message}")
+            delay(AUTH_RETRY_DELAY_MS)
+        }
+        return pubky.awaitAuthApproval().onFailure {
+            Log.e(TAG, "awaitApproval: FAILED after $AUTH_RETRIES retries — ${it::class.simpleName}: ${it.message}", it)
         }
     }
 
@@ -176,5 +199,9 @@ class IdentityRepositoryImpl(
         /** Deeplink Pubky Ring re-opens after approval; registered in the platform manifest. */
         private const val CALLBACK_URL = "echo://login-callback"
         private const val CALLBACK_SOURCE = "Echo"
+
+        /** Extra attempts at the flaky auth-relay poll before giving up. */
+        private const val AUTH_RETRIES = 2
+        private const val AUTH_RETRY_DELAY_MS = 1_500L
     }
 }

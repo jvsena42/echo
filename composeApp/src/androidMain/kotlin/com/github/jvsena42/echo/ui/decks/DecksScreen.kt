@@ -48,6 +48,7 @@ import com.github.jvsena42.echo.presentation.decks.DecksLibraryEffect
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryUiState
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.echo.ui.components.DeckTile
+import com.github.jvsena42.echo.ui.components.EchoErrorBlock
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -147,8 +148,8 @@ private fun DecksScreenContent(
                 SectionHeader(deckCount = state.deckCount)
                 DeckGrid(decks = state.decks, onDeckClick = onDeckClick)
             }
-            is DecksLibraryUiState.Error -> ErrorBlock(
-                message = state.message,
+            is DecksLibraryUiState.Error -> EchoErrorBlock(
+                reason = state.reason,
                 onRetry = onRetry,
             )
         }

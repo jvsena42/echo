@@ -46,6 +46,7 @@ import com.github.jvsena42.echo.presentation.onboarding.OnboardingEffect
 import com.github.jvsena42.echo.presentation.onboarding.OnboardingUiState
 import com.github.jvsena42.echo.presentation.onboarding.OnboardingViewModel
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
+import com.github.jvsena42.echo.ui.components.errorMessage
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -244,7 +245,7 @@ private fun CtaBlock(
         )
         if (state is OnboardingUiState.Error) {
             Text(
-                text = state.message,
+                text = errorMessage(state.reason),
                 color = colors.danger,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,

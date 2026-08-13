@@ -2,6 +2,7 @@ package com.github.jvsena42.echo.presentation.home
 
 import com.github.jvsena42.echo.data.pubky.PubkyError
 import com.github.jvsena42.echo.domain.model.CardIndexEntry
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.testing.FakeDeckRepository
 import com.github.jvsena42.echo.testing.FakeIdentityRepository
 import com.github.jvsena42.echo.testing.FakeSrsRepository
@@ -112,7 +113,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val state = assertIs<HomeUiState.Error>(vm.state.value)
-        assertEquals("electrum hiccup", state.message)
+        assertEquals(ErrorReason.Unknown, state.reason)
         assertEquals(expected = 0, actual = identityRepo.signOutCount)
         assertTrue(effects.isEmpty())
     }
@@ -126,7 +127,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val state = assertIs<HomeUiState.Error>(vm.state.value)
-        assertEquals("Your session expired. Please sign in again.", state.message)
+        assertEquals(ErrorReason.SessionExpired, state.reason)
         assertEquals(expected = 1, actual = identityRepo.signOutCount)
         assertEquals(listOf<HomeEffect>(HomeEffect.NavigateToOnboarding), effects)
     }

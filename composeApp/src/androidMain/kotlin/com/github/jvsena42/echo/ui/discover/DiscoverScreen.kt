@@ -58,6 +58,7 @@ import com.github.jvsena42.echo.presentation.discover.DiscoverEffect
 import com.github.jvsena42.echo.presentation.discover.DiscoverUiState
 import com.github.jvsena42.echo.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.echo.ui.components.DeckTile
+import com.github.jvsena42.echo.ui.components.EchoErrorBlock
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -191,7 +192,7 @@ private fun DiscoverScreenContent(
                     )
                 }
             }
-            is DiscoverUiState.Error -> ErrorBlock(message = state.message, onRetry = onRetry)
+            is DiscoverUiState.Error -> EchoErrorBlock(reason = state.reason, onRetry = onRetry)
         }
     }
 }
