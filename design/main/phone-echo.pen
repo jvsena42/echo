@@ -1,5 +1,5 @@
 {
-  "version": "2.13",
+  "version": "2.17",
   "children": [
     {
       "type": "text",
@@ -14139,5 +14139,6 @@
       "type": "color",
       "value": "#FFF4EA"
     }
-  }
+  },
+  "fileToken": "c0c4ab65-37cb-40fb-9079-a1b2dd036d1d"
 }
