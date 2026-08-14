@@ -12,9 +12,7 @@ struct DeckDetailContent {
     let coverEmoji: String
     let coverImageUrl: String?
     let coverImageBase64: String?
-    let authorName: String?
-    let authorPubky: String
-    let authorInitial: String
+    let author: IdentityData
     let isOwned: Bool
     let tags: [String]
     let totalCards: Int
@@ -119,23 +117,23 @@ struct DeckDetailView: View {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(EchoColor.accentSecondarySoft)
                             .frame(width: 32, height: 32)
-                        Text(content.authorInitial)
+                        Text(content.author.initial)
                             .font(.system(size: 14, weight: .heavy))
                             .foregroundColor(EchoColor.accentSecondary)
                     }
                     VStack(alignment: .leading) {
-                        if content.isOwned {
-                            Text("@you")
+                        HStack(spacing: 6) {
+                            Text(content.author.label)
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(EchoColor.foregroundPrimary)
-                        } else {
-                            Text(content.authorName ?? "pk:\(content.authorPubky.prefix(6))")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(EchoColor.foregroundPrimary)
-                            Text("pk:\(content.authorPubky.prefix(6))…\(content.authorPubky.suffix(6))")
-                                .font(.system(size: 11))
-                                .foregroundColor(EchoColor.foregroundMuted)
+                                .lineLimit(1)
+                            if content.isOwned {
+                                YouBadge()
+                            }
                         }
+                        Text(content.author.truncatedPubky)
+                            .font(.system(size: 11))
+                            .foregroundColor(EchoColor.foregroundMuted)
                     }
                     Spacer()
                 }
@@ -355,9 +353,7 @@ private struct StatColumn: View {
             coverEmoji: "",
             coverImageUrl: nil,
             coverImageBase64: nil,
-            authorName: nil,
-            authorPubky: "abc123xyz789",
-            authorInitial: "A",
+            author: IdentityData(pubky: "abc123xyz789", displayName: "Cosmic-Crystal-Panda"),
             isOwned: true,
             tags: ["spanish", "language", "beginner"],
             totalCards: 42,
@@ -379,9 +375,7 @@ private struct StatColumn: View {
             coverEmoji: "🇪🇸",
             coverImageUrl: "https://images.unsplash.com/photo-1505765050516-f72dcac9c60e",
             coverImageBase64: nil,
-            authorName: "Maria Lopez",
-            authorPubky: "abc123xyz789",
-            authorInitial: "M",
+            author: IdentityData(pubky: "abc123xyz789", displayName: "Maria Lopez"),
             isOwned: false,
             tags: ["spanish", "language", "beginner"],
             totalCards: 42,

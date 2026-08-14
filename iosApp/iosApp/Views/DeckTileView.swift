@@ -4,7 +4,9 @@ struct DeckTileView: View {
     let title: String
     let cardCount: Int
     let coverEmoji: String
+    /// Caption after the card count — the author's name, or a tag on a profile grid.
     let authorLabel: String
+    var showYouBadge: Bool = false
     var coverColor: Color = EchoColor.accentPrimarySoft
     var onTap: () -> Void = {}
 
@@ -42,6 +44,10 @@ struct DeckTileView: View {
                         Text(authorLabel)
                             .font(.system(size: 12))
                             .foregroundColor(EchoColor.accentSecondary)
+                            .lineLimit(1)
+                        if showYouBadge {
+                            YouBadge()
+                        }
                     }
                 }
                 .padding(14)
@@ -62,13 +68,14 @@ struct DeckTileView: View {
             title: "Spanish Basics",
             cardCount: 42,
             coverEmoji: "🇪🇸",
-            authorLabel: "@you"
+            authorLabel: "Cosmic-Crystal-Panda",
+            showYouBadge: true
         )
         DeckTileView(
             title: "Anatomy 101",
             cardCount: 128,
             coverEmoji: "🧠",
-            authorLabel: "@you",
+            authorLabel: "Ada Lovelace",
             coverColor: EchoColor.accentSecondarySoft
         )
     }

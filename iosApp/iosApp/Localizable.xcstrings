@@ -2420,6 +2420,28 @@
           }
         }
       }
+    },
+    "identity_you_badge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You"
+          }
+        }
+      }
+    },
+    "identity_unknown_person": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "there"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
