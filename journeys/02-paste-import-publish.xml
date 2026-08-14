@@ -11,6 +11,7 @@
     <action>Verify the "Paste cards" screen is shown with a text area placeholder "Paste your list here" (resource-id: paste_input)</action>
     <action>Type a single word "dog" (no front/back separator) into the field with resource-id "paste_input"</action>
     <action>Verify no card preview is shown and the summary chip reads "No pattern detected" (it only becomes a "Detected" chip once a front/back separator is present)</action>
+    <action>Verify the card count reads "1 card" and not "1 cards" (regression: the app had no plural resources)</action>
     <action>Clear the field with resource-id "paste_input"</action>
     <action>Type the following three lines into the field with resource-id "paste_input": "dog,cachorro", "cat,gato", "bird,passaro"</action>
     <action>Verify the summary chip now reads "Detected: comma" and a live preview appears showing 3 parsed cards with fronts dog, cat, bird</action>
@@ -26,5 +27,8 @@
     <action>Verify a "Deck published!" success state appears with an Undo button showing a live countdown (resource-id: publish_undo) and a Done button (resource-id: publish_done)</action>
     <action>Tap the element with resource-id "publish_done"</action>
     <action>Verify the deck detail screen for "Animals PT" is shown with 3 cards</action>
+    <action>Tap the element with resource-id "deck_detail_back"</action>
+    <action>Tap the element with resource-id "tab_decks"</action>
+    <action>Verify the Decks grid lists "Animals PT" WITHOUT restarting the app (regression: publishing did not invalidate the deck list, so this said "No decks yet" until the process restarted)</action>
   </actions>
 </journey>

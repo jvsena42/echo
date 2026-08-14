@@ -14,7 +14,9 @@
     <action>Tap the card to reveal the back</action>
     <action>Verify a "Speak" practice button (resource-id: study_speak) is shown on the card back</action>
     <action>Tap the element with resource-id "study_speak"</action>
-    <action>If the microphone permission has not been granted, verify the Android RECORD_AUDIO permission dialog appears and grant it</action>
+    <action>Verify an in-app rationale dialog appears first explaining that Speak listens to your pronunciation, with a Continue action (resource-id: permission_continue)</action>
+    <action>Tap the element with resource-id "permission_continue" and verify the Android RECORD_AUDIO permission dialog then appears; grant it</action>
+    <action>Manual check: deny twice so Android stops asking, tap Speak again, and verify a "Microphone is off" dialog offers "Open settings" (resource-id: permission_open_settings) instead of doing nothing</action>
     <action>Verify the Listening sheet appears with a microphone indicator (resource-id: speak_mic) and the target word</action>
     <action>Manual check (speech not automatable): say the word and verify either the "Perfect!" sheet with Continue (resource-id: speak_continue) or the "Not quite right" sheet with your transcript (resource-id: speak_heard) and Try again (resource-id: speak_retry)</action>
     <action>Dismiss the Listening sheet and verify the study card is shown again</action>

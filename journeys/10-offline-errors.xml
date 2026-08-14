@@ -1,0 +1,22 @@
+<journey name="Offline — failures must not look like an empty library">
+  <description>
+    Pubky is the only source of truth and there is no local cache, so a network failure has to
+    read as "we can't reach your homeserver", never as "you have no decks". Before the fix,
+    `DeckRepositoryImpl.listByAuthor` swallowed transport failures into an empty list and both
+    Home and Decks rendered their empty states — indistinguishable from having lost everything.
+
+    Requires a signed-in session (journey 01) and at least one published deck.
+    Turn the radios off with:
+      adb shell svc wifi disable &amp;&amp; adb shell svc data disable
+    and back on afterwards with `enable`.
+  </description>
+  <actions>
+    <action>With wifi and mobile data disabled, force-stop and relaunch the Echo app</action>
+    <action>Verify the Home tab shows an error state with a title and a retry action (resource-id: error_retry), NOT the "Nothing to study yet" empty state and NOT a "Create a deck" call to action</action>
+    <action>Verify the error message does not contain any raw URL, "HTTP transport error", or other FFI diagnostic text</action>
+    <action>Tap the element with resource-id "tab_decks"</action>
+    <action>Verify the Decks tab also shows an error with a retry action, NOT "No decks yet"</action>
+    <action>Re-enable wifi and mobile data, then tap the element with resource-id "error_retry"</action>
+    <action>Verify the deck list loads and the previously published decks are shown</action>
+  </actions>
+</journey>
