@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,9 +17,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Delete
@@ -271,75 +272,144 @@ private fun DeckDetailContent(
             }
         },
     ) { innerPadding ->
-        Column(
+        // A LazyColumn rather than a scrolling Column: the card list below is as long as the
+        // deck, and a 500-card deck would otherwise compose every row up front.
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+                .testTag("deck_detail_content"),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp),
         ) {
-            // Header: Back + Edit/Delete (owner only) + Share
-            HeaderBar(
-                isOwned = state.isOwned,
-                onBackClick = onBackClick,
-                onShareClick = onShareClick,
-                onEditClick = onEditClick,
-                onDeleteClick = onDeleteClick,
-            )
+            // Everything above the card list is a fixed set of sections that are on screen
+            // together anyway, so they stay in one item and keep their shared 20.dp rhythm.
+            item(key = "header") {
+                Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    // Header: Back + Edit/Delete (owner only) + Share
+                    HeaderBar(
+                        isOwned = state.isOwned,
+                        onBackClick = onBackClick,
+                        onShareClick = onShareClick,
+                        onEditClick = onEditClick,
+                        onDeleteClick = onDeleteClick,
+                    )
 
-            // Cover
-            CoverSection(
-                coverEmoji = state.coverEmoji,
-                coverImageUrl = state.coverImageUrl,
-                coverImageBase64 = state.coverImageBase64,
-                isOwned = state.isOwned,
-            )
+                    // Cover
+                    CoverSection(
+                        coverEmoji = state.coverEmoji,
+                        coverImageUrl = state.coverImageUrl,
+                        coverImageBase64 = state.coverImageBase64,
+                        isOwned = state.isOwned,
+                    )
 
-            // Owned badge
-            if (state.isOwned) {
-                OwnedBadgeRow()
-            }
-
-            // Title + Description
-            TitleSection(title = state.title, description = state.description)
-
-            // Author
-            AuthorRow(
-                name = state.authorName,
-                pubky = state.authorPubky,
-                initial = state.authorInitial,
-                avatarUrl = state.authorAvatarUrl,
-                isOwned = state.isOwned,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            // Tags
-            if (state.tags.isNotEmpty()) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    state.tags.forEach { tag ->
-                        TagChip(tag = tag)
+                    // Owned badge
+                    if (state.isOwned) {
+                        OwnedBadgeRow()
                     }
+
+                    // Title + Description
+                    TitleSection(title = state.title, description = state.description)
+
+                    // Author
+                    AuthorRow(
+                        name = state.authorName,
+                        pubky = state.authorPubky,
+                        initial = state.authorInitial,
+                        avatarUrl = state.authorAvatarUrl,
+                        isOwned = state.isOwned,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    // Tags
+                    if (state.tags.isNotEmpty()) {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            state.tags.forEach { tag ->
+                                TagChip(tag = tag)
+                            }
+                        }
+                    }
+
+                    // Stats
+                    StatsBar(
+                        totalCards = state.totalCards,
+                        dueCards = state.dueCards,
+                        masteredPercent = state.masteredPercent,
+                    )
                 }
             }
 
-            // Stats
-            StatsBar(
-                totalCards = state.totalCards,
-                dueCards = state.dueCards,
-                masteredPercent = state.masteredPercent,
-            )
+            // Cards. Shown for decks you don't own too — being able to look through the cards
+            // before studying is what makes a shared deck worth opening.
+            item(key = "cards_heading") {
+                CardsHeading(
+                    count = state.cardPreviews.size,
+                    modifier = Modifier.padding(top = 24.dp, bottom = 12.dp),
+                )
+            }
 
-            // Card previews
-            if (state.cardPreviews.isNotEmpty()) {
-                CardPreviewList(cards = state.cardPreviews)
+            if (state.cardPreviews.isEmpty()) {
+                item(key = "cards_empty") {
+                    CardsEmptyState(isOwned = state.isOwned)
+                }
+            } else {
+                items(state.cardPreviews, key = { it.id }) { card ->
+                    CardPreviewRow(
+                        frontText = card.frontText,
+                        backText = card.backText,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .testTag("deck_card_row"),
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun CardsHeading(count: Int, modifier: Modifier = Modifier) {
+    val colors = EchoTheme.colors
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.deck_detail_cards_heading),
+            color = colors.foregroundPrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.W800,
+        )
+        Text(
+            text = "$count",
+            color = colors.foregroundMuted,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.W700,
+        )
+    }
+}
+
+@Composable
+private fun CardsEmptyState(isOwned: Boolean) {
+    val colors = EchoTheme.colors
+    Text(
+        text = if (isOwned) {
+            stringResource(R.string.deck_detail_cards_empty_owned)
+        } else {
+            stringResource(R.string.deck_detail_cards_empty_foreign)
+        },
+        color = colors.foregroundMuted,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("deck_cards_empty"),
+    )
 }
 
 @Composable
@@ -545,19 +615,6 @@ private fun TitleSection(title: String, description: String?) {
     }
 }
 
-@Composable
-private fun CardPreviewList(cards: List<CardPreviewModel>) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        cards.forEach { card ->
-            CardPreviewRow(
-                frontText = card.frontText,
-                backText = card.backText,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
-}
-
 @Preview
 @Composable
 private fun DeckDetailScreenPreview() {
@@ -581,6 +638,38 @@ private fun DeckDetailScreenPreview() {
                     CardPreviewModel(id = "c2", frontText = "Gracias", backText = "Thank you"),
                     CardPreviewModel(id = "c3", frontText = "Adiós", backText = "Goodbye"),
                 ),
+            ),
+            onBackClick = {},
+            onShareClick = {},
+            onStudyClick = {},
+            onEditClick = {},
+            onDeleteClick = {},
+            onConfirmDelete = {},
+            onDismissDelete = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun DeckDetailEmptyCardsPreview() {
+    EchoTheme {
+        DeckDetailScreen(
+            state = DeckDetailUiState.Content(
+                deckId = "deck2",
+                title = "Kanji N5",
+                description = null,
+                coverEmoji = "🇯🇵",
+                authorName = "Mei",
+                authorPubky = "pk:zyxwvu987654",
+                authorInitial = 'M',
+                isOwned = false,
+                tags = listOf("japanese"),
+                totalCards = 0,
+                dueCards = 0,
+                masteredPercent = "—",
+                cardPreviews = emptyList(),
             ),
             onBackClick = {},
             onShareClick = {},

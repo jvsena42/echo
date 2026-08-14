@@ -441,6 +441,39 @@
         }
       }
     },
+    "deck_detail_cards_heading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cards"
+          }
+        }
+      }
+    },
+    "deck_detail_cards_empty_owned": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No cards yet. Tap Edit to add your first one."
+          }
+        }
+      }
+    },
+    "deck_detail_cards_empty_foreign": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This deck doesn't have any cards yet."
+          }
+        }
+      }
+    },
     "deck_detail_in_your_library": {
       "extractionState": "manual",
       "localizations": {

@@ -119,12 +119,39 @@ class FakeCardRepository : CardRepository {
     /** Keyed by deck id, then card id. */
     val cards = mutableMapOf<String, MutableMap<String, Card>>()
 
+    /**
+     * Cards only [fetchByDeck] can see, keyed by deck id — the test stand-in for records that
+     * live on a homeserver but have not been read into the session cache yet.
+     */
+    val remoteCards = mutableMapOf<String, MutableMap<String, Card>>()
+
+    /** When set, [fetchByDeck] fails (an unreachable homeserver). */
+    var fetchError: Throwable? = null
+
+    var fetchCount = 0
+        private set
+
     fun seed(vararg seeded: Card) {
         seeded.forEach { cards.getOrPut(it.deckId) { mutableMapOf() }[it.id] = it }
     }
 
+    /** Seed cards that are only reachable through [fetchByDeck], not through the cache. */
+    fun seedRemote(vararg seeded: Card) {
+        seeded.forEach { remoteCards.getOrPut(it.deckId) { mutableMapOf() }[it.id] = it }
+    }
+
     override suspend fun listByDeck(deckId: String): List<Card> =
         cards[deckId]?.values?.toList() ?: emptyList()
+
+    override suspend fun fetchByDeck(deck: Deck): Result<List<Card>> {
+        fetchCount++
+        fetchError?.let { return Result.failure(it) }
+        remoteCards[deck.id]?.forEach { (id, card) ->
+            cards.getOrPut(deck.id) { mutableMapOf() }[id] = card
+        }
+        val available = cards[deck.id].orEmpty()
+        return Result.success(deck.cardIndex.mapNotNull { available[it.id] })
+    }
 
     override suspend fun get(deckId: String, cardId: String): Card? = cards[deckId]?.get(cardId)
 

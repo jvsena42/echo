@@ -158,24 +158,36 @@ struct DeckDetailView: View {
                     masteredPercent: content.masteredPercent
                 )
 
-                // Card list
-                VStack(spacing: 8) {
-                    ForEach(content.cards) { card in
-                        HStack {
-                            Text(card.front)
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundColor(EchoColor.foregroundPrimary)
-                            Spacer()
-                            Text(card.back)
-                                .font(.system(size: 13))
-                                .foregroundColor(EchoColor.foregroundMuted)
+                // Cards. Shown for decks you don't own too — being able to look through the
+                // cards before studying is what makes a shared deck worth opening.
+                cardsHeading(count: content.cards.count)
+
+                if content.cards.isEmpty {
+                    Text(content.isOwned
+                        ? "deck_detail_cards_empty_owned"
+                        : "deck_detail_cards_empty_foreign")
+                        .font(.system(size: 14))
+                        .foregroundColor(EchoColor.foregroundMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    LazyVStack(spacing: 8) {
+                        ForEach(content.cards) { card in
+                            HStack {
+                                Text(card.front)
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(EchoColor.foregroundPrimary)
+                                Spacer()
+                                Text(card.back)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(EchoColor.foregroundMuted)
+                            }
+                            .padding(14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(EchoColor.surfaceCard)
+                            )
+                            .shadow(color: EchoColor.shadowElevationLow, radius: 8, x: 0, y: 2)
                         }
-                        .padding(14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(EchoColor.surfaceCard)
-                        )
-                        .shadow(color: EchoColor.shadowElevationLow, radius: 8, x: 0, y: 2)
                     }
                 }
             }
@@ -195,6 +207,19 @@ struct DeckDetailView: View {
         .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
+    }
+
+    private func cardsHeading(count: Int) -> some View {
+        HStack {
+            Text("deck_detail_cards_heading")
+                .font(.system(size: 18, weight: .heavy))
+                .foregroundColor(EchoColor.foregroundPrimary)
+            Spacer()
+            Text("\(count)")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(EchoColor.foregroundMuted)
+        }
+        .padding(.top, 4)
     }
 
     /// Resolves the cover in priority order: remote URL image → homeserver blob image → emoji box.

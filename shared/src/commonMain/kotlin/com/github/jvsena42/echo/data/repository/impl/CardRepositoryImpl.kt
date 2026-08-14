@@ -12,6 +12,8 @@ import com.github.jvsena42.echo.data.pubky.toDomain
 import com.github.jvsena42.echo.data.pubky.toDto
 import com.github.jvsena42.echo.data.repository.CardRepository
 import com.github.jvsena42.echo.domain.model.Card
+import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -34,6 +36,38 @@ class CardRepositoryImpl(
 
     override suspend fun listByDeck(deckId: String): List<Card> = cacheLock.withLock {
         cache[deckId]?.values?.sortedBy { it.id } ?: emptyList()
+    }
+
+    override suspend fun fetchByDeck(deck: Deck): Result<List<Card>> = runCatching {
+        val cards = mutableListOf<Card>()
+        var firstFailure: Throwable? = null
+
+        for (entry in deck.cardIndex) {
+            val cached = cacheLock.withLock { cache[deck.id]?.get(entry.id) }
+            // A local edit is newer than the index entry the manifest was published with, so
+            // re-fetching here would silently undo it.
+            if (cached != null && cached.updatedAt >= entry.updatedAt) {
+                cards.add(cached)
+                continue
+            }
+            pubky.get(PubkyPaths.card(deck.authorPubky, deck.id, entry.id))
+                .mapCatching { echoJson.decodeFromString<CardDto>(it).toDomain() }
+                .onSuccess { card ->
+                    putInCache(card)
+                    cards.add(card)
+                }
+                .onFailure { err ->
+                    Log.e(TAG, "fetchByDeck: card ${entry.id} unreadable — ${err.message}", err)
+                    if (firstFailure == null) firstFailure = err
+                    cached?.let(cards::add)
+                }
+        }
+
+        // One corrupt record shouldn't hide the rest of the deck, but a deck whose cards are
+        // *all* unreadable is an unreachable homeserver — reporting that as an empty deck would
+        // read to the user as "the cards are gone".
+        if (cards.isEmpty() && firstFailure != null) throw requireNotNull(firstFailure)
+        cards
     }
 
     override suspend fun get(deckId: String, cardId: String): Card? {
@@ -66,5 +100,9 @@ class CardRepositoryImpl(
 
     private suspend fun putInCache(card: Card) = cacheLock.withLock {
         cache.getOrPut(card.deckId) { mutableMapOf() }[card.id] = card
+    }
+
+    companion object {
+        private const val TAG = "Echo/CardRepo"
     }
 }

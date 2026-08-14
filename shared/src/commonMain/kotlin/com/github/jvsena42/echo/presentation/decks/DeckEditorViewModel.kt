@@ -42,6 +42,13 @@ class DeckEditorViewModel(
     private var saveJob: Job? = null
 
     /**
+     * Set when an existing deck's cards could not be read. Saving republishes the manifest from
+     * [DeckEditorUiState.cards], so saving an editor that failed to load would drop every card
+     * out of the deck's `cardIndex` — the user's deck, gone. Block the save instead.
+     */
+    private var cardsLoadFailed = false
+
+    /**
      * The deck as loaded from the repository. Saving republishes the whole manifest, so the
      * fields the editor does not expose (cover image, Listen/Speak) must be carried forward
      * from here or they are destroyed on the homeserver.
@@ -57,8 +64,14 @@ class DeckEditorViewModel(
             Log.d(TAG, "loadExisting: deckId=$deckId")
             val deck = deckRepository.getLocal(deckId!!) ?: return@launch
             loadedDeck = deck
-            val cards = runCatching { cardRepository.listByDeck(deckId).orderedBy(deck) }
-                .getOrElse { emptyList() }
+            // A cache read returns nothing on a cold launch, which would open the editor empty.
+            val cards = cardRepository.fetchByDeck(deck)
+                .onFailure { err ->
+                    Log.e(TAG, "loadExisting: cards FAILED — ${err.message}", err)
+                    cardsLoadFailed = true
+                }
+                .getOrDefault(emptyList())
+                .orderedBy(deck)
             _state.update { DeckEditorUiState(
                 isNew = false,
                 coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.toString() ?: "",
@@ -66,6 +79,7 @@ class DeckEditorViewModel(
                 description = deck.description ?: "",
                 tags = deck.tags.map { it.value },
                 cards = cards.map { it.toEditable() },
+                error = if (cardsLoadFailed) CARDS_LOAD_FAILED else null,
             ) }
         }
     }
@@ -143,6 +157,10 @@ class DeckEditorViewModel(
     fun onSaveClick() {
         if (saveJob?.isActive == true) return
         val s = _state.value
+        if (cardsLoadFailed) {
+            _state.update { it.copy(error = CARDS_LOAD_FAILED) }
+            return
+        }
         if (s.title.isBlank()) {
             _state.update { it.copy(error = "Title is required.") }
             return
@@ -193,6 +211,9 @@ class DeckEditorViewModel(
         }
     }
 }
+
+private const val CARDS_LOAD_FAILED =
+    "Couldn't load this deck's cards. Saving now would remove them, so try again when you're back online."
 
 private const val TITLE_MAX_LENGTH = 120
 private const val DESCRIPTION_MAX_LENGTH = 500
