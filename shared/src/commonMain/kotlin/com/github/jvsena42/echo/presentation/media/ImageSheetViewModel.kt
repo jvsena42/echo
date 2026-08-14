@@ -27,6 +27,9 @@ class ImageSheetViewModel(
 
     private var searchJob: Job? = null
 
+    /** Photo ids already reported to Unsplash, so re-picking the same photo doesn't double-count. */
+    private val pinged = mutableSetOf<String>()
+
     init {
         if (unsplashClient.isConfigured) loadInitial()
     }
@@ -54,6 +57,23 @@ class ImageSheetViewModel(
         }
     }
 
+    /** Highlights [photo] in the grid. Selection lives here so the credit line and the Done
+     *  button both see the whole photo, not just its URL. */
+    fun onPhotoSelected(photo: UnsplashPhoto) {
+        _state.update { it.copy(selectedPhoto = photo) }
+    }
+
+    /**
+     * Reports the selected photo to Unsplash as used — call this when the pick is committed, not
+     * when it is merely highlighted. Fire-and-forget: a failed ping must never block the user, so
+     * it is neither awaited nor surfaced as an error.
+     */
+    fun onPhotoUsed() {
+        val photo = _state.value.selectedPhoto ?: return
+        if (!pinged.add(photo.id)) return
+        viewModelScope.launch { unsplashClient.trackDownload(photo) }
+    }
+
     private fun Throwable.error(): String = message ?: "Could not load images."
 
     companion object {
@@ -66,5 +86,6 @@ data class ImageSheetUiState(
     val photos: List<UnsplashPhoto> = emptyList(),
     val isLoading: Boolean = false,
     val isUnsplashConfigured: Boolean = false,
+    val selectedPhoto: UnsplashPhoto? = null,
     val error: String? = null,
 )
