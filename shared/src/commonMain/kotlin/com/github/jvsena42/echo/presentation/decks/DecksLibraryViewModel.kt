@@ -72,6 +72,14 @@ class DecksLibraryViewModel(
         }
     }
 
+    fun onQueryChanged(query: String) {
+        _state.update { s -> if (s is DecksLibraryUiState.Content) s.copy(query = query) else s }
+    }
+
+    fun onSortChanged(sort: DeckSort) {
+        _state.update { s -> if (s is DecksLibraryUiState.Content) s.copy(sort = sort) else s }
+    }
+
     fun onDeckClick(deckId: String) {
         viewModelScope.launch { _effects.emit(DecksLibraryEffect.NavigateDeckDetail(deckId)) }
     }
@@ -90,6 +98,7 @@ class DecksLibraryViewModel(
         cardCount = cardCount,
         coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
         authorLabel = if (authorPubky == myPubky) "@you" else "@${authorPubky.take(AUTHOR_PUBKY_PREFIX_LEN)}",
+        updatedAt = updatedAt,
     )
 
     companion object {
@@ -104,9 +113,28 @@ sealed interface DecksLibraryUiState {
     data class Content(
         val deckCount: Int,
         val decks: List<DeckTileModel>,
-    ) : DecksLibraryUiState
+        val query: String = "",
+        val sort: DeckSort = DeckSort.Recent,
+    ) : DecksLibraryUiState {
+        /**
+         * Filtering and sorting happen over the already-loaded list — the library is small and
+         * Pubky has no query API, so there is nothing to gain from a round trip.
+         */
+        val visibleDecks: List<DeckTileModel>
+            get() = decks
+                .filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) }
+                .let { filtered ->
+                    when (sort) {
+                        DeckSort.Recent -> filtered.sortedByDescending { it.updatedAt }
+                        DeckSort.Alphabetical -> filtered.sortedBy { it.title.lowercase() }
+                        DeckSort.CardCount -> filtered.sortedByDescending { it.cardCount }
+                    }
+                }
+    }
     data class Error(val reason: ErrorReason) : DecksLibraryUiState
 }
+
+enum class DeckSort { Recent, Alphabetical, CardCount }
 
 data class DeckTileModel(
     val id: String,
@@ -114,6 +142,7 @@ data class DeckTileModel(
     val cardCount: Int,
     val coverEmoji: String,
     val authorLabel: String,
+    val updatedAt: Long,
 )
 
 sealed interface DecksLibraryEffect {

@@ -321,4 +321,9 @@
     <string name="share_deck_body">%1$s on Echo\n%2$s</string>
     <string name="deck_editor_move_up">Move card up</string>
     <string name="deck_editor_move_down">Move card down</string>
+    <string name="decks_sort_recent">Recent</string>
+    <string name="decks_sort_alphabetical">A–Z</string>
+    <string name="decks_sort_cards">Most cards</string>
+    <string name="decks_search_placeholder">Search your decks</string>
+    <string name="decks_search_no_results">No decks match “%1$s”.</string>
 </resources>
