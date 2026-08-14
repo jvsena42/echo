@@ -77,6 +77,27 @@ class TriageViewModel(
         }
     }
 
+    /**
+     * Step back to the previous card and reset it to Keep.
+     *
+     * Discarding was irreversible: a card discarded by mistake — including any image just
+     * attached to it in the triage editor — was gone with no undo and no way back.
+     */
+    fun onUndo() {
+        val s = _state.value
+        if (s.currentIndex <= 0) return
+        val previous = s.cards.getOrNull(s.currentIndex - 1) ?: return
+        importRepository.setDecision(previous.rowIndex, TriageDecision.Keep)
+        val decisions = importRepository.decisions()
+        _state.update {
+            it.copy(
+                currentIndex = it.currentIndex - 1,
+                keptCount = decisions.count { d -> d.value == TriageDecision.Keep },
+                discardedCount = decisions.count { d -> d.value == TriageDecision.Discard },
+            )
+        }
+    }
+
     fun onEditClick() {
         val card = _state.value.cards.getOrNull(_state.value.currentIndex) ?: return
         viewModelScope.launch { _effects.emit(TriageEffect.NavigateEditCard(card.rowIndex)) }
@@ -114,6 +135,9 @@ data class TriageUiState(
     val error: String? = null,
 ) {
     val currentCard: TriageCard? get() = cards.getOrNull(currentIndex)
+
+    /** There is a previous card to step back to. */
+    val canUndo: Boolean get() = currentIndex > 0
 }
 
 data class TriageCard(

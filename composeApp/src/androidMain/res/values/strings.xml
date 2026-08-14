@@ -332,4 +332,12 @@
     <string name="form_description_too_long">Description must be 500 characters or fewer.</string>
     <string name="paste_validation_empty">Paste or type your list first.</string>
     <string name="paste_validation_no_cards">No cards found yet — check the separator or add a front and back.</string>
+    <string name="permission_mic_title">Practise your pronunciation</string>
+    <string name="permission_mic_rationale">Speak listens while you say the word and tells you how close you were. Audio is processed on your device and never leaves it.</string>
+    <string name="permission_mic_denied_title">Microphone is off</string>
+    <string name="permission_mic_denied_message">Speak needs microphone access, and Android won\'t ask again. You can turn it on in Settings.</string>
+    <string name="permission_continue">Continue</string>
+    <string name="permission_not_now">Not now</string>
+    <string name="permission_open_settings">Open settings</string>
+    <string name="triage_undo">Undo last card</string>
 </resources>

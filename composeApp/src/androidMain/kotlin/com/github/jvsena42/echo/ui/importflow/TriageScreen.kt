@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
@@ -104,6 +105,7 @@ fun TriageRoute(
         state = state,
         onBackClick = viewModel::onBackClick,
         onApproveAll = viewModel::onApproveAll,
+        onUndo = viewModel::onUndo,
         onDiscard = viewModel::onDiscard,
         onEditClick = viewModel::onEditClick,
         onKeep = viewModel::onKeep,
@@ -116,6 +118,7 @@ private fun TriageScreen(
     state: TriageUiState,
     onBackClick: () -> Unit,
     onApproveAll: () -> Unit,
+    onUndo: () -> Unit,
     onDiscard: () -> Unit,
     onEditClick: () -> Unit,
     onKeep: () -> Unit,
@@ -167,6 +170,19 @@ private fun TriageScreen(
                     }
                 },
                 actions = {
+                    // Persistent, not just a snackbar: the point is recovering work you spent
+                    // time on (an image attached in the triage editor), which outlives a toast.
+                    IconButton(
+                        onClick = onUndo,
+                        enabled = state.canUndo,
+                        modifier = Modifier.testTag("triage_undo"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Undo,
+                            contentDescription = stringResource(R.string.triage_undo),
+                            tint = if (state.canUndo) colors.foregroundPrimary else colors.borderSubtle,
+                        )
+                    }
                     TextButton(
                         onClick = onApproveAll,
                         modifier = Modifier.testTag("triage_approve_all"),
@@ -508,6 +524,7 @@ private fun TriageScreenPreview() {
             ),
             onBackClick = {},
             onApproveAll = {},
+            onUndo = {},
             onDiscard = {},
             onEditClick = {},
             onKeep = {},
