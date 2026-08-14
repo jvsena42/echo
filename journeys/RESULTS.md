@@ -58,6 +58,15 @@ confirm the edit persisted. Scripted; drive with adb.
 picker and is a manual check. Sheet test-tags surface correctly (the sheet content sets
 `testTagsAsResourceId` since `ModalBottomSheet` renders in a separate window).
 
+Re-run on `emulator-5554` 2026-08-14 **with a real `UNSPLASH_ACCESS_KEY`** — the first time the
+web grid path has actually been exercised. The grid populates, every cell shows its photographer
+over a gradient scrim, and `image_credit` reads "Photos from Unsplash" before a selection and
+"Photo by NIR HIMI on Unsplash" after one. Both links open Chrome at
+`unsplash.com/@nirhimi?utm_source=echo&utm_medium=referral` and
+`unsplash.com/?utm_source=echo&utm_medium=referral` respectively, and Done still applies the cover.
+The `download_location` ping is covered by `UnsplashClientTest` (exact URL + auth header) rather
+than observed on the wire.
+
 ## 09 — Speak study — ✅ PARTIAL PASS
 
 `journeys/09-speak-study.xml`. On `emulator-5554` 2026-06-17: studying the speak-enabled "Sky"
