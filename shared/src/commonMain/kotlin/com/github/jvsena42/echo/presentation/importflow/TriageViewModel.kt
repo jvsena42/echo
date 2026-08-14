@@ -25,6 +25,9 @@ class TriageViewModel(
     private val _state = MutableStateFlow(TriageUiState())
     val state: StateFlow<TriageUiState> = _state.asStateFlow()
 
+    /** Index of the card whose decision `onUndo` reverts; null once undone or before any decision. */
+    private var lastDecidedIndex: Int? = null
+
     private val _effects = MutableSharedFlow<TriageEffect>(extraBufferCapacity = 4)
     val effects: SharedFlow<TriageEffect> = _effects.asSharedFlow()
 
@@ -63,16 +66,22 @@ class TriageViewModel(
         val s = _state.value
         val card = s.cards.getOrNull(s.currentIndex) ?: return
         importRepository.setDecision(card.rowIndex, decision)
+        lastDecidedIndex = s.currentIndex
         val decisions = importRepository.decisions()
         val kept = decisions.count { it.value == TriageDecision.Keep }
         val discarded = decisions.count { it.value == TriageDecision.Discard }
         val isLast = s.currentIndex >= s.total - 1
         if (isLast) {
-            _state.update { it.copy(keptCount = kept, discardedCount = discarded) }
+            _state.update { it.copy(keptCount = kept, discardedCount = discarded, canUndo = true) }
             proceed()
         } else {
             _state.update {
-                it.copy(currentIndex = it.currentIndex + 1, keptCount = kept, discardedCount = discarded)
+                it.copy(
+                    currentIndex = it.currentIndex + 1,
+                    keptCount = kept,
+                    discardedCount = discarded,
+                    canUndo = true,
+                )
             }
         }
     }
@@ -84,16 +93,21 @@ class TriageViewModel(
      * attached to it in the triage editor — was gone with no undo and no way back.
      */
     fun onUndo() {
+        // Revert the last card *decided*, not simply the one before the cursor: discarding the
+        // final card does not advance the index, so a step-back-only undo could never recover
+        // it — exactly the card most worth recovering.
+        val target = lastDecidedIndex ?: return
         val s = _state.value
-        if (s.currentIndex <= 0) return
-        val previous = s.cards.getOrNull(s.currentIndex - 1) ?: return
-        importRepository.setDecision(previous.rowIndex, TriageDecision.Keep)
+        val card = s.cards.getOrNull(target) ?: return
+        importRepository.setDecision(card.rowIndex, TriageDecision.Keep)
+        lastDecidedIndex = null
         val decisions = importRepository.decisions()
         _state.update {
             it.copy(
-                currentIndex = it.currentIndex - 1,
+                currentIndex = target,
                 keptCount = decisions.count { d -> d.value == TriageDecision.Keep },
                 discardedCount = decisions.count { d -> d.value == TriageDecision.Discard },
+                canUndo = false,
             )
         }
     }
@@ -133,11 +147,10 @@ data class TriageUiState(
     val keptCount: Int = 0,
     val discardedCount: Int = 0,
     val error: String? = null,
+    /** A decision has been made that can still be reverted. */
+    val canUndo: Boolean = false,
 ) {
     val currentCard: TriageCard? get() = cards.getOrNull(currentIndex)
-
-    /** There is a previous card to step back to. */
-    val canUndo: Boolean get() = currentIndex > 0
 }
 
 data class TriageCard(

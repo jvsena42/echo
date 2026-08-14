@@ -56,7 +56,7 @@ class TriageViewModelTest {
     }
 
     @Test
-    fun undoIsUnavailableOnTheFirstCard() = runTest {
+    fun undoIsUnavailableUntilSomethingIsDecided() = runTest {
         val vm = viewModel()
 
         assertFalse(vm.state.value.canUndo)
@@ -67,12 +67,29 @@ class TriageViewModelTest {
     }
 
     @Test
-    fun undoOnTheFirstCardIsANoOp() = runTest {
+    fun undoBeforeAnyDecisionIsANoOp() = runTest {
         val vm = viewModel()
 
         vm.onUndo()
 
         assertEquals(0, vm.state.value.currentIndex)
+    }
+
+    @Test
+    fun discardingTheLastCardIsStillUndoable() = runTest {
+        // Discarding the final card does not advance the cursor, so a step-back-only undo
+        // could never recover it — found by driving a one-card deck on the emulator.
+        val single = FakeImportRepository(draft = testDraft("solo" to "only"))
+        val vm = TriageViewModel(importRepository = single)
+
+        vm.onDiscard()
+        assertEquals(TriageDecision.Discard, single.decisions()[0])
+        assertTrue(vm.state.value.canUndo)
+
+        vm.onUndo()
+
+        assertEquals(TriageDecision.Keep, single.decisions()[0])
+        assertEquals(expected = 0, actual = vm.state.value.discardedCount)
     }
 
     @Test
