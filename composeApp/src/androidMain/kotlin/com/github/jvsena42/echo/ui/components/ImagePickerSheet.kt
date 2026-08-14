@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -38,29 +39,37 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.data.unsplash.UNSPLASH_HOME_URL
+import com.github.jvsena42.echo.data.unsplash.UnsplashPhoto
 import com.github.jvsena42.echo.platform.MediaProcessor
 import com.github.jvsena42.echo.presentation.media.ImageSheetViewModel
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import com.github.jvsena42.echo.ui.util.openUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -89,7 +98,7 @@ fun ImagePickerSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var selectedUrl by remember { mutableStateOf<String?>(null) }
+    val selectedPhoto = state.selectedPhoto
 
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia(),
@@ -127,8 +136,15 @@ fun ImagePickerSheet(
             ) {
                 Text(text = title, fontSize = 20.sp, fontWeight = FontWeight.W800, color = colors.foregroundPrimary)
                 Button(
-                    onClick = { selectedUrl?.let { onSelected(ImageSelection.Web(it)) } },
-                    enabled = selectedUrl != null,
+                    onClick = {
+                        selectedPhoto?.let {
+                            // Unsplash counts this as a "download"; report it before we hand the
+                            // pick back and the sheet goes away.
+                            viewModel.onPhotoUsed()
+                            onSelected(ImageSelection.Web(it.fullUrl))
+                        }
+                    },
+                    enabled = selectedPhoto != null,
                     modifier = Modifier.testTag("image_sheet_done"),
                     shape = RoundedCornerShape(50),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
@@ -220,22 +236,11 @@ fun ImagePickerSheet(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         itemsIndexed(state.photos, key = { _, p -> p.id }) { index, photo ->
-                            val selected = selectedUrl == photo.fullUrl
-                            AsyncImage(
-                                model = photo.thumbUrl,
-                                contentDescription = photo.authorName,
-                                // Without this AsyncImage defaults to ContentScale.Fit, which
-                                // letterboxes inside the square and makes the grid look ragged.
-                                contentScale = ContentScale.Crop,
+                            PhotoGridCell(
+                                photo = photo,
+                                selected = selectedPhoto?.id == photo.id,
+                                onClick = { viewModel.onPhotoSelected(photo) },
                                 modifier = Modifier
-                                    .aspectRatio(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .border(
-                                        width = if (selected) 2.5.dp else 1.dp,
-                                        color = if (selected) colors.accentPrimary else colors.borderSubtle,
-                                        shape = RoundedCornerShape(12.dp),
-                                    )
-                                    .clickable { selectedUrl = photo.fullUrl }
                                     .testTag(if (index == 0) "image_grid_cell" else "image_grid_cell_$index"),
                             )
                         }
@@ -243,9 +248,125 @@ fun ImagePickerSheet(
                 }
             }
 
+            // Required by the Unsplash API guidelines whenever their photos are on screen.
+            if (state.photos.isNotEmpty()) {
+                UnsplashCredit(photo = selectedPhoto, onOpenUrl = context::openUrl)
+            }
+
             state.error?.let { Text(it, fontSize = 12.sp, color = colors.danger) }
         }
     }
+}
+
+/**
+ * One grid cell: the thumbnail with the photographer's name in a bottom scrim. The name is a
+ * licensing requirement, not decoration — it used to live only in `contentDescription`, where no
+ * sighted user could see it. It is deliberately not tappable; the links live in [UnsplashCredit]
+ * below the grid so a tap on a ~110dp cell unambiguously means "select this photo".
+ */
+@Composable
+private fun PhotoGridCell(
+    photo: UnsplashPhoto,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = EchoTheme.colors
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(12.dp))
+            .border(
+                width = if (selected) 2.5.dp else 1.dp,
+                color = if (selected) colors.accentPrimary else colors.borderSubtle,
+                shape = RoundedCornerShape(12.dp),
+            )
+            .clickable(onClick = onClick),
+    ) {
+        AsyncImage(
+            model = photo.thumbUrl,
+            // The visible name labels the cell for screen readers; only fall back when it's blank.
+            contentDescription = photo.authorName.ifBlank { stringResource(R.string.image_sheet_photo) },
+            // Without this AsyncImage defaults to ContentScale.Fit, which
+            // letterboxes inside the square and makes the grid look ragged.
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.matchParentSize(),
+        )
+        if (photo.authorName.isNotBlank()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.45f)
+                    .background(
+                        Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))),
+                    ),
+                contentAlignment = Alignment.BottomStart,
+            ) {
+                Text(
+                    text = photo.authorName,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.W600,
+                    color = colors.foregroundOnAccent,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The linked half of the attribution: "Photo by X on Unsplash" once something is picked,
+ * "Photos from Unsplash" before that. Both links carry the referral params the guidelines require
+ * (already baked into [UnsplashPhoto.authorProfileUrl] and [UNSPLASH_HOME_URL]).
+ */
+@Composable
+private fun UnsplashCredit(
+    photo: UnsplashPhoto?,
+    onOpenUrl: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = EchoTheme.colors
+    val unsplash = stringResource(R.string.image_sheet_credit_unsplash)
+    val unknownAuthor = stringResource(R.string.image_sheet_credit_unknown_author)
+    val author = photo?.authorName?.ifBlank { unknownAuthor }
+    val text = if (author == null) {
+        stringResource(R.string.image_sheet_credit_platform, unsplash)
+    } else {
+        stringResource(R.string.image_sheet_credit, author, unsplash)
+    }
+    val linkStyles = TextLinkStyles(
+        style = SpanStyle(color = colors.accentPrimary, textDecoration = TextDecoration.Underline),
+    )
+    val annotated = buildAnnotatedString {
+        append(text)
+        val authorUrl = photo?.authorProfileUrl.orEmpty()
+        val authorStart = if (author != null && authorUrl.isNotBlank()) text.indexOf(author) else -1
+        if (authorStart >= 0 && author != null) {
+            addLink(
+                LinkAnnotation.Url(authorUrl, linkStyles) { onOpenUrl(authorUrl) },
+                authorStart,
+                authorStart + author.length,
+            )
+        }
+        // Last occurrence: a photographer literally named "Unsplash" would otherwise steal it.
+        val platformStart = text.lastIndexOf(unsplash)
+        if (platformStart >= 0) {
+            addLink(
+                LinkAnnotation.Url(UNSPLASH_HOME_URL, linkStyles) { onOpenUrl(UNSPLASH_HOME_URL) },
+                platformStart,
+                platformStart + unsplash.length,
+            )
+        }
+    }
+    Text(
+        text = annotated,
+        fontSize = 11.sp,
+        color = colors.foregroundMuted,
+        modifier = modifier.testTag("image_credit"),
+    )
 }
 
 @Composable
