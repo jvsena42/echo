@@ -46,11 +46,15 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -59,11 +63,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.decks.DeckEditorEffect
 import com.github.jvsena42.echo.presentation.decks.DeckEditorUiState
 import com.github.jvsena42.echo.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.echo.presentation.decks.EditableCardModel
+import com.github.jvsena42.echo.ui.components.ImagePickerSheet
+import com.github.jvsena42.echo.ui.components.ImageSelection
 import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
@@ -105,6 +112,8 @@ fun DeckEditorRoute(
         onCardClick = viewModel::onCardClick,
         onAddCard = viewModel::onAddCard,
         onMoveCard = viewModel::onMoveCard,
+        onCoverWebSelected = viewModel::onCoverWebSelected,
+        onCoverGallerySelected = viewModel::onCoverGallerySelected,
     )
 }
 
@@ -121,8 +130,26 @@ fun DeckEditorScreen(
     onCardClick: (String) -> Unit,
     onAddCard: () -> Unit,
     onMoveCard: (Int, Int) -> Unit,
+    onCoverWebSelected: (String) -> Unit,
+    onCoverGallerySelected: (ByteArray, String) -> Unit,
 ) {
     val colors = EchoTheme.colors
+    var showCoverSheet by rememberSaveable { mutableStateOf(false) }
+
+    if (showCoverSheet) {
+        ImagePickerSheet(
+            title = stringResource(R.string.deck_editor_cover),
+            subtitle = null,
+            onDismiss = { showCoverSheet = false },
+            onSelected = { selection ->
+                when (selection) {
+                    is ImageSelection.Web -> onCoverWebSelected(selection.url)
+                    is ImageSelection.Gallery -> onCoverGallerySelected(selection.bytes, selection.mime)
+                }
+                showCoverSheet = false
+            },
+        )
+    }
 
     Scaffold(
         containerColor = colors.surfacePrimary,
@@ -211,15 +238,26 @@ fun DeckEditorScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    // Cover emoji box
+                    // Cover box — tappable so a deck's cover can be changed after publishing,
+                    // which was previously impossible: the picker only existed on the publish step.
                     Box(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(colors.accentPrimarySoft),
+                            .background(colors.accentPrimarySoft)
+                            .clickable { showCoverSheet = true }
+                            .testTag("deck_editor_cover"),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (state.coverEmoji.isNotEmpty()) {
+                        val pickedCover = state.coverImageUrl
+                        if (pickedCover != null) {
+                            AsyncImage(
+                                model = pickedCover,
+                                contentDescription = stringResource(R.string.deck_editor_cover),
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else if (state.coverEmoji.isNotEmpty()) {
                             Text(text = state.coverEmoji, fontSize = 32.sp)
                         } else {
                             Icon(
@@ -537,6 +575,8 @@ private fun DeckEditorScreenPreview() {
             onAddTag = {},
             onCardClick = {},
             onMoveCard = { _, _ -> },
+            onCoverWebSelected = {},
+            onCoverGallerySelected = { _, _ -> },
             onAddCard = {},
         )
     }

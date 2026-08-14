@@ -5,10 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.repository.CardRepository
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
+import com.github.jvsena42.echo.data.repository.MediaRepository
 import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.CardIndexEntry
 import com.github.jvsena42.echo.domain.model.CardSide
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.domain.model.orderedBy
 import com.github.jvsena42.echo.util.Log
@@ -28,6 +30,7 @@ class DeckEditorViewModel(
     private val deckRepository: DeckRepository,
     private val cardRepository: CardRepository,
     private val identityRepository: IdentityRepository,
+    private val mediaRepository: MediaRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(DeckEditorUiState())
     val state: StateFlow<DeckEditorUiState> = _state.asStateFlow()
@@ -106,6 +109,19 @@ class DeckEditorViewModel(
      * manifest's `cardIndex` order. `onSaveClick` writes `cardIndex` in list order, so moving
      * here is all that's needed now.
      */
+    /**
+     * A cover could previously only be set while publishing — the editor's cover box was not
+     * tappable, so an existing deck's cover could never be changed. Mirrors the identical pair
+     * on [com.github.jvsena42.echo.presentation.importflow.PublishDeckViewModel].
+     */
+    fun onCoverWebSelected(url: String) {
+        _state.update { it.copy(coverImageUrl = url, coverPendingBytes = null, coverPendingMime = null) }
+    }
+
+    fun onCoverGallerySelected(bytes: ByteArray, mime: String) {
+        _state.update { it.copy(coverImageUrl = null, coverPendingBytes = bytes, coverPendingMime = mime) }
+    }
+
     fun onMoveCard(from: Int, to: Int) {
         _state.update { s ->
             if (from !in s.cards.indices || to !in s.cards.indices || from == to) return@update s
@@ -152,7 +168,8 @@ class DeckEditorViewModel(
             val actualDeckId = deckId ?: generateId()
             val existing = loadedDeck ?: deckId?.let { deckRepository.getLocal(it) }
             val cards = buildCards(s.cards, actualDeckId, now)
-            val deck = buildDeck(s, authorPubky, actualDeckId, existing, cards, now)
+            val cover = resolveCoverImage(s, actualDeckId, mediaRepository) ?: existing?.coverImageRef
+            val deck = buildDeck(s, authorPubky, actualDeckId, existing, cards, now, cover)
 
             deckRepository.publish(deck, cards)
                 .onSuccess {
@@ -167,31 +184,59 @@ class DeckEditorViewModel(
         }
     }
 
-    private fun titleErrorFor(text: String): String? =
-        if (text.length > TITLE_MAX_LENGTH) "Title must be $TITLE_MAX_LENGTH characters or fewer." else null
-
-    private fun descriptionErrorFor(text: String): String? =
-        if (text.length > DESCRIPTION_MAX_LENGTH) "Description must be $DESCRIPTION_MAX_LENGTH characters or fewer." else null
-
-    private fun Card.toEditable(): EditableCardModel = EditableCardModel(
-        id = id,
-        frontText = front.text ?: "",
-        backText = back.text ?: "",
-        hasImage = front.imageRef != null || back.imageRef != null,
-        hasAudio = front.audioRef != null || back.audioRef != null,
-        original = this,
-    )
-
     companion object {
         private const val TAG = "Echo/DeckEditorVM"
-        private const val TITLE_MAX_LENGTH = 120
-        private const val DESCRIPTION_MAX_LENGTH = 500
 
         private fun generateId(): String {
             val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
             return (1..12).map { chars.random() }.joinToString("")
         }
     }
+}
+
+private const val TITLE_MAX_LENGTH = 120
+private const val DESCRIPTION_MAX_LENGTH = 500
+private const val DEFAULT_IMAGE_MIME = "image/jpeg"
+
+private fun titleErrorFor(text: String): String? =
+    if (text.length > TITLE_MAX_LENGTH) "Title must be $TITLE_MAX_LENGTH characters or fewer." else null
+
+private fun descriptionErrorFor(text: String): String? =
+    if (text.length > DESCRIPTION_MAX_LENGTH) {
+        "Description must be $DESCRIPTION_MAX_LENGTH characters or fewer."
+    } else {
+        null
+    }
+
+private fun Card.toEditable(): EditableCardModel = EditableCardModel(
+    id = id,
+    frontText = front.text ?: "",
+    backText = back.text ?: "",
+    hasImage = front.imageRef != null || back.imageRef != null,
+    hasAudio = front.audioRef != null || back.audioRef != null,
+    original = this,
+)
+
+/** Uploads picked gallery bytes or wraps a web URL; null means "keep whatever is there". */
+private suspend fun resolveCoverImage(
+    s: DeckEditorUiState,
+    deckId: String,
+    mediaRepository: MediaRepository,
+): MediaRef.Image? = when {
+    s.coverPendingBytes != null ->
+        mediaRepository.putImage(deckId, s.coverPendingBytes, s.coverPendingMime ?: DEFAULT_IMAGE_MIME)
+            .getOrNull()
+
+    s.coverImageUrl != null -> MediaRef.Image(
+        path = "",
+        mime = DEFAULT_IMAGE_MIME,
+        sha256 = "",
+        width = null,
+        height = null,
+        url = s.coverImageUrl,
+    )
+
+    else -> null
 }
 
 /**
@@ -227,13 +272,14 @@ private fun buildDeck(
     existing: Deck?,
     cards: List<Card>,
     now: Long,
+    coverImageRef: MediaRef.Image?,
 ): Deck = Deck(
     id = deckId,
     authorPubky = authorPubky,
     title = s.title,
     description = s.description.ifBlank { null },
     coverEmoji = s.coverEmoji.ifBlank { null },
-    coverImageRef = existing?.coverImageRef,
+    coverImageRef = coverImageRef,
     tags = s.tags.map { Tag(it) },
     createdAt = if (s.isNew) now else existing?.createdAt ?: now,
     updatedAt = now,
@@ -249,6 +295,9 @@ data class DeckEditorUiState(
     val description: String = "",
     val tags: List<String> = emptyList(),
     val cards: List<EditableCardModel> = emptyList(),
+    val coverImageUrl: String? = null,
+    val coverPendingBytes: ByteArray? = null,
+    val coverPendingMime: String? = null,
     val isSaving: Boolean = false,
     val titleError: String? = null,
     val descriptionError: String? = null,

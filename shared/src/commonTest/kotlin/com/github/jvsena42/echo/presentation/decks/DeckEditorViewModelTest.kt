@@ -7,6 +7,7 @@ import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.testing.FakeCardRepository
 import com.github.jvsena42.echo.testing.FakeDeckRepository
 import com.github.jvsena42.echo.testing.FakeIdentityRepository
+import com.github.jvsena42.echo.testing.FakeMediaRepository
 import com.github.jvsena42.echo.testing.TEST_PUBKY
 import com.github.jvsena42.echo.testing.testDeck
 import kotlinx.coroutines.Dispatchers
@@ -93,6 +94,7 @@ class DeckEditorViewModelTest {
         deckRepository = deckRepo,
         cardRepository = cardRepo,
         identityRepository = identityRepo,
+        mediaRepository = FakeMediaRepository(),
     )
 
     @Test

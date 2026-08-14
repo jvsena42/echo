@@ -91,6 +91,7 @@ val sharedModule = module {
             deckRepository = get(),
             cardRepository = get(),
             identityRepository = get(),
+            mediaRepository = get(),
         )
     }
     viewModel { params ->
