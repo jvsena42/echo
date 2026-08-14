@@ -36,7 +36,8 @@ struct DecksScreen: View {
                         title: deck.title,
                         cardCount: Int(deck.cardCount),
                         coverEmoji: deck.coverEmoji,
-                        authorLabel: deck.authorLabel
+                        authorLabel: IdentityData(deck.author).label,
+                        isOwned: deck.isOwned
                     )
                 }
             )

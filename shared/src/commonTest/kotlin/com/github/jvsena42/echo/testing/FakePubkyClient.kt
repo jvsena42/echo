@@ -23,6 +23,7 @@ class FakePubkyClient : PubkyClient {
     val bytePuts = mutableListOf<Pair<String, ByteArray>>()
     val deletes = mutableListOf<String>()
     val listedPrefixes = mutableListOf<String>()
+    val signOuts = mutableListOf<String>()
 
     /** When set, the next session-authenticated write/delete fails once with this error. */
     var failNextSessionCallWith: Throwable? = null
@@ -111,7 +112,11 @@ class FakePubkyClient : PubkyClient {
     ): Result<String> = unused()
 
     override suspend fun signIn(secretKey: String): Result<String> = unused()
-    override suspend fun signOut(sessionSecret: String): Result<String> = unused()
+    override suspend fun signOut(sessionSecret: String): Result<String> {
+        signOuts.add(sessionSecret)
+        return Result.success("ok")
+    }
+
     override suspend fun revalidateSession(sessionSecret: String): Result<String> = unused()
     override suspend fun startAuthFlow(capabilities: String): Result<String> = unused()
     override suspend fun awaitAuthApproval(): Result<String> = unused()

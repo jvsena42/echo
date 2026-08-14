@@ -12,6 +12,7 @@ import com.github.jvsena42.echo.domain.model.Card
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.domain.model.MediaRef
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.domain.model.orderedBy
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
@@ -59,7 +60,6 @@ class DeckDetailViewModel(
 
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
-            val myPubky = session?.identity?.pubky
 
             var deck = deckRepository.getLocal(deckId)
             if (deck == null && authorPubky != null) {
@@ -82,10 +82,10 @@ class DeckDetailViewModel(
                     val dueCount = runCatching { srsRepository.dueForDeck(deckId).size }
                         .getOrDefault(0)
                     val mastered = masteredPercent(cards)
-                    _state.update { deck.toContent(cards, myPubky, dueCount, mastered) }
+                    _state.update { deck.toContent(cards, session?.identity, dueCount, mastered) }
                     Log.d(TAG, "load: cards=${cards.size} due=$dueCount mastered=$mastered")
                     loadCoverBlob(deck.coverImageRef)
-                    loadAuthorAvatar(deck.authorPubky)
+                    loadAuthorProfile(deck.authorPubky)
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
@@ -168,33 +168,41 @@ class DeckDetailViewModel(
     }
 
     /**
-     * Fetches the author's pubky.app profile and folds its avatar URL into the current [Content] so
-     * the author row can show a real picture (falling back to the initial when absent or unset).
+     * Fetches the author's pubky.app profile and folds it into the current [Content], so the author
+     * row shows the same name and picture the author's own profile screen does. Keeps whatever the
+     * session already gave us when the author has published no profile.
      */
-    private suspend fun loadAuthorAvatar(authorPubky: String) {
-        val avatar = identityRepository.fetchProfile(authorPubky).getOrNull()?.avatarUrl
-        if (avatar.isNullOrBlank()) return
+    private suspend fun loadAuthorProfile(authorPubky: String) {
+        val profile = identityRepository.fetchProfile(authorPubky).getOrNull() ?: return
         _state.update { current ->
-            (current as? DeckDetailUiState.Content)?.copy(authorAvatarUrl = avatar) ?: current
+            (current as? DeckDetailUiState.Content)?.let {
+                it.copy(
+                    author = it.author.copy(
+                        displayName = profile.displayName ?: it.author.displayName,
+                        avatarUrl = profile.avatarUrl ?: it.author.avatarUrl,
+                    ),
+                )
+            } ?: current
         }
     }
 
     private fun Deck.toContent(
         cards: List<Card>,
-        myPubky: String?,
+        myIdentity: PubkyIdentity?,
         dueCount: Int,
         mastered: String,
     ): DeckDetailUiState.Content {
-        val isOwned = authorPubky == myPubky
+        val isOwned = authorPubky == myIdentity?.pubky
         return DeckDetailUiState.Content(
             deckId = id,
             title = title,
             description = description,
             coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
             coverImageUrl = coverImageRef?.url,
-            authorName = null,
-            authorPubky = authorPubky,
-            authorInitial = authorPubky.firstOrNull()?.uppercaseChar() ?: '?',
+            // Your own decks can name you straight away from the session; for anyone else the
+            // pubky stands in until loadAuthorProfile lands.
+            author = myIdentity?.takeIf { isOwned }
+                ?: PubkyIdentity(authorPubky, displayName = null, avatarUrl = null, bio = null),
             isOwned = isOwned,
             tags = tags.map { it.value },
             totalCards = cardCount,
@@ -228,10 +236,8 @@ sealed interface DeckDetailUiState {
         val coverEmoji: String,
         val coverImageUrl: String? = null,
         val coverImageBase64: String? = null,
-        val authorName: String?,
-        val authorAvatarUrl: String? = null,
-        val authorPubky: String,
-        val authorInitial: Char,
+        val author: PubkyIdentity,
+        /** Ownership is a separate concern from identity — the author row shows both. */
         val isOwned: Boolean,
         val tags: List<String>,
         val totalCards: Int,

@@ -1,8 +1,10 @@
 package com.github.jvsena42.echo.presentation.discover
 
 import com.github.jvsena42.echo.domain.model.ErrorReason
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.testing.FakeDiscoveryRepository
+import com.github.jvsena42.echo.testing.FakeIdentityRepository
 import com.github.jvsena42.echo.testing.RecordingTagRepository
 import com.github.jvsena42.echo.testing.testDeck
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +26,7 @@ class DiscoverViewModelTest {
 
     private val discovery = FakeDiscoveryRepository()
     private val tagRepo = RecordingTagRepository()
+    private val identity = FakeIdentityRepository()
 
     private val mainDispatcher = StandardTestDispatcher()
 
@@ -40,6 +43,7 @@ class DiscoverViewModelTest {
     private fun viewModel() = DiscoverViewModel(
         discoveryRepository = discovery,
         tagRepository = tagRepo,
+        identityRepository = identity,
     )
 
     private fun seedFeed() {
@@ -113,7 +117,7 @@ class DiscoverViewModelTest {
     }
 
     @Test
-    fun deckCardCarriesAuthorLabelAndEmojiFallback() = runTest {
+    fun deckCardCarriesAuthorAndEmojiFallback() = runTest {
         seedFeed()
         val vm = viewModel()
 
@@ -121,8 +125,38 @@ class DiscoverViewModelTest {
 
         val state = assertIs<DiscoverUiState.Content>(vm.state.value)
         val card = state.decks.first()
-        assertEquals("@friend", card.authorLabel)
+        // No profile published — the tile carries the bare pubky for the UI to truncate.
+        assertEquals("friend1", card.author.pubky)
+        assertNull(card.author.displayName)
         // No cover emoji set — falls back to the title's first character.
         assertEquals("D", card.coverEmoji)
+    }
+
+    @Test
+    fun authorProfilesResolveIntoTilesAfterFirstPaint() = runTest {
+        seedFeed()
+        identity.profiles["friend1"] = PubkyIdentity("friend1", "Ada Lovelace", avatarUrl = null, bio = null)
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = assertIs<DiscoverUiState.Content>(vm.state.value)
+        assertEquals("Ada Lovelace", state.decks.first { it.authorPubky == "friend1" }.author.displayName)
+        // friend2 has no profile — it keeps the pubky rather than blanking out.
+        assertNull(state.decks.first { it.authorPubky == "friend2" }.author.displayName)
+    }
+
+    @Test
+    fun tagFilteringKeepsResolvedAuthorNames() = runTest {
+        seedFeed()
+        identity.profiles["friend1"] = PubkyIdentity("friend1", "Ada Lovelace", avatarUrl = null, bio = null)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onTagSelected(Tag("spanish"))
+        advanceUntilIdle()
+
+        val state = assertIs<DiscoverUiState.Content>(vm.state.value)
+        assertEquals("Ada Lovelace", state.decks.single().author.displayName)
     }
 }

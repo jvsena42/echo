@@ -32,10 +32,13 @@ fun DeckTile(
     title: String,
     cardCount: Int,
     coverEmoji: String,
+    /** Caption after the card count — the author's name, or a tag on a profile grid. */
     authorLabel: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     coverColor: Color = EchoTheme.colors.accentPrimarySoft,
+    /** Marks the deck as the signed-in user's, beside the author name. */
+    showYouBadge: Boolean = false,
     onAuthorClick: (() -> Unit)? = null,
 ) {
     val colors = EchoTheme.colors
@@ -103,12 +106,20 @@ fun DeckTile(
                     text = authorLabel,
                     fontSize = 12.sp,
                     color = colors.accentSecondary,
-                    modifier = if (onAuthorClick != null) {
-                        Modifier.clickable(onClick = onAuthorClick)
-                    } else {
-                        Modifier
-                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = (
+                        if (onAuthorClick != null) {
+                            Modifier.clickable(onClick = onAuthorClick)
+                        } else {
+                            Modifier
+                        }
+                        ).weight(1f, fill = false),
                 )
+                if (showYouBadge) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    YouBadge()
+                }
             }
         }
     }
@@ -127,8 +138,9 @@ private fun DeckTilePreview() {
                 title = "Spanish Basics",
                 cardCount = 42,
                 coverEmoji = "🇪🇸",
-                authorLabel = "@ada",
+                authorLabel = "Ada Lovelace",
                 onClick = {},
+                showYouBadge = true,
                 onAuthorClick = {},
                 modifier = Modifier.width(180.dp),
             )

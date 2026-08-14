@@ -26,15 +26,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
+import com.github.jvsena42.echo.domain.model.avatarInitial
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import com.github.jvsena42.echo.ui.util.label
+import com.github.jvsena42.echo.ui.util.truncatedPubky
 
 @Composable
 fun AuthorRow(
-    name: String?,
-    pubky: String,
-    initial: Char,
+    identity: PubkyIdentity,
     modifier: Modifier = Modifier,
-    avatarUrl: String? = null,
+    /** Adds a "You" badge beside the name — ownership never replaces the identity. */
     isOwned: Boolean = false,
     isFollowing: Boolean = false,
     /** Disables + dims the pill while a follow/unfollow request is in flight. */
@@ -58,14 +60,14 @@ fun AuthorRow(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = initial.uppercase(),
+                text = identity.avatarInitial.toString(),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.W800,
                 color = colors.accentSecondary,
             )
-            if (!avatarUrl.isNullOrBlank()) {
+            if (!identity.avatarUrl.isNullOrBlank()) {
                 AsyncImage(
-                    model = avatarUrl,
+                    model = identity.avatarUrl,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
@@ -75,25 +77,31 @@ fun AuthorRow(
 
         Spacer(modifier = Modifier.width(10.dp))
 
-        // Name column — owned decks read "@you" with no pubky subtitle.
+        // Name column — the same name every other screen shows for this person, with the pubky
+        // truncated underneath it and ownership added as a badge rather than swapped in.
         Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = identity.label(),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.W700,
+                    color = colors.foregroundPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (isOwned) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    YouBadge()
+                }
+            }
             Text(
-                text = if (isOwned) stringResource(R.string.component_author_row_you) else name ?: pubky,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.W700,
-                color = colors.foregroundPrimary,
+                text = truncatedPubky(identity.pubky),
+                fontSize = 11.sp,
+                color = colors.foregroundMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (!isOwned) {
-                Text(
-                    text = pubky,
-                    fontSize = 11.sp,
-                    color = colors.foregroundMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
 
         // Follow button — hidden for your own deck.
@@ -135,29 +143,26 @@ private fun AuthorRowPreview() {
                 .padding(16.dp),
         ) {
             AuthorRow(
-                name = "Ada Lovelace",
-                pubky = "pubky:ada1xqz9...",
-                initial = 'A',
+                identity = previewIdentity("ada1xqz9uvwxyz", "Ada Lovelace"),
                 isFollowing = false,
                 onFollowClick = {},
             )
             Spacer(modifier = Modifier.size(12.dp))
             AuthorRow(
-                name = null,
-                pubky = "pubky:byron7yt2...",
-                initial = 'B',
+                identity = previewIdentity("byron7yt2abcdef", name = null),
                 isFollowing = true,
                 onFollowClick = {},
             )
             Spacer(modifier = Modifier.size(12.dp))
             AuthorRow(
-                name = null,
-                pubky = "pubky:you9xqz1...",
-                initial = 'Y',
+                identity = previewIdentity("you9xqz1ghijkl", "Cosmic-Crystal-Panda"),
                 isOwned = true,
             )
         }
     }
 }
+
+private fun previewIdentity(pubky: String, name: String?) =
+    PubkyIdentity(pubky = pubky, displayName = name, avatarUrl = null, bio = null)
 
 private const val PENDING_ALPHA = 0.5f

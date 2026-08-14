@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.presentation.decks.CardPreviewModel
 import com.github.jvsena42.echo.presentation.decks.DeckDetailEffect
 import com.github.jvsena42.echo.presentation.decks.DeckDetailUiState
@@ -312,10 +313,7 @@ private fun DeckDetailContent(
 
                     // Author
                     AuthorRow(
-                        name = state.authorName,
-                        pubky = state.authorPubky,
-                        initial = state.authorInitial,
-                        avatarUrl = state.authorAvatarUrl,
+                        identity = state.author,
                         isOwned = state.isOwned,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -625,9 +623,7 @@ private fun DeckDetailScreenPreview() {
                 title = "Spanish Essentials",
                 description = "Core vocabulary for everyday conversations.",
                 coverEmoji = "🇪🇸",
-                authorName = "Alex",
-                authorPubky = "pk:abcdef123456",
-                authorInitial = 'A',
+                author = PubkyIdentity("abcdef123456xyz", "Alex", avatarUrl = null, bio = null),
                 isOwned = true,
                 tags = listOf("language", "spanish", "beginner"),
                 totalCards = 42,
@@ -661,9 +657,7 @@ private fun DeckDetailEmptyCardsPreview() {
                 title = "Kanji N5",
                 description = null,
                 coverEmoji = "🇯🇵",
-                authorName = "Mei",
-                authorPubky = "pk:zyxwvu987654",
-                authorInitial = 'M',
+                author = PubkyIdentity("zyxwvu987654abc", "Mei", avatarUrl = null, bio = null),
                 isOwned = false,
                 tags = listOf("japanese"),
                 totalCards = 0,

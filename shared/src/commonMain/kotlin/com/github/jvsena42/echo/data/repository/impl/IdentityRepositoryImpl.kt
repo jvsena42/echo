@@ -14,6 +14,8 @@ import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.domain.model.Session
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * [IdentityRepository] backed by [PubkyClient] and [SecureSessionStore].
@@ -48,6 +50,7 @@ class IdentityRepositoryImpl(
         }
         sessionStore.clear()
         sessionProvider.set(null)
+        profileCacheLock.withLock { profileCache.clear() }
     }
 
     override suspend fun beginSignIn(capabilities: String): Result<AuthFlowHandle> {
@@ -146,13 +149,29 @@ class IdentityRepositoryImpl(
         }
     }
 
-    override suspend fun fetchProfile(pubky: String): Result<PubkyIdentity> = runCatching {
-        Log.d(TAG, "fetchProfile: pubky=${pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
-        val json = this.pubky.get(PubkyPaths.profile(pubky)).getOrThrow()
-        val dto = echoJson.decodeFromString<ProfileDto>(json)
-        dto.toDomain(pubky)
-    }.onFailure {
-        Log.e(TAG, "fetchProfile: FAILED — ${it::class.simpleName}: ${it.message}", it)
+    /**
+     * Successful lookups only. A miss (no profile published yet) stays uncached so a profile
+     * created later still shows up without restarting the app.
+     */
+    private val profileCache = mutableMapOf<String, PubkyIdentity>()
+    private val profileCacheLock = Mutex()
+
+    override suspend fun fetchProfile(pubky: String, forceRefresh: Boolean): Result<PubkyIdentity> {
+        if (!forceRefresh) {
+            profileCacheLock.withLock { profileCache[pubky] }?.let { return Result.success(it) }
+        }
+        return runCatching {
+            Log.d(TAG, "fetchProfile: pubky=${pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+            val json = this.pubky.get(PubkyPaths.profile(pubky)).getOrThrow()
+            val dto = echoJson.decodeFromString<ProfileDto>(json)
+            dto.toDomain(pubky).also { cacheProfile(it) }
+        }.onFailure {
+            Log.e(TAG, "fetchProfile: FAILED — ${it::class.simpleName}: ${it.message}", it)
+        }
+    }
+
+    private suspend fun cacheProfile(identity: PubkyIdentity) {
+        profileCacheLock.withLock { profileCache[identity.pubky] = identity }
     }
 
     override suspend fun updateProfile(name: String?, bio: String?): Result<PubkyIdentity> = runCatching {
@@ -180,6 +199,8 @@ class IdentityRepositoryImpl(
         val updatedSession = session.copy(identity = updatedIdentity)
         sessionStore.save(updatedSession)
         sessionProvider.set(updatedSession)
+        // Keep the cache honest — otherwise every other screen keeps showing the old name.
+        cacheProfile(updatedIdentity)
         Log.d(TAG, "updateProfile: saved")
         updatedIdentity
     }.onFailure {

@@ -122,7 +122,9 @@ val sharedModule = module {
             appVersion = params.getOrNull() ?: "",
         )
     }
-    viewModel { DiscoverViewModel(discoveryRepository = get(), tagRepository = get()) }
+    viewModel {
+        DiscoverViewModel(discoveryRepository = get(), tagRepository = get(), identityRepository = get())
+    }
     viewModel { params ->
         FriendProfileViewModel(
             targetPubky = params.get(),

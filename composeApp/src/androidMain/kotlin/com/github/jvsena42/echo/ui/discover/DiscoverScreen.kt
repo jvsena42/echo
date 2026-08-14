@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.presentation.discover.DiscoverDeck
 import com.github.jvsena42.echo.presentation.discover.DiscoverEffect
@@ -64,6 +65,7 @@ import com.github.jvsena42.echo.ui.components.EchoErrorBlock
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import com.github.jvsena42.echo.ui.util.label
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -324,7 +326,7 @@ private fun DeckGrid(
                         title = deck.title,
                         cardCount = deck.cardCount,
                         coverEmoji = deck.coverEmoji,
-                        authorLabel = deck.authorLabel,
+                        authorLabel = deck.author.label(),
                         onClick = { onOpenDeck(deck.authorPubky, deck.id) },
                         onAuthorClick = { onOpenAuthor(deck.authorPubky) },
                         modifier = Modifier.weight(1f),
@@ -518,20 +520,20 @@ private fun DiscoverScreenPreview() {
                     decks = listOf(
                         DiscoverDeck(
                             id = "1",
-                            authorPubky = "abc",
+                            authorPubky = "abc123def456ghi",
                             title = "Spanish basics",
                             cardCount = 24,
                             coverEmoji = "📚",
-                            authorLabel = "Ada",
+                            author = PubkyIdentity("abc123def456ghi", "Ada", null, null),
                             tags = listOf("language"),
                         ),
                         DiscoverDeck(
                             id = "2",
-                            authorPubky = "def",
+                            authorPubky = "def456ghi789jkl",
                             title = "Biology 101",
                             cardCount = 40,
                             coverEmoji = "🧬",
-                            authorLabel = "Grace",
+                            author = PubkyIdentity("def456ghi789jkl", "Grace", null, null),
                             tags = listOf("science"),
                         ),
                     ),

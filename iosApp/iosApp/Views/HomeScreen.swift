@@ -31,13 +31,17 @@ struct HomeScreen: View {
         .onDisappear { detach() }
     }
 
+    /// The state carries who the user is; naming them is this layer's job.
     private var greetingName: String {
+        let identity: PubkyIdentity?
         switch uiState {
-        case let empty as HomeUiStateEmpty: return empty.greetingName
-        case let content as HomeUiStateContent: return content.greetingName
-        case let error as HomeUiStateError: return error.greetingName
-        default: return "there"
+        case let empty as HomeUiStateEmpty: identity = empty.identity
+        case let content as HomeUiStateContent: identity = content.identity
+        case let error as HomeUiStateError: identity = error.identity
+        default: identity = nil
         }
+        guard let identity else { return NSLocalizedString("identity_unknown_person", comment: "") }
+        return IdentityData(identity).label
     }
 
     private var viewState: HomeViewState {

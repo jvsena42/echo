@@ -13,6 +13,7 @@ struct DeckTileData: Identifiable {
     let cardCount: Int
     let coverEmoji: String
     let authorLabel: String
+    var isOwned: Bool = false
 }
 
 /// Pure layout — state comes from the shared `DecksLibraryViewModel` via `DecksScreen`.
@@ -101,6 +102,7 @@ struct DecksView: View {
                                 cardCount: deck.cardCount,
                                 coverEmoji: deck.coverEmoji,
                                 authorLabel: deck.authorLabel,
+                                showYouBadge: deck.isOwned,
                                 onTap: { onDeckTap(deck.id) }
                             )
                         }
@@ -149,8 +151,22 @@ struct DecksView: View {
         state: .content(
             count: 2,
             decks: [
-                DeckTileData(id: "1", title: "Spanish Basics", cardCount: 42, coverEmoji: "🇪🇸", authorLabel: "@you"),
-                DeckTileData(id: "2", title: "Anatomy 101", cardCount: 128, coverEmoji: "🧠", authorLabel: "@you"),
+                DeckTileData(
+                    id: "1",
+                    title: "Spanish Basics",
+                    cardCount: 42,
+                    coverEmoji: "🇪🇸",
+                    authorLabel: "Cosmic-Crystal-Panda",
+                    isOwned: true
+                ),
+                DeckTileData(
+                    id: "2",
+                    title: "Anatomy 101",
+                    cardCount: 128,
+                    coverEmoji: "🧠",
+                    authorLabel: "Cosmic-Crystal-Panda",
+                    isOwned: true
+                ),
             ]
         )
     )
