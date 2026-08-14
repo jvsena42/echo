@@ -60,7 +60,7 @@ struct DeckDetailScreen: View {
                 }
             ))
         case let error as DeckDetailUiStateError:
-            return .error(error.message)
+            return .error(ErrorCopy.message(for: error.reason))
         default:
             return .loading
         }
@@ -88,7 +88,8 @@ struct DeckDetailScreen: View {
             case is DeckDetailEffectNavigateStudy:
                 onStudy()
             case let share as DeckDetailEffectShare:
-                shareItem = ShareItem(text: share.uri)
+                // Matches Android: "<title> on Echo" beats a bare pubky:// manifest URL.
+                shareItem = ShareItem(text: "\(share.title) on Echo\n\(share.uri)")
             case is DeckDetailEffectDeleted:
                 onDeleted()
             default:

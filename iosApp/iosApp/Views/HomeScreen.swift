@@ -59,7 +59,7 @@ struct HomeScreen: View {
                 }
             )
         case let error as HomeUiStateError:
-            return .error(error.message)
+            return .error(ErrorCopy.message(for: error.reason))
         default:
             return .loading
         }
