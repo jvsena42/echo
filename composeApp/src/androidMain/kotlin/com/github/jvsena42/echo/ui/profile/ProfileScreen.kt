@@ -73,6 +73,8 @@ import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import com.github.jvsena42.echo.ui.util.shareText
+import com.github.jvsena42.echo.ui.util.shortPubky
+import com.github.jvsena42.echo.ui.util.truncatedPubky
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -243,7 +245,7 @@ private fun ProfileScreen(
 
             // Display name
             Text(
-                text = state.displayName ?: stringResource(R.string.profile_pubky_short, state.pubky.take(6)),
+                text = state.displayName?.takeIf { it.isNotBlank() } ?: shortPubky(state.pubky),
                 fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
@@ -254,11 +256,7 @@ private fun ProfileScreen(
                 onClick = {},
                 label = {
                     Text(
-                        text = stringResource(
-                            R.string.profile_pubky_truncated,
-                            state.pubky.take(6),
-                            state.pubky.takeLast(6),
-                        ),
+                        text = truncatedPubky(state.pubky),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                     )

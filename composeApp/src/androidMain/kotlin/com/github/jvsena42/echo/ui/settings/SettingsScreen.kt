@@ -59,6 +59,7 @@ import com.github.jvsena42.echo.presentation.settings.SettingsUiState
 import com.github.jvsena42.echo.presentation.settings.SettingsViewModel
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import com.github.jvsena42.echo.ui.util.truncatedPubky
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -167,11 +168,7 @@ private fun SettingsScreen(
             SettingsValueRow(
                 label = stringResource(R.string.settings_pubky_label),
                 value = if (state.pubky.isNotBlank()) {
-                    stringResource(
-                        R.string.settings_pubky_truncated,
-                        state.pubky.take(6),
-                        state.pubky.takeLast(6),
-                    )
+                    truncatedPubky(state.pubky)
                 } else {
                     stringResource(R.string.settings_not_signed_in)
                 },
