@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.echo.data.pubky.requiresReauth
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
+import com.github.jvsena42.echo.domain.model.avatarInitial
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -57,9 +58,10 @@ class ProfileViewModel(
 
             val pubky = session.identity.pubky
 
-            // Fetch fresh profile from homeserver
+            // Fetch fresh profile from homeserver — this screen is where the name is edited, so it
+            // reads past the cache the rest of the app shares.
             val profile = runCatching {
-                identityRepository.fetchProfile(pubky).getOrNull()
+                identityRepository.fetchProfile(pubky, forceRefresh = true).getOrNull()
             }.getOrNull() ?: session.identity
 
             // Fetch deck stats
@@ -79,9 +81,7 @@ class ProfileViewModel(
                     displayName = displayName,
                     pubky = pubky,
                     bio = profile.bio ?: session.identity.bio,
-                    avatarInitial = displayName?.firstOrNull()?.uppercaseChar()
-                        ?: pubky.firstOrNull()?.uppercaseChar()
-                        ?: '?',
+                    avatarInitial = profile.copy(displayName = displayName).avatarInitial,
                     deckCount = deckCount,
                     cardCount = cardCount,
                 )
@@ -131,9 +131,7 @@ class ProfileViewModel(
                         showEditSheet = false,
                         displayName = identity.displayName,
                         bio = identity.bio,
-                        avatarInitial = identity.displayName?.firstOrNull()?.uppercaseChar()
-                            ?: identity.pubky.firstOrNull()?.uppercaseChar()
-                            ?: '?',
+                        avatarInitial = identity.avatarInitial,
                     )
                 }
             }.onFailure { err ->
