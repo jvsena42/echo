@@ -204,6 +204,12 @@
     <string name="image_sheet_empty">Search the web or pick from your gallery</string>
     <string name="image_sheet_no_results">No images found</string>
     <string name="image_sheet_remove">Remove image</string>
+    <string name="image_sheet_photo">Photo</string>
+    <!-- Attribution required by the Unsplash API guidelines: photographer + platform, both linked. -->
+    <string name="image_sheet_credit">Photo by %1$s on %2$s</string>
+    <string name="image_sheet_credit_platform">Photos from %1$s</string>
+    <string name="image_sheet_credit_unsplash">Unsplash</string>
+    <string name="image_sheet_credit_unknown_author">an Unsplash photographer</string>
 
     <!-- Speak (study) -->
     <string name="speak_listening_prompt">Say the word</string>
