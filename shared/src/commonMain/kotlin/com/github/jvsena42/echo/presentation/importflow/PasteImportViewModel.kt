@@ -44,10 +44,20 @@ class PasteImportViewModel(
         doParse(text)
     }
 
+    /**
+     * Override the detected separator (spec §5.2 "tap to change"). The chip already looked
+     * tappable but had no handler; this re-parses the same text with the chosen delimiter.
+     */
+    fun onSeparatorOverride(separator: Separator) {
+        _state.update { it.copy(separatorOverride = separator.takeIf { s -> s != Separator.Auto }) }
+        val text = _state.value.rawText
+        if (text.isNotBlank()) doParse(text)
+    }
+
     private fun doParse(text: String) {
         parseJob?.cancel()
         parseJob = viewModelScope.launch {
-            importRepository.parse(text)
+            importRepository.parse(text, _state.value.separatorOverride)
                 .onSuccess { draft ->
                     val mapping = draft.columnMapping.assignments
                     val frontIdx = mapping.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
@@ -111,6 +121,8 @@ data class PasteImportUiState(
     val previewCards: List<PreviewCard> = emptyList(),
     val isParsed: Boolean = false,
     val error: String? = null,
+    /** Non-null when the user picked a delimiter instead of trusting auto-detection. */
+    val separatorOverride: Separator? = null,
 ) {
     /** Preview is shown only once at least one parsed card has both a non-blank front and back. */
     val hasPreviewableCard: Boolean

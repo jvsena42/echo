@@ -214,7 +214,7 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
 
     override fun currentDraft(): ImportDraft? = draft
 
-    override suspend fun parse(rawText: String): Result<ImportDraft> =
+    override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
         draft?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no draft"))
 
     override fun decisions(): Map<Int, TriageDecision> = triageDecisions.toMap()

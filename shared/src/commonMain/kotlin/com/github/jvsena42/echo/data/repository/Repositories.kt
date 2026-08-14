@@ -8,6 +8,7 @@ import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.ParsedRow
 import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.domain.model.PubkyUri
+import com.github.jvsena42.echo.domain.model.Separator
 import com.github.jvsena42.echo.domain.model.Session
 import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.domain.model.SrsState
@@ -89,7 +90,11 @@ interface CardRepository {
 
 interface ImportRepository {
     fun currentDraft(): ImportDraft?
-    suspend fun parse(rawText: String): Result<ImportDraft>
+
+    /**
+     * [separator] overrides auto-detection (spec §5.2 "tap to change"); null auto-detects.
+     */
+    suspend fun parse(rawText: String, separator: Separator? = null): Result<ImportDraft>
 
     /** Per-row keep/discard decisions made during triage (default [TriageDecision.Keep]). */
     fun decisions(): Map<Int, TriageDecision>

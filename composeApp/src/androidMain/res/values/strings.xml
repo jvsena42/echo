@@ -326,4 +326,5 @@
     <string name="decks_sort_cards">Most cards</string>
     <string name="decks_search_placeholder">Search your decks</string>
     <string name="decks_search_no_results">No decks match “%1$s”.</string>
+    <string name="paste_separator_sheet_title">Split cards by</string>
 </resources>
