@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -213,14 +214,14 @@ private fun PublishDeckScreen(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        stringResource(R.string.publish_cards_ready, state.cardCount),
+                        pluralStringResource(R.plurals.cards_ready, state.cardCount, state.cardCount),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = colors.foregroundPrimary,
                     )
                     if (state.discardedCount > 0) {
                         Text(
-                            stringResource(R.string.publish_cards_discarded, state.discardedCount),
+                            pluralStringResource(R.plurals.cards_discarded, state.discardedCount, state.discardedCount),
                             fontSize = 12.sp,
                             color = colors.foregroundSecondary,
                         )
@@ -731,7 +732,7 @@ private fun PublishedContent(
             color = colors.foregroundPrimary,
         )
         Text(
-            text = stringResource(R.string.publish_published_subtitle, state.cardCount),
+            text = pluralStringResource(R.plurals.cards_published, state.cardCount, state.cardCount),
             fontSize = 14.sp,
             color = colors.foregroundSecondary,
         )

@@ -55,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -249,15 +250,19 @@ private fun PasteScreen(
                                 letterSpacing = 0.8.sp,
                                 color = colors.foregroundMuted,
                             )
-                            ExampleCard(title = "Vocab list", separator = "em-dash", lines = listOf("hola — hello", "gracias — thank you"))
+                            ExampleCard(
+                                title = "Vocab list",
+                                separator = stringResource(R.string.paste_separator_dash),
+                                lines = listOf("hola — hello", "gracias — thank you"),
+                            )
                             ExampleCard(
                                 title = "Glossary",
-                                separator = "colon",
+                                separator = stringResource(R.string.paste_separator_colon),
                                 lines = listOf("mitosis: cell division", "osmosis: water moves across a membrane"),
                             )
                             ExampleCard(
                                 title = "Notion table",
-                                separator = "markdown",
+                                separator = stringResource(R.string.paste_separator_markdown),
                                 lines = listOf("| capital | France |", "| currency | euro |"),
                             )
                         }
@@ -336,7 +341,7 @@ private fun ParseSummaryRow(
     val colors = EchoTheme.colors
     val chipError = when {
         state.noPatternDetected -> stringResource(R.string.paste_chip_no_pattern)
-        state.hasIncompleteCards -> stringResource(R.string.paste_chip_incomplete, state.incompleteCardCount)
+        state.hasIncompleteCards -> pluralStringResource(R.plurals.cards_incomplete, state.incompleteCardCount, state.incompleteCardCount)
         else -> null
     }
     var showSeparatorSheet by rememberSaveable { mutableStateOf(false) }
@@ -384,7 +389,7 @@ private fun ParseSummaryRow(
             border = null,
         )
         Text(
-            stringResource(R.string.paste_card_count, state.cardCount),
+            pluralStringResource(R.plurals.card_count, state.cardCount, state.cardCount),
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             color = colors.foregroundMuted,
@@ -516,7 +521,8 @@ private fun separatorLabel(sep: Separator?): Int = when (sep) {
     Separator.Tab -> R.string.paste_separator_tab
     Separator.Semicolon -> R.string.paste_separator_semicolon
     Separator.Pipe -> R.string.paste_separator_pipe
-    Separator.EmDash -> R.string.paste_separator_em_dash
+    // Buckets em-dash, en-dash and a spaced hyphen, so "dash" not stringResource(R.string.paste_separator_dash).
+    Separator.EmDash -> R.string.paste_separator_dash
     Separator.Colon -> R.string.paste_separator_colon
     Separator.Comma -> R.string.paste_separator_comma
     Separator.BlankLine -> R.string.paste_separator_blank_lines

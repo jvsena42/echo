@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -207,11 +208,7 @@ fun StudySessionScreen(
 
             is StudySessionUiState.Complete -> CenteredMessage(
                 title = stringResource(R.string.study_complete_title),
-                subtitle = if (state.reviewed == 1) {
-                    stringResource(R.string.study_complete_subtitle_one)
-                } else {
-                    stringResource(R.string.study_complete_subtitle_many, state.reviewed)
-                },
+                subtitle = pluralStringResource(R.plurals.cards_reviewed, state.reviewed, state.reviewed),
                 actionLabel = stringResource(R.string.study_back),
                 onAction = onDone,
             )

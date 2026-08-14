@@ -48,7 +48,7 @@
     <string name="deck_detail_delete">Delete deck</string>
     <string name="deck_detail_share">Share</string>
     <string name="deck_detail_delete_dialog_title">Delete deck</string>
-    <string name="deck_detail_delete_dialog_message">Delete this deck? It will be removed from your homeserver.</string>
+    <string name="deck_detail_delete_dialog_message">“%1$s” will be permanently removed from your homeserver, along with your study progress for its cards. This can\'t be undone.</string>
     <string name="deck_detail_delete_confirm">Delete</string>
     <string name="deck_detail_delete_cancel">Cancel</string>
     <string name="deck_detail_in_your_library">IN YOUR LIBRARY</string>
@@ -102,8 +102,6 @@
     <string name="study_empty_subtitle_deck">No cards due in %1$s right now.</string>
     <string name="study_done">Done</string>
     <string name="study_complete_title">All done! 🎊</string>
-    <string name="study_complete_subtitle_one">You reviewed 1 card.</string>
-    <string name="study_complete_subtitle_many">You reviewed %1$d cards.</string>
     <string name="study_back">Back</string>
     <string name="study_position_of_total">%1$d of %2$d</string>
     <string name="study_flip_hint">Tap card to reveal answer</string>
@@ -136,18 +134,16 @@
     <string name="paste_input_placeholder_title">Paste your list here</string>
     <string name="paste_input_placeholder_subtitle">one card per line</string>
     <string name="paste_detected_separator">Detected: %1$s</string>
-    <string name="paste_card_count">%1$d cards</string>
     <string name="paste_preview_label">PREVIEW</string>
     <string name="paste_try_pasting_label">TRY PASTING SOMETHING LIKE</string>
     <string name="paste_public_notice">This deck will be public on your profile</string>
     <string name="paste_chip_no_pattern">No pattern detected</string>
-    <string name="paste_chip_incomplete">%1$d incomplete</string>
     <string name="paste_card_index">%1$d/%2$d</string>
     <string name="paste_blank_placeholder">—</string>
     <string name="paste_separator_tab">tab</string>
     <string name="paste_separator_semicolon">semicolon</string>
     <string name="paste_separator_pipe">pipe</string>
-    <string name="paste_separator_em_dash">em-dash</string>
+    <string name="paste_separator_dash">dash</string>
     <string name="paste_separator_colon">colon</string>
     <string name="paste_separator_comma">comma</string>
     <string name="paste_separator_blank_lines">blank lines</string>
@@ -158,8 +154,6 @@
     <!-- Publish deck -->
     <string name="publish_back">Back</string>
     <string name="publish_title">New deck</string>
-    <string name="publish_cards_ready">%1$d cards ready</string>
-    <string name="publish_cards_discarded">%1$d discarded in review</string>
     <string name="publish_cover_label">COVER</string>
     <string name="publish_cover_change">Change</string>
     <string name="publish_title_label">TITLE</string>
@@ -179,7 +173,6 @@
     <string name="publish_add_tag_button">Add Tag</string>
     <string name="publish_published_icon_desc">Published</string>
     <string name="publish_published_title">Deck published!</string>
-    <string name="publish_published_subtitle">%1$d cards are now public on your Pubky.</string>
     <string name="publish_done">Done</string>
     <string name="publish_undo">Undo (%1$ds)</string>
     <string name="publish_card_options_label">CARD OPTIONS</string>
@@ -259,7 +252,6 @@
     <string name="friend_profile_back_content_description">Back</string>
     <string name="friend_profile_pubky_truncated">pk:%1$s…%2$s</string>
     <string name="friend_profile_copy_pubky">Copy pubky</string>
-    <string name="friend_profile_public_decks_count">Public decks · %1$d</string>
     <string name="friend_profile_no_public_decks">No public decks yet.</string>
 
     <!-- Settings -->
@@ -282,7 +274,6 @@
     <string name="settings_cancel">Cancel</string>
 
     <!-- Shared components -->
-    <string name="component_deck_tile_card_count">%1$d cards</string>
     <string name="component_author_row_following">Following</string>
     <string name="component_author_row_follow">Follow</string>
     <string name="component_author_row_you">\@you</string>
@@ -293,10 +284,10 @@
     <string name="component_tag_chip_remove">Remove tag</string>
 
     <!-- Navigation / tabs -->
-    <string name="nav_tab_study">STUDY</string>
-    <string name="nav_tab_decks">DECKS</string>
-    <string name="nav_tab_discover">DISCOVER</string>
-    <string name="nav_tab_profile">PROFILE</string>
+    <string name="nav_tab_study">Today</string>
+    <string name="nav_tab_decks">Decks</string>
+    <string name="nav_tab_discover">Discover</string>
+    <string name="nav_tab_profile">Profile</string>
 
     <!-- Error states. Reason-based copy; the raw FFI message stays in logcat. -->
     <string name="error_offline_title">You\'re offline</string>

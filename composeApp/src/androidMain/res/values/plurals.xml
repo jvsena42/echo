@@ -16,4 +16,32 @@
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
     </plurals>
+    <plurals name="card_count">
+        <item quantity="one">%1$d card</item>
+        <item quantity="other">%1$d cards</item>
+    </plurals>
+    <plurals name="cards_ready">
+        <item quantity="one">%1$d card ready</item>
+        <item quantity="other">%1$d cards ready</item>
+    </plurals>
+    <plurals name="cards_discarded">
+        <item quantity="one">%1$d discarded in review</item>
+        <item quantity="other">%1$d discarded in review</item>
+    </plurals>
+    <plurals name="cards_published">
+        <item quantity="one">%1$d card is now public on your Pubky.</item>
+        <item quantity="other">%1$d cards are now public on your Pubky.</item>
+    </plurals>
+    <plurals name="cards_reviewed">
+        <item quantity="one">You reviewed %1$d card.</item>
+        <item quantity="other">You reviewed %1$d cards.</item>
+    </plurals>
+    <plurals name="cards_incomplete">
+        <item quantity="one">%1$d incomplete</item>
+        <item quantity="other">%1$d incomplete</item>
+    </plurals>
+    <plurals name="public_decks_count">
+        <item quantity="one">Public deck · %1$d</item>
+        <item quantity="other">Public decks · %1$d</item>
+    </plurals>
 </resources>

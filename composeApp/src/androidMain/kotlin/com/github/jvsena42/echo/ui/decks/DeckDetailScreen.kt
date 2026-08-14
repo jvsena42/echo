@@ -48,6 +48,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -210,6 +212,7 @@ fun DeckDetailScreen(
             )
             if (state.showDeleteConfirm) {
                 DeleteDeckDialog(
+                    deckTitle = state.title,
                     onConfirm = onConfirmDelete,
                     onDismiss = onDismissDelete,
                 )
@@ -414,11 +417,14 @@ private fun HeaderCircleButton(
 }
 
 @Composable
-private fun DeleteDeckDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun DeleteDeckDialog(deckTitle: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val colors = EchoTheme.colors
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = colors.surfaceCard,
+        // AlertDialog renders in its own window, so the root's testTagsAsResourceId does not
+        // reach it — journeys/05 could not find `deck_delete_confirm` without this.
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
         title = {
             Text(
                 text = stringResource(R.string.deck_detail_delete_dialog_title),
@@ -429,7 +435,7 @@ private fun DeleteDeckDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         },
         text = {
             Text(
-                text = stringResource(R.string.deck_detail_delete_dialog_message),
+                text = stringResource(R.string.deck_detail_delete_dialog_message, deckTitle),
                 color = colors.foregroundSecondary,
                 fontSize = 14.sp,
             )

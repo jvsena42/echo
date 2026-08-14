@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -171,7 +172,7 @@ private fun FriendProfileScreen(
 
         // Decks
         Text(
-            text = stringResource(R.string.friend_profile_public_decks_count, state.decks.size),
+            text = pluralStringResource(R.plurals.public_decks_count, state.decks.size, state.decks.size),
             color = colors.foregroundPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.W700,
