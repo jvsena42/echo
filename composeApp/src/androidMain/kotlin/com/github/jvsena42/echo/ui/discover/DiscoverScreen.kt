@@ -45,6 +45,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -419,6 +421,10 @@ private fun AddFriendSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // ModalBottomSheet renders in its own window, so the flag set on the nav-host
+                // root does not reach it: without this the sheet's controls expose no ids at
+                // all and journeys/04 cannot target them.
+                .semantics { testTagsAsResourceId = true }
                 .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -438,6 +444,7 @@ private fun AddFriendSheet(
                 onValueChange = { input = it },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .testTag("add_friend_input")
                     .clip(RoundedCornerShape(14.dp))
                     .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
                     .background(colors.surfacePrimary)
@@ -448,7 +455,11 @@ private fun AddFriendSheet(
                 decorationBox = { inner ->
                     Box {
                         if (input.isEmpty()) {
-                            Text(stringResource(R.string.discover_paste_pubky), fontSize = 15.sp, color = colors.foregroundMuted)
+                            Text(
+                                text = stringResource(R.string.discover_paste_pubky),
+                                fontSize = 15.sp,
+                                color = colors.foregroundMuted,
+                            )
                         }
                         inner()
                     }
@@ -461,6 +472,7 @@ private fun AddFriendSheet(
                         .clip(RoundedCornerShape(50))
                         .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(50))
                         .clickable { scanPubky(context) { scanned -> submit(scanned) } }
+                        .testTag("add_friend_scan")
                         .padding(vertical = 14.dp),
                     horizontalArrangement = Arrangement.Center,
                 ) {
@@ -477,6 +489,7 @@ private fun AddFriendSheet(
                         .clip(RoundedCornerShape(50))
                         .background(colors.accentSecondary)
                         .clickable { submit(input) }
+                        .testTag("add_friend_open")
                         .padding(vertical = 14.dp),
                     horizontalArrangement = Arrangement.Center,
                 ) {

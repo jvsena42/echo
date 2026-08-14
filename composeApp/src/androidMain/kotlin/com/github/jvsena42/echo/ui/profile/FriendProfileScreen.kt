@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -48,6 +49,7 @@ import com.github.jvsena42.echo.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.echo.ui.components.AuthorRow
 import com.github.jvsena42.echo.ui.components.DeckTile
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
+import com.github.jvsena42.echo.ui.components.errorMessage
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -69,7 +71,6 @@ fun FriendProfileRoute(
             when (effect) {
                 is FriendProfileEffect.CopyToClipboard -> clipboard.setText(AnnotatedString(effect.text))
                 is FriendProfileEffect.OpenDeck -> currentOpenDeck(effect.deckId)
-                is FriendProfileEffect.ShowError -> { /* surfaced inline below */ }
             }
         }
     }
@@ -138,10 +139,23 @@ private fun FriendProfileScreen(
                 state.pubky.takeLast(6),
             ),
             initial = state.avatarInitial,
+            isOwned = state.isSelf,
             isFollowing = state.isFollowing,
+            isFollowPending = state.isProcessingFollow,
             onFollowClick = onToggleFollow,
             modifier = Modifier.fillMaxWidth(),
         )
+
+        state.errorReason?.let { reason ->
+            Text(
+                text = errorMessage(reason),
+                color = colors.danger,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("friend_profile_error"),
+            )
+        }
 
         // Copyable full pubky
         Row(

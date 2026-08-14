@@ -45,6 +45,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -246,6 +248,8 @@ private fun SettingsScreen(
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
+            // AlertDialog is a separate window: without this its tags are invisible to journeys.
+            modifier = Modifier.semantics { testTagsAsResourceId = true },
             containerColor = colors.surfaceCard,
             title = {
                 Text(
@@ -269,6 +273,7 @@ private fun SettingsScreen(
                         showSignOutDialog = false
                         onSignOutClick()
                     },
+                    modifier = Modifier.testTag("settings_signout_confirm"),
                 ) {
                     Text(
                         text = stringResource(R.string.settings_sign_out),

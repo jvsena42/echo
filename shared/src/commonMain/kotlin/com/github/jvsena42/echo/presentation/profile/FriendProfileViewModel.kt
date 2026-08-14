@@ -2,10 +2,12 @@ package com.github.jvsena42.echo.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.echo.data.pubky.toErrorReason
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.DiscoveryRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -55,6 +57,11 @@ class FriendProfileViewModel(
             }
             val isFollowing = runCatching { discoveryRepository.isFollowing(targetPubky) }
                 .getOrDefault(false)
+            // Pasting your own pubky into the add-friend sheet used to open this screen with a
+            // live Follow button — you could follow yourself.
+            val myPubky = runCatching { identityRepository.currentSession()?.identity?.pubky }
+                .getOrNull()
+            val isSelf = myPubky != null && myPubky == targetPubky
 
             val displayName = profile?.displayName
             _state.update {
@@ -65,6 +72,7 @@ class FriendProfileViewModel(
                     avatarInitial = displayName?.firstOrNull()?.uppercaseChar()
                         ?: targetPubky.firstOrNull()?.uppercaseChar() ?: '?',
                     isFollowing = isFollowing,
+                    isSelf = isSelf,
                     decks = decks.map { it.toCard() },
                 )
             }
@@ -73,7 +81,7 @@ class FriendProfileViewModel(
     }
 
     fun onToggleFollow() {
-        if (followJob?.isActive == true) return
+        if (followJob?.isActive == true || _state.value.isSelf) return
         followJob = viewModelScope.launch {
             val wasFollowing = _state.value.isFollowing
             // Optimistic flip; revert on failure.
@@ -89,7 +97,9 @@ class FriendProfileViewModel(
                 .onFailure { err ->
                     Log.e(TAG, "onToggleFollow: FAILED — ${err.message}", err)
                     _state.update { it.copy(isFollowing = wasFollowing, isProcessingFollow = false) }
-                    _effects.emit(FriendProfileEffect.ShowError(err.message ?: "Could not update follow."))
+                    // Was emitted into an empty lambda whose comment claimed it was
+                    // "surfaced inline below"; nothing rendered it at all.
+                    _state.update { it.copy(errorReason = err.toErrorReason()) }
                 }
         }
     }
@@ -123,6 +133,10 @@ data class FriendProfileUiState(
     val avatarInitial: Char = '?',
     val isFollowing: Boolean = false,
     val isProcessingFollow: Boolean = false,
+    /** True when this is the signed-in user's own profile — no Follow button. */
+    val isSelf: Boolean = false,
+    /** Set when a follow/unfollow fails; rendered inline. */
+    val errorReason: ErrorReason? = null,
     val decks: List<FriendDeck> = emptyList(),
 )
 
@@ -137,5 +151,4 @@ data class FriendDeck(
 sealed interface FriendProfileEffect {
     data class CopyToClipboard(val text: String) : FriendProfileEffect
     data class OpenDeck(val authorPubky: String, val deckId: String) : FriendProfileEffect
-    data class ShowError(val message: String) : FriendProfileEffect
 }
