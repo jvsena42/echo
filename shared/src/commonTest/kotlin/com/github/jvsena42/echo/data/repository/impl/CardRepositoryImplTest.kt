@@ -1,16 +1,23 @@
 package com.github.jvsena42.echo.data.repository.impl
 
 import com.github.jvsena42.echo.data.pubky.CardDto
+import com.github.jvsena42.echo.data.pubky.toDto
+import com.github.jvsena42.echo.domain.model.CardIndexEntry
+import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.testing.CountingRevalidator
 import com.github.jvsena42.echo.testing.FakePubkyClient
 import com.github.jvsena42.echo.testing.TEST_PUBKY
 import com.github.jvsena42.echo.testing.signedInProvider
 import com.github.jvsena42.echo.testing.testCard
+import com.github.jvsena42.echo.testing.testDeck
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+
+private const val FOREIGN_PUBKY = "friendpk"
 
 class CardRepositoryImplTest {
 
@@ -82,6 +89,79 @@ class CardRepositoryImplTest {
         assertTrue(url !in pubky.store)
         assertNull(repo.get("deck1", "c1"))
         assertEquals(emptyList(), repo.listByDeck("deck1"))
+    }
+
+    @Test
+    fun fetchByDeckReadsTheCardsOfADeckYouDoNotOwn() = runTest {
+        val deck = seedRemoteDeck(author = FOREIGN_PUBKY, "c1" to 1_000L, "c2" to 1_000L)
+
+        val cards = repo.fetchByDeck(deck).getOrThrow()
+
+        assertEquals(listOf("c1", "c2"), cards.map { it.id })
+        // Browsing someone else's deck must not write anything to your own homeserver.
+        assertTrue(pubky.puts.isEmpty())
+        assertTrue(pubky.deletes.isEmpty())
+        // And the fetched cards are now cached for the session.
+        assertEquals(listOf("c1", "c2"), repo.listByDeck("deck1").map { it.id })
+    }
+
+    @Test
+    fun fetchByDeckReturnsCardsInManifestOrderNotIdOrder() = runTest {
+        val deck = seedRemoteDeck(author = TEST_PUBKY, "zebra" to 1_000L, "apple" to 1_000L)
+
+        assertEquals(listOf("zebra", "apple"), repo.fetchByDeck(deck).getOrThrow().map { it.id })
+    }
+
+    @Test
+    fun fetchByDeckKeepsALocalEditNewerThanTheManifestEntry() = runTest {
+        val deck = seedRemoteDeck(author = TEST_PUBKY, "c1" to 1_000L)
+        val edited = testCard("c1", front = "edited locally", updatedAt = 5_000L)
+        repo.upsert(edited).getOrThrow()
+        val putsBefore = pubky.puts.size
+
+        val cards = repo.fetchByDeck(deck).getOrThrow()
+
+        assertEquals(edited, cards.single(), "a newer local edit was overwritten by the fetch")
+        assertEquals(putsBefore, pubky.puts.size, "the fetch should not write")
+    }
+
+    @Test
+    fun fetchByDeckSkipsAnUnreadableCardButKeepsTheRest() = runTest {
+        val deck = seedRemoteDeck(author = TEST_PUBKY, "c1" to 1_000L, "c2" to 1_000L)
+        pubky.store.remove("pubky://$TEST_PUBKY/pub/echo/decks/deck1/cards/c2.json")
+
+        assertEquals(listOf("c1"), repo.fetchByDeck(deck).getOrThrow().map { it.id })
+    }
+
+    @Test
+    fun fetchByDeckFailsWhenNoCardCanBeRead() = runTest {
+        val deck = seedRemoteDeck(author = TEST_PUBKY, "c1" to 1_000L)
+        pubky.failGetWith = IllegalStateException("homeserver unreachable")
+
+        // An unreachable homeserver must not be reported as a deck with no cards.
+        assertTrue(repo.fetchByDeck(deck).isFailure)
+    }
+
+    @Test
+    fun fetchByDeckOnADeckWithNoCardsSucceedsEmpty() = runTest {
+        assertEquals(emptyList(), repo.fetchByDeck(testDeck()).getOrThrow())
+    }
+
+    /**
+     * Writes card records straight into the fake homeserver under [author] and returns a deck
+     * whose `cardIndex` points at them — i.e. the state of a deck published by someone else,
+     * which this session has never read.
+     */
+    private fun seedRemoteDeck(author: String, vararg cards: Pair<String, Long>): Deck {
+        cards.forEach { (id, updatedAt) ->
+            val card = testCard(id, updatedAt = updatedAt)
+            pubky.store["pubky://$author/pub/echo/decks/deck1/cards/$id.json"] =
+                echoJson.encodeToString(card.toDto())
+        }
+        return testDeck(
+            authorPubky = author,
+            cardIndex = cards.map { (id, updatedAt) -> CardIndexEntry(id, updatedAt) },
+        )
     }
 
     @Test

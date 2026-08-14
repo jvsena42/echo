@@ -82,7 +82,18 @@ interface DeckRepository {
 }
 
 interface CardRepository {
+    /** Whatever this session has already loaded or written. Empty on a cold cache. */
     suspend fun listByDeck(deckId: String): List<Card>
+
+    /**
+     * The deck's cards read from *its author's* homeserver, in `cardIndex` order, refreshing the
+     * cache as it goes. Read-only, and not limited to decks you own — which is what makes a
+     * shared deck browsable. Records already cached at or past the index's `updatedAt` are not
+     * re-fetched. A single unreadable card is skipped; failing to read *any* of them is a
+     * connectivity failure and fails the call rather than passing off an empty deck as real.
+     */
+    suspend fun fetchByDeck(deck: Deck): Result<List<Card>>
+
     suspend fun get(deckId: String, cardId: String): Card?
     suspend fun upsert(card: Card): Result<Unit>
     suspend fun delete(deckId: String, cardId: String): Result<Unit>
