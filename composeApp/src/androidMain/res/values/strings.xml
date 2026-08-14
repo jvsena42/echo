@@ -52,6 +52,9 @@
     <string name="deck_detail_delete_confirm">Delete</string>
     <string name="deck_detail_delete_cancel">Cancel</string>
     <string name="deck_detail_in_your_library">IN YOUR LIBRARY</string>
+    <string name="deck_detail_cards_heading">Cards</string>
+    <string name="deck_detail_cards_empty_owned">No cards yet. Tap Edit to add your first one.</string>
+    <string name="deck_detail_cards_empty_foreign">This deck doesn\'t have any cards yet.</string>
 
     <!-- Deck editor -->
     <string name="deck_editor_title_new">New Deck</string>
