@@ -12,6 +12,7 @@ import com.github.jvsena42.echo.domain.model.CardSide
 import com.github.jvsena42.echo.domain.model.ColumnRole
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.DraftCardImage
+import com.github.jvsena42.echo.domain.model.FormError
 import com.github.jvsena42.echo.domain.model.ImportDraft
 import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.Tag
@@ -245,12 +246,16 @@ class PublishDeckViewModel(
         else -> null
     }
 
+    /**
+     * Reachable again now that the button is enabled. It used to be dead code: the screen
+     * passed `enabled = state.canPublish`, and `canPublish` was false in exactly the cases
+     * this checks — so tapping Publish with an empty title did nothing and said nothing.
+     */
     private fun validateForPublish(s: PublishDeckUiState): Boolean {
-        if (s.title.isBlank()) {
-            _state.update { it.copy(error = "Title is required.") }
-            return false
+        val titleError = when {
+            s.title.isBlank() -> FormError.TitleRequired
+            else -> titleErrorFor(s.title)
         }
-        val titleError = titleErrorFor(s.title)
         val descriptionError = descriptionErrorFor(s.description)
         if (titleError != null || descriptionError != null) {
             _state.update { it.copy(titleError = titleError, descriptionError = descriptionError) }
@@ -259,11 +264,11 @@ class PublishDeckViewModel(
         return true
     }
 
-    private fun titleErrorFor(text: String): String? =
-        if (text.length > TITLE_MAX_LENGTH) "Title must be $TITLE_MAX_LENGTH characters or fewer." else null
+    private fun titleErrorFor(text: String): FormError? =
+        if (text.length > TITLE_MAX_LENGTH) FormError.TitleTooLong else null
 
-    private fun descriptionErrorFor(text: String): String? =
-        if (text.length > DESCRIPTION_MAX_LENGTH) "Description must be $DESCRIPTION_MAX_LENGTH characters or fewer." else null
+    private fun descriptionErrorFor(text: String): FormError? =
+        if (text.length > DESCRIPTION_MAX_LENGTH) FormError.DescriptionTooLong else null
 
     companion object {
         private const val TAG = "Echo/PublishVM"
@@ -294,8 +299,8 @@ data class PublishDeckUiState(
     val coverImageUrl: String? = null,
     val coverPendingBytes: ByteArray? = null,
     val coverPendingMime: String? = null,
-    val titleError: String? = null,
-    val descriptionError: String? = null,
+    val titleError: FormError? = null,
+    val descriptionError: FormError? = null,
     val error: String? = null,
 ) {
     val canPublish: Boolean

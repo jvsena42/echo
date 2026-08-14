@@ -69,6 +69,7 @@ import com.github.jvsena42.echo.domain.model.Separator
 import com.github.jvsena42.echo.presentation.importflow.PasteImportEffect
 import com.github.jvsena42.echo.presentation.importflow.PasteImportUiState
 import com.github.jvsena42.echo.presentation.importflow.PasteImportViewModel
+import com.github.jvsena42.echo.presentation.importflow.PasteValidation
 import com.github.jvsena42.echo.presentation.importflow.PreviewCard
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -295,10 +296,27 @@ private fun PasteScreen(
                     Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
                 }
 
+                state.validation?.let { validation ->
+                    Text(
+                        text = stringResource(
+                            when (validation) {
+                                PasteValidation.EmptyInput -> R.string.paste_validation_empty
+                                PasteValidation.NoCardsParsed -> R.string.paste_validation_no_cards
+                            },
+                        ),
+                        fontSize = 13.sp,
+                        color = colors.danger,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("paste_validation"),
+                    )
+                }
+
                 EchoPrimaryButton(
                     label = stringResource(R.string.paste_next),
                     onClick = onNextClick,
-                    enabled = state.isParsed,
+                    // Enabled so the validation message can explain the block.
+                    enabled = true,
                     modifier = Modifier
                         .testTag("paste_next")
                         .fillMaxWidth(),

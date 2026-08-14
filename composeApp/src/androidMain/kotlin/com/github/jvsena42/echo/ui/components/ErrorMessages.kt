@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.domain.model.ErrorReason
+import com.github.jvsena42.echo.domain.model.FormError
 
 /**
  * Maps a shared [ErrorReason] to user-facing copy. The ViewModels deliberately carry no
@@ -32,5 +33,15 @@ fun errorMessage(reason: ErrorReason): String = stringResource(
         ErrorReason.RingNotInstalled -> R.string.error_ring_not_installed_message
         ErrorReason.AuthFailed -> R.string.error_auth_failed_message
         ErrorReason.Unknown -> R.string.error_generic_message
+    },
+)
+
+/** Field-level validation copy for [FormError]. */
+@Composable
+fun formErrorMessage(error: FormError): String = stringResource(
+    when (error) {
+        FormError.TitleRequired -> R.string.form_title_required
+        FormError.TitleTooLong -> R.string.form_title_too_long
+        FormError.DescriptionTooLong -> R.string.form_description_too_long
     },
 )

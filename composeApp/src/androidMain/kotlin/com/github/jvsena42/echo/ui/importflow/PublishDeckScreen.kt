@@ -69,6 +69,7 @@ import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.components.ImagePickerSheet
 import com.github.jvsena42.echo.ui.components.ImageSelection
 import com.github.jvsena42.echo.ui.components.TagChip
+import com.github.jvsena42.echo.ui.components.formErrorMessage
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -146,320 +147,344 @@ private fun PublishDeckScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surfacePrimary)
-            .windowInsetsPadding(WindowInsets.systemBars)
-            .verticalScroll(rememberScrollState())
-            .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 40.dp)),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+            .windowInsetsPadding(WindowInsets.systemBars),
     ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(colors.surfaceCard)
-                    .clickable(onClick = onBackClick),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                    stringResource(R.string.publish_back),
-                    tint = colors.foregroundPrimary,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                stringResource(R.string.publish_title),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = colors.foregroundPrimary,
-            )
-            Spacer(Modifier.weight(1f))
-            Spacer(Modifier.size(40.dp))
-        }
-
-        // Cards ready badge (design `yFOOS`): peach panel, solid orange check, discarded subtitle.
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(colors.accentPrimarySoft)
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(colors.accentPrimary),
-                contentAlignment = Alignment.Center,
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Default.Check,
-                    null,
-                    tint = colors.foregroundOnAccent,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(colors.surfaceCard)
+                        .clickable(onClick = onBackClick),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        stringResource(R.string.publish_back),
+                        tint = colors.foregroundPrimary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                Spacer(Modifier.weight(1f))
                 Text(
-                    stringResource(R.string.publish_cards_ready, state.cardCount),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
+                    stringResource(R.string.publish_title),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     color = colors.foregroundPrimary,
                 )
-                if (state.discardedCount > 0) {
-                    Text(
-                        stringResource(R.string.publish_cards_discarded, state.discardedCount),
-                        fontSize = 12.sp,
-                        color = colors.foregroundSecondary,
-                    )
-                }
+                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.size(40.dp))
             }
-        }
 
-        // Cover
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
+            // Cards ready badge (design `yFOOS`): peach panel, solid orange check, discarded subtitle.
+            Row(
                 modifier = Modifier
-                    .size(64.dp)
+                    .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(colors.accentPrimarySoft),
-                contentAlignment = Alignment.Center,
+                    .background(colors.accentPrimarySoft)
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                val coverModel: Any? = state.coverImageUrl ?: state.coverPendingBytes
-                if (coverModel != null) {
-                    AsyncImage(
-                        model = coverModel,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(colors.accentPrimary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        null,
+                        tint = colors.foregroundOnAccent,
+                        modifier = Modifier.size(18.dp),
                     )
-                } else {
-                    Text(text = state.coverEmoji.ifBlank { "📚" }, fontSize = 32.sp)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        stringResource(R.string.publish_cards_ready, state.cardCount),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.foregroundPrimary,
+                    )
+                    if (state.discardedCount > 0) {
+                        Text(
+                            stringResource(R.string.publish_cards_discarded, state.discardedCount),
+                            fontSize = 12.sp,
+                            color = colors.foregroundSecondary,
+                        )
+                    }
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+
+            // Cover
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.accentPrimarySoft),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val coverModel: Any? = state.coverImageUrl ?: state.coverPendingBytes
+                    if (coverModel != null) {
+                        AsyncImage(
+                            model = coverModel,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        Text(text = state.coverEmoji.ifBlank { "📚" }, fontSize = 32.sp)
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        stringResource(R.string.publish_cover_label),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        color = colors.foregroundMuted,
+                    )
+                    Row(
+                        modifier = Modifier
+                            .testTag("publish_cover_change")
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(1.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
+                            .clickable { showCoverSheet = true }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = null,
+                            tint = colors.accentPrimary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            stringResource(R.string.publish_cover_change),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.foregroundPrimary,
+                        )
+                    }
+                }
+            }
+
+            // Title
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    stringResource(R.string.publish_cover_label),
+                    stringResource(R.string.publish_title_label),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp,
                     color = colors.foregroundMuted,
                 )
-                Row(
+                BasicTextField(
+                    value = state.title,
+                    onValueChange = onTitleChanged,
                     modifier = Modifier
-                        .testTag("publish_cover_change")
-                        .clip(RoundedCornerShape(8.dp))
-                        .border(1.dp, colors.borderSubtle, RoundedCornerShape(8.dp))
-                        .clickable { showCoverSheet = true }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Image,
-                        contentDescription = null,
-                        tint = colors.accentPrimary,
-                        modifier = Modifier.size(16.dp),
-                    )
+                        .testTag("publish_title")
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(colors.surfaceCard)
+                        .padding(14.dp),
+                    textStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary),
+                    cursorBrush = SolidColor(colors.accentPrimary),
+                    singleLine = true,
+                    decorationBox = { inner ->
+                        Box {
+                            if (state.title.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.publish_title_placeholder),
+                                    fontSize = 16.sp,
+                                    color = colors.foregroundMuted,
+                                )
+                            }
+                            inner()
+                        }
+                    },
+                )
+                state.titleError?.let { error ->
                     Text(
-                        stringResource(R.string.publish_cover_change),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
+                        text = formErrorMessage(error),
+                        fontSize = 12.sp,
+                        color = colors.danger,
+                        modifier = Modifier.testTag("publish_title_error"),
+                    )
+                }
+            }
+
+            // Description
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.publish_description_label),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    color = colors.foregroundMuted,
+                )
+                BasicTextField(
+                    value = state.description,
+                    onValueChange = onDescriptionChanged,
+                    modifier = Modifier
+                        .testTag("publish_description")
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(colors.surfaceCard)
+                        .padding(14.dp),
+                    textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundSecondary),
+                    cursorBrush = SolidColor(colors.accentPrimary),
+                    decorationBox = { inner ->
+                        Box {
+                            if (state.description.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.publish_description_placeholder),
+                                    fontSize = 14.sp,
+                                    color = colors.foregroundMuted,
+                                )
+                            }
+                            inner()
+                        }
+                    },
+                )
+                state.descriptionError?.let { error ->
+                    Text(formErrorMessage(error), fontSize = 12.sp, color = colors.danger)
+                }
+            }
+
+            // Tags
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(R.string.publish_tags_label),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    color = colors.foregroundMuted,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    state.tags.forEach { tag ->
+                        TagChip(tag = tag, onRemove = { onRemoveTag(tag) })
+                    }
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(50))
+                            .clickable { showTagSheet = true }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = stringResource(R.string.publish_add_tag),
+                            tint = colors.foregroundMuted,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Text(
+                            text = stringResource(R.string.publish_add),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.foregroundMuted,
+                        )
+                    }
+                }
+            }
+
+            // Card options (Listen / Speak)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    stringResource(R.string.publish_card_options_label),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    color = colors.foregroundMuted,
+                )
+                OptionToggleRow(
+                    title = stringResource(R.string.publish_listen_title),
+                    subtitle = stringResource(R.string.publish_listen_subtitle),
+                    checked = state.listenEnabled,
+                    onToggle = onToggleListen,
+                    testTag = "publish_listen_toggle",
+                    icon = Icons.AutoMirrored.Filled.VolumeUp,
+                    iconColor = colors.accentPrimary,
+                    iconBackground = colors.accentPrimarySoft,
+                )
+                OptionToggleRow(
+                    title = stringResource(R.string.publish_speak_title),
+                    subtitle = stringResource(R.string.publish_speak_subtitle),
+                    checked = state.speakEnabled,
+                    onToggle = onToggleSpeak,
+                    testTag = "publish_speak_toggle",
+                    icon = Icons.Default.Mic,
+                    iconColor = colors.accentSecondary,
+                    iconBackground = colors.accentSecondarySoft,
+                )
+            }
+
+            // Public on Pubky notice
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.accentSecondarySoft)
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("🌐", fontSize = 18.sp)
+                Column {
+                    Text(
+                        stringResource(R.string.publish_public_title),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
                         color = colors.foregroundPrimary,
                     )
+                    Text(stringResource(R.string.publish_public_subtitle), fontSize = 12.sp, color = colors.foregroundSecondary)
                 }
             }
         }
 
-        // Title
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                stringResource(R.string.publish_title_label),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp,
-                color = colors.foregroundMuted,
-            )
-            BasicTextField(
-                value = state.title,
-                onValueChange = onTitleChanged,
-                modifier = Modifier
-                    .testTag("publish_title")
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(colors.surfaceCard)
-                    .padding(14.dp),
-                textStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary),
-                cursorBrush = SolidColor(colors.accentPrimary),
-                singleLine = true,
-                decorationBox = { inner ->
-                    Box {
-                        if (state.title.isEmpty()) {
-                            Text(
-                                stringResource(R.string.publish_title_placeholder),
-                                fontSize = 16.sp,
-                                color = colors.foregroundMuted,
-                            )
-                        }
-                        inner()
-                    }
-                },
-            )
-            state.titleError?.let { errorText ->
-                Text(errorText, fontSize = 12.sp, color = colors.danger)
-            }
-        }
-
-        // Description
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                stringResource(R.string.publish_description_label),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp,
-                color = colors.foregroundMuted,
-            )
-            BasicTextField(
-                value = state.description,
-                onValueChange = onDescriptionChanged,
-                modifier = Modifier
-                    .testTag("publish_description")
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(colors.surfaceCard)
-                    .padding(14.dp),
-                textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundSecondary),
-                cursorBrush = SolidColor(colors.accentPrimary),
-                decorationBox = { inner ->
-                    Box {
-                        if (state.description.isEmpty()) {
-                            Text(stringResource(R.string.publish_description_placeholder), fontSize = 14.sp, color = colors.foregroundMuted)
-                        }
-                        inner()
-                    }
-                },
-            )
-            state.descriptionError?.let { errorText ->
-                Text(errorText, fontSize = 12.sp, color = colors.danger)
-            }
-        }
-
-        // Tags
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                stringResource(R.string.publish_tags_label),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp,
-                color = colors.foregroundMuted,
-            )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                state.tags.forEach { tag ->
-                    TagChip(tag = tag, onRemove = { onRemoveTag(tag) })
-                }
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(50))
-                        .clickable { showTagSheet = true }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = stringResource(R.string.publish_add_tag),
-                        tint = colors.foregroundMuted,
-                        modifier = Modifier.size(12.dp),
-                    )
-                    Text(
-                        text = stringResource(R.string.publish_add),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.foregroundMuted,
-                    )
-                }
-            }
-        }
-
-        // Card options (Listen / Speak)
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                stringResource(R.string.publish_card_options_label),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp,
-                color = colors.foregroundMuted,
-            )
-            OptionToggleRow(
-                title = stringResource(R.string.publish_listen_title),
-                subtitle = stringResource(R.string.publish_listen_subtitle),
-                checked = state.listenEnabled,
-                onToggle = onToggleListen,
-                testTag = "publish_listen_toggle",
-                icon = Icons.AutoMirrored.Filled.VolumeUp,
-                iconColor = colors.accentPrimary,
-                iconBackground = colors.accentPrimarySoft,
-            )
-            OptionToggleRow(
-                title = stringResource(R.string.publish_speak_title),
-                subtitle = stringResource(R.string.publish_speak_subtitle),
-                checked = state.speakEnabled,
-                onToggle = onToggleSpeak,
-                testTag = "publish_speak_toggle",
-                icon = Icons.Default.Mic,
-                iconColor = colors.accentSecondary,
-                iconBackground = colors.accentSecondarySoft,
-            )
-        }
-
-        // Public on Pubky notice
-        Row(
+        // Pinned so the primary action is never below the fold — on device the Publish
+        // button sat at the end of the scroll and was invisible on a fresh screen.
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(colors.accentSecondarySoft)
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("🌐", fontSize = 18.sp)
-            Column {
-                Text(
-                    stringResource(R.string.publish_public_title),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.foregroundPrimary,
-                )
-                Text(stringResource(R.string.publish_public_subtitle), fontSize = 12.sp, color = colors.foregroundSecondary)
+            state.error?.let { errorText ->
+                Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
             }
-        }
-
-        // Publish button
-        EchoPrimaryButton(
-            label = stringResource(R.string.publish_button),
-            onClick = onPublishClick,
-            loading = state.isPublishing,
-            enabled = state.canPublish,
-            modifier = Modifier
-                .testTag("publish_button")
-                .fillMaxWidth(),
-        )
-
-        // Error
-        state.error?.let { errorText ->
-            Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
+            EchoPrimaryButton(
+                label = stringResource(R.string.publish_button),
+                onClick = onPublishClick,
+                // Enabled so validation can explain *why* it can't publish. Previously
+                // `enabled = state.canPublish` made `validateForPublish` dead code and the
+                // tap did nothing at all.
+                enabled = !state.isPublishing,
+                loading = state.isPublishing,
+                modifier = Modifier
+                    .testTag("publish_button")
+                    .fillMaxWidth(),
+            )
         }
     }
 

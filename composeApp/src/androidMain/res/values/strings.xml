@@ -327,4 +327,9 @@
     <string name="decks_search_placeholder">Search your decks</string>
     <string name="decks_search_no_results">No decks match “%1$s”.</string>
     <string name="paste_separator_sheet_title">Split cards by</string>
+    <string name="form_title_required">Give your deck a title to publish it.</string>
+    <string name="form_title_too_long">Title must be 120 characters or fewer.</string>
+    <string name="form_description_too_long">Description must be 500 characters or fewer.</string>
+    <string name="paste_validation_empty">Paste or type your list first.</string>
+    <string name="paste_validation_no_cards">No cards found yet — check the separator or add a front and back.</string>
 </resources>
