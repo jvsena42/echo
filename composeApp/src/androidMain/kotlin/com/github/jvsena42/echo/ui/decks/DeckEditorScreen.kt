@@ -22,8 +22,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -33,6 +34,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -49,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -101,6 +104,7 @@ fun DeckEditorRoute(
         onAddTag = viewModel::onAddTag,
         onCardClick = viewModel::onCardClick,
         onAddCard = viewModel::onAddCard,
+        onMoveCard = viewModel::onMoveCard,
     )
 }
 
@@ -116,6 +120,7 @@ fun DeckEditorScreen(
     onAddTag: (String) -> Unit,
     onCardClick: (String) -> Unit,
     onAddCard: () -> Unit,
+    onMoveCard: (Int, Int) -> Unit,
 ) {
     val colors = EchoTheme.colors
 
@@ -344,10 +349,14 @@ fun DeckEditorScreen(
 
             // 3. Card list
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                state.cards.forEach { card ->
+                state.cards.forEachIndexed { index, card ->
                     CardRow(
                         card = card,
                         onClick = { onCardClick(card.id) },
+                        canMoveUp = index > 0,
+                        canMoveDown = index < state.cards.lastIndex,
+                        onMoveUp = { onMoveCard(index, index - 1) },
+                        onMoveDown = { onMoveCard(index, index + 1) },
                     )
                 }
             }
@@ -395,6 +404,10 @@ private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
 private fun CardRow(
     card: EditableCardModel,
     onClick: () -> Unit,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
 ) {
     val colors = EchoTheme.colors
 
@@ -414,13 +427,35 @@ private fun CardRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Drag handle
-        Icon(
-            imageVector = Icons.Default.DragIndicator,
-            contentDescription = stringResource(R.string.deck_editor_reorder),
-            tint = colors.foregroundMuted,
-            modifier = Modifier.size(18.dp),
-        )
+        // Explicit move buttons rather than a drag handle: the list lives inside a
+        // verticalScroll where nested drag is unreliable, and these are reachable with
+        // TalkBack and addressable from the journey tests.
+        Column {
+            IconButton(
+                onClick = onMoveUp,
+                enabled = canMoveUp,
+                modifier = Modifier.size(24.dp).testTag("card_move_up"),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowUp,
+                    contentDescription = stringResource(R.string.deck_editor_move_up),
+                    tint = if (canMoveUp) colors.foregroundMuted else colors.borderSubtle,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            IconButton(
+                onClick = onMoveDown,
+                enabled = canMoveDown,
+                modifier = Modifier.size(24.dp).testTag("card_move_down"),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = stringResource(R.string.deck_editor_move_down),
+                    tint = if (canMoveDown) colors.foregroundMuted else colors.borderSubtle,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
 
         // Text column
         Column(
@@ -501,6 +536,7 @@ private fun DeckEditorScreenPreview() {
             onRemoveTag = {},
             onAddTag = {},
             onCardClick = {},
+            onMoveCard = { _, _ -> },
             onAddCard = {},
         )
     }

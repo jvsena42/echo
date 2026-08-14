@@ -160,6 +160,40 @@ class DeckEditorViewModelTest {
     }
 
     @Test
+    fun `moving a card reorders it and the new order is what gets published`() = runTest {
+        deckRepo.decks["deck1"] = testDeck(
+            id = "deck1",
+            cardIndex = listOf(CardIndexEntry("card1", 1L), CardIndexEntry("card2", 2L)),
+        )
+        cardRepo.seed(
+            Card("card1", "deck1", 1L, CardSide(text = "first"), CardSide(text = "1")),
+            Card("card2", "deck1", 2L, CardSide(text = "second"), CardSide(text = "2")),
+        )
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals(listOf("card1", "card2"), vm.state.value.cards.map { it.id })
+
+        vm.onMoveCard(from = 0, to = 1)
+        vm.onSaveClick()
+        advanceUntilIdle()
+
+        val (deck, cards) = deckRepo.published.single()
+        assertEquals(listOf("card2", "card1"), cards.map { it.id })
+        assertEquals(listOf("card2", "card1"), deck.cardIndex.map { it.id })
+    }
+
+    @Test
+    fun `moving a card out of bounds is ignored`() = runTest {
+        seedDeckWithMedia()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onMoveCard(from = 0, to = 5)
+
+        assertEquals(listOf("card1"), vm.state.value.cards.map { it.id })
+    }
+
+    @Test
     fun `a card added in this session is published with its typed text`() = runTest(mainDispatcher) {
         seedDeckWithMedia()
         val vm = viewModel()

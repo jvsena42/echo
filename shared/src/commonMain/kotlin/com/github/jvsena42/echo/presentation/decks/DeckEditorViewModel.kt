@@ -100,6 +100,21 @@ class DeckEditorViewModel(
         _state.update { s -> s.copy(cards = s.cards + newCard) }
     }
 
+    /**
+     * Move a card one position. The editor's drag handle was decorative — dragging it changed
+     * nothing — and reorder could not have persisted anyway until reads started honouring the
+     * manifest's `cardIndex` order. `onSaveClick` writes `cardIndex` in list order, so moving
+     * here is all that's needed now.
+     */
+    fun onMoveCard(from: Int, to: Int) {
+        _state.update { s ->
+            if (from !in s.cards.indices || to !in s.cards.indices || from == to) return@update s
+            val reordered = s.cards.toMutableList()
+            reordered.add(to, reordered.removeAt(from))
+            s.copy(cards = reordered)
+        }
+    }
+
     fun onCardClick(cardId: String) {
         val currentDeckId = deckId ?: return
         viewModelScope.launch { _effects.emit(DeckEditorEffect.NavigateEditCard(currentDeckId, cardId)) }
