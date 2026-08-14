@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.presentation.home.DeckSummary
 import com.github.jvsena42.echo.presentation.home.HomeEffect
 import com.github.jvsena42.echo.presentation.home.HomeUiState
@@ -36,6 +37,7 @@ import com.github.jvsena42.echo.presentation.home.HomeViewModel
 import com.github.jvsena42.echo.ui.components.EchoErrorBlock
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import com.github.jvsena42.echo.ui.util.labelOrFallback
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -129,7 +131,7 @@ private fun HomeScreenContent(
     // so it gets a non-scrolling full-height layout instead of the shared scroll column.
     if (state is HomeUiState.Empty) {
         HomeEmptyScreen(
-            greetingName = state.greetingName,
+            greetingName = state.identity.labelOrFallback(),
             onCreateDeckClick = onCreateDeckClick,
             onBrowseExamplesClick = onBrowseExamplesClick,
         )
@@ -145,7 +147,7 @@ private fun HomeScreenContent(
     ) {
         when (state) {
             is HomeUiState.Content -> {
-                GreetingHeader(name = state.greetingName)
+                GreetingHeader(name = state.identity.labelOrFallback())
                 HomeContent(
                     state = state,
                     onStartStudyClick = onStartStudyClick,
@@ -153,7 +155,7 @@ private fun HomeScreenContent(
                 )
             }
             is HomeUiState.Error -> {
-                GreetingHeader(name = state.greetingName)
+                GreetingHeader(name = state.identity.labelOrFallback())
                 EchoErrorBlock(
                     reason = state.reason,
                     onRetry = onRetry,
@@ -223,7 +225,7 @@ private fun HomeScreenPreview() {
     EchoTheme {
         HomeScreen(
             state = HomeUiState.Content(
-                greetingName = "Alex",
+                identity = PubkyIdentity("alex1xqz9", "Alex", avatarUrl = null, bio = null),
                 dueToday = 24,
                 doneToday = 9,
                 decks = listOf(

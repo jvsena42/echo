@@ -9,6 +9,7 @@ import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.data.repository.SrsRepository
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.ErrorReason
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -53,14 +54,13 @@ class HomeViewModel(
             if (!silent) _state.update { HomeUiState.Loading }
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
-            val greetingName = session?.identity?.displayName?.takeIf { it.isNotBlank() }
-                ?: session?.identity?.pubky?.let { "pk:${it.take(PUBKY_PREFIX_LEN)}" }
-                ?: "there"
+            // Carry who the user is, not what to call them — the platform layer owns the words.
+            val identity = session?.identity
 
             runCatching { deckRepository.listOwned() }
                 .onSuccess { decks ->
                     _state.update { if (decks.isEmpty()) {
-                        HomeUiState.Empty(greetingName)
+                        HomeUiState.Empty(identity)
                     } else {
                         val dueByDeck = runCatching { srsRepository.dueToday() }
                             .getOrDefault(emptyList())
@@ -68,7 +68,7 @@ class HomeViewModel(
                             .eachCount()
                         val dueCount = dueByDeck.values.sum()
                         HomeUiState.Content(
-                            greetingName = greetingName,
+                            identity = identity,
                             dueToday = dueCount,
                             // No persisted session history in v1; "done today" is tracked
                             // within the study session screen, not here.
@@ -83,6 +83,7 @@ class HomeViewModel(
                         )
                     } }
                     Log.d(TAG, "load: decks=${decks.size}")
+                    refreshIdentity(identity)
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
@@ -90,17 +91,35 @@ class HomeViewModel(
                         Log.d(TAG, "load: session expired — signing out")
                         runCatching { identityRepository.signOut() }
                         _state.update { HomeUiState.Error(
-                            greetingName = greetingName,
+                            identity = identity,
                             reason = ErrorReason.SessionExpired,
                         ) }
                         _effects.emit(HomeEffect.NavigateToOnboarding)
                     } else {
                         _state.update { HomeUiState.Error(
-                            greetingName = greetingName,
+                            identity = identity,
                             reason = err.toErrorReason(),
                         ) }
                     }
                 }
+        }
+    }
+
+    /**
+     * The session's copy of the name is written at sign-in, so a name edited on Profile would
+     * otherwise never reach the greeting. Runs after first paint — the greeting never waits on it.
+     */
+    private suspend fun refreshIdentity(stored: PubkyIdentity?) {
+        if (stored == null) return
+        val fresh = identityRepository.fetchProfile(stored.pubky).getOrNull() ?: return
+        if (fresh.displayName == stored.displayName) return
+        _state.update { current ->
+            when (current) {
+                is HomeUiState.Content -> current.copy(identity = fresh)
+                is HomeUiState.Empty -> HomeUiState.Empty(fresh)
+                is HomeUiState.Error -> current.copy(identity = fresh)
+                HomeUiState.Loading -> current
+            }
         }
     }
 
@@ -130,15 +149,16 @@ class HomeViewModel(
 
     companion object {
         private const val TAG = "Echo/HomeVM"
-        private const val PUBKY_PREFIX_LEN = 6
     }
 }
 
 sealed interface HomeUiState {
     data object Loading : HomeUiState
-    data class Empty(val greetingName: String) : HomeUiState
+
+    /** [identity] is null only while signed out — the screen greets a nameless user then. */
+    data class Empty(val identity: PubkyIdentity?) : HomeUiState
     data class Content(
-        val greetingName: String,
+        val identity: PubkyIdentity?,
         val dueToday: Int,
         val doneToday: Int,
         val decks: List<DeckSummary>,
@@ -151,7 +171,7 @@ sealed interface HomeUiState {
     ) : HomeUiState {
         val isCaughtUp: Boolean get() = dueToday == 0
     }
-    data class Error(val greetingName: String, val reason: ErrorReason) : HomeUiState
+    data class Error(val identity: PubkyIdentity?, val reason: ErrorReason) : HomeUiState
 }
 
 data class DeckSummary(

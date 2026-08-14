@@ -35,6 +35,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.presentation.home.DeckSummary
 import com.github.jvsena42.echo.presentation.home.HomeUiState
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -326,7 +327,7 @@ private fun HomeContentPreview() {
         ) {
             HomeContent(
                 state = HomeUiState.Content(
-                    greetingName = "Alex",
+                    identity = PubkyIdentity("alex1xqz9", "Alex", avatarUrl = null, bio = null),
                     dueToday = 24,
                     doneToday = 9,
                     decks = listOf(

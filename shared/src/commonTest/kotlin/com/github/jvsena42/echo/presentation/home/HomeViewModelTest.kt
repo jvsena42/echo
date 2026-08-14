@@ -3,6 +3,7 @@ package com.github.jvsena42.echo.presentation.home
 import com.github.jvsena42.echo.data.pubky.PubkyError
 import com.github.jvsena42.echo.domain.model.CardIndexEntry
 import com.github.jvsena42.echo.domain.model.ErrorReason
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.testing.FakeDeckRepository
 import com.github.jvsena42.echo.testing.FakeIdentityRepository
 import com.github.jvsena42.echo.testing.FakeSrsRepository
@@ -24,6 +25,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -74,7 +76,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val state = assertIs<HomeUiState.Content>(vm.state.value)
-        assertEquals("Ana", state.greetingName)
+        assertEquals("Ana", state.identity?.displayName)
         assertEquals(expected = 2, actual = state.dueToday)
         assertEquals(expected = 0, actual = state.doneToday)
         assertEquals(expected = 2, actual = state.decks.size)
@@ -91,17 +93,35 @@ class HomeViewModelTest {
 
         advanceUntilIdle()
 
-        assertEquals(HomeUiState.Empty("Ana"), vm.state.value)
+        assertEquals("Ana", assertIs<HomeUiState.Empty>(vm.state.value).identity?.displayName)
     }
 
     @Test
-    fun greetingFallsBackToPubkyPrefixWithoutDisplayName() = runTest {
+    fun greetingCarriesThePubkyWhenTheresNoDisplayName() = runTest {
         identityRepo.session = fakeSession(pubky = "abcdefgh", displayName = null)
         val vm = viewModel()
 
         advanceUntilIdle()
 
-        assertEquals(HomeUiState.Empty("pk:abcdef"), vm.state.value)
+        // Naming the user is the platform layer's job — the state only says who they are.
+        val identity = assertIs<HomeUiState.Empty>(vm.state.value).identity
+        assertEquals("abcdefgh", identity?.pubky)
+        assertNull(identity?.displayName)
+    }
+
+    @Test
+    fun greetingPicksUpANameEditedAfterSignIn() = runTest {
+        identityRepo.session = fakeSession(pubky = "abcdefgh", displayName = null)
+        identityRepo.profiles["abcdefgh"] =
+            PubkyIdentity("abcdefgh", "Cosmic-Crystal-Panda", avatarUrl = null, bio = null)
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        assertEquals(
+            "Cosmic-Crystal-Panda",
+            assertIs<HomeUiState.Empty>(vm.state.value).identity?.displayName,
+        )
     }
 
     @Test
