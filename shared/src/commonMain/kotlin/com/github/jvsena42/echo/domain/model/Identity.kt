@@ -9,6 +9,13 @@ data class PubkyIdentity(
     val bio: String?,
 )
 
+/**
+ * Letter shown when there is no avatar picture. Display name first, pubky as the fallback — the
+ * same rule everywhere an avatar placeholder is drawn, so one person never shows two letters.
+ */
+val PubkyIdentity.avatarInitial: Char
+    get() = (displayName?.trim()?.firstOrNull() ?: pubky.firstOrNull())?.uppercaseChar() ?: '?'
+
 data class Session(
     val identity: PubkyIdentity,
     val sessionSecret: String,

@@ -33,6 +33,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRepository {
     var signOutCount = 0
 
+    /** Profiles served by [fetchProfile]; a pubky that is absent fails as an unpublished one would. */
+    val profiles = mutableMapOf<String, PubkyIdentity>()
+    val fetchedProfiles = mutableListOf<String>()
+
     override suspend fun currentSession(): Session? = session
     override suspend fun loadPersistedSession(): Session? = session
 
@@ -48,8 +52,11 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
     override suspend fun beginSignIn(capabilities: String): Result<AuthFlowHandle> =
         Result.failure(UnsupportedOperationException("Not used in tests"))
 
-    override suspend fun fetchProfile(pubky: String): Result<PubkyIdentity> =
-        Result.failure(UnsupportedOperationException("Not used in tests"))
+    override suspend fun fetchProfile(pubky: String, forceRefresh: Boolean): Result<PubkyIdentity> {
+        fetchedProfiles += pubky
+        return profiles[pubky]?.let { Result.success(it) }
+            ?: Result.failure(IllegalStateException("no profile for $pubky"))
+    }
 
     override suspend fun updateProfile(name: String?, bio: String?): Result<PubkyIdentity> =
         Result.failure(UnsupportedOperationException("Not used in tests"))

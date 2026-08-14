@@ -32,8 +32,14 @@ interface IdentityRepository {
      */
     suspend fun beginSignIn(capabilities: String = DEFAULT_CAPABILITIES): Result<AuthFlowHandle>
 
-    /** Fetch the pubky.app profile for any user (public read). */
-    suspend fun fetchProfile(pubky: String): Result<PubkyIdentity>
+    /**
+     * Fetch the pubky.app profile for any user (public read).
+     *
+     * Served from a session-scoped cache so a deck grid can resolve every author's name without
+     * one homeserver round trip per tile per render. Pass [forceRefresh] where staleness would be
+     * visible — a profile screen the user pulled to refresh.
+     */
+    suspend fun fetchProfile(pubky: String, forceRefresh: Boolean = false): Result<PubkyIdentity>
 
     /** Update the current user's pubky.app profile via session-authenticated PUT. */
     suspend fun updateProfile(name: String?, bio: String?): Result<PubkyIdentity>
