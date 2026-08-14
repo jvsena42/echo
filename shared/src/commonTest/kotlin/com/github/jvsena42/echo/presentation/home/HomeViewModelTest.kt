@@ -2,6 +2,7 @@ package com.github.jvsena42.echo.presentation.home
 
 import com.github.jvsena42.echo.data.pubky.PubkyError
 import com.github.jvsena42.echo.domain.model.CardIndexEntry
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.testing.FakeDeckRepository
 import com.github.jvsena42.echo.testing.FakeIdentityRepository
 import com.github.jvsena42.echo.testing.FakeSrsRepository
@@ -104,6 +105,35 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun owningDecksWithNothingDueIsCaughtUpNotEmpty() = runTest {
+        // The bug: after finishing a session, Home showed the zero-decks empty state and told a
+        // user who owns decks to "create or import a deck".
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        srsRepo.due = emptyList()
+        srsRepo.nextDue = 9_999L
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertTrue(state.isCaughtUp)
+        assertEquals(9_999L, state.nextDueAtMillis)
+    }
+
+    @Test
+    fun havingCardsDueIsNotCaughtUp() = runTest {
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        srsRepo.due = listOf(testCard("c1", deckId = "deck1"))
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertTrue(!state.isCaughtUp)
+        assertEquals(null, state.nextDueAtMillis, "next-due lookup should be skipped when cards are due")
+    }
+
+    @Test
     fun genericFailureShowsErrorWithoutSigningOut() = runTest {
         deckRepo.listOwnedError = IllegalStateException("electrum hiccup")
         val vm = viewModel()
@@ -112,7 +142,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val state = assertIs<HomeUiState.Error>(vm.state.value)
-        assertEquals("electrum hiccup", state.message)
+        assertEquals(ErrorReason.Unknown, state.reason)
         assertEquals(expected = 0, actual = identityRepo.signOutCount)
         assertTrue(effects.isEmpty())
     }
@@ -126,9 +156,40 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val state = assertIs<HomeUiState.Error>(vm.state.value)
-        assertEquals("Your session expired. Please sign in again.", state.message)
+        assertEquals(ErrorReason.SessionExpired, state.reason)
         assertEquals(expected = 1, actual = identityRepo.signOutCount)
         assertEquals(listOf<HomeEffect>(HomeEffect.NavigateToOnboarding), effects)
+    }
+
+    @Test
+    fun reloadsWhenADeckIsPublishedOrDeleted() = runTest {
+        // Reproduces the reported bug: publish a deck, come back to this tab, and it still
+        // says you have none because the VM only ever loaded once.
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertIs<HomeUiState.Empty>(vm.state.value)
+
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        deckRepo.emitChange()
+        advanceUntilIdle()
+
+        assertIs<HomeUiState.Content>(vm.state.value)
+    }
+
+    @Test
+    fun aBackgroundReloadDoesNotFlashTheLoadingState() = runTest {
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertIs<HomeUiState.Content>(vm.state.value)
+
+        val seen = mutableListOf<HomeUiState>()
+        val job = launch { vm.state.collect { seen.add(it) } }
+        deckRepo.emitChange()
+        advanceUntilIdle()
+        job.cancel()
+
+        assertTrue(seen.none { it is HomeUiState.Loading }, "background refresh flashed the loader")
     }
 
     @Test

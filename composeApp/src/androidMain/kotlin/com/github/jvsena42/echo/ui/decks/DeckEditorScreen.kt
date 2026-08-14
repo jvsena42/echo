@@ -22,8 +22,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -33,6 +34,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -44,11 +46,16 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -56,11 +63,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.R
 import com.github.jvsena42.echo.presentation.decks.DeckEditorEffect
 import com.github.jvsena42.echo.presentation.decks.DeckEditorUiState
 import com.github.jvsena42.echo.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.echo.presentation.decks.EditableCardModel
+import com.github.jvsena42.echo.ui.components.ImagePickerSheet
+import com.github.jvsena42.echo.ui.components.ImageSelection
 import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
@@ -101,6 +111,9 @@ fun DeckEditorRoute(
         onAddTag = viewModel::onAddTag,
         onCardClick = viewModel::onCardClick,
         onAddCard = viewModel::onAddCard,
+        onMoveCard = viewModel::onMoveCard,
+        onCoverWebSelected = viewModel::onCoverWebSelected,
+        onCoverGallerySelected = viewModel::onCoverGallerySelected,
     )
 }
 
@@ -116,8 +129,27 @@ fun DeckEditorScreen(
     onAddTag: (String) -> Unit,
     onCardClick: (String) -> Unit,
     onAddCard: () -> Unit,
+    onMoveCard: (Int, Int) -> Unit,
+    onCoverWebSelected: (String) -> Unit,
+    onCoverGallerySelected: (ByteArray, String) -> Unit,
 ) {
     val colors = EchoTheme.colors
+    var showCoverSheet by rememberSaveable { mutableStateOf(false) }
+
+    if (showCoverSheet) {
+        ImagePickerSheet(
+            title = stringResource(R.string.deck_editor_cover),
+            subtitle = null,
+            onDismiss = { showCoverSheet = false },
+            onSelected = { selection ->
+                when (selection) {
+                    is ImageSelection.Web -> onCoverWebSelected(selection.url)
+                    is ImageSelection.Gallery -> onCoverGallerySelected(selection.bytes, selection.mime)
+                }
+                showCoverSheet = false
+            },
+        )
+    }
 
     Scaffold(
         containerColor = colors.surfacePrimary,
@@ -206,15 +238,26 @@ fun DeckEditorScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    // Cover emoji box
+                    // Cover box — tappable so a deck's cover can be changed after publishing,
+                    // which was previously impossible: the picker only existed on the publish step.
                     Box(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(colors.accentPrimarySoft),
+                            .background(colors.accentPrimarySoft)
+                            .clickable { showCoverSheet = true }
+                            .testTag("deck_editor_cover"),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (state.coverEmoji.isNotEmpty()) {
+                        val pickedCover = state.coverImageUrl
+                        if (pickedCover != null) {
+                            AsyncImage(
+                                model = pickedCover,
+                                contentDescription = stringResource(R.string.deck_editor_cover),
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else if (state.coverEmoji.isNotEmpty()) {
                             Text(text = state.coverEmoji, fontSize = 32.sp)
                         } else {
                             Icon(
@@ -344,10 +387,14 @@ fun DeckEditorScreen(
 
             // 3. Card list
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                state.cards.forEach { card ->
+                state.cards.forEachIndexed { index, card ->
                     CardRow(
                         card = card,
                         onClick = { onCardClick(card.id) },
+                        canMoveUp = index > 0,
+                        canMoveDown = index < state.cards.lastIndex,
+                        onMoveUp = { onMoveCard(index, index - 1) },
+                        onMoveDown = { onMoveCard(index, index + 1) },
                     )
                 }
             }
@@ -395,6 +442,10 @@ private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
 private fun CardRow(
     card: EditableCardModel,
     onClick: () -> Unit,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
 ) {
     val colors = EchoTheme.colors
 
@@ -414,13 +465,35 @@ private fun CardRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Drag handle
-        Icon(
-            imageVector = Icons.Default.DragIndicator,
-            contentDescription = stringResource(R.string.deck_editor_reorder),
-            tint = colors.foregroundMuted,
-            modifier = Modifier.size(18.dp),
-        )
+        // Explicit move buttons rather than a drag handle: the list lives inside a
+        // verticalScroll where nested drag is unreliable, and these are reachable with
+        // TalkBack and addressable from the journey tests.
+        Column {
+            IconButton(
+                onClick = onMoveUp,
+                enabled = canMoveUp,
+                modifier = Modifier.size(24.dp).testTag("card_move_up"),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowUp,
+                    contentDescription = stringResource(R.string.deck_editor_move_up),
+                    tint = if (canMoveUp) colors.foregroundMuted else colors.borderSubtle,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            IconButton(
+                onClick = onMoveDown,
+                enabled = canMoveDown,
+                modifier = Modifier.size(24.dp).testTag("card_move_down"),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = stringResource(R.string.deck_editor_move_down),
+                    tint = if (canMoveDown) colors.foregroundMuted else colors.borderSubtle,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
 
         // Text column
         Column(
@@ -501,6 +574,9 @@ private fun DeckEditorScreenPreview() {
             onRemoveTag = {},
             onAddTag = {},
             onCardClick = {},
+            onMoveCard = { _, _ -> },
+            onCoverWebSelected = {},
+            onCoverGallerySelected = { _, _ -> },
             onAddCard = {},
         )
     }

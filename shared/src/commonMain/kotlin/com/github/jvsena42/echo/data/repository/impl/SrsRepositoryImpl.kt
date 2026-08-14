@@ -61,6 +61,17 @@ class SrsRepositoryImpl(
             .map { it.first }
     }
 
+    /**
+     * Reads the cache `dueToday`/`dueForDeck` has already warmed, so this is an in-memory min
+     * rather than another round of homeserver reads.
+     */
+    override suspend fun nextDueAt(): Long? {
+        val now = epochMillis()
+        return cacheLock.withLock { cache.values.map { it.dueAt } }
+            .filter { it > now }
+            .minOrNull()
+    }
+
     override suspend fun stateFor(cardId: String): SrsState? = cacheLock.withLock { cache[cardId] }
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> = runCatching {

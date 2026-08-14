@@ -54,7 +54,9 @@ val EchoLightColors = EchoColors(
     borderSubtle = Color(0xFFF0E6D9),
     srsGood = Color(0xFF21C97A),
     srsAgain = Color(0xFFFF4E64),
-    srsHard = Color(0xFFFF8A1F),
+    // Amber, not orange: #FF8A1F sat right next to accentPrimary #FF5C00, so "Hard"
+    // read as the brand action colour.
+    srsHard = Color(0xFFF5A524),
     srsEasy = Color(0xFF3B82F6),
     danger = Color(0xFFD92C2C),
     dangerSoft = Color(0x14FF4E64),

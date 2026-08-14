@@ -2,7 +2,9 @@ package com.github.jvsena42.echo.presentation.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.echo.data.pubky.toErrorReason
 import com.github.jvsena42.echo.data.repository.IdentityRepository
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -59,9 +61,7 @@ class OnboardingViewModel(
             val handleResult = identityRepository.beginSignIn()
             val handle = handleResult.getOrElse { error ->
                 Log.e(TAG, "onSignInClick: beginSignIn FAILED — ${error::class.simpleName}: ${error.message}", error)
-                _state.update {
-                    OnboardingUiState.Error(error.message ?: "Could not start Pubky Ring sign-in.")
-                }
+                _state.update { OnboardingUiState.Error(error.toErrorReason()) }
                 return@launch
             }
             Log.d(TAG, "onSignInClick: got authUrl=${handle.authUrl}")
@@ -83,9 +83,12 @@ class OnboardingViewModel(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "onSignInClick: completion FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    _state.update { OnboardingUiState.Error(
-                        err.message ?: "Sign-in was not completed.",
-                    ) }
+                    // Anything that isn't a recognised transport/session failure is still an
+                    // auth failure from the user's point of view, not a mystery.
+                    val reason = err.toErrorReason()
+                        .takeUnless { it == ErrorReason.Unknown }
+                        ?: ErrorReason.AuthFailed
+                    _state.update { OnboardingUiState.Error(reason) }
                 }
         }
     }
@@ -103,9 +106,7 @@ class OnboardingViewModel(
         Log.w(TAG, "onDeeplinkUnavailable: no handler for pubkyauth:// — aborting flow")
         signInJob?.cancel()
         signInJob = null
-        _state.update { OnboardingUiState.Error(
-            "Pubky Ring isn't installed. Install it to sign in.",
-        ) }
+        _state.update { OnboardingUiState.Error(ErrorReason.RingNotInstalled) }
     }
 
     fun onRetry() {

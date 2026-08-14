@@ -31,15 +31,21 @@ class ProfileViewModel(
 
     init {
         load()
+        // The deck/card counters shown here go stale the moment a deck is published or deleted.
+        viewModelScope.launch {
+            deckRepository.changes.collect { load(silent = true) }
+        }
     }
 
     fun onRefresh() = load()
 
-    private fun load() {
-        if (loadJob?.isActive == true) return
+    /** [silent] keeps the profile on screen while a background refresh runs. */
+    private fun load(silent: Boolean = false) {
+        // Cancel rather than bail out: a change that lands mid-load must not be dropped.
+        loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            Log.d(TAG, "load: fetching profile + stats")
-            _state.update { it.copy(isLoading = true) }
+            Log.d(TAG, "load: fetching profile + stats (silent=$silent)")
+            if (!silent) _state.update { it.copy(isLoading = true) }
 
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()

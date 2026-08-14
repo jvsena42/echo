@@ -6,6 +6,7 @@ import com.github.jvsena42.echo.data.pubky.PubkyPaths
 import com.github.jvsena42.echo.data.pubky.SessionProvider
 import com.github.jvsena42.echo.data.pubky.SessionRevalidator
 import com.github.jvsena42.echo.data.pubky.deleteWithSessionRetry
+import com.github.jvsena42.echo.data.pubky.isNotFound
 import com.github.jvsena42.echo.data.pubky.putWithSessionRetry
 import com.github.jvsena42.echo.data.pubky.requireSession
 import com.github.jvsena42.echo.data.repository.DeckRepository
@@ -40,9 +41,11 @@ class DiscoveryRepositoryImpl(
     override suspend fun following(): List<String> {
         cacheLock.withLock { cache }?.let { return it.toList() }
         val owner = session.current()?.identity?.pubky ?: return emptyList()
-        val followees = pubky.list(PubkyPaths.followsRoot(owner)).getOrNull()
-            ?.let(::parseFolloweesFromList)
-            ?: emptyList()
+        // Propagate transport failures for the same reason as DeckRepositoryImpl.listByAuthor:
+        // "couldn't reach the homeserver" must not render as "you follow nobody".
+        val listJson = pubky.list(PubkyPaths.followsRoot(owner))
+            .getOrElse { if (it.isNotFound()) null else throw it }
+        val followees = listJson?.let(::parseFolloweesFromList) ?: emptyList()
         cacheLock.withLock { cache = followees.toMutableSet() }
         return followees
     }

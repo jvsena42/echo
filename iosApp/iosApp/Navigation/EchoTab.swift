@@ -20,7 +20,8 @@ enum EchoTab: String, CaseIterable {
     /// Title-cased label shown under the native tab item.
     var title: String {
         switch self {
-        case .study: return "Study"
+        // Renders Home (the daily queue), not a study screen — matches Android.
+        case .study: return "Today"
         case .decks: return "Decks"
         case .discover: return "Discover"
         case .profile: return "Profile"

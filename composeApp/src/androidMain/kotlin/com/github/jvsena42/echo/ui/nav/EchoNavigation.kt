@@ -105,17 +105,6 @@ fun EchoNavHost() {
                 },
             )
         }
-        composable(Routes.DECK_EDITOR_NEW) {
-            DeckEditorRoute(
-                deckId = null,
-                onBack = { navController.popBackStack() },
-                onEditCard = { dId, cId -> navController.navigateTo(Routes.editCard(dId, cId)) },
-                onSaved = { savedDeckId ->
-                    navController.popBackStack()
-                    navController.navigateTo(Routes.deckDetail(savedDeckId))
-                },
-            )
-        }
         composable(Routes.IMPORT_PASTE) {
             PasteRoute(
                 onCancel = { navController.popBackStack() },

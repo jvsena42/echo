@@ -2,9 +2,11 @@ package com.github.jvsena42.echo.presentation.decks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.echo.data.pubky.toErrorReason
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.domain.model.Deck
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,15 +32,23 @@ class DecksLibraryViewModel(
 
     init {
         load()
+        // Publish and delete run on other destinations while this tab stays composed, so
+        // without this the grid keeps showing "No decks yet" right after a publish, and keeps
+        // listing a deck that was just deleted.
+        viewModelScope.launch {
+            deckRepository.changes.collect { load(silent = true) }
+        }
     }
 
     fun onRefresh() = load()
 
-    private fun load() {
-        if (loadJob?.isActive == true) return
+    /** [silent] keeps existing content on screen while a background refresh runs. */
+    private fun load(silent: Boolean = false) {
+        // Cancel rather than bail out: a change that lands mid-load must not be dropped.
+        loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            Log.d(TAG, "load: fetching decks")
-            _state.update { DecksLibraryUiState.Loading }
+            Log.d(TAG, "load: fetching decks (silent=$silent)")
+            if (!silent) _state.update { DecksLibraryUiState.Loading }
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
             val myPubky = session?.identity?.pubky
@@ -57,11 +67,17 @@ class DecksLibraryViewModel(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    _state.update { DecksLibraryUiState.Error(
-                        message = err.message ?: "Could not load decks.",
-                    ) }
+                    _state.update { DecksLibraryUiState.Error(reason = err.toErrorReason()) }
                 }
         }
+    }
+
+    fun onQueryChanged(query: String) {
+        _state.update { s -> if (s is DecksLibraryUiState.Content) s.copy(query = query) else s }
+    }
+
+    fun onSortChanged(sort: DeckSort) {
+        _state.update { s -> if (s is DecksLibraryUiState.Content) s.copy(sort = sort) else s }
     }
 
     fun onDeckClick(deckId: String) {
@@ -82,6 +98,7 @@ class DecksLibraryViewModel(
         cardCount = cardCount,
         coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
         authorLabel = if (authorPubky == myPubky) "@you" else "@${authorPubky.take(AUTHOR_PUBKY_PREFIX_LEN)}",
+        updatedAt = updatedAt,
     )
 
     companion object {
@@ -96,9 +113,28 @@ sealed interface DecksLibraryUiState {
     data class Content(
         val deckCount: Int,
         val decks: List<DeckTileModel>,
-    ) : DecksLibraryUiState
-    data class Error(val message: String) : DecksLibraryUiState
+        val query: String = "",
+        val sort: DeckSort = DeckSort.Recent,
+    ) : DecksLibraryUiState {
+        /**
+         * Filtering and sorting happen over the already-loaded list — the library is small and
+         * Pubky has no query API, so there is nothing to gain from a round trip.
+         */
+        val visibleDecks: List<DeckTileModel>
+            get() = decks
+                .filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) }
+                .let { filtered ->
+                    when (sort) {
+                        DeckSort.Recent -> filtered.sortedByDescending { it.updatedAt }
+                        DeckSort.Alphabetical -> filtered.sortedBy { it.title.lowercase() }
+                        DeckSort.CardCount -> filtered.sortedByDescending { it.cardCount }
+                    }
+                }
+    }
+    data class Error(val reason: ErrorReason) : DecksLibraryUiState
 }
+
+enum class DeckSort { Recent, Alphabetical, CardCount }
 
 data class DeckTileModel(
     val id: String,
@@ -106,6 +142,7 @@ data class DeckTileModel(
     val cardCount: Int,
     val coverEmoji: String,
     val authorLabel: String,
+    val updatedAt: Long,
 )
 
 sealed interface DecksLibraryEffect {

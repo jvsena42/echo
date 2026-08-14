@@ -27,8 +27,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,12 +48,66 @@ fun HomeContent(
     onStartStudyClick: () -> Unit,
     onDeckClick: (String) -> Unit,
 ) {
-    DueTodayHeroCard(
-        dueToday = state.dueToday,
-        doneToday = state.doneToday,
-        onStartStudyClick = onStartStudyClick,
-    )
+    if (state.isCaughtUp) {
+        CaughtUpHeroCard(nextDueAtMillis = state.nextDueAtMillis)
+    } else {
+        DueTodayHeroCard(
+            dueToday = state.dueToday,
+            doneToday = state.doneToday,
+            onStartStudyClick = onStartStudyClick,
+        )
+    }
     TodaysDecksSection(decks = state.decks, onDeckClick = onDeckClick)
+}
+
+/**
+ * Shown when the user owns decks but has nothing due. Previously this fell through to the
+ * zero-decks empty state, which told someone who had just finished a session to "create or
+ * import a deck to start your first study session".
+ */
+@Composable
+private fun CaughtUpHeroCard(nextDueAtMillis: Long?) {
+    val colors = EchoTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(colors.accentPrimarySoft)
+            .padding(28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(text = "\uD83C\uDF89", fontSize = 40.sp)
+        Text(
+            text = stringResource(R.string.home_caught_up_title),
+            color = colors.foregroundPrimary,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.ExtraBold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = nextDueAtMillis
+                ?.let { stringResource(R.string.home_caught_up_next_due, relativeFromNow(it)) }
+                ?: stringResource(R.string.home_caught_up_no_next_due),
+            color = colors.foregroundMuted,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** Coarse "in 4h" / "in 2d" phrasing — an exact timestamp would be noise here. */
+@Composable
+private fun relativeFromNow(millis: Long): String {
+    val delta = (millis - System.currentTimeMillis()).coerceAtLeast(0L)
+    val minutes = delta / 60_000L
+    val hours = minutes / 60L
+    val days = hours / 24L
+    return when {
+        days > 0 -> pluralStringResource(R.plurals.duration_days, days.toInt(), days.toInt())
+        hours > 0 -> pluralStringResource(R.plurals.duration_hours, hours.toInt(), hours.toInt())
+        else -> pluralStringResource(R.plurals.duration_minutes, minutes.toInt(), minutes.toInt())
+    }
 }
 
 @Composable

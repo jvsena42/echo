@@ -1,6 +1,7 @@
 package com.github.jvsena42.echo.data.repository.impl
 
 import com.github.jvsena42.echo.data.pubky.ManifestDto
+import com.github.jvsena42.echo.data.pubky.PubkyError
 import com.github.jvsena42.echo.data.pubky.toDto
 import com.github.jvsena42.echo.domain.model.CardSide
 import com.github.jvsena42.echo.domain.model.Tag
@@ -15,6 +16,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -125,6 +127,42 @@ class DeckRepositoryImplTest {
         session.set(null)
 
         assertEquals(emptyList(), repo.listOwned())
+    }
+
+    // An unreachable homeserver must never look like an empty library: Pubky is the only
+    // source of truth, so "no decks" would read to the user as "my decks are gone".
+
+    @Test
+    fun listByAuthorThrowsWhenTheHomeserverIsUnreachable() = runTest {
+        pubky.failListWith = PubkyError("HTTP transport error: error sending request for url (...)")
+
+        assertFailsWith<PubkyError> { repo.listByAuthor("friendpk") }
+    }
+
+    @Test
+    fun listByAuthorReturnsEmptyWhenNothingHasBeenPublished() = runTest {
+        pubky.failListWith = PubkyError("not found: pubky://friendpk/pub/echo/decks/")
+
+        assertEquals(emptyList(), repo.listByAuthor("friendpk"))
+    }
+
+    @Test
+    fun listByAuthorThrowsWhenTheListingHasDecksButNoneCanBeRead() = runTest {
+        putRemoteManifest(author = "friendpk", deckId = "alpha", title = "Alpha")
+        pubky.failGetWith = PubkyError("HTTP transport error: error sending request for url (...)")
+
+        assertFailsWith<PubkyError> { repo.listByAuthor("friendpk") }
+    }
+
+    @Test
+    fun listByAuthorStillReturnsTheDecksItCanRead() = runTest {
+        putRemoteManifest(author = "friendpk", deckId = "alpha", title = "Alpha")
+        // A listed deck whose manifest is missing must not hide the readable one.
+        pubky.store["pubky://friendpk/pub/echo/decks/broken/manifest.json"] = "{ not json"
+
+        val decks = repo.listByAuthor("friendpk")
+
+        assertEquals(listOf("alpha"), decks.map { it.id })
     }
 
     @Test

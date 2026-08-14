@@ -333,4 +333,26 @@ class ImportRepositoryImplTest {
         assertEquals(2, r.keptRows().size)
         assertTrue(r.decisions().isEmpty())
     }
+
+    @Test
+    fun anExplicitSeparatorOverridesAutoDetection() = runBlocking {
+        // ": " makes auto-detection choose Colon; forcing Comma must win (spec §5.2).
+        val text = "fruit: apple, red\nsky: blue, wide"
+
+        val auto = repo().parse(text).getOrThrow()
+        val forced = repo().parse(text, Separator.Comma).getOrThrow()
+
+        assertIs<Separator.Colon>(auto.separator)
+        assertIs<Separator.Comma>(forced.separator)
+        assertEquals(listOf("fruit: apple", "red"), forced.rows.first().fields)
+    }
+
+    @Test
+    fun theAutoSeparatorStillMeansDetect() = runBlocking {
+        // Needs two lines: a single line always falls back to SingleColumn.
+        val explicitAuto = repo().parse("hola,hello\nadios,bye", Separator.Auto).getOrThrow()
+
+        assertIs<Separator.Comma>(explicitAuto.separator)
+        Unit
+    }
 }

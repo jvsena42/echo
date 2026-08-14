@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -36,6 +37,8 @@ fun AuthorRow(
     avatarUrl: String? = null,
     isOwned: Boolean = false,
     isFollowing: Boolean = false,
+    /** Disables + dims the pill while a follow/unfollow request is in flight. */
+    isFollowPending: Boolean = false,
     onFollowClick: () -> Unit = {},
 ) {
     val colors = EchoTheme.colors
@@ -102,7 +105,8 @@ fun AuthorRow(
                     .background(
                         if (isFollowing) colors.accentSecondarySoft else colors.accentSecondary,
                     )
-                    .clickable(onClick = onFollowClick)
+                    .clickable(enabled = !isFollowPending, onClick = onFollowClick)
+                    .alpha(if (isFollowPending) PENDING_ALPHA else 1f)
                     .padding(horizontal = 14.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -155,3 +159,5 @@ private fun AuthorRowPreview() {
         }
     }
 }
+
+private const val PENDING_ALPHA = 0.5f

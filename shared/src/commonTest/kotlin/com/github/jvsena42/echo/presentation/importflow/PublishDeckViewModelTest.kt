@@ -1,5 +1,6 @@
 package com.github.jvsena42.echo.presentation.importflow
 
+import com.github.jvsena42.echo.domain.model.FormError
 import com.github.jvsena42.echo.testing.FakeDeckRepository
 import com.github.jvsena42.echo.testing.FakeIdentityRepository
 import com.github.jvsena42.echo.testing.FakeImportRepository
@@ -63,7 +64,8 @@ class PublishDeckViewModelTest {
         vm.onPublishClick()
         runCurrent()
 
-        assertEquals("Title is required.", vm.state.value.error)
+        // Reported on the title field now, not as a generic bottom-of-form error.
+        assertEquals(FormError.TitleRequired, vm.state.value.titleError)
         assertTrue(deckRepo.published.isEmpty())
     }
 
@@ -78,6 +80,20 @@ class PublishDeckViewModelTest {
         runCurrent()
 
         assertTrue(deckRepo.published.isEmpty())
+    }
+
+    @Test
+    fun tappingPublishWithNoTitleReportsWhyRatherThanDoingNothing() = runTest {
+        // The button is enabled so validation can speak. It used to be disabled, which made
+        // `validateForPublish` dead code — the tap was swallowed with no feedback at all.
+        val vm = viewModel()
+        assertNull(vm.state.value.titleError)
+        assertTrue(!vm.state.value.canPublish)
+
+        vm.onPublishClick()
+        runCurrent()
+
+        assertEquals(FormError.TitleRequired, vm.state.value.titleError)
     }
 
     @Test

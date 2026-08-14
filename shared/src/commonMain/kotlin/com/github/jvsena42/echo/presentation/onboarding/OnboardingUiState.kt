@@ -1,5 +1,6 @@
 package com.github.jvsena42.echo.presentation.onboarding
 
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.domain.model.Session
 
 sealed interface OnboardingUiState {
@@ -19,5 +20,5 @@ sealed interface OnboardingUiState {
     data class Success(val session: Session) : OnboardingUiState
 
     /** Sign-in failed; show message + retry CTA. */
-    data class Error(val message: String) : OnboardingUiState
+    data class Error(val reason: ErrorReason) : OnboardingUiState
 }

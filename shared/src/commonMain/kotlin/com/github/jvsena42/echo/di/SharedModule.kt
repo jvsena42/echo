@@ -91,6 +91,7 @@ val sharedModule = module {
             deckRepository = get(),
             cardRepository = get(),
             identityRepository = get(),
+            mediaRepository = get(),
         )
     }
     viewModel { params ->
@@ -114,7 +115,13 @@ val sharedModule = module {
         )
     }
     viewModel { ProfileViewModel(identityRepository = get(), deckRepository = get()) }
-    viewModel { params -> SettingsViewModel(identityRepository = get(), appVersion = params.getOrNull() ?: "") }
+    viewModel { params ->
+        SettingsViewModel(
+            identityRepository = get(),
+            pubkyClient = get(),
+            appVersion = params.getOrNull() ?: "",
+        )
+    }
     viewModel { DiscoverViewModel(discoveryRepository = get(), tagRepository = get()) }
     viewModel { params ->
         FriendProfileViewModel(

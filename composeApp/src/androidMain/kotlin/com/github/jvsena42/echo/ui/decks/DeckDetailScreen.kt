@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,8 +45,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -64,7 +68,10 @@ import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.components.StatsBar
 import com.github.jvsena42.echo.ui.components.TagChip
+import com.github.jvsena42.echo.ui.components.errorMessage
+import com.github.jvsena42.echo.ui.components.errorTitle
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import com.github.jvsena42.echo.ui.util.shareText
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -81,6 +88,7 @@ fun DeckDetailRoute(
 ) {
     val viewModel = koinViewModel<DeckDetailViewModel> { parametersOf(deckId, authorPubky) }
 
+    val context = LocalContext.current
     val currentBack by rememberUpdatedState(onBack)
     val currentEditDeck by rememberUpdatedState(onEditDeck)
     val currentStudy by rememberUpdatedState(onStudy)
@@ -91,7 +99,10 @@ fun DeckDetailRoute(
                 DeckDetailEffect.NavigateBack -> currentBack()
                 is DeckDetailEffect.NavigateEditDeck -> currentEditDeck(effect.deckId)
                 DeckDetailEffect.NavigateStudy -> currentStudy(deckId)
-                is DeckDetailEffect.Share -> { /* handled by platform share sheet */ }
+                is DeckDetailEffect.Share -> context.shareText(
+                    text = context.getString(R.string.share_deck_body, effect.title, effect.uri),
+                    chooserTitle = context.getString(R.string.share_deck_chooser_title),
+                )
                 DeckDetailEffect.Deleted -> currentBack()
             }
         }
@@ -137,28 +148,55 @@ fun DeckDetailScreen(
         }
 
         is DeckDetailUiState.Error -> {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(colors.surfacePrimary)
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+                    .statusBarsPadding(),
             ) {
-                Text(
-                    text = stringResource(R.string.deck_detail_error_title),
-                    color = colors.foregroundPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                // Without this the screen is a trap: after a deck is deleted the stale tile
+                // still opens here, "Deck not found" can never be retried away, and the only
+                // way out is the system back gesture.
+                HeaderCircleButton(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = stringResource(R.string.deck_detail_back),
+                    iconSize = 24.dp,
+                    onClick = onBackClick,
+                    modifier = Modifier
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .testTag("deck_detail_back"),
                 )
-                Text(
-                    text = state.message,
-                    color = colors.foregroundMuted,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                TextButton(onClick = onRetry) {
-                    Text(stringResource(R.string.deck_detail_retry), color = colors.accentPrimary)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = errorTitle(state.reason),
+                        color = colors.foregroundPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    Text(
+                        text = errorMessage(state.reason),
+                        color = colors.foregroundMuted,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    // Retrying a deck that no longer exists can only fail again.
+                    if (state.canRetry) {
+                        TextButton(onClick = onRetry) {
+                            Text(stringResource(R.string.deck_detail_retry), color = colors.accentPrimary)
+                        }
+                    }
+                    TextButton(onClick = onBackClick, modifier = Modifier.testTag("deck_detail_back_to_decks")) {
+                        Text(
+                            text = stringResource(R.string.deck_detail_back_to_decks),
+                            color = if (state.canRetry) colors.foregroundMuted else colors.accentPrimary,
+                        )
+                    }
                 }
             }
         }
@@ -174,6 +212,7 @@ fun DeckDetailScreen(
             )
             if (state.showDeleteConfirm) {
                 DeleteDeckDialog(
+                    deckTitle = state.title,
                     onConfirm = onConfirmDelete,
                     onDismiss = onDismissDelete,
                 )
@@ -378,11 +417,14 @@ private fun HeaderCircleButton(
 }
 
 @Composable
-private fun DeleteDeckDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun DeleteDeckDialog(deckTitle: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val colors = EchoTheme.colors
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = colors.surfaceCard,
+        // AlertDialog renders in its own window, so the root's testTagsAsResourceId does not
+        // reach it — journeys/05 could not find `deck_delete_confirm` without this.
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
         title = {
             Text(
                 text = stringResource(R.string.deck_detail_delete_dialog_title),
@@ -393,7 +435,7 @@ private fun DeleteDeckDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         },
         text = {
             Text(
-                text = stringResource(R.string.deck_detail_delete_dialog_message),
+                text = stringResource(R.string.deck_detail_delete_dialog_message, deckTitle),
                 color = colors.foregroundSecondary,
                 fontSize = 14.sp,
             )

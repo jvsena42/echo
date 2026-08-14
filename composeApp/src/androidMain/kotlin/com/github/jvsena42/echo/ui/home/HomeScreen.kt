@@ -33,6 +33,7 @@ import com.github.jvsena42.echo.presentation.home.DeckSummary
 import com.github.jvsena42.echo.presentation.home.HomeEffect
 import com.github.jvsena42.echo.presentation.home.HomeUiState
 import com.github.jvsena42.echo.presentation.home.HomeViewModel
+import com.github.jvsena42.echo.ui.components.EchoErrorBlock
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
@@ -153,7 +154,11 @@ private fun HomeScreenContent(
             }
             is HomeUiState.Error -> {
                 GreetingHeader(name = state.greetingName)
-                ErrorBlock(message = state.message, onRetry = onRetry)
+                EchoErrorBlock(
+                    reason = state.reason,
+                    onRetry = onRetry,
+                    modifier = Modifier.padding(top = 48.dp),
+                )
             }
             HomeUiState.Loading, is HomeUiState.Empty -> Unit
         }

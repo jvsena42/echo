@@ -28,7 +28,7 @@ class PasteImportViewModel(
     private var parseJob: Job? = null
 
     fun onTextChanged(text: String) {
-        _state.update { it.copy(rawText = text, error = null) }
+        _state.update { it.copy(rawText = text, error = null, validation = null) }
         if (text.isBlank()) {
             _state.update {
                 it.copy(
@@ -44,10 +44,20 @@ class PasteImportViewModel(
         doParse(text)
     }
 
+    /**
+     * Override the detected separator (spec §5.2 "tap to change"). The chip already looked
+     * tappable but had no handler; this re-parses the same text with the chosen delimiter.
+     */
+    fun onSeparatorOverride(separator: Separator) {
+        _state.update { it.copy(separatorOverride = separator.takeIf { s -> s != Separator.Auto }) }
+        val text = _state.value.rawText
+        if (text.isNotBlank()) doParse(text)
+    }
+
     private fun doParse(text: String) {
         parseJob?.cancel()
         parseJob = viewModelScope.launch {
-            importRepository.parse(text)
+            importRepository.parse(text, _state.value.separatorOverride)
                 .onSuccess { draft ->
                     val mapping = draft.columnMapping.assignments
                     val frontIdx = mapping.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
@@ -88,7 +98,19 @@ class PasteImportViewModel(
     }
 
     fun onNextClick() {
-        if (!_state.value.isParsed) return
+        val s = _state.value
+        // Say why instead of silently swallowing the tap: with an empty box the button used
+        // to look enabled and do nothing at all.
+        val validation = when {
+            s.rawText.isBlank() -> PasteValidation.EmptyInput
+            !s.isParsed || s.cardCount == 0 -> PasteValidation.NoCardsParsed
+            else -> null
+        }
+        if (validation != null) {
+            _state.update { it.copy(validation = validation) }
+            return
+        }
+        _state.update { it.copy(validation = null) }
         viewModelScope.launch { _effects.emit(PasteImportEffect.NavigatePublish) }
     }
 
@@ -111,6 +133,10 @@ data class PasteImportUiState(
     val previewCards: List<PreviewCard> = emptyList(),
     val isParsed: Boolean = false,
     val error: String? = null,
+    /** Non-null when the user picked a delimiter instead of trusting auto-detection. */
+    val separatorOverride: Separator? = null,
+    /** Why Next can't advance yet; cleared as soon as the text parses. */
+    val validation: PasteValidation? = null,
 ) {
     /** Preview is shown only once at least one parsed card has both a non-blank front and back. */
     val hasPreviewableCard: Boolean
@@ -134,3 +160,6 @@ sealed interface PasteImportEffect {
     data object NavigatePublish : PasteImportEffect
     data object NavigateBack : PasteImportEffect
 }
+
+/** Why the paste screen can't advance, so the CTA can explain itself. */
+enum class PasteValidation { EmptyInput, NoCardsParsed }

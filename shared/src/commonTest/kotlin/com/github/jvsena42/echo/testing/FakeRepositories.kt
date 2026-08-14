@@ -1,6 +1,7 @@
 package com.github.jvsena42.echo.testing
 
 import com.github.jvsena42.echo.data.repository.AuthFlowHandle
+import com.github.jvsena42.echo.data.repository.CardRepository
 import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.DiscoveryRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
@@ -24,6 +25,10 @@ import com.github.jvsena42.echo.domain.model.SrsState
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.domain.model.TriageDecision
 import com.github.jvsena42.echo.domain.model.review
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRepository {
     var signOutCount = 0
@@ -55,6 +60,17 @@ class FakeDeckRepository : DeckRepository {
     val published = mutableListOf<Pair<Deck, List<Card>>>()
     val deleted = mutableListOf<String>()
 
+    private val _changes = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 8,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    override val changes: SharedFlow<Unit> = _changes.asSharedFlow()
+
+    /** Emit a change as the real repository would, without going through a mutation. */
+    fun emitChange() {
+        _changes.tryEmit(Unit)
+    }
+
     /** When set, [listOwned] throws (HomeViewModel wraps the call in runCatching). */
     var listOwnedError: Throwable? = null
     var publishError: Throwable? = null
@@ -69,17 +85,20 @@ class FakeDeckRepository : DeckRepository {
         publishError?.let { return Result.failure(it) }
         published.add(deck to cards)
         decks[deck.id] = deck
+        _changes.tryEmit(Unit)
         return Result.success(deck)
     }
 
     override suspend fun updateMetadata(deck: Deck): Result<Deck> {
         decks[deck.id] = deck
+        _changes.tryEmit(Unit)
         return Result.success(deck)
     }
 
     override suspend fun delete(deckId: String): Result<Unit> {
         deleted.add(deckId)
         decks.remove(deckId)
+        _changes.tryEmit(Unit)
         return Result.success(Unit)
     }
 
@@ -96,6 +115,30 @@ class FakeDeckRepository : DeckRepository {
             ?: Result.failure(IllegalStateException("deck $deckId not found"))
 }
 
+class FakeCardRepository : CardRepository {
+    /** Keyed by deck id, then card id. */
+    val cards = mutableMapOf<String, MutableMap<String, Card>>()
+
+    fun seed(vararg seeded: Card) {
+        seeded.forEach { cards.getOrPut(it.deckId) { mutableMapOf() }[it.id] = it }
+    }
+
+    override suspend fun listByDeck(deckId: String): List<Card> =
+        cards[deckId]?.values?.toList() ?: emptyList()
+
+    override suspend fun get(deckId: String, cardId: String): Card? = cards[deckId]?.get(cardId)
+
+    override suspend fun upsert(card: Card): Result<Unit> {
+        cards.getOrPut(card.deckId) { mutableMapOf() }[card.id] = card
+        return Result.success(Unit)
+    }
+
+    override suspend fun delete(deckId: String, cardId: String): Result<Unit> {
+        cards[deckId]?.remove(cardId)
+        return Result.success(Unit)
+    }
+}
+
 /** Grades through the real scheduler so VM tests see realistic state transitions. */
 class FakeSrsRepository : SrsRepository {
     var due: List<Card> = emptyList()
@@ -104,6 +147,8 @@ class FakeSrsRepository : SrsRepository {
 
     override suspend fun dueToday(): List<Card> = due
     override suspend fun dueForDeck(deckId: String): List<Card> = due.filter { it.deckId == deckId }
+    var nextDue: Long? = null
+    override suspend fun nextDueAt(): Long? = nextDue
     override suspend fun stateFor(cardId: String): SrsState? = states[cardId]
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> {
@@ -169,7 +214,7 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
 
     override fun currentDraft(): ImportDraft? = draft
 
-    override suspend fun parse(rawText: String): Result<ImportDraft> =
+    override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
         draft?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no draft"))
 
     override fun decisions(): Map<Int, TriageDecision> = triageDecisions.toMap()

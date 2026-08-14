@@ -43,11 +43,12 @@
     <string name="deck_detail_start_studying">Start studying · %1$d due</string>
     <string name="deck_detail_study_this_deck">Study this deck</string>
     <string name="deck_detail_back">Back</string>
+    <string name="deck_detail_back_to_decks">Back to decks</string>
     <string name="deck_detail_edit">Edit deck</string>
     <string name="deck_detail_delete">Delete deck</string>
     <string name="deck_detail_share">Share</string>
     <string name="deck_detail_delete_dialog_title">Delete deck</string>
-    <string name="deck_detail_delete_dialog_message">Delete this deck? It will be removed from your homeserver.</string>
+    <string name="deck_detail_delete_dialog_message">“%1$s” will be permanently removed from your homeserver, along with your study progress for its cards. This can\'t be undone.</string>
     <string name="deck_detail_delete_confirm">Delete</string>
     <string name="deck_detail_delete_cancel">Cancel</string>
     <string name="deck_detail_in_your_library">IN YOUR LIBRARY</string>
@@ -101,8 +102,6 @@
     <string name="study_empty_subtitle_deck">No cards due in %1$s right now.</string>
     <string name="study_done">Done</string>
     <string name="study_complete_title">All done! 🎊</string>
-    <string name="study_complete_subtitle_one">You reviewed 1 card.</string>
-    <string name="study_complete_subtitle_many">You reviewed %1$d cards.</string>
     <string name="study_back">Back</string>
     <string name="study_position_of_total">%1$d of %2$d</string>
     <string name="study_flip_hint">Tap card to reveal answer</string>
@@ -135,18 +134,16 @@
     <string name="paste_input_placeholder_title">Paste your list here</string>
     <string name="paste_input_placeholder_subtitle">one card per line</string>
     <string name="paste_detected_separator">Detected: %1$s</string>
-    <string name="paste_card_count">%1$d cards</string>
     <string name="paste_preview_label">PREVIEW</string>
     <string name="paste_try_pasting_label">TRY PASTING SOMETHING LIKE</string>
     <string name="paste_public_notice">This deck will be public on your profile</string>
     <string name="paste_chip_no_pattern">No pattern detected</string>
-    <string name="paste_chip_incomplete">%1$d incomplete</string>
     <string name="paste_card_index">%1$d/%2$d</string>
     <string name="paste_blank_placeholder">—</string>
     <string name="paste_separator_tab">tab</string>
     <string name="paste_separator_semicolon">semicolon</string>
     <string name="paste_separator_pipe">pipe</string>
-    <string name="paste_separator_em_dash">em-dash</string>
+    <string name="paste_separator_dash">dash</string>
     <string name="paste_separator_colon">colon</string>
     <string name="paste_separator_comma">comma</string>
     <string name="paste_separator_blank_lines">blank lines</string>
@@ -157,8 +154,6 @@
     <!-- Publish deck -->
     <string name="publish_back">Back</string>
     <string name="publish_title">New deck</string>
-    <string name="publish_cards_ready">%1$d cards ready</string>
-    <string name="publish_cards_discarded">%1$d discarded in review</string>
     <string name="publish_cover_label">COVER</string>
     <string name="publish_cover_change">Change</string>
     <string name="publish_title_label">TITLE</string>
@@ -178,7 +173,6 @@
     <string name="publish_add_tag_button">Add Tag</string>
     <string name="publish_published_icon_desc">Published</string>
     <string name="publish_published_title">Deck published!</string>
-    <string name="publish_published_subtitle">%1$d cards are now public on your Pubky.</string>
     <string name="publish_done">Done</string>
     <string name="publish_undo">Undo (%1$ds)</string>
     <string name="publish_card_options_label">CARD OPTIONS</string>
@@ -258,7 +252,6 @@
     <string name="friend_profile_back_content_description">Back</string>
     <string name="friend_profile_pubky_truncated">pk:%1$s…%2$s</string>
     <string name="friend_profile_copy_pubky">Copy pubky</string>
-    <string name="friend_profile_public_decks_count">Public decks · %1$d</string>
     <string name="friend_profile_no_public_decks">No public decks yet.</string>
 
     <!-- Settings -->
@@ -281,7 +274,6 @@
     <string name="settings_cancel">Cancel</string>
 
     <!-- Shared components -->
-    <string name="component_deck_tile_card_count">%1$d cards</string>
     <string name="component_author_row_following">Following</string>
     <string name="component_author_row_follow">Follow</string>
     <string name="component_author_row_you">\@you</string>
@@ -292,8 +284,51 @@
     <string name="component_tag_chip_remove">Remove tag</string>
 
     <!-- Navigation / tabs -->
-    <string name="nav_tab_study">STUDY</string>
-    <string name="nav_tab_decks">DECKS</string>
-    <string name="nav_tab_discover">DISCOVER</string>
-    <string name="nav_tab_profile">PROFILE</string>
+    <string name="nav_tab_study">Today</string>
+    <string name="nav_tab_decks">Decks</string>
+    <string name="nav_tab_discover">Discover</string>
+    <string name="nav_tab_profile">Profile</string>
+
+    <!-- Error states. Reason-based copy; the raw FFI message stays in logcat. -->
+    <string name="error_offline_title">You\'re offline</string>
+    <string name="error_offline_message">Echo can\'t reach your homeserver. Your decks are safe — they live on Pubky. Check your connection and try again.</string>
+    <string name="error_session_expired_title">Session expired</string>
+    <string name="error_session_expired_message">Sign in with Pubky Ring again to get back to your decks.</string>
+    <string name="error_not_found_title">Not found</string>
+    <string name="error_not_found_message">This deck no longer exists. It may have been deleted.</string>
+    <string name="error_not_signed_in_title">Not signed in</string>
+    <string name="error_not_signed_in_message">Sign in with Pubky Ring to continue.</string>
+    <string name="error_ring_not_installed_title">Pubky Ring not found</string>
+    <string name="error_ring_not_installed_message">Echo signs you in through Pubky Ring. Install it to continue.</string>
+    <string name="error_auth_failed_title">Sign-in didn\'t finish</string>
+    <string name="error_auth_failed_message">Echo couldn\'t confirm the authorisation with Pubky Ring. Check your connection and try again.</string>
+    <string name="error_generic_title">Something went wrong</string>
+    <string name="error_generic_message">Something went wrong. Please try again.</string>
+    <string name="home_caught_up_title">You\'re all caught up</string>
+    <string name="home_caught_up_next_due">Next review in %1$s.</string>
+    <string name="home_caught_up_no_next_due">Nothing scheduled yet — study ahead from any deck.</string>
+    <string name="share_deck_chooser_title">Share deck</string>
+    <string name="share_profile_chooser_title">Share profile</string>
+    <string name="share_deck_body">%1$s on Echo\n%2$s</string>
+    <string name="deck_editor_move_up">Move card up</string>
+    <string name="deck_editor_move_down">Move card down</string>
+    <string name="decks_sort_recent">Recent</string>
+    <string name="decks_sort_alphabetical">A–Z</string>
+    <string name="decks_sort_cards">Most cards</string>
+    <string name="decks_search_placeholder">Search your decks</string>
+    <string name="decks_search_no_results">No decks match “%1$s”.</string>
+    <string name="paste_separator_sheet_title">Split cards by</string>
+    <string name="form_title_required">Give your deck a title to publish it.</string>
+    <string name="form_title_too_long">Title must be 120 characters or fewer.</string>
+    <string name="form_description_too_long">Description must be 500 characters or fewer.</string>
+    <string name="paste_validation_empty">Paste or type your list first.</string>
+    <string name="paste_validation_no_cards">No cards found yet — check the separator or add a front and back.</string>
+    <string name="permission_mic_title">Practise your pronunciation</string>
+    <string name="permission_mic_rationale">Speak listens while you say the word and tells you how close you were. Audio is processed on your device and never leaves it.</string>
+    <string name="permission_mic_denied_title">Microphone is off</string>
+    <string name="permission_mic_denied_message">Speak needs microphone access, and Android won\'t ask again. You can turn it on in Settings.</string>
+    <string name="permission_continue">Continue</string>
+    <string name="permission_not_now">Not now</string>
+    <string name="permission_open_settings">Open settings</string>
+    <string name="triage_undo">Undo last card</string>
 </resources>

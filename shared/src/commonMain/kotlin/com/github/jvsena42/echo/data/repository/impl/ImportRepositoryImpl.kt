@@ -61,7 +61,7 @@ class ImportRepositoryImpl : ImportRepository {
         return row.copy(fields = fields, isValid = front.isNotBlank() || back.isNotBlank())
     }
 
-    override suspend fun parse(rawText: String): Result<ImportDraft> = runCatching {
+    override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> = runCatching {
         // A fresh parse invalidates any prior triage decisions/edits.
         triageDecisions.clear()
         rowEdits.clear()
@@ -71,8 +71,8 @@ class ImportRepositoryImpl : ImportRepository {
         require(text.isNotEmpty()) { "Nothing to import." }
         require(text.length <= MAX_CHARS) { "Text is too long (max $MAX_CHARS characters)." }
 
-        val separator = detectSeparator(text)
-        val rawRows = splitRows(text, separator)
+        val resolved = separator?.takeIf { it != Separator.Auto } ?: detectSeparator(text)
+        val rawRows = splitRows(text, resolved)
         require(rawRows.isNotEmpty()) { "Could not parse any cards." }
 
         val columnCount = rawRows.maxOf { it.size }
@@ -106,7 +106,7 @@ class ImportRepositoryImpl : ImportRepository {
 
         ImportDraft(
             rawText = rawText,
-            separator = separator,
+            separator = resolved,
             columnMapping = mapping,
             rows = deduped,
             duplicatesCollapsed = duplicatesCollapsed,

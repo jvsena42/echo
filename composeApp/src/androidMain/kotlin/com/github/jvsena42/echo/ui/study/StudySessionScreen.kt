@@ -1,6 +1,7 @@
 package com.github.jvsena42.echo.ui.study
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -51,6 +52,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -81,6 +84,10 @@ import com.github.jvsena42.echo.presentation.study.StudySessionUiState
 import com.github.jvsena42.echo.presentation.study.StudySessionViewModel
 import com.github.jvsena42.echo.ui.components.CardMediaImage
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
+import com.github.jvsena42.echo.ui.components.PermissionBlockedDialog
+import com.github.jvsena42.echo.ui.components.PermissionRationaleDialog
+import com.github.jvsena42.echo.ui.components.errorMessage
+import com.github.jvsena42.echo.ui.components.errorTitle
 import com.github.jvsena42.echo.ui.components.rememberReduceMotion
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.Job
@@ -104,22 +111,10 @@ fun StudySessionRoute(
     val scope = rememberCoroutineScope()
     val recognitionJob = remember { mutableStateOf<Job?>(null) }
 
-    val micPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted) {
-            viewModel.onSpeakTest()
-        } else {
-            Toast.makeText(context, R.string.speak_permission_denied, Toast.LENGTH_LONG).show()
-            viewModel.onSpeechError()
-        }
-    }
-
-    fun requestSpeak() {
-        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
-        if (granted) viewModel.onSpeakTest() else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-    }
+    val requestSpeak = rememberMicPermissionRequest(
+        onGranted = viewModel::onSpeakTest,
+        onDenied = viewModel::onSpeechError,
+    )
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -160,7 +155,7 @@ fun StudySessionRoute(
         onReveal = viewModel::onReveal,
         onGrade = viewModel::onGrade,
         onSpeak = viewModel::onSpeak,
-        onSpeakTest = ::requestSpeak,
+        onSpeakTest = requestSpeak,
         onSpeakContinue = viewModel::onSpeakDismiss,
         onSpeakRetry = viewModel::onSpeakRetry,
         onSpeakCancel = viewModel::onSpeakDismiss,
@@ -196,8 +191,8 @@ fun StudySessionScreen(
             )
 
             is StudySessionUiState.Error -> CenteredMessage(
-                title = stringResource(R.string.study_error_title),
-                subtitle = state.message,
+                title = errorTitle(state.reason),
+                subtitle = errorMessage(state.reason),
                 actionLabel = stringResource(R.string.study_close),
                 onAction = onClose,
             )
@@ -213,11 +208,7 @@ fun StudySessionScreen(
 
             is StudySessionUiState.Complete -> CenteredMessage(
                 title = stringResource(R.string.study_complete_title),
-                subtitle = if (state.reviewed == 1) {
-                    stringResource(R.string.study_complete_subtitle_one)
-                } else {
-                    stringResource(R.string.study_complete_subtitle_many, state.reviewed)
-                },
+                subtitle = pluralStringResource(R.plurals.cards_reviewed, state.reviewed, state.reviewed),
                 actionLabel = stringResource(R.string.study_back),
                 onAction = onDone,
             )
@@ -713,6 +704,84 @@ private fun StudySessionScreenFrontPreview() {
             onSpeak = {},
             onClose = {},
             onDone = {},
+        )
+    }
+}
+
+/**
+ * Owns the RECORD_AUDIO flow for Speak: rationale before the cold system prompt, a toast on a
+ * recoverable denial, and a route into app settings once Android stops asking. Extracted from
+ * `StudySessionRoute` to keep that composable under detekt's complexity cap.
+ */
+@Composable
+private fun rememberMicPermissionRequest(
+    onGranted: () -> Unit,
+    onDenied: () -> Unit,
+): () -> Unit {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    var showRationale by rememberSaveable { mutableStateOf(false) }
+    var showBlocked by rememberSaveable { mutableStateOf(false) }
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            onGranted()
+            return@rememberLauncherForActivityResult
+        }
+        // Once the system stops offering the prompt a toast is a dead end: Speak would be
+        // inert forever with no way to re-enable it from inside the app.
+        val canAskAgain =
+            activity?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) ?: true
+        if (canAskAgain) {
+            Toast.makeText(context, R.string.speak_permission_denied, Toast.LENGTH_LONG).show()
+        } else {
+            showBlocked = true
+        }
+        onDenied()
+    }
+
+    MicPermissionDialogs(
+        showRationale = showRationale,
+        showBlocked = showBlocked,
+        onRationaleConfirm = {
+            showRationale = false
+            launcher.launch(Manifest.permission.RECORD_AUDIO)
+        },
+        onRationaleDismiss = { showRationale = false },
+        onBlockedDismiss = { showBlocked = false },
+    )
+
+    return {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) onGranted() else showRationale = true
+    }
+}
+
+/** Split out of `StudySessionRoute` purely to keep its complexity under the detekt cap. */
+@Composable
+private fun MicPermissionDialogs(
+    showRationale: Boolean,
+    showBlocked: Boolean,
+    onRationaleConfirm: () -> Unit,
+    onRationaleDismiss: () -> Unit,
+    onBlockedDismiss: () -> Unit,
+) {
+    if (showRationale) {
+        PermissionRationaleDialog(
+            title = stringResource(R.string.permission_mic_title),
+            message = stringResource(R.string.permission_mic_rationale),
+            onConfirm = onRationaleConfirm,
+            onDismiss = onRationaleDismiss,
+        )
+    }
+    if (showBlocked) {
+        PermissionBlockedDialog(
+            title = stringResource(R.string.permission_mic_denied_title),
+            message = stringResource(R.string.permission_mic_denied_message),
+            onDismiss = onBlockedDismiss,
         )
     }
 }

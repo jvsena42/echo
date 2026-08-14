@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -223,6 +224,9 @@ fun ImagePickerSheet(
                             AsyncImage(
                                 model = photo.thumbUrl,
                                 contentDescription = photo.authorName,
+                                // Without this AsyncImage defaults to ContentScale.Fit, which
+                                // letterboxes inside the square and makes the grid look ragged.
+                                contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .aspectRatio(1f)
                                     .clip(RoundedCornerShape(12.dp))

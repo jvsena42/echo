@@ -45,8 +45,10 @@ fun EchoPrimaryButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = colors.accentPrimary,
             contentColor = colors.foregroundOnAccent,
-            disabledContainerColor = colors.accentPrimary.copy(alpha = 0.6f),
-            disabledContentColor = colors.foregroundOnAccent,
+            // A 0.6-alpha accent pill with crisp white text reads as a live CTA: on device the
+            // disabled Publish button looked tappable and swallowed taps silently.
+            disabledContainerColor = colors.borderSubtle,
+            disabledContentColor = colors.foregroundMuted,
         ),
         contentPadding = ButtonDefaults.ContentPadding,
     ) {

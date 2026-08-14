@@ -83,3 +83,66 @@ grant path):
 
 Speech recognition itself still needs a device/emulator with Google speech for the
 Correct/Wrong outcome.
+
+---
+
+## UI/UX gap pass — 2026-08-13, `emulator-5554`, signed in as `pk:rc3omr…b4re3o`
+
+Drove every flow end to end (onboarding → paste → triage → triage-edit → image picker →
+publish → deck detail → editor → card editor → study → discover → friend profile → profile
+→ settings → delete → offline) and fixed what it turned up. Correction to the notes above:
+03, 05 and 06 all execute today — they were listed as merely "runnable".
+
+### Fixed and re-verified on device
+
+| Symptom seen while driving | Fix |
+| --- | --- |
+| Publish a deck → Decks tab says "No decks yet" until the process restarts | `DeckRepository.changes` invalidation signal; the deck now appears immediately |
+| Delete a deck → grid still lists it; tapping it lands on "Deck not found" with **no back button**, only a Retry that can never work | list refresh, a back control on the error state, and Retry hidden when it cannot succeed |
+| wifi/data off → Home shows "Nothing to study yet — create or import a deck", Decks shows "No decks yet" | `listByAuthor` no longer swallows transport failures into an empty list; both now show an error with retry |
+| Home showed the zero-decks empty state after finishing a session | new "all caught up" state carrying the next due time |
+| Onboarding printed `HTTP transport error: error sending request for url (https://httprelay.pubky.app/inbox/…)` verbatim | `ErrorReason` + per-platform copy; raw text stays in logcat |
+| Sign-in failed twice then succeeded on an identical third attempt | bounded retry on the auth-relay poll, transport failures only |
+| Paste "Next" with an empty box and Publish with an empty title: nothing happened, no message | real disabled styling, CTAs enabled so validation can speak, Publish CTA pinned above the fold |
+| Both Share buttons did nothing | one `Context.shareText` helper |
+| Editor drag handle did nothing when dragged | move up/down buttons + real reorder (needed the card-order fix first) |
+| Decks search icon and "Recent" label were inert | wired to a real filter and sort |
+| Separator chip looked tappable and was not | override sheet (spec §5.2) |
+| Discarding a card in triage was irreversible | undo, including for the last card |
+| Speak fired the mic prompt cold; permanent denial left it inert forever | rationale dialog + "Open settings" path |
+| "1 cards" everywhere | `plurals.xml` — the app had **zero** plural resources |
+| "Detected: em-dash" shown for a plain hyphen | label reads "dash" (`Separator.EmDash` buckets em-dash, en-dash and `" - "`) |
+| Settings showed "Homeserver: Unknown" | resolved from the pkarr record; Ring's session payload has no `homeserver` field |
+| Own pubky in add-friend → a live Follow button | self-detection |
+
+### Found by code review, not by driving
+
+**Saving the deck editor destroyed every card image, every audio clip and the deck cover.**
+It rebuilt each card as `CardSide(text = …)` with `coverImageRef = null` and republished over
+the manifest. Only reproducible on a deck that already has media, which is why no journey hit
+it — hence the new `11-deck-editor-media.xml`. Also fixed: card order was `sortedBy { it.id }`
+over random ids, so deck detail and the editor listed cards arbitrarily and reorder could not
+have persisted.
+
+### Journeys added
+
+- `10-offline-errors.xml` — failures must not render as an empty library.
+- `11-deck-editor-media.xml` — regression guard for the media-destroying save.
+- `12-dead-controls.xml` — sweep of the controls that used to do nothing.
+
+`02`, `04`, `05` and `09` gained assertions for the list-refresh, self-follow, delete-copy and
+permission-rationale fixes. `05` could not have passed before this pass regardless of app
+behaviour: `deck_delete_confirm` **was** set in code, but `AlertDialog` renders in its own
+window so the nav-host root's `testTagsAsResourceId` never reached it. Same fix applied to the
+add-friend sheet and both sign-out dialogs.
+
+### Still manual / environment-limited
+
+- Speech recognition outcomes: this emulator image has no on-device recogniser, so
+  `SpeechRecognizer` reports unavailable and only the permission path is testable here.
+- The system photo picker in `08` remains a manual check.
+- The Pubky stack intermittently fails on this emulator with
+  `Expect rustls-platform-verifier to be initialized` (the upstream issue noted above). It
+  clears after toggling the radios. It classifies as a generic error rather than "offline" on
+  purpose — it is a TLS-stack fault, and telling the user to check their connection would be
+  misleading since retrying does not help.

@@ -20,7 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -30,7 +29,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -256,22 +254,9 @@ fun EditCardScreen(
                 speakDescription = stringResource(R.string.edit_card_speak_back),
             )
 
-            // 4. Audio (recording is a future enhancement)
-            OutlinedButton(
-                onClick = { /* TODO: audio recorder */ },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.foregroundMuted),
-                border = BorderStroke(1.dp, colors.borderSubtle),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = stringResource(R.string.edit_card_add_audio),
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(R.string.edit_card_audio), fontSize = 14.sp)
-            }
+            // Audio recording is not built yet (no AudioRecorder expect/actual, nothing calls
+            // MediaRepository.putAudio). The button used to render here and do nothing when
+            // tapped; existing audio on a card still round-trips and shows as an indicator.
 
             // 5. Tags section
             Box(

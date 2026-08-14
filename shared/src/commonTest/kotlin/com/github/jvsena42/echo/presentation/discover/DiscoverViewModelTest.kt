@@ -1,5 +1,6 @@
 package com.github.jvsena42.echo.presentation.discover
 
+import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.testing.FakeDiscoveryRepository
 import com.github.jvsena42.echo.testing.RecordingTagRepository
@@ -103,12 +104,12 @@ class DiscoverViewModelTest {
 
     @Test
     fun feedFailureShowsErrorState() = runTest {
-        discovery.feedError = IllegalStateException("network down")
+        discovery.feedError = IllegalStateException("something unclassifiable")
         val vm = viewModel()
 
         advanceUntilIdle()
 
-        assertEquals(DiscoverUiState.Error("network down"), vm.state.value)
+        assertEquals(DiscoverUiState.Error(ErrorReason.Unknown), vm.state.value)
     }
 
     @Test

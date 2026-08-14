@@ -45,7 +45,8 @@ struct OnboardingScreen: View {
     }
 
     private var errorMessage: String? {
-        (state.value as? OnboardingUiStateError)?.message
+        guard let error = state.value as? OnboardingUiStateError else { return nil }
+        return ErrorCopy.message(for: error.reason)
     }
 
     private func attachEffects() {

@@ -20,16 +20,25 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,11 +52,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.presentation.decks.DeckSort
 import com.github.jvsena42.echo.presentation.decks.DeckTileModel
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryEffect
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryUiState
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.echo.ui.components.DeckTile
+import com.github.jvsena42.echo.ui.components.EchoErrorBlock
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -83,6 +94,8 @@ fun DecksRoute(
         onImportClick = viewModel::onImportClick,
         onCreateDeckClick = viewModel::onCreateDeckClick,
         onRetry = viewModel::onRefresh,
+        onQueryChanged = viewModel::onQueryChanged,
+        onSortChanged = viewModel::onSortChanged,
     )
 }
 
@@ -94,6 +107,8 @@ fun DecksScreen(
     onImportClick: () -> Unit,
     onCreateDeckClick: () -> Unit,
     onRetry: () -> Unit,
+    onQueryChanged: (String) -> Unit,
+    onSortChanged: (DeckSort) -> Unit,
 ) {
     val colors = EchoTheme.colors
     Box(
@@ -116,6 +131,8 @@ fun DecksScreen(
                     onImportClick = onImportClick,
                     onCreateDeckClick = onCreateDeckClick,
                     onRetry = onRetry,
+                    onQueryChanged = onQueryChanged,
+                    onSortChanged = onSortChanged,
                 )
             }
         }
@@ -129,7 +146,10 @@ private fun DecksScreenContent(
     onImportClick: () -> Unit,
     onCreateDeckClick: () -> Unit,
     onRetry: () -> Unit,
+    onQueryChanged: (String) -> Unit,
+    onSortChanged: (DeckSort) -> Unit,
 ) {
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -137,18 +157,39 @@ private fun DecksScreenContent(
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        HeaderRow()
+        HeaderRow(
+            searchOpen = searchOpen,
+            onToggleSearch = {
+                searchOpen = !searchOpen
+                if (!searchOpen) onQueryChanged("")
+            },
+        )
+        if (searchOpen) {
+            SearchField(
+                query = (state as? DecksLibraryUiState.Content)?.query.orEmpty(),
+                onQueryChanged = onQueryChanged,
+            )
+        }
         PasteCtaCard(onClick = onImportClick)
 
         when (state) {
             DecksLibraryUiState.Loading -> Unit
             DecksLibraryUiState.Empty -> EmptyBlock(onCreateDeckClick = onCreateDeckClick)
             is DecksLibraryUiState.Content -> {
-                SectionHeader(deckCount = state.deckCount)
-                DeckGrid(decks = state.decks, onDeckClick = onDeckClick)
+                SectionHeader(
+                    deckCount = state.deckCount,
+                    sort = state.sort,
+                    onSortChanged = onSortChanged,
+                )
+                val visible = state.visibleDecks
+                if (visible.isEmpty()) {
+                    NoSearchResults(query = state.query)
+                } else {
+                    DeckGrid(decks = visible, onDeckClick = onDeckClick)
+                }
             }
-            is DecksLibraryUiState.Error -> ErrorBlock(
-                message = state.message,
+            is DecksLibraryUiState.Error -> EchoErrorBlock(
+                reason = state.reason,
                 onRetry = onRetry,
             )
         }
@@ -156,7 +197,7 @@ private fun DecksScreenContent(
 }
 
 @Composable
-private fun HeaderRow() {
+private fun HeaderRow(searchOpen: Boolean, onToggleSearch: () -> Unit) {
     val colors = EchoTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -169,12 +210,15 @@ private fun HeaderRow() {
             fontSize = 28.sp,
             fontWeight = FontWeight.ExtraBold,
         )
-        Icon(
-            imageVector = Icons.Default.Search,
-            contentDescription = stringResource(R.string.decks_search),
-            tint = colors.foregroundPrimary,
-            modifier = Modifier.size(24.dp),
-        )
+        // Was a decorative Icon with no click handler at all.
+        IconButton(onClick = onToggleSearch, modifier = Modifier.testTag("decks_search")) {
+            Icon(
+                imageVector = if (searchOpen) Icons.Default.Close else Icons.Default.Search,
+                contentDescription = stringResource(R.string.decks_search),
+                tint = colors.foregroundPrimary,
+                modifier = Modifier.size(24.dp),
+            )
+        }
     }
 }
 
@@ -242,8 +286,13 @@ private fun PasteCtaCard(onClick: () -> Unit) {
 }
 
 @Composable
-private fun SectionHeader(deckCount: Int) {
+private fun SectionHeader(
+    deckCount: Int,
+    sort: DeckSort,
+    onSortChanged: (DeckSort) -> Unit,
+) {
     val colors = EchoTheme.colors
+    var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -255,13 +304,60 @@ private fun SectionHeader(deckCount: Int) {
             fontSize = 16.sp,
             fontWeight = FontWeight.W700,
         )
-        Text(
-            text = stringResource(R.string.decks_recent),
-            color = colors.accentPrimary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.W600,
-        )
+        Box {
+            // Was a plain Text that looked like a sort control and did nothing.
+            Text(
+                text = stringResource(sort.labelRes()),
+                color = colors.accentPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.W600,
+                modifier = Modifier
+                    .clickable { menuOpen = true }
+                    .testTag("decks_sort"),
+            )
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DeckSort.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(option.labelRes())) },
+                        onClick = {
+                            onSortChanged(option)
+                            menuOpen = false
+                        },
+                    )
+                }
+            }
+        }
     }
+}
+
+private fun DeckSort.labelRes(): Int = when (this) {
+    DeckSort.Recent -> R.string.decks_sort_recent
+    DeckSort.Alphabetical -> R.string.decks_sort_alphabetical
+    DeckSort.CardCount -> R.string.decks_sort_cards
+}
+
+@Composable
+private fun SearchField(query: String, onQueryChanged: (String) -> Unit) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChanged,
+        placeholder = { Text(stringResource(R.string.decks_search_placeholder)) },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("decks_search_input"),
+    )
+}
+
+@Composable
+private fun NoSearchResults(query: String) {
+    val colors = EchoTheme.colors
+    Text(
+        text = stringResource(R.string.decks_search_no_results, query),
+        color = colors.foregroundMuted,
+        fontSize = 14.sp,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
@@ -369,6 +465,7 @@ private fun DecksScreenPreview() {
                         cardCount = 42,
                         coverEmoji = "🇪🇸",
                         authorLabel = "You",
+                        updatedAt = 0L,
                     ),
                     DeckTileModel(
                         id = "d2",
@@ -376,6 +473,7 @@ private fun DecksScreenPreview() {
                         cardCount = 50,
                         coverEmoji = "🌍",
                         authorLabel = "@alex",
+                        updatedAt = 0L,
                     ),
                     DeckTileModel(
                         id = "d3",
@@ -383,6 +481,7 @@ private fun DecksScreenPreview() {
                         cardCount = 30,
                         coverEmoji = "⚗️",
                         authorLabel = "You",
+                        updatedAt = 0L,
                     ),
                 ),
             ),
@@ -390,6 +489,8 @@ private fun DecksScreenPreview() {
             onImportClick = {},
             onCreateDeckClick = {},
             onRetry = {},
+            onQueryChanged = {},
+            onSortChanged = {},
         )
     }
 }

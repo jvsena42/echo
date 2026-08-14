@@ -3,6 +3,7 @@ package com.github.jvsena42.echo.ui.importflow
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -43,14 +45,20 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -62,6 +70,7 @@ import com.github.jvsena42.echo.domain.model.Separator
 import com.github.jvsena42.echo.presentation.importflow.PasteImportEffect
 import com.github.jvsena42.echo.presentation.importflow.PasteImportUiState
 import com.github.jvsena42.echo.presentation.importflow.PasteImportViewModel
+import com.github.jvsena42.echo.presentation.importflow.PasteValidation
 import com.github.jvsena42.echo.presentation.importflow.PreviewCard
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
@@ -91,6 +100,7 @@ fun PasteRoute(
     PasteScreen(
         state = state,
         onTextChanged = viewModel::onTextChanged,
+        onSeparatorOverride = viewModel::onSeparatorOverride,
         onNextClick = viewModel::onNextClick,
         onCancelClick = viewModel::onCancelClick,
     )
@@ -101,6 +111,7 @@ fun PasteRoute(
 private fun PasteScreen(
     state: PasteImportUiState,
     onTextChanged: (String) -> Unit,
+    onSeparatorOverride: (Separator) -> Unit,
     onNextClick: () -> Unit,
     onCancelClick: () -> Unit,
 ) {
@@ -181,7 +192,7 @@ private fun PasteScreen(
                 )
 
                 if (state.isParsed && state.detectedSeparator != null) {
-                    ParseSummaryRow(state = state)
+                    ParseSummaryRow(state = state, onSeparatorOverride = onSeparatorOverride)
                 }
             }
 
@@ -239,15 +250,19 @@ private fun PasteScreen(
                                 letterSpacing = 0.8.sp,
                                 color = colors.foregroundMuted,
                             )
-                            ExampleCard(title = "Vocab list", separator = "em-dash", lines = listOf("hola — hello", "gracias — thank you"))
+                            ExampleCard(
+                                title = "Vocab list",
+                                separator = stringResource(R.string.paste_separator_dash),
+                                lines = listOf("hola — hello", "gracias — thank you"),
+                            )
                             ExampleCard(
                                 title = "Glossary",
-                                separator = "colon",
+                                separator = stringResource(R.string.paste_separator_colon),
                                 lines = listOf("mitosis: cell division", "osmosis: water moves across a membrane"),
                             )
                             ExampleCard(
                                 title = "Notion table",
-                                separator = "markdown",
+                                separator = stringResource(R.string.paste_separator_markdown),
                                 lines = listOf("| capital | France |", "| currency | euro |"),
                             )
                         }
@@ -286,10 +301,27 @@ private fun PasteScreen(
                     Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
                 }
 
+                state.validation?.let { validation ->
+                    Text(
+                        text = stringResource(
+                            when (validation) {
+                                PasteValidation.EmptyInput -> R.string.paste_validation_empty
+                                PasteValidation.NoCardsParsed -> R.string.paste_validation_no_cards
+                            },
+                        ),
+                        fontSize = 13.sp,
+                        color = colors.danger,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("paste_validation"),
+                    )
+                }
+
                 EchoPrimaryButton(
                     label = stringResource(R.string.paste_next),
                     onClick = onNextClick,
-                    enabled = state.isParsed,
+                    // Enabled so the validation message can explain the block.
+                    enabled = true,
                     modifier = Modifier
                         .testTag("paste_next")
                         .fillMaxWidth(),
@@ -301,12 +333,27 @@ private fun PasteScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ParseSummaryRow(state: PasteImportUiState, modifier: Modifier = Modifier) {
+private fun ParseSummaryRow(
+    state: PasteImportUiState,
+    onSeparatorOverride: (Separator) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = EchoTheme.colors
     val chipError = when {
         state.noPatternDetected -> stringResource(R.string.paste_chip_no_pattern)
-        state.hasIncompleteCards -> stringResource(R.string.paste_chip_incomplete, state.incompleteCardCount)
+        state.hasIncompleteCards -> pluralStringResource(R.plurals.cards_incomplete, state.incompleteCardCount, state.incompleteCardCount)
         else -> null
+    }
+    var showSeparatorSheet by rememberSaveable { mutableStateOf(false) }
+    if (showSeparatorSheet) {
+        SeparatorOverrideSheet(
+            current = state.separatorOverride ?: state.detectedSeparator,
+            onPick = {
+                onSeparatorOverride(it)
+                showSeparatorSheet = false
+            },
+            onDismiss = { showSeparatorSheet = false },
+        )
     }
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -314,7 +361,8 @@ private fun ParseSummaryRow(state: PasteImportUiState, modifier: Modifier = Modi
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AssistChip(
-            onClick = {},
+            onClick = { showSeparatorSheet = true },
+            modifier = Modifier.testTag("paste_separator_chip"),
             label = {
                 Text(
                     text = chipError ?: stringResource(
@@ -341,7 +389,7 @@ private fun ParseSummaryRow(state: PasteImportUiState, modifier: Modifier = Modi
             border = null,
         )
         Text(
-            stringResource(R.string.paste_card_count, state.cardCount),
+            pluralStringResource(R.plurals.card_count, state.cardCount, state.cardCount),
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             color = colors.foregroundMuted,
@@ -412,11 +460,69 @@ private fun ExampleCard(title: String, separator: String, lines: List<String>) {
 }
 
 @StringRes
+/**
+ * Spec §5.2 "tap to change": the detected-separator chip is an override control, not a label.
+ * `ModalBottomSheet` renders in its own window, so it needs its own `testTagsAsResourceId`.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SeparatorOverrideSheet(
+    current: Separator?,
+    onPick: (Separator) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = EchoTheme.colors
+    val options = listOf(
+        Separator.Auto,
+        Separator.Tab,
+        Separator.Comma,
+        Separator.Semicolon,
+        Separator.Pipe,
+        Separator.Colon,
+        Separator.EmDash,
+        Separator.MarkdownTable,
+        Separator.BlankLine,
+    )
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfacePrimary) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+                .semantics { testTagsAsResourceId = true },
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.paste_separator_sheet_title),
+                color = colors.foregroundPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            options.forEach { option ->
+                val selected = option == current || (option == Separator.Auto && current == null)
+                Text(
+                    text = stringResource(separatorLabel(option)),
+                    color = if (selected) colors.accentPrimary else colors.foregroundPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(option) }
+                        .testTag("separator_option")
+                        .padding(vertical = 12.dp),
+                )
+            }
+        }
+    }
+}
+
 private fun separatorLabel(sep: Separator?): Int = when (sep) {
     Separator.Tab -> R.string.paste_separator_tab
     Separator.Semicolon -> R.string.paste_separator_semicolon
     Separator.Pipe -> R.string.paste_separator_pipe
-    Separator.EmDash -> R.string.paste_separator_em_dash
+    // Buckets em-dash, en-dash and a spaced hyphen, so "dash" not stringResource(R.string.paste_separator_dash).
+    Separator.EmDash -> R.string.paste_separator_dash
     Separator.Colon -> R.string.paste_separator_colon
     Separator.Comma -> R.string.paste_separator_comma
     Separator.BlankLine -> R.string.paste_separator_blank_lines
@@ -442,6 +548,7 @@ private fun PasteScreenPreview() {
                 isParsed = true,
             ),
             onTextChanged = {},
+            onSeparatorOverride = {},
             onNextClick = {},
             onCancelClick = {},
         )

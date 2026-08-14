@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ButtonDefaults
@@ -44,15 +45,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -67,6 +72,7 @@ import com.github.jvsena42.echo.presentation.profile.ProfileViewModel
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import com.github.jvsena42.echo.ui.util.shareText
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -77,6 +83,7 @@ fun ProfileRoute(
 ) {
     val viewModel = koinViewModel<ProfileViewModel>()
 
+    val context = LocalContext.current
     val currentSignedOut by rememberUpdatedState(onSignedOut)
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -84,7 +91,10 @@ fun ProfileRoute(
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 ProfileEffect.NavigateToOnboarding -> currentSignedOut()
-                is ProfileEffect.ShareProfile -> { /* TODO: launch share intent */ }
+                is ProfileEffect.ShareProfile -> context.shareText(
+                    text = effect.uri,
+                    chooserTitle = context.getString(R.string.share_profile_chooser_title),
+                )
                 is ProfileEffect.ShowError -> { errorMessage = effect.message }
             }
         }
@@ -121,6 +131,34 @@ private fun ProfileScreen(
     onSaveClick: () -> Unit,
     onDismissError: () -> Unit,
 ) {
+    // Settings confirms sign-out and reassures that decks stay on the homeserver; this button
+    // used to sign out immediately, which is a surprising outcome for one stray tap.
+    var confirmSignOut by rememberSaveable { mutableStateOf(false) }
+
+    if (confirmSignOut) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            modifier = Modifier.semantics { testTagsAsResourceId = true },
+            title = { Text(stringResource(R.string.settings_sign_out_dialog_title)) },
+            text = { Text(stringResource(R.string.settings_sign_out_dialog_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmSignOut = false
+                        onSignOutClick()
+                    },
+                    modifier = Modifier.testTag("profile_signout_confirm"),
+                ) {
+                    Text(stringResource(R.string.settings_sign_out))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmSignOut = false }) {
+                    Text(stringResource(R.string.settings_cancel))
+                }
+            },
+        )
+    }
     val colors = EchoTheme.colors
 
     if (state.isLoading) {
@@ -326,7 +364,7 @@ private fun ProfileScreen(
 
         // --- Sign out ---
         FilledTonalButton(
-            onClick = onSignOutClick,
+            onClick = { confirmSignOut = true },
             modifier = Modifier
                 .testTag("profile_signout")
                 .fillMaxWidth(),

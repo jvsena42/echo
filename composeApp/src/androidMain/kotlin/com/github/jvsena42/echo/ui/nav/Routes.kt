@@ -6,7 +6,6 @@ object Routes {
     const val SETTINGS = "settings"
     const val DECK_DETAIL = "deck/{deckId}?author={author}"
     const val DECK_EDITOR = "deck/editor/{deckId}"
-    const val DECK_EDITOR_NEW = "deck/editor/new"
     const val EDIT_CARD = "deck/{deckId}/card/{cardId}/edit"
 
     const val IMPORT_PASTE = "import/paste"

@@ -1,0 +1,23 @@
+<journey name="Controls that look interactive must do something">
+  <description>
+    Sweep of the controls that rendered with full affordance and did nothing when tapped.
+    Requires a signed-in session (journey 01) and at least one published deck.
+  </description>
+  <actions>
+    <action>Tap the element with resource-id "tab_decks"</action>
+    <action>Tap the element with resource-id "decks_search" and verify a search input (resource-id: decks_search_input) appears</action>
+    <action>Type a string that matches no deck and verify a "No decks match" message is shown</action>
+    <action>Clear the search, tap the element with resource-id "decks_search" again to close it</action>
+    <action>Tap the element with resource-id "decks_sort" and verify a menu with Recent / A–Z / Most cards appears; choose "A–Z" and verify the grid reorders</action>
+    <action>Open any deck and tap the element with resource-id "deck_share"</action>
+    <action>Verify the Android share sheet opens (it previously did nothing at all)</action>
+    <action>Dismiss the share sheet, tap the element with resource-id "deck_edit"</action>
+    <action>Tap the deck cover (resource-id: deck_editor_cover) and verify the image picker sheet opens — a cover could previously only be set while publishing</action>
+    <action>Dismiss the sheet and verify the card rows show move up/down buttons (resource-ids: card_move_up, card_move_down) rather than a drag handle that does nothing</action>
+    <action>Tap "card_move_down" on the first card and verify the two cards swap order</action>
+    <action>Tap the element with resource-id "tab_profile" and tap the Share button</action>
+    <action>Verify the Android share sheet opens</action>
+    <action>Tap the element with resource-id "profile_signout" and verify a confirmation dialog appears rather than signing out immediately</action>
+    <action>Cancel the dialog</action>
+  </actions>
+</journey>

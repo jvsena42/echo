@@ -1,0 +1,26 @@
+<journey name="Deck editor — editing a deck must not destroy its media">
+  <description>
+    Regression guard for the worst bug found in the UI/UX pass. Saving the deck editor
+    republishes the whole manifest and every card record, and it used to rebuild each card as
+    text-only (`CardSide(text = ...)`) with `coverImageRef = null` — so one save permanently
+    deleted every card image, every audio clip and the deck cover from the homeserver.
+
+    Only reproducible on a deck that already has media, which is why no earlier journey caught
+    it. Requires a signed-in session (journey 01).
+  </description>
+  <actions>
+    <action>Tap the element with resource-id "tab_decks" and then the element with resource-id "decks_paste_cta"</action>
+    <action>Type the following two lines into the field with resource-id "paste_input": "sol - sun", "luna - moon"</action>
+    <action>Tap the element with resource-id "paste_next"</action>
+    <action>Tap the element with resource-id "triage_edit", then tap the element with resource-id "triage_edit_front_image_add"</action>
+    <action>Pick the first image in the grid (resource-id: image_grid_cell) and tap the element with resource-id "image_sheet_done"</action>
+    <action>Tap the element with resource-id "triage_edit_save", then tap "triage_keep" twice to reach Publish</action>
+    <action>Tap the element with resource-id "publish_cover_change", pick an image, and confirm it with "image_sheet_done"</action>
+    <action>Enter "Media Deck" into the field with resource-id "publish_title" and tap the element with resource-id "publish_button"</action>
+    <action>Tap the element with resource-id "publish_done" and verify the deck detail screen shows the chosen cover image (not a letter placeholder)</action>
+    <action>Tap the element with resource-id "deck_edit" to open the deck editor</action>
+    <action>Change the deck title to "Media Deck Renamed" and save it</action>
+    <action>Verify the deck detail screen still shows the cover image — it must NOT have reverted to a letter placeholder</action>
+    <action>Open the deck editor again and verify the first card still shows its image indicator</action>
+  </actions>
+</journey>

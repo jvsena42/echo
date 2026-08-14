@@ -8,11 +8,13 @@ import com.github.jvsena42.echo.domain.model.MediaRef
 import com.github.jvsena42.echo.domain.model.ParsedRow
 import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.domain.model.PubkyUri
+import com.github.jvsena42.echo.domain.model.Separator
 import com.github.jvsena42.echo.domain.model.Session
 import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.domain.model.SrsState
 import com.github.jvsena42.echo.domain.model.Tag
 import com.github.jvsena42.echo.domain.model.TriageDecision
+import kotlinx.coroutines.flow.SharedFlow
 
 interface IdentityRepository {
     suspend fun currentSession(): Session?
@@ -57,6 +59,14 @@ interface AuthFlowHandle {
  * ```
  */
 interface DeckRepository {
+    /**
+     * Emits after every local mutation ([publish], [updateMetadata], [delete]) so screens
+     * showing a deck list can reload. Publish and delete happen on their own full-screen
+     * destinations, and the tab pages that list decks stay composed behind them, so without
+     * this signal a freshly published deck does not appear until the process restarts.
+     */
+    val changes: SharedFlow<Unit>
+
     suspend fun getLocal(id: String): Deck?
     suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck>
     suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck>
@@ -80,7 +90,11 @@ interface CardRepository {
 
 interface ImportRepository {
     fun currentDraft(): ImportDraft?
-    suspend fun parse(rawText: String): Result<ImportDraft>
+
+    /**
+     * [separator] overrides auto-detection (spec §5.2 "tap to change"); null auto-detects.
+     */
+    suspend fun parse(rawText: String, separator: Separator? = null): Result<ImportDraft>
 
     /** Per-row keep/discard decisions made during triage (default [TriageDecision.Keep]). */
     fun decisions(): Map<Int, TriageDecision>
@@ -145,6 +159,12 @@ interface SrsRepository {
 
     /** Cards due for review within a single deck. */
     suspend fun dueForDeck(deckId: String): List<Card>
+
+    /**
+     * When the soonest not-yet-due card comes up for review, or null if nothing is scheduled.
+     * Lets Home say "next review in 4h" instead of showing an empty queue with no explanation.
+     */
+    suspend fun nextDueAt(): Long?
 
     /** Cached review state for a card, if it has been loaded this session. */
     suspend fun stateFor(cardId: String): SrsState?
