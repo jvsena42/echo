@@ -181,6 +181,43 @@ class DeckRepositoryImplTest {
         assertTrue(repo.fetchRemote("friendpk", "nope").isFailure)
     }
 
+    // ── sync ─────────────────────────────────────────────────────────────
+
+    @Test
+    fun syncPullsTheCardsIntoTheCacheWithoutWritingThemBack() = runTest {
+        val cards = listOf(testCard("c1", updatedAt = 10L), testCard("c2", updatedAt = 20L))
+        repo.publish(testDeck(id = "deck1"), cards).getOrThrow()
+
+        // A fresh repo pair over the same store: the manifest and card records are on the
+        // homeserver, nothing is cached.
+        val coldCardRepo = CardRepositoryImpl(pubky, session, revalidator)
+        val coldRepo = DeckRepositoryImpl(pubky, session, coldCardRepo, revalidator, tagRepo)
+        pubky.puts.clear()
+
+        coldRepo.sync("deck1").getOrThrow()
+
+        assertEquals(cards, coldCardRepo.listByDeck("deck1"))
+        // sync used to re-`upsert` every card it had just downloaded, PUTting each one straight
+        // back to the homeserver it came from.
+        assertTrue(pubky.puts.isEmpty(), "sync wrote ${pubky.puts.map { it.first }}")
+    }
+
+    @Test
+    fun syncDropsCardsTheManifestNoLongerLists() = runTest {
+        val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
+        val repoWithCards = DeckRepositoryImpl(pubky, session, cardRepo, revalidator, tagRepo)
+        cardRepo.upsert(testCard("c1")).getOrThrow()
+        cardRepo.upsert(testCard("c2")).getOrThrow()
+
+        // A manifest that lists only c1, as an edit that removed a card would leave it.
+        repoWithCards.publish(testDeck(id = "deck1"), listOf(testCard("c1"))).getOrThrow()
+        assertEquals(listOf("c1", "c2"), cardRepo.listByDeck("deck1").map { it.id })
+
+        repoWithCards.sync("deck1").getOrThrow()
+
+        assertEquals(listOf("c1"), cardRepo.listByDeck("deck1").map { it.id })
+    }
+
     private fun putRemoteManifest(author: String, deckId: String, title: String) {
         val dto = testDeck(id = deckId, authorPubky = author, title = title).toDto()
         pubky.store["pubky://$author/pub/echo/decks/$deckId/manifest.json"] =

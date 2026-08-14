@@ -1,6 +1,5 @@
 package com.github.jvsena42.echo.data.repository.impl
 
-import com.github.jvsena42.echo.data.pubky.CardDto
 import com.github.jvsena42.echo.data.pubky.ManifestDto
 import com.github.jvsena42.echo.data.pubky.PubkyClient
 import com.github.jvsena42.echo.data.pubky.PubkyPaths
@@ -180,24 +179,18 @@ class DeckRepositoryImpl(
     }
 
     override suspend fun sync(deckId: String): Result<Deck> = runCatching {
-        val s = session.requireSession()
-        val author = s.identity.pubky
+        val author = session.requireSession().identity.pubky
         val remote = fetchRemote(author, deckId).getOrThrow()
 
-        val localCards = cardRepo.listByDeck(deckId).associateBy { it.id }
+        val localIds = cardRepo.listByDeck(deckId).map { it.id }
         val remoteIds = remote.cardIndex.map { it.id }.toSet()
 
-        for (entry in remote.cardIndex) {
-            val local = localCards[entry.id]
-            if (local == null || local.updatedAt < entry.updatedAt) {
-                pubky.get(PubkyPaths.card(author, deckId, entry.id))
-                    .mapCatching { echoJson.decodeFromString<CardDto>(it).toDomain() }
-                    .onSuccess { card -> cardRepo.upsert(card) }
-                    .getOrThrow()
-            }
-        }
+        // fetchByDeck already skips records the cache holds at or past the index's updatedAt.
+        // Doing this by hand here also called `upsert`, which PUT every card straight back to
+        // the homeserver it had just been read from.
+        cardRepo.fetchByDeck(remote).getOrThrow()
 
-        for (localId in localCards.keys) {
+        for (localId in localIds) {
             if (localId !in remoteIds) {
                 cardRepo.delete(deckId, localId)
             }
