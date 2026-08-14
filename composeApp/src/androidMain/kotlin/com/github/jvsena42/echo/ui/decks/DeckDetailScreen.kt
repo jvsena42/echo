@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +69,7 @@ import com.github.jvsena42.echo.ui.components.TagChip
 import com.github.jvsena42.echo.ui.components.errorMessage
 import com.github.jvsena42.echo.ui.components.errorTitle
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import com.github.jvsena42.echo.ui.util.shareText
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -84,6 +86,7 @@ fun DeckDetailRoute(
 ) {
     val viewModel = koinViewModel<DeckDetailViewModel> { parametersOf(deckId, authorPubky) }
 
+    val context = LocalContext.current
     val currentBack by rememberUpdatedState(onBack)
     val currentEditDeck by rememberUpdatedState(onEditDeck)
     val currentStudy by rememberUpdatedState(onStudy)
@@ -94,7 +97,10 @@ fun DeckDetailRoute(
                 DeckDetailEffect.NavigateBack -> currentBack()
                 is DeckDetailEffect.NavigateEditDeck -> currentEditDeck(effect.deckId)
                 DeckDetailEffect.NavigateStudy -> currentStudy(deckId)
-                is DeckDetailEffect.Share -> { /* handled by platform share sheet */ }
+                is DeckDetailEffect.Share -> context.shareText(
+                    text = context.getString(R.string.share_deck_body, effect.title, effect.uri),
+                    chooserTitle = context.getString(R.string.share_deck_chooser_title),
+                )
                 DeckDetailEffect.Deleted -> currentBack()
             }
         }

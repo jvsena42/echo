@@ -316,4 +316,7 @@
     <string name="home_caught_up_title">You\'re all caught up</string>
     <string name="home_caught_up_next_due">Next review in %1$s.</string>
     <string name="home_caught_up_no_next_due">Nothing scheduled yet — study ahead from any deck.</string>
+    <string name="share_deck_chooser_title">Share deck</string>
+    <string name="share_profile_chooser_title">Share profile</string>
+    <string name="share_deck_body">%1$s on Echo\n%2$s</string>
 </resources>

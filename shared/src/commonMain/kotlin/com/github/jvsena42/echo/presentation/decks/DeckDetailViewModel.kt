@@ -99,7 +99,7 @@ class DeckDetailViewModel(
     fun onShareClick() {
         viewModelScope.launch {
             val deck = deckRepository.getLocal(deckId) ?: return@launch
-            _effects.emit(DeckDetailEffect.Share(deck.pubkyUri.value))
+            _effects.emit(DeckDetailEffect.Share(title = deck.title, uri = deck.pubkyUri.value))
         }
     }
 
@@ -256,6 +256,6 @@ sealed interface DeckDetailEffect {
     data object NavigateBack : DeckDetailEffect
     data class NavigateEditDeck(val deckId: String) : DeckDetailEffect
     data object NavigateStudy : DeckDetailEffect
-    data class Share(val uri: String) : DeckDetailEffect
+    data class Share(val title: String, val uri: String) : DeckDetailEffect
     data object Deleted : DeckDetailEffect
 }

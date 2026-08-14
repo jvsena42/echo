@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -67,6 +68,7 @@ import com.github.jvsena42.echo.presentation.profile.ProfileViewModel
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import com.github.jvsena42.echo.ui.util.shareText
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -77,6 +79,7 @@ fun ProfileRoute(
 ) {
     val viewModel = koinViewModel<ProfileViewModel>()
 
+    val context = LocalContext.current
     val currentSignedOut by rememberUpdatedState(onSignedOut)
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -84,7 +87,10 @@ fun ProfileRoute(
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 ProfileEffect.NavigateToOnboarding -> currentSignedOut()
-                is ProfileEffect.ShareProfile -> { /* TODO: launch share intent */ }
+                is ProfileEffect.ShareProfile -> context.shareText(
+                    text = effect.uri,
+                    chooserTitle = context.getString(R.string.share_profile_chooser_title),
+                )
                 is ProfileEffect.ShowError -> { errorMessage = effect.message }
             }
         }
