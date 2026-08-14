@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.presentation.decks.DeckSort
 import com.github.jvsena42.echo.presentation.decks.DeckTileModel
 import com.github.jvsena42.echo.presentation.decks.DecksLibraryEffect
@@ -62,6 +63,7 @@ import com.github.jvsena42.echo.ui.components.EchoErrorBlock
 import com.github.jvsena42.echo.ui.components.EchoLoadingScreen
 import com.github.jvsena42.echo.ui.components.EchoPrimaryButton
 import com.github.jvsena42.echo.ui.theme.EchoTheme
+import com.github.jvsena42.echo.ui.util.label
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -374,8 +376,9 @@ private fun DeckGrid(decks: List<DeckTileModel>, onDeckClick: (String) -> Unit) 
                         title = deck.title,
                         cardCount = deck.cardCount,
                         coverEmoji = deck.coverEmoji,
-                        authorLabel = deck.authorLabel,
+                        authorLabel = deck.author.label(),
                         onClick = { onDeckClick(deck.id) },
+                        showYouBadge = deck.isOwned,
                         modifier = Modifier
                             .weight(1f)
                             .testTag("deck_tile_${deck.id}"),
@@ -464,7 +467,8 @@ private fun DecksScreenPreview() {
                         title = "Spanish Essentials",
                         cardCount = 42,
                         coverEmoji = "🇪🇸",
-                        authorLabel = "You",
+                        author = PubkyIdentity("you9xqz1ghijkl", "Cosmic-Crystal-Panda", null, null),
+                        isOwned = true,
                         updatedAt = 0L,
                     ),
                     DeckTileModel(
@@ -472,7 +476,8 @@ private fun DecksScreenPreview() {
                         title = "Capital Cities",
                         cardCount = 50,
                         coverEmoji = "🌍",
-                        authorLabel = "@alex",
+                        author = PubkyIdentity("alex1xqz9uvwxyz", "Alex", null, null),
+                        isOwned = false,
                         updatedAt = 0L,
                     ),
                     DeckTileModel(
@@ -480,7 +485,8 @@ private fun DecksScreenPreview() {
                         title = "Chemistry Basics",
                         cardCount = 30,
                         coverEmoji = "⚗️",
-                        authorLabel = "You",
+                        author = PubkyIdentity("you9xqz1ghijkl", "Cosmic-Crystal-Panda", null, null),
+                        isOwned = true,
                         updatedAt = 0L,
                     ),
                 ),

@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.echo.R
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.presentation.profile.FriendDeck
 import com.github.jvsena42.echo.presentation.profile.FriendProfileEffect
 import com.github.jvsena42.echo.presentation.profile.FriendProfileUiState
@@ -132,13 +133,7 @@ private fun FriendProfileScreen(
 
         // Header: avatar + name + pubky + follow pill (reused AuthorRow)
         AuthorRow(
-            name = state.displayName,
-            pubky = stringResource(
-                R.string.friend_profile_pubky_truncated,
-                state.pubky.take(6),
-                state.pubky.takeLast(6),
-            ),
-            initial = state.avatarInitial,
+            identity = state.identity,
             isOwned = state.isSelf,
             isFollowing = state.isFollowing,
             isFollowPending = state.isProcessingFollow,
@@ -174,7 +169,7 @@ private fun FriendProfileScreen(
             )
         }
 
-        val bio = state.bio
+        val bio = state.identity.bio
         if (!bio.isNullOrBlank()) {
             Text(
                 text = bio,
@@ -239,10 +234,12 @@ private fun FriendProfileScreenPreview() {
         FriendProfileScreen(
             state = FriendProfileUiState(
                 isLoading = false,
-                pubky = "abcdef1234567890abcdef",
-                displayName = "Grace Hopper",
-                bio = "Compiler pioneer. Decks on debugging and history.",
-                avatarInitial = 'G',
+                identity = PubkyIdentity(
+                    pubky = "abcdef1234567890abcdef",
+                    displayName = "Grace Hopper",
+                    avatarUrl = null,
+                    bio = "Compiler pioneer. Decks on debugging and history.",
+                ),
                 isFollowing = true,
                 decks = listOf(
                     FriendDeck(
