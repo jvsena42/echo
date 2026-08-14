@@ -7,6 +7,7 @@ import com.github.jvsena42.echo.data.repository.DeckRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.ErrorReason
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -51,7 +52,7 @@ class DecksLibraryViewModel(
             if (!silent) _state.update { DecksLibraryUiState.Loading }
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
-            val myPubky = session?.identity?.pubky
+            val myIdentity = session?.identity
 
             runCatching { deckRepository.listOwned() }
                 .onSuccess { decks ->
@@ -60,7 +61,7 @@ class DecksLibraryViewModel(
                     } else {
                         _state.update { DecksLibraryUiState.Content(
                             deckCount = decks.size,
-                            decks = decks.map { it.toTileModel(myPubky) },
+                            decks = decks.map { it.toTileModel(myIdentity) },
                         ) }
                     }
                     Log.d(TAG, "load: decks=${decks.size}")
@@ -92,18 +93,26 @@ class DecksLibraryViewModel(
         viewModelScope.launch { _effects.emit(DecksLibraryEffect.NavigateCreateDeck) }
     }
 
-    private fun Deck.toTileModel(myPubky: String?): DeckTileModel = DeckTileModel(
-        id = id,
-        title = title,
-        cardCount = cardCount,
-        coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
-        authorLabel = if (authorPubky == myPubky) "@you" else "@${authorPubky.take(AUTHOR_PUBKY_PREFIX_LEN)}",
-        updatedAt = updatedAt,
-    )
+    /**
+     * The library only lists decks you own, so the author is the session identity — no profile
+     * lookup needed. Naming the author is the platform layer's job; this only carries who it is.
+     */
+    private fun Deck.toTileModel(myIdentity: PubkyIdentity?): DeckTileModel {
+        val isOwned = authorPubky == myIdentity?.pubky
+        return DeckTileModel(
+            id = id,
+            title = title,
+            cardCount = cardCount,
+            coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
+            author = myIdentity?.takeIf { isOwned }
+                ?: PubkyIdentity(authorPubky, displayName = null, avatarUrl = null, bio = null),
+            isOwned = isOwned,
+            updatedAt = updatedAt,
+        )
+    }
 
     companion object {
         private const val TAG = "Echo/DecksLibVM"
-        private const val AUTHOR_PUBKY_PREFIX_LEN = 6
     }
 }
 
@@ -141,7 +150,8 @@ data class DeckTileModel(
     val title: String,
     val cardCount: Int,
     val coverEmoji: String,
-    val authorLabel: String,
+    val author: PubkyIdentity,
+    val isOwned: Boolean,
     val updatedAt: Long,
 )
 

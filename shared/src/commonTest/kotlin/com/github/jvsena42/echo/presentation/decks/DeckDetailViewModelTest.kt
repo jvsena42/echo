@@ -1,6 +1,7 @@
 package com.github.jvsena42.echo.presentation.decks
 
 import com.github.jvsena42.echo.domain.model.CardIndexEntry
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.testing.FakeCardRepository
 import com.github.jvsena42.echo.testing.FakeDeckRepository
 import com.github.jvsena42.echo.testing.FakeIdentityRepository
@@ -21,6 +22,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -136,5 +138,44 @@ class DeckDetailViewModelTest {
         advanceUntilIdle()
 
         assertEquals(true, assertIs<DeckDetailUiState.Content>(vm.state.value).isOwned)
+    }
+
+    @Test
+    fun `your own deck names you from the session without waiting for a profile fetch`() =
+        runTest(mainDispatcher) {
+            deckRepo.decks["deck1"] = testDeck(authorPubky = TEST_PUBKY)
+
+            val vm = viewModel()
+            advanceUntilIdle()
+
+            val state = assertIs<DeckDetailUiState.Content>(vm.state.value)
+            assertEquals("Tester", state.author.displayName)
+            assertEquals(TEST_PUBKY, state.author.pubky)
+        }
+
+    @Test
+    fun `another author profile fills in both the name and the avatar`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk")
+        identityRepo.profiles["friendpk"] =
+            PubkyIdentity("friendpk", "Ada Lovelace", avatarUrl = "https://pic", bio = null)
+
+        val vm = viewModel(authorPubky = "friendpk")
+        advanceUntilIdle()
+
+        val state = assertIs<DeckDetailUiState.Content>(vm.state.value)
+        assertEquals("Ada Lovelace", state.author.displayName)
+        assertEquals("https://pic", state.author.avatarUrl)
+    }
+
+    @Test
+    fun `an author with no profile keeps the pubky instead of blanking out`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk")
+
+        val vm = viewModel(authorPubky = "friendpk")
+        advanceUntilIdle()
+
+        val state = assertIs<DeckDetailUiState.Content>(vm.state.value)
+        assertEquals("friendpk", state.author.pubky)
+        assertNull(state.author.displayName)
     }
 }

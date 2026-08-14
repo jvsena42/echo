@@ -8,6 +8,7 @@ import com.github.jvsena42.echo.data.repository.DiscoveryRepository
 import com.github.jvsena42.echo.data.repository.IdentityRepository
 import com.github.jvsena42.echo.domain.model.Deck
 import com.github.jvsena42.echo.domain.model.ErrorReason
+import com.github.jvsena42.echo.domain.model.PubkyIdentity
 import com.github.jvsena42.echo.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,7 +31,11 @@ class FriendProfileViewModel(
     private val discoveryRepository: DiscoveryRepository,
     private val deckRepository: DeckRepository,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(FriendProfileUiState(pubky = targetPubky))
+    private val _state = MutableStateFlow(
+        FriendProfileUiState(
+            identity = PubkyIdentity(targetPubky, displayName = null, avatarUrl = null, bio = null),
+        ),
+    )
     val state: StateFlow<FriendProfileUiState> = _state.asStateFlow()
 
     private val _effects = MutableSharedFlow<FriendProfileEffect>(extraBufferCapacity = 4)
@@ -43,14 +48,15 @@ class FriendProfileViewModel(
         load()
     }
 
-    fun onRefresh() = load()
+    fun onRefresh() = load(forceRefresh = true)
 
-    private fun load() {
+    /** [forceRefresh] reads the profile past the shared cache, for an explicit pull-to-refresh. */
+    private fun load(forceRefresh: Boolean = false) {
         if (loadJob?.isActive == true) return
         loadJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
 
-            val profile = identityRepository.fetchProfile(targetPubky).getOrNull()
+            val profile = identityRepository.fetchProfile(targetPubky, forceRefresh).getOrNull()
             val decks = runCatching { deckRepository.listByAuthor(targetPubky) }.getOrElse {
                 Log.e(TAG, "load: listByAuthor failed — ${it.message}", it)
                 emptyList()
@@ -63,14 +69,11 @@ class FriendProfileViewModel(
                 .getOrNull()
             val isSelf = myPubky != null && myPubky == targetPubky
 
-            val displayName = profile?.displayName
+            val identity = profile ?: PubkyIdentity(targetPubky, displayName = null, avatarUrl = null, bio = null)
             _state.update {
                 it.copy(
                     isLoading = false,
-                    displayName = displayName,
-                    bio = profile?.bio,
-                    avatarInitial = displayName?.firstOrNull()?.uppercaseChar()
-                        ?: targetPubky.firstOrNull()?.uppercaseChar() ?: '?',
+                    identity = identity,
                     isFollowing = isFollowing,
                     isSelf = isSelf,
                     decks = decks.map { it.toCard() },
@@ -127,10 +130,8 @@ class FriendProfileViewModel(
 
 data class FriendProfileUiState(
     val isLoading: Boolean = true,
-    val pubky: String = "",
-    val displayName: String? = null,
-    val bio: String? = null,
-    val avatarInitial: Char = '?',
+    /** Who this profile belongs to — the name, avatar and pubky all read off this one value. */
+    val identity: PubkyIdentity,
     val isFollowing: Boolean = false,
     val isProcessingFollow: Boolean = false,
     /** True when this is the signed-in user's own profile — no Follow button. */
