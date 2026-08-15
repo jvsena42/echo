@@ -104,6 +104,29 @@ class ImportRepositoryImplTest {
         assertEquals("cell division", draft.rows[0].fields[1])
     }
 
+    // ── Extra columns are dropped (spec §8) ──────────────────────────────
+
+    @Test
+    fun tabThreeColumnsDropExtra() = runBlocking {
+        val text = "hola\thello\tes,vocab\ngracias\tthank you\tes"
+        val draft = repo().parse(text).getOrThrow()
+        assertIs<Separator.Tab>(draft.separator)
+        assertEquals(2, draft.rows.size)
+        assertEquals(listOf("hola", "hello"), draft.rows[0].fields)
+        assertEquals(listOf("gracias", "thank you"), draft.rows[1].fields)
+    }
+
+    @Test
+    fun markdownTableThreeColumnsDropExtra() = runBlocking {
+        val text = "| front | back | tags |\n| --- | --- | --- |\n" +
+            "| hola | hello | es,vocab |\n| gracias | thank you | es |"
+        val draft = repo().parse(text).getOrThrow()
+        assertIs<Separator.MarkdownTable>(draft.separator)
+        assertEquals(2, draft.rows.size)
+        assertEquals(listOf("hola", "hello"), draft.rows[0].fields)
+        assertEquals(listOf("gracias", "thank you"), draft.rows[1].fields)
+    }
+
     // ── Delimiter in content (split limit) ───────────────────────────────
 
     @Test

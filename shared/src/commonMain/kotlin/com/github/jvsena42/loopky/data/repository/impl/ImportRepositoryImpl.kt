@@ -68,7 +68,8 @@ class ImportRepositoryImpl : ImportRepository {
         require(text.length <= MAX_CHARS) { "Text is too long (max $MAX_CHARS characters)." }
 
         val resolved = separator?.takeIf { it != Separator.Auto } ?: detectSeparator(text)
-        val rawRows = splitRows(text, resolved)
+        // A card has exactly two sides, so anything past the second column is dropped (spec §8).
+        val rawRows = splitRows(text, resolved).map { it.take(MAX_FIELDS) }
         require(rawRows.isNotEmpty()) { "Could not parse any cards." }
 
         val columnCount = rawRows.maxOf { it.size }
@@ -230,7 +231,14 @@ class ImportRepositoryImpl : ImportRepository {
 
     // Split each line on the *first* occurrence of the delimiter only.
     // This ensures that delimiters appearing inside the back-side content
-    // are preserved rather than creating spurious extra columns.
+    // are preserved rather than creating spurious extra columns
+    // (`"date: December 25: Christmas"` keeps its second colon, spec §9).
+    //
+    // Tab is the exception: it is a genuine column delimiter — spreadsheet and
+    // Anki exports use it, and it effectively never appears inside card text —
+    // so tab lines split on *every* tab. Columns past the back are dropped in
+    // `parse()`, which is how a `front⇥back⇥tags` export loses its tag column
+    // instead of gluing it onto the back.
 
     private fun splitRows(text: String, separator: Separator): List<List<String>> {
         return when (separator) {
@@ -239,6 +247,9 @@ class ImportRepositoryImpl : ImportRepository {
             is Separator.SingleColumn -> text.split("\n")
                 .filter { it.isNotBlank() }
                 .map { listOf(it.trim()) }
+            is Separator.Tab -> text.split("\n")
+                .filter { it.isNotBlank() }
+                .map { line -> line.split("\t").map { it.trim() } }
             else -> {
                 val delim = separatorToDelimString(separator, text)
                 text.split("\n")
@@ -300,6 +311,9 @@ class ImportRepositoryImpl : ImportRepository {
     companion object {
         private const val MAX_CHARS = 10_000
         private const val MAX_CARDS = 500
+
+        /** A card has a front and a back; extra columns are dropped (spec §8). */
+        private const val MAX_FIELDS = 2
 
         /** Flashcard fronts rarely exceed 30 characters. */
         private const val MAX_FRONT_CHARS = 30
