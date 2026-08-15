@@ -171,6 +171,14 @@ interface DiscoveryRepository {
  * [com.github.jvsena42.echo.domain.model] is invoked here, not in ViewModels).
  */
 interface SrsRepository {
+    /**
+     * Emits the deck id of every review state write ([review], [upsert]) so screens showing due
+     * counts can reload. Studying happens on its own full-screen destination while Home and
+     * DeckDetail stay composed behind it, so without this signal they keep the counts they had
+     * before the session. Deck-scoped screens filter on the id; Home reloads on any of them.
+     */
+    val changes: SharedFlow<String>
+
     /** All cards due for review across every owned deck (new cards count as due). */
     suspend fun dueToday(): List<Card>
 
