@@ -4,6 +4,7 @@ import com.github.jvsena42.echo.data.pubky.PubkyError
 import com.github.jvsena42.echo.domain.model.CardIndexEntry
 import com.github.jvsena42.echo.domain.model.ErrorReason
 import com.github.jvsena42.echo.domain.model.PubkyIdentity
+import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.testing.FakeDeckRepository
 import com.github.jvsena42.echo.testing.FakeIdentityRepository
 import com.github.jvsena42.echo.testing.FakeSrsRepository
@@ -194,6 +195,33 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertIs<HomeUiState.Content>(vm.state.value)
+    }
+
+    @Test
+    fun reloadsWhenCardsAreReviewed() = runTest {
+        // Reproduces the reported bug: study a deck, come back to Home, and it still shows the
+        // due count from before the session because the VM only reloaded on deck changes.
+        deckRepo.decks["deck1"] = testDeck(
+            id = "deck1",
+            cardIndex = listOf(CardIndexEntry("c1", 1L), CardIndexEntry("c2", 1L)),
+        )
+        val cards = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck1"))
+        srsRepo.due = cards
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals(expected = 2, actual = assertIs<HomeUiState.Content>(vm.state.value).dueToday)
+
+        // Grading empties the queue the way a finished study session does.
+        cards.forEach { srsRepo.review(it, SrsGrade.Good) }
+        srsRepo.due = emptyList()
+        srsRepo.nextDue = 42L
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertEquals(expected = 0, actual = state.dueToday)
+        assertEquals(expected = 0, actual = state.decks.first { it.id == "deck1" }.dueCount)
+        assertTrue(state.isCaughtUp)
+        assertEquals(expected = 42L, actual = state.nextDueAtMillis)
     }
 
     @Test

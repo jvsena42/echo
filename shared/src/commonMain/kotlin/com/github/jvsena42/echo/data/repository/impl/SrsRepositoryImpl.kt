@@ -19,6 +19,10 @@ import com.github.jvsena42.echo.domain.model.isDue
 import com.github.jvsena42.echo.domain.model.review
 import com.github.jvsena42.echo.util.Log
 import com.github.jvsena42.echo.util.epochMillis
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -41,6 +45,12 @@ class SrsRepositoryImpl(
 
     private val cache = mutableMapOf<String, SrsState>()
     private val cacheLock = Mutex()
+
+    private val _changes = MutableSharedFlow<Unit>(
+        extraBufferCapacity = CHANGE_BUFFER,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    override val changes: SharedFlow<Unit> = _changes.asSharedFlow()
 
     override suspend fun dueToday(): List<Card> {
         val decks = deckRepository.listOwned()
@@ -87,6 +97,7 @@ class SrsRepositoryImpl(
         val body = echoJson.encodeToString(state.toDto())
         pubky.putWithSessionRetry(url, body, session, revalidator).getOrThrow()
         cacheLock.withLock { cache[state.cardId] = state }
+        _changes.tryEmit(Unit)
         Unit
     }
 
@@ -102,5 +113,8 @@ class SrsRepositoryImpl(
 
     companion object {
         private const val TAG = "Echo/SrsRepo"
+
+        /** Room for a burst of reviews while a collector is mid-reload; oldest is dropped. */
+        private const val CHANGE_BUFFER = 8
     }
 }

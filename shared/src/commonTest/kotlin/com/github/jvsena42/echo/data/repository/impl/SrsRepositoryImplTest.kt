@@ -12,11 +12,16 @@ import com.github.jvsena42.echo.testing.signedInProvider
 import com.github.jvsena42.echo.testing.testCard
 import com.github.jvsena42.echo.testing.testDeck
 import com.github.jvsena42.echo.util.epochMillis
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SrsRepositoryImplTest {
 
     private val pubky = FakePubkyClient()
@@ -79,6 +84,21 @@ class SrsRepositoryImplTest {
         assertEquals(expected = 10, actual = state.intervalDays)
         assertEquals(expected = 2, actual = state.repetitions)
         assertEquals(SrsGrade.Easy, state.lastGrade)
+    }
+
+    @Test
+    fun reviewSignalsAChangeSoDueCountsCanReload() = runTest {
+        publishDeck("deck1", "c1")
+        val changes = mutableListOf<Unit>()
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repo.changes.collect { changes.add(it) }
+        }
+
+        repo.review(testCard("c1"), SrsGrade.Good).getOrThrow()
+        advanceUntilIdle()
+        collector.cancel()
+
+        assertEquals(expected = 1, actual = changes.size)
     }
 
     @Test

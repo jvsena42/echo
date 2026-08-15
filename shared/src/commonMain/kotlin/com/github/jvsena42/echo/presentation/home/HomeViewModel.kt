@@ -41,6 +41,11 @@ class HomeViewModel(
         viewModelScope.launch {
             deckRepository.changes.collect { load(silent = true) }
         }
+        // Same reason for reviews: studying runs on its own destination, so without this the
+        // "due today" count and the per-deck badges keep the values they had before the session.
+        viewModelScope.launch {
+            srsRepository.changes.collect { load(silent = true) }
+        }
     }
 
     fun onRefresh() = load()
