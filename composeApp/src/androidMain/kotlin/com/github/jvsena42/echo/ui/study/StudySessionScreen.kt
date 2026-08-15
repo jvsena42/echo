@@ -339,7 +339,7 @@ private fun ReviewingContent(
                 modifier = Modifier
                     .testTag("study_card")
                     .fillMaxWidth()
-                    .heightIn(max = 480.dp)
+                    .heightIn(max = 560.dp)
                     .fillMaxHeight()
                     .graphicsLayer {
                         rotationY = rotation

@@ -449,7 +449,7 @@ private fun TriageCardView(card: TriageCard, modifier: Modifier = Modifier) {
             .wrapContentHeight()
             // Portrait floor: the card is ~320dp wide on a phone, so a smaller minimum reads
             // as a square rather than a flashcard.
-            .heightIn(min = 440.dp)
+            .heightIn(min = 540.dp)
             .shadow(16.dp, RoundedCornerShape(24.dp))
             .clip(RoundedCornerShape(24.dp))
             .background(colors.surfaceCard)
