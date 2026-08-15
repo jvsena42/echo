@@ -1,8 +1,11 @@
 package com.github.jvsena42.loopky.data.pubky
 
 import com.github.jvsena42.loopky.data.repository.impl.loopkyJson
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
+import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.CardSide
+import com.github.jvsena42.loopky.domain.model.ChunkMeta
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.Tag
 import kotlinx.serialization.encodeToString
@@ -28,10 +31,62 @@ class DeckDtosTest {
         tags = listOf(Tag("spanish"), Tag("a1")),
         createdAt = 1_739_000_000_000L,
         updatedAt = 1_739_000_500_000L,
-        cardIndex = listOf(CardIndexEntry("c1", 1L)),
+        cardCount = 1,
+        chunks = listOf(ChunkMeta(n = 0, count = 1, updatedAt = 1L)),
         listenEnabled = listenEnabled,
         speakEnabled = speakEnabled,
     )
+
+    @Test
+    fun manifestRoundTripPreservesTheChunkTable() {
+        val deck = deck()
+        val back = loopkyJson.decodeFromString<ManifestDto>(
+            loopkyJson.encodeToString(deck.toDto()),
+        ).toDomain()
+        assertEquals(1, back.cardCount)
+        assertEquals(listOf(ChunkMeta(n = 0, count = 1, updatedAt = 1L)), back.chunks)
+    }
+
+    @Test
+    fun manifestCarriesNoPerCardEntries() {
+        // The card index is what made the manifest grow ~73 bytes per card; it must not come back.
+        val json = loopkyJson.encodeToString(deck().toDto())
+        assertFalse(json.contains("\"cards\""), "manifest still carries a card index: $json")
+    }
+
+    @Test
+    fun cardRoundTripPreservesStudyOrder() {
+        val card = Card(
+            id = "c1",
+            deckId = "deck1",
+            updatedAt = 5L,
+            front = CardSide(text = "hola"),
+            back = CardSide(text = "hello"),
+            ord = 3000L,
+        )
+        val back = loopkyJson.decodeFromString<CardDto>(
+            loopkyJson.encodeToString(card.toDto()),
+        ).toDomain()
+        assertEquals(3000L, back.ord)
+        assertEquals(card, back)
+    }
+
+    @Test
+    fun provenanceRoundTrips() {
+        val deck = deck().copy(
+            source = DeckSource(
+                kind = DeckSource.Kind.Clone,
+                uri = "pubky://author/pub/loopky/decks/d/manifest.json",
+                importedAt = 42L,
+            ),
+        )
+        val back = loopkyJson.decodeFromString<ManifestDto>(
+            loopkyJson.encodeToString(deck.toDto()),
+        ).toDomain()
+        assertEquals(DeckSource.Kind.Clone, back.source?.kind)
+        assertEquals("pubky://author/pub/loopky/decks/d/manifest.json", back.source?.uri)
+        assertEquals(42L, back.source?.importedAt)
+    }
 
     @Test
     fun manifestRoundTripPreservesOptions() {
@@ -47,7 +102,7 @@ class DeckDtosTest {
         // A manifest written before listen/speak existed.
         val legacy = """
             {"schema_version":1,"deck_id":"d","author_pubky":"pk","title":"T",
-             "created_at":1,"updated_at":2,"cards":[]}
+             "created_at":1,"updated_at":2}
         """.trimIndent()
         val back = loopkyJson.decodeFromString<ManifestDto>(legacy).toDomain()
         assertTrue(back.listenEnabled)

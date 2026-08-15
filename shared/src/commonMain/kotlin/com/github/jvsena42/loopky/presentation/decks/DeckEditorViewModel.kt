@@ -7,12 +7,11 @@ import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.domain.model.Card
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.Tag
-import com.github.jvsena42.loopky.domain.model.orderedBy
+import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
 import kotlinx.coroutines.Job
@@ -71,7 +70,7 @@ class DeckEditorViewModel(
                     cardsLoadFailed = true
                 }
                 .getOrDefault(emptyList())
-                .orderedBy(deck)
+                .inStudyOrder()
             _state.update { DeckEditorUiState(
                 isNew = false,
                 coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.toString() ?: "",
@@ -304,7 +303,10 @@ private fun buildDeck(
     tags = s.tags.map { Tag(it) },
     createdAt = if (s.isNew) now else existing?.createdAt ?: now,
     updatedAt = now,
-    cardIndex = cards.map { CardIndexEntry(it.id, it.updatedAt) },
+    // publish() recomputes the chunk table from the cards it writes, so the count here is just
+    // the optimistic value; `chunks` is deliberately left empty rather than guessed at.
+    cardCount = cards.size,
+    source = existing?.source,
     listenEnabled = existing?.listenEnabled ?: true,
     speakEnabled = existing?.speakEnabled ?: true,
 )

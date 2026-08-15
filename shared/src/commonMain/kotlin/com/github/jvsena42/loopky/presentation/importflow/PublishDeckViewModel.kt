@@ -7,9 +7,9 @@ import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.domain.model.Card
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.ImportDraft
@@ -134,7 +134,9 @@ class PublishDeckViewModel(
                 tags = s.tags.map { Tag(it) },
                 createdAt = now,
                 updatedAt = now,
-                cardIndex = cards.map { CardIndexEntry(it.id, it.updatedAt) },
+                // publish() writes the chunk table; this is the optimistic count it confirms.
+                cardCount = cards.size,
+                source = DeckSource(kind = DeckSource.Kind.Import, importedAt = now),
                 listenEnabled = s.listenEnabled,
                 speakEnabled = s.speakEnabled,
             )

@@ -13,18 +13,26 @@ internal object PubkyPaths {
     fun manifest(authorPubky: String, deckId: String): String =
         "${deckRoot(authorPubky, deckId)}/manifest.json"
 
-    fun card(authorPubky: String, deckId: String, cardId: String): String =
-        "${deckRoot(authorPubky, deckId)}/cards/$cardId.json"
+    /**
+     * One chunk of up to `CHUNK_SIZE` card records. Cards used to get a record each, which made a
+     * 20k-card deck 20k requests to open and forced an unbounded card index into the manifest.
+     */
+    fun cardChunk(authorPubky: String, deckId: String, chunk: Int): String =
+        "${deckRoot(authorPubky, deckId)}/cards/$chunk.json"
+
+    fun cardsRoot(authorPubky: String, deckId: String): String =
+        "${deckRoot(authorPubky, deckId)}/cards/"
 
     fun media(authorPubky: String, deckId: String, sha256: String, ext: String): String =
         "${deckRoot(authorPubky, deckId)}/media/$sha256.$ext"
 
-    /** Per-card SRS review state, deck-scoped to mirror [card] and avoid cross-deck id collisions. */
+    /**
+     * Per-card SRS review state, deck-scoped. Still one record per card and still nested under the
+     * deck — both change in #43 §2 (chunked, and author-scoped so review state for someone else's
+     * deck stops colliding on a shared deck id).
+     */
     fun srs(authorPubky: String, deckId: String, cardId: String): String =
         "${deckRoot(authorPubky, deckId)}/srs/$cardId.json"
-
-    fun srsRoot(authorPubky: String, deckId: String): String =
-        "${deckRoot(authorPubky, deckId)}/srs/"
 
     fun decksList(authorPubky: String): String =
         "pubky://$authorPubky/$APP_NAMESPACE/decks/"

@@ -1,7 +1,6 @@
 package com.github.jvsena42.loopky.presentation.home
 
 import com.github.jvsena42.loopky.data.pubky.PubkyError
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.SrsGrade
@@ -68,7 +67,7 @@ class HomeViewModelTest {
         deckRepo.decks["deck1"] = testDeck(
             id = "deck1",
             title = "Spanish",
-            cardIndex = listOf(CardIndexEntry("c1", 1L), CardIndexEntry("c2", 1L)),
+            cardCount = 2,
         )
         deckRepo.decks["deck2"] = testDeck(id = "deck2", title = "Biology")
         srsRepo.due = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck1"))
@@ -129,7 +128,7 @@ class HomeViewModelTest {
     fun owningDecksWithNothingDueIsCaughtUpNotEmpty() = runTest {
         // The bug: after finishing a session, Home showed the zero-decks empty state and told a
         // user who owns decks to "create or import a deck".
-        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 1)
         srsRepo.due = emptyList()
         srsRepo.nextDue = 9_999L
         val vm = viewModel()
@@ -143,7 +142,7 @@ class HomeViewModelTest {
 
     @Test
     fun havingCardsDueIsNotCaughtUp() = runTest {
-        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 1)
         srsRepo.due = listOf(testCard("c1", deckId = "deck1"))
         val vm = viewModel()
 
@@ -190,7 +189,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
         assertIs<HomeUiState.Empty>(vm.state.value)
 
-        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 1)
         deckRepo.emitChange()
         advanceUntilIdle()
 
@@ -203,7 +202,7 @@ class HomeViewModelTest {
         // due count from before the session because the VM only reloaded on deck changes.
         deckRepo.decks["deck1"] = testDeck(
             id = "deck1",
-            cardIndex = listOf(CardIndexEntry("c1", 1L), CardIndexEntry("c2", 1L)),
+            cardCount = 2,
         )
         val cards = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck1"))
         srsRepo.due = cards
@@ -226,7 +225,7 @@ class HomeViewModelTest {
 
     @Test
     fun aBackgroundReloadDoesNotFlashTheLoadingState() = runTest {
-        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 1)
         val vm = viewModel()
         advanceUntilIdle()
         assertIs<HomeUiState.Content>(vm.state.value)

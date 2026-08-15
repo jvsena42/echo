@@ -23,6 +23,7 @@ import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
+import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.domain.model.review
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -119,6 +120,29 @@ class FakeDeckRepository : DeckRepository {
     override suspend fun sync(deckId: String): Result<Deck> =
         decks[deckId]?.let { Result.success(it) }
             ?: Result.failure(IllegalStateException("deck $deckId not found"))
+
+    val upsertedCards = mutableListOf<Pair<String, Card>>()
+    val deletedCards = mutableListOf<Pair<String, String>>()
+    var upsertCardError: Throwable? = null
+
+    override suspend fun upsertCard(deckId: String, card: Card): Result<Deck> {
+        upsertCardError?.let { return Result.failure(it) }
+        upsertedCards.add(deckId to card)
+        val deck = decks[deckId] ?: return Result.failure(IllegalStateException("deck $deckId not found"))
+        val updated = deck.copy(cardCount = deck.cardCount + 1)
+        decks[deckId] = updated
+        _changes.tryEmit(Unit)
+        return Result.success(updated)
+    }
+
+    override suspend fun deleteCard(deckId: String, cardId: String): Result<Deck> {
+        deletedCards.add(deckId to cardId)
+        val deck = decks[deckId] ?: return Result.failure(IllegalStateException("deck $deckId not found"))
+        val updated = deck.copy(cardCount = (deck.cardCount - 1).coerceAtLeast(0))
+        decks[deckId] = updated
+        _changes.tryEmit(Unit)
+        return Result.success(updated)
+    }
 }
 
 class FakeCardRepository : CardRepository {
@@ -147,7 +171,7 @@ class FakeCardRepository : CardRepository {
     }
 
     override suspend fun listByDeck(deckId: String): List<Card> =
-        cards[deckId]?.values?.toList() ?: emptyList()
+        cards[deckId]?.values?.toList().orEmpty().inStudyOrder()
 
     override suspend fun fetchByDeck(deck: Deck): Result<List<Card>> {
         fetchCount++
@@ -155,21 +179,29 @@ class FakeCardRepository : CardRepository {
         remoteCards[deck.id]?.forEach { (id, card) ->
             cards.getOrPut(deck.id) { mutableMapOf() }[id] = card
         }
-        val available = cards[deck.id].orEmpty()
-        return Result.success(deck.cardIndex.mapNotNull { available[it.id] })
+        return Result.success(cards[deck.id]?.values?.toList().orEmpty().inStudyOrder())
     }
 
     override suspend fun get(deckId: String, cardId: String): Card? = cards[deckId]?.get(cardId)
 
-    override suspend fun upsert(card: Card): Result<Unit> {
-        cards.getOrPut(card.deckId) { mutableMapOf() }[card.id] = card
+    override suspend fun writeChunk(deckId: String, chunk: Int, cards: List<Card>): Result<Unit> {
+        writtenChunks.add(deckId to chunk)
+        val deckCache = this.cards.getOrPut(deckId) { mutableMapOf() }
+        cards.forEach { deckCache[it.id] = it }
         return Result.success(Unit)
     }
 
-    override suspend fun delete(deckId: String, cardId: String): Result<Unit> {
+    override suspend fun readChunk(deck: Deck, chunk: Int): Result<List<Card>> =
+        Result.success(cards[deck.id]?.values?.toList().orEmpty().inStudyOrder())
+
+    override suspend fun chunkOf(deckId: String, cardId: String): Int? =
+        if (cards[deckId]?.containsKey(cardId) == true) 0 else null
+
+    override suspend fun evict(deckId: String, cardId: String) {
         cards[deckId]?.remove(cardId)
-        return Result.success(Unit)
     }
+
+    val writtenChunks = mutableListOf<Pair<String, Int>>()
 }
 
 /** Grades through the real scheduler so VM tests see realistic state transitions. */

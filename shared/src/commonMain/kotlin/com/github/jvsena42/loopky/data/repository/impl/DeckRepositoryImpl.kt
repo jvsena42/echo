@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.CardChunking
 import com.github.jvsena42.loopky.data.pubky.ManifestDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
@@ -15,9 +16,11 @@ import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Card
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
+import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.epochMillis
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -32,6 +35,7 @@ import kotlinx.serialization.encodeToString
  *
  * See `docs/Architecture.md §8.0` for the on-homeserver layout this implementation writes.
  */
+@Suppress("TooManyFunctions")
 class DeckRepositoryImpl(
     private val pubky: PubkyClient,
     private val session: SessionProvider,
@@ -72,14 +76,31 @@ class DeckRepositoryImpl(
             }
         }
 
-        for (card in cards) {
-            val url = PubkyPaths.card(author, deck.id, card.id)
-            val body = loopkyJson.encodeToString(card.toDto())
-            pubky.putWithSessionRetry(url, body, session, revalidator).getOrThrow()
+        val batches = CardChunking.chunk(cards)
+        val chunkMeta = CardChunking.metaFor(batches, deck.updatedAt)
+
+        // A deck that shrank leaves chunk records past the new tail. Read the old chunk count
+        // before writing, since the cache entry is replaced below.
+        val previousChunkCount = getLocal(deck.id)?.chunks?.size ?: 0
+
+        // Written through CardRepository rather than encoded here: it is the one place that knows
+        // the chunk record's shape, and routing through it leaves the card cache warm so opening
+        // the deck straight after publishing doesn't re-download what we just uploaded.
+        for ((n, batch) in batches.withIndex()) {
+            cardRepo.writeChunk(deck.id, n, batch).getOrThrow()
+        }
+
+        // Unreachable from the manifest once it shrinks, but left behind they would be served to
+        // anyone listing the deck's `cards/` directory directly. An empty write deletes the record
+        // and drops the cards it held from the cache in one step.
+        for (n in batches.size until previousChunkCount) {
+            cardRepo.writeChunk(deck.id, n, emptyList())
+                .onFailure { Log.e(TAG, "publish: stale chunk $n not removed — ${it.message}", it) }
         }
 
         val manifestDeck = deck.copy(
-            cardIndex = cards.map { CardIndexEntry(it.id, it.updatedAt) },
+            cardCount = cards.size,
+            chunks = chunkMeta,
         )
         val manifestUrl = PubkyPaths.manifest(author, deck.id)
         val manifestBody = loopkyJson.encodeToString(manifestDeck.toDto())
@@ -110,6 +131,89 @@ class DeckRepositoryImpl(
         deck
     }
 
+    override suspend fun upsertCard(deckId: String, card: Card): Result<Deck> = runCatching {
+        require(!card.front.isEmpty && !card.back.isEmpty) { "Card ${card.id} has an empty side" }
+        val deck = requireOwnedDeck(deckId)
+
+        // An existing card is rewritten in place; a new one appends to the last chunk with room.
+        val existing = locateChunk(deck, card.id)
+        val targetChunk = existing ?: CardChunking.appendTarget(deck.chunks)
+        val current = cardRepo.readChunk(deck, targetChunk).getOrDefault(emptyList())
+
+        val ord = current.firstOrNull { it.id == card.id }?.ord
+            ?: ((current.maxOfOrNull { it.ord } ?: -ORD_STRIDE) + ORD_STRIDE)
+        val updated = current.filterNot { it.id == card.id } + card.copy(ord = ord)
+
+        writeChunkAndManifest(deck, targetChunk, updated.inStudyOrder())
+    }
+
+    override suspend fun deleteCard(deckId: String, cardId: String): Result<Deck> = runCatching {
+        val deck = requireOwnedDeck(deckId)
+        val chunk = locateChunk(deck, cardId) ?: return@runCatching deck
+        val remaining = cardRepo.readChunk(deck, chunk).getOrDefault(emptyList())
+            .filterNot { it.id == cardId }
+
+        cardRepo.evict(deckId, cardId)
+        writeChunkAndManifest(deck, chunk, remaining)
+    }
+
+    /**
+     * The chunk holding [cardId], or null if the deck doesn't contain it.
+     *
+     * Uses the mapping the card cache recorded when it read the deck. Only when that is cold does
+     * it fall back to walking chunks, and it stops at the first hit rather than reading them all —
+     * a scan of a 20k-card deck is 200 requests, which would undo the point of chunking.
+     */
+    private suspend fun locateChunk(deck: Deck, cardId: String): Int? {
+        cardRepo.chunkOf(deck.id, cardId)?.let { return it }
+        for (meta in deck.chunks) {
+            val cards = cardRepo.readChunk(deck, meta.n).getOrDefault(emptyList())
+            if (cards.any { it.id == cardId }) return meta.n
+        }
+        return null
+    }
+
+    /**
+     * Write one chunk and the manifest entry that describes it, as a pair. Deliberately a single
+     * function: the old layout let a card record and its manifest entry be written independently,
+     * which is why a single-card edit could leave the manifest stale forever.
+     *
+     * The chunk is written first — a chunk the manifest doesn't yet describe is invisible, whereas
+     * a manifest pointing at a chunk that was never written is a broken deck.
+     */
+    private suspend fun writeChunkAndManifest(deck: Deck, chunk: Int, cards: List<Card>): Deck {
+        cardRepo.writeChunk(deck.id, chunk, cards).getOrThrow()
+
+        val now = epochMillis()
+        val chunks = CardChunking.withChunk(deck.chunks, chunk, cards.size, now)
+        val updated = deck.copy(
+            chunks = chunks,
+            cardCount = CardChunking.cardCount(chunks),
+            updatedAt = now,
+        )
+        val body = loopkyJson.encodeToString(updated.toDto())
+        pubky.putWithSessionRetry(
+            PubkyPaths.manifest(deck.authorPubky, deck.id),
+            body,
+            session,
+            revalidator,
+        ).getOrThrow()
+
+        cacheLock.withLock { cache[updated.id] = updated }
+        _changes.tryEmit(Unit)
+        return updated
+    }
+
+    /** The deck, confirmed to exist and to belong to the signed-in user. */
+    private suspend fun requireOwnedDeck(deckId: String): Deck {
+        val author = session.requireSession().identity.pubky
+        val deck = getLocal(deckId) ?: fetchRemote(author, deckId).getOrThrow()
+        require(deck.authorPubky == author) {
+            "Deck author mismatch: expected $author, got ${deck.authorPubky}"
+        }
+        return deck
+    }
+
     override suspend fun delete(deckId: String): Result<Unit> = runCatching {
         val author = session.requireSession().identity.pubky
         val cached = getLocal(deckId)
@@ -122,7 +226,7 @@ class DeckRepositoryImpl(
             ?.let(::parsePubkyUrlsFromList)
             .orEmpty()
         val fallbackPaths = buildList {
-            cached?.cardIndex?.forEach { add(PubkyPaths.card(author, deckId, it.id)) }
+            cached?.chunks?.forEach { add(PubkyPaths.cardChunk(author, deckId, it.n)) }
             add(PubkyPaths.manifest(author, deckId))
         }
         // Manifest last: a half-deleted deck without a manifest disappears from listings
@@ -182,19 +286,12 @@ class DeckRepositoryImpl(
         val author = session.requireSession().identity.pubky
         val remote = fetchRemote(author, deckId).getOrThrow()
 
-        val localIds = cardRepo.listByDeck(deckId).map { it.id }
-        val remoteIds = remote.cardIndex.map { it.id }.toSet()
-
-        // fetchByDeck already skips records the cache holds at or past the index's updatedAt.
-        // Doing this by hand here also called `upsert`, which PUT every card straight back to
-        // the homeserver it had just been read from.
+        // fetchByDeck re-reads only the chunks whose `updated_at` moved, and rebuilds the deck's
+        // cache entry from what it read. Cards dropped remotely simply aren't in any chunk any
+        // more, so they fall out of the cache without a separate reconciliation pass — the old
+        // index-diff-then-delete loop issued homeserver DELETEs for them, which meant a stale
+        // local cache could delete a card that was still live for its author.
         cardRepo.fetchByDeck(remote).getOrThrow()
-
-        for (localId in localIds) {
-            if (localId !in remoteIds) {
-                cardRepo.delete(deckId, localId)
-            }
-        }
         remote
     }
 

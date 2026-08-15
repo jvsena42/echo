@@ -13,7 +13,7 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
-import com.github.jvsena42.loopky.domain.model.orderedBy
+import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -87,7 +87,7 @@ class DeckDetailViewModel(
 
             // Must be a fetch, not a cache read: nothing has loaded this deck's cards yet on a
             // cold launch, and for a deck you don't own nothing ever will.
-            runCatching { cardRepository.fetchByDeck(deck).getOrThrow().orderedBy(deck) }
+            runCatching { cardRepository.fetchByDeck(deck).getOrThrow().inStudyOrder() }
                 .onSuccess { cards ->
                     val dueCount = runCatching { srsRepository.dueForDeck(deckId).size }
                         .getOrDefault(0)

@@ -59,8 +59,8 @@ interface AuthFlowHandle {
  *
  * Layout on the homeserver (see `docs/Architecture.md §8.0`):
  * ```
- * /pub/loopky/decks/{deckId}/manifest.json
- * /pub/loopky/decks/{deckId}/cards/{cardId}.json
+ * /pub/loopky/decks/{deckId}/manifest.json     — metadata + chunk table, no card index
+ * /pub/loopky/decks/{deckId}/cards/{n}.json    — up to CHUNK_SIZE cards per record
  * /pub/loopky/decks/{deckId}/media/{sha256}.{ext}
  * ```
  */
@@ -78,6 +78,19 @@ interface DeckRepository {
     suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck>
     suspend fun updateMetadata(deck: Deck): Result<Deck>
     suspend fun delete(deckId: String): Result<Unit>
+
+    /**
+     * Add or replace a single card, rewriting only its chunk and patching the manifest's entry
+     * for that chunk. This is the cheap edit path the chunked layout exists for: ~63 KB for a
+     * card edit in a 20k-card deck, against ~1.5 MB when the manifest carried every card.
+     *
+     * A new card appends to the last chunk with room. Returns the updated deck so callers can
+     * refresh their view of `cardCount` / `chunks`.
+     */
+    suspend fun upsertCard(deckId: String, card: Card): Result<Deck>
+
+    /** Remove a single card, rewriting its chunk and patching the manifest. */
+    suspend fun deleteCard(deckId: String, cardId: String): Result<Deck>
     suspend fun listOwned(): List<Deck>
 
     /** Public decks for any author (their homeserver, read-only). Powers friend profiles + Discover. */
@@ -87,22 +100,47 @@ interface DeckRepository {
     suspend fun sync(deckId: String): Result<Deck>
 }
 
+/**
+ * Chunk reads and raw chunk writes. Cards live batched in `cards/{n}.json`, so this interface is
+ * deliberately chunk-shaped rather than card-shaped.
+ *
+ * Single-card mutations are **not** here: writing a chunk also has to move the manifest's
+ * `chunks[n].updated_at` and `card_count`, and splitting those two writes across classes is what
+ * let the old per-card layout drift out of sync. Use [DeckRepository.upsertCard] /
+ * [DeckRepository.deleteCard], which own both halves.
+ */
 interface CardRepository {
-    /** Whatever this session has already loaded or written. Empty on a cold cache. */
+    /** Whatever this session has already loaded or written, in study order. Empty on a cold cache. */
     suspend fun listByDeck(deckId: String): List<Card>
 
     /**
-     * The deck's cards read from *its author's* homeserver, in `cardIndex` order, refreshing the
-     * cache as it goes. Read-only, and not limited to decks you own — which is what makes a
-     * shared deck browsable. Records already cached at or past the index's `updatedAt` are not
-     * re-fetched. A single unreadable card is skipped; failing to read *any* of them is a
+     * The deck's cards read from *its author's* homeserver, refreshing the cache as it goes.
+     * Read-only, and not limited to decks you own — which is what makes a shared deck browsable.
+     * Chunks whose `updated_at` has not moved since the last read are not re-fetched. A single
+     * unreadable chunk keeps its previously cached cards; failing to read *any* of them is a
      * connectivity failure and fails the call rather than passing off an empty deck as real.
      */
     suspend fun fetchByDeck(deck: Deck): Result<List<Card>>
 
     suspend fun get(deckId: String, cardId: String): Card?
-    suspend fun upsert(card: Card): Result<Unit>
-    suspend fun delete(deckId: String, cardId: String): Result<Unit>
+
+    /** Overwrite one chunk record; an empty [cards] deletes it. Caller updates the manifest. */
+    suspend fun writeChunk(deckId: String, chunk: Int, cards: List<Card>): Result<Unit>
+
+    /** Read a single chunk of [deck] from its author's homeserver, caching what it finds. */
+    suspend fun readChunk(deck: Deck, chunk: Int): Result<List<Card>>
+
+    /**
+     * Which chunk holds [cardId], or null if this session hasn't seen it.
+     *
+     * Recorded when a chunk is read or written. Without it, locating a card to edit would mean
+     * reading every chunk in the deck — 200 requests for a 20k-card deck, which is the very cost
+     * chunking exists to remove.
+     */
+    suspend fun chunkOf(deckId: String, cardId: String): Int?
+
+    /** Drop a card from the in-memory cache without touching the homeserver. */
+    suspend fun evict(deckId: String, cardId: String)
 }
 
 interface ImportRepository {

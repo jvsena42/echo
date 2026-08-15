@@ -1,7 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.pubky.SrsStateDto
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.testing.CountingRevalidator
@@ -47,8 +46,7 @@ class SrsRepositoryImplTest {
 
     private suspend fun publishDeck(deckId: String, vararg cardIds: String) {
         val cards = cardIds.map { testCard(it, deckId = deckId) }
-        val index = cards.map { CardIndexEntry(it.id, it.updatedAt) }
-        deckRepo.publish(testDeck(id = deckId, cardIndex = index), cards).getOrThrow()
+        deckRepo.publish(testDeck(id = deckId), cards).getOrThrow()
     }
 
     // ── review / upsert ──────────────────────────────────────────────────

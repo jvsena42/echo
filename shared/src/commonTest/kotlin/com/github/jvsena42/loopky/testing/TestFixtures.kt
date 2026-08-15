@@ -5,8 +5,8 @@ import com.github.jvsena42.loopky.data.pubky.MutableSessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
 import com.github.jvsena42.loopky.domain.model.Capability
 import com.github.jvsena42.loopky.domain.model.Card
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.CardSide
+import com.github.jvsena42.loopky.domain.model.ChunkMeta
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.Session
@@ -70,12 +70,14 @@ fun testCard(
     front: String = "front of $id",
     back: String = "back of $id",
     updatedAt: Long = 1_000L,
+    ord: Long = 0L,
 ): Card = Card(
     id = id,
     deckId = deckId,
     updatedAt = updatedAt,
     front = CardSide(text = front),
     back = CardSide(text = back),
+    ord = ord,
 )
 
 fun testDeck(
@@ -83,7 +85,8 @@ fun testDeck(
     authorPubky: String = TEST_PUBKY,
     title: String = "Deck $id",
     tags: List<Tag> = emptyList(),
-    cardIndex: List<CardIndexEntry> = emptyList(),
+    cardCount: Int = 0,
+    chunks: List<ChunkMeta> = emptyList(),
     createdAt: Long = 1_000L,
     updatedAt: Long = 2_000L,
 ): Deck = Deck(
@@ -96,5 +99,26 @@ fun testDeck(
     tags = tags,
     createdAt = createdAt,
     updatedAt = updatedAt,
-    cardIndex = cardIndex,
+    cardCount = cardCount,
+    chunks = chunks,
+)
+
+/**
+ * A deck whose manifest describes [cards] laid out in chunks of [chunkSize], mirroring what
+ * `publish` would have written. Use with [seedChunks] to stand up a readable deck in a test.
+ */
+fun testDeckWithCards(
+    cards: List<Card>,
+    id: String = "deck1",
+    authorPubky: String = TEST_PUBKY,
+    chunkSize: Int = 100,
+    updatedAt: Long = 2_000L,
+): Deck = testDeck(
+    id = id,
+    authorPubky = authorPubky,
+    cardCount = cards.size,
+    chunks = cards.chunked(chunkSize).mapIndexed { n, batch ->
+        ChunkMeta(n = n, count = batch.size, updatedAt = updatedAt)
+    },
+    updatedAt = updatedAt,
 )

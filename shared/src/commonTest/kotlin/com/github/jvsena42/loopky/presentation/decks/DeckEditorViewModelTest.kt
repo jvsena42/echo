@@ -1,7 +1,6 @@
 package com.github.jvsena42.loopky.presentation.decks
 
 import com.github.jvsena42.loopky.domain.model.Card
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.testing.FakeCardRepository
@@ -72,7 +71,7 @@ class DeckEditorViewModelTest {
         deckRepo.decks["deck1"] = testDeck(
             id = "deck1",
             authorPubky = TEST_PUBKY,
-            cardIndex = listOf(CardIndexEntry("card1", 1_000L)),
+            cardCount = 1,
         ).copy(
             coverImageRef = coverImage,
             listenEnabled = false,
@@ -165,7 +164,7 @@ class DeckEditorViewModelTest {
     fun `moving a card reorders it and the new order is what gets published`() = runTest {
         deckRepo.decks["deck1"] = testDeck(
             id = "deck1",
-            cardIndex = listOf(CardIndexEntry("card1", 1L), CardIndexEntry("card2", 2L)),
+            cardCount = 2,
         )
         cardRepo.seed(
             Card("card1", "deck1", 1L, CardSide(text = "first"), CardSide(text = "1")),
@@ -180,8 +179,10 @@ class DeckEditorViewModelTest {
         advanceUntilIdle()
 
         val (deck, cards) = deckRepo.published.single()
+        // Reorder now persists through the cards' `ord`, assigned by publish in list order,
+        // rather than through the manifest's card index.
         assertEquals(listOf("card2", "card1"), cards.map { it.id })
-        assertEquals(listOf("card2", "card1"), deck.cardIndex.map { it.id })
+        assertEquals(expected = 2, actual = deck.cardCount)
     }
 
     @Test

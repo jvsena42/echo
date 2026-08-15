@@ -19,6 +19,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 class FakePubkyClient : PubkyClient {
 
     val store = mutableMapOf<String, String>()
+    val gets = mutableListOf<String>()
     val puts = mutableListOf<Pair<String, String>>()
     val bytePuts = mutableListOf<Pair<String, ByteArray>>()
     val deletes = mutableListOf<String>()
@@ -64,6 +65,7 @@ class FakePubkyClient : PubkyClient {
     }
 
     override suspend fun get(url: String): Result<String> {
+        gets.add(url)
         failGetWith?.let { return Result.failure(it) }
         return store[url]?.let { Result.success(it) }
             ?: Result.failure(PubkyError("not found: $url"))

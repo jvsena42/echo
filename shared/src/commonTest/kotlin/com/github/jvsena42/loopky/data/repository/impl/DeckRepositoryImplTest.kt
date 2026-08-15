@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.CardChunkDto
 import com.github.jvsena42.loopky.data.pubky.ManifestDto
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.toDto
@@ -40,21 +41,64 @@ class DeckRepositoryImplTest {
     // ── publish ──────────────────────────────────────────────────────────
 
     @Test
-    fun publishWritesOneRecordPerCardPlusManifest() = runTest {
+    fun publishWritesOneChunkRecordPlusManifest() = runTest {
         val cards = listOf(testCard("c1", updatedAt = 10L), testCard("c2", updatedAt = 20L))
 
         val published = repo.publish(testDeck(id = "deck1"), cards).getOrThrow()
 
-        assertTrue("$deckRoot/cards/c1.json" in pubky.store)
-        assertTrue("$deckRoot/cards/c2.json" in pubky.store)
+        // Two cards, one chunk record — not one record per card.
+        assertTrue("$deckRoot/cards/0.json" in pubky.store)
+        assertEquals(expected = 2, actual = pubky.puts.size, message = "chunk + manifest")
+
         val manifest = loopkyJson.decodeFromString<ManifestDto>(
             pubky.store.getValue("$deckRoot/manifest.json"),
         )
         assertEquals("deck1", manifest.deck_id)
         assertEquals(TEST_PUBKY, manifest.author_pubky)
-        assertEquals(listOf("c1", "c2"), manifest.cards.map { it.id })
-        assertEquals(listOf(10L, 20L), manifest.cards.map { it.updated_at })
-        assertEquals(listOf("c1", "c2"), published.cardIndex.map { it.id })
+        assertEquals(expected = 2, actual = manifest.card_count)
+        assertEquals(listOf(0), manifest.chunks.map { it.n })
+        assertEquals(listOf(2), manifest.chunks.map { it.count })
+        assertEquals(expected = 2, actual = published.cardCount)
+    }
+
+    @Test
+    fun publishSplitsCardsAcrossChunksAtTheBoundary() = runTest {
+        val cards = (1..250).map { testCard("c$it") }
+
+        val published = repo.publish(testDeck(id = "deck1"), cards).getOrThrow()
+
+        val manifest = loopkyJson.decodeFromString<ManifestDto>(
+            pubky.store.getValue("$deckRoot/manifest.json"),
+        )
+        assertEquals(listOf(0, 1, 2), manifest.chunks.map { it.n })
+        assertEquals(listOf(100, 100, 50), manifest.chunks.map { it.count })
+        assertEquals(expected = 250, actual = manifest.card_count)
+        assertEquals(expected = 250, actual = published.cardCount)
+        // 3 chunks + 1 manifest, against 251 requests under the old layout.
+        assertEquals(expected = 4, actual = pubky.puts.size)
+    }
+
+    @Test
+    fun publishAssignsSparseStudyOrder() = runTest {
+        val cards = listOf(testCard("c1"), testCard("c2"), testCard("c3"))
+
+        repo.publish(testDeck(id = "deck1"), cards).getOrThrow()
+
+        val chunk = loopkyJson.decodeFromString<CardChunkDto>(
+            pubky.store.getValue("$deckRoot/cards/0.json"),
+        )
+        assertEquals(listOf(0L, 1000L, 2000L), chunk.cards.map { it.ord })
+    }
+
+    @Test
+    fun republishingASmallerDeckRemovesTheChunksThatFellAway() = runTest {
+        repo.publish(testDeck(id = "deck1"), (1..250).map { testCard("c$it") }).getOrThrow()
+
+        repo.publish(testDeck(id = "deck1"), listOf(testCard("c1"))).getOrThrow()
+
+        assertTrue("$deckRoot/cards/0.json" in pubky.store)
+        assertTrue("$deckRoot/cards/1.json" !in pubky.store, "stale chunk 1 left behind")
+        assertTrue("$deckRoot/cards/2.json" !in pubky.store, "stale chunk 2 left behind")
     }
 
     @Test
@@ -102,7 +146,7 @@ class DeckRepositoryImplTest {
 
         assertTrue(pubky.store.keys.none { it.startsWith(deckRoot) })
         assertEquals("$deckRoot/manifest.json", pubky.deletes.last())
-        assertTrue(pubky.deletes.containsAll(listOf("$deckRoot/cards/c1.json", "$deckRoot/srs/c1.json")))
+        assertTrue(pubky.deletes.containsAll(listOf("$deckRoot/cards/0.json", "$deckRoot/srs/c1.json")))
         assertEquals(listOf(deck.pubkyUri to Tag("spanish")), tagRepo.removedTags)
         assertNull(repo.getLocal("deck1"))
     }
@@ -196,26 +240,129 @@ class DeckRepositoryImplTest {
 
         coldRepo.sync("deck1").getOrThrow()
 
-        assertEquals(cards, coldCardRepo.listByDeck("deck1"))
+        // publish() stamps a sparse ord onto each card, so compare identity and order.
+        assertEquals(cards.map { it.id }, coldCardRepo.listByDeck("deck1").map { it.id })
         // sync used to re-`upsert` every card it had just downloaded, PUTting each one straight
         // back to the homeserver it came from.
         assertTrue(pubky.puts.isEmpty(), "sync wrote ${pubky.puts.map { it.first }}")
     }
 
     @Test
-    fun syncDropsCardsTheManifestNoLongerLists() = runTest {
+    fun syncDropsCardsTheDeckNoLongerContains() = runTest {
         val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
         val repoWithCards = DeckRepositoryImpl(pubky, session, cardRepo, revalidator, tagRepo)
-        cardRepo.upsert(testCard("c1")).getOrThrow()
-        cardRepo.upsert(testCard("c2")).getOrThrow()
-
-        // A manifest that lists only c1, as an edit that removed a card would leave it.
-        repoWithCards.publish(testDeck(id = "deck1"), listOf(testCard("c1"))).getOrThrow()
+        repoWithCards.publish(
+            testDeck(id = "deck1"),
+            listOf(testCard("c1"), testCard("c2")),
+        ).getOrThrow()
         assertEquals(listOf("c1", "c2"), cardRepo.listByDeck("deck1").map { it.id })
 
+        // The deck is republished without c2, as an edit that removed a card would leave it.
+        repoWithCards.publish(
+            testDeck(id = "deck1", updatedAt = 9_000L),
+            listOf(testCard("c1")),
+        ).getOrThrow()
         repoWithCards.sync("deck1").getOrThrow()
 
         assertEquals(listOf("c1"), cardRepo.listByDeck("deck1").map { it.id })
+    }
+
+    // ── single-card writes ───────────────────────────────────────────────
+
+    @Test
+    fun upsertCardRewritesOnlyItsChunkAndBumpsTheManifest() = runTest {
+        repo.publish(testDeck(id = "deck1"), (1..250).map { testCard("c$it") }).getOrThrow()
+        pubky.puts.clear()
+
+        val edited = testCard("c5", front = "edited", updatedAt = 7_000L)
+        val deck = repo.upsertCard("deck1", edited).getOrThrow()
+
+        // Exactly two writes: the one chunk holding c5, and the manifest.
+        assertEquals(
+            listOf("$deckRoot/cards/0.json", "$deckRoot/manifest.json"),
+            pubky.puts.map { it.first },
+        )
+        assertEquals(expected = 250, actual = deck.cardCount, message = "an edit changed the count")
+
+        val chunk = loopkyJson.decodeFromString<CardChunkDto>(
+            pubky.store.getValue("$deckRoot/cards/0.json"),
+        )
+        assertEquals("edited", chunk.cards.single { it.id == "c5" }.front.text)
+        assertEquals(expected = 100, actual = chunk.cards.size)
+    }
+
+    @Test
+    fun editingACardReadsOnlyTheChunkThatHoldsIt() = runTest {
+        repo.publish(testDeck(id = "deck1"), (1..500).map { testCard("c$it") }).getOrThrow()
+        pubky.gets.clear()
+
+        // c450 lives in chunk 4. Locating it must not walk chunks 0..3 on the way.
+        repo.upsertCard("deck1", testCard("c450", front = "edited")).getOrThrow()
+
+        assertEquals(
+            listOf("$deckRoot/cards/4.json"),
+            pubky.gets,
+            "a single-card edit read more than its own chunk",
+        )
+    }
+
+    @Test
+    fun upsertCardAppendsANewCardToTheLastChunkWithRoom() = runTest {
+        repo.publish(testDeck(id = "deck1"), (1..150).map { testCard("c$it") }).getOrThrow()
+
+        val deck = repo.upsertCard("deck1", testCard("brand-new")).getOrThrow()
+
+        assertEquals(expected = 151, actual = deck.cardCount)
+        assertEquals(listOf(100, 51), deck.chunks.map { it.count })
+        val chunk = loopkyJson.decodeFromString<CardChunkDto>(
+            pubky.store.getValue("$deckRoot/cards/1.json"),
+        )
+        assertTrue(chunk.cards.any { it.id == "brand-new" })
+    }
+
+    @Test
+    fun upsertCardOpensANewChunkWhenTheLastOneIsFull() = runTest {
+        repo.publish(testDeck(id = "deck1"), (1..100).map { testCard("c$it") }).getOrThrow()
+
+        val deck = repo.upsertCard("deck1", testCard("overflow")).getOrThrow()
+
+        assertEquals(listOf(0, 1), deck.chunks.map { it.n })
+        assertEquals(listOf(100, 1), deck.chunks.map { it.count })
+        assertEquals(expected = 101, actual = deck.cardCount)
+    }
+
+    @Test
+    fun deleteCardLeavesAHoleRatherThanResequencingTheDeck() = runTest {
+        repo.publish(testDeck(id = "deck1"), (1..250).map { testCard("c$it") }).getOrThrow()
+        pubky.puts.clear()
+
+        val deck = repo.deleteCard("deck1", "c5").getOrThrow()
+
+        // Only the affected chunk shrinks; later chunks are untouched.
+        assertEquals(listOf(99, 100, 50), deck.chunks.map { it.count })
+        assertEquals(expected = 249, actual = deck.cardCount)
+        assertEquals(
+            listOf("$deckRoot/cards/0.json", "$deckRoot/manifest.json"),
+            pubky.puts.map { it.first },
+        )
+    }
+
+    @Test
+    fun deletingTheLastCardInAChunkDropsTheChunkRecord() = runTest {
+        repo.publish(testDeck(id = "deck1"), listOf(testCard("only"))).getOrThrow()
+
+        val deck = repo.deleteCard("deck1", "only").getOrThrow()
+
+        assertEquals(emptyList(), deck.chunks)
+        assertEquals(expected = 0, actual = deck.cardCount)
+        assertTrue("$deckRoot/cards/0.json" !in pubky.store)
+    }
+
+    @Test
+    fun upsertCardRejectsADeckYouDoNotOwn() = runTest {
+        putRemoteManifest("friendpk", "foreign", "Someone else's")
+
+        assertTrue(repo.upsertCard("foreign", testCard("c1")).isFailure)
     }
 
     private fun putRemoteManifest(author: String, deckId: String, title: String) {
