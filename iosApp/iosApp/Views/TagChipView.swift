@@ -9,19 +9,19 @@ struct TagChipView: View {
         HStack(spacing: 4) {
             Text(String(format: NSLocalizedString("component_tag_chip_label", comment: ""), tag))
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(EchoColor.accentSecondary)
+                .foregroundColor(LoopkyColor.accentSecondary)
             if let onRemove {
                 Button(action: onRemove) {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(EchoColor.accentSecondary)
+                        .foregroundColor(LoopkyColor.accentSecondary)
                 }
                 .accessibilityLabel("component_tag_chip_remove")
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(Capsule().fill(EchoColor.accentSecondarySoft))
+        .background(Capsule().fill(LoopkyColor.accentSecondarySoft))
         .onTapGesture { onTap?() }
     }
 }

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Echo</string>
+    <string name="app_name">Loopky</string>
 
     <!-- Home -->
     <string name="home_greeting_hello">Hello,</string>
@@ -230,7 +230,7 @@
     <!-- Onboarding -->
     <string name="onboarding_hero_title">Learn anything,\nremember everything.</string>
     <string name="onboarding_hero_subtitle">Spaced repetition that feels like a game. Decks you make, share, and learn from friends.</string>
-    <string name="onboarding_brand_name">Echo</string>
+    <string name="onboarding_brand_name">Loopky</string>
     <string name="onboarding_signin_waiting">Waiting for Pubky Ring…</string>
     <string name="onboarding_signin_verifying">Signing in…</string>
     <string name="onboarding_signin_default">Sign in with Pubky Ring</string>
@@ -301,7 +301,7 @@
 
     <!-- Error states. Reason-based copy; the raw FFI message stays in logcat. -->
     <string name="error_offline_title">You\'re offline</string>
-    <string name="error_offline_message">Echo can\'t reach your homeserver. Your decks are safe — they live on Pubky. Check your connection and try again.</string>
+    <string name="error_offline_message">Loopky can\'t reach your homeserver. Your decks are safe — they live on Pubky. Check your connection and try again.</string>
     <string name="error_session_expired_title">Session expired</string>
     <string name="error_session_expired_message">Sign in with Pubky Ring again to get back to your decks.</string>
     <string name="error_not_found_title">Not found</string>
@@ -309,9 +309,9 @@
     <string name="error_not_signed_in_title">Not signed in</string>
     <string name="error_not_signed_in_message">Sign in with Pubky Ring to continue.</string>
     <string name="error_ring_not_installed_title">Pubky Ring not found</string>
-    <string name="error_ring_not_installed_message">Echo signs you in through Pubky Ring. Install it to continue.</string>
+    <string name="error_ring_not_installed_message">Loopky signs you in through Pubky Ring. Install it to continue.</string>
     <string name="error_auth_failed_title">Sign-in didn\'t finish</string>
-    <string name="error_auth_failed_message">Echo couldn\'t confirm the authorisation with Pubky Ring. Check your connection and try again.</string>
+    <string name="error_auth_failed_message">Loopky couldn\'t confirm the authorisation with Pubky Ring. Check your connection and try again.</string>
     <string name="error_generic_title">Something went wrong</string>
     <string name="error_generic_message">Something went wrong. Please try again.</string>
     <string name="home_caught_up_title">You\'re all caught up</string>
@@ -319,7 +319,7 @@
     <string name="home_caught_up_no_next_due">Nothing scheduled yet — study ahead from any deck.</string>
     <string name="share_deck_chooser_title">Share deck</string>
     <string name="share_profile_chooser_title">Share profile</string>
-    <string name="share_deck_body">%1$s on Echo\n%2$s</string>
+    <string name="share_deck_body">%1$s on Loopky\n%2$s</string>
     <string name="deck_editor_move_up">Move card up</string>
     <string name="deck_editor_move_down">Move card down</string>
     <string name="decks_sort_recent">Recent</string>

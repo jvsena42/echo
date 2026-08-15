@@ -3,11 +3,11 @@
     Social discovery: trending tag chips from the Nexus staging indexer, add a friend by
     pubky, follow them, and open one of their decks (foreign-deck remote load).
     Requires a signed-in session (journey 01). The friend pubky used below must exist on
-    staging and have at least one published Echo deck — substitute a known staging pubky
+    staging and have at least one published Loopky deck — substitute a known staging pubky
     before running, or accept the follow/profile steps as the verification target.
   </description>
   <actions>
-    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Launch the Loopky app and verify the Home screen is shown</action>
     <action>Tap the element with resource-id "tab_discover" in the bottom tab bar</action>
     <action>Verify the Discover screen is shown with an "Add friend" button (resource-id: discover_add_friend)</action>
     <action>Tap the element with resource-id "discover_add_friend"</action>

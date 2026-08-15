@@ -54,10 +54,10 @@ struct DeckDetailView: View {
                     Spacer()
                     Text("deck_detail_error_title")
                         .font(.system(size: 20, weight: .heavy))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                     Text(message)
                         .font(.system(size: 14))
-                        .foregroundColor(EchoColor.foregroundMuted)
+                        .foregroundColor(LoopkyColor.foregroundMuted)
                         .multilineTextAlignment(.center)
                     Spacer()
                 }
@@ -67,7 +67,7 @@ struct DeckDetailView: View {
                 contentBody(content)
             }
         }
-        .background(EchoColor.surfacePrimary.ignoresSafeArea())
+        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
     }
 
@@ -95,18 +95,18 @@ struct DeckDetailView: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(EchoColor.srsGood))
+                    .background(Capsule().fill(LoopkyColor.srsGood))
                 }
 
                 // Title + Description
                 VStack(alignment: .leading, spacing: 8) {
                     Text(content.title)
                         .font(.system(size: 28, weight: .heavy))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                     if let description = content.description, !description.isEmpty {
                         Text(description)
                             .font(.system(size: 14))
-                            .foregroundColor(EchoColor.foregroundSecondary)
+                            .foregroundColor(LoopkyColor.foregroundSecondary)
                             .lineSpacing(4)
                     }
                 }
@@ -115,17 +115,17 @@ struct DeckDetailView: View {
                 HStack(spacing: 10) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(EchoColor.accentSecondarySoft)
+                            .fill(LoopkyColor.accentSecondarySoft)
                             .frame(width: 32, height: 32)
                         Text(content.author.initial)
                             .font(.system(size: 14, weight: .heavy))
-                            .foregroundColor(EchoColor.accentSecondary)
+                            .foregroundColor(LoopkyColor.accentSecondary)
                     }
                     VStack(alignment: .leading) {
                         HStack(spacing: 6) {
                             Text(content.author.label)
                                 .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(EchoColor.foregroundPrimary)
+                                .foregroundColor(LoopkyColor.foregroundPrimary)
                                 .lineLimit(1)
                             if content.isOwned {
                                 YouBadge()
@@ -133,7 +133,7 @@ struct DeckDetailView: View {
                         }
                         Text(content.author.truncatedPubky)
                             .font(.system(size: 11))
-                            .foregroundColor(EchoColor.foregroundMuted)
+                            .foregroundColor(LoopkyColor.foregroundMuted)
                     }
                     Spacer()
                 }
@@ -165,7 +165,7 @@ struct DeckDetailView: View {
                         ? "deck_detail_cards_empty_owned"
                         : "deck_detail_cards_empty_foreign")
                         .font(.system(size: 14))
-                        .foregroundColor(EchoColor.foregroundMuted)
+                        .foregroundColor(LoopkyColor.foregroundMuted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     LazyVStack(spacing: 8) {
@@ -173,18 +173,18 @@ struct DeckDetailView: View {
                             HStack {
                                 Text(card.front)
                                     .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(EchoColor.foregroundPrimary)
+                                    .foregroundColor(LoopkyColor.foregroundPrimary)
                                 Spacer()
                                 Text(card.back)
                                     .font(.system(size: 13))
-                                    .foregroundColor(EchoColor.foregroundMuted)
+                                    .foregroundColor(LoopkyColor.foregroundMuted)
                             }
                             .padding(14)
                             .background(
                                 RoundedRectangle(cornerRadius: 14)
-                                    .fill(EchoColor.surfaceCard)
+                                    .fill(LoopkyColor.surfaceCard)
                             )
-                            .shadow(color: EchoColor.shadowElevationLow, radius: 8, x: 0, y: 2)
+                            .shadow(color: LoopkyColor.shadowElevationLow, radius: 8, x: 0, y: 2)
                         }
                     }
                 }
@@ -201,8 +201,8 @@ struct DeckDetailView: View {
                 Text(studyLabel)
             }
         }
-        .buttonStyle(.echoFilled)
-        .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
+        .buttonStyle(.loopkyFilled)
+        .shadow(color: LoopkyColor.shadowAccent, radius: 24, x: 0, y: 8)
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
     }
@@ -211,11 +211,11 @@ struct DeckDetailView: View {
         HStack {
             Text("deck_detail_cards_heading")
                 .font(.system(size: 18, weight: .heavy))
-                .foregroundColor(EchoColor.foregroundPrimary)
+                .foregroundColor(LoopkyColor.foregroundPrimary)
             Spacer()
             Text("\(count)")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundColor(EchoColor.foregroundMuted)
+                .foregroundColor(LoopkyColor.foregroundMuted)
         }
         .padding(.top, 4)
     }
@@ -244,7 +244,7 @@ struct DeckDetailView: View {
     private func coverFallback(_ content: DeckDetailContent) -> some View {
         ZStack {
             Rectangle()
-                .fill(EchoColor.accentPrimarySoft)
+                .fill(LoopkyColor.accentPrimarySoft)
             Text(coverGlyph(content))
                 .font(.system(size: content.isOwned ? 64 : 80))
         }
@@ -282,7 +282,7 @@ struct DeckDetailView: View {
                     circleIcon(systemName: "pencil")
                 }
                 Button(action: onDelete) {
-                    circleIcon(systemName: "trash", tint: EchoColor.srsAgain)
+                    circleIcon(systemName: "trash", tint: LoopkyColor.srsAgain)
                 }
             }
             Button(action: onShare) {
@@ -291,10 +291,10 @@ struct DeckDetailView: View {
         }
     }
 
-    private func circleIcon(systemName: String, tint: Color = EchoColor.foregroundPrimary) -> some View {
+    private func circleIcon(systemName: String, tint: Color = LoopkyColor.foregroundPrimary) -> some View {
         ZStack {
             Circle()
-                .fill(EchoColor.surfaceCard)
+                .fill(LoopkyColor.surfaceCard)
                 .frame(width: 40, height: 40)
             Image(systemName: systemName)
                 .font(.system(size: 15, weight: .semibold))
@@ -312,17 +312,17 @@ private struct StatsBarView: View {
 
     var body: some View {
         HStack {
-            StatColumn(value: "\(totalCards)", label: "component_stats_bar_cards", valueColor: EchoColor.foregroundPrimary)
-            Divider().frame(height: 32).overlay(EchoColor.borderSubtle)
-            StatColumn(value: "\(dueCards)", label: "component_stats_bar_due", valueColor: EchoColor.accentPrimary)
-            Divider().frame(height: 32).overlay(EchoColor.borderSubtle)
-            StatColumn(value: masteredPercent, label: "component_stats_bar_mastered", valueColor: EchoColor.srsGood)
+            StatColumn(value: "\(totalCards)", label: "component_stats_bar_cards", valueColor: LoopkyColor.foregroundPrimary)
+            Divider().frame(height: 32).overlay(LoopkyColor.borderSubtle)
+            StatColumn(value: "\(dueCards)", label: "component_stats_bar_due", valueColor: LoopkyColor.accentPrimary)
+            Divider().frame(height: 32).overlay(LoopkyColor.borderSubtle)
+            StatColumn(value: masteredPercent, label: "component_stats_bar_mastered", valueColor: LoopkyColor.srsGood)
         }
         .padding(16)
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 20)
-                .fill(EchoColor.surfaceSecondary)
+                .fill(LoopkyColor.surfaceSecondary)
         )
     }
 }
@@ -339,7 +339,7 @@ private struct StatColumn: View {
                 .foregroundColor(valueColor)
             Text(label)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(EchoColor.foregroundMuted)
+                .foregroundColor(LoopkyColor.foregroundMuted)
         }
         .frame(maxWidth: .infinity)
     }

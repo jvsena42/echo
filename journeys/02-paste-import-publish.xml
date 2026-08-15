@@ -5,7 +5,7 @@
     Requires a signed-in session (run journey 01 first).
   </description>
   <actions>
-    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Launch the Loopky app and verify the Home screen is shown</action>
     <action>Tap the element with resource-id "tab_decks" in the bottom tab bar</action>
     <action>Tap the element with resource-id "decks_paste_cta"</action>
     <action>Verify the "Paste cards" screen is shown with a text area placeholder "Paste your list here" (resource-id: paste_input)</action>

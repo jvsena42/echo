@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		F62D546E141106A59D67241B /* Echo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Echo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F62D546E141106A59D67241B /* Loopky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Loopky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -59,7 +59,7 @@
 		AD27CD8D2CD2332F7731FC7A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F62D546E141106A59D67241B /* Echo.app */,
+				F62D546E141106A59D67241B /* Loopky.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -87,7 +87,7 @@
 			packageProductDependencies = (
 			);
 			productName = iosApp;
-			productReference = F62D546E141106A59D67241B /* Echo.app */;
+			productReference = F62D546E141106A59D67241B /* Loopky.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

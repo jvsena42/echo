@@ -6,10 +6,10 @@ struct GreetingHeader: View {
         VStack(alignment: .leading, spacing: 2) {
             Text("home_greeting_hello")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(EchoColor.foregroundMuted)
+                .foregroundColor(LoopkyColor.foregroundMuted)
             Text(String(format: NSLocalizedString("home_greeting_name", comment: ""), name))
                 .font(.system(size: 24, weight: .heavy))
-                .foregroundColor(EchoColor.foregroundPrimary)
+                .foregroundColor(LoopkyColor.foregroundPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -20,17 +20,17 @@ struct EmptyStateCard: View {
         VStack(spacing: 20) {
             ZStack {
                 RoundedRectangle(cornerRadius: 28)
-                    .fill(EchoColor.accentPrimarySoft)
+                    .fill(LoopkyColor.accentPrimarySoft)
                     .frame(width: 140, height: 140)
                 Text("📚").font(.system(size: 64))
             }
             Text("home_empty_title")
                 .font(.system(size: 24, weight: .heavy))
-                .foregroundColor(EchoColor.foregroundPrimary)
+                .foregroundColor(LoopkyColor.foregroundPrimary)
                 .multilineTextAlignment(.center)
             Text("home_empty_subtitle")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(EchoColor.foregroundMuted)
+                .foregroundColor(LoopkyColor.foregroundMuted)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
         }
@@ -38,9 +38,9 @@ struct EmptyStateCard: View {
         .padding(.horizontal, 28)
         .padding(.vertical, 36)
         .background(
-            RoundedRectangle(cornerRadius: 28).fill(EchoColor.surfaceCard)
+            RoundedRectangle(cornerRadius: 28).fill(LoopkyColor.surfaceCard)
         )
-        .shadow(color: EchoColor.shadowElevationHigh, radius: 24, x: 0, y: 10)
+        .shadow(color: LoopkyColor.shadowElevationHigh, radius: 24, x: 0, y: 10)
     }
 }
 
@@ -51,10 +51,10 @@ struct HomeCtaButtons: View {
     var body: some View {
         VStack(spacing: 12) {
             Button("home_create_first_deck", action: onCreateDeck)
-                .buttonStyle(.echoFilled)
-                .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
+                .buttonStyle(.loopkyFilled)
+                .shadow(color: LoopkyColor.shadowAccent, radius: 24, x: 0, y: 8)
             Button("home_browse_examples", action: onBrowseExamples)
-                .buttonStyle(.echoSoft)
+                .buttonStyle(.loopkySoft)
         }
     }
 }
@@ -74,7 +74,7 @@ struct DueTodayHeroCard: View {
             Text("home_due_today")
                 .font(.system(size: 11, weight: .bold))
                 .kerning(1)
-                .foregroundColor(EchoColor.accentPrimarySoft)
+                .foregroundColor(LoopkyColor.accentPrimarySoft)
             HStack(alignment: .bottom) {
                 Text("\(dueToday)")
                     .font(.system(size: 72, weight: .heavy))
@@ -86,7 +86,7 @@ struct DueTodayHeroCard: View {
                         .foregroundColor(.white)
                     Text("home_to_review")
                         .font(.system(size: 13))
-                        .foregroundColor(EchoColor.accentPrimarySoft)
+                        .foregroundColor(LoopkyColor.accentPrimarySoft)
                 }
                 .padding(.bottom, 12)
             }
@@ -96,7 +96,7 @@ struct DueTodayHeroCard: View {
                     .tint(.white)
                 Text(String(format: NSLocalizedString("home_progress_done", comment: ""), doneToday, dueToday))
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(EchoColor.accentPrimarySoft)
+                    .foregroundColor(LoopkyColor.accentPrimarySoft)
             }
             Button(action: onStartStudy) {
                 HStack(spacing: 8) {
@@ -104,11 +104,11 @@ struct DueTodayHeroCard: View {
                     Text("home_start_studying")
                 }
             }
-            .buttonStyle(EchoFilledButtonStyle(fill: EchoColor.surfaceCard, foreground: EchoColor.accentPrimary, verticalPadding: 16))
+            .buttonStyle(LoopkyFilledButtonStyle(fill: LoopkyColor.surfaceCard, foreground: LoopkyColor.accentPrimary, verticalPadding: 16))
         }
         .padding(24)
-        .background(RoundedRectangle(cornerRadius: 28).fill(EchoColor.accentPrimary))
-        .shadow(color: EchoColor.shadowAccent, radius: 32, x: 0, y: 12)
+        .background(RoundedRectangle(cornerRadius: 28).fill(LoopkyColor.accentPrimary))
+        .shadow(color: LoopkyColor.shadowAccent, radius: 32, x: 0, y: 12)
     }
 }
 
@@ -121,11 +121,11 @@ struct TodaysDecksSection: View {
             HStack {
                 Text("home_todays_decks")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(EchoColor.foregroundPrimary)
+                    .foregroundColor(LoopkyColor.foregroundPrimary)
                 Spacer()
                 Text("home_see_all")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(EchoColor.accentSecondary)
+                    .foregroundColor(LoopkyColor.accentSecondary)
             }
             ForEach(decks) { deck in
                 DeckRow(deck: deck, onTap: { onOpenDeck(deck.id) })
@@ -143,19 +143,19 @@ struct DeckRow: View {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14)
-                        .fill(EchoColor.accentPrimarySoft)
+                        .fill(LoopkyColor.accentPrimarySoft)
                         .frame(width: 56, height: 56)
                     Text(deck.coverInitial)
                         .font(.system(size: 22, weight: .heavy))
-                        .foregroundColor(EchoColor.accentPrimary)
+                        .foregroundColor(LoopkyColor.accentPrimary)
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text(deck.title)
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                     Text(String(format: NSLocalizedString("home_deck_due_cards", comment: ""), deck.dueCount, deck.cardCount))
                         .font(.system(size: 13))
-                        .foregroundColor(EchoColor.foregroundMuted)
+                        .foregroundColor(LoopkyColor.foregroundMuted)
                 }
                 Spacer()
                 Text("\(deck.dueCount)")
@@ -163,11 +163,11 @@ struct DeckRow: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Capsule().fill(EchoColor.accentPrimary))
+                    .background(Capsule().fill(LoopkyColor.accentPrimary))
             }
             .padding(14)
-            .background(RoundedRectangle(cornerRadius: 20).fill(EchoColor.surfaceCard))
-            .shadow(color: EchoColor.shadowElevationMedium, radius: 18, x: 0, y: 6)
+            .background(RoundedRectangle(cornerRadius: 20).fill(LoopkyColor.surfaceCard))
+            .shadow(color: LoopkyColor.shadowElevationMedium, radius: 18, x: 0, y: 6)
         }
         .buttonStyle(.plain)
     }
@@ -188,7 +188,7 @@ private let sampleHomeDecks = [
         }
         .padding()
     }
-    .background(EchoColor.surfacePrimary)
+    .background(LoopkyColor.surfacePrimary)
 }
 
 #Preview("Empty") {
@@ -200,5 +200,5 @@ private let sampleHomeDecks = [
         }
         .padding()
     }
-    .background(EchoColor.surfacePrimary)
+    .background(LoopkyColor.surfacePrimary)
 }

@@ -15,7 +15,7 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            EchoColor.surfacePrimary.ignoresSafeArea()
+            LoopkyColor.surfacePrimary.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     GreetingHeader(name: greetingName)
@@ -38,10 +38,10 @@ struct HomeView: View {
                     case .error(let message):
                         Text("home_error_title")
                             .font(.system(size: 20, weight: .heavy))
-                            .foregroundColor(EchoColor.foregroundPrimary)
+                            .foregroundColor(LoopkyColor.foregroundPrimary)
                         Text(message)
                             .font(.system(size: 14))
-                            .foregroundColor(EchoColor.foregroundMuted)
+                            .foregroundColor(LoopkyColor.foregroundMuted)
                     }
                 }
                 .padding(.horizontal, 20)

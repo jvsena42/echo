@@ -1,12 +1,12 @@
-# Echo — Designer AI Brief
+# Loopky — Designer AI Brief
 
-> A self-contained design brief for producing screens, components, and a design system for **Echo**, a native iOS + Android flashcards app. Read top-to-bottom; no external context required.
+> A self-contained design brief for producing screens, components, and a design system for **Loopky**, a native iOS + Android flashcards app. Read top-to-bottom; no external context required.
 
 ---
 
 ## 1. Product overview
 
-**Echo** is a mobile flashcards app that fuses three influences:
+**Loopky** is a mobile flashcards app that fuses three influences:
 
 - **Duolingo TinyCards** — playful, visual, card-flipping fun
 - **Anki** — serious spaced-repetition (SRS) scheduling for long-term retention
@@ -16,7 +16,7 @@
 
 **Platforms:** Native iOS and native Android. Shared brand, platform-native components.
 
-**Positioning sentence:** *"Echo is the flashcards app where serious spaced repetition feels like a game, and every deck you make can be shared with friends — no email, no password, just your key."*
+**Positioning sentence:** *"Loopky is the flashcards app where serious spaced repetition feels like a game, and every deck you make can be shared with friends — no email, no password, just your key."*
 
 ---
 
@@ -68,9 +68,9 @@
 
 ## 4. Platform-native guidance
 
-Echo uses **shared brand tokens** (colors, type scale, illustrations) but **platform-native component patterns**. The same screen should feel native on each OS.
+Loopky uses **shared brand tokens** (colors, type scale, illustrations) but **platform-native component patterns**. The same screen should feel native on each OS.
 
-> **Native-first implementation.** Prefer the platform's native component for a given role — **Material 3 Expressive** on Android (`ShortNavigationBar`, `Scaffold`, `TopAppBar`, etc.); native SwiftUI / Liquid Glass on iOS — over a bespoke custom one, **even when it means diverging from these mockups**. The mockups define brand, layout intent, and which tokens to apply — not pixel-exact chrome. Apply Echo's brand tokens (accent color, type scale, radii) *to* native components; don't rebuild native chrome from primitives. Reach for a fully custom component only where Echo's identity genuinely requires it (e.g. the study card flip) and a native equivalent doesn't exist. The payoff is platform-correct spacing, insets, motion, ripple/haptics, and accessibility for free.
+> **Native-first implementation.** Prefer the platform's native component for a given role — **Material 3 Expressive** on Android (`ShortNavigationBar`, `Scaffold`, `TopAppBar`, etc.); native SwiftUI / Liquid Glass on iOS — over a bespoke custom one, **even when it means diverging from these mockups**. The mockups define brand, layout intent, and which tokens to apply — not pixel-exact chrome. Apply Loopky's brand tokens (accent color, type scale, radii) *to* native components; don't rebuild native chrome from primitives. Reach for a fully custom component only where Loopky's identity genuinely requires it (e.g. the study card flip) and a native equivalent doesn't exist. The payoff is platform-correct spacing, insets, motion, ripple/haptics, and accessibility for free.
 
 | Concern | iOS | Android |
 |---|---|---|
@@ -83,7 +83,7 @@ Echo uses **shared brand tokens** (colors, type scale, illustrations) but **plat
 | Haptics | UIImpactFeedback (use generously on card flips, SRS taps, streak hits) | HapticFeedbackConstants equivalents |
 | Back navigation | Swipe-from-edge + back chevron | System back gesture + up arrow |
 
-> The earlier custom pill-shaped tab bar (`EchoTabBar`) is **retired**: bottom navigation is now the native `ShortNavigationBar` (Android) and native `TabView`/`UITabBar` (iOS), each tinted with Echo's accent.
+> The earlier custom pill-shaped tab bar (`LoopkyTabBar`) is **retired**: bottom navigation is now the native `ShortNavigationBar` (Android) and native `TabView`/`UITabBar` (iOS), each tinted with Loopky's accent.
 
 Designers should produce **two flows per key screen** (iOS and Android) where the patterns meaningfully diverge. Where they don't (e.g., the study card itself), one shared design is fine.
 
@@ -201,16 +201,16 @@ All three variants share: card chrome (rounded container, shadow), flip animatio
 
 ## 9. Pubky-specific UX patterns
 
-Echo's auth and social layer is built on **Pubky** — a decentralized identity and data system. The designer must internalize these patterns; they shape multiple screens.
+Loopky's auth and social layer is built on **Pubky** — a decentralized identity and data system. The designer must internalize these patterns; they shape multiple screens.
 
 ### 9.1 Login flow (deeplink contract)
-1. User taps **Sign in with Pubky Ring** in Echo
-2. Echo opens a deeplink to the Pubky Ring app: `pubkyring://session?x-success=echo://login-callback`
+1. User taps **Sign in with Pubky Ring** in Loopky
+2. Loopky opens a deeplink to the Pubky Ring app: `pubkyring://session?x-success=loopky://login-callback`
 3. Pubky Ring shows the user their list of pubkys (keys); user picks one and approves the requested capabilities
-4. Pubky Ring signs in to the user's homeserver, then returns to Echo via: `echo://login-callback?pubky=<publickey>&session_secret=<secret>&capabilities=<list>`
-5. Echo stores the session and lands the user on the Study tab
+4. Pubky Ring signs in to the user's homeserver, then returns to Loopky via: `loopky://login-callback?pubky=<publickey>&session_secret=<secret>&capabilities=<list>`
+5. Loopky stores the session and lands the user on the Study tab
 
-Design the screens for: pre-handoff (the Echo "signing in…" loading screen), the moment of return (success animation), and cancellation (user backed out of Ring).
+Design the screens for: pre-handoff (the Loopky "signing in…" loading screen), the moment of return (success animation), and cancellation (user backed out of Ring).
 
 ### 9.2 Identity display
 - Users have a **public key (pubky)**, not a username/email
@@ -219,15 +219,15 @@ Design the screens for: pre-handoff (the Echo "signing in…" loading screen), t
 - Avatars, when set, are the primary visual identifier
 
 ### 9.3 Tags as a first-class primitive
-**This is the most important Pubky pattern in Echo.** Pubky has a native tag primitive — tags are user-defined labels attached to any object. Echo decks are tagged via this primitive directly. Design implications:
+**This is the most important Pubky pattern in Loopky.** Pubky has a native tag primitive — tags are user-defined labels attached to any object. Loopky decks are tagged via this primitive directly. Design implications:
 
 - The Discover tab is **tag-driven**, not algorithm-driven
 - Tag chips appear on every deck tile and deck detail
-- Tag input in the deck editor reads from and writes to Pubky tags (designer should treat this like a familiar hashtag input, but understand it's not a custom Echo system)
+- Tag input in the deck editor reads from and writes to Pubky tags (designer should treat this like a familiar hashtag input, but understand it's not a custom Loopky system)
 - Tapping any tag anywhere in the app navigates to a tag-filtered Discover view
 
 ### 9.4 Follows as a first-class primitive
-- Pubky has native follow relationships; Echo's friends list is derived from follows (not a custom social graph)
+- Pubky has native follow relationships; Loopky's friends list is derived from follows (not a custom social graph)
 - "Follow" / "Unfollow" buttons on profile screens write to Pubky follows
 - The Discover tab surfaces decks from people the user follows
 
@@ -284,4 +284,4 @@ Do not design these — they may come later but should not influence v1 architec
 
 ---
 
-*End of brief. Designer AI: produce a Figma-ready design system and screen set for Echo following everything above. Ask for clarification only if a specific decision is missing — do not invent product features beyond what is described here.*
+*End of brief. Designer AI: produce a Figma-ready design system and screen set for Loopky following everything above. Ask for clarification only if a specific decision is missing — do not invent product features beyond what is described here.*

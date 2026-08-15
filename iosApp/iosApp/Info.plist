@@ -8,10 +8,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.github.jvsena42.echo.login</string>
+			<string>com.github.jvsena42.loopky.login</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>echo</string>
+				<string>loopky</string>
 			</array>
 		</dict>
 	</array>

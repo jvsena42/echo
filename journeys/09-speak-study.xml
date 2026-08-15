@@ -7,7 +7,7 @@
     session with at least one due card in a speak-enabled deck (run journeys 01–02 first).
   </description>
   <actions>
-    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Launch the Loopky app and verify the Home screen is shown</action>
     <action>Tap the element with resource-id "tab_decks" in the bottom tab bar</action>
     <action>Open a deck that was published with the Speak option enabled and start studying it</action>
     <action>Verify the study card (resource-id: study_card) is shown front-side</action>

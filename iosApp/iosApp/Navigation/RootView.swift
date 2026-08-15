@@ -84,8 +84,8 @@ struct RootView: View {
         }
         .onOpenURL { url in
             // The auth flow completes via the FFI's awaitAuthApproval (relay polling), so the
-            // callback deeplink only needs to bring Echo back to the foreground.
-            print("[Echo] received deeplink: \(url.absoluteString)")
+            // callback deeplink only needs to bring Loopky back to the foreground.
+            print("[Loopky] received deeplink: \(url.absoluteString)")
         }
     }
 }

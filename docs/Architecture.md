@@ -1,13 +1,13 @@
-# Echo — Architecture
+# Loopky — Architecture
 
-> **Status:** Draft v1 · **Scope:** Technical architecture for the Echo KMP app.
+> **Status:** Draft v1 · **Scope:** Technical architecture for the Loopky KMP app.
 > **Reads alongside:** [`docs/specs.md`](./specs.md) · [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md)
 
 ---
 
 ## 1. Overview
 
-Echo is a **Kotlin Multiplatform** flashcards app targeting iOS and Android. Business logic — domain models, repositories, and ViewModels — lives in a single `shared` module (`commonMain`). Repositories own the business logic; there is no separate use-case layer. Each platform renders its own native UI: **Jetpack Compose** on Android (`composeApp/androidMain`) and **SwiftUI** on iOS (`iosApp/`). Identity, social graph, tags, and published decks are backed by **Pubky**, accessed through a native binding layer built on top of `pubky-core-ffi-fork`.
+Loopky is a **Kotlin Multiplatform** flashcards app targeting iOS and Android. Business logic — domain models, repositories, and ViewModels — lives in a single `shared` module (`commonMain`). Repositories own the business logic; there is no separate use-case layer. Each platform renders its own native UI: **Jetpack Compose** on Android (`composeApp/androidMain`) and **SwiftUI** on iOS (`iosApp/`). Identity, social graph, tags, and published decks are backed by **Pubky**, accessed through a native binding layer built on top of `pubky-core-ffi-fork`.
 
 The v1 product is defined by [`docs/specs.md`](./specs.md) (Paste-to-Import primary flow) and [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md) (screens, components, design system).
 
@@ -27,7 +27,7 @@ The v1 product is defined by [`docs/specs.md`](./specs.md) (Paste-to-Import prim
 ## 3. Module layout
 
 ```
-echo/
+loopky/
 ├── shared/                        ← KMP business logic
 │   └── src/
 │       ├── commonMain/            ← domain + data + presentation (VMs)
@@ -150,7 +150,7 @@ Both platforms consume the same VMs. Only rendering, navigation, and platform gl
 
 ### 5.1 Android (`composeApp/androidMain`)
 
-- **UI:** Jetpack Compose, Material 3 components styled by Echo design tokens.
+- **UI:** Jetpack Compose, Material 3 components styled by Loopky design tokens.
 - **State:** `val ui by vm.state.collectAsStateWithLifecycle()` in each screen composable.
 - **Navigation:** Jetpack Navigation Compose. One `NavHost` per top-level tab (Study / Decks / Discover / Profile), plus sheets for Paste-to-Import flows.
 - **DI:** Koin Android, bootstrapped in `MainActivity`. Screens resolve their VM via `koinViewModel()` (or equivalent KMP helper).
@@ -158,7 +158,7 @@ Both platforms consume the same VMs. Only rendering, navigation, and platform gl
 
 ### 5.2 iOS (`iosApp/`)
 
-- **UI:** SwiftUI, styled by Echo design tokens mirrored in Swift.
+- **UI:** SwiftUI, styled by Loopky design tokens mirrored in Swift.
 - **State:** shared VMs exposed as ObservableObject wrappers. The Kotlin→Swift Flow bridge is TBD (see §12) — working assumption is **SKIE**.
 - **Navigation:** `NavigationStack` per tab, `.sheet`/`.fullScreenCover` for Paste-to-Import and triage.
 - **DI:** Koin started from the Swift `@main` entry; VMs handed to views via initializers.
@@ -167,8 +167,8 @@ Both platforms consume the same VMs. Only rendering, navigation, and platform gl
 ### 5.3 Theming
 
 Design tokens (brief §11 deliverable) are authored as JSON and consumed both sides:
-- Android: tokens generated into a Kotlin `EchoColors`/`EchoType` in `composeApp`.
-- iOS: tokens generated into a Swift `EchoColors`/`EchoType` in `iosApp`.
+- Android: tokens generated into a Kotlin `LoopkyColors`/`LoopkyType` in `composeApp`.
+- iOS: tokens generated into a Swift `LoopkyColors`/`LoopkyType` in `iosApp`.
 - The shared module does **not** hold a Compose theme.
 
 ---
@@ -208,18 +208,18 @@ Every state listed in spec §10 maps to a single `PasteImportUiState` / `TriageU
 
 ## 7. Pubky integration
 
-**Decision:** Echo consumes the UniFFI-generated bindings shipped by `pubky-core-ffi-fork` directly. No handwritten FFI, no cinterop. The fork's `build_android.sh` and `build_ios.sh` produce the artifacts we check in; we don't call them from Gradle (yet).
+**Decision:** Loopky consumes the UniFFI-generated bindings shipped by `pubky-core-ffi-fork` directly. No handwritten FFI, no cinterop. The fork's `build_android.sh` and `build_ios.sh` produce the artifacts we check in; we don't call them from Gradle (yet).
 
 ### 7.1 Shared interface
 
-`com.github.jvsena42.echo.data.pubky.PubkyClient` in `shared/commonMain` is a **thin** Kotlin interface that mirrors the FFI surface one-for-one. It hides the `List<String>` `[status, payload]` convention behind `Result<String>` but does **not** introduce deck/card concepts — higher-level domain operations live in the repositories layer. The interface groups calls into: keys & mnemonics, recovery files, auth/sessions (including the Pubky Ring-style `startAuthFlow` / `awaitAuthApproval` / `parseAuthUrl` flow), records (secret-key and session variants), DHT resolution, and network switching.
+`com.github.jvsena42.loopky.data.pubky.PubkyClient` in `shared/commonMain` is a **thin** Kotlin interface that mirrors the FFI surface one-for-one. It hides the `List<String>` `[status, payload]` convention behind `Result<String>` but does **not** introduce deck/card concepts — higher-level domain operations live in the repositories layer. The interface groups calls into: keys & mnemonics, recovery files, auth/sessions (including the Pubky Ring-style `startAuthFlow` / `awaitAuthApproval` / `parseAuthUrl` flow), records (secret-key and session variants), DHT resolution, and network switching.
 
 ### 7.2 Android wiring
 
 - UniFFI-generated `pubkycore.kt` is checked in at `shared/src/androidMain/kotlin/uniffi/pubkycore/pubkycore.kt` (package `uniffi.pubkycore`).
 - Native libraries live at `shared/src/androidMain/jniLibs/{arm64-v8a,armeabi-v7a,x86,x86_64}/libpubkycore.so`. AGP picks them up automatically and merges them into the APK.
 - JNA is required by the generated bindings and declared as an `@aar` dependency on `androidMain` (see `libs.versions.toml` → `jna`).
-- `AndroidPubkyClient` (`shared/src/androidMain/kotlin/com/github/jvsena42/echo/data/pubky/AndroidPubkyClient.kt`) is the `PubkyClient` implementation. Blocking FFI calls are dispatched to `Dispatchers.IO`.
+- `AndroidPubkyClient` (`shared/src/androidMain/kotlin/com/github/jvsena42/loopky/data/pubky/AndroidPubkyClient.kt`) is the `PubkyClient` implementation. Blocking FFI calls are dispatched to `Dispatchers.IO`.
 
 ### 7.3 iOS wiring
 
@@ -236,7 +236,7 @@ Run the fork's build scripts, then re-copy the outputs:
 cd ../pubky-core-ffi-fork
 ./build_android.sh
 ./build_ios.sh
-# then, from echo/
+# then, from loopky/
 cp  ../pubky-core-ffi-fork/bindings/android/pubkycore.kt \
     shared/src/androidMain/kotlin/uniffi/pubkycore/pubkycore.kt
 cp -R ../pubky-core-ffi-fork/bindings/android/jniLibs/. \
@@ -277,9 +277,9 @@ Published decks live under the author's pubky, one record per card plus a manife
 **Path layout:**
 
 ```
-/pub/echo/decks/{deckId}/manifest.json
-/pub/echo/decks/{deckId}/cards/{cardId}.json
-/pub/echo/decks/{deckId}/media/{sha256}.{ext}
+/pub/loopky/decks/{deckId}/manifest.json
+/pub/loopky/decks/{deckId}/cards/{cardId}.json
+/pub/loopky/decks/{deckId}/media/{sha256}.{ext}
 ```
 
 - `{deckId}` and `{cardId}` are UUIDv4, generated client-side.
@@ -312,7 +312,7 @@ Published decks live under the author's pubky, one record per card plus a manife
 - Manifest `updated_at` bumps on any deck-metadata change or any card add/remove/reorder. A per-card edit bumps the card record and its entry in the manifest.
 - `listen_enabled` / `speak_enabled` are deck-level study opt-ins (TTS playback of the back / pronunciation practice). Both default `true`; manifests written before these fields existed decode to `true`. Additive — schema stays `1`.
 - A media ref (`cover_image_ref`, `image_ref`, `audio_ref`) may instead carry a `"url"` field for a **web image** (e.g. an Unsplash photo). When `url` is set, `path`/`sha256` are empty (`""`) and no blob is stored on the homeserver; the client loads the remote URL directly.
-- **Unsplash licensing.** Their API guidelines are licensing terms, and breaching them costs API access. Loading the remote `url` rather than re-hosting the bytes satisfies the hotlinking rule; the image picker credits the photographer on every grid cell and links both them and unsplash.com with `?utm_source=echo&utm_medium=referral`; and `UnsplashClient.trackDownload` pings `links.download_location` when a pick is committed. **Known gap:** a media ref carries no attribution fields, so a published deck cover or card face displays its Unsplash photo uncredited. Closing that means adding `author_name` / `author_url` to `MediaRefDto` (additive, schema stays `1` — `ignoreUnknownKeys` keeps older manifests readable) and rendering a credit wherever a remote image is shown.
+- **Unsplash licensing.** Their API guidelines are licensing terms, and breaching them costs API access. Loading the remote `url` rather than re-hosting the bytes satisfies the hotlinking rule; the image picker credits the photographer on every grid cell and links both them and unsplash.com with `?utm_source=loopky&utm_medium=referral`; and `UnsplashClient.trackDownload` pings `links.download_location` when a pick is committed. **Known gap:** a media ref carries no attribution fields, so a published deck cover or card face displays its Unsplash photo uncredited. Closing that means adding `author_name` / `author_url` to `MediaRefDto` (additive, schema stays `1` — `ignoreUnknownKeys` keeps older manifests readable) and rendering a credit wherever a remote image is shown.
 
 **`cards/{cardId}.json`:**
 
@@ -336,7 +336,7 @@ Published decks live under the author's pubky, one record per card plus a manife
 ```
 
 - A side must have at least one populated field; enforced in `DeckRepository.publishDeck()`.
-- Media refs are relative to the deck path and resolved against `/pub/echo/decks/{deckId}/`.
+- Media refs are relative to the deck path and resolved against `/pub/loopky/decks/{deckId}/`.
 
 **Sync algorithm (client side):**
 

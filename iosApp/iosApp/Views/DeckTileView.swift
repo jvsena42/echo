@@ -7,7 +7,7 @@ struct DeckTileView: View {
     /// Caption after the card count — the author's name, or a tag on a profile grid.
     let authorLabel: String
     var showYouBadge: Bool = false
-    var coverColor: Color = EchoColor.accentPrimarySoft
+    var coverColor: Color = LoopkyColor.accentPrimarySoft
     var onTap: () -> Void = {}
 
     var body: some View {
@@ -32,18 +32,18 @@ struct DeckTileView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(title)
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                         .lineLimit(1)
                     HStack(spacing: 4) {
                         Text(String(format: NSLocalizedString("component_deck_tile_card_count", comment: ""), cardCount))
                             .font(.system(size: 12))
-                            .foregroundColor(EchoColor.foregroundMuted)
+                            .foregroundColor(LoopkyColor.foregroundMuted)
                         Text("·")
                             .font(.system(size: 12))
-                            .foregroundColor(EchoColor.foregroundMuted)
+                            .foregroundColor(LoopkyColor.foregroundMuted)
                         Text(authorLabel)
                             .font(.system(size: 12))
-                            .foregroundColor(EchoColor.accentSecondary)
+                            .foregroundColor(LoopkyColor.accentSecondary)
                             .lineLimit(1)
                         if showYouBadge {
                             YouBadge()
@@ -54,9 +54,9 @@ struct DeckTileView: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(EchoColor.surfaceCard)
+                    .fill(LoopkyColor.surfaceCard)
             )
-            .shadow(color: EchoColor.shadowElevationMedium, radius: 24, x: 0, y: 8)
+            .shadow(color: LoopkyColor.shadowElevationMedium, radius: 24, x: 0, y: 8)
         }
         .buttonStyle(.plain)
     }
@@ -76,9 +76,9 @@ struct DeckTileView: View {
             cardCount: 128,
             coverEmoji: "🧠",
             authorLabel: "Ada Lovelace",
-            coverColor: EchoColor.accentSecondarySoft
+            coverColor: LoopkyColor.accentSecondarySoft
         )
     }
     .padding()
-    .background(EchoColor.surfacePrimary)
+    .background(LoopkyColor.surfacePrimary)
 }

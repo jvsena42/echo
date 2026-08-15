@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MainView: View {
-    @State private var selectedTab: EchoTab = .study
+    @State private var selectedTab: LoopkyTab = .study
 
     var onDeckTap: (String) -> Void = { _ in }
     var onImportTap: () -> Void = {}
@@ -10,7 +10,7 @@ struct MainView: View {
 
     var body: some View {
         // Native `TabView` → system `UITabBar` (Liquid Glass on the iOS 26 SDK). We only tint it
-        // with Echo's accent. See `design/DESIGN_GUIDELINE.md §4` (native-first implementation).
+        // with Loopky's accent. See `design/DESIGN_GUIDELINE.md §4` (native-first implementation).
         TabView(selection: $selectedTab) {
             HomeScreen(
                 onOpenDeck: onDeckTap,
@@ -19,27 +19,27 @@ struct MainView: View {
                 onStartStudy: {},
                 onSignedOut: onSignedOut
             )
-            .tabItem { Label(EchoTab.study.title, systemImage: EchoTab.study.iconName) }
-            .tag(EchoTab.study)
+            .tabItem { Label(LoopkyTab.study.title, systemImage: LoopkyTab.study.iconName) }
+            .tag(LoopkyTab.study)
 
             DecksScreen(
                 onDeckTap: onDeckTap,
                 onImportTap: onImportTap,
                 onCreateDeckTap: onCreateDeckTap
             )
-            .tabItem { Label(EchoTab.decks.title, systemImage: EchoTab.decks.iconName) }
-            .tag(EchoTab.decks)
+            .tabItem { Label(LoopkyTab.decks.title, systemImage: LoopkyTab.decks.iconName) }
+            .tag(LoopkyTab.decks)
 
             DiscoverView()
-                .tabItem { Label(EchoTab.discover.title, systemImage: EchoTab.discover.iconName) }
-                .tag(EchoTab.discover)
+                .tabItem { Label(LoopkyTab.discover.title, systemImage: LoopkyTab.discover.iconName) }
+                .tag(LoopkyTab.discover)
 
             ProfileView()
-                .tabItem { Label(EchoTab.profile.title, systemImage: EchoTab.profile.iconName) }
-                .tag(EchoTab.profile)
+                .tabItem { Label(LoopkyTab.profile.title, systemImage: LoopkyTab.profile.iconName) }
+                .tag(LoopkyTab.profile)
         }
-        .tint(EchoColor.accentPrimary)
-        .toolbarBackground(EchoColor.navBarBackground, for: .tabBar)
+        .tint(LoopkyColor.accentPrimary)
+        .toolbarBackground(LoopkyColor.navBarBackground, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         // Tab screens render their own in-content titles, so hide the NavigationStack's empty
         // navigation bar — otherwise it reserves space above each page title.

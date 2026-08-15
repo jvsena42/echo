@@ -53,9 +53,9 @@ struct YouBadge: View {
     var body: some View {
         Text("identity_you_badge")
             .font(.system(size: 10, weight: .bold))
-            .foregroundColor(EchoColor.accentSecondary)
+            .foregroundColor(LoopkyColor.accentSecondary)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Capsule().fill(EchoColor.accentSecondarySoft))
+            .background(Capsule().fill(LoopkyColor.accentSecondarySoft))
     }
 }

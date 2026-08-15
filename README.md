@@ -1,4 +1,4 @@
-# Echo
+# Loopky
 
 A mobile flashcards app that fuses Duolingo TinyCards' playfulness, Anki's spaced-repetition, and Pubky's decentralized identity and social graph. iOS + Android, built with Kotlin Multiplatform.
 
@@ -10,7 +10,7 @@ A mobile flashcards app that fuses Duolingo TinyCards' playfulness, Anki's space
 
 ## Architecture at a glance
 
-Echo is a Kotlin Multiplatform project with **shared business logic** and **native UIs per platform**:
+Loopky is a Kotlin Multiplatform project with **shared business logic** and **native UIs per platform**:
 
 - `shared/` — KMP module holding domain models, repositories (which own the business logic), and ViewModels. Platform glue (Pubky FFI, TTS, haptics) via `expect`/`actual`.
 - `composeApp/` — Android app. Jetpack Compose screens, Jetpack Navigation, Koin DI.
@@ -21,17 +21,17 @@ Identity, tags, follows, and published decks are backed by [Pubky](https://pubky
 ### Module layout
 
 ```
-echo/
+loopky/
 ├── shared/
 │   └── src/
-│       ├── commonMain/kotlin/com/github/jvsena42/eco/
+│       ├── commonMain/kotlin/com/github/jvsena42/loopky/
 │       │   ├── domain/        # models (pure Kotlin)
 │       │   ├── data/          # repositories (own business logic) + PubkyClient
 │       │   └── presentation/  # ViewModels (StateFlow-based)
 │       ├── androidMain/       # actuals: Pubky FFI, TTS, haptics
 │       └── iosMain/           # actuals: Pubky FFI, TTS, haptics
 │
-├── composeApp/src/androidMain/kotlin/com/github/jvsena42/eco/
+├── composeApp/src/androidMain/kotlin/com/github/jvsena42/loopky/
 │   ├── ui/                    # Compose screens + navigation
 │   ├── di/                    # Koin Android module
 │   └── MainActivity.kt

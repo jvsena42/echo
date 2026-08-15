@@ -1,16 +1,16 @@
 # Android journey results
 
-Run against the Echo debug APK on the `emulator-5558` Pixel emulator with Pubky Ring
+Run against the Loopky debug APK on the `emulator-5558` Pixel emulator with Pubky Ring
 installed (staging identity), 2026-06-13.
 
 ## 01 — Onboarding / Pubky Ring auth — ✅ PASS
 
 | Step | Result |
 | --- | --- |
-| Launch Echo, onboarding shown with "Sign in with Pubky Ring" | PASSED |
-| Tap sign in → Pubky Ring opens with the authorization prompt | PASSED — staging identity, relay `httprelay.pubky.app/inbox`, capabilities `/pub/echo/:rw` + `/pub/pubky.app/:rw` |
+| Launch Loopky, onboarding shown with "Sign in with Pubky Ring" | PASSED |
+| Tap sign in → Pubky Ring opens with the authorization prompt | PASSED — staging identity, relay `httprelay.pubky.app/inbox`, capabilities `/pub/loopky/:rw` + `/pub/pubky.app/:rw` |
 | Approve in Ring | PASSED — "Authorization Successful" |
-| Echo completes sign-in | PASSED — token decrypted → session exchange → session saved → Home shown greeting the real pubky (`pk:x1kwaq`). Session persists across restarts. |
+| Loopky completes sign-in | PASSED — token decrypted → session exchange → session saved → Home shown greeting the real pubky (`pk:x1kwaq`). Session persists across restarts. |
 
 **Earlier blocker (now fixed):** sign-in failed instantly with "auth request expired".
 Root cause was a panic in the pubky SDK's HTTPS client — its `icann_http` client used
@@ -21,10 +21,10 @@ Fixed by making the SDK pin bundled webpki roots for ICANN TLS (pubky/pubky-core
 consumed via the FFI fork's `[patch]`. Surfaced by adding logcat tracing + a panic hook to
 the FFI (`init_logging`).
 
-**Auto-return caveat:** Echo appends Ring's `x-success`/`x-cancel`/`x-error`/`x-source`
-callbacks (→ `echo://login-callback`, `MainActivity` = singleTask) so Ring re-opens Echo
+**Auto-return caveat:** Loopky appends Ring's `x-success`/`x-cancel`/`x-error`/`x-source`
+callbacks (→ `loopky://login-callback`, `MainActivity` = singleTask) so Ring re-opens Loopky
 after approval. On the installed Ring build the success screen shows an "OK" button and does
-not fire `openXSuccess`, so the user taps back to Echo manually — a Ring-side issue, not Echo.
+not fire `openXSuccess`, so the user taps back to Loopky manually — a Ring-side issue, not Loopky.
 
 ## 02 — Paste-to-Import → triage → publish — ✅ PASS
 
@@ -62,8 +62,8 @@ Re-run on `emulator-5554` 2026-08-14 **with a real `UNSPLASH_ACCESS_KEY`** — t
 web grid path has actually been exercised. The grid populates, every cell shows its photographer
 over a gradient scrim, and `image_credit` reads "Photos from Unsplash" before a selection and
 "Photo by NIR HIMI on Unsplash" after one. Both links open Chrome at
-`unsplash.com/@nirhimi?utm_source=echo&utm_medium=referral` and
-`unsplash.com/?utm_source=echo&utm_medium=referral` respectively, and Done still applies the cover.
+`unsplash.com/@nirhimi?utm_source=loopky&utm_medium=referral` and
+`unsplash.com/?utm_source=loopky&utm_medium=referral` respectively, and Done still applies the cover.
 The `download_location` ping is covered by `UnsplashClientTest` (exact URL + auth header) rather
 than observed on the wire.
 
@@ -84,7 +84,7 @@ grant path):
 | --- | --- |
 | Study front card (`w1CAm`) | PASSED — word + "Tap card to reveal answer" only; **no Listen/Speak on the front** |
 | Reveal back (`aLoMj`) | PASSED — **"Listen"** pill (peach) + **"Speak"** pill (purple); names + colors now match the design (previously both read "Speak") |
-| Tap **Speak** → mic permission | PASSED — "Allow Echo to record audio?" dialog appears (the user-reported "permission not requested" bug is fixed) |
+| Tap **Speak** → mic permission | PASSED — "Allow Loopky to record audio?" dialog appears (the user-reported "permission not requested" bug is fixed) |
 | Grant → recognition unavailable | PASSED — Toast "Speech recognition is unavailable on this device" shows instead of silently doing nothing |
 | Paste preview (`MJ1SR`) | PASSED — bottom orange **Next** button shown once parsed |
 | Publish (`yFOOS`) | PASSED — peach "N cards ready" badge with solid orange check; white card fields; **Listen/Speak option rows have leading icons** (peach headphones / purple mic) |

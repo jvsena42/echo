@@ -35,11 +35,11 @@ struct DecksView: View {
                 HStack {
                     Text("decks_title")
                         .font(.system(size: 28, weight: .heavy))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                     Spacer()
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 20))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                 }
 
                 // Paste CTA
@@ -69,9 +69,9 @@ struct DecksView: View {
                     .padding(22)
                     .background(
                         RoundedRectangle(cornerRadius: 28)
-                            .fill(EchoColor.accentPrimary)
+                            .fill(LoopkyColor.accentPrimary)
                     )
-                    .shadow(color: EchoColor.shadowAccent, radius: 32, x: 0, y: 12)
+                    .shadow(color: LoopkyColor.shadowAccent, radius: 32, x: 0, y: 12)
                 }
                 .buttonStyle(.plain)
 
@@ -87,11 +87,11 @@ struct DecksView: View {
                     HStack {
                         Text(String(format: NSLocalizedString("decks_library_count", comment: ""), count))
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(EchoColor.foregroundPrimary)
+                            .foregroundColor(LoopkyColor.foregroundPrimary)
                         Spacer()
                         Text("decks_recent")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(EchoColor.accentPrimary)
+                            .foregroundColor(LoopkyColor.accentPrimary)
                     }
 
                     // Deck grid
@@ -111,10 +111,10 @@ struct DecksView: View {
                     VStack(spacing: 8) {
                         Text("decks_error_title")
                             .font(.system(size: 20, weight: .heavy))
-                            .foregroundColor(EchoColor.foregroundPrimary)
+                            .foregroundColor(LoopkyColor.foregroundPrimary)
                         Text(message)
                             .font(.system(size: 14))
-                            .foregroundColor(EchoColor.foregroundMuted)
+                            .foregroundColor(LoopkyColor.foregroundMuted)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
@@ -125,7 +125,7 @@ struct DecksView: View {
             .padding(.top, 8)
             .padding(.bottom, 100)
         }
-        .background(EchoColor.surfacePrimary.ignoresSafeArea())
+        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
     }
 
     private var emptyBlock: some View {
@@ -133,13 +133,13 @@ struct DecksView: View {
             Text("📚").font(.system(size: 48))
             Text("decks_empty_title")
                 .font(.system(size: 20, weight: .heavy))
-                .foregroundColor(EchoColor.foregroundPrimary)
+                .foregroundColor(LoopkyColor.foregroundPrimary)
             Text("decks_empty_subtitle")
                 .font(.system(size: 14))
-                .foregroundColor(EchoColor.foregroundMuted)
+                .foregroundColor(LoopkyColor.foregroundMuted)
                 .multilineTextAlignment(.center)
             Button("decks_empty_create", action: onCreateDeckTap)
-                .buttonStyle(.echoCompactFilled)
+                .buttonStyle(.loopkyCompactFilled)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 32)

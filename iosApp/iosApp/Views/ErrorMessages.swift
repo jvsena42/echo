@@ -34,7 +34,7 @@ enum ErrorCopy {
             // Pubky is the only source of truth and there is no local cache, so this is exactly
             // the moment a user would fear they had lost everything.
             return NSLocalizedString(
-                "Echo can't reach your homeserver. Your decks are safe — they live on Pubky. "
+                "Loopky can't reach your homeserver. Your decks are safe — they live on Pubky. "
                     + "Check your connection and try again.",
                 comment: "Error message: no connectivity"
             )
@@ -55,12 +55,12 @@ enum ErrorCopy {
             )
         case .ringNotInstalled:
             return NSLocalizedString(
-                "Echo signs you in through Pubky Ring. Install it to continue.",
+                "Loopky signs you in through Pubky Ring. Install it to continue.",
                 comment: "Error message: Ring missing"
             )
         case .authFailed:
             return NSLocalizedString(
-                "Echo couldn't confirm the authorisation with Pubky Ring. "
+                "Loopky couldn't confirm the authorisation with Pubky Ring. "
                     + "Check your connection and try again.",
                 comment: "Error message: auth failed"
             )

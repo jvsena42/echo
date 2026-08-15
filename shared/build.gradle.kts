@@ -49,7 +49,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.github.jvsena42.echo.shared"
+    namespace = "com.github.jvsena42.loopky.shared"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

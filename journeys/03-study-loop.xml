@@ -4,7 +4,7 @@
     Requires journeys 01 and 02 to have run (signed in, "Animals PT" deck exists).
   </description>
   <actions>
-    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Launch the Loopky app and verify the Home screen is shown</action>
     <action>Tap the element with resource-id "tab_decks", then tap the "Animals PT" deck tile</action>
     <action>Verify the deck detail screen shows a due-cards count greater than zero and a study button (resource-id: deck_study)</action>
     <action>Tap the element with resource-id "deck_study" to start a session</action>

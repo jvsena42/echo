@@ -68,8 +68,8 @@ struct OnboardingView: View {
                     Text(isWorking ? "onboarding_signin_waiting" : "onboarding_signin_default")
                 }
             }
-            .buttonStyle(.echoFilled)
-            .shadow(color: EchoColor.shadowAccent, radius: 24, x: 0, y: 8)
+            .buttonStyle(.loopkyFilled)
+            .shadow(color: LoopkyColor.shadowAccent, radius: 24, x: 0, y: 8)
             .disabled(isWorking)
 
             Text("onboarding_no_email_notice")

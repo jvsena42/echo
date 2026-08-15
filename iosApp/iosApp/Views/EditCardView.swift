@@ -21,30 +21,30 @@ struct EditCardView: View {
                     Button(action: onBack) {
                         Text("edit_card_cancel")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(EchoColor.accentPrimary)
+                            .foregroundColor(LoopkyColor.accentPrimary)
                     }
                     Spacer()
                     Text("edit_card_title")
                         .font(.system(size: 18, weight: .heavy))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                     Spacer()
                     Button("edit_card_save", action: {})
-                        .buttonStyle(.echoCompactFilled)
+                        .buttonStyle(.loopkyCompactFilled)
                 }
 
                 // Context chip
                 HStack(spacing: 6) {
                     Image(systemName: "square.stack.3d.up")
                         .font(.system(size: 12))
-                        .foregroundColor(EchoColor.accentSecondary)
+                        .foregroundColor(LoopkyColor.accentSecondary)
                     Text(String(format: NSLocalizedString("edit_card_context", comment: ""), cardIndex, totalCards, deckTitle))
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(EchoColor.accentSecondary)
+                        .foregroundColor(LoopkyColor.accentSecondary)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(
-                    Capsule().fill(EchoColor.accentSecondarySoft)
+                    Capsule().fill(LoopkyColor.accentSecondarySoft)
                 )
 
                 // Front section
@@ -53,7 +53,7 @@ struct EditCardView: View {
                         Text("edit_card_label_front")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
-                            .foregroundColor(EchoColor.foregroundMuted)
+                            .foregroundColor(LoopkyColor.foregroundMuted)
                         Spacer()
                         HStack(spacing: 4) {
                             Image(systemName: "speaker.wave.2")
@@ -61,17 +61,17 @@ struct EditCardView: View {
                             Text("edit_card_speak")
                                 .font(.system(size: 12, weight: .semibold))
                         }
-                        .foregroundColor(EchoColor.accentPrimary)
+                        .foregroundColor(LoopkyColor.accentPrimary)
                     }
                     TextEditor(text: $frontText)
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                         .scrollContentBackground(.hidden)
                         .frame(minHeight: 80)
                         .padding(16)
                         .background(
                             RoundedRectangle(cornerRadius: 16)
-                                .stroke(EchoColor.accentPrimary, lineWidth: 2)
+                                .stroke(LoopkyColor.accentPrimary, lineWidth: 2)
                         )
                 }
 
@@ -81,7 +81,7 @@ struct EditCardView: View {
                         Text("edit_card_label_back")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
-                            .foregroundColor(EchoColor.foregroundMuted)
+                            .foregroundColor(LoopkyColor.foregroundMuted)
                         Spacer()
                         HStack(spacing: 4) {
                             Image(systemName: "speaker.wave.2")
@@ -89,17 +89,17 @@ struct EditCardView: View {
                             Text("edit_card_speak")
                                 .font(.system(size: 12, weight: .semibold))
                         }
-                        .foregroundColor(EchoColor.accentPrimary)
+                        .foregroundColor(LoopkyColor.accentPrimary)
                     }
                     TextEditor(text: $backText)
                         .font(.system(size: 16))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                         .scrollContentBackground(.hidden)
                         .frame(minHeight: 60)
                         .padding(16)
                         .background(
                             RoundedRectangle(cornerRadius: 16)
-                                .stroke(EchoColor.borderSubtle, lineWidth: 1)
+                                .stroke(LoopkyColor.borderSubtle, lineWidth: 1)
                         )
                 }
 
@@ -111,9 +111,9 @@ struct EditCardView: View {
                             Text("edit_card_image")
                         }
                     }
-                    .buttonStyle(EchoOutlineButtonStyle(
-                        stroke: EchoColor.borderSubtle,
-                        foreground: EchoColor.foregroundMuted,
+                    .buttonStyle(LoopkyOutlineButtonStyle(
+                        stroke: LoopkyColor.borderSubtle,
+                        foreground: LoopkyColor.foregroundMuted,
                         fontSize: 14,
                         lineWidth: 1
                     ))
@@ -123,9 +123,9 @@ struct EditCardView: View {
                             Text("edit_card_audio")
                         }
                     }
-                    .buttonStyle(EchoOutlineButtonStyle(
-                        stroke: EchoColor.borderSubtle,
-                        foreground: EchoColor.foregroundMuted,
+                    .buttonStyle(LoopkyOutlineButtonStyle(
+                        stroke: LoopkyColor.borderSubtle,
+                        foreground: LoopkyColor.foregroundMuted,
                         fontSize: 14,
                         lineWidth: 1
                     ))
@@ -136,25 +136,25 @@ struct EditCardView: View {
                     Text("edit_card_label_tags")
                         .font(.system(size: 10, weight: .bold))
                         .kerning(0.8)
-                        .foregroundColor(EchoColor.foregroundMuted)
+                        .foregroundColor(LoopkyColor.foregroundMuted)
                     HStack(spacing: 6) {
                         ForEach(tags, id: \.self) { tag in
                             TagChipView(tag: tag)
                         }
                         Text("edit_card_add_tag")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(EchoColor.accentSecondary)
+                            .foregroundColor(LoopkyColor.accentSecondary)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
                             .overlay(
-                                Capsule().stroke(EchoColor.accentSecondary, lineWidth: 1)
+                                Capsule().stroke(LoopkyColor.accentSecondary, lineWidth: 1)
                             )
                     }
                 }
                 .padding(16)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(EchoColor.borderSubtle, lineWidth: 1)
+                        .stroke(LoopkyColor.borderSubtle, lineWidth: 1)
                 )
 
                 Spacer().frame(height: 20)
@@ -167,12 +167,12 @@ struct EditCardView: View {
                         Text("edit_card_delete")
                             .font(.system(size: 15, weight: .bold))
                     }
-                    .foregroundColor(EchoColor.srsAgain)
+                    .foregroundColor(LoopkyColor.srsAgain)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
                     .background(
                         RoundedRectangle(cornerRadius: 14)
-                            .fill(EchoColor.dangerSoft)
+                            .fill(LoopkyColor.dangerSoft)
                     )
                 }
             }
@@ -180,7 +180,7 @@ struct EditCardView: View {
             .padding(.top, 8)
             .padding(.bottom, 40)
         }
-        .background(EchoColor.surfacePrimary.ignoresSafeArea())
+        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
     }
 }

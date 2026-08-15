@@ -40,17 +40,17 @@ struct DeckEditorView: View {
                     Button(action: onClose) {
                         ZStack {
                             Circle()
-                                .fill(EchoColor.surfaceCard)
+                                .fill(LoopkyColor.surfaceCard)
                                 .frame(width: 40, height: 40)
                             Image(systemName: "xmark")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(EchoColor.foregroundPrimary)
+                                .foregroundColor(LoopkyColor.foregroundPrimary)
                         }
                     }
                     Spacer()
                     Text(isNew ? "deck_editor_title_new" : "deck_editor_title_edit")
                         .font(.system(size: 18, weight: .heavy))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                     Spacer()
                     Button(action: onSave) {
                         HStack(spacing: 6) {
@@ -62,7 +62,7 @@ struct DeckEditorView: View {
                             Text(isSaving ? "deck_editor_saving" : "deck_editor_save")
                         }
                     }
-                    .buttonStyle(.echoCompactFilled)
+                    .buttonStyle(.loopkyCompactFilled)
                     .disabled(isSaving)
                 }
 
@@ -72,7 +72,7 @@ struct DeckEditorView: View {
                     HStack(spacing: 12) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 14)
-                                .fill(EchoColor.accentPrimarySoft)
+                                .fill(LoopkyColor.accentPrimarySoft)
                                 .frame(width: 64, height: 64)
                             Text(coverEmoji.isEmpty ? "📚" : coverEmoji)
                                 .font(.system(size: 32))
@@ -81,10 +81,10 @@ struct DeckEditorView: View {
                             Text("deck_editor_label_title")
                                 .font(.system(size: 10, weight: .bold))
                                 .kerning(0.8)
-                                .foregroundColor(EchoColor.foregroundMuted)
+                                .foregroundColor(LoopkyColor.foregroundMuted)
                             TextField("deck_editor_title_placeholder_untitled", text: binding(title, onTitleChanged))
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(EchoColor.foregroundPrimary)
+                                .foregroundColor(LoopkyColor.foregroundPrimary)
                         }
                     }
                     if let titleError {
@@ -96,10 +96,10 @@ struct DeckEditorView: View {
                         Text("deck_editor_label_description")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
-                            .foregroundColor(EchoColor.foregroundMuted)
+                            .foregroundColor(LoopkyColor.foregroundMuted)
                         TextField("deck_editor_description_placeholder", text: binding(description, onDescriptionChanged), axis: .vertical)
                             .font(.system(size: 14))
-                            .foregroundColor(EchoColor.foregroundSecondary)
+                            .foregroundColor(LoopkyColor.foregroundSecondary)
                     }
                     if let descriptionError {
                         FieldErrorText(message: descriptionError)
@@ -110,16 +110,16 @@ struct DeckEditorView: View {
                         Text("deck_editor_label_tags")
                             .font(.system(size: 10, weight: .bold))
                             .kerning(0.8)
-                            .foregroundColor(EchoColor.foregroundMuted)
+                            .foregroundColor(LoopkyColor.foregroundMuted)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 6) {
                                 ForEach(tags, id: \.self) { tag in
                                     TagChipView(tag: tag, onRemove: { onRemoveTag(tag) })
                                 }
                                 Button("deck_editor_add_tag", action: { showTagSheet = true })
-                                    .buttonStyle(EchoOutlineButtonStyle(
-                                        stroke: EchoColor.accentSecondary,
-                                        foreground: EchoColor.accentSecondary,
+                                    .buttonStyle(LoopkyOutlineButtonStyle(
+                                        stroke: LoopkyColor.accentSecondary,
+                                        foreground: LoopkyColor.accentSecondary,
                                         cornerRadius: 50,
                                         lineWidth: 1,
                                         fontSize: 13,
@@ -132,9 +132,9 @@ struct DeckEditorView: View {
                 .padding(16)
                 .background(
                     RoundedRectangle(cornerRadius: 20)
-                        .fill(EchoColor.surfaceCard)
+                        .fill(LoopkyColor.surfaceCard)
                 )
-                .shadow(color: EchoColor.shadowElevationLow, radius: 14, x: 0, y: 4)
+                .shadow(color: LoopkyColor.shadowElevationLow, radius: 14, x: 0, y: 4)
 
                 if let error {
                     FieldErrorText(message: error)
@@ -143,7 +143,7 @@ struct DeckEditorView: View {
                 // Cards header
                 Text(String(format: NSLocalizedString("deck_editor_cards_count", comment: ""), cards.count))
                     .font(.system(size: 16, weight: .heavy))
-                    .foregroundColor(EchoColor.foregroundPrimary)
+                    .foregroundColor(LoopkyColor.foregroundPrimary)
 
                 // Card list
                 VStack(spacing: 10) {
@@ -152,7 +152,7 @@ struct DeckEditorView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "line.3.horizontal")
                                     .font(.system(size: 14))
-                                    .foregroundColor(EchoColor.foregroundMuted)
+                                    .foregroundColor(LoopkyColor.foregroundMuted)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Group {
                                         if card.front.isEmpty {
@@ -162,31 +162,31 @@ struct DeckEditorView: View {
                                         }
                                     }
                                     .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(EchoColor.foregroundPrimary)
+                                    .foregroundColor(LoopkyColor.foregroundPrimary)
                                     Text(card.back)
                                         .font(.system(size: 13))
-                                        .foregroundColor(EchoColor.foregroundMuted)
+                                        .foregroundColor(LoopkyColor.foregroundMuted)
                                 }
                                 Spacer()
                                 HStack(spacing: 6) {
                                     if card.hasImage {
                                         Image(systemName: "photo")
                                             .font(.system(size: 14))
-                                            .foregroundColor(EchoColor.accentSecondary)
+                                            .foregroundColor(LoopkyColor.accentSecondary)
                                     }
                                     if card.hasAudio {
                                         Image(systemName: "mic")
                                             .font(.system(size: 14))
-                                            .foregroundColor(EchoColor.accentSecondary)
+                                            .foregroundColor(LoopkyColor.accentSecondary)
                                     }
                                 }
                             }
                             .padding(14)
                             .background(
                                 RoundedRectangle(cornerRadius: 14)
-                                    .fill(EchoColor.surfaceCard)
+                                    .fill(LoopkyColor.surfaceCard)
                             )
-                            .shadow(color: EchoColor.shadowElevationLow, radius: 8, x: 0, y: 2)
+                            .shadow(color: LoopkyColor.shadowElevationLow, radius: 8, x: 0, y: 2)
                         }
                         .buttonStyle(.plain)
                     }
@@ -199,13 +199,13 @@ struct DeckEditorView: View {
                         Text("deck_editor_add_card")
                     }
                 }
-                .buttonStyle(.echoOutline)
+                .buttonStyle(.loopkyOutline)
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 40)
         }
-        .background(EchoColor.surfacePrimary.ignoresSafeArea())
+        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
         .sheet(isPresented: $showTagSheet) {
             AddTagSheet(tags: tags, onAdd: onAddTag, onRemove: onRemoveTag)
@@ -224,7 +224,7 @@ struct FieldErrorText: View {
     var body: some View {
         Text(message)
             .font(.system(size: 12, weight: .medium))
-            .foregroundColor(EchoColor.srsAgain)
+            .foregroundColor(LoopkyColor.srsAgain)
     }
 }
 
