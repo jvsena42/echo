@@ -17,7 +17,7 @@
     <action>Verify the image sheet shows a search field (resource-id: image_search_input) and a "From gallery" button (resource-id: image_pick_gallery)</action>
     <action>If UNSPLASH_ACCESS_KEY is configured: type "sun" into the field with resource-id "image_search_input", verify the web image grid (resource-id: image_grid) populates, tap the first cell (resource-id: image_grid_cell), then tap "Done" (resource-id: image_sheet_done) and verify the cover thumbnail updates on the Publish screen</action>
     <action>Attribution (Unsplash API guidelines): with the grid populated, verify every visible cell shows the photographer's name over a gradient at its bottom edge, and that the credit line (resource-id: image_credit) below the grid reads "Photos from Unsplash" before a selection and "Photo by NAME on Unsplash" after one</action>
-    <action>Tap the photographer's name in the credit line and verify a browser opens their Unsplash profile with utm_source=echo and utm_medium=referral in the URL; go back and tap "Unsplash" in the same line to verify it opens unsplash.com with the same params</action>
+    <action>Tap the photographer's name in the credit line and verify a browser opens their Unsplash profile with utm_source=loopky and utm_medium=referral in the URL; go back and tap "Unsplash" in the same line to verify it opens unsplash.com with the same params</action>
     <action>If UNSPLASH_ACCESS_KEY is blank: verify the grid area shows the gallery-only hint, no credit line is shown, and skip the web selection steps</action>
     <action>Manual check (system picker not automatable): tap "From gallery" (resource-id: image_pick_gallery), choose an image, and verify it is compressed and shown as the cover</action>
   </actions>

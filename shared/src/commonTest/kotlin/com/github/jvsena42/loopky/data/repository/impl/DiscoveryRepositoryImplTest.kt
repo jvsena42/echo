@@ -42,7 +42,7 @@ class DiscoveryRepositoryImplTest {
 
     private fun putRemoteManifest(author: String, deckId: String, updatedAt: Long) {
         val dto = testDeck(id = deckId, authorPubky = author, updatedAt = updatedAt).toDto()
-        pubky.store["pubky://$author/pub/echo/decks/$deckId/manifest.json"] =
+        pubky.store["pubky://$author/pub/loopky/decks/$deckId/manifest.json"] =
             loopkyJson.encodeToString(dto)
     }
 

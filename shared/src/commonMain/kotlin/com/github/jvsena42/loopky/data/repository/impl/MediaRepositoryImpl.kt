@@ -15,7 +15,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Blob storage for card media. Blobs are stored at
- * `/pub/echo/decks/{deckId}/media/{sha256}.{ext}` keyed by content hash — identical bytes
+ * `/pub/loopky/decks/{deckId}/media/{sha256}.{ext}` keyed by content hash — identical bytes
  * within a deck dedupe automatically.
  *
  * Blobs are written raw via the binary FFI surface (`putBytesWithSession`) so other Pubky

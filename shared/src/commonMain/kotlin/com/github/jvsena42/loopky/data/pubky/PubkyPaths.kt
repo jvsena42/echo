@@ -1,7 +1,7 @@
 package com.github.jvsena42.loopky.data.pubky
 
 internal object PubkyPaths {
-    const val APP_NAMESPACE = "pub/echo"
+    const val APP_NAMESPACE = "pub/loopky"
     private const val PUBKY_APP_NAMESPACE = "pub/pubky.app"
 
     fun profile(pubky: String): String =

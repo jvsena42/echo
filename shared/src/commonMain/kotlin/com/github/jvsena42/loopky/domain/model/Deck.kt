@@ -19,7 +19,7 @@ data class Deck(
     val speakEnabled: Boolean = true,
 ) {
     val cardCount: Int get() = cardIndex.size
-    val pubkyUri: PubkyUri get() = PubkyUri("pubky://$authorPubky/pub/echo/decks/$id/manifest.json")
+    val pubkyUri: PubkyUri get() = PubkyUri("pubky://$authorPubky/pub/loopky/decks/$id/manifest.json")
 }
 
 data class CardIndexEntry(

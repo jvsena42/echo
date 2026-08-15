@@ -10,7 +10,7 @@ class PubkyErrorsTest {
     fun classifiesTheTransportFailureSeenOnDevice() {
         val real = PubkyError(
             "Failed to send list request: Request failed: HTTP transport error: " +
-                "error sending request for url (https://_pubky.rc3omrqq/pub/echo/decks/?)",
+                "error sending request for url (https://_pubky.rc3omrqq/pub/loopky/decks/?)",
         )
 
         assertEquals(ErrorReason.Offline, real.toErrorReason())
@@ -28,7 +28,7 @@ class PubkyErrorsTest {
 
     @Test
     fun classifiesAMissingRecordAsNotFound() {
-        assertEquals(ErrorReason.NotFound, PubkyError("not found: pubky://x/pub/echo").toErrorReason())
+        assertEquals(ErrorReason.NotFound, PubkyError("not found: pubky://x/pub/loopky").toErrorReason())
     }
 
     @Test

@@ -193,9 +193,9 @@ Every state from §6 of the brief is enumerated here. The designer must produce 
 Each published deck is stored as multiple records under the author's pubky so that edits and sync stay cheap:
 
 ```
-/pub/echo/decks/{deckId}/manifest.json
-/pub/echo/decks/{deckId}/cards/{cardId}.json
-/pub/echo/decks/{deckId}/media/{sha256}.{ext}
+/pub/loopky/decks/{deckId}/manifest.json
+/pub/loopky/decks/{deckId}/cards/{cardId}.json
+/pub/loopky/decks/{deckId}/media/{sha256}.{ext}
 ```
 
 - **Manifest** carries deck metadata (title, description, cover, tags) plus an ordered list of card IDs with `updated_at` timestamps. Reordering rewrites only the manifest.

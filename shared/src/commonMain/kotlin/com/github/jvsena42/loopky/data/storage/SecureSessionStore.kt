@@ -18,7 +18,7 @@ interface SecureSessionStore {
 }
 
 internal const val SESSION_STORAGE_KEY = "session.v1"
-internal const val SESSION_SERVICE_NAME = "echo.session"
+internal const val SESSION_SERVICE_NAME = "loopky.session"
 
 internal val sessionStoreJson: Json = Json {
     ignoreUnknownKeys = true

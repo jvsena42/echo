@@ -22,7 +22,7 @@ fun fakeSession(pubky: String = TEST_PUBKY, displayName: String? = "Tester"): Se
         bio = null,
     ),
     sessionSecret = "session-secret-$pubky",
-    capabilities = listOf(Capability("/pub/echo/:rw"), Capability("/pub/pubky.app/:rw")),
+    capabilities = listOf(Capability("/pub/loopky/:rw"), Capability("/pub/pubky.app/:rw")),
     homeserver = "homeserverpk",
 )
 

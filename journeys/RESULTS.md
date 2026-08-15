@@ -8,7 +8,7 @@ installed (staging identity), 2026-06-13.
 | Step | Result |
 | --- | --- |
 | Launch Loopky, onboarding shown with "Sign in with Pubky Ring" | PASSED |
-| Tap sign in → Pubky Ring opens with the authorization prompt | PASSED — staging identity, relay `httprelay.pubky.app/inbox`, capabilities `/pub/echo/:rw` + `/pub/pubky.app/:rw` |
+| Tap sign in → Pubky Ring opens with the authorization prompt | PASSED — staging identity, relay `httprelay.pubky.app/inbox`, capabilities `/pub/loopky/:rw` + `/pub/pubky.app/:rw` |
 | Approve in Ring | PASSED — "Authorization Successful" |
 | Loopky completes sign-in | PASSED — token decrypted → session exchange → session saved → Home shown greeting the real pubky (`pk:x1kwaq`). Session persists across restarts. |
 
@@ -22,7 +22,7 @@ consumed via the FFI fork's `[patch]`. Surfaced by adding logcat tracing + a pan
 the FFI (`init_logging`).
 
 **Auto-return caveat:** Loopky appends Ring's `x-success`/`x-cancel`/`x-error`/`x-source`
-callbacks (→ `echo://login-callback`, `MainActivity` = singleTask) so Ring re-opens Loopky
+callbacks (→ `loopky://login-callback`, `MainActivity` = singleTask) so Ring re-opens Loopky
 after approval. On the installed Ring build the success screen shows an "OK" button and does
 not fire `openXSuccess`, so the user taps back to Loopky manually — a Ring-side issue, not Loopky.
 
@@ -62,8 +62,8 @@ Re-run on `emulator-5554` 2026-08-14 **with a real `UNSPLASH_ACCESS_KEY`** — t
 web grid path has actually been exercised. The grid populates, every cell shows its photographer
 over a gradient scrim, and `image_credit` reads "Photos from Unsplash" before a selection and
 "Photo by NIR HIMI on Unsplash" after one. Both links open Chrome at
-`unsplash.com/@nirhimi?utm_source=echo&utm_medium=referral` and
-`unsplash.com/?utm_source=echo&utm_medium=referral` respectively, and Done still applies the cover.
+`unsplash.com/@nirhimi?utm_source=loopky&utm_medium=referral` and
+`unsplash.com/?utm_source=loopky&utm_medium=referral` respectively, and Done still applies the cover.
 The `download_location` ping is covered by `UnsplashClientTest` (exact URL + auth header) rather
 than observed on the wire.
 

@@ -45,7 +45,7 @@ interface IdentityRepository {
     suspend fun updateProfile(name: String?, bio: String?): Result<PubkyIdentity>
 
     companion object {
-        const val DEFAULT_CAPABILITIES = "/pub/echo/:rw,/pub/pubky.app/:rw"
+        const val DEFAULT_CAPABILITIES = "/pub/loopky/:rw,/pub/pubky.app/:rw"
     }
 }
 
@@ -59,9 +59,9 @@ interface AuthFlowHandle {
  *
  * Layout on the homeserver (see `docs/Architecture.md §8.0`):
  * ```
- * /pub/echo/decks/{deckId}/manifest.json
- * /pub/echo/decks/{deckId}/cards/{cardId}.json
- * /pub/echo/decks/{deckId}/media/{sha256}.{ext}
+ * /pub/loopky/decks/{deckId}/manifest.json
+ * /pub/loopky/decks/{deckId}/cards/{cardId}.json
+ * /pub/loopky/decks/{deckId}/media/{sha256}.{ext}
  * ```
  */
 interface DeckRepository {
@@ -167,7 +167,7 @@ interface DiscoveryRepository {
 
 /**
  * Spaced-repetition state, Pubky-backed (canonical) with an in-memory session cache. Records live at
- * `/pub/echo/decks/{deckId}/srs/{cardId}.json`. The repo owns SRS grading (the SM-2-lite scheduler in
+ * `/pub/loopky/decks/{deckId}/srs/{cardId}.json`. The repo owns SRS grading (the SM-2-lite scheduler in
  * [com.github.jvsena42.loopky.domain.model] is invoked here, not in ViewModels).
  */
 interface SrsRepository {
@@ -203,7 +203,7 @@ interface SrsRepository {
 
 /**
  * Blob storage for image and audio media referenced by cards. Blobs live under the owning
- * deck's Pubky path (`/pub/echo/decks/{deckId}/media/{sha256}.{ext}`) so they sync with the
+ * deck's Pubky path (`/pub/loopky/decks/{deckId}/media/{sha256}.{ext}`) so they sync with the
  * deck and dedupe by content hash.
  */
 interface MediaRepository {

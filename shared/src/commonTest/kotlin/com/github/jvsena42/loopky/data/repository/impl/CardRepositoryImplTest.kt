@@ -32,7 +32,7 @@ class CardRepositoryImplTest {
 
         repo.upsert(card).getOrThrow()
 
-        val url = "pubky://$TEST_PUBKY/pub/echo/decks/deck1/cards/c1.json"
+        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/c1.json"
         val dto = loopkyJson.decodeFromString<CardDto>(pubky.store.getValue(url))
         assertEquals("c1", dto.id)
         assertEquals("deck1", dto.deck_id)
@@ -85,7 +85,7 @@ class CardRepositoryImplTest {
 
         repo.delete("deck1", "c1").getOrThrow()
 
-        val url = "pubky://$TEST_PUBKY/pub/echo/decks/deck1/cards/c1.json"
+        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/c1.json"
         assertTrue(url !in pubky.store)
         assertNull(repo.get("deck1", "c1"))
         assertEquals(emptyList(), repo.listByDeck("deck1"))
@@ -128,7 +128,7 @@ class CardRepositoryImplTest {
     @Test
     fun fetchByDeckSkipsAnUnreadableCardButKeepsTheRest() = runTest {
         val deck = seedRemoteDeck(author = TEST_PUBKY, "c1" to 1_000L, "c2" to 1_000L)
-        pubky.store.remove("pubky://$TEST_PUBKY/pub/echo/decks/deck1/cards/c2.json")
+        pubky.store.remove("pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/c2.json")
 
         assertEquals(listOf("c1"), repo.fetchByDeck(deck).getOrThrow().map { it.id })
     }
@@ -155,7 +155,7 @@ class CardRepositoryImplTest {
     private fun seedRemoteDeck(author: String, vararg cards: Pair<String, Long>): Deck {
         cards.forEach { (id, updatedAt) ->
             val card = testCard(id, updatedAt = updatedAt)
-            pubky.store["pubky://$author/pub/echo/decks/deck1/cards/$id.json"] =
+            pubky.store["pubky://$author/pub/loopky/decks/deck1/cards/$id.json"] =
                 loopkyJson.encodeToString(card.toDto())
         }
         return testDeck(

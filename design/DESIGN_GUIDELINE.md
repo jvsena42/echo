@@ -205,9 +205,9 @@ Loopky's auth and social layer is built on **Pubky** — a decentralized identit
 
 ### 9.1 Login flow (deeplink contract)
 1. User taps **Sign in with Pubky Ring** in Loopky
-2. Loopky opens a deeplink to the Pubky Ring app: `pubkyring://session?x-success=echo://login-callback`
+2. Loopky opens a deeplink to the Pubky Ring app: `pubkyring://session?x-success=loopky://login-callback`
 3. Pubky Ring shows the user their list of pubkys (keys); user picks one and approves the requested capabilities
-4. Pubky Ring signs in to the user's homeserver, then returns to Loopky via: `echo://login-callback?pubky=<publickey>&session_secret=<secret>&capabilities=<list>`
+4. Pubky Ring signs in to the user's homeserver, then returns to Loopky via: `loopky://login-callback?pubky=<publickey>&session_secret=<secret>&capabilities=<list>`
 5. Loopky stores the session and lands the user on the Study tab
 
 Design the screens for: pre-handoff (the Loopky "signing in…" loading screen), the moment of return (success animation), and cancellation (user backed out of Ring).

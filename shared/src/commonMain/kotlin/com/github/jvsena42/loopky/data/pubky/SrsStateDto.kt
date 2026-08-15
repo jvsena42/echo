@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * On-homeserver SRS review state for a single card, stored at
- * `/pub/echo/decks/{deckId}/srs/{cardId}.json` (see [PubkyPaths.srs]).
+ * `/pub/loopky/decks/{deckId}/srs/{cardId}.json` (see [PubkyPaths.srs]).
  *
  * Per the user's decision, SRS is Pubky-backed in v1 ("Pubky is the source of truth"), resolving the
  * CLAUDE.md vs Architecture §8.3 contradiction. [last_grade] is the grade ordinal (Again=0 … Easy=3).

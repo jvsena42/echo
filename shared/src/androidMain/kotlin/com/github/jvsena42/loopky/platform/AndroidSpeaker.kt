@@ -19,6 +19,6 @@ class AndroidSpeaker(context: Context) : Speaker {
 
     override fun speak(text: String) {
         if (!ready || text.isBlank()) return
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "echo-speak")
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "loopky-speak")
     }
 }

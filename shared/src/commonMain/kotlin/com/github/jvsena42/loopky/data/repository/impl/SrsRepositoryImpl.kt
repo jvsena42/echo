@@ -29,7 +29,7 @@ import kotlinx.serialization.encodeToString
 
 /**
  * [SrsRepository] backed by [PubkyClient]. Per-card review state lives at
- * `/pub/echo/decks/{deckId}/srs/{cardId}.json` — see `PubkyPaths.srs`. Mirrors [CardRepositoryImpl]:
+ * `/pub/loopky/decks/{deckId}/srs/{cardId}.json` — see `PubkyPaths.srs`. Mirrors [CardRepositoryImpl]:
  * Pubky is the source of truth, with a [Mutex]-guarded in-memory cache for the session.
  *
  * Building the due queue enumerates owned decks via [DeckRepository] and their cards via

@@ -20,7 +20,7 @@ import kotlinx.serialization.encodeToString
 
 /**
  * [CardRepository] backed by [PubkyClient]. Individual card records live at
- * `/pub/echo/decks/{deckId}/cards/{cardId}.json` — see `docs/Architecture.md §8.0`.
+ * `/pub/loopky/decks/{deckId}/cards/{cardId}.json` — see `docs/Architecture.md §8.0`.
  *
  * [DeckRepositoryImpl] coordinates manifest updates when cards change; this class only touches
  * the card records themselves. Callers that add/remove cards must also bump the deck's manifest.

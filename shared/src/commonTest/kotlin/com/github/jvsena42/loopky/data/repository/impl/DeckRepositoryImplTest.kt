@@ -35,7 +35,7 @@ class DeckRepositoryImplTest {
         tagRepo = tagRepo,
     )
 
-    private val deckRoot = "pubky://$TEST_PUBKY/pub/echo/decks/deck1"
+    private val deckRoot = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1"
 
     // ── publish ──────────────────────────────────────────────────────────
 
@@ -141,7 +141,7 @@ class DeckRepositoryImplTest {
 
     @Test
     fun listByAuthorReturnsEmptyWhenNothingHasBeenPublished() = runTest {
-        pubky.failListWith = PubkyError("not found: pubky://friendpk/pub/echo/decks/")
+        pubky.failListWith = PubkyError("not found: pubky://friendpk/pub/loopky/decks/")
 
         assertEquals(emptyList(), repo.listByAuthor("friendpk"))
     }
@@ -158,7 +158,7 @@ class DeckRepositoryImplTest {
     fun listByAuthorStillReturnsTheDecksItCanRead() = runTest {
         putRemoteManifest(author = "friendpk", deckId = "alpha", title = "Alpha")
         // A listed deck whose manifest is missing must not hide the readable one.
-        pubky.store["pubky://friendpk/pub/echo/decks/broken/manifest.json"] = "{ not json"
+        pubky.store["pubky://friendpk/pub/loopky/decks/broken/manifest.json"] = "{ not json"
 
         val decks = repo.listByAuthor("friendpk")
 
@@ -220,7 +220,7 @@ class DeckRepositoryImplTest {
 
     private fun putRemoteManifest(author: String, deckId: String, title: String) {
         val dto = testDeck(id = deckId, authorPubky = author, title = title).toDto()
-        pubky.store["pubky://$author/pub/echo/decks/$deckId/manifest.json"] =
+        pubky.store["pubky://$author/pub/loopky/decks/$deckId/manifest.json"] =
             loopkyJson.encodeToString(dto)
     }
 }

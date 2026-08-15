@@ -15,7 +15,7 @@ import kotlinx.serialization.json.jsonPrimitive
  *
  * Payload shape (from `utils::session_to_json_with_secret`):
  * ```json
- * { "pubky": "...", "capabilities": ["/pub/echo/:rw"], "session_secret": "..." }
+ * { "pubky": "...", "capabilities": ["/pub/loopky/:rw"], "session_secret": "..." }
  * ```
  *
  * Extra/aliased field names are tolerated so a future FFI bump continues to work.

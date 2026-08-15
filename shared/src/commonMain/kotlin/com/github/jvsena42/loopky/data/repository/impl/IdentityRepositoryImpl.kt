@@ -218,7 +218,7 @@ class IdentityRepositoryImpl(
         private const val NIBBLE_BITS = 4
 
         /** Deeplink Pubky Ring re-opens after approval; registered in the platform manifest. */
-        private const val CALLBACK_URL = "echo://login-callback"
+        private const val CALLBACK_URL = "loopky://login-callback"
         private const val CALLBACK_SOURCE = "Loopky"
 
         /** Extra attempts at the flaky auth-relay poll before giving up. */

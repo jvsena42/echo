@@ -32,7 +32,7 @@ class MediaRepositoryImplTest {
         assertEquals("image/png", ref.mime)
         assertEquals(sha, ref.sha256)
         val (url, stored) = pubky.bytePuts.single()
-        assertEquals("pubky://$TEST_PUBKY/pub/echo/decks/deck1/media/$sha.png", url)
+        assertEquals("pubky://$TEST_PUBKY/pub/loopky/decks/deck1/media/$sha.png", url)
         assertContentEquals(bytes, stored)
     }
 
@@ -44,7 +44,7 @@ class MediaRepositoryImplTest {
         assertEquals(sha, ref.sha256)
         assertNull(ref.durationMs)
         assertEquals(
-            "pubky://$TEST_PUBKY/pub/echo/decks/deck1/media/$sha.mp3",
+            "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/media/$sha.mp3",
             pubky.bytePuts.single().first,
         )
     }
@@ -88,7 +88,7 @@ class MediaRepositoryImplTest {
     @Test
     fun deleteRemovesTheBlob() = runTest {
         val ref = repo.putImage("deck1", bytes, "image/png").getOrThrow()
-        val url = "pubky://$TEST_PUBKY/pub/echo/decks/deck1/media/$sha.png"
+        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/media/$sha.png"
         assertTrue(url in pubky.store)
 
         repo.delete("deck1", ref).getOrThrow()

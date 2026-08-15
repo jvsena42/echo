@@ -95,7 +95,7 @@ class ImageSheetViewModelTest {
         thumbUrl = "t.jpg",
         fullUrl = "r.jpg",
         authorName = "Ana Ruiz",
-        authorProfileUrl = "https://unsplash.com/@ana?utm_source=echo&utm_medium=referral",
+        authorProfileUrl = "https://unsplash.com/@ana?utm_source=loopky&utm_medium=referral",
         downloadLocation = DOWNLOAD_URL,
     )
 

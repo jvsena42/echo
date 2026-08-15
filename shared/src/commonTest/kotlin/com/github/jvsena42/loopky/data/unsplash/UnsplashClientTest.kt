@@ -30,7 +30,7 @@ class UnsplashClientTest {
 
         assertEquals("Ana Ruiz", photo.authorName)
         assertEquals(
-            expected = "https://unsplash.com/@ana?utm_source=echo&utm_medium=referral",
+            expected = "https://unsplash.com/@ana?utm_source=loopky&utm_medium=referral",
             actual = photo.authorProfileUrl,
         )
         assertEquals("$BASE/photos/abc/download?ixid=xyz", photo.downloadLocation)
@@ -51,9 +51,9 @@ class UnsplashClientTest {
 
         val photos = client.random().getOrThrow()
 
-        assertEquals("https://unsplash.com/@bo?utm_source=echo&utm_medium=referral", photos[0].authorProfileUrl)
+        assertEquals("https://unsplash.com/@bo?utm_source=loopky&utm_medium=referral", photos[0].authorProfileUrl)
         // An existing query string must be extended with `&`, not a second `?`.
-        assertEquals("https://x.test/cy?ref=1&utm_source=echo&utm_medium=referral", photos[1].authorProfileUrl)
+        assertEquals("https://x.test/cy?ref=1&utm_source=loopky&utm_medium=referral", photos[1].authorProfileUrl)
         assertEquals("", photos[2].authorProfileUrl)
         assertEquals("", photos[2].downloadLocation)
     }

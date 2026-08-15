@@ -200,7 +200,7 @@ class DeckRepositoryImpl(
 
     /**
      * The FFI `list` result format is undocumented here — we parse defensively by looking for
-     * `/pub/echo/decks/{deckId}/` segments. When the homeserver stabilises, replace with the
+     * `/pub/loopky/decks/{deckId}/` segments. When the homeserver stabilises, replace with the
      * proper structured parse.
      */
     /** The FFI `list` payload is a JSON array of `pubky://…` URL strings. */

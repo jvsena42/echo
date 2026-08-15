@@ -26,7 +26,7 @@ class TagRepositoryImplTest {
         nexus = NexusClient(http, baseUrl = NEXUS_BASE),
     )
 
-    private val deckUri = PubkyUri("pubky://$TEST_PUBKY/pub/echo/decks/deck1/manifest.json")
+    private val deckUri = PubkyUri("pubky://$TEST_PUBKY/pub/loopky/decks/deck1/manifest.json")
 
     private fun tagUrlFor(label: String): String {
         val tagId = pubky.createTagId(deckUri.value, label).getOrThrow()

@@ -65,7 +65,7 @@ class SrsRepositoryImplTest {
         assertEquals(SrsGrade.Good, state.lastGrade)
         assertTrue(state.dueAt >= before + 3 * dayMs)
 
-        val url = "pubky://$TEST_PUBKY/pub/echo/decks/deck1/srs/c1.json"
+        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/srs/c1.json"
         val dto = loopkyJson.decodeFromString<SrsStateDto>(pubky.store.getValue(url))
         assertEquals("c1", dto.card_id)
         assertEquals(expected = 3, actual = dto.interval_days)
@@ -115,7 +115,7 @@ class SrsRepositoryImplTest {
 
         repo.upsert("deck1", state).getOrThrow()
 
-        val url = "pubky://$TEST_PUBKY/pub/echo/decks/deck1/srs/c1.json"
+        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/srs/c1.json"
         assertTrue(url in pubky.store)
         assertEquals(state, repo.stateFor("c1"))
     }

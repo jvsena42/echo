@@ -77,7 +77,7 @@ class UnsplashClient(
  * Unsplash's API guidelines require every link back to unsplash.com to carry these referral
  * params, so that photographers get credited for the traffic Loopky sends them.
  */
-private const val UNSPLASH_REFERRAL = "utm_source=echo&utm_medium=referral"
+private const val UNSPLASH_REFERRAL = "utm_source=loopky&utm_medium=referral"
 
 /** unsplash.com itself — the platform half of the credit line, referral params included. */
 const val UNSPLASH_HOME_URL = "https://unsplash.com/?$UNSPLASH_REFERRAL"
