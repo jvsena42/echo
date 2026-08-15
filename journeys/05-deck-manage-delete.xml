@@ -4,7 +4,7 @@
     deletion with confirmation (homeserver cleanup). Run after journeys 02 and 03.
   </description>
   <actions>
-    <action>Launch the Echo app and tap the element with resource-id "tab_decks"</action>
+    <action>Launch the Loopky app and tap the element with resource-id "tab_decks"</action>
     <action>Tap the "Animals PT" deck tile</action>
     <action>Verify the deck detail screen shows Edit (resource-id: deck_edit) and Delete (resource-id: deck_delete) controls (owner view)</action>
     <action>Tap the element with resource-id "deck_delete"</action>

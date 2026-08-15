@@ -1,15 +1,15 @@
 <journey name="Onboarding — sign in with Pubky Ring">
   <description>
     First-run sign-in via the Pubky Ring deeplink auth flow against the staging homeserver.
-    Requires: Echo debug build installed, Pubky Ring installed and already set up with an
-    identity (staging). Echo must be signed out (fresh install or after Settings → Sign out).
+    Requires: Loopky debug build installed, Pubky Ring installed and already set up with an
+    identity (staging). Loopky must be signed out (fresh install or after Settings → Sign out).
   </description>
   <actions>
-    <action>Launch the Echo app (package com.github.jvsena42.echo)</action>
+    <action>Launch the Loopky app (package com.github.jvsena42.loopky)</action>
     <action>Verify the onboarding screen is shown with the headline "Learn anything, remember everything." and a "Sign in with Pubky Ring" button (resource-id: onboarding_signin)</action>
     <action>Tap the element with resource-id "onboarding_signin"</action>
-    <action>Verify the Pubky Ring app opens with an authorization prompt for Echo's capabilities</action>
+    <action>Verify the Pubky Ring app opens with an authorization prompt for Loopky's capabilities</action>
     <action>Approve the authorization request in Pubky Ring (tap its confirm/authorize control)</action>
-    <action>Verify Echo returns to the foreground and lands on the Home screen (a greeting header is shown and the bottom tab bar is visible)</action>
+    <action>Verify Loopky returns to the foreground and lands on the Home screen (a greeting header is shown and the bottom tab bar is visible)</action>
   </actions>
 </journey>

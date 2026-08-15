@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Echo is a Kotlin Multiplatform flashcards app (iOS + Android) that fuses TinyCards-style playfulness, Anki-style spaced repetition, and Pubky-based decentralized identity/social graph. See `docs/specs.md` (Paste-to-Import primary flow), `design/DESIGN_GUIDELINE.md` (screens + design system), and `docs/Architecture.md` (technical architecture — this is the source of truth for module layout, layering, and open questions).
+Loopky is a Kotlin Multiplatform flashcards app (iOS + Android) that fuses TinyCards-style playfulness, Anki-style spaced repetition, and Pubky-based decentralized identity/social graph. See `docs/specs.md` (Paste-to-Import primary flow), `design/DESIGN_GUIDELINE.md` (screens + design system), and `docs/Architecture.md` (technical architecture — this is the source of truth for module layout, layering, and open questions).
 
 ## Build & run
 
@@ -24,7 +24,7 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
 
 **Business logic is shared; UI is native per platform.** This is the core rule — internalize it before making changes.
 
-- `shared/src/commonMain/kotlin/com/github/jvsena42/echo/` holds all cross-platform code:
+- `shared/src/commonMain/kotlin/com/github/jvsena42/loopky/` holds all cross-platform code:
   - `domain/model/` — pure Kotlin data classes (`Deck`, `Card`, `ImportDraft`, `SrsState`, `AppError`, etc.). No framework imports.
   - `data/repository/` — repository interfaces (all 8 in `Repositories.kt`: Identity, Deck, Card, Import, Media, Tag, Discovery, Srs), implementations under `data/repository/impl/`. **Repositories own the business logic** — parsing, triage, publishing, SRS grading, follow/unfollow, sign-in/out all live as methods on the relevant repo rather than in a separate use-case layer. **All 8 are implemented** (`IdentityRepositoryImpl`, `DeckRepositoryImpl`, `CardRepositoryImpl`, `ImportRepositoryImpl` — the paste parser, spec §6 rules + §9 edge cases —, `MediaRepositoryImpl`, `SrsRepositoryImpl`, `DiscoveryRepositoryImpl`, `TagRepositoryImpl`), plus `SessionRevalidatorImpl`. `TagRepositoryImpl` writes pubky-app-specs tag records to the homeserver and reads trending from the Nexus indexer (`data/nexus/NexusClient`, see Architecture.md §7.6). The impls are Pubky-only: they write/read through `PubkyClient` and hold an in-memory per-session cache. No SQLDelight yet — the app is not offline-first, Pubky is the single source of truth.
   - `data/pubky/` — `PubkyClient` interface + DTOs (`ManifestDto`, `CardDto`, `MediaRefDto` in `DeckDtos.kt`, `ProfileDto`) and path helpers (`PubkyPaths`, `Hashing`) that map between domain models and the on-homeserver JSON layout defined in `docs/Architecture.md §8.0`. `SessionProvider`/`MutableSessionProvider` is the tiny read-only abstraction repos use to author writes without depending on `IdentityRepository`. `SessionRevalidator` + `SessionRetry` + `SessionPayloadParser` handle expired-session retry.
@@ -41,7 +41,7 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
 - **Do not add Compose Multiplatform UI code for iOS screens.** The working assumption (see `docs/Architecture.md §12` open question #1) is native SwiftUI on iOS. `composeApp` is Android-only despite the name.
 - **ViewModels live in `shared/commonMain`, not in platform modules.** Both Compose and SwiftUI screens consume the same VMs. No `@Composable` or `ObservableObject` in shared code.
 - **Always import symbols; never reference them fully-qualified inline.** Add an `import` at the top of the file (e.g. `import androidx.compose.ui.graphics.Color`) and use the short name, rather than writing `androidx.compose.ui.graphics.Color` inline in a type or call. Applies to both Kotlin and Swift.
-- **Native-first UI.** Prefer native platform components — **Material 3 Expressive** (`ShortNavigationBar`, `Scaffold`, `TopAppBar`, etc.; opt in with `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`) on Android, and native SwiftUI / Liquid Glass on iOS — over bespoke custom Composables/Views, **even if it diverges from the Pencil design**, so the app feels platform-native. Apply Echo brand tokens (accent, type, radii) *to* native components rather than rebuilding chrome from primitives; build fully custom only where Echo's identity needs it and no native equivalent exists (e.g. the study card flip). The custom `EchoTabBar` pill has been replaced by a Material 3 Expressive `ShortNavigationBar` (Android) and a native `TabView`/`UITabBar` (iOS). See `design/DESIGN_GUIDELINE.md §4`.
+- **Native-first UI.** Prefer native platform components — **Material 3 Expressive** (`ShortNavigationBar`, `Scaffold`, `TopAppBar`, etc.; opt in with `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`) on Android, and native SwiftUI / Liquid Glass on iOS — over bespoke custom Composables/Views, **even if it diverges from the Pencil design**, so the app feels platform-native. Apply Loopky brand tokens (accent, type, radii) *to* native components rather than rebuilding chrome from primitives; build fully custom only where Loopky's identity needs it and no native equivalent exists (e.g. the study card flip). The custom `LoopkyTabBar` pill has been replaced by a Material 3 Expressive `ShortNavigationBar` (Android) and a native `TabView`/`UITabBar` (iOS). See `design/DESIGN_GUIDELINE.md §4`.
 - **Pubky is the source of truth for published decks.** The app is not offline-first in v1 — repos talk directly to `PubkyClient` and keep only an in-memory cache for the session. A persistent SQLDelight cache may come later. There are no private/local-only decks in v1 (spec §11).
 - **Homeserver layout is fixed.** Decks published under `/pub/echo/decks/{deckId}/{manifest.json, cards/{cardId}.json, media/{sha256}.{ext}}`. Manifest + one record per card + blob-per-media, sync driven by `updated_at`. Full schemas in `docs/Architecture.md §8.0`. Binary media is written raw via the FFI's `put_bytes_with_session`; reads come back Base64-encoded from the FFI transport and are decoded in `MediaRepositoryImpl`.
 - **Paste-to-Import is the v1 primary import flow.** The implemented spine is `PasteImportViewModel` (parse + live preview) → `PublishDeckViewModel` (commit to Pubky). Every other import source (AI, OCR, URL) listed in spec §14 must reuse this same spine. Don't build parallel commit flows.
@@ -53,11 +53,11 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
 
 ### Package
 
-Root package is `com.github.jvsena42.echo`. Android namespace is `com.github.jvsena42.echo` (app) and `com.github.jvsena42.echo.shared` (library).
+Root package is `com.github.jvsena42.loopky`. Android namespace is `com.github.jvsena42.loopky` (app) and `com.github.jvsena42.loopky.shared` (library).
 
 ## Coding conventions
 
-Prescriptive rules, adapted from the sibling Bitkit apps' `AGENTS.md` to Echo's
+Prescriptive rules, adapted from the sibling Bitkit apps' `AGENTS.md` to Loopky's
 shared-logic / native-UI split. These are the canonical conventions — `docs/Architecture.md`
 points here rather than restating them.
 
@@ -101,7 +101,7 @@ points here rather than restating them.
 ### iOS (SwiftUI · `iosApp`)
 
 - **Consume the shared KMP ViewModels.** Do **not** introduce iOS-side `@Observable` business-logic
-  objects (unlike bitkit-ios) — Echo shares its VMs. Bridge `StateFlow`/`SharedFlow` → SwiftUI per the
+  objects (unlike bitkit-ios) — Loopky shares its VMs. Bridge `StateFlow`/`SharedFlow` → SwiftUI per the
   Architecture §9.2 decision; call the VM's generated `clear()` on disappear (there is no `onDispose()`).
 - Reuse the project's text/components instead of raw `Text().font().foregroundColor()` chains; use
   `.task` (not `.onAppear`) for async tied to a view's lifetime; mutate state on `@MainActor`; use

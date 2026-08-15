@@ -1,4 +1,4 @@
-rootProject.name = "Echo"
+rootProject.name = "Loopky"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

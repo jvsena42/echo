@@ -86,8 +86,8 @@ struct DeckDetailScreen: View {
             case is DeckDetailEffectNavigateStudy:
                 onStudy()
             case let share as DeckDetailEffectShare:
-                // Matches Android: "<title> on Echo" beats a bare pubky:// manifest URL.
-                shareItem = ShareItem(text: "\(share.title) on Echo\n\(share.uri)")
+                // Matches Android: "<title> on Loopky" beats a bare pubky:// manifest URL.
+                shareItem = ShareItem(text: "\(share.title) on Loopky\n\(share.uri)")
             case is DeckDetailEffectDeleted:
                 onDeleted()
             default:

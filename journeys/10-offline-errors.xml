@@ -11,7 +11,7 @@
     and back on afterwards with `enable`.
   </description>
   <actions>
-    <action>With wifi and mobile data disabled, force-stop and relaunch the Echo app</action>
+    <action>With wifi and mobile data disabled, force-stop and relaunch the Loopky app</action>
     <action>Verify the Home tab shows an error state with a title and a retry action (resource-id: error_retry), NOT the "Nothing to study yet" empty state and NOT a "Create a deck" call to action</action>
     <action>Verify the error message does not contain any raw URL, "HTTP transport error", or other FFI diagnostic text</action>
     <action>Tap the element with resource-id "tab_decks"</action>

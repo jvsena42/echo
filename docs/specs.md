@@ -1,4 +1,4 @@
-# Echo — Deck Import Spec (Paste-to-Import)
+# Loopky — Deck Import Spec (Paste-to-Import)
 
 > **Status:** Draft v1 · **Scope:** Product + UX spec for the primary deck-import flow. Engineering RFC comes later.
 > **Reads alongside:** [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md)
@@ -7,11 +7,11 @@
 
 ## 1. Summary
 
-Paste-to-Import is **the primary way users build decks in Echo v1**. The user pastes any structured or semi-structured text — a vocab list, a Notion table, a spreadsheet column, a chat message, a glossary — and Echo turns it into cards. Echo auto-detects the separator, shows a live preview as real flip-cards (not a table), and hands the parsed cards to a swipe-based triage queue before committing them to a deck.
+Paste-to-Import is **the primary way users build decks in Loopky v1**. The user pastes any structured or semi-structured text — a vocab list, a Notion table, a spreadsheet column, a chat message, a glossary — and Loopky turns it into cards. Loopky auto-detects the separator, shows a live preview as real flip-cards (not a table), and hands the parsed cards to a swipe-based triage queue before committing them to a deck.
 
 It is inspired by Anki's "Import File" pattern but rebuilt for touch: no file pickers, no column indexes, no desktop-era settings dialog. The user pastes, glances at the preview, taps import.
 
-**Who it's for:** Every Echo user. Language learners pasting vocab lists, students pasting glossaries, hobbyists pasting their own notes. No technical literacy required.
+**Who it's for:** Every Loopky user. Language learners pasting vocab lists, students pasting glossaries, hobbyists pasting their own notes. No technical literacy required.
 
 **Why this instead of AI or `.apkg`:** It's instant, offline, free, private, and covers the single most common import shape — two columns of text the user already has somewhere. AI import and OCR (see §14) will come later as alternative entry points into the same triage queue.
 
@@ -21,7 +21,7 @@ It is inspired by Anki's "Import File" pattern but rebuilt for touch: no file pi
 
 - **One-tap primary import:** Users should reach the paste screen in ≤2 taps from Decks or the empty state.
 - **Zero-config in the common case:** Auto-detect the separator correctly for ≥90% of pastes. The user should rarely need to touch the override.
-- **Preview as cards, not a table:** Show the first 3 parsed items as real Echo flip-cards so the user feels the result before committing.
+- **Preview as cards, not a table:** Show the first 3 parsed items as real Loopky flip-cards so the user feels the result before committing.
 - **Triage before commit:** Every imported card passes through the swipe queue. Users approve, edit, or discard each card before it enters their deck.
 - **Native feel:** iOS and Android variants follow §4 of the brief — SF Pro / Roboto, system sheets, platform haptics on successful import.
 - **Accessible:** Full VoiceOver / TalkBack support, dynamic type, reduce-motion alternatives.
@@ -36,7 +36,7 @@ Explicitly deferred — do **not** design or build:
 - OCR / photo-of-page import
 - Audio recording during import
 - Image-folder bulk import
-- Drag-and-drop (desktop only — Echo is mobile in v1)
+- Drag-and-drop (desktop only — Loopky is mobile in v1)
 - Cloze deletion syntax (`{{c1::...}}`)
 - Re-import / sync with an external source
 - Private decks of any kind (see §11)
@@ -45,10 +45,10 @@ Explicitly deferred — do **not** design or build:
 
 ## 4. User stories
 
-1. **Vocab list from a textbook.** A Spanish learner pastes 40 lines of `palabra — word` from their notes. Echo detects the em-dash separator, previews three cards, they swipe through the triage queue and commit. Total time: under a minute.
-2. **Notion table.** A student copies a 2-column Notion table into Echo. Echo sees the pipe-delimited markdown table, parses it, previews, done.
-3. **Hand-typed quick list.** A user types `capital of France: Paris` and a few similar lines directly into the paste box. Echo auto-detects `: ` and parses each line into a card.
-4. **Spreadsheet with tags.** A power user pastes three tab-separated columns: front, back, tags. Echo detects three fields and prompts them to map the third column to tags. Tags split on commas within the cell.
+1. **Vocab list from a textbook.** A Spanish learner pastes 40 lines of `palabra — word` from their notes. Loopky detects the em-dash separator, previews three cards, they swipe through the triage queue and commit. Total time: under a minute.
+2. **Notion table.** A student copies a 2-column Notion table into Loopky. Loopky sees the pipe-delimited markdown table, parses it, previews, done.
+3. **Hand-typed quick list.** A user types `capital of France: Paris` and a few similar lines directly into the paste box. Loopky auto-detects `: ` and parses each line into a card.
+4. **Spreadsheet with tags.** A power user pastes three tab-separated columns: front, back, tags. Loopky detects three fields and prompts them to map the third column to tags. Tags split on commas within the cell.
 5. **Re-opener.** A user who already imported once taps "+" on Decks. The paste screen is empty and focused on the text field. No history, no drafts — each import is a fresh canvas.
 
 ---
@@ -71,7 +71,7 @@ All three routes land on the same paste screen.
 - **Body:**
   - A large rounded text field with the hint *"Paste your list here — one card per line"*. The field auto-focuses and auto-expands as text grows.
   - Below the field, once text exists: a **detected-separator chip** reading e.g. *"Detected: em-dash · tap to change"*. Tapping opens a bottom sheet with the override options (§6).
-  - Below the chip: **live preview** — the first three parsed items rendered as real Echo flip-cards using the existing Card component from [§7 of brief](../design/DESIGN_GUIDELINE.md). The user can tap any preview card to flip it and see the back. The preview updates within ~150 ms of any change to the text or separator.
+  - Below the chip: **live preview** — the first three parsed items rendered as real Loopky flip-cards using the existing Card component from [§7 of brief](../design/DESIGN_GUIDELINE.md). The user can tap any preview card to flip it and see the back. The preview updates within ~150 ms of any change to the text or separator.
   - A subtle counter: *"42 cards will be imported"*.
 - **Sticky footer:** *"This deck will be public on your Pubky"* notice (see §11) + primary *"Next"* button.
 
@@ -185,7 +185,7 @@ Every state from §6 of the brief is enumerated here. The designer must produce 
 - This **overrides** the public/private toggle described in [§9.5 of the brief](../design/DESIGN_GUIDELINE.md#96-self-custodial-framing). Flag as an open question (§13) for the designer and PM.
 - The paste screen and commit screen must both show a plain-language notice: *"This deck will be public on your Pubky."* — no fine print, no tooltips, no toggle.
 - The primary commit button reads **"Publish deck"**, not "Save deck" or "Create deck." The word choice matters: it tells the user something public is about to happen.
-- Tags from the tags column are written via Pubky's native tag primitive ([§9.3 of brief](../design/DESIGN_GUIDELINE.md)), not a custom Echo system.
+- Tags from the tags column are written via Pubky's native tag primitive ([§9.3 of brief](../design/DESIGN_GUIDELINE.md)), not a custom Loopky system.
 - The author field on the published deck resolves to the user's pubky identity per [§9.2 of brief](../design/DESIGN_GUIDELINE.md).
 
 ### 11.1 Published deck shape

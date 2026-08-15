@@ -4,7 +4,7 @@
     onboarding. Run LAST — it ends the session. Requires a signed-in session.
   </description>
   <actions>
-    <action>Launch the Echo app and verify the Home screen is shown</action>
+    <action>Launch the Loopky app and verify the Home screen is shown</action>
     <action>Tap the element with resource-id "tab_profile" in the bottom tab bar</action>
     <action>Verify the profile screen shows the user's identity (name or truncated pubky)</action>
     <action>Tap the element with resource-id "profile_settings"</action>

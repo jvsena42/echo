@@ -1,4 +1,4 @@
-# SwiftLint config for the Echo iOS app.
+# SwiftLint config for the Loopky iOS app.
 # Lean ruleset — relies on SwiftLint defaults, only quieting the rules that
 # false-positive on SwiftUI screens. Run via `swiftlint` from iosApp/ (or
 # `./gradlew lintSwift` from the repo root). See CLAUDE.md "Build & run".

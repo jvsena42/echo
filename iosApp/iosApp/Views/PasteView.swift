@@ -17,17 +17,17 @@ struct PasteView: View {
                     Button(action: onCancel) {
                         Text("paste_cancel")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(EchoColor.accentPrimary)
+                            .foregroundColor(LoopkyColor.accentPrimary)
                     }
                     Spacer()
                     Text("paste_title")
                         .font(.system(size: 18, weight: .heavy))
-                        .foregroundColor(EchoColor.foregroundPrimary)
+                        .foregroundColor(LoopkyColor.foregroundPrimary)
                     Spacer()
                     Button("paste_next", action: onNext)
-                        .buttonStyle(EchoCompactFilledButtonStyle(
-                            fill: isParsed ? EchoColor.accentPrimary : EchoColor.borderSubtle,
-                            foreground: isParsed ? .white : EchoColor.foregroundMuted
+                        .buttonStyle(LoopkyCompactFilledButtonStyle(
+                            fill: isParsed ? LoopkyColor.accentPrimary : LoopkyColor.borderSubtle,
+                            foreground: isParsed ? .white : LoopkyColor.foregroundMuted
                         ))
                         .disabled(!isParsed)
                 }
@@ -35,27 +35,27 @@ struct PasteView: View {
                 // Text field
                 TextEditor(text: $rawText)
                     .font(.system(size: 14))
-                    .foregroundColor(EchoColor.foregroundPrimary)
+                    .foregroundColor(LoopkyColor.foregroundPrimary)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 160)
                     .padding(16)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(EchoColor.surfaceCard)
+                            .fill(LoopkyColor.surfaceCard)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(rawText.isEmpty ? EchoColor.borderSubtle : EchoColor.accentPrimary, lineWidth: 2)
+                            .stroke(rawText.isEmpty ? LoopkyColor.borderSubtle : LoopkyColor.accentPrimary, lineWidth: 2)
                     )
                     .overlay(alignment: .topLeading) {
                         if rawText.isEmpty {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("paste_input_placeholder_title")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(EchoColor.foregroundMuted)
+                                    .foregroundColor(LoopkyColor.foregroundMuted)
                                 Text("paste_input_placeholder_subtitle")
                                     .font(.system(size: 13))
-                                    .foregroundColor(EchoColor.foregroundMuted.opacity(0.6))
+                                    .foregroundColor(LoopkyColor.foregroundMuted.opacity(0.6))
                             }
                             .padding(20)
                             .allowsHitTesting(false)
@@ -85,18 +85,18 @@ struct PasteView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(EchoColor.accentSecondary)
+                                .foregroundColor(LoopkyColor.accentSecondary)
                             Text(String(format: NSLocalizedString("paste_detected_separator", comment: ""), detectedSeparator))
                                 .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(EchoColor.accentSecondary)
+                                .foregroundColor(LoopkyColor.accentSecondary)
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Capsule().fill(EchoColor.accentSecondarySoft))
+                        .background(Capsule().fill(LoopkyColor.accentSecondarySoft))
                         Spacer()
                         Text(String(format: NSLocalizedString("paste_card_count", comment: ""), cardCount))
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(EchoColor.foregroundMuted)
+                            .foregroundColor(LoopkyColor.foregroundMuted)
                     }
                 }
 
@@ -105,11 +105,11 @@ struct PasteView: View {
                     Text("paste_preview_label")
                         .font(.system(size: 10, weight: .bold))
                         .kerning(0.8)
-                        .foregroundColor(EchoColor.foregroundMuted)
+                        .foregroundColor(LoopkyColor.foregroundMuted)
                     Text("paste_try_pasting_label")
                         .font(.system(size: 10, weight: .bold))
                         .kerning(0.8)
-                        .foregroundColor(EchoColor.foregroundMuted)
+                        .foregroundColor(LoopkyColor.foregroundMuted)
 
                     ExampleCardView(title: "Vocab list", separator: "em-dash", lines: ["hola — hello", "gracias — thank you"])
                     ExampleCardView(
@@ -125,7 +125,7 @@ struct PasteView: View {
                     Text("🔗").font(.system(size: 14))
                     Text("paste_public_notice")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(EchoColor.accentSecondary)
+                        .foregroundColor(LoopkyColor.accentSecondary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -133,7 +133,7 @@ struct PasteView: View {
             .padding(.top, 8)
             .padding(.bottom, 40)
         }
-        .background(EchoColor.surfacePrimary.ignoresSafeArea())
+        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
     }
 }
@@ -148,29 +148,29 @@ private struct ExampleCardView: View {
             HStack {
                 Text(title)
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(EchoColor.foregroundPrimary)
+                    .foregroundColor(LoopkyColor.foregroundPrimary)
                 Spacer()
                 Text(separator)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(EchoColor.accentPrimary)
+                    .foregroundColor(LoopkyColor.accentPrimary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(EchoColor.accentPrimarySoft))
+                    .background(Capsule().fill(LoopkyColor.accentPrimarySoft))
             }
             ForEach(lines, id: \.self) { line in
                 Text(line)
                     .font(.system(size: 13))
-                    .foregroundColor(EchoColor.foregroundSecondary)
+                    .foregroundColor(LoopkyColor.foregroundSecondary)
             }
         }
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(EchoColor.surfaceCard)
+                .fill(LoopkyColor.surfaceCard)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(EchoColor.borderSubtle, lineWidth: 1)
+                .stroke(LoopkyColor.borderSubtle, lineWidth: 1)
         )
     }
 }

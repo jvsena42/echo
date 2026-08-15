@@ -47,11 +47,11 @@ kotlin {
 }
 
 android {
-    namespace = "com.github.jvsena42.echo"
+    namespace = "com.github.jvsena42.loopky"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.github.jvsena42.echo"
+        applicationId = "com.github.jvsena42.loopky"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
