@@ -311,5 +311,4 @@ fun testDraft(vararg pairs: Pair<String, String>): ImportDraft = ImportDraft(
         ParsedRow(index = index, fields = listOf(front, back), isValid = true)
     },
     duplicatesCollapsed = 0,
-    flags = emptyList(),
 )

@@ -5,7 +5,6 @@ data class ImportDraft(
     val separator: Separator,
     val rows: List<ParsedRow>,
     val duplicatesCollapsed: Int,
-    val flags: List<ParseFlag>,
 )
 
 data class ParsedRow(
@@ -53,11 +52,3 @@ const val FRONT_FIELD = 0
 
 /** Field index of the card back in a [ParsedRow]. */
 const val BACK_FIELD = 1
-
-sealed class ParseFlag {
-    data class MismatchedRowLength(val rowIndex: Int) : ParseFlag()
-    data class InvalidUtf8(val rowIndex: Int) : ParseFlag()
-    data class LongCard(val rowIndex: Int) : ParseFlag()
-    data object SingleColumnFallback : ParseFlag()
-    data object OverMaxSize : ParseFlag()
-}

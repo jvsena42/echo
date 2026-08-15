@@ -5,7 +5,6 @@ import com.github.jvsena42.loopky.domain.model.BACK_FIELD
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.FRONT_FIELD
 import com.github.jvsena42.loopky.domain.model.ImportDraft
-import com.github.jvsena42.loopky.domain.model.ParseFlag
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.TriageDecision
@@ -72,14 +71,7 @@ class ImportRepositoryImpl : ImportRepository {
         val rawRows = splitRows(text, resolved).map { it.take(MAX_FIELDS) }
         require(rawRows.isNotEmpty()) { "Could not parse any cards." }
 
-        val columnCount = rawRows.maxOf { it.size }
-
-        val flags = mutableListOf<ParseFlag>()
-        if (columnCount == 1) flags.add(ParseFlag.SingleColumnFallback)
-        if (rawRows.size > MAX_CARDS) flags.add(ParseFlag.OverMaxSize)
-
         val rows = rawRows.take(MAX_CARDS).mapIndexed { index, fields ->
-            if (fields.size != columnCount) flags.add(ParseFlag.MismatchedRowLength(index))
             ParsedRow(
                 index = index,
                 fields = fields,
@@ -101,7 +93,6 @@ class ImportRepositoryImpl : ImportRepository {
             separator = resolved,
             rows = deduped,
             duplicatesCollapsed = duplicatesCollapsed,
-            flags = flags,
         ).also { draft = it }
     }
 
