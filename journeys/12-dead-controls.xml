@@ -13,8 +13,9 @@
     <action>Verify the Android share sheet opens (it previously did nothing at all)</action>
     <action>Dismiss the share sheet, tap the element with resource-id "deck_edit"</action>
     <action>Tap the deck cover (resource-id: deck_editor_cover) and verify the image picker sheet opens — a cover could previously only be set while publishing</action>
-    <action>Dismiss the sheet and verify the card rows show move up/down buttons (resource-ids: card_move_up, card_move_down) rather than a drag handle that does nothing</action>
+    <action>Dismiss the sheet and verify the card rows show move up/down buttons (resource-ids: card_move_up, card_move_down) alongside the drag handle (resource-id: card_drag_handle)</action>
     <action>Tap "card_move_down" on the first card and verify the two cards swap order</action>
+    <action>Long-press "card_drag_handle" on the first card and drag it below the second, then release, and verify the two cards swap back</action>
     <action>Tap the element with resource-id "tab_profile" and tap the Share button</action>
     <action>Verify the Android share sheet opens</action>
     <action>Tap the element with resource-id "profile_signout" and verify a confirmation dialog appears rather than signing out immediately</action>

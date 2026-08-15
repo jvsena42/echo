@@ -114,7 +114,7 @@ publish → deck detail → editor → card editor → study → discover → fr
 | Sign-in failed twice then succeeded on an identical third attempt | bounded retry on the auth-relay poll, transport failures only |
 | Paste "Next" with an empty box and Publish with an empty title: nothing happened, no message | real disabled styling, CTAs enabled so validation can speak, Publish CTA pinned above the fold |
 | Both Share buttons did nothing | one `Context.shareText` helper |
-| Editor drag handle did nothing when dragged | move up/down buttons + real reorder (needed the card-order fix first) |
+| Editor drag handle did nothing when dragged | move up/down buttons + real reorder (needed the card-order fix first); the handle now drags too |
 | Decks search icon and "Recent" label were inert | wired to a real filter and sort |
 | Separator chip looked tappable and was not | override sheet (spec §5.2) |
 | Discarding a card in triage was irreversible | undo, including for the last card |
