@@ -10,7 +10,6 @@ import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Card
-import com.github.jvsena42.loopky.domain.model.ColumnMapping
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ImportDraft
@@ -308,7 +307,6 @@ class FakeMediaRepository : MediaRepository {
 fun testDraft(vararg pairs: Pair<String, String>): ImportDraft = ImportDraft(
     rawText = pairs.joinToString("\n") { "${it.first} — ${it.second}" },
     separator = Separator.EmDash,
-    columnMapping = ColumnMapping.DEFAULT_TWO_COL,
     rows = pairs.mapIndexed { index, (front, back) ->
         ParsedRow(index = index, fields = listOf(front, back), isValid = true)
     },

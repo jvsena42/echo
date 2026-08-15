@@ -1,6 +1,5 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
-import com.github.jvsena42.loopky.domain.model.ColumnRole
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import kotlinx.coroutines.runBlocking
@@ -103,14 +102,6 @@ class ImportRepositoryImplTest {
         val draft = repo().parse("mitosis: cell division\nosmosis: water moves").getOrThrow()
         assertEquals("mitosis", draft.rows[0].fields[0])
         assertEquals("cell division", draft.rows[0].fields[1])
-    }
-
-    @Test
-    fun twoColumnMappingIsCorrect() = runBlocking {
-        val draft = repo().parse("hola — hello\ngracias — thank you").getOrThrow()
-        assertEquals(2, draft.columnMapping.assignments.size)
-        assertEquals(ColumnRole.Front, draft.columnMapping.assignments[0])
-        assertEquals(ColumnRole.Back, draft.columnMapping.assignments[1])
     }
 
     // ── Delimiter in content (split limit) ───────────────────────────────

@@ -1,16 +1,14 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.repository.ImportRepository
-import com.github.jvsena42.loopky.domain.model.ColumnMapping
-import com.github.jvsena42.loopky.domain.model.ColumnRole
+import com.github.jvsena42.loopky.domain.model.BACK_FIELD
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
+import com.github.jvsena42.loopky.domain.model.FRONT_FIELD
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.ParseFlag
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.TriageDecision
-import com.github.jvsena42.loopky.domain.model.backIndex
-import com.github.jvsena42.loopky.domain.model.frontIndex
 
 @Suppress("TooManyFunctions")
 class ImportRepositoryImpl : ImportRepository {
@@ -43,21 +41,19 @@ class ImportRepositoryImpl : ImportRepository {
 
     override fun keptRows(): List<ParsedRow> {
         val d = draft ?: return emptyList()
-        val frontIdx = d.frontIndex()
-        val backIdx = d.backIndex()
         return d.rows
             .filter { triageDecisions[it.index] != TriageDecision.Discard }
-            .map { row -> applyEdit(row, frontIdx, backIdx) }
+            .map { row -> applyEdit(row) }
     }
 
     /** Returns [row] with any triage edit applied to its front/back fields. */
-    private fun applyEdit(row: ParsedRow, frontIdx: Int, backIdx: Int): ParsedRow {
+    private fun applyEdit(row: ParsedRow): ParsedRow {
         val edit = rowEdits[row.index] ?: return row
         val (front, back) = edit
         val fields = row.fields.toMutableList()
-        while (fields.size <= maxOf(frontIdx, backIdx)) fields.add("")
-        fields[frontIdx] = front
-        fields[backIdx] = back
+        while (fields.size <= BACK_FIELD) fields.add("")
+        fields[FRONT_FIELD] = front
+        fields[BACK_FIELD] = back
         return row.copy(fields = fields, isValid = front.isNotBlank() || back.isNotBlank())
     }
 
@@ -76,11 +72,6 @@ class ImportRepositoryImpl : ImportRepository {
         require(rawRows.isNotEmpty()) { "Could not parse any cards." }
 
         val columnCount = rawRows.maxOf { it.size }
-        val mapping = when {
-            columnCount >= 3 -> ColumnMapping.DEFAULT_THREE_COL
-            columnCount == 2 -> ColumnMapping.DEFAULT_TWO_COL
-            else -> ColumnMapping(listOf(ColumnRole.Front))
-        }
 
         val flags = mutableListOf<ParseFlag>()
         if (columnCount == 1) flags.add(ParseFlag.SingleColumnFallback)
@@ -107,7 +98,6 @@ class ImportRepositoryImpl : ImportRepository {
         ImportDraft(
             rawText = rawText,
             separator = resolved,
-            columnMapping = mapping,
             rows = deduped,
             duplicatesCollapsed = duplicatesCollapsed,
             flags = flags,

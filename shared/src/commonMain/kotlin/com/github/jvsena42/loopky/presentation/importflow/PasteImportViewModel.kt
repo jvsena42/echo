@@ -3,8 +3,8 @@ package com.github.jvsena42.loopky.presentation.importflow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.repository.ImportRepository
-import com.github.jvsena42.loopky.domain.model.ColumnRole
 import com.github.jvsena42.loopky.domain.model.Separator
+import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -59,12 +59,9 @@ class PasteImportViewModel(
         parseJob = viewModelScope.launch {
             importRepository.parse(text, _state.value.separatorOverride)
                 .onSuccess { draft ->
-                    val mapping = draft.columnMapping.assignments
-                    val frontIdx = mapping.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
-                    val backIdx = mapping.indexOfFirst { it == ColumnRole.Back }.takeIf { it >= 0 } ?: 1
                     val incompleteCount = draft.rows.count { row ->
-                        row.fields.getOrElse(frontIdx) { "" }.isBlank() ||
-                            row.fields.getOrElse(backIdx) { "" }.isBlank()
+                        val (front, back) = draft.frontBackOf(row)
+                        front.isBlank() || back.isBlank()
                     }
                     _state.update {
                         it.copy(
@@ -72,10 +69,8 @@ class PasteImportViewModel(
                             cardCount = draft.rows.size,
                             incompleteCardCount = incompleteCount,
                             previewCards = draft.rows.take(PREVIEW_CARD_COUNT).map { row ->
-                                PreviewCard(
-                                    front = row.fields.getOrElse(frontIdx) { "" },
-                                    back = row.fields.getOrElse(backIdx) { "" },
-                                )
+                                val (front, back) = draft.frontBackOf(row)
+                                PreviewCard(front = front, back = back)
                             },
                             isParsed = true,
                             error = null,

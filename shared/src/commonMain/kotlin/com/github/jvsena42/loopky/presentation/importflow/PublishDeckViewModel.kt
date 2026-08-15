@@ -9,13 +9,13 @@ import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.CardSide
-import com.github.jvsena42.loopky.domain.model.ColumnRole
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.Tag
+import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
 import kotlinx.coroutines.Job
@@ -192,25 +192,22 @@ class PublishDeckViewModel(
         }
     }
 
-    /** Maps the kept triage rows to [Card]s using the draft's column roles, uploading any
-     *  per-row images attached during triage. */
+    /** Maps the kept triage rows to [Card]s, uploading any per-row images attached during triage. */
     private suspend fun buildCards(draft: ImportDraft, deckId: String, now: Long): List<Card> {
-        val mapping = draft.columnMapping.assignments
-        val frontIdx = mapping.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
-        val backIdx = mapping.indexOfFirst { it == ColumnRole.Back }.takeIf { it >= 0 } ?: 1
         val cards = mutableListOf<Card>()
         for (row in importRepository.keptRows()) {
+            val (front, back) = draft.frontBackOf(row)
             cards.add(
                 Card(
                     id = generateId(),
                     deckId = deckId,
                     updatedAt = now,
                     front = CardSide(
-                        text = row.fields.getOrElse(frontIdx) { "" }.takeIf { it.isNotBlank() },
+                        text = front.takeIf { it.isNotBlank() },
                         imageRef = resolveDraftImage(importRepository.rowImage(row.index, isFront = true), deckId),
                     ),
                     back = CardSide(
-                        text = row.fields.getOrElse(backIdx) { "" }.takeIf { it.isNotBlank() },
+                        text = back.takeIf { it.isNotBlank() },
                         imageRef = resolveDraftImage(importRepository.rowImage(row.index, isFront = false), deckId),
                     ),
                 ),
