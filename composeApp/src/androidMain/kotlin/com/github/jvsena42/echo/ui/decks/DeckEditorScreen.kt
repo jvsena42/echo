@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,13 +16,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -47,6 +50,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -54,7 +58,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -62,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.github.jvsena42.echo.R
@@ -72,6 +80,8 @@ import com.github.jvsena42.echo.presentation.decks.EditableCardModel
 import com.github.jvsena42.echo.ui.components.ImagePickerSheet
 import com.github.jvsena42.echo.ui.components.ImageSelection
 import com.github.jvsena42.echo.ui.components.TagChip
+import com.github.jvsena42.echo.ui.components.rememberReorderableListState
+import com.github.jvsena42.echo.ui.components.reorderableHandle
 import com.github.jvsena42.echo.ui.theme.EchoTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -117,7 +127,7 @@ fun DeckEditorRoute(
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeckEditorScreen(
     state: DeckEditorUiState,
@@ -210,219 +220,281 @@ fun DeckEditorScreen(
             )
         },
     ) { innerPadding ->
-        Column(
+        // A LazyColumn rather than a scrolling Column: drag-to-reorder needs the list's layout
+        // info to know which row the finger is over, and rows to animate into their new slots.
+        val listState = rememberLazyListState()
+        val cardKeys = remember(state.cards) { state.cards.mapTo(mutableSetOf<Any>()) { it.id } }
+        val currentCards by rememberUpdatedState(state.cards)
+        val reorderState = rememberReorderableListState(
+            listState = listState,
+            reorderableKeys = cardKeys,
+            onMove = { fromKey, toKey ->
+                val from = currentCards.indexOfFirst { it.id == fromKey }
+                val to = currentCards.indexOfFirst { it.id == toKey }
+                if (from >= 0 && to >= 0) onMoveCard(from, to)
+            },
+        )
+        val haptics = LocalHapticFeedback.current
+
+        LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+                .padding(innerPadding),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // 1. Metadata card
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        elevation = 14.dp,
-                        shape = RoundedCornerShape(20.dp),
-                        ambientColor = colors.shadowElevationLow,
-                        spotColor = colors.shadowElevationLow,
-                    )
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(colors.surfaceCard)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                // Top row: emoji + title
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    // Cover box — tappable so a deck's cover can be changed after publishing,
-                    // which was previously impossible: the picker only existed on the publish step.
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(colors.accentPrimarySoft)
-                            .clickable { showCoverSheet = true }
-                            .testTag("deck_editor_cover"),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        val pickedCover = state.coverImageUrl
-                        if (pickedCover != null) {
-                            AsyncImage(
-                                model = pickedCover,
-                                contentDescription = stringResource(R.string.deck_editor_cover),
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        } else if (state.coverEmoji.isNotEmpty()) {
-                            Text(text = state.coverEmoji, fontSize = 32.sp)
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Image,
-                                contentDescription = stringResource(R.string.deck_editor_cover),
-                                tint = colors.foregroundMuted,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
-                    }
-
-                    // Title + description column
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.deck_editor_label_title),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.W700,
-                            letterSpacing = 0.8.sp,
-                            color = colors.foregroundMuted,
-                        )
-
-                        OutlinedTextField(
-                            value = state.title,
-                            onValueChange = onTitleChanged,
-                            modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.W700,
-                                color = colors.foregroundPrimary,
-                            ),
-                            placeholder = {
-                                Text(
-                                    text = stringResource(R.string.deck_editor_title_placeholder),
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.W700,
-                                    color = colors.foregroundMuted,
-                                )
-                            },
-                            isError = state.titleError != null,
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = textFieldColors(),
-                        )
-
-                        state.titleError?.let { errorText ->
-                            Text(text = errorText, fontSize = 12.sp, color = colors.danger)
-                        }
-                    }
-                }
-
-                // Description section
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = stringResource(R.string.deck_editor_label_description),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.W700,
-                        letterSpacing = 0.8.sp,
-                        color = colors.foregroundMuted,
-                    )
-
-                    OutlinedTextField(
-                        value = state.description,
-                        onValueChange = onDescriptionChanged,
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundSecondary),
-                        placeholder = {
-                            Text(
-                                text = stringResource(R.string.deck_editor_description_placeholder),
-                                fontSize = 14.sp,
-                                color = colors.foregroundMuted,
-                            )
-                        },
-                        isError = state.descriptionError != null,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = textFieldColors(),
-                    )
-
-                    state.descriptionError?.let { errorText ->
-                        Text(text = errorText, fontSize = 12.sp, color = colors.danger)
-                    }
-                }
-
-                // Tags section
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = stringResource(R.string.deck_editor_label_tags),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.W700,
-                        letterSpacing = 0.8.sp,
-                        color = colors.foregroundMuted,
-                    )
-
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        state.tags.forEach { tag ->
-                            TagChip(
-                                tag = tag,
-                                onRemove = { onRemoveTag(tag) },
-                            )
-                        }
-
-                        AssistChip(
-                            onClick = { onAddTag("new") },
-                            label = {
-                                Text(text = stringResource(R.string.deck_editor_add_tag), fontSize = 13.sp, fontWeight = FontWeight.W600)
-                            },
-                            shape = RoundedCornerShape(50),
-                            colors = AssistChipDefaults.assistChipColors(labelColor = colors.accentSecondary),
-                            border = BorderStroke(1.dp, colors.accentSecondary),
-                        )
-                    }
-                }
+            item(key = "metadata") {
+                DeckMetadataCard(
+                    state = state,
+                    onTitleChanged = onTitleChanged,
+                    onDescriptionChanged = onDescriptionChanged,
+                    onRemoveTag = onRemoveTag,
+                    onAddTag = onAddTag,
+                    onCoverClick = { showCoverSheet = true },
+                )
             }
 
             // 2. Cards section header
-            Text(
-                text = stringResource(R.string.deck_editor_cards_count, state.cards.size),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.W800,
-                color = colors.foregroundPrimary,
-            )
+            item(key = "cards_header") {
+                Text(
+                    text = stringResource(R.string.deck_editor_cards_count, state.cards.size),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.W800,
+                    color = colors.foregroundPrimary,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
 
             // 3. Card list
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                state.cards.forEachIndexed { index, card ->
-                    CardRow(
-                        card = card,
-                        onClick = { onCardClick(card.id) },
-                        canMoveUp = index > 0,
-                        canMoveDown = index < state.cards.lastIndex,
-                        onMoveUp = { onMoveCard(index, index - 1) },
-                        onMoveDown = { onMoveCard(index, index + 1) },
-                    )
-                }
+            itemsIndexed(state.cards, key = { _, card -> card.id }) { index, card ->
+                val isDragging = reorderState.draggingKey == card.id
+                CardRow(
+                    card = card,
+                    canMoveUp = index > 0,
+                    canMoveDown = index < state.cards.lastIndex,
+                    isDragging = isDragging,
+                    onClick = { onCardClick(card.id) },
+                    onMoveUp = { onMoveCard(index, index - 1) },
+                    onMoveDown = { onMoveCard(index, index + 1) },
+                    modifier = if (isDragging) {
+                        Modifier
+                            .zIndex(1f)
+                            .graphicsLayer { translationY = reorderState.draggingOffset }
+                    } else {
+                        Modifier.animateItem()
+                    },
+                    dragHandleModifier = Modifier.reorderableHandle(
+                        state = reorderState,
+                        key = card.id,
+                        onDragStarted = { haptics.performHapticFeedback(HapticFeedbackType.LongPress) },
+                    ),
+                )
             }
 
             // 4. Add card button
-            OutlinedButton(
-                onClick = onAddCard,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.accentPrimary),
-                border = BorderStroke(1.5.dp, colors.accentPrimary),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = stringResource(R.string.deck_editor_add_card),
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(R.string.deck_editor_add_card), fontSize = 15.sp, fontWeight = FontWeight.W700)
+            item(key = "add_card") {
+                OutlinedButton(
+                    onClick = onAddCard,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.accentPrimary),
+                    border = BorderStroke(1.5.dp, colors.accentPrimary),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = stringResource(R.string.deck_editor_add_card),
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.deck_editor_add_card), fontSize = 15.sp, fontWeight = FontWeight.W700)
+                }
             }
 
             // 5. Error toast
             state.error?.let { errorText ->
+                item(key = "error") {
+                    Text(
+                        text = errorText,
+                        fontSize = 14.sp,
+                        color = colors.danger,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DeckMetadataCard(
+    state: DeckEditorUiState,
+    onTitleChanged: (String) -> Unit,
+    onDescriptionChanged: (String) -> Unit,
+    onRemoveTag: (String) -> Unit,
+    onAddTag: (String) -> Unit,
+    onCoverClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = EchoTheme.colors
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 14.dp,
+                shape = RoundedCornerShape(20.dp),
+                ambientColor = colors.shadowElevationLow,
+                spotColor = colors.shadowElevationLow,
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .background(colors.surfaceCard)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        // Top row: emoji + title
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            // Cover box — tappable so a deck's cover can be changed after publishing,
+            // which was previously impossible: the picker only existed on the publish step.
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.accentPrimarySoft)
+                    .clickable(onClick = onCoverClick)
+                    .testTag("deck_editor_cover"),
+                contentAlignment = Alignment.Center,
+            ) {
+                val pickedCover = state.coverImageUrl
+                if (pickedCover != null) {
+                    AsyncImage(
+                        model = pickedCover,
+                        contentDescription = stringResource(R.string.deck_editor_cover),
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else if (state.coverEmoji.isNotEmpty()) {
+                    Text(text = state.coverEmoji, fontSize = 32.sp)
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = stringResource(R.string.deck_editor_cover),
+                        tint = colors.foregroundMuted,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+
+            // Title + description column
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 Text(
-                    text = errorText,
-                    fontSize = 14.sp,
-                    color = colors.danger,
+                    text = stringResource(R.string.deck_editor_label_title),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.W700,
+                    letterSpacing = 0.8.sp,
+                    color = colors.foregroundMuted,
+                )
+
+                OutlinedTextField(
+                    value = state.title,
+                    onValueChange = onTitleChanged,
                     modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.W700,
+                        color = colors.foregroundPrimary,
+                    ),
+                    placeholder = {
+                        Text(
+                            text = stringResource(R.string.deck_editor_title_placeholder),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.W700,
+                            color = colors.foregroundMuted,
+                        )
+                    },
+                    isError = state.titleError != null,
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = textFieldColors(),
+                )
+
+                state.titleError?.let { errorText ->
+                    Text(text = errorText, fontSize = 12.sp, color = colors.danger)
+                }
+            }
+        }
+
+        // Description section
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = stringResource(R.string.deck_editor_label_description),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.W700,
+                letterSpacing = 0.8.sp,
+                color = colors.foregroundMuted,
+            )
+
+            OutlinedTextField(
+                value = state.description,
+                onValueChange = onDescriptionChanged,
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundSecondary),
+                placeholder = {
+                    Text(
+                        text = stringResource(R.string.deck_editor_description_placeholder),
+                        fontSize = 14.sp,
+                        color = colors.foregroundMuted,
+                    )
+                },
+                isError = state.descriptionError != null,
+                shape = RoundedCornerShape(12.dp),
+                colors = textFieldColors(),
+            )
+
+            state.descriptionError?.let { errorText ->
+                Text(text = errorText, fontSize = 12.sp, color = colors.danger)
+            }
+        }
+
+        // Tags section
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = stringResource(R.string.deck_editor_label_tags),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.W700,
+                letterSpacing = 0.8.sp,
+                color = colors.foregroundMuted,
+            )
+
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                state.tags.forEach { tag ->
+                    TagChip(
+                        tag = tag,
+                        onRemove = { onRemoveTag(tag) },
+                    )
+                }
+
+                AssistChip(
+                    onClick = { onAddTag("new") },
+                    label = {
+                        Text(text = stringResource(R.string.deck_editor_add_tag), fontSize = 13.sp, fontWeight = FontWeight.W600)
+                    },
+                    shape = RoundedCornerShape(50),
+                    colors = AssistChipDefaults.assistChipColors(labelColor = colors.accentSecondary),
+                    border = BorderStroke(1.dp, colors.accentSecondary),
                 )
             }
         }
@@ -441,19 +513,22 @@ private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
 @Composable
 private fun CardRow(
     card: EditableCardModel,
-    onClick: () -> Unit,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
+    isDragging: Boolean,
+    onClick: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
+    modifier: Modifier = Modifier,
+    dragHandleModifier: Modifier = Modifier,
 ) {
     val colors = EchoTheme.colors
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 4.dp,
+                elevation = if (isDragging) 14.dp else 4.dp,
                 shape = RoundedCornerShape(14.dp),
                 ambientColor = colors.shadowElevationLow,
                 spotColor = colors.shadowElevationLow,
@@ -461,13 +536,24 @@ private fun CardRow(
             .clip(RoundedCornerShape(14.dp))
             .background(colors.surfaceCard)
             .clickable(onClick = onClick)
-            .padding(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(start = 6.dp, top = 14.dp, end = 14.dp, bottom = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Explicit move buttons rather than a drag handle: the list lives inside a
-        // verticalScroll where nested drag is unreliable, and these are reachable with
-        // TalkBack and addressable from the journey tests.
+        // Long-press-and-drag handle, per design guideline §6.5. No content description:
+        // dragging is not operable with TalkBack, and announcing it would just be another
+        // dead control — the move buttons next to it are the accessible path to the same move.
+        Icon(
+            imageVector = Icons.Default.DragIndicator,
+            contentDescription = null,
+            tint = if (isDragging) colors.accentPrimary else colors.foregroundMuted,
+            modifier = dragHandleModifier
+                .size(24.dp)
+                .testTag("card_drag_handle"),
+        )
+
+        // The move buttons stay alongside the handle: dragging is unreachable with TalkBack,
+        // and these are what the journey tests drive.
         Column {
             IconButton(
                 onClick = onMoveUp,
