@@ -38,7 +38,7 @@
 
 ### Color
 - **Light + dark themes, system-driven by default** (follow OS setting; user can override in settings)
-- Vibrant accent palette: at least one hero color + one secondary + one celebratory (used for streaks/wins)
+- Vibrant accent palette: at least one hero color + one secondary + one celebratory (used for wins)
 - Semantic tokens: `success`, `warning`, `danger`, `info`
 - SRS rating colors: distinct hues for **Again / Hard / Good / Easy** (red → orange → green → blue, or designer's call — must be colorblind-safe)
 - Contrast must meet WCAG AA on both themes, including the vibrant accents
@@ -61,7 +61,7 @@
 ### Motion
 - Snappy, springy, never sluggish
 - Card flip = the signature interaction; nail it
-- Celebratory micro-animations on streak milestones, deck completion, correct answer streaks
+- Celebratory micro-animations on deck completion, correct answer streaks
 - Respect "Reduce Motion" OS setting
 
 ---
@@ -80,7 +80,7 @@ Loopky uses **shared brand tokens** (colors, type scale, illustrations) but **pl
 | Modals | Sheets / page sheets | Bottom sheets / full-screen dialogs |
 | Buttons | HIG filled / tinted / plain | Material 3 Expressive filled / tonal / text |
 | Lists | Inset grouped / plain | Material list items |
-| Haptics | UIImpactFeedback (use generously on card flips, SRS taps, streak hits) | HapticFeedbackConstants equivalents |
+| Haptics | UIImpactFeedback (use generously on card flips, SRS taps) | HapticFeedbackConstants equivalents |
 | Back navigation | Swipe-from-edge + back chevron | System back gesture + up arrow |
 
 > The earlier custom pill-shaped tab bar (`LoopkyTabBar`) is **retired**: bottom navigation is now the native `ShortNavigationBar` (Android) and native `TabView`/`UITabBar` (iOS), each tinted with Loopky's accent.
@@ -114,7 +114,7 @@ Each screen requires the following **states**: empty, loading, populated/success
 
 ### 6.2 Home / Daily study queue
 - **Front-and-center:** "X cards due today" with a giant primary "Start studying" CTA
-- Below: streak counter, today's progress bar, decks contributing to today's queue
+- Below: today's progress bar, decks contributing to today's queue
 - Empty state: "You're all caught up. Add a deck or browse Discover."
 
 ### 6.3 Study session
@@ -178,7 +178,6 @@ Design these reusable components with all states (default, hover/pressed, disabl
 - **Image picker tile** (empty + filled states)
 - **Speak button** (TTS trigger, with active "speaking" state)
 - **Empty state block** (illustration + headline + subhead + optional CTA)
-- **Streak indicator** (number + flame or equivalent celebratory element)
 - **Progress bar** (linear, for study session and daily goal)
 - **Bottom sheet** (platform-appropriate)
 - **Toast / snackbar** (success, error, info)
