@@ -840,6 +840,12 @@ public func getSignupToken(homeserverPubky: String, adminPassword: String) -> [S
     )
 }
 
+public func initLogging() {
+    try! rustCall {
+        uniffi_pubkycore_fn_func_init_logging($0)
+    }
+}
+
 public func list(url: String, cursor: String?, reverse: Bool?, limit: UInt16?, shallow: Bool?) -> [String] {
     return try! FfiConverterSequenceString.lift(
         try! rustCall {
@@ -1122,6 +1128,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_pubkycore_checksum_func_get_signup_token() != 47927 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_pubkycore_checksum_func_init_logging() != 21182 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_pubkycore_checksum_func_list() != 63419 {
