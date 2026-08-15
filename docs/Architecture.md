@@ -211,6 +211,8 @@ Every state listed in spec §10 maps to a single `PasteImportUiState` / `TriageU
 
 ### 7.1 Shared interface
 
+> **Bulk operations.** `PubkyClient` has no batch/multi-put primitive, and all writes are sequential per operation. Publishing, deck listing, the `delete()` sweep and chunk reads all want bounded concurrency (#43 §4). Since the interface is a deliberate 1:1 FFI mirror, that stays a *repository-level* concern unless the FFI grows bulk calls. Two prerequisites before turning concurrency on: `MutableSessionProvider.value` is a plain non-atomic `var` read on every retry attempt, and `SessionRevalidatorImpl` serializes revalidation without coalescing it. `list()` already accepts `cursor`/`limit`/`shallow` but is never paginated at any call site.
+
 `com.github.jvsena42.loopky.data.pubky.PubkyClient` in `shared/commonMain` is a **thin** Kotlin interface that mirrors the FFI surface one-for-one. It hides the `List<String>` `[status, payload]` convention behind `Result<String>` but does **not** introduce deck/card concepts — higher-level domain operations live in the repositories layer. The interface groups calls into: keys & mnemonics, recovery files, auth/sessions (including the Pubky Ring-style `startAuthFlow` / `awaitAuthApproval` / `parseAuthUrl` flow), records (secret-key and session variants), DHT resolution, and network switching.
 
 ### 7.2 Android wiring
@@ -271,17 +273,22 @@ pubky-app-specs tag records (`/pub/pubky.app/tags/{id}`, id derived via the FFI
 
 ### 8.0 Homeserver layout (canonical)
 
-Published decks live under the author's pubky, one record per card plus a manifest plus media blobs. The homeserver is the source of truth; an in-memory per-session cache fronts it (see §8.3). A persistent SQLDelight cache is a possible future addition (§8.1).
+Published decks live under the author's pubky as a manifest, a set of **card chunk** records, and media blobs. The homeserver is the source of truth; an in-memory per-session cache fronts it (see §8.3). A persistent SQLDelight cache is a possible future addition (§8.1).
+
+Cards are batched rather than stored one record per card, and the manifest carries no card index. See §8.4 for why, and for the numbers that forced it.
 
 **Path layout:**
 
 ```
-/pub/loopky/decks/{deckId}/manifest.json
-/pub/loopky/decks/{deckId}/cards/{cardId}.json
+/pub/loopky/decks/{deckId}/manifest.json      — deck metadata + chunk table
+/pub/loopky/decks/{deckId}/cards/{n}.json     — up to CHUNK_SIZE cards per record
 /pub/loopky/decks/{deckId}/media/{sha256}.{ext}
+/pub/loopky/srs/{authorPubky}/{deckId}/{cardId}.json   — your review state (see §8.3)
 ```
 
 - `{deckId}` and `{cardId}` are UUIDv4, generated client-side.
+- `{n}` is the chunk ordinal, `0`-based and sequential.
+- SRS records live **outside** `/decks/` and are keyed by the deck's author: your review state for someone else's deck was never the owner's data. Author-scoping also stops two authors whose decks share a `deckId` colliding in your `srs/` tree. *(The move to author-scoped, chunked SRS is #43 §2; the path above is the target, and `PubkyPaths.srs` still writes the deck-nested form today.)*
 - `{sha256}` is the hex digest of the blob; acts as a content address and enables per-deck dedupe.
 - `.ext` is informational; MIME is carried in the card's media ref.
 
@@ -300,20 +307,42 @@ Published decks live under the author's pubky, one record per card plus a manife
   "updated_at": 1739000500000,
   "listen_enabled": true,
   "speak_enabled": true,
-  "cards": [
-    { "id": "uuid-1", "updated_at": 1739000100000 },
-    { "id": "uuid-2", "updated_at": 1739000200000 }
-  ]
+  "card_count": 20000,
+  "chunks": [
+    { "n": 0, "count": 100, "updated_at": 1739000100000 },
+    { "n": 1, "count": 100, "updated_at": 1739000200000 }
+  ],
+  "source": {
+    "kind": "clone",
+    "uri": "pubky://pk:other/pub/loopky/decks/uuid/manifest.json",
+    "origin_id": null,
+    "imported_at": 1739000000000
+  }
 }
 ```
 
-- `cards[]` order **is** the study order.
-- Manifest `updated_at` bumps on any deck-metadata change or any card add/remove/reorder. A per-card edit bumps the card record and its entry in the manifest.
+- **There is no card index.** Membership is the union of the chunks. The manifest is bounded: a 20k-card deck's manifest is ~3 KB, against ~1.46 MB when it listed every card.
+- `card_count` is denormalized so a deck tile renders from the manifest alone — it used to be `cardIndex.size`, which meant downloading 20,000 entries to draw one tile.
+- `chunks[].updated_at` is the sync unit. A follower diffs it against their cache and re-fetches only the chunks that moved: one chunk GET when the owner edits one card, rather than re-reading a full index.
+- `source` records provenance — one block rather than a field per origin, so clone / import / the AI-OCR-URL sources in spec §14 don't each churn the schema. `kind` is `original` | `clone` | `import`. Absent on decks written before it existed.
+- Study order is **not** manifest position; it is the card's own `ord` (see below).
+- Manifest `updated_at` bumps on any deck-metadata change or any card add/remove/reorder.
 - `listen_enabled` / `speak_enabled` are deck-level study opt-ins (TTS playback of the back / pronunciation practice). Both default `true`; manifests written before these fields existed decode to `true`. Additive — schema stays `1`.
 - A media ref (`cover_image_ref`, `image_ref`, `audio_ref`) may instead carry a `"url"` field for a **web image** (e.g. an Unsplash photo). When `url` is set, `path`/`sha256` are empty (`""`) and no blob is stored on the homeserver; the client loads the remote URL directly.
 - **Unsplash licensing.** Their API guidelines are licensing terms, and breaching them costs API access. Loading the remote `url` rather than re-hosting the bytes satisfies the hotlinking rule; the image picker credits the photographer on every grid cell and links both them and unsplash.com with `?utm_source=loopky&utm_medium=referral`; and `UnsplashClient.trackDownload` pings `links.download_location` when a pick is committed. **Known gap:** a media ref carries no attribution fields, so a published deck cover or card face displays its Unsplash photo uncredited. Closing that means adding `author_name` / `author_url` to `MediaRefDto` (additive, schema stays `1` — `ignoreUnknownKeys` keeps older manifests readable) and rendering a credit wherever a remote image is shown.
 
-**`cards/{cardId}.json`:**
+**`cards/{n}.json`:**
+
+```json
+{
+  "schema_version": 1,
+  "deck_id": "uuid",
+  "chunk": 0,
+  "cards": [ /* CardDto, up to CHUNK_SIZE of them */ ]
+}
+```
+
+Each entry in `cards[]`:
 
 ```json
 {
@@ -321,6 +350,7 @@ Published decks live under the author's pubky, one record per card plus a manife
   "id": "uuid-1",
   "deck_id": "uuid",
   "updated_at": 1739000100000,
+  "ord": 3000,
   "front": {
     "text": "hola",
     "image_ref": null,
@@ -334,7 +364,10 @@ Published decks live under the author's pubky, one record per card plus a manife
 }
 ```
 
-- A side must have at least one populated field; enforced in `DeckRepository.publishDeck()`.
+- `ord` is the study order, sparse with a stride of 1000 (`ORD_STRIDE`). A card inserted between two neighbours takes the midpoint, so an insert rewrites one chunk instead of renumbering every following card — which, chunked, would mean rewriting every chunk in the deck. `ordBetween` returns null when two neighbours are adjacent and the caller must renumber.
+- **Chunk assignment is sequential-append**: a new card goes to the last chunk with room, tracked by `count`. Hash-partitioning on card id would be stable under every mutation but would produce CHUNK_SIZE-many near-empty records for a 50-card deck. A delete leaves the chunk short; **holes are tolerated deliberately** — closing one would mean rewriting every following chunk. Compaction is a later concern.
+- `CHUNK_SIZE` (100) is the single knob for the storage/write trade-off, and readers derive the chunk count from the manifest rather than assuming it, so it can be retuned with no migration. It is deliberately conservative: **the homeserver's per-record ceiling is undocumented** and has not been measured.
+- A side must have at least one populated field; enforced in `DeckRepository.publish()`.
 - **Cards carry no tags.** Tags are deck-level and live in `manifest.json`; there is no per-card tag field and no plan for one in v1 (spec §8).
 - Media refs are relative to the deck path and resolved against `/pub/loopky/decks/{deckId}/`.
 
@@ -342,17 +375,21 @@ Published decks live under the author's pubky, one record per card plus a manife
 
 On deck open:
 1. `GET manifest.json`.
-2. Diff `cards[]` against the local cache by `(id, updated_at)`.
-3. For each entry whose remote `updated_at` is newer: `GET cards/{id}.json`.
-4. For each local ID missing from the remote manifest: delete locally.
-5. For each referenced media `sha256` not in the local blob cache: `GET media/{sha256}.{ext}`.
+2. Diff `chunks[]` against the local cache by `(n, updated_at)`.
+3. For each chunk whose remote `updated_at` is newer: `GET cards/{n}.json`.
+4. Rebuild the deck's cache entry from what was read. Deletions need no separate step — a card the author removed is simply absent from every chunk. *(The old step 4 diffed a card index and issued homeserver DELETEs for the difference, so a stale local cache could delete a live card.)*
+5. Media is **not** prefetched. Blobs are fetched lazily when a card is displayed; bulk-prefetching every referenced blob is untenable for an Anki-sized deck with hundreds of MB of audio.
 
-On local edit:
-1. Write/overwrite the card record with a new `updated_at`.
-2. Update the manifest entry's `updated_at` (and reorder/add/remove if needed).
+On single-card edit:
+1. Rewrite the one chunk holding the card.
+2. Patch that chunk's `updated_at` and `count` in the manifest, and `card_count`.
 3. PUT manifest.
 
-No cross-record transactions. A momentarily stale manifest vs a newer card record is tolerated — the next sync reconciles. Last-write-wins; no tombstones, no conflict resolution in v1.
+Both writes are owned by `DeckRepository.upsertCard` / `deleteCard` rather than split across repositories — splitting them is what previously let a card record and the manifest drift apart permanently. The chunk is written before the manifest: a chunk the manifest does not yet describe is invisible, whereas a manifest pointing at a chunk that was never written is a broken deck.
+
+Locating the chunk that holds a card uses the mapping `CardRepository` records when it reads or writes a chunk. Falling back to scanning every chunk would cost 200 requests on a 20k-card deck — the very cost chunking exists to remove.
+
+No cross-record transactions. A momentarily stale manifest vs a newer chunk is tolerated — the next sync reconciles. Last-write-wins; no tombstones, no conflict resolution in v1.
 
 ### 8.1 SQLDelight schema (NOT adopted in v1 — future sketch)
 
@@ -428,12 +465,38 @@ yet persisted; add multiplatform-settings only if/when one is needed, and never 
 
 - **Published decks:** Pubky homeserver is canonical. An in-memory per-session cache holds the last
   fetched copy; nothing is persisted to disk in v1.
-- **Study progress (SRS):** in-memory in v1; not synced to Pubky (see §12 #6).
+- **Study progress (SRS):** Pubky-backed and canonical, under `/pub/loopky/srs/{authorPubky}/{deckId}/` — **on your own homeserver, for any deck, including decks you do not own**. An in-memory session cache fronts it. *(This row previously read "in-memory in v1; not synced to Pubky", which had been untrue since `SrsStateDto` landed.)*
+- **Decks you follow but do not own:** the owner's homeserver is canonical for the deck content (manifest, chunks, media) — you cannot write it. Your own homeserver is canonical for your review state over it. Unfollowing removes the subscription, not the SRS state.
 - **Import drafts:** in-memory only — each paste is a fresh canvas (spec §4 story 5).
 - **Private decks:** out of scope for v1 (spec §11). If spec §13 Q1 flips, local-only decks would need
   a persistent store (the §8.1 SQLDelight sketch) with `pubky_uri = NULL`.
 
 ---
+
+### 8.4 Deck-scale limits
+
+Sizing targets are **Anki-proportional**: real decks (Core 2k/6k, kanji decks, Ultimate Geography) run 2k–50k cards with hundreds of MB of media.
+
+What the chunked layout buys at 20k cards, against one-record-per-card:
+
+| | Per-card records | Chunked (CHUNK_SIZE 100) |
+|---|---|---|
+| `manifest.json` | ~1.46 MB | ~3 KB |
+| Publish requests | 20,001 | ~201 |
+| Deck open requests | 20,000 | ~200 |
+| One card edit uploads | ~1.46 MB | ~63 KB |
+| Deck grid, 5 decks | ~7.3 MB | ~15 KB |
+
+The trade-off is deliberate: editing one card now rewrites a ~63 KB chunk instead of a ~200 byte record. Publish-once / open-often / edit-rarely makes that overwhelmingly the right side.
+
+**Unmeasured and load-bearing:**
+
+1. **Homeserver per-record maximum.** Not documented in this repo or the FFI. This is what should really set `CHUNK_SIZE`; 100 is a conservative guess. If a chunk write is ever rejected for size, that constant is the single knob.
+2. **FFI concurrency safety** — are parallel requests safe, is there connection pooling? Gates §7.1's concurrency work.
+3. **`list()` behaviour on large directories** — does it paginate? `delete()` depends on the listing to sweep a deck.
+4. **Real request latency**, which decides whether ~200 chunk GETs on deck open is acceptable or needs its own lazy path.
+
+**Known gaps:** chunk compaction (deletes leave holes, nothing rebalances); the deck editor loads every card into memory as an `EditableCardModel`, so a 20k-card deck needs a paged editor — chunking does not solve that.
 
 ## 9. Cross-cutting concerns
 
@@ -519,10 +582,10 @@ Pulled forward from spec §13 plus architecture-specific items.
 
 1. **UI strategy final call.** Working assumption: fully native UI per platform. Compose Multiplatform UI is not used. Confirm with design + eng leads before the first screen ships.
 2. **Swift ↔ Flow bridge.** SKIE vs KMP-NativeCoroutines. SKIE is the working assumption; revisit if it blocks iOS builds.
-3. **Multi-module split timing.** Single `shared` module for v1; split into `:core / :data / :domain / :feature-*` if build times or ownership boundaries require it.
+3. **Multi-module split timing.** Single `shared` module for v1; split into `:core / :data / :domain / :feature-*` if build times or ownership boundaries require it. Relatedly, **SRS at Anki scale is what forces the persistent-cache (SQLDelight) question** (§8.1): a local DB as SRS source of truth is the endgame for #43 §2, and reverses "Pubky is the source of truth" for that one slice.
 4. **Private decks.** If spec §13 Q1 flips in favor of private decks, `DeckRepository` gains a local-only write path and `pubky_uri` stays `NULL` until the user opts in.
 5. **Secret key & session storage** (§7.5). ~~Needs a decision~~ **Resolved**: `SecureSessionStore` via Liftric KVault (Keystore-backed EncryptedSharedPreferences on Android, Keychain on iOS).
-6. **SRS sync.** v1 keeps SRS local. If we ever want cross-device study, `SrsRepository` gains a Pubky-backed write path.
+6. **SRS at Anki scale.** ~~v1 keeps SRS local~~ — SRS has been Pubky-backed since `SrsStateDto`; the open question is now *shape*, not *whether*. Today it is one record per card, so a studied 20k-card deck is ~40,000 records and `dueForDeck` is 20,000 GETs. Agreed direction (#43 §2): chunk the snapshot and buffer reviews in memory with write-behind, flushed at session end. Note the flush cannot live in the ViewModel — `viewModelScope` is cancelled in `onCleared()` — so `SrsRepository` owns an app-scoped scope and also flushes periodically to bound crash loss.
 7. **AI / OCR / URL import** (spec §14) — all reuse `TriageVM` + `CommitDeckVM`. No architectural change needed, only new `ImportRepository` entry points and screens.
 8. **Binding regeneration automation.** Today the fork's `build_android.sh` / `build_ios.sh` are run manually and artifacts are copied in (§7.4). A Gradle task can automate this once the fork API stabilises.
 
