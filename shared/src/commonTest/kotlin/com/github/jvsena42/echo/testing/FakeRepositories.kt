@@ -179,11 +179,11 @@ class FakeSrsRepository : SrsRepository {
     val reviews = mutableListOf<Pair<Card, SrsGrade>>()
     val states = mutableMapOf<String, SrsState>()
 
-    private val _changes = MutableSharedFlow<Unit>(
+    private val _changes = MutableSharedFlow<String>(
         extraBufferCapacity = 8,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
-    override val changes: SharedFlow<Unit> = _changes.asSharedFlow()
+    override val changes: SharedFlow<String> = _changes.asSharedFlow()
 
     override suspend fun dueToday(): List<Card> = due
     override suspend fun dueForDeck(deckId: String): List<Card> = due.filter { it.deckId == deckId }
@@ -200,7 +200,7 @@ class FakeSrsRepository : SrsRepository {
 
     override suspend fun upsert(deckId: String, state: SrsState): Result<Unit> {
         states[state.cardId] = state
-        _changes.tryEmit(Unit)
+        _changes.tryEmit(deckId)
         return Result.success(Unit)
     }
 }

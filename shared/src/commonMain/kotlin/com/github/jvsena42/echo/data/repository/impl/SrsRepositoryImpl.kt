@@ -46,11 +46,11 @@ class SrsRepositoryImpl(
     private val cache = mutableMapOf<String, SrsState>()
     private val cacheLock = Mutex()
 
-    private val _changes = MutableSharedFlow<Unit>(
+    private val _changes = MutableSharedFlow<String>(
         extraBufferCapacity = CHANGE_BUFFER,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
-    override val changes: SharedFlow<Unit> = _changes.asSharedFlow()
+    override val changes: SharedFlow<String> = _changes.asSharedFlow()
 
     override suspend fun dueToday(): List<Card> {
         val decks = deckRepository.listOwned()
@@ -97,7 +97,7 @@ class SrsRepositoryImpl(
         val body = echoJson.encodeToString(state.toDto())
         pubky.putWithSessionRetry(url, body, session, revalidator).getOrThrow()
         cacheLock.withLock { cache[state.cardId] = state }
-        _changes.tryEmit(Unit)
+        _changes.tryEmit(deckId)
         Unit
     }
 

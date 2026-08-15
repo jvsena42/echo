@@ -89,7 +89,7 @@ class SrsRepositoryImplTest {
     @Test
     fun reviewSignalsAChangeSoDueCountsCanReload() = runTest {
         publishDeck("deck1", "c1")
-        val changes = mutableListOf<Unit>()
+        val changes = mutableListOf<String>()
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             repo.changes.collect { changes.add(it) }
         }
@@ -98,7 +98,8 @@ class SrsRepositoryImplTest {
         advanceUntilIdle()
         collector.cancel()
 
-        assertEquals(expected = 1, actual = changes.size)
+        // The deck id lets deck-scoped screens ignore reviews from other decks.
+        assertEquals(listOf("deck1"), changes)
     }
 
     @Test

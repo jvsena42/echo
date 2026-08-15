@@ -172,11 +172,12 @@ interface DiscoveryRepository {
  */
 interface SrsRepository {
     /**
-     * Emits after every review state write ([review], [upsert]) so screens showing due counts
-     * can reload. Studying happens on its own full-screen destination while Home stays composed
-     * behind it, so without this signal Home keeps the count it had before the session.
+     * Emits the deck id of every review state write ([review], [upsert]) so screens showing due
+     * counts can reload. Studying happens on its own full-screen destination while Home and
+     * DeckDetail stay composed behind it, so without this signal they keep the counts they had
+     * before the session. Deck-scoped screens filter on the id; Home reloads on any of them.
      */
-    val changes: SharedFlow<Unit>
+    val changes: SharedFlow<String>
 
     /** All cards due for review across every owned deck (new cards count as due). */
     suspend fun dueToday(): List<Card>

@@ -2,6 +2,7 @@ package com.github.jvsena42.echo.presentation.decks
 
 import com.github.jvsena42.echo.domain.model.CardIndexEntry
 import com.github.jvsena42.echo.domain.model.PubkyIdentity
+import com.github.jvsena42.echo.domain.model.SrsGrade
 import com.github.jvsena42.echo.testing.FakeCardRepository
 import com.github.jvsena42.echo.testing.FakeDeckRepository
 import com.github.jvsena42.echo.testing.FakeIdentityRepository
@@ -165,6 +166,43 @@ class DeckDetailViewModelTest {
         val state = assertIs<DeckDetailUiState.Content>(vm.state.value)
         assertEquals("Ada Lovelace", state.author.displayName)
         assertEquals("https://pic", state.author.avatarUrl)
+    }
+
+    @Test
+    fun `the due count refreshes after this deck is studied`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        cardRepo.seedRemote(testCard("c1"))
+        val card = testCard("c1", deckId = "deck1")
+        srsRepo.due = listOf(card)
+
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals(expected = 1, actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueCards)
+
+        // Grading empties the queue the way a finished study session does.
+        srsRepo.review(card, SrsGrade.Good)
+        srsRepo.due = emptyList()
+        advanceUntilIdle()
+
+        assertEquals(expected = 0, actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueCards)
+    }
+
+    @Test
+    fun `studying another deck leaves this one alone`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        cardRepo.seedRemote(testCard("c1"))
+        srsRepo.due = listOf(testCard("c1", deckId = "deck1"))
+
+        val vm = viewModel()
+        advanceUntilIdle()
+        val fetchesAfterFirstLoad = cardRepo.fetchCount
+
+        srsRepo.review(testCard("c2", deckId = "deck2"), SrsGrade.Good)
+        advanceUntilIdle()
+
+        // A review in an unrelated deck must not cost this screen another round of fetches.
+        assertEquals(expected = fetchesAfterFirstLoad, actual = cardRepo.fetchCount)
+        assertEquals(expected = 1, actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueCards)
     }
 
     @Test

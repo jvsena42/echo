@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.io.encoding.Base64
@@ -48,15 +49,24 @@ class DeckDetailViewModel(
 
     init {
         load()
+        // Studying runs on its own full-screen destination while this screen stays composed
+        // behind it, so without this the due count keeps the value it had before the session.
+        viewModelScope.launch {
+            srsRepository.changes
+                .filter { it == deckId }
+                .collect { load(silent = true) }
+        }
     }
 
     fun onRefresh() = load()
 
-    private fun load() {
-        if (loadJob?.isActive == true) return
+    /** [silent] keeps existing content on screen while a background refresh runs. */
+    private fun load(silent: Boolean = false) {
+        // Cancel rather than bail out: a review that lands mid-load must not be dropped.
+        loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            Log.d(TAG, "load: deckId=$deckId")
-            _state.update { DeckDetailUiState.Loading }
+            Log.d(TAG, "load: deckId=$deckId (silent=$silent)")
+            if (!silent) _state.update { DeckDetailUiState.Loading }
 
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
