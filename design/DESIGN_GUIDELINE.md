@@ -218,10 +218,10 @@ Design the screens for: pre-handoff (the Loopky "signing in…" loading screen),
 - Avatars, when set, are the primary visual identifier
 
 ### 9.3 Tags as a first-class primitive
-**This is the most important Pubky pattern in Loopky.** Pubky has a native tag primitive — tags are user-defined labels attached to any object. Loopky decks are tagged via this primitive directly. Design implications:
+**This is the most important Pubky pattern in Loopky.** Pubky has a native tag primitive — tags are user-defined labels that can be attached to any object. In Loopky they attach to **decks only**; individual cards carry no tags. Loopky decks are tagged via this primitive directly. Design implications:
 
 - The Discover tab is **tag-driven**, not algorithm-driven
-- Tag chips appear on every deck tile and deck detail
+- Tag chips appear on every deck tile and deck detail — never on a card
 - Tag input in the deck editor reads from and writes to Pubky tags (designer should treat this like a familiar hashtag input, but understand it's not a custom Loopky system)
 - Tapping any tag anywhere in the app navigates to a tag-filtered Discover view
 

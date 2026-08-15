@@ -3,10 +3,8 @@ package com.github.jvsena42.loopky.domain.model
 data class ImportDraft(
     val rawText: String,
     val separator: Separator,
-    val columnMapping: ColumnMapping,
     val rows: List<ParsedRow>,
     val duplicatesCollapsed: Int,
-    val flags: List<ParseFlag>,
 )
 
 data class ParsedRow(
@@ -28,17 +26,12 @@ data class DraftCardImage(
     val mime: String? = null,
 )
 
-/** Index of the field mapped to the card front (falls back to 0). */
-fun ImportDraft.frontIndex(): Int =
-    columnMapping.assignments.indexOfFirst { it == ColumnRole.Front }.takeIf { it >= 0 } ?: 0
-
-/** Index of the field mapped to the card back (falls back to 1). */
-fun ImportDraft.backIndex(): Int =
-    columnMapping.assignments.indexOfFirst { it == ColumnRole.Back }.takeIf { it >= 0 } ?: 1
-
-/** The (front, back) text pair for [row] using this draft's column mapping. */
+/**
+ * The (front, back) text pair for [row]. The parser always emits the card front as field 0 and the
+ * back as field 1 (spec §8); extra columns are dropped at parse time.
+ */
 fun ImportDraft.frontBackOf(row: ParsedRow): Pair<String, String> =
-    row.fields.getOrElse(frontIndex()) { "" } to row.fields.getOrElse(backIndex()) { "" }
+    row.fields.getOrElse(FRONT_FIELD) { "" } to row.fields.getOrElse(BACK_FIELD) { "" }
 
 sealed class Separator {
     data object Auto : Separator()
@@ -54,22 +47,8 @@ sealed class Separator {
     data class Custom(val char: Char) : Separator()
 }
 
-data class ColumnMapping(
-    val assignments: List<ColumnRole>,
-) {
-    companion object {
-        val DEFAULT_TWO_COL = ColumnMapping(listOf(ColumnRole.Front, ColumnRole.Back))
-        val DEFAULT_THREE_COL =
-            ColumnMapping(listOf(ColumnRole.Front, ColumnRole.Back, ColumnRole.Tags))
-    }
-}
+/** Field index of the card front in a [ParsedRow]. */
+const val FRONT_FIELD = 0
 
-enum class ColumnRole { Front, Back, Tags, Ignore }
-
-sealed class ParseFlag {
-    data class MismatchedRowLength(val rowIndex: Int) : ParseFlag()
-    data class InvalidUtf8(val rowIndex: Int) : ParseFlag()
-    data class LongCard(val rowIndex: Int) : ParseFlag()
-    data object SingleColumnFallback : ParseFlag()
-    data object OverMaxSize : ParseFlag()
-}
+/** Field index of the card back in a [ParsedRow]. */
+const val BACK_FIELD = 1

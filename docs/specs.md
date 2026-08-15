@@ -48,7 +48,7 @@ Explicitly deferred — do **not** design or build:
 1. **Vocab list from a textbook.** A Spanish learner pastes 40 lines of `palabra — word` from their notes. Loopky detects the em-dash separator, previews three cards, they swipe through the triage queue and commit. Total time: under a minute.
 2. **Notion table.** A student copies a 2-column Notion table into Loopky. Loopky sees the pipe-delimited markdown table, parses it, previews, done.
 3. **Hand-typed quick list.** A user types `capital of France: Paris` and a few similar lines directly into the paste box. Loopky auto-detects `: ` and parses each line into a card.
-4. **Spreadsheet with tags.** A power user pastes three tab-separated columns: front, back, tags. Loopky detects three fields and prompts them to map the third column to tags. Tags split on commas within the cell.
+4. **Spreadsheet with extra columns.** A power user pastes three tab-separated columns: front, back, tags. Loopky uses the first two as the card front and back and drops the third — cards have no tags. They add the deck's tags on the commit screen.
 5. **Re-opener.** A user who already imported once taps "+" on Decks. The paste screen is empty and focused on the text field. No history, no drafts — each import is a fresh canvas.
 
 ---
@@ -75,27 +75,29 @@ All three routes land on the same paste screen.
   - A subtle counter: *"42 cards will be imported"*.
 - **Sticky footer:** *"This deck will be public on your Pubky"* notice (see §11) + primary *"Next"* button.
 
-### 5.3 Field mapping (only when ≥3 columns)
+### 5.3 Extra columns
 
-If the parser detects three or more columns:
+There is **no column mapping UI in v1.** The first column is always the card front and the second is
+always the back; anything past the second column is dropped at parse time. Nothing in the UI mentions
+columns, so nothing claims a behavior the app does not have.
 
-- Instead of jumping straight to preview, show a small **column mapping row** above the preview: three chips labeled with the first row's content, each tappable to assign `Front / Back / Tags / Ignore`.
-- Defaults: col 1 → Front, col 2 → Back, col 3 → Tags, col 4+ → Ignore.
-- Preview re-renders on every change.
+This is a deliberate v1 scope choice, not an omission. Per-column role assignment (`Front / Back /
+Tags / Ignore` chips) is listed in §14 — it is blocked on cards gaining a `tags` field, which they do
+not have (see §8).
 
 ### 5.4 Triage queue
 
 Tapping *"Next"* hands the parsed cards to the triage queue:
 
 - Full-screen swipe interface. One card at a time, rendered with the full Card component (including flip).
-- **Swipe right:** keep. **Swipe left:** discard. **Tap edit icon:** inline edit front / back / tags without leaving the queue.
+- **Swipe right:** keep. **Swipe left:** discard. **Tap edit icon:** inline edit front / back without leaving the queue.
 - Progress indicator at top: *"12 of 42"*.
 - Skip-to-end shortcut: *"Approve all remaining"* in the nav bar for users who trust their paste.
 - Haptic tick on each swipe (iOS `UIImpactFeedback.light`, Android equivalent).
 
 ### 5.5 Commit
 
-- On triage completion, a confirmation screen: *"42 cards ready. 3 discarded."* + deck metadata form (title, description, cover image, tags). Tags pre-fill from any tag column plus any tags the user had added in triage.
+- On triage completion, a confirmation screen: *"42 cards ready. 3 discarded."* + deck metadata form (title, description, cover image, tags). This is the only place tags are entered — they describe the deck, not individual cards (§8).
 - Primary action: *"Publish deck"* (see §11 on why it's "publish," not "save").
 - Success: celebratory micro-animation (§3 of brief), haptic success, land on the new deck detail screen.
 
@@ -135,12 +137,12 @@ The user can always override via the detected-separator chip. The override sheet
 
 ---
 
-## 8. Field mapping details
+## 8. Column handling
 
-- **Defaults:** col 1 → Front, col 2 → Back, col 3 → Tags. If only two columns, no mapping UI appears.
-- **Tags column:** comma-separated within a cell. `es,vocab,a1` → three tags.
-- **Ignore:** users can mark a column ignored; it is dropped from the preview and the committed cards.
-- **Reassignment:** tapping a column chip cycles through `Front → Back → Tags → Ignore`. A long-press opens a menu with the same options.
+- **Fixed roles:** col 1 → front, col 2 → back. Always. There is no mapping UI and no way to reassign a column (§5.3).
+- **Extra columns are dropped** at parse time, silently. A `front⇥back⇥tags` spreadsheet or Anki export imports cleanly as front/back; the tags column is discarded.
+- **Tabs split every column.** Tab is a genuine column delimiter — spreadsheet and Anki exports use it and it effectively never appears inside card text — so a tab line splits on every tab and keeps the first two fields. Every other delimiter splits on its **first** occurrence only, so delimiters inside the back are preserved (§9: `date: December 25: Christmas`).
+- **Cards carry no tags.** Tags are deck-level: they live on the deck manifest, are entered on the commit screen (§5.5), and are written via Pubky's native tag primitive (§11). The card record has no `tags` field — see [Architecture.md §8.0](./Architecture.md#8-data-model--persistence).
 
 ---
 
@@ -149,6 +151,7 @@ The user can always override via the detected-separator chip. The override sheet
 | Case | Behavior |
 |---|---|
 | Single-column paste | Treat every line as front-only. Back is empty, user fills in triage. Show a banner: *"No separator found. Each line became a card front — fill in the backs in the next step."* |
+| Three or more columns | Only the first two are used, as front and back. Extra columns are dropped silently — nothing in the UI mentions columns, so nothing is claimed about them (§8). |
 | Mismatched row lengths | Rows with fewer fields than the majority show as red in preview with a warning icon. User can edit or discard in triage. |
 | Paste over max size | Soft error (§7). "Next" button disabled. |
 | Pasted nothing but whitespace | "Next" stays disabled. No error. |
@@ -169,13 +172,12 @@ Every state from §6 of the brief is enumerated here. The designer must produce 
 3. **Preview loading** — parser running. Preview cards show skeletons (~150 ms max).
 4. **Preview ready** — first three cards rendered. Counter populated. "Next" enabled.
 5. **Parse error** — paste is unparseable or over-size. Red banner, "Next" disabled, suggestion offered.
-6. **Mapping required** — ≥3 columns detected. Column chips appear above preview.
-7. **Triage in progress** — full-screen swipe UI.
-8. **Importing** — triage done, cards being written to the homeserver. Progress indicator.
-9. **Success** — confirmation screen with counts.
-10. **Undo window** — snackbar visible on deck detail for 10 s.
-11. **Post-undo** — user is back on the paste screen, text preserved.
-12. **Network error on commit** — toast: *"Couldn't reach your homeserver. Try again?"* with retry. Triage decisions preserved.
+6. **Triage in progress** — full-screen swipe UI.
+7. **Importing** — triage done, cards being written to the homeserver. Progress indicator.
+8. **Success** — confirmation screen with counts.
+9. **Undo window** — snackbar visible on deck detail for 10 s.
+10. **Post-undo** — user is back on the paste screen, text preserved.
+11. **Network error on commit** — toast: *"Couldn't reach your homeserver. Try again?"* with retry. Triage decisions preserved.
 
 ---
 
@@ -185,7 +187,7 @@ Every state from §6 of the brief is enumerated here. The designer must produce 
 - This **overrides** the public/private toggle described in [§9.5 of the brief](../design/DESIGN_GUIDELINE.md#96-self-custodial-framing). Flag as an open question (§13) for the designer and PM.
 - The paste screen and commit screen must both show a plain-language notice: *"This deck will be public on your Pubky."* — no fine print, no tooltips, no toggle.
 - The primary commit button reads **"Publish deck"**, not "Save deck" or "Create deck." The word choice matters: it tells the user something public is about to happen.
-- Tags from the tags column are written via Pubky's native tag primitive ([§9.3 of brief](../design/DESIGN_GUIDELINE.md)), not a custom Loopky system.
+- Deck tags entered on the commit screen (§5.5) are written via Pubky's native tag primitive ([§9.3 of brief](../design/DESIGN_GUIDELINE.md)), not a custom Loopky system. Cards carry no tags of their own.
 - The author field on the published deck resolves to the user's pubky identity per [§9.2 of brief](../design/DESIGN_GUIDELINE.md).
 
 ### 11.1 Published deck shape
@@ -214,7 +216,7 @@ See [Architecture.md §8](./Architecture.md#8-data-model--persistence) for the f
 - **Dynamic type:** Paste box font and preview card text both scale with OS setting. At the largest setting, the preview switches from 3 cards to 1 card.
 - **Reduce Motion:** Triage swipe becomes tap-to-decide with Keep / Discard buttons. Flip animation in preview becomes a crossfade.
 - **Colorblind:** Any status color in the preview (red for mismatched rows, green for the dedupe badge) is paired with an icon and text label.
-- **Tap targets:** Separator chip and column-mapping chips are ≥44×44 pt iOS / 48×48 dp Android.
+- **Tap targets:** The separator chip is ≥44×44 pt iOS / 48×48 dp Android.
 - **Contrast:** Paste box text, separator chip, and banners meet WCAG AA on both themes.
 
 ---
@@ -238,6 +240,7 @@ These are natural next steps that reuse this spec's triage queue and commit flow
 - **OCR photo import** — textbook page → Vision / ML Kit text → same triage queue.
 - **URL import** — paste a YouTube or article URL, fetch + AI-extract, same triage queue.
 - **`.apkg` import** — once Anki refugees start asking, parse on-device and route through triage.
+- **Per-column field mapping + per-card tags** — the `Front / Back / Tags / Ignore` chip row from the original spec, so a third column can become card tags instead of being dropped (§8). Blocked on a schema change: the card record has no `tags` field, and adding one touches `Card`, `CardDto`, and the homeserver layout. Tracked in issue #45.
 - **Private decks + public/private toggle** — if the open question in §13 resolves in favor of private decks, add a toggle to the commit screen.
 - **Drafts** — save an unfinished paste if the user cancels, restore on next entry.
 

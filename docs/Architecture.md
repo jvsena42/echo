@@ -101,7 +101,7 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 | `IdentityRepository` | Current session, pubky, capabilities, `signInWithRing()` / `signOut()` (brief §9.1) | Pubky FFI + `SecureSessionStore` (KVault) |
 | `DeckRepository` | CRUD + `publishDeck(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule | Pubky FFI + in-memory cache |
 | `CardRepository` | CRUD cards within a deck | Pubky FFI + in-memory cache |
-| `ImportRepository` | `parsePaste(rawText, separator, mapping)` per spec §6/§7, `applyTriageDecisions(draft, decisions)`, in-memory drafts, dedupe | In-memory |
+| `ImportRepository` | `parse(rawText, separator)` per spec §6/§7 (col 1 → front, col 2 → back, extras dropped — spec §8), `setDecision()` / `keptRows()` triage, in-memory drafts, dedupe | In-memory |
 | `TagRepository` | Read/write Pubky tags on decks (brief §9.3); trending via Nexus | Pubky FFI + Nexus REST |
 | `DiscoveryRepository` | Trending/followed tags, decks by followed users, `followUser()` / `unfollowUser()` (brief §9.4) | Pubky FFI |
 | `SrsRepository` | Per-card SRS state, today's due queue, `reviewCard(cardId, grade)` | In-memory (v1) |
@@ -125,7 +125,6 @@ class PasteImportViewModel(
         viewModelScope.launch { _state.update { /* debounce + parse */ } }
     }
     fun onSeparatorOverride(sep: Separator) { /* re-parse */ }
-    fun onColumnMappingChanged(mapping: ColumnMapping) { /* re-parse */ }
     fun onNextClicked() { /* emit nav effect on _effects */ }
 }
 ```
@@ -181,7 +180,7 @@ Ties spec §5 (UX flow) to code. Each arrow is an actual function call.
 ┌─ User action ────────────┐   ┌─ Platform UI ────────────┐   ┌─ shared VMs/repos ─────────────┐   ┌─ Pubky / local ─┐
 │ Taps "+" → Paste screen  │ → │ PasteImportScreen        │ → │ PasteImportVM.state = Empty    │   │                 │
 │                          │   │                          │   │                                │   │                 │
-│ Pastes text              │ → │ onTextChanged(text)      │ → │ ImportRepository.parsePaste()  │   │                 │
+│ Pastes text              │ → │ onTextChanged(text)      │ → │ ImportRepository.parse()       │   │                 │
 │                          │   │                          │   │ _state = Preview(draft)        │   │                 │
 │                          │   │                          │   │                                │   │                 │
 │                          │   │ collectAsState → redraw  │ ← │                                │   │                 │
@@ -190,7 +189,7 @@ Ties spec §5 (UX flow) to code. Each arrow is an actual function call.
 │ Overrides separator      │ → │ onSeparatorOverride(…)   │ → │ re-parse → Preview(draft')     │   │                 │
 │                          │   │                          │   │                                │   │                 │
 │ Taps Next                │ → │ nav → TriageScreen       │ → │ TriageVM(draft)                │   │                 │
-│ Swipes keep/discard      │ → │ onSwipe(id, decision)    │ → │ ImportRepository.applyTriage…  │   │                 │
+│ Swipes keep/discard      │ → │ onSwipe(id, decision)    │ → │ ImportRepository.setDecision() │   │                 │
 │                          │   │                          │   │                                │   │                 │
 │ Completes triage         │ → │ nav → CommitDeckScreen   │ → │ CommitDeckVM                   │   │                 │
 │ Fills metadata, Publish  │ → │ onPublish(meta)          │ → │ DeckRepository.publishDeck()   │ → │ Pubky homeserver│
@@ -336,6 +335,7 @@ Published decks live under the author's pubky, one record per card plus a manife
 ```
 
 - A side must have at least one populated field; enforced in `DeckRepository.publishDeck()`.
+- **Cards carry no tags.** Tags are deck-level and live in `manifest.json`; there is no per-card tag field and no plan for one in v1 (spec §8).
 - Media refs are relative to the deck path and resolved against `/pub/loopky/decks/{deckId}/`.
 
 **Sync algorithm (client side):**
@@ -494,7 +494,7 @@ Reserve a `Logger` interface in `commonMain` with no-op default. Platform actual
 ## 10. Testing strategy
 
 - **`commonTest`** — the important tier.
-  - `ImportRepository.parsePaste()`: one test per rule in spec §6, plus every edge case in spec §9.
+  - `ImportRepository.parse()`: one test per rule in spec §6, plus every edge case in spec §9.
   - Repositories against a `FakePubkyClient` (no SQLDelight to fake in v1 — the cache is in-memory).
   - ViewModels with [Turbine](https://github.com/cashapp/turbine) asserting state sequences for every spec §10 state. Drive the `viewModelScope` with `Dispatchers.setMain(testDispatcher)` (kotlinx-coroutines-test) rather than injecting a scope.
 - **Android UI** — Compose UI tests (`composeApp/androidUnitTest` or `androidInstrumentedTest`) for Paste → Triage → Commit and Study session.
