@@ -101,6 +101,9 @@ RustBuffer uniffi_pubkycore_fn_func_get_public_key_from_secret_key(RustBuffer se
 );
 RustBuffer uniffi_pubkycore_fn_func_get_signup_token(RustBuffer homeserver_pubky, RustBuffer admin_password, RustCallStatus *_Nonnull out_status
 );
+void uniffi_pubkycore_fn_func_init_logging(RustCallStatus *_Nonnull out_status
+    
+);
 RustBuffer uniffi_pubkycore_fn_func_list(RustBuffer url, RustBuffer cursor, RustBuffer reverse, RustBuffer limit, RustBuffer shallow, RustCallStatus *_Nonnull out_status
 );
 RustBuffer uniffi_pubkycore_fn_func_mnemonic_phrase_to_keypair(RustBuffer mnemonic_phrase, RustCallStatus *_Nonnull out_status
@@ -301,6 +304,9 @@ uint16_t uniffi_pubkycore_checksum_func_get_public_key_from_secret_key(void
     
 );
 uint16_t uniffi_pubkycore_checksum_func_get_signup_token(void
+    
+);
+uint16_t uniffi_pubkycore_checksum_func_init_logging(void
     
 );
 uint16_t uniffi_pubkycore_checksum_func_list(void
