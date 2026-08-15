@@ -22,9 +22,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -325,45 +327,55 @@ private fun ReviewingContent(
             },
             label = "cardFlip",
         )
+        // The weighted Box keeps the flip frame stable across the reveal; the card inside is
+        // capped so a one-word prompt doesn't stretch into a near-full-screen rectangle.
         Box(
             modifier = Modifier
-                .testTag("study_card")
                 .fillMaxWidth()
-                .weight(1f)
-                .graphicsLayer {
-                    rotationY = rotation
-                    cameraDistance = 12f * density
-                }
-                .clip(RoundedCornerShape(28.dp))
-                .background(colors.surfaceCard)
-                .clickable(enabled = !state.revealed, onClick = onReveal)
-                .padding(24.dp),
+                .weight(1f),
             contentAlignment = Alignment.Center,
         ) {
-            if (rotation < 90f) {
-                // Front shows only the prompt (design `w1CAm`); the reveal cue lives in the hint
-                // row below, and Listen/Speak appear only on the back.
-                CardFace(
-                    label = null,
-                    text = state.frontText,
-                    textSize = 48.sp,
-                    onSpeak = onSpeak,
-                    showListen = false,
-                    onSpeakTest = null,
-                )
-            } else {
-                // Counter-rotate so the back content is not mirrored.
-                CardFace(
-                    label = state.backLabel,
-                    text = state.backText,
-                    textSize = 42.sp,
-                    onSpeak = onSpeak,
-                    showListen = state.listenEnabled,
-                    onSpeakTest = if (state.speakEnabled) onSpeakTest else null,
-                    imageRef = state.frontImageRef,
-                    deckId = state.deckId,
-                    modifier = Modifier.graphicsLayer { rotationY = 180f },
-                )
+            Box(
+                modifier = Modifier
+                    .testTag("study_card")
+                    .fillMaxWidth()
+                    .heightIn(max = 560.dp)
+                    .fillMaxHeight()
+                    .graphicsLayer {
+                        rotationY = rotation
+                        cameraDistance = 12f * density
+                    }
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(colors.surfaceCard)
+                    .clickable(enabled = !state.revealed, onClick = onReveal)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (rotation < 90f) {
+                    // Front shows only the prompt (design `w1CAm`); the reveal cue lives in the
+                    // hint row below, and Listen/Speak appear only on the back.
+                    CardFace(
+                        label = null,
+                        text = state.frontText,
+                        textSize = 48.sp,
+                        onSpeak = onSpeak,
+                        showListen = false,
+                        onSpeakTest = null,
+                    )
+                } else {
+                    // Counter-rotate so the back content is not mirrored.
+                    CardFace(
+                        label = state.backLabel,
+                        text = state.backText,
+                        textSize = 42.sp,
+                        onSpeak = onSpeak,
+                        showListen = state.listenEnabled,
+                        onSpeakTest = if (state.speakEnabled) onSpeakTest else null,
+                        imageRef = state.frontImageRef,
+                        deckId = state.deckId,
+                        modifier = Modifier.graphicsLayer { rotationY = 180f },
+                    )
+                }
             }
         }
 
