@@ -120,16 +120,6 @@ class EditCardViewModel(
         }
     }
 
-    fun onAddTag(tag: String) {
-        val trimmed = tag.trim().lowercase()
-        if (trimmed.isBlank()) return
-        _state.update { s -> s.copy(tags = s.tags + trimmed) }
-    }
-
-    fun onRemoveTag(tag: String) {
-        _state.update { s -> s.copy(tags = s.tags - tag) }
-    }
-
     fun onSaveClick() {
         if (saveJob?.isActive == true) return
         val s = _state.value
@@ -230,7 +220,6 @@ data class EditCardUiState(
     val totalCards: Int = 0,
     val frontText: String = "",
     val backText: String = "",
-    val tags: List<String> = emptyList(),
     val frontImageRef: MediaRef.Image? = null,
     val frontPendingBytes: ByteArray? = null,
     val frontPendingMime: String? = null,

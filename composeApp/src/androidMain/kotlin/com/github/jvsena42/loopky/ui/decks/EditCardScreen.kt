@@ -1,12 +1,7 @@
 package com.github.jvsena42.loopky.ui.decks
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +51,6 @@ import com.github.jvsena42.loopky.presentation.decks.EditCardViewModel
 import com.github.jvsena42.loopky.ui.components.CardSideEditor
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
-import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
@@ -95,8 +88,6 @@ fun EditCardRoute(
         onBackTextChanged = viewModel::onBackTextChanged,
         onSpeakFront = viewModel::onSpeakFront,
         onSpeakBack = viewModel::onSpeakBack,
-        onRemoveTag = viewModel::onRemoveTag,
-        onAddTag = viewModel::onAddTag,
         onFrontImageWebSelected = viewModel::onFrontImageWebSelected,
         onFrontImageGallerySelected = viewModel::onFrontImageGallerySelected,
         onRemoveFrontImage = viewModel::onRemoveFrontImage,
@@ -107,7 +98,7 @@ fun EditCardRoute(
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditCardScreen(
     state: EditCardUiState,
@@ -117,8 +108,6 @@ fun EditCardScreen(
     onBackTextChanged: (String) -> Unit,
     onSpeakFront: () -> Unit,
     onSpeakBack: () -> Unit,
-    onRemoveTag: (String) -> Unit,
-    onAddTag: (String) -> Unit,
     onFrontImageWebSelected: (String) -> Unit = {},
     onFrontImageGallerySelected: (ByteArray, String) -> Unit = { _, _ -> },
     onRemoveFrontImage: () -> Unit = {},
@@ -258,48 +247,10 @@ fun EditCardScreen(
             // MediaRepository.putAudio). The button used to render here and do nothing when
             // tapped; existing audio on a card still round-trips and shows as an indicator.
 
-            // 5. Tags section
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(colors.surfaceCard)
-                    .padding(16.dp),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = stringResource(R.string.edit_card_label_tags),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.W700,
-                        letterSpacing = 0.8.sp,
-                        color = colors.foregroundMuted,
-                    )
+            // Tags are a deck-level concept (spec §8) — cards carry none, so there is no
+            // tag section here. Deck tags are edited on the deck editor / publish screen.
 
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        state.tags.forEach { tag ->
-                            TagChip(
-                                tag = tag,
-                                onRemove = { onRemoveTag(tag) },
-                            )
-                        }
-
-                        AssistChip(
-                            onClick = { onAddTag("new") },
-                            label = {
-                                Text(text = stringResource(R.string.edit_card_add_tag), fontSize = 13.sp, fontWeight = FontWeight.W600)
-                            },
-                            shape = RoundedCornerShape(50),
-                            colors = AssistChipDefaults.assistChipColors(labelColor = colors.accentSecondary),
-                            border = BorderStroke(1.dp, colors.accentSecondary),
-                        )
-                    }
-                }
-            }
-
-            // 6. Delete button
+            // 5. Delete button
             FilledTonalButton(
                 onClick = onDeleteCard,
                 modifier = Modifier.fillMaxWidth(),
@@ -362,7 +313,6 @@ private fun EditCardScreenPreview() {
                 totalCards = 42,
                 frontText = "Hola",
                 backText = "Hello",
-                tags = listOf("greeting", "basic"),
                 hasImage = false,
                 hasAudio = true,
                 isSaving = false,
@@ -373,8 +323,6 @@ private fun EditCardScreenPreview() {
             onBackTextChanged = {},
             onSpeakFront = {},
             onSpeakBack = {},
-            onRemoveTag = {},
-            onAddTag = {},
             onDeleteCard = {},
         )
     }
