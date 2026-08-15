@@ -114,7 +114,13 @@ val sharedModule = module {
             mediaRepository = get(),
         )
     }
-    viewModel { ProfileViewModel(identityRepository = get(), deckRepository = get()) }
+    viewModel {
+        ProfileViewModel(
+            identityRepository = get(),
+            deckRepository = get(),
+            srsRepository = get(),
+        )
+    }
     viewModel { params ->
         SettingsViewModel(
             identityRepository = get(),

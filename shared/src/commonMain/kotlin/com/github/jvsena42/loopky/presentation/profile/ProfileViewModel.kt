@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.pubky.requiresReauth
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.avatarInitial
 import com.github.jvsena42.loopky.util.Log
 import kotlinx.coroutines.Job
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 class ProfileViewModel(
     private val identityRepository: IdentityRepository,
     private val deckRepository: DeckRepository,
+    private val srsRepository: SrsRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ProfileUiState())
     val state: StateFlow<ProfileUiState> = _state.asStateFlow()
@@ -35,6 +37,11 @@ class ProfileViewModel(
         // The deck/card counters shown here go stale the moment a deck is published or deleted.
         viewModelScope.launch {
             deckRepository.changes.collect { load(silent = true) }
+        }
+        // Same for the due counter: studying runs on its own destination while this tab stays
+        // composed, so without this it keeps the value it had before the session.
+        viewModelScope.launch {
+            srsRepository.changes.collect { load(silent = true) }
         }
     }
 
@@ -73,6 +80,8 @@ class ProfileViewModel(
             val decks = decksResult.getOrElse { emptyList() }
             val deckCount = decks.size
             val cardCount = decks.sumOf { it.cardCount }
+            // Degrade to 0 rather than failing the whole profile load if the SRS read fails.
+            val dueCount = runCatching { srsRepository.dueToday().size }.getOrDefault(0)
 
             val displayName = profile.displayName ?: session.identity.displayName
             _state.update {
@@ -84,9 +93,10 @@ class ProfileViewModel(
                     avatarInitial = profile.copy(displayName = displayName).avatarInitial,
                     deckCount = deckCount,
                     cardCount = cardCount,
+                    dueCount = dueCount,
                 )
             }
-            Log.d(TAG, "load: done — decks=$deckCount cards=$cardCount")
+            Log.d(TAG, "load: done — decks=$deckCount cards=$cardCount due=$dueCount")
         }
     }
 
@@ -182,7 +192,7 @@ data class ProfileUiState(
     val avatarInitial: Char = '?',
     val deckCount: Int = 0,
     val cardCount: Int = 0,
-    val streakDays: Int = 0,
+    val dueCount: Int = 0,
     val showEditSheet: Boolean = false,
     val editName: String = "",
     val editBio: String = "",

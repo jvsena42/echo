@@ -353,9 +353,9 @@ private fun ProfileScreen(
                 modifier = Modifier.weight(1f),
             )
             ProfileStatColumn(
-                value = state.streakDays.toString(),
-                label = stringResource(R.string.profile_stat_day_streak),
-                valueColor = Color(0xFFFFC83D),
+                value = state.dueCount.toString(),
+                label = stringResource(R.string.profile_stat_due),
+                valueColor = colors.srsGood,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -586,7 +586,7 @@ private fun ProfileScreenPreview() {
                 avatarInitial = 'A',
                 deckCount = 8,
                 cardCount = 240,
-                streakDays = 12,
+                dueCount = 12,
             ),
             errorMessage = null,
             onOpenSettings = {},

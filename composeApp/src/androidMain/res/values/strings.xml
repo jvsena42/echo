@@ -245,7 +245,7 @@
     <string name="profile_share_content_description">Share</string>
     <string name="profile_stat_decks">Decks</string>
     <string name="profile_stat_cards">Cards</string>
-    <string name="profile_stat_day_streak">Day streak</string>
+    <string name="profile_stat_due">Due</string>
     <string name="profile_sign_out">Sign out</string>
     <string name="profile_dismiss">Dismiss</string>
     <string name="profile_edit_profile_sheet_title">Edit Profile</string>

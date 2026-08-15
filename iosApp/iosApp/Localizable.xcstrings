@@ -1937,13 +1937,13 @@
         }
       }
     },
-    "profile_stat_day_streak": {
+    "profile_stat_due": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Day streak"
+            "value": "Due"
           }
         }
       }
