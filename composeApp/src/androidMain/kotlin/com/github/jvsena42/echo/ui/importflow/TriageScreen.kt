@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -349,13 +351,15 @@ private fun TriageCardStack(
         if (!reduceMotion) controller.enter.animateTo(1f, tween(durationMillis = 220, easing = FastOutSlowInEasing))
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // The cards size to their content (with a floor) and sit centred in the stack, so a
+    // two-word card no longer renders as a mostly-empty full-height rectangle.
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         // Peek card behind the top one; grows toward full size as the top card is dragged away.
         if (next != null) {
             TriageCardView(
                 card = next,
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .graphicsLayer {
                         val reveal = abs(controller.progress)
                         val scale = if (reduceMotion) 0.94f else lerp(0.94f, 1f, reveal)
@@ -371,7 +375,7 @@ private fun TriageCardStack(
         // icons live inside this layer so they ride along with the card as it moves.
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .graphicsLayer {
                     translationX = controller.offsetX.value
                     rotationZ = controller.progress * 8f
@@ -388,7 +392,7 @@ private fun TriageCardStack(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            TriageCardView(card = current, modifier = Modifier.fillMaxSize())
+            TriageCardView(card = current, modifier = Modifier.fillMaxWidth())
 
             // Approve (right) / disapprove (left) feedback grows in with drag progress.
             SwipeFeedback(
@@ -442,6 +446,10 @@ private fun TriageCardView(card: TriageCard, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .wrapContentHeight()
+            // Portrait floor: the card is ~320dp wide on a phone, so a smaller minimum reads
+            // as a square rather than a flashcard.
+            .heightIn(min = 540.dp)
             .shadow(16.dp, RoundedCornerShape(24.dp))
             .clip(RoundedCornerShape(24.dp))
             .background(colors.surfaceCard)
