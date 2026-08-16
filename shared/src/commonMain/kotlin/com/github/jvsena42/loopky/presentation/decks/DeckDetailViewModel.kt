@@ -257,6 +257,10 @@ sealed interface DeckDetailUiState {
          */
         val isIncomplete: Boolean = false,
         val tags: List<String>,
+        // TODO(#40/#33): follower and clone counts belong here, read via
+        //  TagRepository.taggerCounts(deck.pubkyUri) — the loopky-followed / loopky-cloned entries.
+        //  The read exists; nothing writes those labels until Follow deck / Clone deck (#33) land,
+        //  so the counts would be a constant zero today.
         val totalCards: Int,
         val dueCards: Int,
         val masteredPercent: String,
