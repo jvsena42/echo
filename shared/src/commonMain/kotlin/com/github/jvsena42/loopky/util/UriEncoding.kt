@@ -20,7 +20,7 @@ internal fun encodeUriComponent(value: String): String = buildString {
     for (b in value.encodeToByteArray()) {
         val byte = b.toInt() and BYTE_MASK
         val ch = byte.toChar()
-        if (ch in 'a'..'z' || ch in 'A'..'Z' || ch in '0'..'9' || ch in UNRESERVED) {
+        if (ch.isUnreserved()) {
             append(ch)
         } else {
             append('%')
@@ -29,3 +29,9 @@ internal fun encodeUriComponent(value: String): String = buildString {
         }
     }
 }
+
+private fun Char.isUnreserved(): Boolean =
+    isLetterOrDigit() && code < ASCII_LIMIT || this in UNRESERVED
+
+/** Non-ASCII letters and digits are `isLetterOrDigit()` too, and must still be escaped. */
+private const val ASCII_LIMIT = 0x80

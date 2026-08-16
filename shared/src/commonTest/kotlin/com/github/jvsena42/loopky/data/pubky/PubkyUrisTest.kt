@@ -6,28 +6,28 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class PubkyPathsTest {
+class PubkyUrisTest {
 
-    // ── isProfileUri ─────────────────────────────────────────────────────
+    // ── isProfile ─────────────────────────────────────────────────────
 
     @Test
     fun recognisesAProfileUri() {
-        assertTrue(PubkyPaths.isProfileUri("pubky://$PUBKY/pub/pubky.app/profile.json"))
+        assertTrue(PubkyUris.isProfile("pubky://$PUBKY/pub/pubky.app/profile.json"))
     }
 
     @Test
     fun rejectsNonProfileUris() {
-        assertTrue(!PubkyPaths.isProfileUri("pubky://$PUBKY/pub/loopky/decks/d1/manifest.json"))
-        assertTrue(!PubkyPaths.isProfileUri("pubky://$PUBKY/pub/pubky.app/profile.json/extra"))
-        assertTrue(!PubkyPaths.isProfileUri("https://example.com/profile.json"))
-        assertTrue(!PubkyPaths.isProfileUri("pubky://"))
+        assertTrue(!PubkyUris.isProfile("pubky://$PUBKY/pub/loopky/decks/d1/manifest.json"))
+        assertTrue(!PubkyUris.isProfile("pubky://$PUBKY/pub/pubky.app/profile.json/extra"))
+        assertTrue(!PubkyUris.isProfile("https://example.com/profile.json"))
+        assertTrue(!PubkyUris.isProfile("pubky://"))
     }
 
-    // ── parseDeckManifestUri ─────────────────────────────────────────────
+    // ── parseDeckManifest ─────────────────────────────────────────────
 
     @Test
     fun parsesAManifestUriBackIntoAuthorAndDeckId() {
-        val ref = PubkyPaths.parseDeckManifestUri("pubky://$PUBKY/pub/loopky/decks/deck1/manifest.json")
+        val ref = PubkyUris.parseDeckManifest("pubky://$PUBKY/pub/loopky/decks/deck1/manifest.json")
 
         assertEquals(DeckRef(authorPubky = PUBKY, deckId = "deck1"), ref)
     }
@@ -40,7 +40,7 @@ class PubkyPathsTest {
 
         assertEquals(
             DeckRef(authorPubky = PUBKY, deckId = "deck1"),
-            PubkyPaths.parseDeckManifestUri(deck.pubkyUri.value),
+            PubkyUris.parseDeckManifest(deck.pubkyUri.value),
         )
     }
 
@@ -56,7 +56,7 @@ class PubkyPathsTest {
             "https://example.com/pub/loopky/decks/deck1/manifest.json",
             "pubky:///pub/loopky/decks/deck1/manifest.json",
             "",
-        ).forEach { uri -> assertNull(PubkyPaths.parseDeckManifestUri(uri), "should reject $uri") }
+        ).forEach { uri -> assertNull(PubkyUris.parseDeckManifest(uri), "should reject $uri") }
     }
 
     private companion object {

@@ -152,22 +152,30 @@ class DeckRepositoryImpl(
             PublishProgress(batches.size, batches.size, cards.size, cards.size, done = true),
         )
 
-        // Mirror deck tags as tag records so Nexus indexes them network-wide, and add the
-        // loopky-deck marker that puts this deck in the global list — without it the deck is only
-        // reachable by people who already follow the author (#40).
-        // Best-effort throughout: a failed tag write must not fail the publish.
-        tagRepo.putReservedTag(manifestDeck.pubkyUri, ReservedTags.DECK).onFailure {
-            Log.e(TAG, "publish: ${ReservedTags.DECK.value} write failed — ${it.message}", it)
-        }
-        for (tag in manifestDeck.tags.filterNot { ReservedTags.isReserved(it) }) {
-            tagRepo.putTag(manifestDeck.pubkyUri, tag).onFailure {
-                Log.e(TAG, "publish: tag '${tag.value}' write failed — ${it.message}", it)
-            }
-        }
+        mirrorTags(manifestDeck)
 
         cacheLock.withLock { cache[manifestDeck.id] = manifestDeck }
         _changes.tryEmit(Unit)
         manifestDeck
+    }
+
+    /**
+     * Mirror a deck's tags as tag records so Nexus indexes them network-wide, and add the
+     * `loopky-deck` marker that puts the deck in the global list — without it the deck is only
+     * reachable by people who already follow the author (#40).
+     *
+     * Best-effort throughout: discoverability is a bonus on top of a publish, not a precondition,
+     * so a failed tag write must not fail the publish.
+     */
+    private suspend fun mirrorTags(deck: Deck) {
+        tagRepo.putReservedTag(deck.pubkyUri, ReservedTags.DECK).onFailure {
+            Log.e(TAG, "publish: ${ReservedTags.DECK.value} write failed — ${it.message}", it)
+        }
+        for (tag in deck.tags.filterNot { ReservedTags.isReserved(it) }) {
+            tagRepo.putTag(deck.pubkyUri, tag).onFailure {
+                Log.e(TAG, "publish: tag '${tag.value}' write failed — ${it.message}", it)
+            }
+        }
     }
 
     override suspend fun updateMetadata(deck: Deck): Result<Deck> = runCatching {

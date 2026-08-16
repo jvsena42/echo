@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.data.repository.impl
 import com.github.jvsena42.loopky.data.pubky.FollowDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
+import com.github.jvsena42.loopky.data.pubky.PubkyUris
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
 import com.github.jvsena42.loopky.data.pubky.deleteWithSessionRetry
@@ -118,7 +119,7 @@ class DiscoveryRepositoryImpl(
      *    than merely unlikely.
      */
     private suspend fun verifiedDeck(subject: TaggedSubject): Deck? {
-        val ref = PubkyPaths.parseDeckManifestUri(subject.uri.value) ?: return null
+        val ref = PubkyUris.parseDeckManifest(subject.uri.value) ?: return null
         // An empty tagger list means the indexer capped it, not that nobody tagged it — only
         // reject when we can actually see the taggers and the author isn't among them.
         if (subject.taggers.isNotEmpty() && ref.authorPubky !in subject.taggers) {

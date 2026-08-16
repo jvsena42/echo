@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.data.repository.impl
 import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
+import com.github.jvsena42.loopky.data.pubky.PubkyUris
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
 import com.github.jvsena42.loopky.data.pubky.TagDto
@@ -101,32 +102,6 @@ class TagRepositoryImpl(
         Unit
     }
 
-    private fun rejectReserved(tag: Tag): Result<Unit> =
-        if (ReservedTags.isReserved(tag)) {
-            Result.failure(
-                IllegalArgumentException("'${tag.value}' is reserved — see ReservedTags"),
-            )
-        } else {
-            Result.success(Unit)
-        }
-
-    private fun requireReserved(tag: Tag): Result<Unit> =
-        if (tag in ReservedTags.ALL) {
-            Result.success(Unit)
-        } else {
-            Result.failure(
-                IllegalArgumentException("'${tag.value}' is not one of Loopky's index labels"),
-            )
-        }
-
-    /** See the class doc: Nexus routes on the record's own namespace, so the subject picks it. */
-    private fun recordPath(owner: String, subjectUri: PubkyUri, tagId: String): String =
-        if (PubkyPaths.isProfileUri(subjectUri.value)) {
-            PubkyPaths.tag(owner, tagId)
-        } else {
-            PubkyPaths.loopkyTag(owner, tagId)
-        }
-
     override suspend fun trending(): List<Tag> =
         nexus.hotTags()
             .getOrElse { emptyList() }
@@ -168,29 +143,54 @@ class TagRepositoryImpl(
             .tags
             .associate { Tag(it.label) to it.taggers_count }
 
-    /** pubky-app-specs tag label rules: trimmed, lowercase, 1–20 chars, no whitespace. */
-    private fun sanitizeLabel(tag: Tag): Result<String> {
-        val label = tag.value.trim().lowercase()
-        return when {
-            label.isEmpty() ->
-                Result.failure(IllegalArgumentException("Tag label must not be empty"))
-
-            label.length > MAX_LABEL_LENGTH ->
-                Result.failure(
-                    IllegalArgumentException("Tag label must be at most $MAX_LABEL_LENGTH chars"),
-                )
-
-            label.any { it.isWhitespace() } ->
-                Result.failure(
-                    IllegalArgumentException("Tag label must not contain whitespace"),
-                )
-
-            else -> Result.success(label)
-        }
-    }
-
     private companion object {
         const val TAG = "Loopky/TagRepo"
-        const val MAX_LABEL_LENGTH = 20
+    }
+}
+
+private const val MAX_LABEL_LENGTH = 20
+
+private fun rejectReserved(tag: Tag): Result<Unit> =
+    if (ReservedTags.isReserved(tag)) {
+        Result.failure(IllegalArgumentException("'${tag.value}' is reserved — see ReservedTags"))
+    } else {
+        Result.success(Unit)
+    }
+
+private fun requireReserved(tag: Tag): Result<Unit> =
+    if (tag in ReservedTags.ALL) {
+        Result.success(Unit)
+    } else {
+        Result.failure(
+            IllegalArgumentException("'${tag.value}' is not one of Loopky's index labels"),
+        )
+    }
+
+/** See [TagRepositoryImpl]: Nexus routes on the record's own namespace, so the subject picks it. */
+private fun recordPath(owner: String, subjectUri: PubkyUri, tagId: String): String =
+    if (PubkyUris.isProfile(subjectUri.value)) {
+        PubkyPaths.tag(owner, tagId)
+    } else {
+        PubkyPaths.loopkyTag(owner, tagId)
+    }
+
+/** pubky-app-specs tag label rules: trimmed, lowercase, 1–20 chars, no whitespace. */
+private fun sanitizeLabel(tag: Tag): Result<String> {
+    val label = tag.value.trim().lowercase()
+    return when {
+        label.isEmpty() ->
+            Result.failure(IllegalArgumentException("Tag label must not be empty"))
+
+        label.length > MAX_LABEL_LENGTH ->
+            Result.failure(
+                IllegalArgumentException("Tag label must be at most $MAX_LABEL_LENGTH chars"),
+            )
+
+        label.any { it.isWhitespace() } ->
+            Result.failure(
+                IllegalArgumentException("Tag label must not contain whitespace"),
+            )
+
+        else -> Result.success(label)
     }
 }
