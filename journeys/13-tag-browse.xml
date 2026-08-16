@@ -1,0 +1,24 @@
+<journey name="Tag browse — a deck's tag chip opens every deck carrying it">
+  <description>
+    Deck-detail tag chips were deliberately inert until global browse existed (#26): wiring them
+    earlier would have traded a dead control for a dead end. This journey covers the wired
+    behaviour. Needs a signed-in session (journey 01) and a published deck with at least one
+    topical tag (journey 02).
+
+    Tag browse is its own destination rather than a jump into the Discover tab, because Discover is
+    a page inside the HorizontalPager with no route to navigate to.
+  </description>
+  <actions>
+    <action>Launch the Loopky app and verify the Home screen is shown</action>
+    <action>Tap the element with resource-id "tab_decks" in the bottom tab bar</action>
+    <action>Tap a deck tile that has at least one tag and verify deck detail opens</action>
+    <action>Verify a tag chip is shown below the deck title (rendered as "#tag")</action>
+    <action>Tap the tag chip</action>
+    <action>Verify the tag-browse screen opens (resource-id: tag_browse_screen) with "#tag" in the top bar and a back button (resource-id: tag_browse_back)</action>
+    <action>Verify EITHER a grid of deck tiles (resource-id: tag_browse_tile) — which must include the deck you came from, since it carries the tag — OR the empty block (resource-id: tag_browse_empty) if the indexer has not ingested it yet</action>
+    <action>Confirm in logcat that the screen queried the indexer rather than filtering locally: look for "Loopky/TagBrowseVM: load('&lt;tag&gt;'): N decks" and "Loopky/DiscoveryRepo: decksByTagGlobal('&lt;tag&gt;'): N kept of M"</action>
+    <action>Tap a deck tile in the grid and verify its deck detail opens</action>
+    <action>Navigate back twice and verify you return to tag browse and then to the original deck detail</action>
+    <action>Tap the element with resource-id "tag_browse_back" and verify you return to deck detail</action>
+  </actions>
+</journey>
