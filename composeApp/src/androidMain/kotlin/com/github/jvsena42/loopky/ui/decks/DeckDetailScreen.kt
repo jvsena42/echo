@@ -306,6 +306,7 @@ private fun DeckDetailContent(
                     // Owned badge
                     if (state.isOwned) {
                         OwnedBadgeRow()
+                        if (state.isIncomplete) IncompleteWarning()
                     }
 
                     // Title + Description
@@ -567,6 +568,21 @@ private fun CoverSection(
             )
         }
     }
+}
+
+/**
+ * A publish that died part-way leaves the deck claimed but short of cards. The count comes from
+ * the manifest, so without this the deck looks complete while holding fewer cards than it says.
+ */
+@Composable
+private fun IncompleteWarning() {
+    val colors = LoopkyTheme.colors
+    Text(
+        text = stringResource(R.string.deck_incomplete_warning),
+        fontSize = 13.sp,
+        color = colors.srsAgain,
+        modifier = Modifier.padding(top = 8.dp),
+    )
 }
 
 @Composable

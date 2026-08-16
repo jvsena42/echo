@@ -33,12 +33,26 @@ internal fun Throwable.isNetworkFailure(): Boolean {
 }
 
 /**
+ * The homeserver answered 429: too many requests in flight or too quickly.
+ *
+ * Measured, not assumed — publishing a 1,200-card deck with 8 concurrent writes reliably trips
+ * this. It is a *transient* failure: the request was well-formed and will succeed after a pause,
+ * so callers back off and retry rather than surfacing it.
+ */
+internal fun Throwable.isRateLimited(): Boolean {
+    val msg = message?.lowercase() ?: return false
+    return "429" in msg || "too many requests" in msg || "rate limit" in msg
+}
+
+/**
  * Classify a repository failure for the UI. ViewModels put the returned [ErrorReason] into
  * their state and log the original throwable, so the FFI's diagnostic text never reaches a
  * user-facing surface.
  */
 fun Throwable.toErrorReason(): ErrorReason = when {
     isSessionExpired() -> ErrorReason.SessionExpired
+    // Retries are exhausted by the time this reaches the UI; the homeserver is simply busy.
+    isRateLimited() -> ErrorReason.Offline
     isNetworkFailure() -> ErrorReason.Offline
     isNotFound() -> ErrorReason.NotFound
     else -> ErrorReason.Unknown

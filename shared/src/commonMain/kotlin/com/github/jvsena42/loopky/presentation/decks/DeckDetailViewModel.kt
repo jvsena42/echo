@@ -214,6 +214,7 @@ class DeckDetailViewModel(
             author = myIdentity?.takeIf { isOwned }
                 ?: PubkyIdentity(authorPubky, displayName = null, avatarUrl = null, bio = null),
             isOwned = isOwned,
+            isIncomplete = incomplete,
             tags = tags.map { it.value },
             totalCards = cardCount,
             dueCards = dueCount,
@@ -249,6 +250,12 @@ sealed interface DeckDetailUiState {
         val author: PubkyIdentity,
         /** Ownership is a separate concern from identity — the author row shows both. */
         val isOwned: Boolean,
+        /**
+         * The deck was claimed by a publish that never finished, so some of its cards are missing.
+         * Surfaced rather than hidden: the count comes from the manifest, so the deck would
+         * otherwise look complete while silently holding fewer cards than it claims.
+         */
+        val isIncomplete: Boolean = false,
         val tags: List<String>,
         val totalCards: Int,
         val dueCards: Int,

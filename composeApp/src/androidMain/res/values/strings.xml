@@ -363,4 +363,5 @@
         <item quantity="one">Import %1$d card</item>
         <item quantity="other">Import %1$d cards</item>
     </plurals>
+    <string name="deck_incomplete_warning">This deck didn\'t finish uploading — some cards are missing. Import it again to complete it, or delete it.</string>
 </resources>

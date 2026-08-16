@@ -197,6 +197,26 @@ class DeckRepositoryImplTest {
         )
     }
 
+    @Test
+    fun aRateLimitedWriteIsRetriedRatherThanFailingThePublish() = runTest {
+        // Measured against a real homeserver: publishing with several writes in flight returns
+        // 429. The request is well-formed and transient, so surfacing it would be wrong.
+        pubky.rateLimitNextCalls = 3
+
+        val published = repo.publish(testDeck(id = "deck1"), listOf(testCard("c1"))).getOrThrow()
+
+        assertEquals(expected = 1, actual = published.cardCount)
+        assertTrue("$deckRoot/cards/0.json" in pubky.store)
+    }
+
+    @Test
+    fun aPersistentRateLimitEventuallyGivesUp() = runTest {
+        // Retries are bounded — a homeserver that is down must not hang the publish forever.
+        pubky.rateLimitNextCalls = 100
+
+        assertTrue(repo.publish(testDeck(id = "deck1"), listOf(testCard("c1"))).isFailure)
+    }
+
     // ── delete ───────────────────────────────────────────────────────────
 
     @Test

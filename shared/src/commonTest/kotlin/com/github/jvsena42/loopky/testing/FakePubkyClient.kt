@@ -29,6 +29,9 @@ class FakePubkyClient : PubkyClient {
     /** When set, the next session-authenticated write/delete fails once with this error. */
     var failNextSessionCallWith: Throwable? = null
 
+    /** Fails the next N session-authenticated writes with 429, as a busy homeserver would. */
+    var rateLimitNextCalls: Int = 0
+
     /** When set, every [list] call fails with this error (simulates an unreachable homeserver). */
     var failListWith: Throwable? = null
 
@@ -98,8 +101,13 @@ class FakePubkyClient : PubkyClient {
     override fun createTagId(uri: String, label: String): Result<String> =
         Result.success("TAGID-" + (uri + label).hashCode().toUInt().toString(16))
 
-    private fun consumeInjectedFailure(): Throwable? =
-        failNextSessionCallWith?.also { failNextSessionCallWith = null }
+    private fun consumeInjectedFailure(): Throwable? {
+        if (rateLimitNextCalls > 0) {
+            rateLimitNextCalls--
+            return PubkyError("Request failed: Server responded with an error: 429 Too Many Requests")
+        }
+        return failNextSessionCallWith?.also { failNextSessionCallWith = null }
+    }
 
     // --- Surface unused by the repositories under test -------------------------
 

@@ -10,11 +10,15 @@ import kotlinx.coroutines.sync.withPermit
  * How many homeserver requests may be in flight at once.
  *
  * Every repository operation used to be a serial loop, so publishing a 20k-card deck meant 201
- * round trips end to end. Bounded rather than unlimited: the FFI's concurrency characteristics
- * are undocumented (see `docs/Architecture.md §8.4`), and a homeserver is well within its rights
- * to rate-limit a client that opens hundreds of parallel connections.
+ * round trips end to end.
+ *
+ * **4 is measured, not guessed.** At 8, publishing a 1,200-card deck against a real homeserver
+ * reliably failed with `429 Too Many Requests`. The write helpers also back off and retry on 429
+ * (see `SessionRetry`), so this is the value that keeps a large publish from spending most of its
+ * time in backoff — belt and braces, because a homeserver is well within its rights to rate-limit
+ * and its exact threshold is not ours to depend on.
  */
-internal const val MAX_IN_FLIGHT = 8
+internal const val MAX_IN_FLIGHT = 4
 
 /**
  * Map [items] concurrently, at most [limit] at a time, preserving input order in the result.
