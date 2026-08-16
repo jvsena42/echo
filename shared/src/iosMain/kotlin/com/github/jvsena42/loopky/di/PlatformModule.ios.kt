@@ -14,6 +14,7 @@ import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditCardViewModel
 import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
+import com.github.jvsena42.loopky.presentation.discover.TagBrowseViewModel
 import com.github.jvsena42.loopky.presentation.home.HomeViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PasteImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
@@ -71,6 +72,8 @@ object IosDependencies {
         koin.get { parametersOf(deckId) }
 
     fun discoverViewModel(): DiscoverViewModel = koin.get()
+
+    fun tagBrowseViewModel(tag: String): TagBrowseViewModel = koin.get { parametersOf(tag) }
 
     fun profileViewModel(): ProfileViewModel = koin.get()
 
