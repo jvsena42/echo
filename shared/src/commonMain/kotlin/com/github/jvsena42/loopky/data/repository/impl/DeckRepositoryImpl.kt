@@ -21,6 +21,7 @@ import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
+import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
@@ -151,9 +152,14 @@ class DeckRepositoryImpl(
             PublishProgress(batches.size, batches.size, cards.size, cards.size, done = true),
         )
 
-        // Mirror deck tags as pubky.app tag records so Nexus indexes them network-wide.
-        // Best-effort: a failed tag write must not fail the publish.
-        for (tag in manifestDeck.tags) {
+        // Mirror deck tags as tag records so Nexus indexes them network-wide, and add the
+        // loopky-deck marker that puts this deck in the global list — without it the deck is only
+        // reachable by people who already follow the author (#40).
+        // Best-effort throughout: a failed tag write must not fail the publish.
+        tagRepo.putReservedTag(manifestDeck.pubkyUri, ReservedTags.DECK).onFailure {
+            Log.e(TAG, "publish: ${ReservedTags.DECK.value} write failed — ${it.message}", it)
+        }
+        for (tag in manifestDeck.tags.filterNot { ReservedTags.isReserved(it) }) {
             tagRepo.putTag(manifestDeck.pubkyUri, tag).onFailure {
                 Log.e(TAG, "publish: tag '${tag.value}' write failed — ${it.message}", it)
             }
@@ -284,9 +290,13 @@ class DeckRepositoryImpl(
             pubky.deleteWithSessionRetry(path, session, revalidator).getOrThrow()
         }
 
-        // Remove the pubky.app tag records pointing at the deleted deck (best-effort).
+        // Remove the tag records pointing at the deleted deck (best-effort). The loopky-deck
+        // marker goes too, or global browse keeps offering a deck that no longer resolves.
         cached?.let { deck ->
-            for (tag in deck.tags) {
+            tagRepo.removeReservedTag(deck.pubkyUri, ReservedTags.DECK).onFailure {
+                Log.e(TAG, "delete: ${ReservedTags.DECK.value} removal failed — ${it.message}", it)
+            }
+            for (tag in deck.tags.filterNot { ReservedTags.isReserved(it) }) {
                 tagRepo.removeTag(deck.pubkyUri, tag).onFailure {
                     Log.e(TAG, "delete: tag '${tag.value}' removal failed — ${it.message}", it)
                 }

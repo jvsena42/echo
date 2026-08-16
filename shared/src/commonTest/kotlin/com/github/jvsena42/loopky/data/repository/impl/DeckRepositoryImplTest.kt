@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.domain.model.CardSide
+import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FailingChunkCardRepository
@@ -115,6 +116,25 @@ class DeckRepositoryImplTest {
             listOf(deck.pubkyUri to Tag("spanish"), deck.pubkyUri to Tag("language")),
             tagRepo.putTags,
         )
+    }
+
+    @Test
+    fun publishMarksTheDeckForGlobalBrowse() = runTest {
+        // Without loopky-deck the deck is only reachable by people already following the author.
+        val deck = testDeck(id = "deck1", tags = listOf(Tag("spanish")))
+
+        repo.publish(deck, listOf(testCard("c1"))).getOrThrow()
+
+        assertEquals(listOf(deck.pubkyUri to ReservedTags.DECK), tagRepo.putReservedTags)
+    }
+
+    @Test
+    fun publishSurvivesAFailedTagWrite() = runTest {
+        tagRepo.failWith = IllegalStateException("homeserver refused the tag")
+        val deck = testDeck(id = "deck1", tags = listOf(Tag("spanish")))
+
+        // Discoverability is a bonus on top of the publish, never a precondition for it.
+        assertTrue(repo.publish(deck, listOf(testCard("c1"))).isSuccess)
     }
 
     @Test
@@ -232,6 +252,8 @@ class DeckRepositoryImplTest {
         assertEquals("$deckRoot/manifest.json", pubky.deletes.last())
         assertTrue(pubky.deletes.containsAll(listOf("$deckRoot/cards/0.json", "$deckRoot/srs/c1.json")))
         assertEquals(listOf(deck.pubkyUri to Tag("spanish")), tagRepo.removedTags)
+        // Otherwise global browse keeps listing a deck whose manifest no longer resolves.
+        assertEquals(listOf(deck.pubkyUri to ReservedTags.DECK), tagRepo.removedReservedTags)
         assertNull(repo.getLocal("deck1"))
     }
 
