@@ -93,13 +93,10 @@ class DiscoveryRepositoryImplTest {
             listOf("pubky://$TEST_PUBKY/pub/pubky.app/follows/"),
             pubky.listedPrefixes,
         )
-        // KNOWN BUG: parseFolloweesFromList mis-handles the FFI list payload (a JSON array
-        // of pubky:// urls — see DeckRepositoryImpl.parsePubkyUrlsFromList): extracted ids
-        // carry JSON debris, e.g. `friend1","pubky:`. Pinned loosely so this documents the
-        // behaviour today; tighten to exact equality once the parser is fixed.
-        assertEquals(expected = 2, actual = following.size)
-        assertTrue(following[0].startsWith("friend1"))
-        assertTrue(following[1].startsWith("friend2"))
+        // Exact equality on purpose: the old substring scan cut each id at the *next* url's
+        // "pubky://" and returned `friend1","pubky:`, which a startsWith assertion happily
+        // accepted. Anything looser than this cannot tell the fix from the bug.
+        assertEquals(listOf("friend1", "friend2"), following)
     }
 
     @Test

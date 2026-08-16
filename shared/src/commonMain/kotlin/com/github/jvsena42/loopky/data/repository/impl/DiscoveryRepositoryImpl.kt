@@ -145,27 +145,30 @@ class DiscoveryRepositoryImpl(
     }
 
     /**
-     * Parse the FFI `list` result for follow records by extracting the path segment after
-     * `/pub/pubky.app/follows/`. Same defensive substring scan as [DeckRepositoryImpl]'s deck-id
-     * parser, since the list payload format is not a stable contract.
+     * Followee pubkys out of the FFI `list` payload, which is a JSON array of `pubky://…` urls —
+     * the followee is the last path segment of each.
+     *
+     * Decoded as JSON rather than scanned for `/pub/pubky.app/follows/`: a substring scan has no
+     * way to tell where one url ends and the next begins, so it cut every id at the following
+     * entry's `pubky://` and yielded debris like `friend1","pubky:`. `followUser` seeds the cache
+     * optimistically, so that only surfaced on a cold cache — i.e. after a restart, when the whole
+     * follow feed silently emptied. Same decode as [DeckRepositoryImpl]'s `parsePubkyUrlsFromList`.
      */
-    private fun parseFolloweesFromList(payload: String): List<String> {
-        val marker = "/pub/pubky.app/follows/"
-        val ids = linkedSetOf<String>()
-        var index = 0
-        while (true) {
-            val hit = payload.indexOf(marker, index)
-            if (hit == -1) break
-            val start = hit + marker.length
-            val end = payload.indexOf('/', start).let { if (it == -1) payload.length else it }
-            val candidate = payload.substring(start, end).trim('"', ' ', '\n', '\r', ',')
-            if (candidate.isNotEmpty()) ids.add(candidate)
-            index = end
-        }
-        return ids.toList()
-    }
+    private fun parseFolloweesFromList(payload: String): List<String> =
+        runCatching { loopkyJson.decodeFromString<List<String>>(payload) }
+            .getOrDefault(emptyList())
+            .mapNotNull { url ->
+                url.takeIf { it.startsWith("pubky://") }
+                    ?.substringAfter(FOLLOWS_MARKER, missingDelimiterValue = "")
+                    ?.substringBefore('/')
+                    ?.takeIf { it.isNotEmpty() }
+            }
+            .distinct()
 
     companion object {
         private const val TAG = "Loopky/DiscoveryRepo"
+
+        /** The segment a follow record's url carries just before the followee's pubky. */
+        private const val FOLLOWS_MARKER = "/pub/pubky.app/follows/"
     }
 }
