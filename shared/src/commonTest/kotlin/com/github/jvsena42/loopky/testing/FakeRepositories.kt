@@ -28,6 +28,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.domain.model.review
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -282,6 +283,7 @@ class FakeDiscoveryRepository : DiscoveryRepository {
     }
 
     override suspend fun decksFromFollowing(): List<Deck> {
+        feedGate?.await()
         feedError?.let { throw it }
         return feed
     }
@@ -292,10 +294,38 @@ class FakeDiscoveryRepository : DiscoveryRepository {
     var globalDecks: List<Deck> = emptyList()
     var loopkyUsers: List<PubkyIdentity> = emptyList()
 
-    override suspend fun decksByTagGlobal(tag: Tag, limit: Int): List<Deck> =
-        globalDecks.filter { tag in it.tags || tag == ReservedTags.DECK }.take(limit)
+    /** What each strip asked for, so a test can pin the cost budget. */
+    val globalRequests = mutableListOf<Pair<Tag, Int>>()
+    val suggestedRequests = mutableListOf<Int>()
+
+    /**
+     * Held open, these let a test assert the other strips still settle while one is in flight —
+     * the whole point of loading Discover section by section.
+     */
+    var globalGate: CompletableDeferred<Unit>? = null
+    var feedGate: CompletableDeferred<Unit>? = null
+    var peopleGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun decksByTagGlobal(tag: Tag, limit: Int): List<Deck> {
+        globalRequests.add(tag to limit)
+        globalGate?.await()
+        return globalDecks.filter { tag in it.tags || tag == ReservedTags.DECK }.take(limit)
+    }
 
     override suspend fun loopkyUsers(limit: Int): List<PubkyIdentity> = loopkyUsers.take(limit)
+
+    /** Mirrors the real union: directory first, then deck authors, minus self and follows. */
+    override suspend fun suggestedPeople(seedDecks: List<Deck>, limit: Int): List<PubkyIdentity> {
+        suggestedRequests.add(limit)
+        peopleGate?.await()
+        val directory = loopkyUsers.filterNot { it.pubky in follows }
+        val seen = directory.mapTo(mutableSetOf()) { it.pubky }
+        val authors = seedDecks.map { it.authorPubky }
+            .distinct()
+            .filter { it !in follows && seen.add(it) }
+            .map { PubkyIdentity(it, displayName = null, avatarUrl = null, bio = null) }
+        return (directory + authors).take(limit)
+    }
 }
 
 class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRepository {

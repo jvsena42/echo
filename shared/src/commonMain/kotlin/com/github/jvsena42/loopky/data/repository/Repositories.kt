@@ -351,6 +351,33 @@ interface DiscoveryRepository {
     suspend fun loopkyUsers(
         limit: Int = TagRepository.DEFAULT_TAGGERS_LIMIT,
     ): List<PubkyIdentity>
+
+    /**
+     * People worth showing to someone who follows nobody: the [loopkyUsers] directory first, then
+     * the authors of [seedDecks] — pass the decks global browse already fetched, so this costs no
+     * second browse.
+     *
+     * The directory alone is not enough in practice. `/v0/tags/hot` and `/v0/tags/taggers/{label}`
+     * only surface labels with real traction, so a `loopky-user` self-tag with one tagger comes
+     * back empty from the indexer even though the tag exists and the account is indexed (probed
+     * against staging, #26). Deck authors are the source that works from the first published deck.
+     *
+     * A directory entry has only its own claim behind it, so it still has to verify. A deck author
+     * is already corroborated — global browse fetched and parsed their manifest — so an author with
+     * no published profile is kept under their bare pubky rather than dropped; the UI truncates it,
+     * exactly as deck tiles already do for unresolved authors.
+     *
+     * Excludes the signed-in user and anyone already followed: suggesting those is noise.
+     */
+    suspend fun suggestedPeople(
+        seedDecks: List<Deck>,
+        limit: Int = DEFAULT_SUGGESTED_PEOPLE_LIMIT,
+    ): List<PubkyIdentity>
+
+    companion object {
+        /** A horizontal strip; enough to scroll, few enough to resolve quickly. */
+        const val DEFAULT_SUGGESTED_PEOPLE_LIMIT = 12
+    }
 }
 
 /**

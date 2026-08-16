@@ -135,6 +135,32 @@ class DiscoveryRepositoryImpl(
         return candidates.mapConcurrently { pubky -> verifiedUser(pubky) }.filterNotNull()
     }
 
+    override suspend fun suggestedPeople(seedDecks: List<Deck>, limit: Int): List<PubkyIdentity> {
+        val me = session.current()?.identity?.pubky
+        // A failure here must not empty the strip — worst case we suggest someone already followed.
+        val followed = runCatching { following() }.getOrElse { emptyList() }.toSet()
+        fun worthSuggesting(pubky: String) = pubky != me && pubky !in followed
+
+        val directory = loopkyUsers(limit).filter { worthSuggesting(it.pubky) }
+        val seen = directory.mapTo(mutableSetOf()) { it.pubky }
+
+        val authors = seedDecks
+            .map { it.authorPubky }
+            .distinct()
+            .filter { worthSuggesting(it) && seen.add(it) }
+            .take((limit - directory.size).coerceAtLeast(0))
+
+        // Their deck already proved them real, so an unresolved profile downgrades the entry to a
+        // bare pubky instead of dropping a genuine Loopky user off the strip.
+        val fromDecks = authors.mapConcurrently { pubky ->
+            identityRepository.fetchProfile(pubky).getOrNull()
+                ?: PubkyIdentity(pubky, displayName = null, avatarUrl = null, bio = null)
+        }
+
+        Log.d(TAG, "suggestedPeople: ${directory.size} from directory, ${fromDecks.size} from decks")
+        return (directory + fromDecks).take(limit)
+    }
+
     /** Kept only if the account tagged *itself*, and only if that account really exists. */
     private suspend fun verifiedUser(pubky: String): PubkyIdentity? {
         if (!tagRepository.isSelfTagged(pubky, ReservedTags.USER)) {
