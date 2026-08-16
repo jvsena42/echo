@@ -331,6 +331,15 @@ class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRep
 
     override suspend fun trending(): List<Tag> = trendingTags
 
+    /** Deck topics the indexer would aggregate to; recorded so a test can pin the ask. */
+    var deckTags: List<Tag> = emptyList()
+    val deckTagRequests = mutableListOf<Pair<Int, Int>>()
+
+    override suspend fun trendingDeckTags(sampleSize: Int, limit: Int): List<Tag> {
+        deckTagRequests.add(sampleSize to limit)
+        return deckTags.take(limit)
+    }
+
     /** Indexer reads, canned per label. */
     var subjectsByTag: Map<Tag, List<TaggedSubject>> = emptyMap()
     var taggersByTag: Map<Tag, List<String>> = emptyMap()

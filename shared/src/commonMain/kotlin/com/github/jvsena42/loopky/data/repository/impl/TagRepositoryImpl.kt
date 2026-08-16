@@ -107,6 +107,41 @@ class TagRepositoryImpl(
             .getOrElse { emptyList() }
             .map { Tag(it.label) }
 
+    override suspend fun trendingDeckTags(sampleSize: Int, limit: Int): List<Tag> {
+        val resources = nexus.resourcesByTag(ReservedTags.DECK.value, sampleSize)
+            .onFailure { Log.w(TAG, "trendingDeckTags: FAILED — ${it.message}") }
+            .getOrElse { emptyList() }
+
+        val decksPerLabel = mutableMapOf<String, Int>()
+        val taggersPerLabel = mutableMapOf<String, Int>()
+        for (resource in resources) {
+            resource.tags
+                .filterNot { ReservedTags.isReserved(it.label) }
+                // One deck counts once per label however many times the indexer lists it.
+                .distinctBy { it.label }
+                .forEach { details ->
+                    decksPerLabel[details.label] = (decksPerLabel[details.label] ?: 0) + 1
+                    taggersPerLabel[details.label] =
+                        (taggersPerLabel[details.label] ?: 0) + details.taggers_count
+                }
+        }
+
+        Log.d(TAG, "trendingDeckTags: ${decksPerLabel.size} labels over ${resources.size} decks")
+
+        // Deck count first: that is what makes a label a *topic*, and it stops one heavily-tagged
+        // deck from owning the whole chip row. Tagger sum breaks ties, then the label itself so
+        // the order is stable — the indexer's own ordering is not, and at this corpus size most
+        // ties are 1-vs-1.
+        return decksPerLabel.entries
+            .sortedWith(
+                compareByDescending<Map.Entry<String, Int>> { it.value }
+                    .thenByDescending { taggersPerLabel[it.key] ?: 0 }
+                    .thenBy { it.key },
+            )
+            .take(limit)
+            .map { Tag(it.key) }
+    }
+
     override suspend fun taggedSubjects(tag: Tag, limit: Int): List<TaggedSubject> {
         val label = sanitizeLabel(tag).getOrElse { return emptyList() }
         return nexus.resourcesByTag(label, limit)

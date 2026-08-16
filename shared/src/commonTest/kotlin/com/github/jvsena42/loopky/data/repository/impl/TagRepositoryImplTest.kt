@@ -237,6 +237,82 @@ class TagRepositoryImplTest {
         assertEquals(emptyList(), repo.trending())
     }
 
+    // ── deck topics (client-side aggregation) ────────────────────────────
+
+    /**
+     * Shape copied from a live staging response for a deck published by this project, so the
+     * aggregation is pinned against what the indexer really returns rather than an invented shape:
+     * a resource carries its *whole* label list, reserved marker included.
+     */
+    @Test
+    fun trendingDeckTagsAggregatesEveryLabelOnEachDeck() = runTest {
+        http.respond(
+            deckStreamUrl(sampleSize = 50),
+            """
+            [
+              {"details":{"id":"32856b46","uri":"pubky://$TEST_PUBKY/pub/loopky/decks/d1/manifest.json",
+                "scheme":"pubky","indexed_at":1786917046604},
+               "tags":[{"label":"spanish","taggers":["$TEST_PUBKY"],"taggers_count":1},
+                       {"label":"loopky-deck","taggers":["$TEST_PUBKY"],"taggers_count":1}],
+               "taggers_count":2},
+              {"details":{"uri":"pubky://$TEST_PUBKY/pub/loopky/decks/d2/manifest.json"},
+               "tags":[{"label":"spanish","taggers_count":1},{"label":"biology","taggers_count":1}],
+               "taggers_count":2}
+            ]
+            """.trimIndent(),
+        )
+
+        // spanish is on two decks, biology on one; loopky-deck is Loopky's index, not a topic.
+        assertEquals(listOf(Tag("spanish"), Tag("biology")), repo.trendingDeckTags())
+    }
+
+    @Test
+    fun trendingDeckTagsRanksByDeckCountNotTaggerCount() = runTest {
+        http.respond(
+            deckStreamUrl(sampleSize = 50),
+            """
+            [
+              {"details":{"uri":"pubky://$TEST_PUBKY/pub/loopky/decks/d1/manifest.json"},
+               "tags":[{"label":"hyped","taggers_count":99}]},
+              {"details":{"uri":"pubky://$TEST_PUBKY/pub/loopky/decks/d2/manifest.json"},
+               "tags":[{"label":"broad","taggers_count":1}]},
+              {"details":{"uri":"pubky://$TEST_PUBKY/pub/loopky/decks/d3/manifest.json"},
+               "tags":[{"label":"broad","taggers_count":1}]}
+            ]
+            """.trimIndent(),
+        )
+
+        // One deck tagged 99 times is not a topic; two decks sharing a label is.
+        assertEquals(listOf(Tag("broad"), Tag("hyped")), repo.trendingDeckTags())
+    }
+
+    @Test
+    fun trendingDeckTagsRespectsTheLimit() = runTest {
+        http.respond(
+            deckStreamUrl(sampleSize = 50),
+            """
+            [
+              {"details":{"uri":"pubky://$TEST_PUBKY/pub/loopky/decks/d1/manifest.json"},
+               "tags":[{"label":"aaa","taggers_count":3},{"label":"bbb","taggers_count":2},
+                       {"label":"ccc","taggers_count":1}]}
+            ]
+            """.trimIndent(),
+        )
+
+        assertEquals(listOf(Tag("aaa"), Tag("bbb")), repo.trendingDeckTags(limit = 2))
+    }
+
+    @Test
+    fun trendingDeckTagsIsEmptyWhenTheIndexerFails() = runTest {
+        http.fail(deckStreamUrl(sampleSize = 50), HttpError(statusCode = 500, message = "boom"))
+
+        assertEquals(emptyList(), repo.trendingDeckTags())
+    }
+
+    private fun deckStreamUrl(sampleSize: Int) =
+        "$NEXUS_BASE/v0/stream/resources?app=loopky&tags=loopky-deck" +
+            "&sorting=taggers_count&limit=$sampleSize&skip=0"
+
     private companion object {
         const val NEXUS_BASE = "https://nexus.test"
     }
