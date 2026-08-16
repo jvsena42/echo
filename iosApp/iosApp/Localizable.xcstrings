@@ -1178,28 +1178,6 @@
         }
       }
     },
-    "discover_error_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Something went wrong"
-          }
-        }
-      }
-    },
-    "discover_retry": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Retry"
-          }
-        }
-      }
-    },
     "discover_add_friend_sheet_subtitle": {
       "extractionState": "manual",
       "localizations": {

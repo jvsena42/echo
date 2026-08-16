@@ -28,7 +28,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -374,27 +373,6 @@ private fun EmptyBlock(onAddFriend: () -> Unit) {
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
             )
-        }
-    }
-}
-
-@Composable
-private fun ErrorBlock(message: String, onRetry: () -> Unit) {
-    val colors = LoopkyTheme.colors
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 64.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.discover_error_title),
-            color = colors.foregroundPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.ExtraBold,
-        )
-        Text(text = message, color = colors.foregroundMuted, fontSize = 14.sp)
-        TextButton(onClick = onRetry) {
-            Text(stringResource(R.string.discover_retry), color = colors.accentPrimary)
         }
     }
 }
