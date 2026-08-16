@@ -6,10 +6,19 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -315,18 +324,12 @@ private fun ReviewingContent(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Card (tap front to reveal) with a 3D flip. Same Box for both faces, so front
-        // and back are always the identical size.
+        // Card (tap front to reveal) with a 3D flip that only ever plays forward. Advancing to
+        // the next card is a fade/slide, NOT a reverse flip: each card owns its own rotation
+        // state, so a new card composes at 0f (front) and the outgoing card keeps rendering its
+        // own snapshot while it fades. Without this the un-flip showed the next card's answer
+        // for the first half of the turn.
         val reduceMotion = rememberReduceMotion()
-        val rotation by animateFloatAsState(
-            targetValue = if (state.revealed) 180f else 0f,
-            animationSpec = if (reduceMotion) {
-                snap()
-            } else {
-                tween(durationMillis = 700, easing = FastOutSlowInEasing)
-            },
-            label = "cardFlip",
-        )
         // The weighted Box keeps the flip frame stable across the reveal; the card inside is
         // capped so a one-word prompt doesn't stretch into a near-full-screen rectangle.
         Box(
@@ -335,48 +338,44 @@ private fun ReviewingContent(
                 .weight(1f),
             contentAlignment = Alignment.Center,
         ) {
-            Box(
+            AnimatedContent(
+                targetState = CardSnapshot(
+                    position = state.position,
+                    frontText = state.frontText,
+                    backText = state.backText,
+                    backLabel = state.backLabel,
+                    frontImageRef = state.frontImageRef,
+                    revealed = state.revealed,
+                ),
+                // Keyed on the card, so revealing swaps content in place (the flip) and only a
+                // card change runs the enter/exit transition.
+                contentKey = { it.position },
+                transitionSpec = {
+                    if (reduceMotion) {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    } else {
+                        fadeIn(tween(durationMillis = 200)) +
+                            slideInVertically(tween(durationMillis = 200)) { it / 12 } togetherWith
+                            fadeOut(tween(durationMillis = 100))
+                    }
+                },
                 modifier = Modifier
-                    .testTag("study_card")
                     .fillMaxWidth()
                     .heightIn(max = 560.dp)
-                    .fillMaxHeight()
-                    .graphicsLayer {
-                        rotationY = rotation
-                        cameraDistance = 12f * density
-                    }
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(colors.surfaceCard)
-                    .clickable(enabled = !state.revealed, onClick = onReveal)
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (rotation < 90f) {
-                    // Front shows only the prompt (design `w1CAm`); the reveal cue lives in the
-                    // hint row below, and Listen/Speak appear only on the back.
-                    CardFace(
-                        label = null,
-                        text = state.frontText,
-                        textSize = 48.sp,
-                        onSpeak = onSpeak,
-                        showListen = false,
-                        onSpeakTest = null,
-                    )
-                } else {
-                    // Counter-rotate so the back content is not mirrored.
-                    CardFace(
-                        label = state.backLabel,
-                        text = state.backText,
-                        textSize = 42.sp,
-                        onSpeak = onSpeak,
-                        showListen = state.listenEnabled,
-                        onSpeakTest = if (state.speakEnabled) onSpeakTest else null,
-                        imageRef = state.frontImageRef,
-                        deckId = state.deckId,
-                        authorPubky = state.authorPubky,
-                        modifier = Modifier.graphicsLayer { rotationY = 180f },
-                    )
-                }
+                    .fillMaxHeight(),
+                label = "cardAdvance",
+            ) { card ->
+                FlippableCard(
+                    card = card,
+                    reduceMotion = reduceMotion,
+                    listenEnabled = state.listenEnabled,
+                    speakEnabled = state.speakEnabled,
+                    deckId = state.deckId,
+                    authorPubky = state.authorPubky,
+                    onReveal = onReveal,
+                    onSpeak = onSpeak,
+                    onSpeakTest = onSpeakTest,
+                )
             }
         }
 
@@ -400,6 +399,94 @@ private fun ReviewingContent(
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+/**
+ * Everything the card face renders, plus the identity the advance transition keys on.
+ * `position` is unique per card within a session — the VM only ever moves forward
+ * (`index++`) and never re-queues a card.
+ */
+private data class CardSnapshot(
+    val position: Int,
+    val frontText: String,
+    val backText: String,
+    val backLabel: String?,
+    val frontImageRef: MediaRef.Image?,
+    val revealed: Boolean,
+)
+
+/**
+ * One card, owning its own flip. Composed per [CardSnapshot] by the advance `AnimatedContent`,
+ * so a freshly entering card starts at 0f (front, no animation) and an exiting card holds the
+ * face it was already showing.
+ */
+@Composable
+private fun AnimatedContentScope.FlippableCard(
+    card: CardSnapshot,
+    reduceMotion: Boolean,
+    listenEnabled: Boolean,
+    speakEnabled: Boolean,
+    deckId: String,
+    authorPubky: String,
+    onReveal: () -> Unit,
+    onSpeak: () -> Unit,
+    onSpeakTest: () -> Unit,
+) {
+    val colors = LoopkyTheme.colors
+    val rotation by animateFloatAsState(
+        targetValue = if (card.revealed) 180f else 0f,
+        animationSpec = if (reduceMotion) {
+            snap()
+        } else {
+            tween(durationMillis = 700, easing = FastOutSlowInEasing)
+        },
+        label = "cardFlip",
+    )
+    // A card on its way out is still on screen for the fade; taps there would hit the card the
+    // VM has already moved past.
+    val interactive = transition.targetState == EnterExitState.Visible
+
+    Box(
+        modifier = Modifier
+            .testTag("study_card")
+            .fillMaxSize()
+            .graphicsLayer {
+                rotationY = rotation
+                cameraDistance = 12f * density
+            }
+            .clip(RoundedCornerShape(28.dp))
+            .background(colors.surfaceCard)
+            .clickable(enabled = interactive && !card.revealed, onClick = onReveal)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (rotation < 90f) {
+            // Front shows only the prompt (design `w1CAm`); the reveal cue lives in the
+            // hint row below, and Listen/Speak appear only on the back.
+            CardFace(
+                label = null,
+                text = card.frontText,
+                textSize = 48.sp,
+                onSpeak = onSpeak,
+                showListen = false,
+                onSpeakTest = null,
+            )
+        } else {
+            // Counter-rotate so the back content is not mirrored.
+            CardFace(
+                label = card.backLabel,
+                text = card.backText,
+                textSize = 42.sp,
+                onSpeak = onSpeak,
+                showListen = interactive && listenEnabled,
+                onSpeakTest = if (interactive && speakEnabled) onSpeakTest else null,
+                imageRef = card.frontImageRef,
+                deckId = deckId,
+                authorPubky = authorPubky,
+                modifier = Modifier.graphicsLayer { rotationY = 180f },
+            )
+        }
     }
 }
 
