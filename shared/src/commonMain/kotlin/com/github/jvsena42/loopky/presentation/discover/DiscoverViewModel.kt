@@ -73,6 +73,7 @@ class DiscoverViewModel(
             _state.update {
                 it.copy(
                     topics = it.topics.loading(),
+                    people = it.people.loading(),
                     browse = it.browse.loading(),
                     following = it.following.loading(),
                     isRefreshing = isRefresh,
@@ -80,8 +81,10 @@ class DiscoverViewModel(
             }
             coroutineScope {
                 launch { loadFollowing() }
-                launch { loadBrowse(tag) }
                 launch { loadTopics() }
+                // People is seeded from what browse found, so it chains off it rather than
+                // racing it. Everything else runs alongside.
+                launch { loadPeople(seed = loadBrowse(tag)) }
             }
             _state.update { it.copy(isRefreshing = false) }
         }
@@ -98,7 +101,7 @@ class DiscoverViewModel(
                 feed = decks
                 _state.update {
                     it.copy(
-                        following = it.following.loaded(decks.filterByTag(it.selectedTag).toCards()),
+                        following = it.following.loaded(decks.filterByTag(it.selectedTag).toCards(authors)),
                         topics = it.topics.copy(items = mergedTopics()),
                     )
                 }
@@ -116,7 +119,7 @@ class DiscoverViewModel(
      * it asks the indexer for that topic rather than filtering what is already on screen, because
      * a network-wide topic almost never matches the handful of decks in the followed feed.
      */
-    private suspend fun loadBrowse(tag: Tag?) {
+    private suspend fun loadBrowse(tag: Tag?): List<Deck> {
         val label = tag ?: ReservedTags.DECK
         // Documented never to throw; guarded anyway so a future change cannot cancel siblings.
         val decks = runCatching { discoveryRepository.decksByTagGlobal(label, BROWSE_LIMIT) }
@@ -126,10 +129,28 @@ class DiscoverViewModel(
         _state.update { current ->
             // A newer selection may have landed while this was in flight; cancelling the job can
             // miss a suspension point, so the selection itself is the token.
-            if (current.selectedTag != tag) current else current.copy(browse = current.browse.loaded(decks.toCards()))
+            if (current.selectedTag != tag) {
+                current
+            } else {
+                current.copy(browse = current.browse.loaded(decks.toCards(authors)))
+            }
         }
         Log.d(TAG, "loadBrowse('${label.value}'): ${decks.size} decks")
         loadAuthorProfiles(decks)
+        return decks
+    }
+
+    /**
+     * People to follow, seeded with whatever browse found: the indexer's `loopky-user` directory
+     * comes back empty for a young label, so deck authors are the source that actually works — see
+     * [DiscoveryRepository.suggestedPeople].
+     */
+    private suspend fun loadPeople(seed: List<Deck>) {
+        val people = runCatching { discoveryRepository.suggestedPeople(seed, PEOPLE_LIMIT) }
+            .onFailure { Log.e(TAG, "loadPeople: FAILED — ${it.message}", it) }
+            .getOrElse { emptyList() }
+        _state.update { it.copy(people = it.people.loaded(people.map(::DiscoverPerson))) }
+        Log.d(TAG, "loadPeople: ${people.size} suggestions")
     }
 
     private suspend fun loadTopics() {
@@ -151,12 +172,7 @@ class DiscoverViewModel(
         }
         resolved.filterNotNull().forEach { authors[it.pubky] = it }
         if (resolved.all { it == null }) return
-        _state.update { current ->
-            current.copy(
-                browse = current.browse.copy(items = current.browse.items.map(::withResolvedAuthor)),
-                following = current.following.copy(items = current.following.items.map(::withResolvedAuthor)),
-            )
-        }
+        _state.update { it.withResolvedAuthors(authors) }
         Log.d(TAG, "loadAuthorProfiles: resolved=${resolved.count { it != null }}/${pending.size}")
     }
 
@@ -167,7 +183,7 @@ class DiscoverViewModel(
             it.copy(
                 selectedTag = next,
                 browse = SectionState(isLoading = true),
-                following = it.following.copy(items = feed.filterByTag(next).toCards()),
+                following = it.following.copy(items = feed.filterByTag(next).toCards(authors)),
             )
         }
         browseJob = viewModelScope.launch { loadBrowse(next) }
@@ -178,6 +194,33 @@ class DiscoverViewModel(
         viewModelScope.launch {
             _state.update { it.copy(following = it.following.loading()) }
             loadFollowing()
+        }
+    }
+
+    /**
+     * Follow straight from the suggestions strip. Optimistic so the pill responds immediately, and
+     * reverted on failure — the person stays on the strip either way, since a failed follow is
+     * worth retrying rather than hiding.
+     */
+    fun onFollowToggle(pubky: String) {
+        val person = _state.value.people.items.firstOrNull { it.identity.pubky == pubky } ?: return
+        if (person.isFollowPending) return
+        val wasFollowing = person.isFollowing
+        _state.updatePerson(pubky) { it.copy(isFollowing = !wasFollowing, isFollowPending = true) }
+
+        viewModelScope.launch {
+            val result = if (wasFollowing) {
+                discoveryRepository.unfollowUser(pubky)
+            } else {
+                discoveryRepository.followUser(pubky)
+            }
+            result
+                .onSuccess { _state.updatePerson(pubky) { it.copy(isFollowPending = false) } }
+                .onFailure { err ->
+                    Log.e(TAG, "onFollowToggle($pubky): FAILED — ${err.message}", err)
+                    _state.updatePerson(pubky) { it.copy(isFollowing = wasFollowing, isFollowPending = false) }
+                    _effects.emit(DiscoverEffect.ShowFollowError(err.toErrorReason()))
+                }
         }
     }
 
@@ -199,11 +242,6 @@ class DiscoverViewModel(
             .filterNot { ReservedTags.isReserved(it) }
             .distinct()
 
-    private fun List<Deck>.toCards(): List<DiscoverDeck> = toCards(authors)
-
-    private fun withResolvedAuthor(card: DiscoverDeck): DiscoverDeck =
-        card.copy(author = authors[card.authorPubky] ?: card.author)
-
     companion object {
         private const val TAG = "Loopky/DiscoverVM"
 
@@ -213,6 +251,12 @@ class DiscoverViewModel(
          * default of thirty would be eight waves before anything renders.
          */
         internal const val BROWSE_LIMIT = 12
+
+        /**
+         * Each candidate costs a self-tag check plus a profile fetch, and the indexer clamps the
+         * directory read to twenty. Ten keeps the strip inside five waves.
+         */
+        internal const val PEOPLE_LIMIT = 10
     }
 }
 
@@ -220,6 +264,28 @@ private const val FALLBACK_EMOJI = "📚"
 
 internal fun bareIdentity(pubky: String) =
     PubkyIdentity(pubky, displayName = null, avatarUrl = null, bio = null)
+
+/** Re-renders both deck strips with any author names that have since resolved. */
+private fun DiscoverUiState.withResolvedAuthors(authors: Map<String, PubkyIdentity>): DiscoverUiState {
+    fun DiscoverDeck.resolved() = copy(author = authors[authorPubky] ?: author)
+    return copy(
+        browse = browse.copy(items = browse.items.map { it.resolved() }),
+        following = following.copy(items = following.items.map { it.resolved() }),
+    )
+}
+
+private fun MutableStateFlow<DiscoverUiState>.updatePerson(
+    pubky: String,
+    transform: (DiscoverPerson) -> DiscoverPerson,
+) = update { current ->
+    current.copy(
+        people = current.people.copy(
+            items = current.people.items.map { person ->
+                if (person.identity.pubky == pubky) transform(person) else person
+            },
+        ),
+    )
+}
 
 private fun List<Deck>.filterByTag(tag: Tag?): List<Deck> =
     if (tag == null) this else filter { tag in it.tags }
@@ -243,10 +309,18 @@ private fun List<Deck>.toCards(authors: Map<String, PubkyIdentity>): List<Discov
  */
 data class DiscoverUiState(
     val topics: SectionState<Tag> = SectionState(),
+    val people: SectionState<DiscoverPerson> = SectionState(),
     val browse: SectionState<DiscoverDeck> = SectionState(),
     val following: SectionState<DiscoverDeck> = SectionState(),
     val selectedTag: Tag? = null,
     val isRefreshing: Boolean = false,
+)
+
+/** Someone worth following, with the state of the follow pill beside them. */
+data class DiscoverPerson(
+    val identity: PubkyIdentity,
+    val isFollowing: Boolean = false,
+    val isFollowPending: Boolean = false,
 )
 
 /** One independently-loading strip. Strips never gate each other. */
@@ -277,4 +351,7 @@ sealed interface DiscoverEffect {
     data object OpenAddFriend : DiscoverEffect
     data class OpenProfile(val pubky: String) : DiscoverEffect
     data class OpenDeck(val authorPubky: String, val deckId: String) : DiscoverEffect
+
+    /** A follow that failed — the pill has already reverted, so this only explains why. */
+    data class ShowFollowError(val reason: ErrorReason) : DiscoverEffect
 }

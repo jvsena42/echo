@@ -272,12 +272,17 @@ class FakeDiscoveryRepository : DiscoveryRepository {
     override suspend fun following(): List<String> = follows.toList()
     override suspend fun isFollowing(pubky: String): Boolean = pubky in follows
 
+    /** When set, follow/unfollow fails — the optimistic pill must revert. */
+    var followError: Throwable? = null
+
     override suspend fun followUser(pubky: String): Result<Unit> {
+        followError?.let { return Result.failure(it) }
         follows.add(pubky)
         return Result.success(Unit)
     }
 
     override suspend fun unfollowUser(pubky: String): Result<Unit> {
+        followError?.let { return Result.failure(it) }
         follows.remove(pubky)
         return Result.success(Unit)
     }

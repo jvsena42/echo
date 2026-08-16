@@ -1,8 +1,10 @@
 package com.github.jvsena42.loopky.ui.discover
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -53,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.presentation.discover.DiscoverDeck
@@ -61,6 +65,7 @@ import com.github.jvsena42.loopky.presentation.discover.DiscoverUiState
 import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.loopky.presentation.discover.SectionState
 import com.github.jvsena42.loopky.ui.components.LoopkyErrorBlock
+import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -72,9 +77,11 @@ fun DiscoverRoute(
 ) {
     val viewModel = koinViewModel<DiscoverViewModel>()
 
+    val context = LocalContext.current
     val currentOpenProfile by rememberUpdatedState(onOpenProfile)
     val currentOpenDeck by rememberUpdatedState(onOpenDeck)
     var showAddFriend by remember { mutableStateOf(false) }
+    var followError by remember { mutableStateOf<ErrorReason?>(null) }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -82,7 +89,17 @@ fun DiscoverRoute(
                 DiscoverEffect.OpenAddFriend -> showAddFriend = true
                 is DiscoverEffect.OpenProfile -> currentOpenProfile(effect.pubky)
                 is DiscoverEffect.OpenDeck -> currentOpenDeck(effect.deckId, effect.authorPubky)
+                is DiscoverEffect.ShowFollowError -> followError = effect.reason
             }
+        }
+    }
+
+    // Resolved here rather than in the effect collector: errorMessage is @Composable.
+    followError?.let { reason ->
+        val message = errorMessage(reason)
+        LaunchedEffect(reason, message) {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            followError = null
         }
     }
 
@@ -93,6 +110,7 @@ fun DiscoverRoute(
         onAddFriend = viewModel::onAddFriend,
         onOpenAuthor = viewModel::onOpenAuthor,
         onOpenDeck = viewModel::onOpenDeck,
+        onFollowToggle = viewModel::onFollowToggle,
         onRefresh = viewModel::onRefresh,
         onRetryFollowing = viewModel::onRetryFollowing,
     )
@@ -116,6 +134,7 @@ private fun DiscoverScreen(
     onAddFriend: () -> Unit,
     onOpenAuthor: (String) -> Unit,
     onOpenDeck: (String, String) -> Unit,
+    onFollowToggle: (String) -> Unit,
     onRefresh: () -> Unit,
     onRetryFollowing: () -> Unit,
 ) {
@@ -141,6 +160,7 @@ private fun DiscoverScreen(
                 item(key = "header") { DiscoverHeader(onAddFriend = onAddFriend) }
 
                 topicsSection(state, onTagSelected)
+                peopleSection(state, onOpenAuthor, onFollowToggle)
                 browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onAddFriend)
                 followingSection(state, onOpenDeck, onOpenAuthor, onRetryFollowing)
             }
@@ -161,6 +181,42 @@ private fun LazyListScope.topicsSection(
             selectedTag = state.selectedTag,
             onTagSelected = onTagSelected,
         )
+    }
+}
+
+private fun LazyListScope.peopleSection(
+    state: DiscoverUiState,
+    onOpenAuthor: (String) -> Unit,
+    onFollowToggle: (String) -> Unit,
+) {
+    // Hidden entirely once it settles empty: an empty people strip on a young network is not
+    // information, and the browse strip below is the better thing to be looking at.
+    if (state.people.isEmpty) return
+    item(key = "people_header") {
+        SectionHeader(text = stringResource(R.string.discover_people_title))
+    }
+    if (state.people.isLoading) {
+        item(key = "people_loading") {
+            SectionSpinner(modifier = Modifier.testTag("discover_people_loading"))
+        }
+        return
+    }
+    item(key = "people") {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("discover_people_row")
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            state.people.items.forEach { person ->
+                PersonTile(
+                    person = person,
+                    onOpenProfile = { onOpenAuthor(person.identity.pubky) },
+                    onFollowToggle = { onFollowToggle(person.identity.pubky) },
+                )
+            }
+        }
     }
 }
 
@@ -444,6 +500,7 @@ private fun DiscoverScreenPreview() {
             onAddFriend = {},
             onOpenAuthor = {},
             onOpenDeck = { _, _ -> },
+            onFollowToggle = {},
             onRefresh = {},
             onRetryFollowing = {},
         )
@@ -461,6 +518,7 @@ private fun DiscoverScreenEmptyBrowsePreview() {
             onAddFriend = {},
             onOpenAuthor = {},
             onOpenDeck = { _, _ -> },
+            onFollowToggle = {},
             onRefresh = {},
             onRetryFollowing = {},
         )

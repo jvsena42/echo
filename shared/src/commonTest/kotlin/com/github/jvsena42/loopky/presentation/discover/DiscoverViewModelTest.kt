@@ -11,6 +11,8 @@ import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -292,6 +294,67 @@ class DiscoverViewModelTest {
         )
         // friend2 has no profile — it keeps the pubky rather than blanking out.
         assertNull(state.following.items.first { it.authorPubky == "friend2" }.author.displayName)
+    }
+
+    // ── people ───────────────────────────────────────────────────────────
+
+    @Test
+    fun peopleAreSeededFromWhateverBrowseFound() = runTest {
+        seedGlobal()
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        // The directory is empty here, exactly as it is against the live indexer — the strip is
+        // carried entirely by the authors of the decks browse just fetched.
+        assertEquals(listOf("stranger1", "stranger2"), vm.state.value.people.items.map { it.identity.pubky })
+        assertEquals(listOf(DiscoverViewModel.PEOPLE_LIMIT), discovery.suggestedRequests)
+    }
+
+    @Test
+    fun peopleDropsAccountsYouAlreadyFollow() = runTest {
+        seedGlobal()
+        discovery.follows.add("stranger1")
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        assertEquals(listOf("stranger2"), vm.state.value.people.items.map { it.identity.pubky })
+    }
+
+    @Test
+    fun followingSomeoneFromTheStripIsOptimistic() = runTest {
+        seedGlobal()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onFollowToggle("stranger1")
+
+        // Flipped before the write comes back, so the pill responds to the tap immediately.
+        assertTrue(vm.state.value.people.items.first().isFollowing)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.people.items.first().isFollowing)
+        assertFalse(vm.state.value.people.items.first().isFollowPending)
+        assertTrue("stranger1" in discovery.follows)
+    }
+
+    @Test
+    fun aFailedFollowRevertsThePillAndSaysWhy() = runTest {
+        seedGlobal()
+        discovery.followError = IllegalStateException("offline")
+        val vm = viewModel()
+        advanceUntilIdle()
+        val effects = mutableListOf<DiscoverEffect>()
+        val collector = launch { vm.effects.toList(effects) }
+
+        vm.onFollowToggle("stranger1")
+        advanceUntilIdle()
+
+        val person = vm.state.value.people.items.first()
+        assertFalse(person.isFollowing, "an optimistic follow must not survive a failed write")
+        assertFalse(person.isFollowPending)
+        assertTrue(effects.any { it is DiscoverEffect.ShowFollowError })
+        collector.cancel()
     }
 
     @Test

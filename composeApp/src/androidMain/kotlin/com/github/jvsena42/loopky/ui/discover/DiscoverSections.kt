@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -17,19 +18,24 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.presentation.discover.DiscoverDeck
+import com.github.jvsena42.loopky.presentation.discover.DiscoverPerson
 import com.github.jvsena42.loopky.ui.components.DeckTile
+import com.github.jvsena42.loopky.ui.components.PubkyAvatar
 import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
+import com.github.jvsena42.loopky.ui.util.truncatedPubky
 
 /**
  * The shared furniture of Discover's strips. Kept beside [DiscoverScreen] rather than in
@@ -149,6 +155,71 @@ fun DeckRow(
 }
 
 /**
+ * One suggested account: avatar, name, truncated pubky, and a follow pill. Tapping the tile opens
+ * the profile; tapping the pill follows without leaving Discover, which is the whole point for
+ * someone who has nobody to follow yet.
+ */
+@Composable
+fun PersonTile(
+    person: DiscoverPerson,
+    onOpenProfile: () -> Unit,
+    onFollowToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    val pillShape = RoundedCornerShape(50)
+    Column(
+        modifier = modifier
+            .testTag("discover_person")
+            .clip(RoundedCornerShape(20.dp))
+            .background(colors.surfaceCard)
+            .clickable(onClick = onOpenProfile)
+            .padding(horizontal = 14.dp, vertical = 14.dp)
+            .width(120.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        PubkyAvatar(identity = person.identity, size = 56.dp)
+        Text(
+            text = person.identity.label(),
+            color = colors.foregroundPrimary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.W700,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = truncatedPubky(person.identity.pubky),
+            color = colors.foregroundMuted,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = stringResource(
+                if (person.isFollowing) {
+                    R.string.component_author_row_following
+                } else {
+                    R.string.component_author_row_follow
+                },
+            ),
+            color = if (person.isFollowing) colors.accentSecondary else colors.foregroundOnAccent,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.W700,
+            modifier = Modifier
+                .testTag("discover_follow")
+                .clip(pillShape)
+                .background(
+                    if (person.isFollowing) colors.accentSecondarySoft else colors.accentSecondary,
+                )
+                .clickable(enabled = !person.isFollowPending, onClick = onFollowToggle)
+                .alpha(if (person.isFollowPending) PENDING_ALPHA else 1f)
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/**
  * Shown when global browse comes back with nothing. Never a plain dead end: the index being young
  * is stated plainly, and there is still something to do.
  */
@@ -208,3 +279,6 @@ fun BrowseEmptyBlock(
         }
     }
 }
+
+/** Dims the pill while a follow request is in flight, matching AuthorRow. */
+private const val PENDING_ALPHA = 0.5f
