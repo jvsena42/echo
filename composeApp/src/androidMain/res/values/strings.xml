@@ -26,6 +26,7 @@
     <string name="decks_paste_cta_title">Paste to import</string>
     <string name="decks_paste_cta_subtitle">Turn any list into a deck</string>
     <string name="decks_paste_cta_go">Go</string>
+    <string name="decks_import_file_cta">Or import a file</string>
     <string name="decks_library_count">Library · %1$d</string>
     <string name="decks_recent">Recent</string>
     <string name="decks_empty_title">No decks yet</string>
@@ -339,4 +340,28 @@
     <string name="permission_not_now">Not now</string>
     <string name="permission_open_settings">Open settings</string>
     <string name="triage_undo">Undo last card</string>
+
+    <!-- Bulk file import -->
+    <string name="bulk_title">Import file</string>
+    <string name="bulk_cancel">Cancel</string>
+    <string name="bulk_pick_file">Choose a file</string>
+    <string name="bulk_pick_hint">Import an Anki .apkg export, a deck exported as “Notes in Plain Text”, or any tab- or comma-separated list.</string>
+    <string name="bulk_parsing">Reading %1$s…</string>
+    <string name="bulk_summary_heading">Ready to import</string>
+    <string name="bulk_detected_separator">Separator: %1$s</string>
+    <string name="bulk_sample_label">SAMPLE</string>
+    <string name="bulk_import_button">Import %1$s</string>
+    <string name="bulk_nothing_to_import">No cards found in that file.</string>
+    <string name="bulk_skipped">%1$d skipped (missing a front or back)</string>
+    <string name="bulk_duplicates">%1$d duplicates merged</string>
+    <string name="bulk_truncated">%1$d rows past the limit were not imported</string>
+    <plurals name="bulk_cards_parsed">
+        <item quantity="one">%1$d card parsed</item>
+        <item quantity="other">%1$d cards parsed</item>
+    </plurals>
+    <plurals name="bulk_import_cards">
+        <item quantity="one">Import %1$d card</item>
+        <item quantity="other">Import %1$d cards</item>
+    </plurals>
+    <string name="deck_incomplete_warning">This deck didn\'t finish uploading — some cards are missing. Import it again to complete it, or delete it.</string>
 </resources>

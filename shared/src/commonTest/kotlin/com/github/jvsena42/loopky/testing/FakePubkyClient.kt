@@ -19,6 +19,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 class FakePubkyClient : PubkyClient {
 
     val store = mutableMapOf<String, String>()
+    val gets = mutableListOf<String>()
     val puts = mutableListOf<Pair<String, String>>()
     val bytePuts = mutableListOf<Pair<String, ByteArray>>()
     val deletes = mutableListOf<String>()
@@ -28,8 +29,17 @@ class FakePubkyClient : PubkyClient {
     /** When set, the next session-authenticated write/delete fails once with this error. */
     var failNextSessionCallWith: Throwable? = null
 
+    /** Fails the next N session-authenticated writes with 429, as a busy homeserver would. */
+    var rateLimitNextCalls: Int = 0
+
     /** When set, every [list] call fails with this error (simulates an unreachable homeserver). */
     var failListWith: Throwable? = null
+
+    /**
+     * Entries returned per [list] call, so tests can force the caller to page. Real homeservers
+     * cap this; nothing in the app paged until the delete sweep needed to.
+     */
+    var listPageSize: Int? = null
 
     /** When set, every [get] call fails with this error (simulates an unreachable homeserver). */
     var failGetWith: Throwable? = null
@@ -64,6 +74,7 @@ class FakePubkyClient : PubkyClient {
     }
 
     override suspend fun get(url: String): Result<String> {
+        gets.add(url)
         failGetWith?.let { return Result.failure(it) }
         return store[url]?.let { Result.success(it) }
             ?: Result.failure(PubkyError("not found: $url"))
@@ -80,15 +91,23 @@ class FakePubkyClient : PubkyClient {
     ): Result<String> {
         listedPrefixes.add(url)
         failListWith?.let { return Result.failure(it) }
-        val matches = store.keys.filter { it.startsWith(url) }.sorted()
+        var matches = store.keys.filter { it.startsWith(url) }.sorted()
+        if (cursor != null) matches = matches.filter { it > cursor }
+        val cap = listOfNotNull(listPageSize, limit?.toInt()).minOrNull()
+        if (cap != null) matches = matches.take(cap)
         return Result.success(matches.joinToString(",", "[", "]") { "\"$it\"" })
     }
 
     override fun createTagId(uri: String, label: String): Result<String> =
         Result.success("TAGID-" + (uri + label).hashCode().toUInt().toString(16))
 
-    private fun consumeInjectedFailure(): Throwable? =
-        failNextSessionCallWith?.also { failNextSessionCallWith = null }
+    private fun consumeInjectedFailure(): Throwable? {
+        if (rateLimitNextCalls > 0) {
+            rateLimitNextCalls--
+            return PubkyError("Request failed: Server responded with an error: 429 Too Many Requests")
+        }
+        return failNextSessionCallWith?.also { failNextSessionCallWith = null }
+    }
 
     // --- Surface unused by the repositories under test -------------------------
 

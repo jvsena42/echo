@@ -1,8 +1,8 @@
 package com.github.jvsena42.loopky.presentation.decks
 
 import com.github.jvsena42.loopky.domain.model.Card
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.CardSide
+import com.github.jvsena42.loopky.domain.model.ChunkMeta
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.testing.FakeCardRepository
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
@@ -72,7 +72,8 @@ class DeckEditorViewModelTest {
         deckRepo.decks["deck1"] = testDeck(
             id = "deck1",
             authorPubky = TEST_PUBKY,
-            cardIndex = listOf(CardIndexEntry("card1", 1_000L)),
+            cardCount = 1,
+            chunks = listOf(ChunkMeta(n = 0, count = 1, updatedAt = 1_000L)),
         ).copy(
             coverImageRef = coverImage,
             listenEnabled = false,
@@ -103,12 +104,13 @@ class DeckEditorViewModelTest {
         val vm = viewModel()
         advanceUntilIdle()
 
-        vm.onTitleChanged("Spanish Basics")
+        // Adding a card changes the card set, so this takes the full-publish path.
+        vm.onAddCard()
         vm.onSaveClick()
         advanceUntilIdle()
 
         val (_, cards) = deckRepo.published.single()
-        val saved = cards.single()
+        val saved = cards.first { it.id == "card1" }
         assertEquals(frontImage, saved.front.imageRef, "front image was dropped on save")
         assertEquals(backAudio, saved.back.audioRef, "back audio was dropped on save")
     }
@@ -123,7 +125,7 @@ class DeckEditorViewModelTest {
         vm.onSaveClick()
         advanceUntilIdle()
 
-        val (deck, _) = deckRepo.published.single()
+        val deck = deckRepo.decks.getValue("deck1")
         assertEquals(coverImage, deck.coverImageRef, "deck cover was destroyed on save")
         assertEquals(false, deck.listenEnabled, "listenEnabled was reset to its default")
         assertEquals(false, deck.speakEnabled, "speakEnabled was reset to its default")
@@ -139,8 +141,7 @@ class DeckEditorViewModelTest {
         vm.onSaveClick()
         advanceUntilIdle()
 
-        val (deck, _) = deckRepo.published.single()
-        assertEquals("Renamed", deck.title)
+        assertEquals("Renamed", deckRepo.decks.getValue("deck1").title)
     }
 
     @Test
@@ -149,14 +150,14 @@ class DeckEditorViewModelTest {
         val vm = viewModel()
         advanceUntilIdle()
 
-        vm.onTitleChanged("Spanish Basics")
+        vm.onAddCard()
         vm.onSaveClick()
         advanceUntilIdle()
 
         val (_, cards) = deckRepo.published.single()
         assertEquals(
             1_000L,
-            cards.single().updatedAt,
+            cards.first { it.id == "card1" }.updatedAt,
             "an unchanged card should keep its updated_at so sync does not re-download it",
         )
     }
@@ -165,7 +166,7 @@ class DeckEditorViewModelTest {
     fun `moving a card reorders it and the new order is what gets published`() = runTest {
         deckRepo.decks["deck1"] = testDeck(
             id = "deck1",
-            cardIndex = listOf(CardIndexEntry("card1", 1L), CardIndexEntry("card2", 2L)),
+            cardCount = 2,
         )
         cardRepo.seed(
             Card("card1", "deck1", 1L, CardSide(text = "first"), CardSide(text = "1")),
@@ -180,8 +181,38 @@ class DeckEditorViewModelTest {
         advanceUntilIdle()
 
         val (deck, cards) = deckRepo.published.single()
+        // Reorder now persists through the cards' `ord`, assigned by publish in list order,
+        // rather than through the manifest's card index.
         assertEquals(listOf("card2", "card1"), cards.map { it.id })
-        assertEquals(listOf("card2", "card1"), deck.cardIndex.map { it.id })
+        assertEquals(expected = 2, actual = deck.cardCount)
+    }
+
+    @Test
+    fun `renaming a deck writes only the manifest`() = runTest {
+        seedDeckWithMedia()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onTitleChanged("Renamed")
+        vm.onSaveClick()
+        advanceUntilIdle()
+
+        // Republishing would rewrite every chunk to change one field.
+        assertTrue(deckRepo.published.isEmpty(), "a rename republished the whole deck")
+        assertEquals("Renamed", deckRepo.decks.getValue("deck1").title)
+    }
+
+    @Test
+    fun `adding a card still republishes the deck`() = runTest {
+        seedDeckWithMedia()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAddCard()
+        vm.onSaveClick()
+        advanceUntilIdle()
+
+        assertEquals(expected = 1, actual = deckRepo.published.size)
     }
 
     @Test

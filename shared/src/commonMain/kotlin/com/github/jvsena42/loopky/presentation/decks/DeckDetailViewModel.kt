@@ -13,7 +13,7 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
-import com.github.jvsena42.loopky.domain.model.orderedBy
+import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -87,14 +87,14 @@ class DeckDetailViewModel(
 
             // Must be a fetch, not a cache read: nothing has loaded this deck's cards yet on a
             // cold launch, and for a deck you don't own nothing ever will.
-            runCatching { cardRepository.fetchByDeck(deck).getOrThrow().orderedBy(deck) }
+            runCatching { cardRepository.fetchByDeck(deck).getOrThrow().inStudyOrder() }
                 .onSuccess { cards ->
                     val dueCount = runCatching { srsRepository.dueForDeck(deckId).size }
                         .getOrDefault(0)
                     val mastered = masteredPercent(cards)
                     _state.update { deck.toContent(cards, session?.identity, dueCount, mastered) }
                     Log.d(TAG, "load: cards=${cards.size} due=$dueCount mastered=$mastered")
-                    loadCoverBlob(deck.coverImageRef)
+                    loadCoverBlob(deck.coverImageRef, deck.authorPubky)
                     loadAuthorProfile(deck.authorPubky)
                 }
                 .onFailure { err ->
@@ -166,9 +166,9 @@ class DeckDetailViewModel(
      * UI can render the real image. Remote (URL) covers need no fetch — they are already carried by
      * [DeckDetailUiState.Content.coverImageUrl]. No-ops on null/remote refs or while not in Content.
      */
-    private suspend fun loadCoverBlob(ref: MediaRef.Image?) {
+    private suspend fun loadCoverBlob(ref: MediaRef.Image?, authorPubky: String) {
         if (ref == null || ref.isRemote) return
-        val bytes = mediaRepository.get(deckId, ref)
+        val bytes = mediaRepository.get(authorPubky, deckId, ref)
             .onFailure { Log.e(TAG, "loadCoverBlob: FAILED — ${it.message}", it) }
             .getOrNull() ?: return
         val encoded = Base64.encode(bytes)
@@ -214,6 +214,7 @@ class DeckDetailViewModel(
             author = myIdentity?.takeIf { isOwned }
                 ?: PubkyIdentity(authorPubky, displayName = null, avatarUrl = null, bio = null),
             isOwned = isOwned,
+            isIncomplete = incomplete,
             tags = tags.map { it.value },
             totalCards = cardCount,
             dueCards = dueCount,
@@ -249,6 +250,12 @@ sealed interface DeckDetailUiState {
         val author: PubkyIdentity,
         /** Ownership is a separate concern from identity — the author row shows both. */
         val isOwned: Boolean,
+        /**
+         * The deck was claimed by a publish that never finished, so some of its cards are missing.
+         * Surfaced rather than hidden: the count comes from the manifest, so the deck would
+         * otherwise look complete while silently holding fewer cards than it claims.
+         */
+        val isIncomplete: Boolean = false,
         val tags: List<String>,
         val totalCards: Int,
         val dueCards: Int,

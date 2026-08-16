@@ -50,7 +50,11 @@ class EditCardViewModel(
                 _state.update { it.copy(error = "Card not found.") }
                 return@launch
             }
-            val cardIndex = deck?.cardIndex?.indexOfFirst { it.id == cardId }?.plus(1) ?: 0
+            // Position by study order among the cards loaded for this deck; the manifest no
+            // longer carries a card index to look it up in.
+            val cardIndex = cardRepository.listByDeck(deckId)
+                .indexOfFirst { it.id == cardId }
+                .let { if (it >= 0) it + 1 else 0 }
             val totalCards = deck?.cardCount ?: 0
             _state.update { EditCardUiState(
                 deckTitle = deck?.title ?: "",
@@ -157,7 +161,9 @@ class EditCardViewModel(
                 ),
             )
 
-            cardRepository.upsert(card)
+            // Goes through DeckRepository so the chunk write and the manifest's chunk entry move
+            // together — writing the card alone used to leave the manifest permanently stale.
+            deckRepository.upsertCard(deckId, card)
                 .onSuccess {
                     Log.d(TAG, "save: SUCCESS")
                     _state.update { it.copy(isSaving = false) }
@@ -173,7 +179,7 @@ class EditCardViewModel(
     fun onDeleteCard() {
         viewModelScope.launch {
             Log.d(TAG, "delete: cardId=$cardId")
-            cardRepository.delete(deckId, cardId)
+            deckRepository.deleteCard(deckId, cardId)
                 .onSuccess { _effects.emit(EditCardEffect.Deleted) }
                 .onFailure { err ->
                     _state.update { it.copy(error = err.message ?: "Delete failed.") }

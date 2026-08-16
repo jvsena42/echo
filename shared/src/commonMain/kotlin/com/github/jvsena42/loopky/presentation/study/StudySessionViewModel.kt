@@ -153,7 +153,17 @@ class StudySessionViewModel(
     }
 
     fun onClose() {
+        // flushAsync, not a launch here: viewModelScope is cancelled in onCleared(), so a flush
+        // started as this screen goes away would be killed before it finished — losing exactly
+        // the reviews it was meant to save.
+        srsRepository.flushAsync()
         viewModelScope.launch { _effects.emit(StudySessionEffect.Close) }
+    }
+
+    /** Buffered reviews must reach the homeserver even if the process is about to be backgrounded. */
+    override fun onCleared() {
+        srsRepository.flushAsync()
+        super.onCleared()
     }
 
     private fun emitCurrent() {
@@ -163,6 +173,8 @@ class StudySessionViewModel(
         }
         val card = queue.getOrNull(index)
         if (card == null) {
+            // Queue exhausted — persist the session's reviews.
+            srsRepository.flushAsync()
             _state.update { StudySessionUiState.Complete(reviewedCount) }
             return
         }
@@ -185,6 +197,7 @@ class StudySessionViewModel(
                 speakEnabled = deck?.speakEnabled ?: true,
                 speakPhase = speakPhase,
                 deckId = card.deckId,
+                authorPubky = deck?.authorPubky.orEmpty(),
                 frontImageRef = card.front.imageRef,
             ) }
         }
@@ -231,6 +244,8 @@ sealed interface StudySessionUiState {
         val speakEnabled: Boolean = true,
         val speakPhase: SpeakPhase = SpeakPhase.Idle,
         val deckId: String = "",
+        /** The deck's author — media on a followed deck lives on their homeserver, not yours. */
+        val authorPubky: String = "",
         /** Front-side image, shown as a circular avatar on the card back (design `aLoMj`). */
         val frontImageRef: MediaRef.Image? = null,
     ) : StudySessionUiState

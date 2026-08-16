@@ -13,18 +13,37 @@ internal object PubkyPaths {
     fun manifest(authorPubky: String, deckId: String): String =
         "${deckRoot(authorPubky, deckId)}/manifest.json"
 
-    fun card(authorPubky: String, deckId: String, cardId: String): String =
-        "${deckRoot(authorPubky, deckId)}/cards/$cardId.json"
+    /**
+     * One chunk of up to `CHUNK_SIZE` card records. Cards used to get a record each, which made a
+     * 20k-card deck 20k requests to open and forced an unbounded card index into the manifest.
+     */
+    fun cardChunk(authorPubky: String, deckId: String, chunk: Int): String =
+        "${deckRoot(authorPubky, deckId)}/cards/$chunk.json"
+
+    fun cardsRoot(authorPubky: String, deckId: String): String =
+        "${deckRoot(authorPubky, deckId)}/cards/"
 
     fun media(authorPubky: String, deckId: String, sha256: String, ext: String): String =
         "${deckRoot(authorPubky, deckId)}/media/$sha256.$ext"
 
-    /** Per-card SRS review state, deck-scoped to mirror [card] and avoid cross-deck id collisions. */
-    fun srs(authorPubky: String, deckId: String, cardId: String): String =
-        "${deckRoot(authorPubky, deckId)}/srs/$cardId.json"
+    /**
+     * A chunk of SRS review state, on **your** homeserver ([ownerPubky]) but keyed by the deck's
+     * [authorPubky].
+     *
+     * Two things changed here (#43 §2). It is no longer nested under `/decks/{deckId}/`, because
+     * your review state for someone else's deck was never the owner's data — that only looked
+     * right while every deck was your own. And it is keyed by the deck's author, so two authors
+     * whose decks happen to share a `deckId` no longer collide in your `srs/` tree. Following
+     * decks from many authors is exactly what raises those odds.
+     *
+     * Chunked for the same reason cards are: one record per card made a studied 20k-card deck
+     * ~40,000 records, and `dueForDeck` 20,000 GETs.
+     */
+    fun srsChunk(ownerPubky: String, authorPubky: String, deckId: String, chunk: Int): String =
+        "${srsRoot(ownerPubky, authorPubky, deckId)}$chunk.json"
 
-    fun srsRoot(authorPubky: String, deckId: String): String =
-        "${deckRoot(authorPubky, deckId)}/srs/"
+    fun srsRoot(ownerPubky: String, authorPubky: String, deckId: String): String =
+        "pubky://$ownerPubky/$APP_NAMESPACE/srs/$authorPubky/$deckId/"
 
     fun decksList(authorPubky: String): String =
         "pubky://$authorPubky/$APP_NAMESPACE/decks/"

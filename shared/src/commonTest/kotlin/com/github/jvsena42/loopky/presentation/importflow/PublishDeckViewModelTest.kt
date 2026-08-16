@@ -145,7 +145,7 @@ class PublishDeckViewModelTest {
         assertEquals(listOf("spanish"), deck.tags.map { it.value })
         assertEquals(listOf("hola", "gracias"), cards.map { it.front.text })
         assertEquals(listOf("hello", "thank you"), cards.map { it.back.text })
-        assertEquals(cards.map { it.id }, deck.cardIndex.map { it.id })
+        assertEquals(cards.size, deck.cardCount)
     }
 
     @Test

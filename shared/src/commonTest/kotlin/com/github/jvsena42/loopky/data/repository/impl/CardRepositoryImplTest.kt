@@ -1,8 +1,8 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
-import com.github.jvsena42.loopky.data.pubky.CardDto
+import com.github.jvsena42.loopky.data.pubky.CardChunkDto
 import com.github.jvsena42.loopky.data.pubky.toDto
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
+import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakePubkyClient
@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
+import com.github.jvsena42.loopky.testing.testDeckWithCards
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
@@ -27,31 +28,47 @@ class CardRepositoryImplTest {
     private val repo = CardRepositoryImpl(pubky, session, revalidator)
 
     @Test
-    fun upsertWritesTheCardRecordAndCachesIt() = runTest {
-        val card = testCard("c1", deckId = "deck1", front = "hola", back = "hello")
+    fun writeChunkStoresTheBatchAsOneRecord() = runTest {
+        val cards = listOf(testCard("c1", ord = 0), testCard("c2", ord = 1000))
 
-        repo.upsert(card).getOrThrow()
+        repo.writeChunk("deck1", chunk = 0, cards = cards).getOrThrow()
 
-        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/c1.json"
-        val dto = loopkyJson.decodeFromString<CardDto>(pubky.store.getValue(url))
-        assertEquals("c1", dto.id)
+        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/0.json"
+        val dto = loopkyJson.decodeFromString<CardChunkDto>(pubky.store.getValue(url))
         assertEquals("deck1", dto.deck_id)
-        assertEquals("hola", dto.front.text)
-        assertEquals("hello", dto.back.text)
-        assertEquals(card, repo.get("deck1", "c1"))
+        assertEquals(0, dto.chunk)
+        assertEquals(listOf("c1", "c2"), dto.cards.map { it.id })
+        // One request for two cards — the whole point of the layout.
+        assertEquals(expected = 1, actual = pubky.puts.size)
+    }
+
+    @Test
+    fun writeChunkWithNoCardsDeletesTheRecord() = runTest {
+        repo.writeChunk("deck1", 0, listOf(testCard("c1"))).getOrThrow()
+
+        repo.writeChunk("deck1", 0, emptyList()).getOrThrow()
+
+        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/0.json"
+        assertTrue(url !in pubky.store)
+    }
+
+    @Test
+    fun listByDeckReturnsCachedCardsInStudyOrderNotIdOrder() = runTest {
+        repo.writeChunk(
+            "deck1",
+            0,
+            listOf(testCard("zebra", ord = 0), testCard("apple", ord = 1000)),
+        ).getOrThrow()
+
+        assertEquals(listOf("zebra", "apple"), repo.listByDeck("deck1").map { it.id })
     }
 
     @Test
     fun getFallsBackToTheHomeserverOnColdCache() = runTest {
-        val card = testCard("c1")
-        repo.upsert(card).getOrThrow()
-
-        // A fresh repo over the same store has an empty cache.
+        val deck = seedRemoteDeck(TEST_PUBKY, testCard("c1", ord = 0))
         val coldRepo = CardRepositoryImpl(pubky, session, revalidator)
 
-        assertEquals(card, coldRepo.get("deck1", "c1"))
-        // And the fetched card is now cached and listable.
-        assertEquals(listOf(card), coldRepo.listByDeck("deck1"))
+        assertEquals("c1", coldRepo.get(deck.id, "c1")?.id)
     }
 
     @Test
@@ -60,40 +77,12 @@ class CardRepositoryImplTest {
     }
 
     @Test
-    fun listByDeckReturnsCachedCardsSortedById() = runTest {
-        repo.upsert(testCard("c2")).getOrThrow()
-        repo.upsert(testCard("c1")).getOrThrow()
-        repo.upsert(testCard("c9", deckId = "otherdeck")).getOrThrow()
-
-        assertEquals(listOf("c1", "c2"), repo.listByDeck("deck1").map { it.id })
-    }
-
-    @Test
-    fun upsertOverwritesAnExistingCard() = runTest {
-        repo.upsert(testCard("c1", front = "old")).getOrThrow()
-        val updated = testCard("c1", front = "new", updatedAt = 99L)
-
-        repo.upsert(updated).getOrThrow()
-
-        assertEquals(updated, repo.get("deck1", "c1"))
-        assertEquals(expected = 2, actual = pubky.puts.size)
-    }
-
-    @Test
-    fun deleteRemovesRecordAndCacheEntry() = runTest {
-        repo.upsert(testCard("c1")).getOrThrow()
-
-        repo.delete("deck1", "c1").getOrThrow()
-
-        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/c1.json"
-        assertTrue(url !in pubky.store)
-        assertNull(repo.get("deck1", "c1"))
-        assertEquals(emptyList(), repo.listByDeck("deck1"))
-    }
-
-    @Test
     fun fetchByDeckReadsTheCardsOfADeckYouDoNotOwn() = runTest {
-        val deck = seedRemoteDeck(author = FOREIGN_PUBKY, "c1" to 1_000L, "c2" to 1_000L)
+        val deck = seedRemoteDeck(
+            FOREIGN_PUBKY,
+            testCard("c1", ord = 0),
+            testCard("c2", ord = 1000),
+        )
 
         val cards = repo.fetchByDeck(deck).getOrThrow()
 
@@ -101,41 +90,35 @@ class CardRepositoryImplTest {
         // Browsing someone else's deck must not write anything to your own homeserver.
         assertTrue(pubky.puts.isEmpty())
         assertTrue(pubky.deletes.isEmpty())
-        // And the fetched cards are now cached for the session.
-        assertEquals(listOf("c1", "c2"), repo.listByDeck("deck1").map { it.id })
+        assertEquals(listOf("c1", "c2"), repo.listByDeck(deck.id).map { it.id })
     }
 
     @Test
-    fun fetchByDeckReturnsCardsInManifestOrderNotIdOrder() = runTest {
-        val deck = seedRemoteDeck(author = TEST_PUBKY, "zebra" to 1_000L, "apple" to 1_000L)
+    fun fetchByDeckReturnsCardsInOrdOrderNotIdOrder() = runTest {
+        val deck = seedRemoteDeck(
+            TEST_PUBKY,
+            testCard("zebra", ord = 0),
+            testCard("apple", ord = 1000),
+        )
 
         assertEquals(listOf("zebra", "apple"), repo.fetchByDeck(deck).getOrThrow().map { it.id })
     }
 
     @Test
-    fun fetchByDeckKeepsALocalEditNewerThanTheManifestEntry() = runTest {
-        val deck = seedRemoteDeck(author = TEST_PUBKY, "c1" to 1_000L)
-        val edited = testCard("c1", front = "edited locally", updatedAt = 5_000L)
-        repo.upsert(edited).getOrThrow()
-        val putsBefore = pubky.puts.size
+    fun fetchByDeckSkipsAnUnreadableChunkButKeepsTheRest() = runTest {
+        val cards = (1..150).map { testCard("c$it", ord = it * 1000L) }
+        val deck = seedRemoteDeck(TEST_PUBKY, *cards.toTypedArray(), chunkSize = 100)
+        pubky.store.remove("pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/1.json")
 
-        val cards = repo.fetchByDeck(deck).getOrThrow()
+        val read = repo.fetchByDeck(deck).getOrThrow()
 
-        assertEquals(edited, cards.single(), "a newer local edit was overwritten by the fetch")
-        assertEquals(putsBefore, pubky.puts.size, "the fetch should not write")
+        assertEquals(expected = 100, actual = read.size)
+        assertEquals("c1", read.first().id)
     }
 
     @Test
-    fun fetchByDeckSkipsAnUnreadableCardButKeepsTheRest() = runTest {
-        val deck = seedRemoteDeck(author = TEST_PUBKY, "c1" to 1_000L, "c2" to 1_000L)
-        pubky.store.remove("pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/c2.json")
-
-        assertEquals(listOf("c1"), repo.fetchByDeck(deck).getOrThrow().map { it.id })
-    }
-
-    @Test
-    fun fetchByDeckFailsWhenNoCardCanBeRead() = runTest {
-        val deck = seedRemoteDeck(author = TEST_PUBKY, "c1" to 1_000L)
+    fun fetchByDeckFailsWhenNoChunkCanBeRead() = runTest {
+        val deck = seedRemoteDeck(TEST_PUBKY, testCard("c1"))
         pubky.failGetWith = IllegalStateException("homeserver unreachable")
 
         // An unreachable homeserver must not be reported as a deck with no cards.
@@ -147,28 +130,82 @@ class CardRepositoryImplTest {
         assertEquals(emptyList(), repo.fetchByDeck(testDeck()).getOrThrow())
     }
 
-    /**
-     * Writes card records straight into the fake homeserver under [author] and returns a deck
-     * whose `cardIndex` points at them — i.e. the state of a deck published by someone else,
-     * which this session has never read.
-     */
-    private fun seedRemoteDeck(author: String, vararg cards: Pair<String, Long>): Deck {
-        cards.forEach { (id, updatedAt) ->
-            val card = testCard(id, updatedAt = updatedAt)
-            pubky.store["pubky://$author/pub/loopky/decks/deck1/cards/$id.json"] =
-                loopkyJson.encodeToString(card.toDto())
-        }
-        return testDeck(
-            authorPubky = author,
-            cardIndex = cards.map { (id, updatedAt) -> CardIndexEntry(id, updatedAt) },
+    @Test
+    fun fetchByDeckSkipsChunksWhoseTimestampHasNotMoved() = runTest {
+        val deck = seedRemoteDeck(TEST_PUBKY, testCard("c1"), testCard("c2"))
+        repo.fetchByDeck(deck).getOrThrow()
+        val getsAfterFirst = pubky.gets.size
+
+        repo.fetchByDeck(deck).getOrThrow()
+
+        // The chunk's updated_at did not move, so the second pass serves from cache. This is what
+        // keeps a follower of a 20k-card deck from re-reading every chunk on every open.
+        assertEquals(getsAfterFirst, pubky.gets.size)
+        assertEquals(listOf("c1", "c2"), repo.listByDeck(deck.id).map { it.id })
+    }
+
+    @Test
+    fun fetchByDeckRereadsOnlyTheChunkThatChanged() = runTest {
+        val cards = (1..250).map { testCard("c$it", ord = it * 1000L) }
+        val deck = seedRemoteDeck(TEST_PUBKY, *cards.toTypedArray(), chunkSize = 100)
+        repo.fetchByDeck(deck).getOrThrow()
+        assertEquals(expected = 3, actual = pubky.gets.size)
+        pubky.gets.clear()
+
+        // Owner edited one card in chunk 1; only that chunk's timestamp advances.
+        val bumped = deck.copy(
+            chunks = deck.chunks.map { if (it.n == 1) it.copy(updatedAt = 9_000L) else it },
+        )
+        repo.fetchByDeck(bumped).getOrThrow()
+
+        assertEquals(
+            listOf("pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/1.json"),
+            pubky.gets,
         )
     }
 
     @Test
-    fun upsertFailsWhenSignedOut() = runTest {
+    fun fetchByDeckDropsCardsTheAuthorRemoved() = runTest {
+        val deck = seedRemoteDeck(TEST_PUBKY, testCard("c1", ord = 0), testCard("c2", ord = 1000))
+        repo.fetchByDeck(deck).getOrThrow()
+
+        // The author republished the chunk without c2, bumping its timestamp.
+        val shrunk = seedRemoteDeck(TEST_PUBKY, testCard("c1", ord = 0), updatedAt = 9_000L)
+
+        assertEquals(listOf("c1"), repo.fetchByDeck(shrunk).getOrThrow().map { it.id })
+        assertEquals(listOf("c1"), repo.listByDeck(shrunk.id).map { it.id })
+    }
+
+    @Test
+    fun writeChunkFailsWhenSignedOut() = runTest {
         session.set(null)
 
-        assertTrue(repo.upsert(testCard("c1")).isFailure)
+        assertTrue(repo.writeChunk("deck1", 0, listOf(testCard("c1"))).isFailure)
         assertTrue(pubky.puts.isEmpty())
+    }
+
+    /**
+     * Writes chunk records straight into the fake homeserver under [author] and returns a deck
+     * whose manifest describes them — i.e. a deck published by someone else that this session has
+     * never read.
+     */
+    private fun seedRemoteDeck(
+        author: String,
+        vararg cards: Card,
+        chunkSize: Int = 100,
+        updatedAt: Long = 2_000L,
+    ): Deck {
+        cards.toList().chunked(chunkSize).forEachIndexed { n, batch ->
+            pubky.store["pubky://$author/pub/loopky/decks/deck1/cards/$n.json"] =
+                loopkyJson.encodeToString(
+                    CardChunkDto(deck_id = "deck1", chunk = n, cards = batch.map { it.toDto() }),
+                )
+        }
+        return testDeckWithCards(
+            cards = cards.toList(),
+            authorPubky = author,
+            chunkSize = chunkSize,
+            updatedAt = updatedAt,
+        )
     }
 }

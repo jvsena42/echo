@@ -23,6 +23,8 @@ import org.koin.compose.koinInject
 fun CardMediaImage(
     image: MediaRef.Image,
     deckId: String,
+    /** The *deck's* author, not the signed-in user — a followed deck's blobs live on their pubky. */
+    authorPubky: String,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
 ) {
@@ -37,8 +39,8 @@ fun CardMediaImage(
     }
 
     val mediaRepository = koinInject<MediaRepository>()
-    val bytes by produceState<ByteArray?>(initialValue = null, image.sha256, deckId) {
-        value = mediaRepository.get(deckId, image).getOrNull()
+    val bytes by produceState<ByteArray?>(initialValue = null, image.sha256, deckId, authorPubky) {
+        value = mediaRepository.get(authorPubky, deckId, image).getOrNull()
     }
     val data = bytes
     if (data == null) {

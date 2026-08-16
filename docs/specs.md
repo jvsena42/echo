@@ -95,6 +95,15 @@ Tapping *"Next"* hands the parsed cards to the triage queue:
 - Skip-to-end shortcut: *"Approve all remaining"* in the nav bar for users who trust their paste.
 - Haptic tick on each swipe (iOS `UIImpactFeedback.light`, Android equivalent).
 
+**Triage is for interactive imports only.** It is card-at-a-time by design, which is right for a
+40-line paste and wrong for a 20,000-card Anki export — nobody swipes through one. Bulk file import
+(§14) therefore skips the queue entirely and goes to a **summary screen**: *"18,432 cards parsed ·
+209 skipped"*, a sample of the first few rendered as cards, the detected separator, and one confirm
+button. Same parser, same commit flow, no per-card decision.
+
+The rule of thumb: if the user chose the rows, they triage them; if a file chose them, they get a
+summary. This narrows §14's original claim that triage is the spine every import source plugs into.
+
 ### 5.5 Commit
 
 - On triage completion, a confirmation screen: *"42 cards ready. 3 discarded."* + deck metadata form (title, description, cover image, tags). This is the only place tags are entered — they describe the deck, not individual cards (§8).
@@ -192,18 +201,21 @@ Every state from §6 of the brief is enumerated here. The designer must produce 
 
 ### 11.1 Published deck shape
 
-Each published deck is stored as multiple records under the author's pubky so that edits and sync stay cheap:
+Each published deck is stored as multiple records under the author's pubky so that edits and sync stay cheap **at Anki proportions** — 2k–50k cards, not just the few dozen a paste produces:
 
 ```
-/pub/loopky/decks/{deckId}/manifest.json
-/pub/loopky/decks/{deckId}/cards/{cardId}.json
+/pub/loopky/decks/{deckId}/manifest.json      — metadata + chunk table
+/pub/loopky/decks/{deckId}/cards/{n}.json     — a batch of cards
 /pub/loopky/decks/{deckId}/media/{sha256}.{ext}
 ```
 
-- **Manifest** carries deck metadata (title, description, cover, tags) plus an ordered list of card IDs with `updated_at` timestamps. Reordering rewrites only the manifest.
-- **One record per card.** Editing a single card rewrites that card's record and bumps its entry in the manifest — no need to rewrite the whole deck.
-- **Media under the deck path.** Images and audio are stored as blobs keyed by sha256; cards reference them by relative path. Dedupe within a deck is free.
-- **Sync is driven by `updated_at`.** Clients diff the manifest against their cache and only fetch cards whose timestamp advanced. Deletions are implicit: a card ID missing from the manifest is gone.
+- **Manifest** carries deck metadata (title, description, cover, tags), a card *count*, and one entry per chunk. It carries **no list of cards**: a per-card index grew ~73 bytes per card, so a 20k-card deck spent ~1.46 MB of manifest — re-uploaded in full every time a single card changed.
+- **Cards are stored in chunks**, ~100 per record, rather than one record per card. Publishing a 20k-card deck is ~201 writes instead of 20,001; opening it is ~200 reads instead of 20,000.
+- **Editing one card rewrites one chunk** (~63 KB) and patches that chunk's entry in the manifest. The deliberate trade: a card edit costs more than the ~200 bytes a per-card record would, and vastly less than the ~1.46 MB the old manifest rewrite cost. Publish-once / open-often / edit-rarely.
+- **Study order travels on the card**, as a sparse `ord`, not as manifest position. Inserting a card takes a midpoint instead of renumbering everything after it.
+- **Membership is the union of the chunks.** There is no index to keep in sync, so a card record and the manifest can no longer drift apart. Deletions are implicit: a card in no chunk is gone.
+- **Media under the deck path.** Images and audio are stored as blobs keyed by sha256; cards reference them by relative path. Dedupe within a deck is free. Blobs are fetched lazily when a card is shown, never bulk-prefetched.
+- **Sync is driven by `updated_at`.** Clients diff the manifest's chunk table against their cache and re-fetch only the chunks that moved — one chunk when the owner edits one card.
 - **Last-write-wins** for v1; no multi-device conflict resolution and no tombstones.
 
 See [Architecture.md §8](./Architecture.md#8-data-model--persistence) for the full JSON schemas and Kotlin domain types.
@@ -226,7 +238,7 @@ See [Architecture.md §8](./Architecture.md#8-data-model--persistence) for the f
 1. **No private decks** — confirm with PM that publishing every imported deck is intentional for v1 and not just "not yet built." The brief §9.5 implies a toggle exists. This spec removes it. Needs a decision before design kickoff.
 2. **Deck metadata timing** — should title / description be required before triage or after? Current spec says after. Alternative: pre-triage so users can abandon early. Designer call.
 3. **Triage "Approve all remaining"** — is the bulk-approve shortcut too easy to misuse? Could land junk cards. Consider requiring swipe-through of at least the first N cards before unlocking it.
-4. **Max paste size** — is 10k chars / 500 cards the right cap? Anki imports can be tens of thousands. We can lift the cap later once the triage queue proves it can handle it.
+4. ~~**Max paste size**~~ — **Resolved.** The storage layout no longer caps deck size (§11.1), so the remaining limit is the *paste box*, not the deck. Paste keeps a modest cap because swipe-triage is the constraint — nobody swipes 20,000 cards. Bulk file import bypasses the paste box and the triage queue entirely, via the summary screen in §5.4.
 5. **Image and audio in paste** — out of scope for v1, but does the parser need to gracefully ignore pasted image data so the user isn't blocked? Likely yes.
 6. **Undo after leaving the screen** — if the user leaves the deck detail before the 10 s timer expires, the undo vanishes. Is that acceptable? Probably yes; matches standard snackbar behavior.
 
@@ -239,12 +251,15 @@ These are natural next steps that reuse this spec's triage queue and commit flow
 - **AI "Paste anything"** — user pastes an article or transcript, Claude/Gemini extracts Q/A pairs, the result feeds straight into the same triage queue. No new commit UI needed.
 - **OCR photo import** — textbook page → Vision / ML Kit text → same triage queue.
 - **URL import** — paste a YouTube or article URL, fetch + AI-extract, same triage queue.
-- **`.apkg` import** — once Anki refugees start asking, parse on-device and route through triage.
+- **Anki `.txt` import (next)** — Anki's "Notes in Plain Text" export is tab-separated, which the existing parser already handles (§6 rule 3). **Zero new dependencies.** Routes through the bulk summary screen, not triage.
+- ~~**`.apkg` import (after that)**~~ — **shipped, and cheaper than estimated.** The estimate assumed three new dependencies (a KMP zip reader, a SQLite driver, zstd). Android has `java.util.zip` and `android.database.sqlite` in the platform, so it needed none of them. The collection's `notes` table is unpacked to tab-separated text and fed through the same parser and summary screen as the `.txt` path — no second pipeline. Not handled, and reported rather than failed on: `collection.anki21b` (zstd, Anki 2.1.50+) and iOS, which has no platform zip or SQLite exposed to Kotlin/Native. Both point at the plain-text export.
 - **Per-column field mapping + per-card tags** — the `Front / Back / Tags / Ignore` chip row from the original spec, so a third column can become card tags instead of being dropped (§8). Blocked on a schema change: the card record has no `tags` field, and adding one touches `Card`, `CardDto`, and the homeserver layout. Tracked in issue #45.
 - **Private decks + public/private toggle** — if the open question in §13 resolves in favor of private decks, add a toggle to the commit screen.
 - **Drafts** — save an unfinished paste if the user cancels, restore on next entry.
 
-The triage queue is the reusable spine; every future import source plugs into it.
+The **commit flow** is the reusable spine; every future import source plugs into it.
+
+> **Narrowed.** This previously read "the triage queue is the reusable spine." Bulk import breaks that: card-at-a-time triage does not scale to a 20k-card Anki export, and no one is going to swipe through one. What every source genuinely shares is the *parse → preview → commit* spine and `DeckRepository.publish`, not the swipe queue. Interactive sources (paste, and probably OCR) keep triage; bulk sources get the summary screen in §5.4.
 
 ---
 

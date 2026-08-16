@@ -1,6 +1,5 @@
 package com.github.jvsena42.loopky.presentation.decks
 
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.testing.FakeCardRepository
@@ -65,7 +64,7 @@ class DeckDetailViewModelTest {
     @Test
     fun `shows the cards on a cold cache`() = runTest(mainDispatcher) {
         deckRepo.decks["deck1"] = testDeck(
-            cardIndex = listOf(CardIndexEntry("c1", 1L), CardIndexEntry("c2", 2L)),
+            cardCount = 2,
         )
         // Nothing has read this deck yet — the cards exist only on the homeserver.
         cardRepo.seedRemote(testCard("c1"), testCard("c2"))
@@ -81,7 +80,7 @@ class DeckDetailViewModelTest {
     fun `shows the cards of a deck you do not own`() = runTest(mainDispatcher) {
         deckRepo.decks["deck1"] = testDeck(
             authorPubky = "friendpk",
-            cardIndex = listOf(CardIndexEntry("c1", 1L)),
+            cardCount = 1,
         )
         cardRepo.seedRemote(testCard("c1", front = "el zorro", back = "the fox"))
 
@@ -95,11 +94,12 @@ class DeckDetailViewModelTest {
     }
 
     @Test
-    fun `orders the cards the way the manifest declares`() = runTest(mainDispatcher) {
+    fun `orders the cards by study order rather than by id`() = runTest(mainDispatcher) {
         deckRepo.decks["deck1"] = testDeck(
-            cardIndex = listOf(CardIndexEntry("zebra", 1L), CardIndexEntry("apple", 2L)),
+            cardCount = 2,
         )
-        cardRepo.seedRemote(testCard("apple"), testCard("zebra"))
+        // Ids deliberately sort the opposite way to the study order.
+        cardRepo.seedRemote(testCard("apple", ord = 1000), testCard("zebra", ord = 0))
 
         val vm = viewModel()
         advanceUntilIdle()
@@ -110,7 +110,7 @@ class DeckDetailViewModelTest {
 
     @Test
     fun `a deck with no cards is content rather than an error`() = runTest(mainDispatcher) {
-        deckRepo.decks["deck1"] = testDeck(cardIndex = emptyList())
+        deckRepo.decks["deck1"] = testDeck(cardCount = 0)
 
         val vm = viewModel()
         advanceUntilIdle()
@@ -121,7 +121,7 @@ class DeckDetailViewModelTest {
 
     @Test
     fun `an unreadable card list surfaces as a retryable error`() = runTest(mainDispatcher) {
-        deckRepo.decks["deck1"] = testDeck(cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        deckRepo.decks["deck1"] = testDeck(cardCount = 1)
         cardRepo.fetchError = IllegalStateException("homeserver unreachable")
 
         val vm = viewModel()
@@ -170,7 +170,7 @@ class DeckDetailViewModelTest {
 
     @Test
     fun `the due count refreshes after this deck is studied`() = runTest(mainDispatcher) {
-        deckRepo.decks["deck1"] = testDeck(cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        deckRepo.decks["deck1"] = testDeck(cardCount = 1)
         cardRepo.seedRemote(testCard("c1"))
         val card = testCard("c1", deckId = "deck1")
         srsRepo.due = listOf(card)
@@ -189,7 +189,7 @@ class DeckDetailViewModelTest {
 
     @Test
     fun `studying another deck leaves this one alone`() = runTest(mainDispatcher) {
-        deckRepo.decks["deck1"] = testDeck(cardIndex = listOf(CardIndexEntry("c1", 1L)))
+        deckRepo.decks["deck1"] = testDeck(cardCount = 1)
         cardRepo.seedRemote(testCard("c1"))
         srsRepo.due = listOf(testCard("c1", deckId = "deck1"))
 

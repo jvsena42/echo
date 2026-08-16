@@ -373,6 +373,7 @@ private fun ReviewingContent(
                         onSpeakTest = if (state.speakEnabled) onSpeakTest else null,
                         imageRef = state.frontImageRef,
                         deckId = state.deckId,
+                        authorPubky = state.authorPubky,
                         modifier = Modifier.graphicsLayer { rotationY = 180f },
                     )
                 }
@@ -413,6 +414,7 @@ private fun CardFace(
     modifier: Modifier = Modifier,
     imageRef: MediaRef.Image? = null,
     deckId: String = "",
+    authorPubky: String = "",
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -434,6 +436,7 @@ private fun CardFace(
             CardMediaImage(
                 image = image,
                 deckId = deckId,
+                authorPubky = authorPubky,
                 modifier = Modifier
                     .size(96.dp)
                     .clip(CircleShape)

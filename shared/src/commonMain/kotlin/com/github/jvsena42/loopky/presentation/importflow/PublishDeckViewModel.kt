@@ -7,9 +7,9 @@ import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.domain.model.Card
-import com.github.jvsena42.loopky.domain.model.CardIndexEntry
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.ImportDraft
@@ -124,33 +124,70 @@ class PublishDeckViewModel(
             val cards = buildCards(draft, deckId, now)
             val coverImageRef = resolveCoverImage(s, deckId)
 
-            val deck = Deck(
-                id = deckId,
-                authorPubky = authorPubky,
-                title = s.title,
-                description = s.description.ifBlank { null },
-                coverEmoji = s.coverEmoji.ifBlank { null },
-                coverImageRef = coverImageRef,
-                tags = s.tags.map { Tag(it) },
-                createdAt = now,
-                updatedAt = now,
-                cardIndex = cards.map { CardIndexEntry(it.id, it.updatedAt) },
-                listenEnabled = s.listenEnabled,
-                speakEnabled = s.speakEnabled,
-            )
+            val deck = s.toDeck(deckId, authorPubky, coverImageRef, cards, now)
 
-            deckRepository.publish(deck, cards)
+            publishWithProgress(deck, cards)
                 .onSuccess {
                     Log.d(TAG, "publish: SUCCESS deckId=$deckId")
-                    _state.update { it.copy(isPublishing = false, publishedDeckId = deckId, undoSecondsRemaining = UNDO_WINDOW_SECONDS) }
+                    _state.update {
+                        it.copy(
+                            isPublishing = false,
+                            publishProgress = null,
+                            publishedDeckId = deckId,
+                            undoSecondsRemaining = UNDO_WINDOW_SECONDS,
+                        )
+                    }
                     startUndoCountdown(deckId)
                 }
                 .onFailure { err ->
                     Log.e(TAG, "publish: FAILED — ${err.message}", err)
-                    _state.update { it.copy(isPublishing = false, error = err.message ?: "Publish failed.") }
+                    _state.update {
+                        it.copy(
+                            isPublishing = false,
+                            publishProgress = null,
+                            error = err.message ?: "Publish failed.",
+                        )
+                    }
                 }
         }
     }
+
+    private fun PublishDeckUiState.toDeck(
+        deckId: String,
+        authorPubky: String,
+        coverImageRef: MediaRef.Image?,
+        cards: List<Card>,
+        now: Long,
+    ) = Deck(
+        id = deckId,
+        authorPubky = authorPubky,
+        title = title,
+        description = description.ifBlank { null },
+        coverEmoji = coverEmoji.ifBlank { null },
+        coverImageRef = coverImageRef,
+        tags = tags.map { Tag(it) },
+        createdAt = now,
+        updatedAt = now,
+        // publish() writes the chunk table; this is the optimistic count it confirms.
+        cardCount = cards.size,
+        source = DeckSource(kind = DeckSource.Kind.Import, importedAt = now),
+        listenEnabled = listenEnabled,
+        speakEnabled = speakEnabled,
+    )
+
+    /**
+     * A 20k-card import is ~201 uploads; a bare spinner cannot say how far along that is, so the
+     * repository's progress is mirrored into the UI state as it arrives.
+     */
+    private suspend fun publishWithProgress(deck: Deck, cards: List<Card>) =
+        deckRepository.publish(deck, cards) { progress ->
+            _state.update {
+                it.copy(
+                    publishProgress = if (progress.done) null else progress.fraction,
+                    publishedCardCount = progress.cardsWritten,
+                )
+            }
+        }
 
     fun onUndoPublish() {
         val deckId = _state.value.publishedDeckId ?: return
@@ -289,6 +326,13 @@ data class PublishDeckUiState(
     val cardCount: Int = 0,
     val discardedCount: Int = 0,
     val isPublishing: Boolean = false,
+    /**
+     * 0f..1f while uploading, null when not publishing or when the count is too small to be worth
+     * a determinate bar. Lets a large import show real progress instead of an indefinite spinner.
+     */
+    val publishProgress: Float? = null,
+    /** Cards uploaded so far, for a "1,200 of 18,432" label alongside the bar. */
+    val publishedCardCount: Int = 0,
     val publishedDeckId: String? = null,
     val undoSecondsRemaining: Int = 0,
     val listenEnabled: Boolean = true,

@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import com.github.jvsena42.loopky.ui.decks.DeckDetailRoute
 import com.github.jvsena42.loopky.ui.decks.DeckEditorRoute
 import com.github.jvsena42.loopky.ui.decks.EditCardRoute
+import com.github.jvsena42.loopky.ui.importflow.BulkImportRoute
 import com.github.jvsena42.loopky.ui.importflow.PasteRoute
 import com.github.jvsena42.loopky.ui.importflow.PublishDeckRoute
 import com.github.jvsena42.loopky.ui.importflow.TriageEditCardRoute
@@ -42,6 +43,9 @@ fun LoopkyNavHost() {
                 },
                 onNavigateImport = {
                     navController.navigateTo(Routes.IMPORT_PASTE)
+                },
+                onNavigateImportFile = {
+                    navController.navigateTo(Routes.IMPORT_BULK)
                 },
                 onNavigateStudy = { deckId ->
                     navController.navigateTo(Routes.study(deckId))
@@ -109,6 +113,14 @@ fun LoopkyNavHost() {
             PasteRoute(
                 onCancel = { navController.popBackStack() },
                 onNext = { navController.navigateTo(Routes.IMPORT_TRIAGE) },
+            )
+        }
+        composable(Routes.IMPORT_BULK) {
+            // Straight to the shared commit screen: a file import is confirmed once on the
+            // summary, not card-by-card through triage.
+            BulkImportRoute(
+                onBack = { navController.popBackStack() },
+                onContinue = { navController.navigateTo(Routes.IMPORT_PUBLISH) },
             )
         }
         composable(Routes.IMPORT_TRIAGE) {
