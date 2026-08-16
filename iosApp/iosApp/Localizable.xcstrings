@@ -1090,6 +1090,83 @@
         }
       }
     },
+    "discover_people_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People on Loopky"
+          }
+        }
+      }
+    },
+    "discover_browse_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discover decks"
+          }
+        }
+      }
+    },
+    "discover_browse_tag_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decks tagged “%1$@”"
+          }
+        }
+      }
+    },
+    "discover_clear_tag": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        }
+      }
+    },
+    "discover_following_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From people you follow"
+          }
+        }
+      }
+    },
+    "discover_browse_empty_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing published here yet"
+          }
+        }
+      }
+    },
+    "discover_browse_empty_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky’s public index is new. Publish a deck and it shows up here for everyone."
+          }
+        }
+      }
+    },
     "discover_trending": {
       "extractionState": "manual",
       "localizations": {

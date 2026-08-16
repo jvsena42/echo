@@ -115,7 +115,7 @@
     <string name="discover_add_friend">Add friend</string>
     <string name="discover_topics_title">Topics</string>
     <string name="discover_people_title">People on Loopky</string>
-    <string name="discover_browse_title">Browse decks</string>
+    <string name="discover_browse_title">Discover decks</string>
     <string name="discover_browse_tag_title">Decks tagged “%1$s”</string>
     <string name="discover_clear_tag">Clear</string>
     <string name="discover_following_title">From people you follow</string>
