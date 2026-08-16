@@ -345,7 +345,7 @@
     <string name="bulk_title">Import file</string>
     <string name="bulk_cancel">Cancel</string>
     <string name="bulk_pick_file">Choose a file</string>
-    <string name="bulk_pick_hint">Import an Anki deck exported as “Notes in Plain Text”, or any tab- or comma-separated list.</string>
+    <string name="bulk_pick_hint">Import an Anki .apkg export, a deck exported as “Notes in Plain Text”, or any tab- or comma-separated list.</string>
     <string name="bulk_parsing">Reading %1$s…</string>
     <string name="bulk_summary_heading">Ready to import</string>
     <string name="bulk_detected_separator">Separator: %1$s</string>

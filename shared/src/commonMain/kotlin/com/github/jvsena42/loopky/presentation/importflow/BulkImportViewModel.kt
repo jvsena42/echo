@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.importflow
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.loopky.data.anki.ApkgReader
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.frontBackOf
@@ -38,10 +39,26 @@ class BulkImportViewModel(
 
     /** [fileName] is shown as the default deck name; [text] is the file's contents. */
     fun onFileLoaded(fileName: String, text: String) {
+        startParse(fileName) { Result.success(text) }
+    }
+
+    /**
+     * An Anki `.apkg`: a zip around a SQLite collection. Unpacked to the same tab-separated shape
+     * a "Notes in Plain Text" export produces, so it feeds the same parser rather than a second
+     * one.
+     */
+    fun onApkgLoaded(fileName: String, bytes: ByteArray) {
+        startParse(fileName) {
+            ApkgReader.readNotes(bytes).map { it.text }
+        }
+    }
+
+    private fun startParse(fileName: String, load: suspend () -> Result<String>) {
         parseJob?.cancel()
         parseJob = viewModelScope.launch {
             _state.update { BulkImportUiState.Parsing(fileName) }
-            importRepository.parseBulk(text)
+            load()
+                .mapCatching { text -> importRepository.parseBulk(text).getOrThrow() }
                 .onSuccess { draft ->
                     val skipped = draft.rows.count { row ->
                         val (front, back) = draft.frontBackOf(row)

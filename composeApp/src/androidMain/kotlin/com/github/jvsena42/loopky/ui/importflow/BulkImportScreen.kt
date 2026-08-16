@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.data.anki.ApkgReader
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportEffect
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportUiState
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportViewModel
@@ -82,18 +83,26 @@ fun BulkImportRoute(
         // takes plain text so the same summary works for any future source.
         runCatching {
             val name = uri.lastPathSegment?.substringAfterLast('/').orEmpty()
-            val text = context.contentResolver.openInputStream(uri)
-                ?.use { it.readBytes().decodeToString() }
+            val bytes = context.contentResolver.openInputStream(uri)
+                ?.use { it.readBytes() }
                 ?: error("Could not open that file.")
-            name to text
+            name to bytes
         }
-            .onSuccess { (name, text) -> viewModel.onFileLoaded(name, text) }
+            .onSuccess { (name, bytes) ->
+                // Sniffed from the content, not the extension: a picked .apkg often arrives with
+                // a content:// uri that carries no useful name at all.
+                if (ApkgReader.canRead(bytes)) {
+                    viewModel.onApkgLoaded(name, bytes)
+                } else {
+                    viewModel.onFileLoaded(name, bytes.decodeToString())
+                }
+            }
             .onFailure { viewModel.onFileReadFailed(it.message ?: "Could not read that file.") }
     }
 
     BulkImportScreen(
         state = state,
-        onPickFile = { picker.launch(arrayOf("text/*", "text/plain", "text/tab-separated-values")) },
+        onPickFile = { picker.launch(arrayOf("*/*")) },
         onConfirm = viewModel::onConfirm,
         onCancel = viewModel::onCancel,
     )
