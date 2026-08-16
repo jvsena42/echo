@@ -489,12 +489,17 @@ What the chunked layout buys at 20k cards, against one-record-per-card:
 
 The trade-off is deliberate: editing one card now rewrites a ~63 KB chunk instead of a ~200 byte record. Publish-once / open-often / edit-rarely makes that overwhelmingly the right side.
 
-**Unmeasured and load-bearing:**
+**Measured:**
+
+- **The homeserver rate-limits concurrent writes.** Publishing a 1,200-card deck with 8 requests in flight fails partway with `429 Too Many Requests`. `MAX_IN_FLIGHT` is therefore **4**, and the session-authenticated write helpers retry a 429 with exponential backoff (bounded, so a genuinely unavailable homeserver still fails rather than hanging). A 429 is transient and the request well-formed, so it must never reach the user. With both in place, the same import publishes cleanly in well under a minute.
+- **An interrupted publish is recoverable.** The failed run above left the deck listed and openable, reading "900 due · 1200 cards" — the marker manifest doing its job. Re-running the publish repairs it, since chunk PUTs are idempotent overwrites.
+
+**Still unmeasured and load-bearing:**
 
 1. **Homeserver per-record maximum.** Not documented in this repo or the FFI. This is what should really set `CHUNK_SIZE`; 100 is a conservative guess. If a chunk write is ever rejected for size, that constant is the single knob.
-2. **FFI concurrency safety** — are parallel requests safe, is there connection pooling? Gates §7.1's concurrency work.
-3. **`list()` behaviour on large directories** — does it paginate? `delete()` depends on the listing to sweep a deck.
-4. **Real request latency**, which decides whether ~200 chunk GETs on deck open is acceptable or needs its own lazy path.
+2. **Whether the FFI itself is concurrency-safe**, as distinct from the server's rate limit — is there connection pooling, and is parallel use of a single client sound? Bounded concurrency works in practice; the guarantee is unstated.
+3. **`list()` behaviour on large directories.** It accepts `cursor`/`limit` and `delete()` now pages through them, but the server's own page cap is unverified.
+4. **Real latency at 20k cards.** ~200 chunk GETs on deck open is untested at that size; 1,200 cards (12 chunks) is comfortable.
 
 **Known gaps:** chunk compaction (deletes leave holes, nothing rebalances); the deck editor loads every card into memory as an `EditableCardModel`, so a 20k-card deck needs a paged editor — chunking does not solve that.
 
