@@ -101,6 +101,8 @@ internal data class MediaRefDto(
     val duration_ms: Long? = null,
     /** Set for web images referenced by URL; [path]/[sha256] are then empty. */
     val url: String? = null,
+    /** Absolute `pubky://…` ref when the blob lives under another author's deck (#43 §3). */
+    val uri: String? = null,
 )
 
 // --- Mapping ------------------------------------------------------------------
@@ -196,6 +198,7 @@ internal fun MediaRef.Image.toDto() = MediaRefDto(
     width = width,
     height = height,
     url = url,
+    uri = uri,
 )
 
 internal fun MediaRef.Audio.toDto() = MediaRefDto(
@@ -203,6 +206,7 @@ internal fun MediaRef.Audio.toDto() = MediaRefDto(
     mime = mime,
     sha256 = sha256,
     duration_ms = durationMs,
+    uri = uri,
 )
 
 internal fun MediaRefDto.toImageDomain() = MediaRef.Image(
@@ -212,6 +216,7 @@ internal fun MediaRefDto.toImageDomain() = MediaRef.Image(
     width = width,
     height = height,
     url = url,
+    uri = uri,
 )
 
 internal fun MediaRefDto.toAudioDomain() = MediaRef.Audio(
@@ -219,4 +224,5 @@ internal fun MediaRefDto.toAudioDomain() = MediaRef.Audio(
     mime = mime,
     sha256 = sha256,
     durationMs = duration_ms,
+    uri = uri,
 )

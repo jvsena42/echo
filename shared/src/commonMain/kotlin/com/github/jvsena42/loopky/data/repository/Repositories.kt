@@ -297,6 +297,25 @@ interface SrsRepository {
 interface MediaRepository {
     suspend fun putImage(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Image>
     suspend fun putAudio(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Audio>
-    suspend fun get(deckId: String, ref: MediaRef): Result<ByteArray>
+
+    /**
+     * Blob bytes for [ref], fetched lazily when a card is displayed.
+     *
+     * [authorPubky] is the *deck's* author, not the signed-in user. Resolving against the session
+     * instead made media on any deck you don't own unreachable, since it looked for the blob under
+     * your own pubky — which also blocked following a deck with images (#33).
+     */
+    suspend fun get(authorPubky: String, deckId: String, ref: MediaRef): Result<ByteArray>
+
+    /**
+     * Copy a blob referenced by absolute `pubky://` uri under [deckId]'s own media path, returning
+     * a ref that no longer depends on the origin. A no-op for refs already stored locally.
+     *
+     * This is the second half of clone-by-reference: cloning stays instant, and the copy happens
+     * opportunistically as blobs are first used, so a clone becomes self-contained over time
+     * instead of re-uploading hundreds of MB up front.
+     */
+    suspend fun rehost(deckId: String, ref: MediaRef): Result<MediaRef>
+
     suspend fun delete(deckId: String, ref: MediaRef): Result<Unit>
 }

@@ -356,7 +356,18 @@ class FakeMediaRepository : MediaRepository {
     override suspend fun putAudio(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Audio> =
         Result.success(MediaRef.Audio(path = "media/fake.m4a", mime = mime, sha256 = "fake", durationMs = null))
 
-    override suspend fun get(deckId: String, ref: MediaRef): Result<ByteArray> = Result.success(ByteArray(0))
+    val gets = mutableListOf<Triple<String, String, MediaRef>>()
+
+    override suspend fun get(
+        authorPubky: String,
+        deckId: String,
+        ref: MediaRef,
+    ): Result<ByteArray> {
+        gets.add(Triple(authorPubky, deckId, ref))
+        return Result.success(ByteArray(0))
+    }
+
+    override suspend fun rehost(deckId: String, ref: MediaRef): Result<MediaRef> = Result.success(ref)
 
     override suspend fun delete(deckId: String, ref: MediaRef): Result<Unit> = Result.success(Unit)
 }

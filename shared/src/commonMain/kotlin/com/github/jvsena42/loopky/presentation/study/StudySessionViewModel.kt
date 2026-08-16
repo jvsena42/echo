@@ -197,6 +197,7 @@ class StudySessionViewModel(
                 speakEnabled = deck?.speakEnabled ?: true,
                 speakPhase = speakPhase,
                 deckId = card.deckId,
+                authorPubky = deck?.authorPubky.orEmpty(),
                 frontImageRef = card.front.imageRef,
             ) }
         }
@@ -243,6 +244,8 @@ sealed interface StudySessionUiState {
         val speakEnabled: Boolean = true,
         val speakPhase: SpeakPhase = SpeakPhase.Idle,
         val deckId: String = "",
+        /** The deck's author — media on a followed deck lives on their homeserver, not yours. */
+        val authorPubky: String = "",
         /** Front-side image, shown as a circular avatar on the card back (design `aLoMj`). */
         val frontImageRef: MediaRef.Image? = null,
     ) : StudySessionUiState

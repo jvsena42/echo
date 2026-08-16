@@ -94,7 +94,7 @@ class DeckDetailViewModel(
                     val mastered = masteredPercent(cards)
                     _state.update { deck.toContent(cards, session?.identity, dueCount, mastered) }
                     Log.d(TAG, "load: cards=${cards.size} due=$dueCount mastered=$mastered")
-                    loadCoverBlob(deck.coverImageRef)
+                    loadCoverBlob(deck.coverImageRef, deck.authorPubky)
                     loadAuthorProfile(deck.authorPubky)
                 }
                 .onFailure { err ->
@@ -166,9 +166,9 @@ class DeckDetailViewModel(
      * UI can render the real image. Remote (URL) covers need no fetch — they are already carried by
      * [DeckDetailUiState.Content.coverImageUrl]. No-ops on null/remote refs or while not in Content.
      */
-    private suspend fun loadCoverBlob(ref: MediaRef.Image?) {
+    private suspend fun loadCoverBlob(ref: MediaRef.Image?, authorPubky: String) {
         if (ref == null || ref.isRemote) return
-        val bytes = mediaRepository.get(deckId, ref)
+        val bytes = mediaRepository.get(authorPubky, deckId, ref)
             .onFailure { Log.e(TAG, "loadCoverBlob: FAILED — ${it.message}", it) }
             .getOrNull() ?: return
         val encoded = Base64.encode(bytes)
