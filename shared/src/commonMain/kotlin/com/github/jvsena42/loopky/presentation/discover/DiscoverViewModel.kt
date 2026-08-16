@@ -290,7 +290,7 @@ private fun MutableStateFlow<DiscoverUiState>.updatePerson(
 private fun List<Deck>.filterByTag(tag: Tag?): List<Deck> =
     if (tag == null) this else filter { tag in it.tags }
 
-private fun List<Deck>.toCards(authors: Map<String, PubkyIdentity>): List<DiscoverDeck> = map { deck ->
+internal fun List<Deck>.toCards(authors: Map<String, PubkyIdentity>): List<DiscoverDeck> = map { deck ->
     DiscoverDeck(
         id = deck.id,
         authorPubky = deck.authorPubky,

@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.ui.nav
 
+import android.net.Uri
+
 object Routes {
     const val ONBOARDING = "onboarding"
     const val MAIN = "main"
@@ -22,9 +24,15 @@ object Routes {
     /** Another user's public profile (their decks + follow button). */
     const val FRIEND_PROFILE = "profile/{pubky}"
 
+    /** Every deck on the network carrying one tag — where a tag chip leads (brief §9.3). */
+    const val TAG_BROWSE = "tag/{tag}"
+
     fun deckDetail(deckId: String, author: String? = null) =
         if (author != null) "deck/$deckId?author=$author" else "deck/$deckId"
     fun friendProfile(pubky: String) = "profile/$pubky"
+
+    /** Labels are sanitized to lowercase with no whitespace, but encode anyway — they are free text. */
+    fun tagBrowse(tag: String) = "tag/" + Uri.encode(tag)
     fun deckEditor(deckId: String) = "deck/editor/$deckId"
     fun editCard(deckId: String, cardId: String) = "deck/$deckId/card/$cardId/edit"
     fun study(deckId: String?) = if (deckId != null) "study?deckId=$deckId" else "study"

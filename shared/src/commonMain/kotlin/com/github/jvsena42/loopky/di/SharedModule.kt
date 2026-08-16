@@ -21,11 +21,13 @@ import com.github.jvsena42.loopky.data.repository.impl.MediaRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.SessionRevalidatorImpl
 import com.github.jvsena42.loopky.data.repository.impl.SrsRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.TagRepositoryImpl
+import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditCardViewModel
 import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
+import com.github.jvsena42.loopky.presentation.discover.TagBrowseViewModel
 import com.github.jvsena42.loopky.presentation.home.HomeViewModel
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PasteImportViewModel
@@ -133,6 +135,13 @@ val sharedModule = module {
     }
     viewModel {
         DiscoverViewModel(discoveryRepository = get(), tagRepository = get(), identityRepository = get())
+    }
+    viewModel { params ->
+        TagBrowseViewModel(
+            tag = Tag(params.get<String>()),
+            discoveryRepository = get(),
+            identityRepository = get(),
+        )
     }
     viewModel { params ->
         FriendProfileViewModel(

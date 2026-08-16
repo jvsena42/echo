@@ -311,9 +311,13 @@ class FakeDiscoveryRepository : DiscoveryRepository {
     var feedGate: CompletableDeferred<Unit>? = null
     var peopleGate: CompletableDeferred<Unit>? = null
 
+    /** Exact per-label results, when a test needs finer control than [globalDecks] gives. */
+    var globalDecksByTag: Map<Tag, List<Deck>>? = null
+
     override suspend fun decksByTagGlobal(tag: Tag, limit: Int): List<Deck> {
         globalRequests.add(tag to limit)
         globalGate?.await()
+        globalDecksByTag?.let { return it[tag].orEmpty().take(limit) }
         return globalDecks.filter { tag in it.tags || tag == ReservedTags.DECK }.take(limit)
     }
 

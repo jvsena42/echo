@@ -131,6 +131,12 @@
     <string name="discover_scan_qr">Scan QR</string>
     <string name="discover_open">Open</string>
 
+    <!-- Tag browse -->
+    <string name="tag_browse_title">#%1$s</string>
+    <string name="tag_browse_back">Back</string>
+    <string name="tag_browse_empty_title">No decks tagged “%1$s” yet</string>
+    <string name="tag_browse_empty_subtitle">Nobody on Loopky has used this tag yet. Publish a deck with it and it shows up here.</string>
+
     <!-- Paste import -->
     <string name="paste_title">Paste cards</string>
     <string name="paste_cancel">Cancel</string>
