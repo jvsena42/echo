@@ -291,14 +291,31 @@ class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRep
     val putTags = mutableListOf<Pair<PubkyUri, Tag>>()
     val removedTags = mutableListOf<Pair<PubkyUri, Tag>>()
 
+    /** Reserved writes are recorded apart so a test can assert Loopky's own index labels. */
+    val putReservedTags = mutableListOf<Pair<PubkyUri, Tag>>()
+    val removedReservedTags = mutableListOf<Pair<PubkyUri, Tag>>()
+
+    /** When set, every write fails with it — publish and sign-in must survive that. */
+    var failWith: Throwable? = null
+
     override suspend fun putTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> {
         putTags.add(subjectUri to tag)
-        return Result.success(Unit)
+        return failWith?.let { Result.failure(it) } ?: Result.success(Unit)
     }
 
     override suspend fun removeTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> {
         removedTags.add(subjectUri to tag)
-        return Result.success(Unit)
+        return failWith?.let { Result.failure(it) } ?: Result.success(Unit)
+    }
+
+    override suspend fun putReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> {
+        putReservedTags.add(subjectUri to tag)
+        return failWith?.let { Result.failure(it) } ?: Result.success(Unit)
+    }
+
+    override suspend fun removeReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> {
+        removedReservedTags.add(subjectUri to tag)
+        return failWith?.let { Result.failure(it) } ?: Result.success(Unit)
     }
 
     override suspend fun trending(): List<Tag> = trendingTags

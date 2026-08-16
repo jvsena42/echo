@@ -122,6 +122,17 @@ class PublishDeckViewModelTest {
         assertTrue(deckRepo.published.isEmpty())
     }
 
+    @Test
+    fun reservedLabelsCannotBeTypedIntoTheTagInput() = runTest {
+        val vm = viewModel()
+
+        vm.onAddTag("loopky-deck")
+        vm.onAddTag(" LOOPKY-User ")
+        vm.onAddTag("spanish")
+
+        assertEquals(listOf("spanish"), vm.state.value.tags)
+    }
+
     // ── publish ──────────────────────────────────────────────────────────
 
     @Test

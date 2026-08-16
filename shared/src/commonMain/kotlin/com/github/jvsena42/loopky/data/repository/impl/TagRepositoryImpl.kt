@@ -11,6 +11,7 @@ import com.github.jvsena42.loopky.data.pubky.putWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.requireSession
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.PubkyUri
+import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
@@ -46,6 +47,26 @@ class TagRepositoryImpl(
 ) : TagRepository {
 
     override suspend fun putTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+        rejectReserved(tag).getOrThrow()
+        write(subjectUri, tag).getOrThrow()
+    }
+
+    override suspend fun removeTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+        rejectReserved(tag).getOrThrow()
+        erase(subjectUri, tag).getOrThrow()
+    }
+
+    override suspend fun putReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+        requireReserved(tag).getOrThrow()
+        write(subjectUri, tag).getOrThrow()
+    }
+
+    override suspend fun removeReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+        requireReserved(tag).getOrThrow()
+        erase(subjectUri, tag).getOrThrow()
+    }
+
+    private suspend fun write(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
         val label = sanitizeLabel(tag).getOrThrow()
         val owner = session.requireSession().identity.pubky
         val tagId = pubky.createTagId(subjectUri.value, label).getOrThrow()
@@ -61,7 +82,7 @@ class TagRepositoryImpl(
         Unit
     }
 
-    override suspend fun removeTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+    private suspend fun erase(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
         val label = sanitizeLabel(tag).getOrThrow()
         val owner = session.requireSession().identity.pubky
         val tagId = pubky.createTagId(subjectUri.value, label).getOrThrow()
@@ -78,6 +99,24 @@ class TagRepositoryImpl(
         }
         Unit
     }
+
+    private fun rejectReserved(tag: Tag): Result<Unit> =
+        if (ReservedTags.isReserved(tag)) {
+            Result.failure(
+                IllegalArgumentException("'${tag.value}' is reserved — see ReservedTags"),
+            )
+        } else {
+            Result.success(Unit)
+        }
+
+    private fun requireReserved(tag: Tag): Result<Unit> =
+        if (tag in ReservedTags.ALL) {
+            Result.success(Unit)
+        } else {
+            Result.failure(
+                IllegalArgumentException("'${tag.value}' is not one of Loopky's index labels"),
+            )
+        }
 
     /** See the class doc: Nexus routes on the record's own namespace, so the subject picks it. */
     private fun recordPath(owner: String, subjectUri: PubkyUri, tagId: String): String =

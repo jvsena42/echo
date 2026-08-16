@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.PubkyUri
+import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.SrsGrade
@@ -224,8 +225,20 @@ interface ImportRepository {
  * see [com.github.jvsena42.loopky.data.repository.impl.TagRepositoryImpl] and Architecture.md §7.7.
  */
 interface TagRepository {
+    /** User-authored labels. Fails for [ReservedTags] — those are Loopky's, not the user's. */
     suspend fun putTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
     suspend fun removeTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
+
+    /**
+     * Write one of Loopky's own index labels. Separate from [putTag] so the reserved namespace has
+     * exactly one door, and a user-entered label can never come through it. Fails for any tag that
+     * is not in [ReservedTags.ALL].
+     *
+     * Idempotent: tag ids are content-derived, so re-writing the same label on the same subject
+     * overwrites one record rather than accumulating them.
+     */
+    suspend fun putReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
+    suspend fun removeReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
 
     /** Network-wide trending tags from the Nexus indexer; empty on network failure. */
     suspend fun trending(): List<Tag>

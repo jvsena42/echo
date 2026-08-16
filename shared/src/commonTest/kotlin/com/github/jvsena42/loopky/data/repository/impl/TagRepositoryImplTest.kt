@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.data.nexus.HttpError
 import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.TagDto
 import com.github.jvsena42.loopky.domain.model.PubkyUri
+import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakeHttpFetcher
@@ -148,6 +149,68 @@ class TagRepositoryImplTest {
     fun removeTagRejectsInvalidLabel() = runTest {
         assertTrue(repo.removeTag(deckUri, Tag("")).isFailure)
         assertTrue(pubky.deletes.isEmpty())
+    }
+
+    // ── the reserved namespace ───────────────────────────────────────────
+
+    @Test
+    fun putTagRefusesToAuthorAReservedLabel() = runTest {
+        // Reserved labels are Loopky's global index, not user content (#40) — a user must not be
+        // able to mint one by typing it, whether or not it is a label we write today.
+        assertTrue(repo.putTag(deckUri, ReservedTags.DECK).isFailure)
+        assertTrue(repo.putTag(deckUri, ReservedTags.USER).isFailure)
+        assertTrue(repo.putTag(deckUri, Tag("LOOPKY-deck")).isFailure)
+        assertTrue(repo.putTag(deckUri, Tag("loopky-anything")).isFailure)
+        assertTrue(pubky.puts.isEmpty())
+    }
+
+    @Test
+    fun removeTagRefusesAReservedLabelToo() = runTest {
+        assertTrue(repo.removeTag(deckUri, ReservedTags.DECK).isFailure)
+        assertTrue(pubky.deletes.isEmpty())
+    }
+
+    @Test
+    fun putReservedTagOnlyAcceptsLoopkysOwnLabels() = runTest {
+        assertTrue(repo.putReservedTag(deckUri, Tag("spanish")).isFailure)
+        assertTrue(repo.putReservedTag(deckUri, Tag("loopky-madeup")).isFailure)
+        assertTrue(pubky.puts.isEmpty())
+
+        assertTrue(repo.putReservedTag(deckUri, ReservedTags.DECK).isSuccess)
+        assertEquals(expected = 1, actual = pubky.puts.size)
+    }
+
+    @Test
+    fun rewritingAReservedTagOverwritesTheSameRecord() = runTest {
+        // The acceptance criterion "re-running sign-in does not duplicate": ids are derived from
+        // subject + label, so the second write lands on the first one's path.
+        repo.putReservedTag(profileUri, ReservedTags.USER).getOrThrow()
+        repo.putReservedTag(profileUri, ReservedTags.USER).getOrThrow()
+
+        val url = pubkyAppTagUrlFor(ReservedTags.USER.value, profileUri)
+        assertEquals(listOf(url, url), pubky.puts.map { it.first })
+        assertEquals(expected = 1, actual = pubky.store.keys.count { it.contains("/tags/") })
+    }
+
+    @Test
+    fun reservedTagsRouteBySubjectLikeAnyOther() = runTest {
+        repo.putReservedTag(profileUri, ReservedTags.USER).getOrThrow()
+        repo.putReservedTag(deckUri, ReservedTags.DECK).getOrThrow()
+
+        assertEquals(pubkyAppTagUrlFor(ReservedTags.USER.value, profileUri), pubky.puts[0].first)
+        assertEquals(tagUrlFor(ReservedTags.DECK.value), pubky.puts[1].first)
+    }
+
+    @Test
+    fun removeReservedTagDeletesWhatPutReservedTagWrote() = runTest {
+        repo.putReservedTag(deckUri, ReservedTags.DECK).getOrThrow()
+        val url = tagUrlFor(ReservedTags.DECK.value)
+        assertTrue(url in pubky.store)
+
+        repo.removeReservedTag(deckUri, ReservedTags.DECK).getOrThrow()
+
+        assertTrue(url !in pubky.store)
+        assertEquals(url, pubky.deletes.first())
     }
 
     // ── trending ─────────────────────────────────────────────────────────
