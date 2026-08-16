@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.data.pubky.deleteWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.putWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.requireSession
 import com.github.jvsena42.loopky.data.repository.TagRepository
+import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
@@ -130,6 +131,42 @@ class TagRepositoryImpl(
         nexus.hotTags()
             .getOrElse { emptyList() }
             .map { Tag(it.label) }
+
+    override suspend fun taggedSubjects(tag: Tag, limit: Int): List<TaggedSubject> {
+        val label = sanitizeLabel(tag).getOrElse { return emptyList() }
+        return nexus.resourcesByTag(label, limit)
+            .onFailure { Log.w(TAG, "taggedSubjects('$label'): FAILED — ${it.message}") }
+            .getOrElse { emptyList() }
+            .map { resource ->
+                // Prefer the count for *this* label; the resource-level count spans every label
+                // on the subject, and the per-label entry can be missing if the tag list was cut.
+                val details = resource.tags.firstOrNull { it.label == label }
+                TaggedSubject(
+                    uri = PubkyUri(resource.details.uri),
+                    taggers = details?.taggers.orEmpty(),
+                    taggersCount = details?.taggers_count ?: resource.taggers_count,
+                )
+            }
+    }
+
+    override suspend fun taggersOf(tag: Tag, limit: Int): List<String> {
+        val label = sanitizeLabel(tag).getOrElse { return emptyList() }
+        return nexus.taggersOfLabel(label, limit)
+            .onFailure { Log.w(TAG, "taggersOf('$label'): FAILED — ${it.message}") }
+            .getOrElse { emptyList() }
+    }
+
+    override suspend fun isSelfTagged(pubky: String, tag: Tag): Boolean {
+        val label = sanitizeLabel(tag).getOrElse { return false }
+        return pubky in nexus.userTaggers(pubky, label).getOrElse { emptyList() }
+    }
+
+    override suspend fun taggerCounts(subjectUri: PubkyUri): Map<Tag, Int> =
+        nexus.resourceByUri(subjectUri.value)
+            // A 404 here just means nobody has tagged it yet, which is not worth an error log.
+            .getOrElse { return emptyMap() }
+            .tags
+            .associate { Tag(it.label) to it.taggers_count }
 
     /** pubky-app-specs tag label rules: trimmed, lowercase, 1–20 chars, no whitespace. */
     private fun sanitizeLabel(tag: Tag): Result<String> {
