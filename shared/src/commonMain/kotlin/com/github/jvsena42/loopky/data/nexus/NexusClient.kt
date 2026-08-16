@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.data.nexus
 
 import com.github.jvsena42.loopky.data.repository.impl.loopkyJson
+import com.github.jvsena42.loopky.util.encodeUriComponent
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -31,7 +32,8 @@ class NexusClient(
         prefix: String,
         limit: Int = DEFAULT_SEARCH_LIMIT,
     ): Result<List<String>> = runCatching {
-        val body = http.get("$baseUrl/v0/search/tags/by_prefix/$prefix?limit=$limit").getOrThrow()
+        val encoded = encodeUriComponent(prefix)
+        val body = http.get("$baseUrl/v0/search/tags/by_prefix/$encoded?limit=$limit").getOrThrow()
         loopkyJson.decodeFromString(ListSerializer(String.serializer()), body)
     }
 

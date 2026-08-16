@@ -13,6 +13,7 @@ import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.encodeUriComponent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -72,22 +73,6 @@ class IdentityRepositoryImpl(
         val separator = if (contains('?')) "&" else "?"
         val cb = encodeUriComponent(CALLBACK_URL)
         return "$this${separator}x-success=$cb&x-cancel=$cb&x-error=$cb&x-source=$CALLBACK_SOURCE"
-    }
-
-    /** Minimal percent-encoder for the reserved characters in [CALLBACK_URL]. */
-    private fun encodeUriComponent(value: String): String = buildString {
-        for (ch in value) {
-            if (ch.isLetterOrDigit() || ch in "-_.~") {
-                append(ch)
-            } else {
-                for (b in ch.toString().encodeToByteArray()) {
-                    val byte = b.toInt() and BYTE_MASK
-                    append('%')
-                    append((byte shr NIBBLE_BITS).toString(HEX_RADIX).uppercase())
-                    append((byte and LOW_NIBBLE_MASK).toString(HEX_RADIX).uppercase())
-                }
-            }
-        }
     }
 
     private inner class RingAuthFlowHandle(override val authUrl: String) : AuthFlowHandle {
@@ -210,12 +195,6 @@ class IdentityRepositoryImpl(
     companion object {
         private const val TAG = "Loopky/IdentityRepo"
         private const val PUBKY_LOG_PREFIX_LEN = 8
-
-        // Percent-encoding bit math (see [encodeUriComponent]).
-        private const val HEX_RADIX = 16
-        private const val BYTE_MASK = 0xFF
-        private const val LOW_NIBBLE_MASK = 0x0F
-        private const val NIBBLE_BITS = 4
 
         /** Deeplink Pubky Ring re-opens after approval; registered in the platform manifest. */
         private const val CALLBACK_URL = "loopky://login-callback"
