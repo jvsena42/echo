@@ -56,7 +56,18 @@ class ImportRepositoryImpl : ImportRepository {
         return row.copy(fields = fields, isValid = front.isNotBlank() || back.isNotBlank())
     }
 
-    override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> = runCatching {
+    override suspend fun parseBulk(rawText: String, separator: Separator?): Result<ImportDraft> =
+        parseInternal(rawText, separator, maxChars = MAX_BULK_CHARS, maxCards = MAX_BULK_CARDS)
+
+    override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
+        parseInternal(rawText, separator, maxChars = MAX_CHARS, maxCards = MAX_CARDS)
+
+    private fun parseInternal(
+        rawText: String,
+        separator: Separator?,
+        maxChars: Int,
+        maxCards: Int,
+    ): Result<ImportDraft> = runCatching {
         // A fresh parse invalidates any prior triage decisions/edits.
         triageDecisions.clear()
         rowEdits.clear()
@@ -64,14 +75,17 @@ class ImportRepositoryImpl : ImportRepository {
         rowBackImages.clear()
         val text = rawText.replace("\r\n", "\n").replace("\r", "\n").trim()
         require(text.isNotEmpty()) { "Nothing to import." }
-        require(text.length <= MAX_CHARS) { "Text is too long (max $MAX_CHARS characters)." }
+        require(text.length <= maxChars) { "Text is too long (max $maxChars characters)." }
 
         val resolved = separator?.takeIf { it != Separator.Auto } ?: detectSeparator(text)
         // A card has exactly two sides, so anything past the second column is dropped (spec §8).
         val rawRows = splitRows(text, resolved).map { it.take(MAX_FIELDS) }
         require(rawRows.isNotEmpty()) { "Could not parse any cards." }
 
-        val rows = rawRows.take(MAX_CARDS).mapIndexed { index, fields ->
+        // Truncation used to be a silent `.take`, so a paste over the cap quietly lost its tail
+        // with nothing in the UI to say so. The count is now reported on the draft.
+        val truncated = (rawRows.size - maxCards).coerceAtLeast(0)
+        val rows = rawRows.take(maxCards).mapIndexed { index, fields ->
             ParsedRow(
                 index = index,
                 fields = fields,
@@ -93,6 +107,7 @@ class ImportRepositoryImpl : ImportRepository {
             separator = resolved,
             rows = deduped,
             duplicatesCollapsed = duplicatesCollapsed,
+            truncated = truncated,
         ).also { draft = it }
     }
 
@@ -300,8 +315,25 @@ class ImportRepositoryImpl : ImportRepository {
     }
 
     companion object {
+        /**
+         * Cap on a *pasted* string. Deliberately not raised for bulk import: a 20k-card Anki
+         * export is ~2 MB of text, which has no business going through a text field the user is
+         * meant to read. File import calls [parseBulk] and bypasses this entirely.
+         */
         private const val MAX_CHARS = 10_000
-        private const val MAX_CARDS = 500
+
+        /**
+         * Cap on cards from a paste. The constraint is swipe-triage, not storage — nobody swipes
+         * through 20,000 cards — so this stays modest while [MAX_BULK_CARDS] governs file import.
+         * Resolves specs §13 Q4.
+         */
+        private const val MAX_CARDS = 2_000
+
+        /** Cap on a bulk file import. High enough for any real Anki deck; a backstop, not a policy. */
+        internal const val MAX_BULK_CARDS = 100_000
+
+        /** Characters accepted from a file. ~10 MB of text — far past any plausible Anki export. */
+        private const val MAX_BULK_CHARS = 10_000_000
 
         /** A card has a front and a back; extra columns are dropped (spec §8). */
         private const val MAX_FIELDS = 2

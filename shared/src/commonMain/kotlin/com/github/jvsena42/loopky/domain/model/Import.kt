@@ -5,6 +5,11 @@ data class ImportDraft(
     val separator: Separator,
     val rows: List<ParsedRow>,
     val duplicatesCollapsed: Int,
+    /**
+     * Rows dropped for exceeding the parser's cap. Truncation used to be a silent `.take`, so an
+     * over-long import lost its tail with nothing in the UI to say so.
+     */
+    val truncated: Int = 0,
 )
 
 data class ParsedRow(

@@ -314,6 +314,9 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
     override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
         draft?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no draft"))
 
+    override suspend fun parseBulk(rawText: String, separator: Separator?): Result<ImportDraft> =
+        parse(rawText, separator)
+
     override fun decisions(): Map<Int, TriageDecision> = triageDecisions.toMap()
 
     override fun setDecision(rowIndex: Int, decision: TriageDecision) {

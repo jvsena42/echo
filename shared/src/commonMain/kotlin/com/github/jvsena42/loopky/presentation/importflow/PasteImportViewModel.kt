@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.util.Log
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -41,7 +42,7 @@ class PasteImportViewModel(
             }
             return
         }
-        doParse(text)
+        doParse(text, debounce = true)
     }
 
     /**
@@ -54,9 +55,17 @@ class PasteImportViewModel(
         if (text.isNotBlank()) doParse(text)
     }
 
-    private fun doParse(text: String) {
+    /**
+     * Parse for the live preview.
+     *
+     * [debounce] coalesces keystrokes: parsing is O(n) over the whole input and re-ran on every
+     * character, which is fine for a 40-line paste and not fine as inputs grow. An explicit
+     * separator change re-parses immediately — the user is waiting on that one.
+     */
+    private fun doParse(text: String, debounce: Boolean = false) {
         parseJob?.cancel()
         parseJob = viewModelScope.launch {
+            if (debounce) delay(PARSE_DEBOUNCE_MS)
             importRepository.parse(text, _state.value.separatorOverride)
                 .onSuccess { draft ->
                     val incompleteCount = draft.rows.count { row ->
@@ -115,6 +124,9 @@ class PasteImportViewModel(
     }
 
     companion object {
+        /** Long enough to coalesce typing, short enough that the preview still feels live (§5.2). */
+        private const val PARSE_DEBOUNCE_MS = 150L
+
         private const val TAG = "Loopky/PasteVM"
         private const val PREVIEW_CARD_COUNT = 3
     }

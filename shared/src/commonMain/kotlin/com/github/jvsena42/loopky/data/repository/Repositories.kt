@@ -183,6 +183,18 @@ interface ImportRepository {
      */
     suspend fun parse(rawText: String, separator: Separator? = null): Result<ImportDraft>
 
+    /**
+     * [parse] with file-sized limits, for importing an exported deck rather than a paste.
+     *
+     * Anki's "Notes in Plain Text" export is tab-separated, which the existing separator rules
+     * already handle (spec §6 rule 3) — so this is the same parser, not a second one, and needs no
+     * new dependencies. What differs is the caps: a 20k-card export is ~2 MB of text and has no
+     * business going through the paste box.
+     *
+     * The result skips swipe-triage in favour of a summary screen; nobody swipes 20,000 cards.
+     */
+    suspend fun parseBulk(rawText: String, separator: Separator? = null): Result<ImportDraft>
+
     /** Per-row keep/discard decisions made during triage (default [TriageDecision.Keep]). */
     fun decisions(): Map<Int, TriageDecision>
     fun setDecision(rowIndex: Int, decision: TriageDecision)

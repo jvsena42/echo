@@ -369,4 +369,50 @@ class ImportRepositoryImplTest {
         assertIs<Separator.Comma>(explicitAuto.separator)
         Unit
     }
+
+    // ── bulk / Anki import ───────────────────────────────────────────────
+
+    @Test
+    fun bulkImportAcceptsADeckFarLargerThanAPaste() = runBlocking {
+        // An Anki "Notes in Plain Text" export: tab-separated, which the existing rules already
+        // handle (spec §6 rule 3) — zero new dependencies.
+        val text = (1..5_000).joinToString("\n") { "front$it\tback$it" }
+
+        val draft = repo().parseBulk(text).getOrThrow()
+
+        assertEquals(Separator.Tab, draft.separator)
+        assertEquals(expected = 5_000, actual = draft.rows.size)
+        assertEquals(expected = 0, actual = draft.truncated)
+    }
+
+    @Test
+    fun aPasteThatSizeIsRejectedRatherThanSilentlyHalved() = runBlocking {
+        val text = (1..5_000).joinToString("\n") { "front$it\tback$it" }
+
+        // The paste box keeps a modest character cap: the constraint is the human reading it.
+        assertTrue(repo().parse(text).isFailure)
+    }
+
+    @Test
+    fun truncationIsReportedRatherThanSilent() = runBlocking {
+        // Short rows so the 2000-card cap is what bites, not the character cap. Duplicates are
+        // collapsed after the cap is applied, so `truncated` still reflects the rows dropped.
+        val text = (1..2_001).joinToString("\n") { "a\tb" }
+
+        val draft = repo().parse(text).getOrThrow()
+
+        assertEquals(expected = 1, actual = draft.truncated, "the dropped row was not reported")
+    }
+
+    @Test
+    fun anAnkiExportWithATagsColumnStillParsesFrontAndBack() = runBlocking {
+        // Anki's export carries an optional third tags column; cards have no tags (spec §8), so
+        // it is dropped — the first two columns still parse cleanly.
+        val text = "hola\thello\tspanish::greetings\ngracias\tthank you\tspanish"
+
+        val draft = repo().parseBulk(text).getOrThrow()
+
+        assertEquals(listOf("hola", "hello"), draft.rows[0].fields)
+        assertEquals(listOf("gracias", "thank you"), draft.rows[1].fields)
+    }
 }
