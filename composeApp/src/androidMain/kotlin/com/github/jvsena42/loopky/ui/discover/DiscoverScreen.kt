@@ -160,9 +160,17 @@ private fun DiscoverScreen(
                 item(key = "header") { DiscoverHeader(onAddFriend = onAddFriend) }
 
                 topicsSection(state, onTagSelected)
+                // Picking a topic is an explicit question, so its answer leads. Unfiltered, browse
+                // is the fallback firehose and sits under the people and decks you chose — which
+                // costs a new account nothing, because the followed strip hides itself when empty.
+                if (state.selectedTag != null) {
+                    browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onAddFriend)
+                }
                 peopleSection(state, onOpenAuthor, onFollowToggle)
-                browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onAddFriend)
                 followingSection(state, onOpenDeck, onOpenAuthor, onRetryFollowing)
+                if (state.selectedTag == null) {
+                    browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onAddFriend)
+                }
             }
         }
     }

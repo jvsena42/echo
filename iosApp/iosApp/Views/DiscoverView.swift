@@ -60,11 +60,15 @@ struct DiscoverView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 if !state.topics.isEmpty { topicRow }
+                // Picking a topic is an explicit question, so its answer leads. Unfiltered, browse
+                // is the fallback firehose and sits under the people and decks you chose — which
+                // costs a new account nothing, because the followed strip hides itself when empty.
+                if state.selectedTag != nil { browseStrip }
                 if !state.people.isEmpty { peopleStrip }
-                browseStrip
                 if !state.following.items.isEmpty || state.following.errorMessage != nil {
                     followingStrip
                 }
+                if state.selectedTag == nil { browseStrip }
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
