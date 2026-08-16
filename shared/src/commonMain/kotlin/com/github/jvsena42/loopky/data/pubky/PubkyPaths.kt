@@ -27,12 +27,23 @@ internal object PubkyPaths {
         "${deckRoot(authorPubky, deckId)}/media/$sha256.$ext"
 
     /**
-     * Per-card SRS review state, deck-scoped. Still one record per card and still nested under the
-     * deck — both change in #43 §2 (chunked, and author-scoped so review state for someone else's
-     * deck stops colliding on a shared deck id).
+     * A chunk of SRS review state, on **your** homeserver ([ownerPubky]) but keyed by the deck's
+     * [authorPubky].
+     *
+     * Two things changed here (#43 §2). It is no longer nested under `/decks/{deckId}/`, because
+     * your review state for someone else's deck was never the owner's data — that only looked
+     * right while every deck was your own. And it is keyed by the deck's author, so two authors
+     * whose decks happen to share a `deckId` no longer collide in your `srs/` tree. Following
+     * decks from many authors is exactly what raises those odds.
+     *
+     * Chunked for the same reason cards are: one record per card made a studied 20k-card deck
+     * ~40,000 records, and `dueForDeck` 20,000 GETs.
      */
-    fun srs(authorPubky: String, deckId: String, cardId: String): String =
-        "${deckRoot(authorPubky, deckId)}/srs/$cardId.json"
+    fun srsChunk(ownerPubky: String, authorPubky: String, deckId: String, chunk: Int): String =
+        "${srsRoot(ownerPubky, authorPubky, deckId)}$chunk.json"
+
+    fun srsRoot(ownerPubky: String, authorPubky: String, deckId: String): String =
+        "pubky://$ownerPubky/$APP_NAMESPACE/srs/$authorPubky/$deckId/"
 
     fun decksList(authorPubky: String): String =
         "pubky://$authorPubky/$APP_NAMESPACE/decks/"

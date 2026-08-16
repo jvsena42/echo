@@ -1,6 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
-import com.github.jvsena42.loopky.data.pubky.SrsStateDto
+import com.github.jvsena42.loopky.data.pubky.SrsChunkDto
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.testing.CountingRevalidator
@@ -63,12 +63,18 @@ class SrsRepositoryImplTest {
         assertEquals(SrsGrade.Good, state.lastGrade)
         assertTrue(state.dueAt >= before + 3 * dayMs)
 
-        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/srs/c1.json"
-        val dto = loopkyJson.decodeFromString<SrsStateDto>(pubky.store.getValue(url))
+        // Buffered, not written yet — a review is one of many in a session.
+        assertTrue(pubky.puts.none { it.first.contains("/srs/") }, "review wrote through immediately")
+        assertEquals(state, repo.stateFor("c1"))
+
+        repo.flush().getOrThrow()
+
+        val url = "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/0.json"
+        val chunk = loopkyJson.decodeFromString<SrsChunkDto>(pubky.store.getValue(url))
+        val dto = chunk.states.single()
         assertEquals("c1", dto.card_id)
         assertEquals(expected = 3, actual = dto.interval_days)
         assertEquals(SrsGrade.Good.ordinal, dto.last_grade)
-        assertEquals(state, repo.stateFor("c1"))
     }
 
     @Test
@@ -112,10 +118,45 @@ class SrsRepositoryImplTest {
         )
 
         repo.upsert("deck1", state).getOrThrow()
+        repo.flush().getOrThrow()
 
-        val url = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1/srs/c1.json"
-        assertTrue(url in pubky.store)
+        // The exact chunk is an implementation detail — with no deck loaded the card has no known
+        // position, so it lands in a fallback bucket. What matters is that it is under this
+        // session's author-scoped root, and that a cold read discovers it by listing.
+        val root = "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/"
+        assertTrue(
+            pubky.store.keys.any { it.startsWith(root) },
+            "state did not reach the homeserver: ${pubky.store.keys}",
+        )
         assertEquals(state, repo.stateFor("c1"))
+    }
+
+    @Test
+    fun aWholeSessionOfReviewsCostsOneChunkWrite() = runTest {
+        publishDeck("deck1", *(1..30).map { "c$it" }.toTypedArray())
+        repo.dueForDeck("deck1")
+        pubky.puts.clear()
+
+        (1..30).forEach { repo.review(testCard("c$it", deckId = "deck1"), SrsGrade.Good).getOrThrow() }
+        repo.flush().getOrThrow()
+
+        // One record per review would be 30 writes. The periodic flush may add one more.
+        val srsWrites = pubky.puts.count { it.first.contains("/srs/") }
+        assertTrue(srsWrites <= 2, "30 reviews cost $srsWrites writes")
+    }
+
+    @Test
+    fun srsPathIsScopedToTheDeckAuthorNotJustTheDeckId() = runTest {
+        // Two authors can publish decks that happen to share an id; your review state for each
+        // must not collide in your own srs/ tree (#33 blocker 4).
+        publishDeck("shared-id", "c1")
+        repo.review(testCard("c1", deckId = "shared-id"), SrsGrade.Good).getOrThrow()
+        repo.flush().getOrThrow()
+
+        assertTrue(
+            pubky.store.keys.any { it == "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/shared-id/0.json" },
+            "expected an author-scoped srs path, got ${pubky.store.keys.filter { "/srs/" in it }}",
+        )
     }
 
     @Test
@@ -129,10 +170,12 @@ class SrsRepositoryImplTest {
             lastGrade = SrsGrade.Hard,
         )
         repo.upsert("deck1", state).getOrThrow()
+        repo.flush().getOrThrow()
 
-        // A fresh repo has a cold cache; reviewing c1 must load the persisted state from the
-        // homeserver (repetitions grows from 3, not from a zeroed new-card baseline).
+        // A fresh repo has a cold cache; building the due queue must load the persisted state
+        // from the homeserver (repetitions grows from 3, not from a zeroed new-card baseline).
         val coldRepo = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo)
+        coldRepo.dueForDeck("deck1")
         val next = coldRepo.review(testCard("c1"), SrsGrade.Good).getOrThrow()
         assertEquals(4, next.repetitions)
     }

@@ -153,7 +153,17 @@ class StudySessionViewModel(
     }
 
     fun onClose() {
+        // flushAsync, not a launch here: viewModelScope is cancelled in onCleared(), so a flush
+        // started as this screen goes away would be killed before it finished — losing exactly
+        // the reviews it was meant to save.
+        srsRepository.flushAsync()
         viewModelScope.launch { _effects.emit(StudySessionEffect.Close) }
+    }
+
+    /** Buffered reviews must reach the homeserver even if the process is about to be backgrounded. */
+    override fun onCleared() {
+        srsRepository.flushAsync()
+        super.onCleared()
     }
 
     private fun emitCurrent() {
@@ -163,6 +173,8 @@ class StudySessionViewModel(
         }
         val card = queue.getOrNull(index)
         if (card == null) {
+            // Queue exhausted — persist the session's reviews.
+            srsRepository.flushAsync()
             _state.update { StudySessionUiState.Complete(reviewedCount) }
             return
         }

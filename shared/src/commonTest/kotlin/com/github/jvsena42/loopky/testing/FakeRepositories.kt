@@ -242,6 +242,18 @@ class FakeSrsRepository : SrsRepository {
         return Result.success(next)
     }
 
+    var flushes = 0
+        private set
+
+    override suspend fun flush(): Result<Unit> {
+        flushes++
+        return Result.success(Unit)
+    }
+
+    override fun flushAsync() {
+        flushes++
+    }
+
     override suspend fun upsert(deckId: String, state: SrsState): Result<Unit> {
         states[state.cardId] = state
         _changes.tryEmit(deckId)

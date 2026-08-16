@@ -1,10 +1,12 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
-import com.github.jvsena42.loopky.data.pubky.SrsStateDto
+import com.github.jvsena42.loopky.data.pubky.SrsChunkDto
+import com.github.jvsena42.loopky.data.pubky.mapConcurrently
 import com.github.jvsena42.loopky.data.pubky.putWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.requireSession
 import com.github.jvsena42.loopky.data.pubky.toDomain
@@ -19,32 +21,61 @@ import com.github.jvsena42.loopky.domain.model.isDue
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 
 /**
- * [SrsRepository] backed by [PubkyClient]. Per-card review state lives at
- * `/pub/loopky/decks/{deckId}/srs/{cardId}.json` — see `PubkyPaths.srs`. Mirrors [CardRepositoryImpl]:
- * Pubky is the source of truth, with a [Mutex]-guarded in-memory cache for the session.
+ * [SrsRepository] backed by [PubkyClient]. Review state lives batched at
+ * `/pub/loopky/srs/{authorPubky}/{deckId}/{n}.json` — on **your** homeserver, keyed by the deck's
+ * author, for any deck including ones you do not own (see [PubkyPaths.srsChunk]).
  *
- * Building the due queue enumerates owned decks via [DeckRepository] and their cards via
- * [CardRepository]; a [DeckRepository.sync] first populates the card cache from the homeserver.
+ * SRS has the opposite access pattern to cards: writes are one card at a time and frequent, reads
+ * need everything at once (`dueForDeck` must know every card's `due_at`). So reads are chunked,
+ * and **writes buffer in memory and flush per chunk** — grading 100 cards costs one chunk write
+ * at the end instead of 100 record writes as it goes.
+ *
+ * The flush deliberately does not live in the study ViewModel: `viewModelScope` is cancelled in
+ * `onCleared()`, so a flush started there would be killed before it finished. This class owns an
+ * app-scoped [CoroutineScope] instead, and also flushes every [FLUSH_EVERY] reviews so a crash
+ * costs a few cards rather than a whole session.
  */
+@Suppress("TooManyFunctions")
 class SrsRepositoryImpl(
     private val pubky: PubkyClient,
     private val session: SessionProvider,
     private val revalidator: SessionRevalidator,
     private val deckRepository: DeckRepository,
     private val cardRepository: CardRepository,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob()),
 ) : SrsRepository {
 
-    private val cache = mutableMapOf<String, SrsState>()
+    /** (authorPubky, deckId, cardId) — deck-and-author scoped, so ids cannot collide across decks. */
+    private data class StateKey(val authorPubky: String, val deckId: String, val cardId: String)
+
+    private val cache = mutableMapOf<StateKey, SrsState>()
+
+    /**
+     * Which chunk each state belongs to. Recorded when the state is loaded or written, never
+     * re-derived — a flush that computed the chunk differently from the write that dirtied it
+     * would persist the state into the wrong record.
+     */
+    private val stateChunks = mutableMapOf<StateKey, Int>()
+
+    /** Which (author, deck) chunks hold unflushed reviews. */
+    private val dirty = mutableSetOf<Triple<String, String, Int>>()
+
+    /** deckId → the author whose deck it is, learned when the deck is read. */
+    private val deckAuthors = mutableMapOf<String, String>()
     private val cacheLock = Mutex()
+    private var sinceFlush = 0
 
     private val _changes = MutableSharedFlow<String>(
         extraBufferCapacity = CHANGE_BUFFER,
@@ -52,29 +83,27 @@ class SrsRepositoryImpl(
     )
     override val changes: SharedFlow<String> = _changes.asSharedFlow()
 
-    override suspend fun dueToday(): List<Card> {
-        val decks = deckRepository.listOwned()
-        return decks.flatMap { dueForDeck(it.id) }
-    }
+    override suspend fun dueToday(): List<Card> =
+        deckRepository.listOwned().flatMap { dueForDeck(it.id) }
 
     override suspend fun dueForDeck(deckId: String): List<Card> {
-        // Ensure the card cache is populated from the homeserver before we read it.
-        deckRepository.sync(deckId).onFailure {
-            Log.e(TAG, "dueForDeck: sync failed for $deckId — ${it.message}", it)
-        }
-        val now = epochMillis()
+        val deck = deckRepository.sync(deckId)
+            .onFailure { Log.e(TAG, "dueForDeck: sync failed for $deckId — ${it.message}", it) }
+            .getOrNull() ?: deckRepository.getLocal(deckId)
+        val author = deck?.authorPubky ?: session.current()?.identity?.pubky ?: return emptyList()
+        cacheLock.withLock { deckAuthors[deckId] = author }
+
         val cards = cardRepository.listByDeck(deckId)
+        loadChunksFor(author, deckId)
+
+        val now = epochMillis()
         return cards
-            .map { card -> card to fetchState(deckId, card.id) }
+            .map { card -> card to stateOf(author, deckId, card.id) }
             .filter { (_, state) -> state.isDue(now) }
             .sortedWith(compareBy({ (_, state) -> state?.dueAt ?: 0L }, { (card, _) -> card.id }))
             .map { it.first }
     }
 
-    /**
-     * Reads the cache `dueToday`/`dueForDeck` has already warmed, so this is an in-memory min
-     * rather than another round of homeserver reads.
-     */
     override suspend fun nextDueAt(): Long? {
         val now = epochMillis()
         return cacheLock.withLock { cache.values.map { it.dueAt } }
@@ -82,33 +111,144 @@ class SrsRepositoryImpl(
             .minOrNull()
     }
 
-    override suspend fun stateFor(cardId: String): SrsState? = cacheLock.withLock { cache[cardId] }
+    override suspend fun stateFor(cardId: String): SrsState? =
+        cacheLock.withLock { cache.entries.firstOrNull { it.key.cardId == cardId }?.value }
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> = runCatching {
-        val current = fetchState(card.deckId, card.id)
+        val author = authorFor(card.deckId)
+        val current = stateOf(author, card.deckId, card.id)
         val next = current.review(card.id, grade, epochMillis())
         upsert(card.deckId, next).getOrThrow()
         next
     }
 
     override suspend fun upsert(deckId: String, state: SrsState): Result<Unit> = runCatching {
-        val author = session.requireSession().identity.pubky
-        val url = PubkyPaths.srs(author, deckId, state.cardId)
-        val body = loopkyJson.encodeToString(state.toDto())
-        pubky.putWithSessionRetry(url, body, session, revalidator).getOrThrow()
-        cacheLock.withLock { cache[state.cardId] = state }
+        val author = authorFor(deckId)
+        val key = StateKey(author, deckId, state.cardId)
+        val chunk = cacheLock.withLock { stateChunks[key] } ?: chunkFor(deckId, state.cardId)
+
+        val shouldFlush = cacheLock.withLock {
+            cache[key] = state
+            stateChunks[key] = chunk
+            dirty.add(Triple(author, deckId, chunk))
+            ++sinceFlush >= FLUSH_EVERY
+        }
         _changes.tryEmit(deckId)
+
+        // Bounded loss: a crash costs at most FLUSH_EVERY reviews, not the whole session.
+        if (shouldFlush) flush().getOrThrow()
+    }
+
+    override suspend fun flush(): Result<Unit> = runCatching {
+        val pending = cacheLock.withLock {
+            val snapshot = dirty.toList()
+            dirty.clear()
+            sinceFlush = 0
+            snapshot
+        }
+        if (pending.isEmpty()) return@runCatching
+
+        val owner = session.requireSession().identity.pubky
+        runCatching {
+            pending.mapConcurrently { (author, deckId, chunk) ->
+                writeChunk(owner, author, deckId, chunk)
+            }
+        }.onFailure { err ->
+            // Put them back so the next flush retries rather than silently losing progress.
+            cacheLock.withLock { dirty.addAll(pending) }
+            throw err
+        }
         Unit
     }
 
-    /** Read state from cache, falling back to the homeserver (a 404 means a new, never-reviewed card). */
-    private suspend fun fetchState(deckId: String, cardId: String): SrsState? {
-        cacheLock.withLock { cache[cardId] }?.let { return it }
-        val author = session.current()?.identity?.pubky ?: return null
-        return pubky.get(PubkyPaths.srs(author, deckId, cardId))
-            .mapCatching { loopkyJson.decodeFromString<SrsStateDto>(it).toDomain() }
-            .onSuccess { state -> cacheLock.withLock { cache[cardId] = state } }
-            .getOrNull()
+    override fun flushAsync() {
+        scope.launch {
+            flush().onFailure { Log.e(TAG, "flushAsync: FAILED — ${it.message}", it) }
+        }
+    }
+
+    private suspend fun writeChunk(owner: String, author: String, deckId: String, chunk: Int) {
+        val states = cacheLock.withLock {
+            cache.filterKeys { key ->
+                key.authorPubky == author && key.deckId == deckId && stateChunks[key] == chunk
+            }.values.map { it.toDto() }
+        }
+        val body = loopkyJson.encodeToString(
+            SrsChunkDto(deck_id = deckId, author_pubky = author, chunk = chunk, states = states),
+        )
+        pubky.putWithSessionRetry(
+            PubkyPaths.srsChunk(owner, author, deckId, chunk),
+            body,
+            session,
+            revalidator,
+        ).getOrThrow()
+    }
+
+    /**
+     * Read every SRS chunk for a deck, concurrently, once per session.
+     *
+     * The chunk set is **discovered** by listing rather than derived from the card count. Deriving
+     * it would silently miss any chunk the writer placed elsewhere — and [chunkFor] does exactly
+     * that when a card's deck position is not yet known, so a guessed range would make those
+     * reviews permanently unreadable.
+     */
+    private suspend fun loadChunksFor(author: String, deckId: String) {
+        val owner = session.current()?.identity?.pubky ?: return
+        val loaded = cacheLock.withLock { loadedDecks.contains(author to deckId) }
+        if (loaded) return
+
+        val root = PubkyPaths.srsRoot(owner, author, deckId)
+        val urls = pubky.list(root).getOrNull()
+            ?.let { payload ->
+                runCatching { loopkyJson.decodeFromString<List<String>>(payload) }
+                    .getOrDefault(emptyList())
+                    .filter { it.startsWith("pubky://") }
+            }
+            .orEmpty()
+
+        urls.mapConcurrently { url ->
+            pubky.get(url)
+                .mapCatching { loopkyJson.decodeFromString<SrsChunkDto>(it) }
+                .onSuccess { dto ->
+                    cacheLock.withLock {
+                        dto.states.forEach { state ->
+                            val key = StateKey(author, deckId, state.card_id)
+                            // A buffered review is newer than what is on the homeserver.
+                            if (key !in cache) cache[key] = state.toDomain()
+                            stateChunks[key] = dto.chunk
+                        }
+                    }
+                }
+                .onFailure { Log.e(TAG, "loadChunksFor: $url unreadable — ${it.message}", it) }
+        }
+        cacheLock.withLock { loadedDecks.add(author to deckId) }
+    }
+
+    private val loadedDecks = mutableSetOf<Pair<String, String>>()
+
+    private suspend fun stateOf(author: String, deckId: String, cardId: String): SrsState? =
+        cacheLock.withLock { cache[StateKey(author, deckId, cardId)] }
+
+    private suspend fun authorFor(deckId: String): String =
+        cacheLock.withLock { deckAuthors[deckId] }
+            ?: deckRepository.getLocal(deckId)?.authorPubky
+            ?: session.requireSession().identity.pubky
+
+    /**
+     * Which SRS chunk a card's state belongs in, for a card seen for the first time.
+     *
+     * Mirrors the card's own position in the deck, so a deck's SRS chunks line up with its card
+     * chunks and a study session touches few of them. Falls back to a hash when the deck's card
+     * order is not loaded — still correct, just less tidy. Whichever answer is used, it is then
+     * recorded in [stateChunks] and never recomputed.
+     */
+    private suspend fun chunkFor(deckId: String, cardId: String): Int {
+        val index = cardRepository.listByDeck(deckId).indexOfFirst { it.id == cardId }
+        return if (index >= 0) {
+            index / CHUNK_SIZE
+        } else {
+            (cardId.hashCode().toUInt() % CHUNK_BUCKETS.toUInt()).toInt()
+        }
     }
 
     companion object {
@@ -116,5 +256,11 @@ class SrsRepositoryImpl(
 
         /** Room for a burst of reviews while a collector is mid-reload; oldest is dropped. */
         private const val CHANGE_BUFFER = 8
+
+        /** Reviews buffered before an automatic flush. Caps what a crash can cost. */
+        internal const val FLUSH_EVERY = 20
+
+        /** Fallback bucket count when a card's deck position is unknown. */
+        private const val CHUNK_BUCKETS = 64
     }
 }

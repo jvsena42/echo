@@ -267,8 +267,26 @@ interface SrsRepository {
     /** Grade a card: compute the next state via the scheduler, persist it, and return it. */
     suspend fun review(card: Card, grade: SrsGrade): Result<SrsState>
 
-    /** Persist a review state. [deckId] scopes the homeserver path. */
+    /**
+     * Persist a review state. Buffered in memory rather than written immediately — grading 100
+     * cards costs a handful of chunk writes instead of 100 record writes. See [flush].
+     */
     suspend fun upsert(deckId: String, state: SrsState): Result<Unit>
+
+    /**
+     * Write buffered reviews to the homeserver. Called at the end of a study session, and
+     * automatically every so often so a crash costs a few cards rather than the whole session.
+     */
+    suspend fun flush(): Result<Unit>
+
+    /**
+     * [flush] on the repository's own scope, for callers that cannot await it.
+     *
+     * A ViewModel must use this rather than launching a flush itself: `viewModelScope` is
+     * cancelled in `onCleared()`, so a flush started as the study screen goes away would be
+     * killed before it finished — losing exactly the reviews it was meant to save.
+     */
+    fun flushAsync()
 }
 
 /**
