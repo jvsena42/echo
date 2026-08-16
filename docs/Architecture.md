@@ -102,8 +102,8 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 | `DeckRepository` | CRUD + `publishDeck(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule | Pubky FFI + in-memory cache |
 | `CardRepository` | CRUD cards within a deck | Pubky FFI + in-memory cache |
 | `ImportRepository` | `parse(rawText, separator)` per spec §6/§7 (col 1 → front, col 2 → back, extras dropped — spec §8), `setDecision()` / `keptRows()` triage, in-memory drafts, dedupe | In-memory |
-| `TagRepository` | Read/write Pubky tags on decks (brief §9.3); trending via Nexus | Pubky FFI + Nexus REST |
-| `DiscoveryRepository` | Trending/followed tags, decks by followed users, `followUser()` / `unfollowUser()` (brief §9.4) | Pubky FFI |
+| `TagRepository` | Read/write Pubky tags on any subject (deck or profile — brief §9.3); the reserved `loopky-*` index labels via `putReservedTag`; trending, tagged-subject and tagger-count reads via Nexus (§7.7) | Pubky FFI + Nexus REST |
+| `DiscoveryRepository` | Trending/followed tags, decks by followed users, `followUser()` / `unfollowUser()` (brief §9.4), plus verified network-wide reads: `decksByTagGlobal()` and `loopkyUsers()` | Pubky FFI + Nexus REST |
 | `SrsRepository` | Per-card SRS state, today's due queue, `reviewCard(cardId, grade)` | In-memory (v1) |
 | `MediaRepository` | Image + audio blob storage for cards | Pubky FFI (blobs) + platform file I/O |
 
@@ -259,13 +259,84 @@ Secrets never touch multiplatform-settings or ad-hoc storage.
 
 ### 7.6 Nexus indexer (global reads)
 
-Global questions a single homeserver cannot answer — trending tags, prefix search — are
+Global questions a single homeserver cannot answer — trending tags, prefix search, "which
+decks carry this tag", "how many people follow this deck", "who else uses Loopky" — are
 served by the Pubky Nexus REST API (`data/nexus/NexusClient`, default base
 `https://nexus.staging.pubky.app`). The HTTP layer is the one-method `HttpFetcher`
 interface with per-platform impls (HttpURLConnection / NSURLSession) so shared stays free
-of an HTTP client dependency. Writes stay on the homeserver: deck tags are mirrored as
-pubky-app-specs tag records (`/pub/pubky.app/tags/{id}`, id derived via the FFI
-`create_tag_id`) which Nexus indexes network-wide.
+of an HTTP client dependency.
+
+Writes stay on the homeserver: tags are written as pubky-app-specs tag records (id derived
+via the FFI `create_tag_id`) which Nexus indexes network-wide. **Which namespace the record
+goes in decides how — and whether — it is indexed at all; see §7.7.**
+
+Reads in use today:
+
+| Call | Endpoint | Used for |
+|---|---|---|
+| `hotTags` | `/v0/tags/hot` | the trending chip row |
+| `searchTagsByPrefix` | `/v0/search/tags/by_prefix/{prefix}` | tag autocomplete (no caller yet) |
+| `resourcesByTag` | `/v0/stream/resources?app=loopky&tags=…&sorting=taggers_count` | global deck browse |
+| `resourceByUri` | `/v0/resource/by-uri` | per-deck tagger counts ("N followers") |
+| `taggersOfLabel` | `/v0/tags/taggers/{label}` | the `loopky-user` directory |
+| `userTaggers` | `/v0/user/{id}/taggers/{label}` | verifying a self-tag |
+
+Everything read back is **untrusted** — anyone can write any label on any URI — so
+`DiscoveryRepositoryImpl` verifies before returning: a deck URI must parse as a manifest,
+its tagger must be its author, and the manifest must actually fetch; a user must have
+self-tagged and have a resolvable profile. Counts come from `taggers_count` (distinct
+taggers) and are approximate: fine to display, never to gate on.
+
+### 7.7 Tag indexing: what Nexus does and does not index
+
+Non-obvious and invisible from Loopky's side — a rejected tag produces no error anywhere,
+it simply never appears. Verified against `pubky-nexus` and `pubky-app-specs` sources and
+live against staging (issue #40).
+
+**1. Two ingest paths, chosen by the tag record's own namespace.** A record at
+`/pub/pubky.app/tags/{id}` is re-parsed against the pubky.app URI grammar and accepted only
+if its subject is a pubky.app **post or profile**
+(`nexus-watcher/src/events/handlers/tag.rs:34-52`, `pubky-app-specs/src/uri_parser.rs:128-171`).
+A record under any *other* `/pub/{app}/tags/{id}` takes the universal-tag path
+(`nexus-watcher/src/events/handlers/universal_tag.rs:94-138`) and files the subject as a
+generic **resource**, whatever URI it is.
+
+| Subject | Record must live at | Indexed as | Readable via |
+|---|---|---|---|
+| `pubky://{id}/pub/pubky.app/profile.json` | `/pub/pubky.app/tags/{id}` | user | `/v0/user/{id}/tags`, `/v0/tags/taggers/{label}`, `/v0/tags/hot` |
+| `pubky://{author}/pub/loopky/decks/{id}/manifest.json` | `/pub/loopky/tags/{id}` | resource | `/v0/stream/resources?app=loopky`, `/v0/resource/by-uri` |
+
+`TagRepositoryImpl` routes on the subject for exactly this reason.
+
+**2. `app` is the record's path segment, verbatim.** Nothing about it derives from the
+subject URI. Loopky resources are `app=loopky` because records live at `/pub/loopky/tags/`;
+`app=loopky.app` would match nothing. (Live check: `?app=mapky.app` returns mapky's
+resources, `?app=mapky` returns none.)
+
+**3. Resource tags never trend.** `/v0/tags/hot` and `/v0/tags/taggers/{label}` are
+restricted to `Post|User` targets (`nexus-common/src/db/graph/queries/get.rs:614-640`), so
+**deck labels — including `loopky-deck` — cannot appear in the trending row**. Only
+`loopky-user`, a profile tag, can. Trending over deck tags would mean aggregating labels
+client-side from `/v0/stream/resources?app=loopky&sorting=taggers_count`; the "browse all
+decks" entry point has to be a chip Loopky synthesizes, not one the indexer hands back. For
+the UI consequences see #26.
+
+**4. Why not announcement posts.** Making deck topics trend for real would mean minting a
+pubky.app post per published deck and tagging the post. That is a public write to the user's
+social feed on their behalf, which is what #39 ("Ask before announcing on Pubky") exists to
+gate — so it belongs there, not in the tag layer.
+
+**5. The universal path does not validate or sanitize.** Unlike the pubky.app path it checks
+neither the tag id against the body nor the label's casing
+(`nexus-watcher/src/events/handlers/universal_tag.rs:62`). `TagRepositoryImpl.sanitizeLabel`
+is therefore load-bearing for deck tags — drop it and labels fragment by case.
+
+**6. Before #40, deck tags were written to `/pub/pubky.app/tags/` and silently dropped.** If
+old decks are missing from the indexer, that is why, not indexer lag.
+
+**7. Two similar hashes, different encodings.** Tag id =
+Crockford-base32(blake3(`"{uri}:{label}"`)[..16]), 26 chars, from the FFI. Nexus
+`resource_id` = lowercase-hex(blake3(normalized_uri)[..16]), 32 chars. Easy to confuse.
 
 ---
 

@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.PubkyUri
+import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.SrsGrade
@@ -215,17 +216,72 @@ interface ImportRepository {
 }
 
 /**
- * Deck tagging via the pubky.app native tag primitive (records on the tagger's homeserver,
- * indexed network-wide by Pubky Nexus). Trending reads come from the Nexus REST API; local
- * tag filtering over visible decks stays on [DiscoveryRepository.decksByTag].
+ * Tagging via the pubky-app-specs tag primitive (records on the tagger's homeserver, indexed
+ * network-wide by Pubky Nexus). Any URI can be a subject: a deck manifest or a user's profile.
+ * Trending reads come from the Nexus REST API; local tag filtering over visible decks stays on
+ * [DiscoveryRepository.decksByTag].
+ *
+ * The impl picks the record's namespace from the subject, which decides how Nexus indexes it —
+ * see [com.github.jvsena42.loopky.data.repository.impl.TagRepositoryImpl] and Architecture.md §7.7.
  */
 interface TagRepository {
-    suspend fun putTag(deckUri: PubkyUri, tag: Tag): Result<Unit>
-    suspend fun removeTag(deckUri: PubkyUri, tag: Tag): Result<Unit>
+    /** User-authored labels. Fails for [ReservedTags] — those are Loopky's, not the user's. */
+    suspend fun putTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
+    suspend fun removeTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
+
+    /**
+     * Write one of Loopky's own index labels. Separate from [putTag] so the reserved namespace has
+     * exactly one door, and a user-entered label can never come through it. Fails for any tag that
+     * is not in [ReservedTags.ALL].
+     *
+     * Idempotent: tag ids are content-derived, so re-writing the same label on the same subject
+     * overwrites one record rather than accumulating them.
+     */
+    suspend fun putReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
+    suspend fun removeReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
 
     /** Network-wide trending tags from the Nexus indexer; empty on network failure. */
     suspend fun trending(): List<Tag>
+
+    /**
+     * Loopky subjects carrying [tag] network-wide, most-tagged first. This is the read that makes
+     * a deck findable by someone who follows nobody.
+     *
+     * Untrusted: anyone can tag any URI with any label. Callers must verify a subject resolves to
+     * what the label claims before showing it — see [DiscoveryRepository.decksByTagGlobal].
+     */
+    suspend fun taggedSubjects(tag: Tag, limit: Int = DEFAULT_TAGGED_LIMIT): List<TaggedSubject>
+
+    /** Pubkys that have used [tag] anywhere; for a self-tag this is a directory of accounts. */
+    suspend fun taggersOf(tag: Tag, limit: Int = DEFAULT_TAGGERS_LIMIT): List<String>
+
+    /**
+     * True when [pubky] applied [tag] to its own profile. The check that separates an account
+     * announcing itself from someone else labelling it.
+     */
+    suspend fun isSelfTagged(pubky: String, tag: Tag): Boolean
+
+    /**
+     * Distinct taggers per label on [subjectUri] — "N people follow this deck" without Loopky
+     * aggregating anything. Empty when the subject is unindexed or the indexer is unreachable.
+     *
+     * Approximate by nature (indexer lag, spam): fine to display, never to gate on.
+     */
+    suspend fun taggerCounts(subjectUri: PubkyUri): Map<Tag, Int>
+
+    companion object {
+        const val DEFAULT_TAGGED_LIMIT = 30
+        const val DEFAULT_TAGGERS_LIMIT = 20
+    }
 }
+
+/** A URI carrying a tag, as the indexer reports it. */
+data class TaggedSubject(
+    val uri: PubkyUri,
+    /** Capped by the indexer — count with [taggersCount], not `taggers.size`. */
+    val taggers: List<String>,
+    val taggersCount: Int,
+)
 
 /**
  * Social graph + discovery. Follows use the pubky.app native primitive (see
@@ -245,6 +301,30 @@ interface DiscoveryRepository {
 
     /** Visible decks (following + own) carrying [tag]. */
     suspend fun decksByTag(tag: Tag): List<Deck>
+
+    /**
+     * Decks carrying [tag] anywhere on the network, most-tagged first — no follow relationship
+     * needed. Backed by the indexer, so entries are verified before being returned: the URI has to
+     * be a deck manifest, the tagger has to be its author, and the manifest has to actually fetch
+     * and parse. Anything else is dropped silently.
+     *
+     * Pass [ReservedTags.DECK] to browse every Loopky deck.
+     */
+    suspend fun decksByTagGlobal(
+        tag: Tag,
+        limit: Int = TagRepository.DEFAULT_TAGGED_LIMIT,
+    ): List<Deck>
+
+    /**
+     * Accounts that announced themselves as Loopky users, excluding the signed-in one — the
+     * suggested-people source for someone who follows nobody.
+     *
+     * Verified the same way: kept only if the account self-tagged (tagger == subject) and its
+     * profile resolves.
+     */
+    suspend fun loopkyUsers(
+        limit: Int = TagRepository.DEFAULT_TAGGERS_LIMIT,
+    ): List<PubkyIdentity>
 }
 
 /**

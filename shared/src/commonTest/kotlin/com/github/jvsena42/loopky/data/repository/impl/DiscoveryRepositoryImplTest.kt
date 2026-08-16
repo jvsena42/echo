@@ -3,6 +3,11 @@ package com.github.jvsena42.loopky.data.repository.impl
 import com.github.jvsena42.loopky.data.pubky.FollowDto
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.toDto
+import com.github.jvsena42.loopky.data.repository.TaggedSubject
+import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.domain.model.PubkyUri
+import com.github.jvsena42.loopky.domain.model.ReservedTags
+import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
@@ -30,11 +35,20 @@ class DiscoveryRepositoryImplTest {
         revalidator = revalidator,
         tagRepo = RecordingTagRepository(),
     )
+    private val tagRepo = RecordingTagRepository()
+    private val identityRepo = IdentityRepositoryImpl(
+        pubky = pubky,
+        sessionStore = NoopSessionStore(),
+        sessionProvider = session,
+        tagRepository = tagRepo,
+    )
     private val repo = DiscoveryRepositoryImpl(
         pubky = pubky,
         session = session,
         revalidator = revalidator,
         deckRepository = deckRepo,
+        tagRepository = tagRepo,
+        identityRepository = identityRepo,
     )
 
     private fun followUrl(followee: String) =
@@ -130,4 +144,116 @@ class DiscoveryRepositoryImplTest {
 
         assertEquals(emptyList(), repo.following())
     }
+
+    // ── global browse (indexer-backed, everything untrusted) ─────────────
+
+    private fun manifestUri(author: String, deckId: String) =
+        PubkyUri("pubky://$author/pub/loopky/decks/$deckId/manifest.json")
+
+    private fun tagged(uri: PubkyUri, taggers: List<String>) =
+        TaggedSubject(uri = uri, taggers = taggers, taggersCount = taggers.size)
+
+    @Test
+    fun globalBrowseFindsADeckFromSomeoneYouDoNotFollow() = runTest {
+        putRemoteManifest(author = "strangerpk", deckId = "deck1", updatedAt = 100L)
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(
+                tagged(manifestUri("strangerpk", "deck1"), taggers = listOf("strangerpk")),
+            ),
+        )
+
+        val decks = repo.decksByTagGlobal(ReservedTags.DECK)
+
+        assertEquals(listOf("deck1"), decks.map { it.id })
+        assertTrue(repo.following().isEmpty(), "found without following anyone")
+    }
+
+    @Test
+    fun globalBrowseDropsATagPointedAtSomethingThatIsNotADeck() = runTest {
+        // A forged entry is only useless if it has to resolve to a real deck to be shown.
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(
+                tagged(PubkyUri("pubky://strangerpk/pub/pubky.app/posts/abc"), listOf("strangerpk")),
+                tagged(PubkyUri("https://example.com/free-decks"), listOf("strangerpk")),
+                tagged(manifestUri("strangerpk", "deck1"), listOf("strangerpk")),
+            ),
+        )
+        putRemoteManifest(author = "strangerpk", deckId = "deck1", updatedAt = 100L)
+
+        assertEquals(listOf("deck1"), repo.decksByTagGlobal(ReservedTags.DECK).map { it.id })
+    }
+
+    @Test
+    fun globalBrowseDropsADeckTaggedBySomeoneOtherThanItsAuthor() = runTest {
+        putRemoteManifest(author = "strangerpk", deckId = "deck1", updatedAt = 100L)
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(
+                tagged(manifestUri("strangerpk", "deck1"), taggers = listOf("impostorpk")),
+            ),
+        )
+
+        assertEquals(emptyList(), repo.decksByTagGlobal(ReservedTags.DECK))
+    }
+
+    @Test
+    fun globalBrowseDropsAManifestThatDoesNotFetch() = runTest {
+        // Right shape, nothing behind it — the manifest was never published or has been deleted.
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(
+                tagged(manifestUri("strangerpk", "ghost"), taggers = listOf("strangerpk")),
+            ),
+        )
+
+        assertEquals(emptyList(), repo.decksByTagGlobal(ReservedTags.DECK))
+    }
+
+    @Test
+    fun globalBrowseDedupesRepeatedSubjects() = runTest {
+        putRemoteManifest(author = "strangerpk", deckId = "deck1", updatedAt = 100L)
+        val subject = tagged(manifestUri("strangerpk", "deck1"), taggers = listOf("strangerpk"))
+        tagRepo.subjectsByTag = mapOf(ReservedTags.DECK to listOf(subject, subject))
+
+        assertEquals(expected = 1, actual = repo.decksByTagGlobal(ReservedTags.DECK).size)
+    }
+
+    // ── the Loopky user directory ────────────────────────────────────────
+
+    @Test
+    fun loopkyUsersReturnsSelfTaggedAccountsWithProfiles() = runTest {
+        pubky.store["pubky://strangerpk/pub/pubky.app/profile.json"] =
+            """{"name":"Ada","bio":null,"image":null}"""
+        tagRepo.taggersByTag = mapOf(ReservedTags.USER to listOf("strangerpk"))
+        tagRepo.selfTaggers = setOf("strangerpk")
+
+        val users = repo.loopkyUsers()
+
+        assertEquals(listOf("strangerpk"), users.map { it.pubky })
+        assertEquals("Ada", users.single().displayName)
+    }
+
+    @Test
+    fun loopkyUsersDropsAccountsThatDidNotTagThemselves() = runTest {
+        // Someone tagging *other* people loopky-user shows up as a tagger; they are not a claim
+        // about themselves and must not enter the directory.
+        pubky.store["pubky://impostorpk/pub/pubky.app/profile.json"] =
+            """{"name":"Impostor","bio":null,"image":null}"""
+        tagRepo.taggersByTag = mapOf(ReservedTags.USER to listOf("impostorpk"))
+        tagRepo.selfTaggers = emptySet()
+
+        assertEquals(emptyList(), repo.loopkyUsers())
+    }
+
+    @Test
+    fun loopkyUsersDropsAccountsWithNoProfileAndTheSignedInUser() = runTest {
+        tagRepo.taggersByTag = mapOf(ReservedTags.USER to listOf("ghostpk", TEST_PUBKY))
+        tagRepo.selfTaggers = setOf("ghostpk", TEST_PUBKY)
+
+        assertEquals(emptyList(), repo.loopkyUsers())
+    }
+}
+
+private class NoopSessionStore : SecureSessionStore {
+    override suspend fun save(session: Session) = Unit
+    override suspend fun load(): Session? = null
+    override suspend fun clear() = Unit
 }

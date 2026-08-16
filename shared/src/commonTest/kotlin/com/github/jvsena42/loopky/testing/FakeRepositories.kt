@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
+import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
@@ -18,6 +19,7 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.PubkyUri
+import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.SrsGrade
@@ -285,23 +287,66 @@ class FakeDiscoveryRepository : DiscoveryRepository {
     }
 
     override suspend fun decksByTag(tag: Tag): List<Deck> = feed.filter { tag in it.tags }
+
+    /** Decks reachable only through the indexer, i.e. not from anyone the user follows. */
+    var globalDecks: List<Deck> = emptyList()
+    var loopkyUsers: List<PubkyIdentity> = emptyList()
+
+    override suspend fun decksByTagGlobal(tag: Tag, limit: Int): List<Deck> =
+        globalDecks.filter { tag in it.tags || tag == ReservedTags.DECK }.take(limit)
+
+    override suspend fun loopkyUsers(limit: Int): List<PubkyIdentity> = loopkyUsers.take(limit)
 }
 
 class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRepository {
     val putTags = mutableListOf<Pair<PubkyUri, Tag>>()
     val removedTags = mutableListOf<Pair<PubkyUri, Tag>>()
 
-    override suspend fun putTag(deckUri: PubkyUri, tag: Tag): Result<Unit> {
-        putTags.add(deckUri to tag)
-        return Result.success(Unit)
+    /** Reserved writes are recorded apart so a test can assert Loopky's own index labels. */
+    val putReservedTags = mutableListOf<Pair<PubkyUri, Tag>>()
+    val removedReservedTags = mutableListOf<Pair<PubkyUri, Tag>>()
+
+    /** When set, every write fails with it — publish and sign-in must survive that. */
+    var failWith: Throwable? = null
+
+    override suspend fun putTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> {
+        putTags.add(subjectUri to tag)
+        return failWith?.let { Result.failure(it) } ?: Result.success(Unit)
     }
 
-    override suspend fun removeTag(deckUri: PubkyUri, tag: Tag): Result<Unit> {
-        removedTags.add(deckUri to tag)
-        return Result.success(Unit)
+    override suspend fun removeTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> {
+        removedTags.add(subjectUri to tag)
+        return failWith?.let { Result.failure(it) } ?: Result.success(Unit)
+    }
+
+    override suspend fun putReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> {
+        putReservedTags.add(subjectUri to tag)
+        return failWith?.let { Result.failure(it) } ?: Result.success(Unit)
+    }
+
+    override suspend fun removeReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> {
+        removedReservedTags.add(subjectUri to tag)
+        return failWith?.let { Result.failure(it) } ?: Result.success(Unit)
     }
 
     override suspend fun trending(): List<Tag> = trendingTags
+
+    /** Indexer reads, canned per label. */
+    var subjectsByTag: Map<Tag, List<TaggedSubject>> = emptyMap()
+    var taggersByTag: Map<Tag, List<String>> = emptyMap()
+    var selfTaggers: Set<String> = emptySet()
+    var counts: Map<PubkyUri, Map<Tag, Int>> = emptyMap()
+
+    override suspend fun taggedSubjects(tag: Tag, limit: Int): List<TaggedSubject> =
+        subjectsByTag[tag].orEmpty().take(limit)
+
+    override suspend fun taggersOf(tag: Tag, limit: Int): List<String> =
+        taggersByTag[tag].orEmpty().take(limit)
+
+    override suspend fun isSelfTagged(pubky: String, tag: Tag): Boolean = pubky in selfTaggers
+
+    override suspend fun taggerCounts(subjectUri: PubkyUri): Map<Tag, Int> =
+        counts[subjectUri].orEmpty()
 }
 
 class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {

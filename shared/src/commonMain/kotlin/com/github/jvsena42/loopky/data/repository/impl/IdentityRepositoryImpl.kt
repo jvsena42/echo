@@ -9,10 +9,14 @@ import com.github.jvsena42.loopky.data.pubky.parseSessionPayload
 import com.github.jvsena42.loopky.data.pubky.toDomain
 import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.domain.model.PubkyUri
+import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.encodeUriComponent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -28,6 +32,7 @@ class IdentityRepositoryImpl(
     private val pubky: PubkyClient,
     private val sessionStore: SecureSessionStore,
     private val sessionProvider: MutableSessionProvider,
+    private val tagRepository: TagRepository,
 ) : IdentityRepository {
 
     override suspend fun currentSession(): Session? = sessionProvider.current()
@@ -35,6 +40,7 @@ class IdentityRepositoryImpl(
     override suspend fun loadPersistedSession(): Session? {
         val persisted = sessionStore.load() ?: return null
         sessionProvider.set(persisted)
+        selfTagAsLoopkyUser(persisted)
         return persisted
     }
 
@@ -50,6 +56,7 @@ class IdentityRepositoryImpl(
         }
         sessionStore.clear()
         sessionProvider.set(null)
+        selfTaggedThisProcess = false
         profileCacheLock.withLock { profileCache.clear() }
     }
 
@@ -74,22 +81,6 @@ class IdentityRepositoryImpl(
         return "$this${separator}x-success=$cb&x-cancel=$cb&x-error=$cb&x-source=$CALLBACK_SOURCE"
     }
 
-    /** Minimal percent-encoder for the reserved characters in [CALLBACK_URL]. */
-    private fun encodeUriComponent(value: String): String = buildString {
-        for (ch in value) {
-            if (ch.isLetterOrDigit() || ch in "-_.~") {
-                append(ch)
-            } else {
-                for (b in ch.toString().encodeToByteArray()) {
-                    val byte = b.toInt() and BYTE_MASK
-                    append('%')
-                    append((byte shr NIBBLE_BITS).toString(HEX_RADIX).uppercase())
-                    append((byte and LOW_NIBBLE_MASK).toString(HEX_RADIX).uppercase())
-                }
-            }
-        }
-    }
-
     private inner class RingAuthFlowHandle(override val authUrl: String) : AuthFlowHandle {
         override suspend fun complete(): Result<Session> = runCatching {
             Log.d(TAG, "complete: awaiting Pubky Ring approval")
@@ -101,6 +92,8 @@ class IdentityRepositoryImpl(
             sessionStore.save(session)
             sessionProvider.set(session)
             Log.d(TAG, "complete: session saved")
+
+            selfTagAsLoopkyUser(session)
 
             // Best-effort profile fetch — don't fail sign-in if this fails
             val profile = runCatching { fetchProfile(session.identity.pubky).getOrNull() }.getOrNull()
@@ -148,6 +141,33 @@ class IdentityRepositoryImpl(
             Log.e(TAG, "awaitApproval: FAILED after $AUTH_RETRIES retries — ${it::class.simpleName}: ${it.message}", it)
         }
     }
+
+    /**
+     * Announce this account as a Loopky user by tagging its own `profile.json` with
+     * [ReservedTags.USER].
+     *
+     * This is the whole reason a stranger can find a brand-new account: with no backend, the tag
+     * index is the only global directory Loopky has, and a user who tags nothing is invisible to
+     * it no matter how many decks they publish (#40). Tagger and subject are the same account,
+     * which is what makes the entry verifiable rather than someone's claim about someone else.
+     *
+     * Best-effort and idempotent — the tag id is derived from subject + label, so every write
+     * lands on the same record. Once per process is enough; repeating it on each login and each
+     * app start is how accounts that predate this get into the directory.
+     */
+    private suspend fun selfTagAsLoopkyUser(session: Session) {
+        if (selfTaggedThisProcess) return
+        val profileUri = PubkyUri(PubkyPaths.profile(session.identity.pubky))
+        tagRepository.putReservedTag(profileUri, ReservedTags.USER)
+            .onSuccess {
+                selfTaggedThisProcess = true
+                Log.d(TAG, "selfTag: ${ReservedTags.USER.value} written")
+            }
+            .onFailure { Log.w(TAG, "selfTag: FAILED — ${it.message}") }
+    }
+
+    /** Reset on sign-out so the next account announces itself too. */
+    private var selfTaggedThisProcess = false
 
     /**
      * Successful lookups only. A miss (no profile published yet) stays uncached so a profile
@@ -201,6 +221,9 @@ class IdentityRepositoryImpl(
         sessionProvider.set(updatedSession)
         // Keep the cache honest — otherwise every other screen keeps showing the old name.
         cacheProfile(updatedIdentity)
+        // The other moment the profile provably exists, so the other chance to get into the
+        // directory if the write at login failed.
+        selfTagAsLoopkyUser(updatedSession)
         Log.d(TAG, "updateProfile: saved")
         updatedIdentity
     }.onFailure {
@@ -210,12 +233,6 @@ class IdentityRepositoryImpl(
     companion object {
         private const val TAG = "Loopky/IdentityRepo"
         private const val PUBKY_LOG_PREFIX_LEN = 8
-
-        // Percent-encoding bit math (see [encodeUriComponent]).
-        private const val HEX_RADIX = 16
-        private const val BYTE_MASK = 0xFF
-        private const val LOW_NIBBLE_MASK = 0x0F
-        private const val NIBBLE_BITS = 4
 
         /** Deeplink Pubky Ring re-opens after approval; registered in the platform manifest. */
         private const val CALLBACK_URL = "loopky://login-callback"

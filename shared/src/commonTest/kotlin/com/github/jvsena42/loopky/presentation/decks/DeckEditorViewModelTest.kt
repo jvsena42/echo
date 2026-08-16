@@ -203,6 +203,18 @@ class DeckEditorViewModelTest {
     }
 
     @Test
+    fun `reserved labels cannot be typed into the tag input`() = runTest {
+        seedDeckWithMedia()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAddTag("loopky-deck")
+        vm.onAddTag("spanish")
+
+        assertEquals(listOf("spanish"), vm.state.value.tags)
+    }
+
+    @Test
     fun `adding a card still republishes the deck`() = runTest {
         seedDeckWithMedia()
         val vm = viewModel()

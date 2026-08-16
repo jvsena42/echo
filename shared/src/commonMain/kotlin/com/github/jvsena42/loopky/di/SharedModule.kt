@@ -54,6 +54,7 @@ val sharedModule = module {
             pubky = get(),
             sessionStore = get(),
             sessionProvider = get(),
+            tagRepository = get(),
         )
     }
 
@@ -64,7 +65,7 @@ val sharedModule = module {
     single<MediaRepository> { MediaRepositoryImpl(get(), get(), get()) }
     single<ImportRepository> { ImportRepositoryImpl() }
     single<SrsRepository> { SrsRepositoryImpl(get(), get(), get(), get(), get()) }
-    single<DiscoveryRepository> { DiscoveryRepositoryImpl(get(), get(), get(), get()) }
+    single<DiscoveryRepository> { DiscoveryRepositoryImpl(get(), get(), get(), get(), get(), get()) }
 
     single { NexusClient(http = get()) }
     single<TagRepository> {

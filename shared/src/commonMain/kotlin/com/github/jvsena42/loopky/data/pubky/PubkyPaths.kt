@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.data.pubky
 internal object PubkyPaths {
     const val APP_NAMESPACE = "pub/loopky"
     private const val PUBKY_APP_NAMESPACE = "pub/pubky.app"
+    const val SCHEME = "pubky://"
 
     fun profile(pubky: String): String =
         "pubky://$pubky/$PUBKY_APP_NAMESPACE/profile.json"
@@ -60,11 +61,24 @@ internal object PubkyPaths {
         "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/follows/$followeePubky"
 
     /**
-     * pubky.app tag record. Like follows, tags use the ecosystem-native primitive so Nexus
-     * indexes them; the id is content-derived per pubky-app-specs (`PubkyClient.createTagId`).
+     * pubky.app tag record — the namespace Nexus indexes into its **user/post** graph. Use it only
+     * when the tagged subject is a pubky.app profile or post; Nexus rejects the record outright for
+     * any other subject (see [loopkyTag] and Architecture.md §7.7). The id is content-derived per
+     * pubky-app-specs (`PubkyClient.createTagId`).
      */
     fun tag(ownerPubky: String, tagId: String): String =
         "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/tags/$tagId"
+
+    /**
+     * Tag record in Loopky's own namespace — the namespace Nexus indexes into its generic
+     * **resource** graph, which is the only one that accepts a deck manifest as a subject.
+     *
+     * The `app` a resource is filed under is this path segment (`loopky`) verbatim, not anything
+     * derived from the subject URI, so these are the records behind
+     * `GET /v0/stream/resources?app=loopky`.
+     */
+    fun loopkyTag(ownerPubky: String, tagId: String): String =
+        "pubky://$ownerPubky/$APP_NAMESPACE/tags/$tagId"
 
     /** Relative `media/<sha>.<ext>` reference stored inside card/manifest records. */
     fun relativeMedia(sha256: String, ext: String): String = "media/$sha256.$ext"

@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.MediaRef
+import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
@@ -103,6 +104,12 @@ class DeckEditorViewModel(
     fun onAddTag(tag: String) {
         val trimmed = tag.trim().lowercase()
         if (trimmed.isBlank()) return
+        // `loopky-*` is Loopky's own index namespace, not a topic (#40) — a hand-entered one would
+        // forge a global-browse entry and read as a topical chip on the deck.
+        if (ReservedTags.isReserved(trimmed)) {
+            Log.d(TAG, "onAddTag: ignoring reserved label '$trimmed'")
+            return
+        }
         _state.update { s -> s.copy(tags = s.tags + trimmed) }
     }
 
