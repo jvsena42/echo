@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@Suppress("TooManyFunctions")
 class DeckEditorViewModel(
     private val deckId: String?,
     private val deckRepository: DeckRepository,
@@ -41,18 +42,21 @@ class DeckEditorViewModel(
     private var saveJob: Job? = null
 
     /**
-     * Set when an existing deck's cards could not be read. Saving republishes the manifest from
-     * [DeckEditorUiState.cards], so saving an editor that failed to load would drop every card
-     * out of the deck's `cardIndex` — the user's deck, gone. Block the save instead.
+     * Set when an existing deck's cards could not be read. Saving rewrites the deck's chunks from
+     * [DeckEditorUiState.cards], so saving an editor that failed to load would drop every card out
+     * of the deck — the user's deck, gone. Block the save instead.
      */
     private var cardsLoadFailed = false
 
     /**
-     * The deck as loaded from the repository. Saving republishes the whole manifest, so the
-     * fields the editor does not expose (cover image, Listen/Speak) must be carried forward
+     * The deck as loaded from the repository. Saving rewrites the whole manifest, so the fields
+     * the editor does not expose (cover image, Listen/Speak, provenance) must be carried forward
      * from here or they are destroyed on the homeserver.
      */
     private var loadedDeck: Deck? = null
+
+    /** The deck's cards as loaded, so a save can tell whether the card set actually changed. */
+    private var loadedCards: List<Card> = emptyList()
 
     init {
         if (deckId != null) loadExisting()
@@ -71,6 +75,7 @@ class DeckEditorViewModel(
                 }
                 .getOrDefault(emptyList())
                 .inStudyOrder()
+            loadedCards = cards
             _state.update { DeckEditorUiState(
                 isNew = false,
                 coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.toString() ?: "",
@@ -117,12 +122,6 @@ class DeckEditorViewModel(
     }
 
     /**
-     * Move a card one position. The editor's drag handle was decorative — dragging it changed
-     * nothing — and reorder could not have persisted anyway until reads started honouring the
-     * manifest's `cardIndex` order. `onSaveClick` writes `cardIndex` in list order, so moving
-     * here is all that's needed now.
-     */
-    /**
      * A cover could previously only be set while publishing — the editor's cover box was not
      * tappable, so an existing deck's cover could never be changed. Mirrors the identical pair
      * on [com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel].
@@ -135,6 +134,10 @@ class DeckEditorViewModel(
         _state.update { it.copy(coverImageUrl = null, coverPendingBytes = bytes, coverPendingMime = mime) }
     }
 
+    /**
+     * Move a card one position. Order persists through each card's `ord`, which `publish` assigns
+     * from the editor's list order, so reordering here is all that is needed.
+     */
     fun onMoveCard(from: Int, to: Int) {
         _state.update { s ->
             if (from !in s.cards.indices || to !in s.cards.indices || from == to) return@update s
@@ -188,7 +191,7 @@ class DeckEditorViewModel(
             val cover = resolveCoverImage(s, actualDeckId, mediaRepository) ?: existing?.coverImageRef
             val deck = buildDeck(s, authorPubky, actualDeckId, existing, cards, now, cover)
 
-            deckRepository.publish(deck, cards)
+            writeDeck(deck, cards, existing)
                 .onSuccess {
                     Log.d(TAG, "save: SUCCESS deckId=$actualDeckId")
                     _state.update { it.copy(isSaving = false) }
@@ -198,6 +201,40 @@ class DeckEditorViewModel(
                     Log.e(TAG, "save: FAILED — ${err.message}", err)
                     _state.update { it.copy(isSaving = false, error = err.message ?: "Save failed.") }
                 }
+        }
+    }
+
+    /**
+     * Persist the deck, writing as little as the change allows.
+     *
+     * Republishing rewrites every chunk. For a metadata-only edit — a rename, a tag, a new cover —
+     * that would re-upload the entire deck to change a single field: ~201 requests and every card's
+     * bytes for a 20k-card deck. When the card set is untouched, only the manifest is written.
+     */
+    private suspend fun writeDeck(deck: Deck, cards: List<Card>, existing: Deck?): Result<Deck> =
+        if (existing != null && !cardsChanged(existing, cards)) {
+            Log.d(TAG, "save: metadata-only deckId=${deck.id} cards=${cards.size}")
+            deckRepository.updateMetadata(
+                deck.copy(cardCount = existing.cardCount, chunks = existing.chunks),
+            )
+        } else {
+            Log.d(TAG, "save: full publish deckId=${deck.id} cards=${cards.size}")
+            deckRepository.publish(deck, cards)
+        }
+
+    /**
+     * Whether the card set differs from what was loaded — in membership, order, or content.
+     *
+     * Compares against [loadedCards] rather than a count, so an edit that swaps a card's text
+     * without changing how many there are still triggers a full write. `updatedAt` is ignored:
+     * [buildCards] restamps every card with `now`, so comparing it would report every save as a
+     * change and defeat the check.
+     */
+    private fun cardsChanged(existing: Deck, cards: List<Card>): Boolean {
+        if (loadedCards.size != cards.size) return true
+        if (existing.chunks.isEmpty() && existing.cardCount > 0) return true // chunk table unknown
+        return loadedCards.zip(cards).any { (before, after) ->
+            before.id != after.id || before.front != after.front || before.back != after.back
         }
     }
 
