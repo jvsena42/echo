@@ -9,6 +9,9 @@ object Routes {
     const val EDIT_CARD = "deck/{deckId}/card/{cardId}/edit"
 
     const val IMPORT_PASTE = "import/paste"
+
+    /** Bulk file import: summary + one confirm, not the swipe queue (spec §5.4). */
+    const val IMPORT_BULK = "import/bulk"
     const val IMPORT_TRIAGE = "import/triage"
     const val IMPORT_TRIAGE_EDIT = "import/triage/edit/{rowIndex}"
     const val IMPORT_PUBLISH = "import/publish"

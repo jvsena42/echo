@@ -71,6 +71,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun DecksRoute(
     onDeckClick: (String) -> Unit = {},
     onImportClick: () -> Unit = {},
+    onImportFileClick: () -> Unit = {},
     onCreateDeckClick: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<DecksLibraryViewModel>()
@@ -94,6 +95,9 @@ fun DecksRoute(
         state = state,
         onDeckClick = viewModel::onDeckClick,
         onImportClick = viewModel::onImportClick,
+        // Navigated directly rather than through the VM: picking a file is a platform concern
+        // with no shared state to carry into it.
+        onImportFileClick = onImportFileClick,
         onCreateDeckClick = viewModel::onCreateDeckClick,
         onRetry = viewModel::onRefresh,
         onQueryChanged = viewModel::onQueryChanged,
@@ -107,6 +111,7 @@ fun DecksScreen(
     state: DecksLibraryUiState,
     onDeckClick: (String) -> Unit,
     onImportClick: () -> Unit,
+    onImportFileClick: () -> Unit,
     onCreateDeckClick: () -> Unit,
     onRetry: () -> Unit,
     onQueryChanged: (String) -> Unit,
@@ -131,6 +136,7 @@ fun DecksScreen(
                     state = state,
                     onDeckClick = onDeckClick,
                     onImportClick = onImportClick,
+                    onImportFileClick = onImportFileClick,
                     onCreateDeckClick = onCreateDeckClick,
                     onRetry = onRetry,
                     onQueryChanged = onQueryChanged,
@@ -146,6 +152,7 @@ private fun DecksScreenContent(
     state: DecksLibraryUiState,
     onDeckClick: (String) -> Unit,
     onImportClick: () -> Unit,
+    onImportFileClick: () -> Unit,
     onCreateDeckClick: () -> Unit,
     onRetry: () -> Unit,
     onQueryChanged: (String) -> Unit,
@@ -173,6 +180,19 @@ private fun DecksScreenContent(
             )
         }
         PasteCtaCard(onClick = onImportClick)
+        // Secondary, because paste is the primary flow (spec §1). File import exists for decks
+        // too big to paste — an Anki export, not a hand-typed list.
+        TextButton(
+            onClick = onImportFileClick,
+            modifier = Modifier.testTag("decks_import_file"),
+        ) {
+            Text(
+                text = stringResource(R.string.decks_import_file_cta),
+                color = LoopkyTheme.colors.accentPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.W600,
+            )
+        }
 
         when (state) {
             DecksLibraryUiState.Loading -> Unit
@@ -493,6 +513,7 @@ private fun DecksScreenPreview() {
             ),
             onDeckClick = {},
             onImportClick = {},
+            onImportFileClick = {},
             onCreateDeckClick = {},
             onRetry = {},
             onQueryChanged = {},

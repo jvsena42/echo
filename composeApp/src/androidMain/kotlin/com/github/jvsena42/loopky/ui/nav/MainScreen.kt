@@ -20,6 +20,7 @@ fun MainScreen(
     onNavigateDeckDetail: (deckId: String, author: String?) -> Unit = { _, _ -> },
     onNavigateCreateDeck: () -> Unit = {},
     onNavigateImport: () -> Unit = {},
+    onNavigateImportFile: () -> Unit = {},
     onNavigateStudy: (String?) -> Unit = {},
     onNavigateProfile: (String) -> Unit = {},
     onNavigateSettings: () -> Unit = {},
@@ -62,6 +63,7 @@ fun MainScreen(
                 LoopkyTab.DECKS -> DecksRoute(
                     onDeckClick = { deckId -> onNavigateDeckDetail(deckId, null) },
                     onImportClick = onNavigateImport,
+                    onImportFileClick = onNavigateImportFile,
                     onCreateDeckClick = onNavigateCreateDeck,
                 )
                 LoopkyTab.DISCOVER -> DiscoverRoute(

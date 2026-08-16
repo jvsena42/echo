@@ -27,6 +27,7 @@ import com.github.jvsena42.loopky.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditCardViewModel
 import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.loopky.presentation.home.HomeViewModel
+import com.github.jvsena42.loopky.presentation.importflow.BulkImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PasteImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.loopky.presentation.importflow.TriageViewModel
@@ -104,6 +105,7 @@ val sharedModule = module {
         )
     }
     viewModel { PasteImportViewModel(importRepository = get()) }
+    viewModel { BulkImportViewModel(importRepository = get()) }
     viewModel { TriageViewModel(importRepository = get()) }
     viewModel { ImageSheetViewModel(unsplashClient = get()) }
     viewModel {
