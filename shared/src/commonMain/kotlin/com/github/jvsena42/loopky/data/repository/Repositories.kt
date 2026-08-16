@@ -49,6 +49,26 @@ interface IdentityRepository {
     }
 }
 
+/**
+ * How far a [DeckRepository.publish] has got. [chunksWritten] counts card chunks only; the
+ * manifest write is reported by [done].
+ */
+data class PublishProgress(
+    val chunksWritten: Int,
+    val totalChunks: Int,
+    val cardsWritten: Int,
+    val totalCards: Int,
+    val done: Boolean = false,
+) {
+    /** 0f..1f, reserving the last slice for the manifest write. */
+    val fraction: Float
+        get() = when {
+            done -> 1f
+            totalChunks <= 0 -> 0f
+            else -> chunksWritten.toFloat() / (totalChunks + 1).toFloat()
+        }
+}
+
 interface AuthFlowHandle {
     val authUrl: String
     suspend fun complete(): Result<Session>
@@ -76,6 +96,18 @@ interface DeckRepository {
     suspend fun getLocal(id: String): Deck?
     suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck>
     suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck>
+
+    /**
+     * [publish], reporting progress as it goes. A 20k-card import is ~201 uploads; a spinner
+     * cannot say how far along that is.
+     *
+     * [onProgress] is called from the publishing coroutine, so keep it cheap.
+     */
+    suspend fun publish(
+        deck: Deck,
+        cards: List<Card>,
+        onProgress: (PublishProgress) -> Unit,
+    ): Result<Deck>
     suspend fun updateMetadata(deck: Deck): Result<Deck>
     suspend fun delete(deckId: String): Result<Unit>
 

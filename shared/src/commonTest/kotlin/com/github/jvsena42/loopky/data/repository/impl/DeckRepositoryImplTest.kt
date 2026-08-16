@@ -4,9 +4,11 @@ import com.github.jvsena42.loopky.data.pubky.CardChunkDto
 import com.github.jvsena42.loopky.data.pubky.ManifestDto
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.toDto
+import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
+import com.github.jvsena42.loopky.testing.FailingChunkCardRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
@@ -18,6 +20,7 @@ import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -48,7 +51,8 @@ class DeckRepositoryImplTest {
 
         // Two cards, one chunk record — not one record per card.
         assertTrue("$deckRoot/cards/0.json" in pubky.store)
-        assertEquals(expected = 2, actual = pubky.puts.size, message = "chunk + manifest")
+        // claim manifest + chunk + settled manifest — still not one record per card.
+        assertEquals(expected = 3, actual = pubky.puts.size)
 
         val manifest = loopkyJson.decodeFromString<ManifestDto>(
             pubky.store.getValue("$deckRoot/manifest.json"),
@@ -74,8 +78,8 @@ class DeckRepositoryImplTest {
         assertEquals(listOf(100, 100, 50), manifest.chunks.map { it.count })
         assertEquals(expected = 250, actual = manifest.card_count)
         assertEquals(expected = 250, actual = published.cardCount)
-        // 3 chunks + 1 manifest, against 251 requests under the old layout.
-        assertEquals(expected = 4, actual = pubky.puts.size)
+        // 3 chunks + 2 manifest writes (claim, then settle), against 251 under the old layout.
+        assertEquals(expected = 5, actual = pubky.puts.size)
     }
 
     @Test
@@ -131,6 +135,66 @@ class DeckRepositoryImplTest {
 
         assertTrue(result.isFailure)
         assertTrue(pubky.puts.isEmpty())
+    }
+
+    @Test
+    fun publishClaimsTheDeckWithAMarkerManifestBeforeUploadingCards() = runTest {
+        repo.publish(testDeck(id = "deck1"), (1..250).map { testCard("c$it") }).getOrThrow()
+
+        // Manifest first (marked incomplete), chunks, then the manifest again to clear the mark.
+        assertEquals("$deckRoot/manifest.json", pubky.puts.first().first)
+        assertEquals("$deckRoot/manifest.json", pubky.puts.last().first)
+
+        val marker = loopkyJson.decodeFromString<ManifestDto>(pubky.puts.first().second)
+        assertTrue(marker.incomplete, "the claim manifest was not marked incomplete")
+        val settled = loopkyJson.decodeFromString<ManifestDto>(
+            pubky.store.getValue("$deckRoot/manifest.json"),
+        )
+        assertFalse(settled.incomplete, "the mark was not cleared once the chunks were up")
+    }
+
+    @Test
+    fun aPublishThatDiesPartWayLeavesTheDeckListableSoItCanBeDeleted() = runTest {
+        val cardRepo = FailingChunkCardRepository(CardRepositoryImpl(pubky, session, revalidator))
+        val failing = DeckRepositoryImpl(pubky, session, cardRepo, revalidator, tagRepo)
+
+        val result = failing.publish(testDeck(id = "deck1"), (1..250).map { testCard("c$it") })
+
+        assertTrue(result.isFailure)
+        // The old order wrote the manifest last, so a failure here left orphaned chunk records
+        // under a deck root that listByAuthor could not see — unreachable and undeletable.
+        val manifest = pubky.store["$deckRoot/manifest.json"]
+        assertNotNull(manifest, "an interrupted publish left no manifest, orphaning its chunks")
+        assertTrue(loopkyJson.decodeFromString<ManifestDto>(manifest).incomplete)
+        assertEquals(listOf("deck1"), repo.listByAuthor(TEST_PUBKY).map { it.id })
+    }
+
+    @Test
+    fun publishReportsProgressEndingAtDone() = runTest {
+        val seen = mutableListOf<PublishProgress>()
+
+        repo.publish(testDeck(id = "deck1"), (1..250).map { testCard("c$it") }) { seen.add(it) }
+            .getOrThrow()
+
+        assertTrue(seen.isNotEmpty())
+        assertTrue(seen.last().done)
+        assertEquals(1f, seen.last().fraction)
+        assertEquals(expected = 250, actual = seen.last().cardsWritten)
+        // Every chunk reports exactly once, so the counter never loses an increment.
+        assertEquals(listOf(1, 2, 3), seen.filterNot { it.done }.map { it.chunksWritten }.filter { it > 0 })
+    }
+
+    @Test
+    fun deleteSweepsPastTheFirstListingPage() = runTest {
+        repo.publish(testDeck(id = "deck1"), (1..250).map { testCard("c$it") }).getOrThrow()
+        pubky.listPageSize = 2 // force the sweep to page
+
+        repo.delete("deck1").getOrThrow()
+
+        assertTrue(
+            pubky.store.keys.none { it.startsWith(deckRoot) },
+            "records survived the sweep: ${pubky.store.keys.filter { it.startsWith(deckRoot) }}",
+        )
     }
 
     // ── delete ───────────────────────────────────────────────────────────

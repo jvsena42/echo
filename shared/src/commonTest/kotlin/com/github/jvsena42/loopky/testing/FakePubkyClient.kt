@@ -32,6 +32,12 @@ class FakePubkyClient : PubkyClient {
     /** When set, every [list] call fails with this error (simulates an unreachable homeserver). */
     var failListWith: Throwable? = null
 
+    /**
+     * Entries returned per [list] call, so tests can force the caller to page. Real homeservers
+     * cap this; nothing in the app paged until the delete sweep needed to.
+     */
+    var listPageSize: Int? = null
+
     /** When set, every [get] call fails with this error (simulates an unreachable homeserver). */
     var failGetWith: Throwable? = null
 
@@ -82,7 +88,10 @@ class FakePubkyClient : PubkyClient {
     ): Result<String> {
         listedPrefixes.add(url)
         failListWith?.let { return Result.failure(it) }
-        val matches = store.keys.filter { it.startsWith(url) }.sorted()
+        var matches = store.keys.filter { it.startsWith(url) }.sorted()
+        if (cursor != null) matches = matches.filter { it > cursor }
+        val cap = listOfNotNull(listPageSize, limit?.toInt()).minOrNull()
+        if (cap != null) matches = matches.take(cap)
         return Result.success(matches.joinToString(",", "[", "]") { "\"$it\"" })
     }
 

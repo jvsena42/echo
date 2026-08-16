@@ -13,8 +13,11 @@ import kotlinx.coroutines.sync.withLock
 /**
  * [SessionRevalidator] backed by the Pubky FFI `revalidateSession` call.
  *
- * A [Mutex] ensures that concurrent revalidation attempts (e.g. two `putWithSession`
- * calls failing at the same time) coalesce into a single network round-trip.
+ * A [Mutex] serializes concurrent revalidation attempts, and the stale-secret check inside it
+ * makes them genuinely *coalesce*: waiters that were failing on a secret which has since been
+ * replaced take the refreshed session instead of issuing their own round-trip. The lock alone did
+ * not do this — every waiter re-ran the FFI call in turn, which matters much more now that
+ * publishing fires many writes concurrently and a expiry fails all of them at once.
  */
 class SessionRevalidatorImpl(
     private val pubky: PubkyClient,
@@ -24,7 +27,20 @@ class SessionRevalidatorImpl(
 
     private val mutex = Mutex()
 
-    override suspend fun revalidate(): Result<Session> = mutex.withLock {
+    override suspend fun revalidate(): Result<Session> {
+        // Captured before the lock: this is the secret the caller found wanting.
+        val staleSecret = sessionProvider.current()?.sessionSecret
+        return mutex.withLock {
+            val now = sessionProvider.current()
+            if (now != null && staleSecret != null && now.sessionSecret != staleSecret) {
+                Log.d(TAG, "session already refreshed by another caller; reusing it")
+                return@withLock Result.success(now)
+            }
+            revalidateLocked()
+        }
+    }
+
+    private suspend fun revalidateLocked(): Result<Session> =
         runCatching {
             val current = sessionProvider.current()
                 ?: error("Cannot revalidate: no active session")
@@ -38,7 +54,6 @@ class SessionRevalidatorImpl(
         }.onFailure {
             Log.e(TAG, "session revalidation failed: ${it.message}", it)
         }
-    }
 
     companion object {
         private const val TAG = "Loopky/SessionRevalidator"

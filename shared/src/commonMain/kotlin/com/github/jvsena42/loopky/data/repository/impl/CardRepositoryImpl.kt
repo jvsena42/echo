@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
 import com.github.jvsena42.loopky.data.pubky.deleteWithSessionRetry
+import com.github.jvsena42.loopky.data.pubky.mapConcurrently
 import com.github.jvsena42.loopky.data.pubky.putWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.requireSession
 import com.github.jvsena42.loopky.data.pubky.toDomain
@@ -53,14 +54,21 @@ class CardRepositoryImpl(
         val fresh = mutableMapOf<String, Card>()
         var firstFailure: Throwable? = null
 
-        for (meta in deck.chunks) {
+        // Split first so only the chunks that actually moved cost a request.
+        val (stale, unchanged) = deck.chunks.partition { meta ->
             val stamp = cacheLock.withLock { chunkStamps[deck.id]?.get(meta.n) }
-            if (stamp != null && stamp >= meta.updatedAt) {
-                // Unchanged since we last read it — reuse what the cache already holds.
-                cachedCardsIn(deck.id, meta.n).forEach { fresh[it.id] = it }
-                continue
-            }
-            readChunk(deck, meta.n)
+            stamp == null || stamp < meta.updatedAt
+        }
+        unchanged.forEach { meta ->
+            cachedCardsIn(deck.id, meta.n).forEach { fresh[it.id] = it }
+        }
+
+        // Concurrent: opening a 20k-card deck is ~200 chunk reads, and serially that is 200
+        // round trips before a single card renders.
+        val results = stale.mapConcurrently { meta -> meta to readChunk(deck, meta.n) }
+
+        for ((meta, result) in results) {
+            result
                 .onSuccess { cards ->
                     cards.forEach { fresh[it.id] = it }
                     cacheLock.withLock {

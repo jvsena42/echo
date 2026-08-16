@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.data.pubky.CardChunking
 import com.github.jvsena42.loopky.data.pubky.ManifestDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
@@ -8,12 +9,14 @@ import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
 import com.github.jvsena42.loopky.data.pubky.deleteWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.isNotFound
+import com.github.jvsena42.loopky.data.pubky.mapConcurrently
 import com.github.jvsena42.loopky.data.pubky.putWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.requireSession
 import com.github.jvsena42.loopky.data.pubky.toDomain
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
@@ -64,7 +67,14 @@ class DeckRepositoryImpl(
             }
     }
 
-    override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> = runCatching {
+    override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> =
+        publish(deck, cards, onProgress = {})
+
+    override suspend fun publish(
+        deck: Deck,
+        cards: List<Card>,
+        onProgress: (PublishProgress) -> Unit,
+    ): Result<Deck> = runCatching {
         val author = session.requireSession().identity.pubky
 
         require(deck.authorPubky == author) {
@@ -78,33 +88,68 @@ class DeckRepositoryImpl(
 
         val batches = CardChunking.chunk(cards)
         val chunkMeta = CardChunking.metaFor(batches, deck.updatedAt)
+        val manifestUrl = PubkyPaths.manifest(author, deck.id)
 
         // A deck that shrank leaves chunk records past the new tail. Read the old chunk count
         // before writing, since the cache entry is replaced below.
         val previousChunkCount = getLocal(deck.id)?.chunks?.size ?: 0
 
+        val manifestDeck = deck.copy(cardCount = cards.size, chunks = chunkMeta)
+
+        // Claim the deck *before* uploading its cards. Previously the manifest was written last,
+        // so a failure partway through left orphaned chunk records under a deck root with no
+        // manifest: listByAuthor could not see the deck, so the user had no way to reach it and
+        // delete it. The marker manifest makes an interrupted publish visible and deletable.
+        val marker = manifestDeck.copy(incomplete = true)
+        pubky.putWithSessionRetry(
+            manifestUrl,
+            loopkyJson.encodeToString(marker.toDto()),
+            session,
+            revalidator,
+        ).getOrThrow()
+
+        onProgress(
+            PublishProgress(0, batches.size, 0, cards.size),
+        )
+
         // Written through CardRepository rather than encoded here: it is the one place that knows
         // the chunk record's shape, and routing through it leaves the card cache warm so opening
         // the deck straight after publishing doesn't re-download what we just uploaded.
-        for ((n, batch) in batches.withIndex()) {
+        //
+        // Chunk PUTs are idempotent overwrites, so a re-run after a failure simply rewrites them.
+        // Chunks complete out of order, so the counter is shared state across the writers and
+        // needs the lock — an unguarded `written++` would drop increments and report a progress
+        // bar that never reaches the end.
+        val progressLock = Mutex()
+        var written = 0
+        batches.withIndex().toList().mapConcurrently { (n, batch) ->
             cardRepo.writeChunk(deck.id, n, batch).getOrThrow()
+            val soFar = progressLock.withLock { ++written }
+            onProgress(
+                PublishProgress(
+                    chunksWritten = soFar,
+                    totalChunks = batches.size,
+                    cardsWritten = (soFar * CHUNK_SIZE).coerceAtMost(cards.size),
+                    totalCards = cards.size,
+                ),
+            )
         }
 
         // Unreachable from the manifest once it shrinks, but left behind they would be served to
         // anyone listing the deck's `cards/` directory directly. An empty write deletes the record
         // and drops the cards it held from the cache in one step.
-        for (n in batches.size until previousChunkCount) {
+        (batches.size until previousChunkCount).toList().mapConcurrently { n ->
             cardRepo.writeChunk(deck.id, n, emptyList())
                 .onFailure { Log.e(TAG, "publish: stale chunk $n not removed — ${it.message}", it) }
         }
 
-        val manifestDeck = deck.copy(
-            cardCount = cards.size,
-            chunks = chunkMeta,
-        )
-        val manifestUrl = PubkyPaths.manifest(author, deck.id)
+        // Every chunk is up: clear the marker. A reader that arrives between the two manifest
+        // writes sees `incomplete`, which is honest — the deck is mid-publish.
         val manifestBody = loopkyJson.encodeToString(manifestDeck.toDto())
         pubky.putWithSessionRetry(manifestUrl, manifestBody, session, revalidator).getOrThrow()
+        onProgress(
+            PublishProgress(batches.size, batches.size, cards.size, cards.size, done = true),
+        )
 
         // Mirror deck tags as pubky.app tag records so Nexus indexes them network-wide.
         // Best-effort: a failed tag write must not fail the publish.
@@ -222,18 +267,20 @@ class DeckRepositoryImpl(
         // so nothing orphans on the homeserver. The listing itself is the fallback source of
         // paths when the cache is cold.
         val deckRoot = "${PubkyPaths.deckRoot(author, deckId)}/"
-        val listedPaths = pubky.list(deckRoot).getOrNull()
-            ?.let(::parsePubkyUrlsFromList)
-            .orEmpty()
+        val listedPaths = listAllPaths(deckRoot)
         val fallbackPaths = buildList {
             cached?.chunks?.forEach { add(PubkyPaths.cardChunk(author, deckId, it.n)) }
             add(PubkyPaths.manifest(author, deckId))
         }
-        // Manifest last: a half-deleted deck without a manifest disappears from listings
-        // instead of resurfacing as corrupt.
-        val paths = (listedPaths + fallbackPaths).distinct()
-            .sortedBy { it.endsWith("/manifest.json") }
-        for (path in paths) {
+        val all = (listedPaths + fallbackPaths).distinct()
+
+        // Manifest last, and on its own: a half-deleted deck without a manifest disappears from
+        // listings instead of resurfacing as corrupt, so it must not be racing the rest.
+        val (manifests, contents) = all.partition { it.endsWith("/manifest.json") }
+        contents.mapConcurrently { path ->
+            pubky.deleteWithSessionRetry(path, session, revalidator).getOrThrow()
+        }
+        for (path in manifests) {
             pubky.deleteWithSessionRetry(path, session, revalidator).getOrThrow()
         }
 
@@ -266,10 +313,15 @@ class DeckRepositoryImpl(
         val listJson = pubky.list(PubkyPaths.decksList(authorPubky))
             .getOrElse { if (it.isNotFound()) return emptyList() else throw it }
         val deckIds = parseDeckIdsFromList(listJson)
+        // Concurrent: this was one manifest GET per deck, serially, so a library of ten decks
+        // paid ten round trips end to end before anything could render.
+        val results = deckIds.mapConcurrently { deckId ->
+            deckId to fetchRemote(authorPubky, deckId)
+        }
         val decks = mutableListOf<Deck>()
         var firstFailure: Throwable? = null
-        for (deckId in deckIds) {
-            fetchRemote(authorPubky, deckId)
+        for ((deckId, result) in results) {
+            result
                 .onSuccess { decks.add(it) }
                 .onFailure { err ->
                     Log.e(TAG, "listByAuthor: manifest fetch failed for $deckId — ${err.message}", err)
@@ -296,10 +348,30 @@ class DeckRepositoryImpl(
     }
 
     /**
-     * The FFI `list` result format is undocumented here — we parse defensively by looking for
-     * `/pub/loopky/decks/{deckId}/` segments. When the homeserver stabilises, replace with the
-     * proper structured parse.
+     * Every path under [prefix], following the cursor until the homeserver stops returning new
+     * entries.
+     *
+     * `list()` has always accepted `cursor`/`limit`, and no call site used them — so anything past
+     * the server's default page was simply invisible. That is survivable for a deck listing and
+     * not survivable for [delete], which relies on this sweep to avoid orphaning records.
      */
+    private suspend fun listAllPaths(prefix: String): List<String> {
+        val seen = linkedSetOf<String>()
+        var cursor: String? = null
+        var more = true
+        while (more) {
+            val payload = pubky.list(prefix, cursor = cursor, limit = LIST_PAGE_SIZE).getOrNull()
+            val page = payload?.let(::parsePubkyUrlsFromList).orEmpty()
+            // `seen.addAll` returning false means the page added nothing new: the server is
+            // repeating itself, so stop rather than loop forever against a homeserver that
+            // ignores the cursor. A short page means we reached the end.
+            val addedSomething = page.isNotEmpty() && seen.addAll(page)
+            more = addedSomething && page.size >= LIST_PAGE_SIZE.toInt()
+            cursor = page.lastOrNull()
+        }
+        return seen.toList()
+    }
+
     /** The FFI `list` payload is a JSON array of `pubky://…` URL strings. */
     private fun parsePubkyUrlsFromList(payload: String): List<String> =
         runCatching { loopkyJson.decodeFromString<List<String>>(payload) }
@@ -326,5 +398,8 @@ class DeckRepositoryImpl(
 
         /** Room for a burst of mutations while a collector is mid-reload; oldest is dropped. */
         const val CHANGE_BUFFER = 8
+
+        /** Entries per `list()` page. Paging behaviour on large directories is unverified (§8.4). */
+        const val LIST_PAGE_SIZE: UShort = 200u
     }
 }

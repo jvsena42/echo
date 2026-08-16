@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.data.pubky
 
 import com.github.jvsena42.loopky.domain.model.Session
+import kotlin.concurrent.Volatile
 
 /**
  * Read-only view over the currently signed-in session. Repositories need it to author writes
@@ -19,6 +20,13 @@ internal fun SessionProvider.requireSession(): Session =
  * and updated by [com.github.jvsena42.loopky.data.repository.impl.IdentityRepositoryImpl] on sign-in / sign-out.
  */
 class MutableSessionProvider : SessionProvider {
+    /**
+     * `@Volatile` because this is genuinely shared mutable state: it is written by sign-in /
+     * sign-out / revalidation and read by every repository coroutine on every authenticated call —
+     * including the retry helpers, which re-read it precisely so a concurrent revalidation is
+     * picked up. Without it, a thread could keep observing a stale secret and retry forever.
+     */
+    @Volatile
     private var value: Session? = null
 
     override fun current(): Session? = value

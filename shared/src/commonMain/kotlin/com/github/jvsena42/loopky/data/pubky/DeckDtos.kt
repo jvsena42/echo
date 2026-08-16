@@ -41,6 +41,8 @@ internal data class ManifestDto(
     val card_count: Int = 0,
     val chunks: List<ChunkDto> = emptyList(),
     val source: SourceDto? = null,
+    /** Set while a publish is in flight; absent once every chunk is up. */
+    val incomplete: Boolean = false,
     val listen_enabled: Boolean = true,
     val speak_enabled: Boolean = true,
 )
@@ -116,6 +118,7 @@ internal fun Deck.toDto() = ManifestDto(
     card_count = cardCount,
     chunks = chunks.map { ChunkDto(it.n, it.count, it.updatedAt) },
     source = source?.toDto(),
+    incomplete = incomplete,
     listen_enabled = listenEnabled,
     speak_enabled = speakEnabled,
 )
@@ -133,6 +136,7 @@ internal fun ManifestDto.toDomain() = Deck(
     cardCount = card_count,
     chunks = chunks.map { ChunkMeta(it.n, it.count, it.updated_at) },
     source = source?.toDomain(),
+    incomplete = incomplete,
     listenEnabled = listen_enabled,
     speakEnabled = speak_enabled,
 )

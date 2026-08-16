@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
+import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Card
@@ -88,10 +89,22 @@ class FakeDeckRepository : DeckRepository {
         decks[deckId]?.let { Result.success(it) }
             ?: Result.failure(IllegalStateException("deck $deckId not found"))
 
-    override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> {
+    override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> =
+        publish(deck, cards, onProgress = {})
+
+    val progressReports = mutableListOf<PublishProgress>()
+
+    override suspend fun publish(
+        deck: Deck,
+        cards: List<Card>,
+        onProgress: (PublishProgress) -> Unit,
+    ): Result<Deck> {
         publishError?.let { return Result.failure(it) }
         published.add(deck to cards)
         decks[deck.id] = deck
+        val progress = PublishProgress(1, 1, cards.size, cards.size, done = true)
+        progressReports.add(progress)
+        onProgress(progress)
         _changes.tryEmit(Unit)
         return Result.success(deck)
     }
@@ -344,3 +357,20 @@ fun testDraft(vararg pairs: Pair<String, String>): ImportDraft = ImportDraft(
     },
     duplicatesCollapsed = 0,
 )
+
+/**
+ * Delegates to a real [CardRepository] but fails once it has written [failAfter] chunks, standing
+ * in for a publish that dies part-way through uploading a large deck.
+ */
+class FailingChunkCardRepository(
+    private val delegate: CardRepository,
+    private val failAfter: Int = 1,
+) : CardRepository by delegate {
+    private var written = 0
+
+    override suspend fun writeChunk(deckId: String, chunk: Int, cards: List<Card>): Result<Unit> {
+        if (written >= failAfter) return Result.failure(IllegalStateException("upload died"))
+        written++
+        return delegate.writeChunk(deckId, chunk, cards)
+    }
+}

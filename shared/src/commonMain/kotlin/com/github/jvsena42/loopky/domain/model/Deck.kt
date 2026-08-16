@@ -21,6 +21,12 @@ data class Deck(
     val chunks: List<ChunkMeta> = emptyList(),
     /** Where this deck came from (clone, import, original). Null for decks published before §6. */
     val source: DeckSource? = null,
+    /**
+     * True between the two manifest writes of a publish: the deck is claimed but its chunks may
+     * not all be up yet. Lets an interrupted publish stay visible and deletable instead of
+     * orphaning chunk records under a deck root no listing can see.
+     */
+    val incomplete: Boolean = false,
     /** Opt-in: play TTS audio of the card back during study. */
     val listenEnabled: Boolean = true,
     /** Opt-in: pronunciation practice (speech recognition) on the card back during study. */
