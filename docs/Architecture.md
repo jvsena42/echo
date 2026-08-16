@@ -102,8 +102,8 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 | `DeckRepository` | CRUD + `publishDeck(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule | Pubky FFI + in-memory cache |
 | `CardRepository` | CRUD cards within a deck | Pubky FFI + in-memory cache |
 | `ImportRepository` | `parse(rawText, separator)` per spec §6/§7 (col 1 → front, col 2 → back, extras dropped — spec §8), `setDecision()` / `keptRows()` triage, in-memory drafts, dedupe | In-memory |
-| `TagRepository` | Read/write Pubky tags on any subject (deck or profile — brief §9.3); the reserved `loopky-*` index labels via `putReservedTag`; trending, tagged-subject and tagger-count reads via Nexus (§7.7) | Pubky FFI + Nexus REST |
-| `DiscoveryRepository` | Trending/followed tags, decks by followed users, `followUser()` / `unfollowUser()` (brief §9.4), plus verified network-wide reads: `decksByTagGlobal()` and `loopkyUsers()` | Pubky FFI + Nexus REST |
+| `TagRepository` | Read/write Pubky tags on any subject (deck or profile — brief §9.3); the reserved `loopky-*` index labels via `putReservedTag`; deck-topic (`trendingDeckTags`), tagged-subject and tagger-count reads via Nexus (§7.7) | Pubky FFI + Nexus REST |
+| `DiscoveryRepository` | Decks by followed users, `followUser()` / `unfollowUser()` (brief §9.4), plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
 | `SrsRepository` | Per-card SRS state, today's due queue, `reviewCard(cardId, grade)` | In-memory (v1) |
 | `MediaRepository` | Image + audio blob storage for cards | Pubky FFI (blobs) + platform file I/O |
 
@@ -274,12 +274,16 @@ Reads in use today:
 
 | Call | Endpoint | Used for |
 |---|---|---|
-| `hotTags` | `/v0/tags/hot` | the trending chip row |
-| `searchTagsByPrefix` | `/v0/search/tags/by_prefix/{prefix}` | tag autocomplete (no caller yet) |
-| `resourcesByTag` | `/v0/stream/resources?app=loopky&tags=…&sorting=taggers_count` | global deck browse |
+| `searchTagsByPrefix` | `/v0/search/tags/by_prefix/{prefix}` | tag autocomplete (no caller yet — but it *does* reach deck labels, unlike the hot list) |
+| `resourcesByTag` | `/v0/stream/resources?app=loopky&tags=…&sorting=taggers_count` | global deck browse **and** client-side deck-tag topics |
 | `resourceByUri` | `/v0/resource/by-uri` | per-deck tagger counts ("N followers") |
-| `taggersOfLabel` | `/v0/tags/taggers/{label}` | the `loopky-user` directory |
+| `taggersOfLabel` | `/v0/tags/taggers/{label}` | the `loopky-user` directory — **empty in practice, see §7.7 point 8** |
 | `userTaggers` | `/v0/user/{id}/taggers/{label}` | verifying a self-tag |
+
+`hotTags` (`/v0/tags/hot`) was removed in #26. It returns pubky.app *social* labels — live it hands
+back `pubky` and `bitcoin` — and point 3 below makes it structurally impossible for a deck label to
+appear there, so it could never serve deck discovery. `TagRepository.trendingDeckTags` replaces it
+by aggregating labels client-side over one `resourcesByTag` page.
 
 Everything read back is **untrusted** — anyone can write any label on any URI — so
 `DiscoveryRepositoryImpl` verifies before returning: a deck URI must parse as a manifest,
@@ -316,10 +320,11 @@ resources, `?app=mapky` returns none.)
 **3. Resource tags never trend.** `/v0/tags/hot` and `/v0/tags/taggers/{label}` are
 restricted to `Post|User` targets (`nexus-common/src/db/graph/queries/get.rs:614-640`), so
 **deck labels — including `loopky-deck` — cannot appear in the trending row**. Only
-`loopky-user`, a profile tag, can. Trending over deck tags would mean aggregating labels
-client-side from `/v0/stream/resources?app=loopky&sorting=taggers_count`; the "browse all
-decks" entry point has to be a chip Loopky synthesizes, not one the indexer hands back. For
-the UI consequences see #26.
+`loopky-user`, a profile tag, can. Trending over deck tags therefore has to be aggregated
+client-side from `/v0/stream/resources?app=loopky&sorting=taggers_count` — which is what
+`TagRepository.trendingDeckTags` does (#26): one request, labels grouped and ranked by how many
+distinct decks carry them. The stream returns each resource's *whole* label list with per-label
+tagger counts, which is what makes this possible from a single call.
 
 **4. Why not announcement posts.** Making deck topics trend for real would mean minting a
 pubky.app post per published deck and tagging the post. That is a public write to the user's
@@ -337,6 +342,17 @@ old decks are missing from the indexer, that is why, not indexer lag.
 **7. Two similar hashes, different encodings.** Tag id =
 Crockford-base32(blake3(`"{uri}:{label}"`)[..16]), 26 chars, from the FFI. Nexus
 `resource_id` = lowercase-hex(blake3(normalized_uri)[..16]), 32 chars. Easy to confuse.
+
+**8. `/v0/tags/taggers/{label}` only surfaces labels with real traction.** Probed against staging
+while building #26: a `loopky-user` self-tag was written, ingested, and visible two days later on
+both `/v0/user/{id}` and `/v0/user/{id}/taggers/loopky-user` — yet `/v0/tags/taggers/loopky-user`
+returned `[]`, while busy labels (`synonym`, `bitcoin`, `test`) returned their taggers. So the
+`loopky-user` directory reads empty on a young network even though every account is tagged
+correctly, and `DiscoveryRepository.loopkyUsers` cannot be the only source of suggested people.
+`suggestedPeople` unions it with the authors of globally-browsable decks, which works from the
+first published deck. Note the label *is* discoverable by prefix search
+(`/v0/search/tags/by_prefix/loopky` returns it) — it is the graph query that filters it out, not
+the index.
 
 ---
 

@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.ui.discover
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,17 +19,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -54,18 +56,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.presentation.discover.DiscoverDeck
 import com.github.jvsena42.loopky.presentation.discover.DiscoverEffect
 import com.github.jvsena42.loopky.presentation.discover.DiscoverUiState
 import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
-import com.github.jvsena42.loopky.ui.components.DeckTile
+import com.github.jvsena42.loopky.presentation.discover.SectionState
 import com.github.jvsena42.loopky.ui.components.LoopkyErrorBlock
-import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
-import com.github.jvsena42.loopky.ui.components.TagChip
+import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
-import com.github.jvsena42.loopky.ui.util.label
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -76,9 +77,11 @@ fun DiscoverRoute(
 ) {
     val viewModel = koinViewModel<DiscoverViewModel>()
 
+    val context = LocalContext.current
     val currentOpenProfile by rememberUpdatedState(onOpenProfile)
     val currentOpenDeck by rememberUpdatedState(onOpenDeck)
     var showAddFriend by remember { mutableStateOf(false) }
+    var followError by remember { mutableStateOf<ErrorReason?>(null) }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -86,7 +89,17 @@ fun DiscoverRoute(
                 DiscoverEffect.OpenAddFriend -> showAddFriend = true
                 is DiscoverEffect.OpenProfile -> currentOpenProfile(effect.pubky)
                 is DiscoverEffect.OpenDeck -> currentOpenDeck(effect.deckId, effect.authorPubky)
+                is DiscoverEffect.ShowFollowError -> followError = effect.reason
             }
+        }
+    }
+
+    // Resolved here rather than in the effect collector: errorMessage is @Composable.
+    followError?.let { reason ->
+        val message = errorMessage(reason)
+        LaunchedEffect(reason, message) {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            followError = null
         }
     }
 
@@ -97,7 +110,9 @@ fun DiscoverRoute(
         onAddFriend = viewModel::onAddFriend,
         onOpenAuthor = viewModel::onOpenAuthor,
         onOpenDeck = viewModel::onOpenDeck,
-        onRetry = viewModel::onRefresh,
+        onFollowToggle = viewModel::onFollowToggle,
+        onRefresh = viewModel::onRefresh,
+        onRetryFollowing = viewModel::onRetryFollowing,
     )
 
     if (showAddFriend) {
@@ -119,90 +134,202 @@ private fun DiscoverScreen(
     onAddFriend: () -> Unit,
     onOpenAuthor: (String) -> Unit,
     onOpenDeck: (String, String) -> Unit,
-    onRetry: () -> Unit,
+    onFollowToggle: (String) -> Unit,
+    onRefresh: () -> Unit,
+    onRetryFollowing: () -> Unit,
 ) {
-    val colors = LoopkyTheme.colors
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.surfacePrimary)
+            .testTag("discover_screen")
+            .background(LoopkyTheme.colors.surfacePrimary)
             .windowInsetsPadding(WindowInsets.statusBars),
     ) {
-        if (state is DiscoverUiState.Loading) {
-            LoopkyLoadingScreen(message = stringResource(R.string.discover_loading))
-        } else {
-            PullToRefreshBox(
-                isRefreshing = false,
-                onRefresh = onRetry,
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            // A LazyColumn rather than a scrolling Column: strips settle at different times, and
+            // item keys keep one landing from recomposing the others.
+            LazyColumn(
                 modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                DiscoverScreenContent(
-                    state = state,
-                    onTagSelected = onTagSelected,
-                    onAddFriend = onAddFriend,
-                    onOpenAuthor = onOpenAuthor,
-                    onOpenDeck = onOpenDeck,
-                    onRetry = onRetry,
+                item(key = "header") { DiscoverHeader(onAddFriend = onAddFriend) }
+
+                topicsSection(state, onTagSelected)
+                // Picking a topic is an explicit question, so its answer leads. Unfiltered, browse
+                // is the fallback firehose and sits under the people and decks you chose — which
+                // costs a new account nothing, because the followed strip hides itself when empty.
+                if (state.selectedTag != null) {
+                    browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onAddFriend)
+                }
+                peopleSection(state, onOpenAuthor, onFollowToggle)
+                followingSection(state, onOpenDeck, onOpenAuthor, onRetryFollowing)
+                if (state.selectedTag == null) {
+                    browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onAddFriend)
+                }
+            }
+        }
+    }
+}
+
+private fun LazyListScope.topicsSection(
+    state: DiscoverUiState,
+    onTagSelected: (Tag?) -> Unit,
+) {
+    // No placeholder when there are no topics — an absent chip row reads as "nothing to filter by",
+    // which is exactly right, and an empty-state block for it would be noise.
+    if (state.topics.items.isEmpty()) return
+    item(key = "topics") {
+        TopicRow(
+            tags = state.topics.items,
+            selectedTag = state.selectedTag,
+            onTagSelected = onTagSelected,
+        )
+    }
+}
+
+private fun LazyListScope.peopleSection(
+    state: DiscoverUiState,
+    onOpenAuthor: (String) -> Unit,
+    onFollowToggle: (String) -> Unit,
+) {
+    // Hidden entirely once it settles empty: an empty people strip on a young network is not
+    // information, and the browse strip below is the better thing to be looking at.
+    if (state.people.isEmpty) return
+    item(key = "people_header") {
+        SectionHeader(text = stringResource(R.string.discover_people_title))
+    }
+    if (state.people.isLoading) {
+        item(key = "people_loading") {
+            SectionSpinner(modifier = Modifier.testTag("discover_people_loading"))
+        }
+        return
+    }
+    item(key = "people") {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("discover_people_row")
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            state.people.items.forEach { person ->
+                PersonTile(
+                    person = person,
+                    onOpenProfile = { onOpenAuthor(person.identity.pubky) },
+                    onFollowToggle = { onFollowToggle(person.identity.pubky) },
                 )
             }
         }
     }
 }
 
-@Composable
-private fun DiscoverScreenContent(
+private fun LazyListScope.browseSection(
     state: DiscoverUiState,
     onTagSelected: (Tag?) -> Unit,
-    onAddFriend: () -> Unit,
-    onOpenAuthor: (String) -> Unit,
     onOpenDeck: (String, String) -> Unit,
-    onRetry: () -> Unit,
+    onOpenAuthor: (String) -> Unit,
+    onAddFriend: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        HeaderRow(onAddFriend = onAddFriend)
-
-        when (state) {
-            DiscoverUiState.Loading -> Unit
-            DiscoverUiState.Empty -> EmptyBlock(onAddFriend = onAddFriend)
-            is DiscoverUiState.Content -> {
-                if (state.tags.isNotEmpty()) {
-                    TagRow(
-                        tags = state.tags,
-                        selectedTag = state.selectedTag,
-                        onTagSelected = onTagSelected,
-                    )
-                }
-                if (state.trendingTags.isNotEmpty()) {
-                    TrendingSection(
-                        tags = state.trendingTags,
-                        selectedTag = state.selectedTag,
-                        onTagSelected = onTagSelected,
-                    )
-                }
-                val selected = state.selectedTag
-                if (state.decks.isEmpty() && selected != null) {
-                    EmptyTagBlock(tag = selected)
-                } else {
-                    DeckGrid(
-                        decks = state.decks,
-                        onOpenDeck = onOpenDeck,
-                        onOpenAuthor = onOpenAuthor,
-                    )
-                }
-            }
-            is DiscoverUiState.Error -> LoopkyErrorBlock(reason = state.reason, onRetry = onRetry)
+    item(key = "browse_header") {
+        SectionHeader(
+            text = state.selectedTag
+                ?.let { stringResource(R.string.discover_browse_tag_title, it.value) }
+                ?: stringResource(R.string.discover_browse_title),
+            trailing = state.selectedTag?.let { { ClearTagButton(onClick = { onTagSelected(null) }) } },
+        )
+    }
+    if (state.browse.isLoading) {
+        item(key = "browse_loading") { SectionSpinner(modifier = Modifier.testTag("discover_browse_loading")) }
+    }
+    if (state.browse.isEmpty) {
+        item(key = "browse_empty") {
+            BrowseEmptyBlock(selectedTag = state.selectedTag, onAddFriend = onAddFriend)
         }
+    }
+    deckRows(
+        section = state.browse,
+        keyPrefix = "browse",
+        tileTestTag = "discover_deck_tile",
+        onOpenDeck = onOpenDeck,
+        onOpenAuthor = onOpenAuthor,
+    )
+}
+
+private fun LazyListScope.followingSection(
+    state: DiscoverUiState,
+    onOpenDeck: (String, String) -> Unit,
+    onOpenAuthor: (String) -> Unit,
+    onRetryFollowing: () -> Unit,
+) {
+    // Silent while it is empty: someone who follows nobody should see browse, not a reminder that
+    // they follow nobody. It only appears once it has decks, or something to report.
+    if (state.following.items.isEmpty() && state.following.error == null) return
+
+    item(key = "following_header") {
+        SectionHeader(
+            text = stringResource(R.string.discover_following_title),
+            modifier = Modifier.testTag("discover_following_section"),
+        )
+    }
+    state.following.error?.let { reason ->
+        item(key = "following_error") {
+            LoopkyErrorBlock(reason = reason, onRetry = onRetryFollowing)
+        }
+    }
+    deckRows(
+        section = state.following,
+        keyPrefix = "following",
+        tileTestTag = "discover_following_tile",
+        onOpenDeck = onOpenDeck,
+        onOpenAuthor = onOpenAuthor,
+    )
+}
+
+private fun LazyListScope.deckRows(
+    section: SectionState<DiscoverDeck>,
+    keyPrefix: String,
+    tileTestTag: String,
+    onOpenDeck: (String, String) -> Unit,
+    onOpenAuthor: (String) -> Unit,
+) {
+    val rows = section.items.chunked(2)
+    items(
+        items = rows,
+        key = { row -> keyPrefix + ":" + row.joinToString(",") { "${it.authorPubky}/${it.id}" } },
+    ) { row ->
+        DeckRow(
+            decks = row,
+            onOpenDeck = onOpenDeck,
+            onOpenAuthor = onOpenAuthor,
+            tileTestTag = tileTestTag,
+        )
     }
 }
 
+/** Drops the topic filter and goes back to browsing everything. */
 @Composable
-private fun HeaderRow(onAddFriend: () -> Unit) {
+private fun ClearTagButton(onClick: () -> Unit) {
+    val pillShape = RoundedCornerShape(50)
+    Text(
+        text = stringResource(R.string.discover_clear_tag),
+        color = LoopkyTheme.colors.accentPrimary,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.W700,
+        modifier = Modifier
+            .testTag("discover_clear_tag")
+            .clip(pillShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    )
+}
+
+@Composable
+private fun DiscoverHeader(onAddFriend: () -> Unit) {
     val colors = LoopkyTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -237,164 +364,6 @@ private fun HeaderRow(onAddFriend: () -> Unit) {
                 fontSize = 13.sp,
                 fontWeight = FontWeight.W700,
             )
-        }
-    }
-}
-
-@Composable
-private fun TagRow(
-    tags: List<Tag>,
-    selectedTag: Tag?,
-    onTagSelected: (Tag?) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        tags.forEach { tag ->
-            TagChip(
-                tag = tag.value,
-                selected = tag == selectedTag,
-                onClick = { onTagSelected(tag) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun TrendingSection(
-    tags: List<Tag>,
-    selectedTag: Tag?,
-    onTagSelected: (Tag?) -> Unit,
-) {
-    val colors = LoopkyTheme.colors
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            text = stringResource(R.string.discover_trending),
-            color = colors.foregroundSecondary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.W700,
-        )
-        TagRow(
-            tags = tags,
-            selectedTag = selectedTag,
-            onTagSelected = onTagSelected,
-        )
-    }
-}
-
-@Composable
-private fun EmptyTagBlock(tag: Tag) {
-    val colors = LoopkyTheme.colors
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
-    ) {
-        Text(text = stringResource(R.string.discover_empty_tag_emoji), fontSize = 36.sp)
-        Text(
-            text = stringResource(R.string.discover_empty_tag_title, tag.value),
-            color = colors.foregroundPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = stringResource(R.string.discover_empty_tag_subtitle),
-            color = colors.foregroundMuted,
-            fontSize = 13.sp,
-        )
-    }
-}
-
-@Composable
-private fun DeckGrid(
-    decks: List<DiscoverDeck>,
-    onOpenDeck: (String, String) -> Unit,
-    onOpenAuthor: (String) -> Unit,
-) {
-    val rows = decks.chunked(2)
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        rows.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                row.forEach { deck ->
-                    DeckTile(
-                        title = deck.title,
-                        cardCount = deck.cardCount,
-                        coverEmoji = deck.coverEmoji,
-                        authorLabel = deck.author.label(),
-                        onClick = { onOpenDeck(deck.authorPubky, deck.id) },
-                        onAuthorClick = { onOpenAuthor(deck.authorPubky) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (row.size == 1) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyBlock(onAddFriend: () -> Unit) {
-    val colors = LoopkyTheme.colors
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 64.dp),
-    ) {
-        Text(text = stringResource(R.string.discover_empty_emoji), fontSize = 48.sp)
-        Text(
-            text = stringResource(R.string.discover_empty_title),
-            color = colors.foregroundPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.ExtraBold,
-        )
-        Text(
-            text = stringResource(R.string.discover_empty_subtitle),
-            color = colors.foregroundMuted,
-            fontSize = 14.sp,
-        )
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(colors.accentSecondary)
-                .clickable(onClick = onAddFriend)
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.discover_add_a_friend),
-                color = colors.foregroundOnAccent,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ErrorBlock(message: String, onRetry: () -> Unit) {
-    val colors = LoopkyTheme.colors
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 64.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.discover_error_title),
-            color = colors.foregroundPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.ExtraBold,
-        )
-        Text(text = message, color = colors.foregroundMuted, fontSize = 14.sp)
-        TextButton(onClick = onRetry) {
-            Text(stringResource(R.string.discover_retry), color = colors.accentPrimary)
         }
     }
 }
@@ -507,43 +476,59 @@ private fun AddFriendSheet(
     }
 }
 
+private fun previewDeck(id: String, title: String, emoji: String, author: String, name: String) =
+    DiscoverDeck(
+        id = id,
+        authorPubky = author,
+        title = title,
+        cardCount = 24,
+        coverEmoji = emoji,
+        author = PubkyIdentity(author, name, null, null),
+        tags = listOf("spanish"),
+    )
+
 @Preview
 @Composable
 private fun DiscoverScreenPreview() {
     LoopkyTheme {
-        Box(modifier = Modifier.background(LoopkyTheme.colors.surfacePrimary)) {
-            DiscoverScreenContent(
-                state = DiscoverUiState.Content(
-                    tags = listOf(Tag("language"), Tag("science")),
-                    trendingTags = listOf(Tag("travel")),
-                    selectedTag = Tag("language"),
-                    decks = listOf(
-                        DiscoverDeck(
-                            id = "1",
-                            authorPubky = "abc123def456ghi",
-                            title = "Spanish basics",
-                            cardCount = 24,
-                            coverEmoji = "📚",
-                            author = PubkyIdentity("abc123def456ghi", "Ada", null, null),
-                            tags = listOf("language"),
-                        ),
-                        DiscoverDeck(
-                            id = "2",
-                            authorPubky = "def456ghi789jkl",
-                            title = "Biology 101",
-                            cardCount = 40,
-                            coverEmoji = "🧬",
-                            author = PubkyIdentity("def456ghi789jkl", "Grace", null, null),
-                            tags = listOf("science"),
-                        ),
+        DiscoverScreen(
+            state = DiscoverUiState(
+                topics = SectionState(items = listOf(Tag("spanish"), Tag("biology"))),
+                browse = SectionState(
+                    items = listOf(
+                        previewDeck("1", "Spanish basics", "📚", "abc123def456ghi", "Ada"),
+                        previewDeck("2", "Biology 101", "🧬", "def456ghi789jkl", "Grace"),
                     ),
                 ),
-                onTagSelected = {},
-                onAddFriend = {},
-                onOpenAuthor = {},
-                onOpenDeck = { _, _ -> },
-                onRetry = {},
-            )
-        }
+                following = SectionState(
+                    items = listOf(previewDeck("3", "Chess openings", "♟️", "ghi789jkl012mno", "Alan")),
+                ),
+            ),
+            onTagSelected = {},
+            onAddFriend = {},
+            onOpenAuthor = {},
+            onOpenDeck = { _, _ -> },
+            onFollowToggle = {},
+            onRefresh = {},
+            onRetryFollowing = {},
+        )
+    }
+}
+
+/** The state a brand-new account lands on before anything has been published network-wide. */
+@Preview
+@Composable
+private fun DiscoverScreenEmptyBrowsePreview() {
+    LoopkyTheme {
+        DiscoverScreen(
+            state = DiscoverUiState(),
+            onTagSelected = {},
+            onAddFriend = {},
+            onOpenAuthor = {},
+            onOpenDeck = { _, _ -> },
+            onFollowToggle = {},
+            onRefresh = {},
+            onRetryFollowing = {},
+        )
     }
 }

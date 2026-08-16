@@ -135,6 +135,32 @@ class DiscoveryRepositoryImpl(
         return candidates.mapConcurrently { pubky -> verifiedUser(pubky) }.filterNotNull()
     }
 
+    override suspend fun suggestedPeople(seedDecks: List<Deck>, limit: Int): List<PubkyIdentity> {
+        val me = session.current()?.identity?.pubky
+        // A failure here must not empty the strip — worst case we suggest someone already followed.
+        val followed = runCatching { following() }.getOrElse { emptyList() }.toSet()
+        fun worthSuggesting(pubky: String) = pubky != me && pubky !in followed
+
+        val directory = loopkyUsers(limit).filter { worthSuggesting(it.pubky) }
+        val seen = directory.mapTo(mutableSetOf()) { it.pubky }
+
+        val authors = seedDecks
+            .map { it.authorPubky }
+            .distinct()
+            .filter { worthSuggesting(it) && seen.add(it) }
+            .take((limit - directory.size).coerceAtLeast(0))
+
+        // Their deck already proved them real, so an unresolved profile downgrades the entry to a
+        // bare pubky instead of dropping a genuine Loopky user off the strip.
+        val fromDecks = authors.mapConcurrently { pubky ->
+            identityRepository.fetchProfile(pubky).getOrNull()
+                ?: PubkyIdentity(pubky, displayName = null, avatarUrl = null, bio = null)
+        }
+
+        Log.d(TAG, "suggestedPeople: ${directory.size} from directory, ${fromDecks.size} from decks")
+        return (directory + fromDecks).take(limit)
+    }
+
     /** Kept only if the account tagged *itself*, and only if that account really exists. */
     private suspend fun verifiedUser(pubky: String): PubkyIdentity? {
         if (!tagRepository.isSelfTagged(pubky, ReservedTags.USER)) {
@@ -145,27 +171,30 @@ class DiscoveryRepositoryImpl(
     }
 
     /**
-     * Parse the FFI `list` result for follow records by extracting the path segment after
-     * `/pub/pubky.app/follows/`. Same defensive substring scan as [DeckRepositoryImpl]'s deck-id
-     * parser, since the list payload format is not a stable contract.
+     * Followee pubkys out of the FFI `list` payload, which is a JSON array of `pubky://…` urls —
+     * the followee is the last path segment of each.
+     *
+     * Decoded as JSON rather than scanned for `/pub/pubky.app/follows/`: a substring scan has no
+     * way to tell where one url ends and the next begins, so it cut every id at the following
+     * entry's `pubky://` and yielded debris like `friend1","pubky:`. `followUser` seeds the cache
+     * optimistically, so that only surfaced on a cold cache — i.e. after a restart, when the whole
+     * follow feed silently emptied. Same decode as [DeckRepositoryImpl]'s `parsePubkyUrlsFromList`.
      */
-    private fun parseFolloweesFromList(payload: String): List<String> {
-        val marker = "/pub/pubky.app/follows/"
-        val ids = linkedSetOf<String>()
-        var index = 0
-        while (true) {
-            val hit = payload.indexOf(marker, index)
-            if (hit == -1) break
-            val start = hit + marker.length
-            val end = payload.indexOf('/', start).let { if (it == -1) payload.length else it }
-            val candidate = payload.substring(start, end).trim('"', ' ', '\n', '\r', ',')
-            if (candidate.isNotEmpty()) ids.add(candidate)
-            index = end
-        }
-        return ids.toList()
-    }
+    private fun parseFolloweesFromList(payload: String): List<String> =
+        runCatching { loopkyJson.decodeFromString<List<String>>(payload) }
+            .getOrDefault(emptyList())
+            .mapNotNull { url ->
+                url.takeIf { it.startsWith("pubky://") }
+                    ?.substringAfter(FOLLOWS_MARKER, missingDelimiterValue = "")
+                    ?.substringBefore('/')
+                    ?.takeIf { it.isNotEmpty() }
+            }
+            .distinct()
 
     companion object {
         private const val TAG = "Loopky/DiscoveryRepo"
+
+        /** The segment a follow record's url carries just before the followee's pubky. */
+        private const val FOLLOWS_MARKER = "/pub/pubky.app/follows/"
     }
 }

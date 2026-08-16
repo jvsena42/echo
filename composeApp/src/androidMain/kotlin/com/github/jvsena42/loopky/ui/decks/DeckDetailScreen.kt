@@ -87,6 +87,7 @@ fun DeckDetailRoute(
     onBack: () -> Unit = {},
     onEditDeck: (String) -> Unit = {},
     onStudy: (String) -> Unit = {},
+    onOpenTag: (String) -> Unit = {},
 ) {
     val viewModel = koinViewModel<DeckDetailViewModel> { parametersOf(deckId, authorPubky) }
 
@@ -94,6 +95,7 @@ fun DeckDetailRoute(
     val currentBack by rememberUpdatedState(onBack)
     val currentEditDeck by rememberUpdatedState(onEditDeck)
     val currentStudy by rememberUpdatedState(onStudy)
+    val currentOpenTag by rememberUpdatedState(onOpenTag)
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -113,6 +115,7 @@ fun DeckDetailRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     DeckDetailScreen(
         state = state,
+        onOpenTag = currentOpenTag,
         onBackClick = viewModel::onBackClick,
         onShareClick = viewModel::onShareClick,
         onStudyClick = viewModel::onStudyClick,
@@ -127,6 +130,7 @@ fun DeckDetailRoute(
 @Composable
 fun DeckDetailScreen(
     state: DeckDetailUiState,
+    onOpenTag: (String) -> Unit,
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onStudyClick: () -> Unit,
@@ -206,6 +210,7 @@ fun DeckDetailScreen(
         is DeckDetailUiState.Content -> {
             DeckDetailContent(
                 state = state,
+                onOpenTag = onOpenTag,
                 onBackClick = onBackClick,
                 onShareClick = onShareClick,
                 onStudyClick = onStudyClick,
@@ -236,6 +241,7 @@ fun DeckDetailScreen(
 @Composable
 private fun DeckDetailContent(
     state: DeckDetailUiState.Content,
+    onOpenTag: (String) -> Unit,
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onStudyClick: () -> Unit,
@@ -327,7 +333,9 @@ private fun DeckDetailContent(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             state.tags.forEach { tag ->
-                                TagChip(tag = tag)
+                                // Live since #26: global browse exists, so a chip leads to every
+                                // deck on the network carrying it rather than to a dead end.
+                                TagChip(tag = tag, onClick = { onOpenTag(tag) })
                             }
                         }
                     }
@@ -634,6 +642,7 @@ private fun TitleSection(title: String, description: String?) {
 private fun DeckDetailScreenPreview() {
     LoopkyTheme {
         DeckDetailScreen(
+            onOpenTag = {},
             state = DeckDetailUiState.Content(
                 deckId = "deck1",
                 title = "Spanish Essentials",
@@ -668,6 +677,7 @@ private fun DeckDetailScreenPreview() {
 private fun DeckDetailEmptyCardsPreview() {
     LoopkyTheme {
         DeckDetailScreen(
+            onOpenTag = {},
             state = DeckDetailUiState.Content(
                 deckId = "deck2",
                 title = "Kanji N5",

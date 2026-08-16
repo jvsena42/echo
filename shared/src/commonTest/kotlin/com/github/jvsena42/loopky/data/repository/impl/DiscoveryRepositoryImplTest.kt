@@ -20,6 +20,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DiscoveryRepositoryImplTest {
@@ -93,13 +94,10 @@ class DiscoveryRepositoryImplTest {
             listOf("pubky://$TEST_PUBKY/pub/pubky.app/follows/"),
             pubky.listedPrefixes,
         )
-        // KNOWN BUG: parseFolloweesFromList mis-handles the FFI list payload (a JSON array
-        // of pubky:// urls — see DeckRepositoryImpl.parsePubkyUrlsFromList): extracted ids
-        // carry JSON debris, e.g. `friend1","pubky:`. Pinned loosely so this documents the
-        // behaviour today; tighten to exact equality once the parser is fixed.
-        assertEquals(expected = 2, actual = following.size)
-        assertTrue(following[0].startsWith("friend1"))
-        assertTrue(following[1].startsWith("friend2"))
+        // Exact equality on purpose: the old substring scan cut each id at the *next* url's
+        // "pubky://" and returned `friend1","pubky:`, which a startsWith assertion happily
+        // accepted. Anything looser than this cannot tell the fix from the bug.
+        assertEquals(listOf("friend1", "friend2"), following)
     }
 
     @Test
@@ -249,6 +247,66 @@ class DiscoveryRepositoryImplTest {
         tagRepo.selfTaggers = setOf("ghostpk", TEST_PUBKY)
 
         assertEquals(emptyList(), repo.loopkyUsers())
+    }
+
+    // ── suggested people (directory ∪ deck authors) ──────────────────────
+
+    @Test
+    fun suggestedPeopleFallsBackToDeckAuthorsWhenTheDirectoryIsEmpty() = runTest {
+        // The live case: /v0/tags/taggers/loopky-user returns nothing for a low-count label, so
+        // the directory is empty and deck authors are the only thing carrying the strip.
+        pubky.store["pubky://authorpk/pub/pubky.app/profile.json"] =
+            """{"name":"Ada","bio":null,"image":null}"""
+
+        val people = repo.suggestedPeople(seedDecks = listOf(testDeck(authorPubky = "authorpk")))
+
+        assertEquals(listOf("authorpk"), people.map { it.pubky })
+        assertEquals("Ada", people.single().displayName)
+    }
+
+    @Test
+    fun suggestedPeopleKeepsADeckAuthorWithNoPublishedProfile() = runTest {
+        // Their deck already fetched and parsed, so the account is real whatever the profile says.
+        // Dropping them would empty the strip for exactly the users it exists to serve.
+        val people = repo.suggestedPeople(seedDecks = listOf(testDeck(authorPubky = "barepk")))
+
+        assertEquals(listOf("barepk"), people.map { it.pubky })
+        assertNull(people.single().displayName)
+    }
+
+    @Test
+    fun suggestedPeoplePrefersTheDirectoryAndDedupesAgainstIt() = runTest {
+        pubky.store["pubky://authorpk/pub/pubky.app/profile.json"] =
+            """{"name":"Ada","bio":null,"image":null}"""
+        tagRepo.taggersByTag = mapOf(ReservedTags.USER to listOf("authorpk"))
+        tagRepo.selfTaggers = setOf("authorpk")
+
+        val people = repo.suggestedPeople(seedDecks = listOf(testDeck(authorPubky = "authorpk")))
+
+        // Present in both sources — listed once, from the directory.
+        assertEquals(listOf("authorpk"), people.map { it.pubky })
+    }
+
+    @Test
+    fun suggestedPeopleExcludesYourselfAndAnyoneYouAlreadyFollow() = runTest {
+        repo.followUser("friendpk").getOrThrow()
+
+        val people = repo.suggestedPeople(
+            seedDecks = listOf(
+                testDeck(id = "a", authorPubky = "friendpk"),
+                testDeck(id = "b", authorPubky = TEST_PUBKY),
+                testDeck(id = "c", authorPubky = "strangerpk"),
+            ),
+        )
+
+        assertEquals(listOf("strangerpk"), people.map { it.pubky })
+    }
+
+    @Test
+    fun suggestedPeopleRespectsTheLimit() = runTest {
+        val decks = (1..5).map { testDeck(id = "d$it", authorPubky = "author$it") }
+
+        assertEquals(expected = 2, actual = repo.suggestedPeople(decks, limit = 2).size)
     }
 }
 

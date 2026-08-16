@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,17 +16,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
-import com.github.jvsena42.loopky.domain.model.avatarInitial
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
 import com.github.jvsena42.loopky.ui.util.truncatedPubky
@@ -50,30 +46,7 @@ fun AuthorRow(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Avatar — the picture when set, otherwise the initial. The initial sits underneath so it
-        // also shows while the image loads or if it fails.
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(colors.accentSecondarySoft),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = identity.avatarInitial.toString(),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.W800,
-                color = colors.accentSecondary,
-            )
-            if (!identity.avatarUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = identity.avatarUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-            }
-        }
+        PubkyAvatar(identity = identity)
 
         Spacer(modifier = Modifier.width(10.dp))
 

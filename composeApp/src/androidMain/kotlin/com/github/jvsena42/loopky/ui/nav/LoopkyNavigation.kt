@@ -18,6 +18,7 @@ import com.github.jvsena42.loopky.ui.onboarding.OnboardingRoute
 import com.github.jvsena42.loopky.ui.profile.FriendProfileRoute
 import com.github.jvsena42.loopky.ui.settings.SettingsRoute
 import com.github.jvsena42.loopky.ui.study.StudySessionRoute
+import com.github.jvsena42.loopky.ui.tagbrowse.TagBrowseRoute
 
 @Composable
 fun LoopkyNavHost() {
@@ -92,6 +93,21 @@ fun LoopkyNavHost() {
                 onBack = { navController.popBackStack() },
                 onEditDeck = { id -> navController.navigateTo(Routes.deckEditor(id)) },
                 onStudy = { id -> navController.navigateTo(Routes.study(id)) },
+                onOpenTag = { tag -> navController.navigateTo(Routes.tagBrowse(tag)) },
+            )
+        }
+        composable(
+            route = Routes.TAG_BROWSE,
+            arguments = listOf(navArgument("tag") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val tag = backStackEntry.arguments?.getString("tag") ?: return@composable
+            TagBrowseRoute(
+                tag = tag,
+                onBack = { navController.popBackStack() },
+                onOpenProfile = { pubky -> navController.navigateTo(Routes.friendProfile(pubky)) },
+                onOpenDeck = { deckId, deckAuthor ->
+                    navController.navigateTo(Routes.deckDetail(deckId, deckAuthor))
+                },
             )
         }
         composable(

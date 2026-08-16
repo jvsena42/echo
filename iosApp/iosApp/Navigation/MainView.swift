@@ -30,7 +30,7 @@ struct MainView: View {
             .tabItem { Label(LoopkyTab.decks.title, systemImage: LoopkyTab.decks.iconName) }
             .tag(LoopkyTab.decks)
 
-            DiscoverView()
+            DiscoverScreen(onOpenDeck: { _, deckId in onDeckTap(deckId) })
                 .tabItem { Label(LoopkyTab.discover.title, systemImage: LoopkyTab.discover.iconName) }
                 .tag(LoopkyTab.discover)
 

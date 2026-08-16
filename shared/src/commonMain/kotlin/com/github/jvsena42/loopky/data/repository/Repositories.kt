@@ -240,8 +240,25 @@ interface TagRepository {
     suspend fun putReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
     suspend fun removeReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
 
-    /** Network-wide trending tags from the Nexus indexer; empty on network failure. */
-    suspend fun trending(): List<Tag>
+    /**
+     * Topic labels carried by Loopky decks network-wide, most-decks-first — the chip row on
+     * Discover.
+     *
+     * Aggregated client-side rather than read from the indexer, because deck tags are indexed as
+     * *resources* and `/v0/tags/hot` only ever sees `Post|User` targets (Architecture.md §7.7
+     * point 3). There is no deck-tag trending to ask for, but the resource stream returns each
+     * deck's whole tag list in one response, which is enough to rank topics here.
+     *
+     * Reserved [ReservedTags] labels are excluded — they are Loopky's index, not topics.
+     * Never throws: empty on indexer failure, like [trending].
+     *
+     * Sees only the top [sampleSize] decks by tagger count, so a topic that lives solely on an
+     * unpopular deck is invisible. That is the ceiling of aggregating client-side (#58).
+     */
+    suspend fun trendingDeckTags(
+        sampleSize: Int = DEFAULT_DECK_TAG_SAMPLE,
+        limit: Int = DEFAULT_DECK_TAG_LIMIT,
+    ): List<Tag>
 
     /**
      * Loopky subjects carrying [tag] network-wide, most-tagged first. This is the read that makes
@@ -272,6 +289,12 @@ interface TagRepository {
     companion object {
         const val DEFAULT_TAGGED_LIMIT = 30
         const val DEFAULT_TAGGERS_LIMIT = 20
+
+        /** One indexer page. The resource stream caps at 100; 50 is broad coverage for one request. */
+        const val DEFAULT_DECK_TAG_SAMPLE = 50
+
+        /** Chips that fill a scrollable row without becoming a wall. */
+        const val DEFAULT_DECK_TAG_LIMIT = 12
     }
 }
 
@@ -325,6 +348,33 @@ interface DiscoveryRepository {
     suspend fun loopkyUsers(
         limit: Int = TagRepository.DEFAULT_TAGGERS_LIMIT,
     ): List<PubkyIdentity>
+
+    /**
+     * People worth showing to someone who follows nobody: the [loopkyUsers] directory first, then
+     * the authors of [seedDecks] — pass the decks global browse already fetched, so this costs no
+     * second browse.
+     *
+     * The directory alone is not enough in practice. `/v0/tags/hot` and `/v0/tags/taggers/{label}`
+     * only surface labels with real traction, so a `loopky-user` self-tag with one tagger comes
+     * back empty from the indexer even though the tag exists and the account is indexed (probed
+     * against staging, #26). Deck authors are the source that works from the first published deck.
+     *
+     * A directory entry has only its own claim behind it, so it still has to verify. A deck author
+     * is already corroborated — global browse fetched and parsed their manifest — so an author with
+     * no published profile is kept under their bare pubky rather than dropped; the UI truncates it,
+     * exactly as deck tiles already do for unresolved authors.
+     *
+     * Excludes the signed-in user and anyone already followed: suggesting those is noise.
+     */
+    suspend fun suggestedPeople(
+        seedDecks: List<Deck>,
+        limit: Int = DEFAULT_SUGGESTED_PEOPLE_LIMIT,
+    ): List<PubkyIdentity>
+
+    companion object {
+        /** A horizontal strip; enough to scroll, few enough to resolve quickly. */
+        const val DEFAULT_SUGGESTED_PEOPLE_LIMIT = 12
+    }
 }
 
 /**

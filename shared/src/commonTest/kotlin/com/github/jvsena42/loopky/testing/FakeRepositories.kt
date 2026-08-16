@@ -28,6 +28,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.domain.model.review
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -271,17 +272,23 @@ class FakeDiscoveryRepository : DiscoveryRepository {
     override suspend fun following(): List<String> = follows.toList()
     override suspend fun isFollowing(pubky: String): Boolean = pubky in follows
 
+    /** When set, follow/unfollow fails — the optimistic pill must revert. */
+    var followError: Throwable? = null
+
     override suspend fun followUser(pubky: String): Result<Unit> {
+        followError?.let { return Result.failure(it) }
         follows.add(pubky)
         return Result.success(Unit)
     }
 
     override suspend fun unfollowUser(pubky: String): Result<Unit> {
+        followError?.let { return Result.failure(it) }
         follows.remove(pubky)
         return Result.success(Unit)
     }
 
     override suspend fun decksFromFollowing(): List<Deck> {
+        feedGate?.await()
         feedError?.let { throw it }
         return feed
     }
@@ -292,13 +299,45 @@ class FakeDiscoveryRepository : DiscoveryRepository {
     var globalDecks: List<Deck> = emptyList()
     var loopkyUsers: List<PubkyIdentity> = emptyList()
 
-    override suspend fun decksByTagGlobal(tag: Tag, limit: Int): List<Deck> =
-        globalDecks.filter { tag in it.tags || tag == ReservedTags.DECK }.take(limit)
+    /** What each strip asked for, so a test can pin the cost budget. */
+    val globalRequests = mutableListOf<Pair<Tag, Int>>()
+    val suggestedRequests = mutableListOf<Int>()
+
+    /**
+     * Held open, these let a test assert the other strips still settle while one is in flight —
+     * the whole point of loading Discover section by section.
+     */
+    var globalGate: CompletableDeferred<Unit>? = null
+    var feedGate: CompletableDeferred<Unit>? = null
+    var peopleGate: CompletableDeferred<Unit>? = null
+
+    /** Exact per-label results, when a test needs finer control than [globalDecks] gives. */
+    var globalDecksByTag: Map<Tag, List<Deck>>? = null
+
+    override suspend fun decksByTagGlobal(tag: Tag, limit: Int): List<Deck> {
+        globalRequests.add(tag to limit)
+        globalGate?.await()
+        globalDecksByTag?.let { return it[tag].orEmpty().take(limit) }
+        return globalDecks.filter { tag in it.tags || tag == ReservedTags.DECK }.take(limit)
+    }
 
     override suspend fun loopkyUsers(limit: Int): List<PubkyIdentity> = loopkyUsers.take(limit)
+
+    /** Mirrors the real union: directory first, then deck authors, minus self and follows. */
+    override suspend fun suggestedPeople(seedDecks: List<Deck>, limit: Int): List<PubkyIdentity> {
+        suggestedRequests.add(limit)
+        peopleGate?.await()
+        val directory = loopkyUsers.filterNot { it.pubky in follows }
+        val seen = directory.mapTo(mutableSetOf()) { it.pubky }
+        val authors = seedDecks.map { it.authorPubky }
+            .distinct()
+            .filter { it !in follows && seen.add(it) }
+            .map { PubkyIdentity(it, displayName = null, avatarUrl = null, bio = null) }
+        return (directory + authors).take(limit)
+    }
 }
 
-class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRepository {
+class RecordingTagRepository : TagRepository {
     val putTags = mutableListOf<Pair<PubkyUri, Tag>>()
     val removedTags = mutableListOf<Pair<PubkyUri, Tag>>()
 
@@ -329,7 +368,14 @@ class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRep
         return failWith?.let { Result.failure(it) } ?: Result.success(Unit)
     }
 
-    override suspend fun trending(): List<Tag> = trendingTags
+    /** Deck topics the indexer would aggregate to; recorded so a test can pin the ask. */
+    var deckTags: List<Tag> = emptyList()
+    val deckTagRequests = mutableListOf<Pair<Int, Int>>()
+
+    override suspend fun trendingDeckTags(sampleSize: Int, limit: Int): List<Tag> {
+        deckTagRequests.add(sampleSize to limit)
+        return deckTags.take(limit)
+    }
 
     /** Indexer reads, canned per label. */
     var subjectsByTag: Map<Tag, List<TaggedSubject>> = emptyMap()

@@ -1,22 +1,34 @@
-<journey name="Discover — trending tags, add friend, follow">
+<journey name="Discover — global browse, topics, people, add friend">
   <description>
-    Social discovery: trending tag chips from the Nexus staging indexer, add a friend by
-    pubky, follow them, and open one of their decks (foreign-deck remote load).
-    Requires a signed-in session (journey 01). The friend pubky used below must exist on
-    staging and have at least one published Loopky deck — substitute a known staging pubky
-    before running, or accept the follow/profile steps as the verification target.
+    Discover with ZERO follows is the point of this journey (#26): a brand-new account must see
+    real decks and real people without knowing anyone's pubky. Everything below the header comes
+    from the Nexus indexer, so it needs a signed-in session (journey 01) and at least one deck
+    published network-wide with a topical tag — journey 02 produces exactly that.
+
+    If the indexer has not ingested anything yet, the browse strip shows "Nothing published here
+    yet" with an Add-a-friend CTA. That is a pass for the empty case, not a failure: verify the
+    honest empty state rather than skipping the journey. Confirm which case you are in with
+    `curl 'https://nexus.staging.pubky.app/v0/stream/resources?app=loopky&amp;tags=loopky-deck&amp;limit=5'`
+    before starting.
   </description>
   <actions>
     <action>Launch the Loopky app and verify the Home screen is shown</action>
     <action>Tap the element with resource-id "tab_discover" in the bottom tab bar</action>
-    <action>Verify the Discover screen is shown with an "Add friend" button (resource-id: discover_add_friend)</action>
+    <action>Verify the Discover screen is shown (resource-id: discover_screen) with an "Add friend" button (resource-id: discover_add_friend)</action>
+    <action>Verify a "Browse decks" section is present — this is the global browse, and it must NOT require following anyone</action>
+    <action>Wait for the browse strip to settle, then verify EITHER at least one deck tile (resource-id: discover_deck_tile) OR the empty block (resource-id: discover_browse_empty) reading "Nothing published here yet" with an "Add a friend" button. There must never be a bare "Follow a friend to see their decks here" dead end.</action>
+    <action>If a topic chip row is visible (resource-id: discover_topic_row), tap the first chip (resource-id: discover_topic_chip)</action>
+    <action>Verify the browse heading changes to "Decks tagged “…”" and a "Clear" control appears (resource-id: discover_clear_tag). The deck list is re-queried from the indexer, so it may legitimately differ from the unfiltered list.</action>
+    <action>Tap the element with resource-id "discover_clear_tag" and verify the heading returns to "Browse decks"</action>
+    <action>If a "People on Loopky" strip is visible (resource-id: discover_people_row), tap the Follow pill on the first person (resource-id: discover_follow) and verify it flips to "Following" immediately</action>
+    <action>Pull to refresh and verify the followed person no longer appears in the People strip — suggestions exclude people you already follow</action>
+    <action>Note: the People strip is legitimately absent when the only published decks are your own, since suggestions exclude yourself. That is a pass.</action>
     <action>Tap the element with resource-id "discover_add_friend"</action>
     <action>Verify a bottom sheet appears with a "Paste a pubky" input (resource-id: add_friend_input), a "Scan QR" button (resource-id: add_friend_scan) and an "Open" button (resource-id: add_friend_open) — these ids only surface because the sheet sets its own testTagsAsResourceId</action>
     <action>Type your OWN pubky into the field with resource-id "add_friend_input" and tap the element with resource-id "add_friend_open"</action>
     <action>Verify your own profile is shown with NO Follow button (regression: you could follow yourself)</action>
-    <action>Navigate back to Discover and tap the element with resource-id "discover_add_friend" again</action>
-    <action>Dismiss the bottom sheet</action>
-    <action>If a "Trending on Pubky" section with tag chips is visible, tap the first trending tag chip and verify the deck list filters (decks with the tag, or a "No decks tagged" empty state)</action>
-    <action>If a tag chip is selected, tap it again to clear the filter</action>
+    <action>Navigate back to Discover</action>
+    <action>Turn the device radios off, pull to refresh, and verify the screen still renders: the "From people you follow" section shows an error with a working Retry, while the other strips show their own empty states. The screen must never go blank.</action>
+    <action>Turn the radios back on and pull to refresh to confirm recovery</action>
   </actions>
 </journey>

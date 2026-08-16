@@ -29,7 +29,7 @@ import kotlinx.serialization.encodeToString
  * paths and picks between them on the record's own path (Architecture.md §7.7):
  *
  * - subject is a pubky.app `profile.json` → [PubkyPaths.tag], the pubky.app namespace, indexed
- *   into the user graph (reachable from `/v0/tags/hot`, `/v0/tags/taggers/{label}`);
+ *   into the user graph (reachable from `/v0/tags/taggers/{label}`);
  * - anything else, i.e. a deck manifest → [PubkyPaths.loopkyTag], indexed as a generic resource
  *   (reachable from `/v0/stream/resources?app=loopky`).
  *
@@ -102,10 +102,40 @@ class TagRepositoryImpl(
         Unit
     }
 
-    override suspend fun trending(): List<Tag> =
-        nexus.hotTags()
+    override suspend fun trendingDeckTags(sampleSize: Int, limit: Int): List<Tag> {
+        val resources = nexus.resourcesByTag(ReservedTags.DECK.value, sampleSize)
+            .onFailure { Log.w(TAG, "trendingDeckTags: FAILED — ${it.message}") }
             .getOrElse { emptyList() }
-            .map { Tag(it.label) }
+
+        val decksPerLabel = mutableMapOf<String, Int>()
+        val taggersPerLabel = mutableMapOf<String, Int>()
+        for (resource in resources) {
+            resource.tags
+                .filterNot { ReservedTags.isReserved(it.label) }
+                // One deck counts once per label however many times the indexer lists it.
+                .distinctBy { it.label }
+                .forEach { details ->
+                    decksPerLabel[details.label] = (decksPerLabel[details.label] ?: 0) + 1
+                    taggersPerLabel[details.label] =
+                        (taggersPerLabel[details.label] ?: 0) + details.taggers_count
+                }
+        }
+
+        Log.d(TAG, "trendingDeckTags: ${decksPerLabel.size} labels over ${resources.size} decks")
+
+        // Deck count first: that is what makes a label a *topic*, and it stops one heavily-tagged
+        // deck from owning the whole chip row. Tagger sum breaks ties, then the label itself so
+        // the order is stable — the indexer's own ordering is not, and at this corpus size most
+        // ties are 1-vs-1.
+        return decksPerLabel.entries
+            .sortedWith(
+                compareByDescending<Map.Entry<String, Int>> { it.value }
+                    .thenByDescending { taggersPerLabel[it.key] ?: 0 }
+                    .thenBy { it.key },
+            )
+            .take(limit)
+            .map { Tag(it.key) }
+    }
 
     override suspend fun taggedSubjects(tag: Tag, limit: Int): List<TaggedSubject> {
         val label = sanitizeLabel(tag).getOrElse { return emptyList() }
