@@ -291,13 +291,13 @@ class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRep
     val putTags = mutableListOf<Pair<PubkyUri, Tag>>()
     val removedTags = mutableListOf<Pair<PubkyUri, Tag>>()
 
-    override suspend fun putTag(deckUri: PubkyUri, tag: Tag): Result<Unit> {
-        putTags.add(deckUri to tag)
+    override suspend fun putTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> {
+        putTags.add(subjectUri to tag)
         return Result.success(Unit)
     }
 
-    override suspend fun removeTag(deckUri: PubkyUri, tag: Tag): Result<Unit> {
-        removedTags.add(deckUri to tag)
+    override suspend fun removeTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> {
+        removedTags.add(subjectUri to tag)
         return Result.success(Unit)
     }
 

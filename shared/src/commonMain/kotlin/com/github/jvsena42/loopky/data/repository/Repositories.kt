@@ -215,13 +215,17 @@ interface ImportRepository {
 }
 
 /**
- * Deck tagging via the pubky.app native tag primitive (records on the tagger's homeserver,
- * indexed network-wide by Pubky Nexus). Trending reads come from the Nexus REST API; local
- * tag filtering over visible decks stays on [DiscoveryRepository.decksByTag].
+ * Tagging via the pubky-app-specs tag primitive (records on the tagger's homeserver, indexed
+ * network-wide by Pubky Nexus). Any URI can be a subject: a deck manifest or a user's profile.
+ * Trending reads come from the Nexus REST API; local tag filtering over visible decks stays on
+ * [DiscoveryRepository.decksByTag].
+ *
+ * The impl picks the record's namespace from the subject, which decides how Nexus indexes it —
+ * see [com.github.jvsena42.loopky.data.repository.impl.TagRepositoryImpl] and Architecture.md §7.7.
  */
 interface TagRepository {
-    suspend fun putTag(deckUri: PubkyUri, tag: Tag): Result<Unit>
-    suspend fun removeTag(deckUri: PubkyUri, tag: Tag): Result<Unit>
+    suspend fun putTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
+    suspend fun removeTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
 
     /** Network-wide trending tags from the Nexus indexer; empty on network failure. */
     suspend fun trending(): List<Tag>

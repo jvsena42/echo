@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.data.pubky
 internal object PubkyPaths {
     const val APP_NAMESPACE = "pub/loopky"
     private const val PUBKY_APP_NAMESPACE = "pub/pubky.app"
+    private const val SCHEME = "pubky://"
 
     fun profile(pubky: String): String =
         "pubky://$pubky/$PUBKY_APP_NAMESPACE/profile.json"
@@ -60,12 +61,59 @@ internal object PubkyPaths {
         "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/follows/$followeePubky"
 
     /**
-     * pubky.app tag record. Like follows, tags use the ecosystem-native primitive so Nexus
-     * indexes them; the id is content-derived per pubky-app-specs (`PubkyClient.createTagId`).
+     * pubky.app tag record — the namespace Nexus indexes into its **user/post** graph. Use it only
+     * when the tagged subject is a pubky.app profile or post; Nexus rejects the record outright for
+     * any other subject (see [loopkyTag] and Architecture.md §7.7). The id is content-derived per
+     * pubky-app-specs (`PubkyClient.createTagId`).
      */
     fun tag(ownerPubky: String, tagId: String): String =
         "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/tags/$tagId"
 
+    /**
+     * Tag record in Loopky's own namespace — the namespace Nexus indexes into its generic
+     * **resource** graph, which is the only one that accepts a deck manifest as a subject.
+     *
+     * The `app` a resource is filed under is this path segment (`loopky`) verbatim, not anything
+     * derived from the subject URI, so these are the records behind
+     * `GET /v0/stream/resources?app=loopky`.
+     */
+    fun loopkyTag(ownerPubky: String, tagId: String): String =
+        "pubky://$ownerPubky/$APP_NAMESPACE/tags/$tagId"
+
     /** Relative `media/<sha>.<ext>` reference stored inside card/manifest records. */
     fun relativeMedia(sha256: String, ext: String): String = "media/$sha256.$ext"
+
+    /** True when [uri] is exactly some user's pubky.app profile record. */
+    fun isProfileUri(uri: String): Boolean {
+        val owner = ownerOf(uri) ?: return false
+        return uri == profile(owner)
+    }
+
+    /**
+     * Parse a deck manifest URI back into its author and deck id, or `null` if [uri] is not
+     * exactly `pubky://{author}/pub/loopky/decks/{deckId}/manifest.json`.
+     *
+     * Deliberately strict: this is the gate that stops a forged tag on an arbitrary URI from being
+     * treated as a deck (issue #40). Keep it in sync with `Deck.pubkyUri`, which builds the same
+     * string literally because domain models cannot depend on this layer.
+     */
+    fun parseDeckManifestUri(uri: String): DeckRef? {
+        val owner = ownerOf(uri) ?: return null
+        val prefix = deckRoot(owner, deckId = "")
+        if (!uri.startsWith(prefix)) return null
+        val tail = uri.removePrefix(prefix)
+        val deckId = tail.substringBefore('/', missingDelimiterValue = "")
+        if (deckId.isEmpty() || tail != "$deckId/manifest.json") return null
+        return DeckRef(authorPubky = owner, deckId = deckId)
+    }
+
+    /** The pubky a `pubky://{pubky}/…` URI belongs to, or `null` if [uri] isn't one. */
+    private fun ownerOf(uri: String): String? {
+        if (!uri.startsWith(SCHEME)) return null
+        val owner = uri.removePrefix(SCHEME).substringBefore('/', missingDelimiterValue = "")
+        return owner.ifEmpty { null }
+    }
 }
+
+/** The author and deck id parsed out of a deck manifest URI. */
+internal data class DeckRef(val authorPubky: String, val deckId: String)

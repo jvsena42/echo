@@ -27,9 +27,17 @@ class TagRepositoryImplTest {
     )
 
     private val deckUri = PubkyUri("pubky://$TEST_PUBKY/pub/loopky/decks/deck1/manifest.json")
+    private val profileUri = PubkyUri("pubky://$TEST_PUBKY/pub/pubky.app/profile.json")
 
-    private fun tagUrlFor(label: String): String {
-        val tagId = pubky.createTagId(deckUri.value, label).getOrThrow()
+    /** Deck subjects are indexed as generic resources, so their records live in `pub/loopky`. */
+    private fun tagUrlFor(label: String, subject: PubkyUri = deckUri): String {
+        val tagId = pubky.createTagId(subject.value, label).getOrThrow()
+        return "pubky://$TEST_PUBKY/pub/loopky/tags/$tagId"
+    }
+
+    /** Profile subjects must stay in the pubky.app namespace to reach the user graph. */
+    private fun pubkyAppTagUrlFor(label: String, subject: PubkyUri): String {
+        val tagId = pubky.createTagId(subject.value, label).getOrThrow()
         return "pubky://$TEST_PUBKY/pub/pubky.app/tags/$tagId"
     }
 
@@ -45,6 +53,29 @@ class TagRepositoryImplTest {
         assertEquals(deckUri.value, dto.uri)
         assertEquals("spanish", dto.label)
         assertTrue(dto.created_at > 0)
+    }
+
+    @Test
+    fun putTagOnADeckWritesIntoTheLoopkyNamespace() = runTest {
+        // Nexus only indexes a deck manifest subject when the record itself sits outside
+        // pubky.app — under pubky.app the watcher drops it silently (#40).
+        repo.putTag(deckUri, Tag("spanish")).getOrThrow()
+
+        val url = pubky.puts.single().first
+        assertTrue(url.startsWith("pubky://$TEST_PUBKY/pub/loopky/tags/"), "was $url")
+    }
+
+    @Test
+    fun putTagOnAProfileStaysInThePubkyAppNamespace() = runTest {
+        // Profile subjects are the one case that must stay in pubky.app: that is the only
+        // namespace Nexus files into the user graph, which is what makes the tag globally
+        // queryable by label.
+        repo.putTag(profileUri, Tag("teacher")).getOrThrow()
+
+        val url = pubky.puts.single().first
+        assertEquals(pubkyAppTagUrlFor("teacher", profileUri), url)
+        val dto = loopkyJson.decodeFromString<TagDto>(pubky.store.getValue(url))
+        assertEquals(profileUri.value, dto.uri)
     }
 
     @Test
@@ -89,7 +120,28 @@ class TagRepositoryImplTest {
         repo.removeTag(deckUri, Tag(" spanish ")).getOrThrow()
 
         assertTrue(url !in pubky.store)
-        assertEquals(listOf(url), pubky.deletes)
+        assertEquals(url, pubky.deletes.first())
+    }
+
+    @Test
+    fun removeTagAlsoClearsThePreNamespaceRoutingRecord() = runTest {
+        // Deck tags used to be written (and silently never indexed) under pubky.app.
+        val legacyUrl = pubkyAppTagUrlFor("spanish", deckUri)
+        pubky.store[legacyUrl] = "{}"
+
+        repo.removeTag(deckUri, Tag("spanish")).getOrThrow()
+
+        assertTrue(legacyUrl !in pubky.store)
+        assertEquals(listOf(tagUrlFor("spanish"), legacyUrl), pubky.deletes)
+    }
+
+    @Test
+    fun removeTagOnAProfileTouchesOnlyThePubkyAppRecord() = runTest {
+        repo.putTag(profileUri, Tag("teacher")).getOrThrow()
+
+        repo.removeTag(profileUri, Tag("teacher")).getOrThrow()
+
+        assertEquals(listOf(pubkyAppTagUrlFor("teacher", profileUri)), pubky.deletes)
     }
 
     @Test
