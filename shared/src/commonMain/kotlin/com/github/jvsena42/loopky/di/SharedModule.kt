@@ -54,6 +54,7 @@ val sharedModule = module {
             pubky = get(),
             sessionStore = get(),
             sessionProvider = get(),
+            tagRepository = get(),
         )
     }
 
