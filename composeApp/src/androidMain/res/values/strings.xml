@@ -113,15 +113,18 @@
     <!-- Discover -->
     <string name="discover_title">Discover</string>
     <string name="discover_add_friend">Add friend</string>
-    <string name="discover_trending">Trending on Pubky</string>
+    <string name="discover_topics_title">Topics</string>
+    <string name="discover_browse_title">Browse decks</string>
+    <string name="discover_browse_tag_title">Decks tagged “%1$s”</string>
+    <string name="discover_clear_tag">Clear</string>
+    <string name="discover_following_title">From people you follow</string>
+    <string name="discover_browse_empty_emoji">🌱</string>
+    <string name="discover_browse_empty_title">Nothing published here yet</string>
+    <string name="discover_browse_empty_subtitle">Loopky’s public index is new. Publish a deck and it shows up here for everyone.</string>
     <string name="discover_empty_tag_emoji">🔍</string>
     <string name="discover_empty_tag_title">No decks tagged “%1$s” yet</string>
-    <string name="discover_empty_tag_subtitle">Follow more friends to widen your feed, or tap the tag again to clear it.</string>
-    <string name="discover_empty_emoji">👥</string>
-    <string name="discover_empty_title">Follow a friend to see their decks here</string>
-    <string name="discover_empty_subtitle">Add a friend by their pubky to follow them and discover their public decks.</string>
+    <string name="discover_empty_tag_subtitle">Nobody has tagged a deck with this yet. Tap the tag again to see everything.</string>
     <string name="discover_add_a_friend">Add a friend</string>
-    <string name="discover_loading">Finding decks to explore…</string>
     <string name="discover_add_friend_sheet_subtitle">Paste a pubky or scan their QR code to view their profile and follow them.</string>
     <string name="discover_paste_pubky">Paste a pubky</string>
     <string name="discover_scan_qr">Scan QR</string>
