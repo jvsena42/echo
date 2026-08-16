@@ -240,9 +240,6 @@ interface TagRepository {
     suspend fun putReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
     suspend fun removeReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit>
 
-    /** Network-wide trending tags from the Nexus indexer; empty on network failure. */
-    suspend fun trending(): List<Tag>
-
     /**
      * Topic labels carried by Loopky decks network-wide, most-decks-first — the chip row on
      * Discover.

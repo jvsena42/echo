@@ -337,7 +337,7 @@ class FakeDiscoveryRepository : DiscoveryRepository {
     }
 }
 
-class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRepository {
+class RecordingTagRepository : TagRepository {
     val putTags = mutableListOf<Pair<PubkyUri, Tag>>()
     val removedTags = mutableListOf<Pair<PubkyUri, Tag>>()
 
@@ -367,8 +367,6 @@ class RecordingTagRepository(var trendingTags: List<Tag> = emptyList()) : TagRep
         removedReservedTags.add(subjectUri to tag)
         return failWith?.let { Result.failure(it) } ?: Result.success(Unit)
     }
-
-    override suspend fun trending(): List<Tag> = trendingTags
 
     /** Deck topics the indexer would aggregate to; recorded so a test can pin the ask. */
     var deckTags: List<Tag> = emptyList()

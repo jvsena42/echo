@@ -20,13 +20,6 @@ class NexusClient(
     private val baseUrl: String = DEFAULT_BASE_URL,
 ) {
 
-    /** Network-wide hot tags, most-tagged first. */
-    suspend fun hotTags(limit: Int = DEFAULT_HOT_TAGS_LIMIT): Result<List<NexusHotTagDto>> =
-        runCatching {
-            val body = http.get("$baseUrl/v0/tags/hot?limit=$limit").getOrThrow()
-            loopkyJson.decodeFromString(ListSerializer(NexusHotTagDto.serializer()), body)
-        }
-
     /** Tag labels starting with [prefix] — powers tag-input autocomplete. */
     suspend fun searchTagsByPrefix(
         prefix: String,
@@ -112,7 +105,6 @@ class NexusClient(
         /** The `/pub/{app}/tags/` segment Loopky writes deck tag records under. */
         const val LOOPKY_APP = "loopky"
 
-        private const val DEFAULT_HOT_TAGS_LIMIT = 20
         private const val DEFAULT_SEARCH_LIMIT = 10
         private const val DEFAULT_RESOURCE_LIMIT = 30
         private const val MAX_RESOURCE_LIMIT = 100
@@ -122,15 +114,6 @@ class NexusClient(
         private const val MAX_USER_TAGGERS_LIMIT = 100
     }
 }
-
-/** One entry of `GET /v0/tags/hot` (Nexus `HotTag`). */
-@Serializable
-data class NexusHotTagDto(
-    val label: String,
-    val taggers_id: List<String> = emptyList(),
-    val tagged_count: Long = 0,
-    val taggers_count: Long = 0,
-)
 
 /** Identity of an indexed resource (Nexus `ResourceDetails`). */
 @Serializable

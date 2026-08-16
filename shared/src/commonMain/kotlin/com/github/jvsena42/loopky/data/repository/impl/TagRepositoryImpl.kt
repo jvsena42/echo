@@ -29,7 +29,7 @@ import kotlinx.serialization.encodeToString
  * paths and picks between them on the record's own path (Architecture.md §7.7):
  *
  * - subject is a pubky.app `profile.json` → [PubkyPaths.tag], the pubky.app namespace, indexed
- *   into the user graph (reachable from `/v0/tags/hot`, `/v0/tags/taggers/{label}`);
+ *   into the user graph (reachable from `/v0/tags/taggers/{label}`);
  * - anything else, i.e. a deck manifest → [PubkyPaths.loopkyTag], indexed as a generic resource
  *   (reachable from `/v0/stream/resources?app=loopky`).
  *
@@ -101,11 +101,6 @@ class TagRepositoryImpl(
         }
         Unit
     }
-
-    override suspend fun trending(): List<Tag> =
-        nexus.hotTags()
-            .getOrElse { emptyList() }
-            .map { Tag(it.label) }
 
     override suspend fun trendingDeckTags(sampleSize: Int, limit: Int): List<Tag> {
         val resources = nexus.resourcesByTag(ReservedTags.DECK.value, sampleSize)

@@ -215,28 +215,6 @@ class TagRepositoryImplTest {
 
     // ── trending ─────────────────────────────────────────────────────────
 
-    @Test
-    fun trendingMapsNexusHotTags() = runTest {
-        http.respond(
-            "$NEXUS_BASE/v0/tags/hot?limit=20",
-            """
-            [
-              {"label":"spanish","taggers_id":["pk1"],"tagged_count":12,"taggers_count":4},
-              {"label":"biology"}
-            ]
-            """.trimIndent(),
-        )
-
-        assertEquals(listOf(Tag("spanish"), Tag("biology")), repo.trending())
-    }
-
-    @Test
-    fun trendingReturnsEmptyListOnHttpFailure() = runTest {
-        http.fail("$NEXUS_BASE/v0/tags/hot?limit=20", HttpError(statusCode = 500, message = "boom"))
-
-        assertEquals(emptyList(), repo.trending())
-    }
-
     // ── deck topics (client-side aggregation) ────────────────────────────
 
     /**
