@@ -69,7 +69,7 @@ fun BulkImportRoute(
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
-                is BulkImportEffect.Continue -> currentContinue()
+                BulkImportEffect.Continue -> currentContinue()
                 BulkImportEffect.NavigateBack -> currentBack()
             }
         }

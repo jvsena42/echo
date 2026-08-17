@@ -54,6 +54,36 @@ class PublishDeckViewModelTest {
         mediaRepository = mediaRepo,
     )
 
+    // ── title prefill ────────────────────────────────────────────────────
+
+    @Test
+    fun aFileImportOpensWithTheTitleItAlreadyKnows() = runTest {
+        // The file name — or better, the .apkg's own deck name — reached the draft and was then
+        // thrown away, leaving the user to retype something the import already had.
+        importRepo.draft = testDraft("hola" to "hello").copy(suggestedTitle = "Japanese Core 2000")
+
+        val vm = viewModel()
+
+        assertEquals(expected = "Japanese Core 2000", actual = vm.state.value.title)
+        assertNull(vm.state.value.titleError)
+    }
+
+    @Test
+    fun aSuggestedTitleStaysEditable() = runTest {
+        importRepo.draft = testDraft("hola" to "hello").copy(suggestedTitle = "Anki Export")
+        val vm = viewModel()
+
+        vm.onTitleChanged("Spanish Basics")
+
+        assertEquals(expected = "Spanish Basics", actual = vm.state.value.title)
+    }
+
+    @Test
+    fun aPasteStillOpensWithAnEmptyTitle() = runTest {
+        // There is nothing to guess a title from, and inventing one is worse than a blank field.
+        assertEquals(expected = "", actual = viewModel().state.value.title)
+    }
+
     // ── validation ───────────────────────────────────────────────────────
 
     @Test

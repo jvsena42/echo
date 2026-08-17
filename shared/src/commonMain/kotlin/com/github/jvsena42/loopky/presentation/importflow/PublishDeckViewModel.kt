@@ -50,7 +50,15 @@ class PublishDeckViewModel(
         val draft = importRepository.currentDraft()
         if (draft != null) {
             val kept = importRepository.keptRows().size
-            _state.update { it.copy(cardCount = kept, discardedCount = draft.rows.size - kept) }
+            _state.update {
+                it.copy(
+                    // A file import knows a good title — the .apkg's deck name, else the file it
+                    // came from — and used to throw it away. A paste has none, so this stays "".
+                    title = draft.suggestedTitle.orEmpty(),
+                    cardCount = kept,
+                    discardedCount = draft.rows.size - kept,
+                )
+            }
         }
     }
 
@@ -321,7 +329,8 @@ class PublishDeckViewModel(
         private const val TAG = "Loopky/PublishVM"
         private const val UNDO_WINDOW_SECONDS = 10
         private const val COUNTDOWN_TICK_MS = 1_000L
-        private const val TITLE_MAX_LENGTH = 120
+        /** Internal so a prefilled title can be capped to it rather than duplicating the number. */
+        internal const val TITLE_MAX_LENGTH = 120
         private const val DESCRIPTION_MAX_LENGTH = 500
 
         private fun generateId(): String {

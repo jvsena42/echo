@@ -193,8 +193,19 @@ interface ImportRepository {
      * business going through the paste box.
      *
      * The result skips swipe-triage in favour of a summary screen; nobody swipes 20,000 cards.
+     * Rows missing a front or a back are discarded rather than kept, since there is no triage step
+     * to fix them in and `publish` rejects an empty side.
+     *
+     * [suggestedTitle] prefills the commit screen. It lands on the draft rather than travelling as
+     * a nav argument because every other part of this handoff — rows, decisions, row images —
+     * already flows through this repository. [parse] takes none, which is what keeps a paste's
+     * title empty by construction.
      */
-    suspend fun parseBulk(rawText: String, separator: Separator? = null): Result<ImportDraft>
+    suspend fun parseBulk(
+        rawText: String,
+        separator: Separator? = null,
+        suggestedTitle: String? = null,
+    ): Result<ImportDraft>
 
     /** Per-row keep/discard decisions made during triage (default [TriageDecision.Keep]). */
     fun decisions(): Map<Int, TriageDecision>

@@ -39,7 +39,7 @@ class BulkImportViewModel(
 
     /** [fileName] is shown as the default deck name; [text] is the file's contents. */
     fun onFileLoaded(fileName: String, text: String) {
-        startParse(fileName) { Result.success(text) }
+        startParse(fileName) { Result.success(LoadedFile(text)) }
     }
 
     /**
@@ -49,16 +49,21 @@ class BulkImportViewModel(
      */
     fun onApkgLoaded(fileName: String, bytes: ByteArray) {
         startParse(fileName) {
-            ApkgReader.readNotes(bytes).map { it.text }
+            ApkgReader.readNotes(bytes).map { LoadedFile(it.text, it.deckName) }
         }
     }
 
-    private fun startParse(fileName: String, load: suspend () -> Result<String>) {
+    private fun startParse(fileName: String, load: suspend () -> Result<LoadedFile>) {
         parseJob?.cancel()
         parseJob = viewModelScope.launch {
             _state.update { BulkImportUiState.Parsing(fileName) }
             load()
-                .mapCatching { text -> importRepository.parseBulk(text).getOrThrow() }
+                .mapCatching { loaded ->
+                    importRepository.parseBulk(
+                        rawText = loaded.text,
+                        suggestedTitle = suggestedTitleFor(loaded.deckName, fileName),
+                    ).getOrThrow()
+                }
                 .onSuccess { draft ->
                     // Both counts come off keptRows() so the summary and what actually publishes
                     // agree by construction. Computing "skipped" independently is how they came
@@ -92,14 +97,33 @@ class BulkImportViewModel(
         }
     }
 
+    /**
+     * The deck title to prefill the commit screen with.
+     *
+     * The `.apkg`'s own deck name wins over the file name: "Japanese Core 2000" is what the user
+     * calls this deck, "japanese_core_2000_step_01.apkg" is what their file manager calls it.
+     * Capped at [PublishDeckViewModel.TITLE_MAX_LENGTH] so the commit screen never opens with a
+     * validation error already showing.
+     */
+    internal fun suggestedTitleFor(deckName: String?, fileName: String): String? =
+        deckName?.trim()?.takeIf { it.isNotBlank() }?.take(PublishDeckViewModel.TITLE_MAX_LENGTH)
+            ?: fileName.substringBeforeLast('.')
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .split(' ')
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .takeIf { it.isNotBlank() }
+                ?.take(PublishDeckViewModel.TITLE_MAX_LENGTH)
+
     fun onFileReadFailed(message: String) {
         _state.update { BulkImportUiState.Error(message) }
     }
 
     /** One confirmation for the whole file — the point of the summary. */
     fun onConfirm() {
-        val ready = _state.value as? BulkImportUiState.Ready ?: return
-        viewModelScope.launch { _effects.emit(BulkImportEffect.Continue(ready.fileName)) }
+        _state.value as? BulkImportUiState.Ready ?: return
+        viewModelScope.launch { _effects.emit(BulkImportEffect.Continue) }
     }
 
     fun onCancel() {
@@ -139,9 +163,15 @@ sealed interface BulkImportUiState {
 
 data class SampleCard(val front: String, val back: String)
 
+/** What a picked file yielded: its text, plus the deck name if the source knew one. */
+private data class LoadedFile(val text: String, val deckName: String? = null)
+
 sealed interface BulkImportEffect {
-    /** Proceed to the shared commit screen, seeded with the file's name as the deck title. */
-    data class Continue(val suggestedTitle: String) : BulkImportEffect
+    /**
+     * Proceed to the shared commit screen. Carries no payload: the suggested title travels on the
+     * draft, alongside every other part of this handoff.
+     */
+    data object Continue : BulkImportEffect
 
     data object NavigateBack : BulkImportEffect
 }

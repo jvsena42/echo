@@ -419,8 +419,14 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
     override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
         draft?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no draft"))
 
-    override suspend fun parseBulk(rawText: String, separator: Separator?): Result<ImportDraft> =
-        parse(rawText, separator)
+    override suspend fun parseBulk(
+        rawText: String,
+        separator: Separator?,
+        suggestedTitle: String?,
+    ): Result<ImportDraft> =
+        parse(rawText, separator).map { draft ->
+            draft.copy(suggestedTitle = suggestedTitle).also { this.draft = it }
+        }
 
     override fun decisions(): Map<Int, TriageDecision> = triageDecisions.toMap()
 

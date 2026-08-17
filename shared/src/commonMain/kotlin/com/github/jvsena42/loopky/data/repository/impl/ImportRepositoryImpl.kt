@@ -57,9 +57,18 @@ class ImportRepositoryImpl : ImportRepository {
         return row.copy(fields = fields, isValid = front.isNotBlank() || back.isNotBlank())
     }
 
-    override suspend fun parseBulk(rawText: String, separator: Separator?): Result<ImportDraft> =
-        parseInternal(rawText, separator, maxChars = MAX_BULK_CHARS, maxCards = MAX_BULK_CARDS)
-            .onSuccess { discardIncompleteRows(it) }
+    override suspend fun parseBulk(
+        rawText: String,
+        separator: Separator?,
+        suggestedTitle: String?,
+    ): Result<ImportDraft> =
+        parseInternal(
+            rawText,
+            separator,
+            maxChars = MAX_BULK_CHARS,
+            maxCards = MAX_BULK_CARDS,
+            suggestedTitle = suggestedTitle,
+        ).onSuccess { discardIncompleteRows(it) }
 
     /**
      * Bulk import has no triage step, so a row missing a front or a back has nowhere to be fixed —
@@ -89,6 +98,7 @@ class ImportRepositoryImpl : ImportRepository {
         separator: Separator?,
         maxChars: Int,
         maxCards: Int,
+        suggestedTitle: String? = null,
     ): Result<ImportDraft> = runCatching {
         // A fresh parse invalidates any prior triage decisions/edits.
         triageDecisions.clear()
@@ -130,6 +140,7 @@ class ImportRepositoryImpl : ImportRepository {
             rows = deduped,
             duplicatesCollapsed = duplicatesCollapsed,
             truncated = truncated,
+            suggestedTitle = suggestedTitle,
         ).also { draft = it }
     }
 
