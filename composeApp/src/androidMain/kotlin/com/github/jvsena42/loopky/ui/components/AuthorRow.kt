@@ -37,7 +37,12 @@ fun AuthorRow(
     isFollowing: Boolean = false,
     /** Disables + dims the pill while a follow/unfollow request is in flight. */
     isFollowPending: Boolean = false,
-    onFollowClick: () -> Unit = {},
+    /**
+     * Follows/unfollows this person. Null means no pill at all: a screen that cannot act on a
+     * follow must not draw a button that looks like it can, and every caller left this defaulted
+     * to an empty lambda, so the pill was drawn everywhere and worked nowhere.
+     */
+    onFollowClick: (() -> Unit)? = null,
     /** Opens this person's profile. Left null where there is nowhere to go — the row stays inert. */
     onNameClick: (() -> Unit)? = null,
 ) {
@@ -87,8 +92,8 @@ fun AuthorRow(
             )
         }
 
-        // Follow button — hidden for your own deck.
-        if (!isOwned) {
+        // Follow button — hidden for your own deck, and wherever the screen cannot act on it.
+        if (!isOwned && onFollowClick != null) {
             Spacer(modifier = Modifier.width(10.dp))
             Box(
                 modifier = Modifier
