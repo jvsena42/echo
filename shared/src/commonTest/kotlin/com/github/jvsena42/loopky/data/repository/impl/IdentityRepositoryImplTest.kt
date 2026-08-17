@@ -152,6 +152,20 @@ class IdentityRepositoryImplTest {
     }
 
     @Test
+    fun updatingTheProfileKeepsAPictureTheSessionNeverLearnedAbout() = runTest {
+        // Sign-in only enriches the session when the profile has a name or a bio, so an account
+        // with a picture and neither reaches updateProfile with avatarUrl = null. Echoing that
+        // back used to erase the avatar the first time the user renamed themselves.
+        val image = "pubky://$TEST_PUBKY/pub/pubky.app/files/0035JHD6154X0"
+        pubky.store[PubkyPaths.profile(TEST_PUBKY)] = """{"name":null,"bio":null,"image":"$image"}"""
+
+        val updated = repo.updateProfile(name = "Ada Lovelace", bio = null).getOrThrow()
+
+        assertEquals(image, updated.avatarUrl)
+        assertEquals(image, repo.fetchProfile(TEST_PUBKY, forceRefresh = true).getOrThrow().avatarUrl)
+    }
+
+    @Test
     fun signingOutForgetsCachedProfiles() = runTest {
         publishProfile("Ada")
         repo.fetchProfile(TEST_PUBKY)
