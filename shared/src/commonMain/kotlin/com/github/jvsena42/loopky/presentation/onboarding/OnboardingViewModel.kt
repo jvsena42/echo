@@ -116,10 +116,6 @@ class OnboardingViewModel(
         _state.update { OnboardingUiState.Error(ErrorReason.RingNotInstalled) }
     }
 
-    fun onRetry() {
-        _state.update { OnboardingUiState.Idle }
-    }
-
     companion object {
         private const val TAG = "Loopky/OnboardingVM"
         private const val PUBKY_LOG_PREFIX_LEN = 8
