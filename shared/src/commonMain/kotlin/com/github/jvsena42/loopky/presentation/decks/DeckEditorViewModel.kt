@@ -15,6 +15,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.generateId
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -248,11 +249,6 @@ class DeckEditorViewModel(
 
     companion object {
         private const val TAG = "Loopky/DeckEditorVM"
-
-        private fun generateId(): String {
-            val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-            return (1..12).map { chars.random() }.joinToString("")
-        }
     }
 }
 

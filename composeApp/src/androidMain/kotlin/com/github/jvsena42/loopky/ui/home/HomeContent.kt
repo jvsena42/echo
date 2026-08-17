@@ -334,6 +334,7 @@ private fun HomeContentPreview() {
                         DeckSummary(
                             id = "1",
                             title = "Spanish Basics",
+                            authorPubky = "alex1xqz9",
                             cardCount = 60,
                             dueCount = 12,
                             coverInitial = 'S',
@@ -341,6 +342,7 @@ private fun HomeContentPreview() {
                         DeckSummary(
                             id = "2",
                             title = "Kanji N5",
+                            authorPubky = "friend1xqz9",
                             cardCount = 103,
                             dueCount = 8,
                             coverInitial = 'K',

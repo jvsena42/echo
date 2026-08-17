@@ -1,6 +1,11 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
+import com.github.jvsena42.loopky.data.pubky.CardChunkDto
 import com.github.jvsena42.loopky.data.pubky.SrsChunkDto
+import com.github.jvsena42.loopky.data.pubky.toDto
+import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.testing.CountingRevalidator
@@ -10,12 +15,14 @@ import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
+import com.github.jvsena42.loopky.testing.testDeckWithCards
 import com.github.jvsena42.loopky.util.epochMillis
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -161,6 +168,9 @@ class SrsRepositoryImplTest {
 
     @Test
     fun coldRepoReadsPersistedStateBackFromTheRecord() = runTest {
+        // The deck has to exist and be yours: review() now refuses a deck you neither own nor
+        // follow, so a test that graded a deck it never created was leaning on a missing check.
+        publishDeck("deck1", "c1")
         val state = SrsState(
             cardId = "c1",
             dueAt = 123_456L,
@@ -238,5 +248,89 @@ class SrsRepositoryImplTest {
         publishDeck("deck2", "c9")
 
         assertEquals(setOf("c1", "c9"), repo.dueToday().map { it.id }.toSet())
+    }
+
+    @Test
+    fun dueTodayIncludesFollowedDecks() = runTest {
+        publishDeck("mine", "c1")
+        val theirs = putRemoteDeck("friendpk", "theirs", listOf(testCard("t1", deckId = "theirs")))
+        deckRepo.followDeck(theirs).getOrThrow()
+
+        // A followed deck is studiable; owned-decks-only meant its cards could never come up.
+        assertEquals(setOf("c1", "t1"), repo.dueToday().map { it.id }.toSet())
+    }
+
+    @Test
+    fun reviewingAFollowedDeckWritesSrsStateUnderYourOwnPubky() = runTest {
+        val theirs = putRemoteDeck("friendpk", "theirs", listOf(testCard("t1", deckId = "theirs")))
+        deckRepo.followDeck(theirs).getOrThrow()
+        val card = repo.dueForDeck("theirs").single()
+
+        repo.review(card, SrsGrade.Good).getOrThrow()
+        repo.flush().getOrThrow()
+
+        // Your review state, on your homeserver, keyed by *their* pubky — never a write to a deck
+        // you cannot write.
+        assertTrue(
+            pubky.puts.any { it.first.startsWith("pubky://$TEST_PUBKY/pub/loopky/srs/friendpk/theirs/") },
+            "no SRS write under the follower's pubky: ${pubky.puts.map { it.first }}",
+        )
+        assertTrue(
+            pubky.puts.none { it.first.startsWith("pubky://friendpk/") },
+            "wrote to the author's homeserver: ${pubky.puts.map { it.first }}",
+        )
+    }
+
+    @Test
+    fun reviewIsRejectedForAForeignDeckYouHaveNotKept() = runTest {
+        val theirs = putRemoteDeck("friendpk", "theirs", listOf(testCard("t1", deckId = "theirs")))
+        // Reached from Discover and browsed, never followed.
+        deckRepo.fetchRemote("friendpk", "theirs").getOrThrow()
+        cardRepo.fetchByDeck(theirs).getOrThrow()
+        val card = cardRepo.listByDeck("theirs").single()
+
+        val result = repo.review(card, SrsGrade.Good)
+
+        assertTrue(result.isFailure, "graded a deck that was never kept")
+        assertTrue(
+            pubky.puts.none { it.first.contains("/srs/") },
+            "wrote review state anyway: ${pubky.puts.map { it.first }}",
+        )
+    }
+
+    @Test
+    fun reviewIsAllowedOnceTheDeckIsFollowed() = runTest {
+        val theirs = putRemoteDeck("friendpk", "theirs", listOf(testCard("t1", deckId = "theirs")))
+        deckRepo.followDeck(theirs).getOrThrow()
+        val card = repo.dueForDeck("theirs").single()
+
+        repo.review(card, SrsGrade.Good).getOrThrow()
+        repo.flush().getOrThrow()
+
+        assertTrue(pubky.puts.any { it.first.contains("/srs/friendpk/theirs/") })
+    }
+
+    @Test
+    fun dueTodayStillWorksWhenFollowedDecksAreUnreachable() = runTest {
+        publishDeck("mine", "c1")
+        val theirs = putRemoteDeck("friendpk", "theirs", listOf(testCard("t1", deckId = "theirs")))
+        deckRepo.followDeck(theirs).getOrThrow()
+        // The author's homeserver went away after the subscription was cached.
+        pubky.store.remove("pubky://friendpk/pub/loopky/decks/theirs/manifest.json")
+
+        assertEquals(setOf("c1"), repo.dueToday().map { it.id }.toSet())
+    }
+
+    /** A whole deck — manifest plus chunk records — on someone else's homeserver. */
+    private fun putRemoteDeck(author: String, deckId: String, cards: List<Card>): Deck {
+        val deck = testDeckWithCards(cards, id = deckId, authorPubky = author)
+        val root = "pubky://$author/pub/loopky/decks/$deckId"
+        pubky.store["$root/manifest.json"] = loopkyJson.encodeToString(deck.toDto())
+        cards.chunked(CHUNK_SIZE).forEachIndexed { n, batch ->
+            pubky.store["$root/cards/$n.json"] = loopkyJson.encodeToString(
+                CardChunkDto(deck_id = deckId, chunk = n, cards = batch.map { it.toDto() }),
+            )
+        }
+        return deck
     }
 }

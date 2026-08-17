@@ -19,16 +19,19 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -42,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -49,8 +53,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -73,6 +75,7 @@ import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.label
 import com.github.jvsena42.loopky.ui.util.shareText
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -88,6 +91,7 @@ fun DeckDetailRoute(
     onEditDeck: (String) -> Unit = {},
     onStudy: (String) -> Unit = {},
     onOpenTag: (String) -> Unit = {},
+    onOpenClone: (String) -> Unit = {},
 ) {
     val viewModel = koinViewModel<DeckDetailViewModel> { parametersOf(deckId, authorPubky) }
 
@@ -96,6 +100,7 @@ fun DeckDetailRoute(
     val currentEditDeck by rememberUpdatedState(onEditDeck)
     val currentStudy by rememberUpdatedState(onStudy)
     val currentOpenTag by rememberUpdatedState(onOpenTag)
+    val currentOpenClone by rememberUpdatedState(onOpenClone)
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -108,6 +113,7 @@ fun DeckDetailRoute(
                     chooserTitle = context.getString(R.string.share_deck_chooser_title),
                 )
                 DeckDetailEffect.Deleted -> currentBack()
+                is DeckDetailEffect.Cloned -> currentOpenClone(effect.deckId)
             }
         }
     }
@@ -123,6 +129,11 @@ fun DeckDetailRoute(
         onDeleteClick = viewModel::onDeleteDeck,
         onConfirmDelete = viewModel::onConfirmDelete,
         onDismissDelete = viewModel::onDismissDelete,
+        onToggleFollow = viewModel::onToggleFollow,
+        onCloneClick = viewModel::onCloneClick,
+        onConfirmClone = viewModel::onConfirmClone,
+        onDismissClone = viewModel::onDismissClone,
+        onDismissError = viewModel::onDismissError,
         onRetry = viewModel::onRefresh,
     )
 }
@@ -138,6 +149,11 @@ fun DeckDetailScreen(
     onDeleteClick: () -> Unit,
     onConfirmDelete: () -> Unit,
     onDismissDelete: () -> Unit,
+    onToggleFollow: () -> Unit,
+    onCloneClick: () -> Unit,
+    onConfirmClone: () -> Unit,
+    onDismissClone: () -> Unit,
+    onDismissError: () -> Unit,
     onRetry: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
@@ -216,6 +232,8 @@ fun DeckDetailScreen(
                 onStudyClick = onStudyClick,
                 onEditClick = onEditClick,
                 onDeleteClick = onDeleteClick,
+                onToggleFollow = onToggleFollow,
+                onCloneClick = onCloneClick,
             )
             if (state.showDeleteConfirm) {
                 DeleteDeckDialog(
@@ -224,13 +242,34 @@ fun DeckDetailScreen(
                     onDismiss = onDismissDelete,
                 )
             }
-            if (state.isDeleting) {
+            if (state.showCloneConfirm) {
+                CloneDeckDialog(
+                    deckTitle = state.title,
+                    cardCount = state.totalCards,
+                    onConfirm = onConfirmClone,
+                    onDismiss = onDismissClone,
+                )
+            }
+            // A failed follow or clone leaves the loaded deck on screen — there is nothing wrong
+            // with it, only with the write — so it reports in a dialog rather than an Error state.
+            state.errorReason?.let { reason ->
+                RecoverableErrorDialog(reason = reason, onDismiss = onDismissError)
+            }
+            if (state.isDeleting || state.isCloning) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(colors.surfacePrimary),
                 ) {
-                    LoopkyLoadingScreen(message = stringResource(R.string.deck_detail_deleting))
+                    LoopkyLoadingScreen(
+                        message = stringResource(
+                            if (state.isCloning) {
+                                R.string.deck_detail_cloning
+                            } else {
+                                R.string.deck_detail_deleting
+                            },
+                        ),
+                    )
                 }
             }
         }
@@ -247,35 +286,78 @@ private fun DeckDetailContent(
     onStudyClick: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    onToggleFollow: () -> Unit,
+    onCloneClick: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
 
     Scaffold(
         containerColor = colors.surfacePrimary,
         bottomBar = {
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                LoopkyPrimaryButton(
-                    label = if (state.isOwned) {
-                        stringResource(R.string.deck_detail_start_studying, state.dueCards)
-                    } else {
-                        stringResource(R.string.deck_detail_study_this_deck)
-                    },
-                    onClick = onStudyClick,
-                    modifier = Modifier.testTag("deck_study"),
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            tint = colors.foregroundOnAccent,
-                            modifier = Modifier.size(20.dp),
+                // Study is offered only for a deck you have kept. Grading a deck you are merely
+                // browsing would strand review state under something that never reaches your
+                // library or your due queue — progress you can neither see nor resume. Keeping the
+                // deck is what earns it, so Follow and Clone come first.
+                if (state.isOwned || state.isFollowing) {
+                    LoopkyPrimaryButton(
+                        label = if (state.isOwned) {
+                            stringResource(R.string.deck_detail_start_studying, state.dueCards)
+                        } else {
+                            stringResource(R.string.deck_detail_study_this_deck)
+                        },
+                        onClick = onStudyClick,
+                        modifier = Modifier.testTag("deck_study"),
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = colors.foregroundOnAccent,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        },
+                    )
+                }
+
+                // The two ways of keeping someone else's deck, side by side and equally weighted:
+                // they are genuinely different choices, not a primary and an afterthought, and
+                // burying Clone behind an unlabelled icon made it invisible.
+                if (!state.isOwned) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        FollowDeckButton(
+                            isFollowing = state.isFollowing,
+                            isPending = state.isFollowPending,
+                            onClick = onToggleFollow,
+                            modifier = Modifier.weight(1f),
                         )
-                    },
-                )
+                        LoopkyPrimaryButton(
+                            label = stringResource(R.string.deck_detail_clone),
+                            onClick = onCloneClick,
+                            enabled = !state.isCloning,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("deck_clone"),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    tint = colors.foregroundOnAccent,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            },
+                        )
+                    }
+                }
             }
         },
     ) { innerPadding ->
@@ -317,6 +399,18 @@ private fun DeckDetailContent(
 
                     // Title + Description
                     TitleSection(title = state.title, description = state.description)
+
+                    // Credit for a clone, so attribution lives on the copy and not only in the
+                    // manifest's `source` block.
+                    state.clonedFrom?.let { ClonedFromRow(author = it) }
+
+                    // Hidden at zero rather than shown as "0 following": the indexer returns
+                    // nothing when it is unreachable or has not caught up, and a confident zero
+                    // would be a lie in both cases.
+                    SocialCountsRow(
+                        followerCount = state.followerCount,
+                        clonedCount = state.clonedCount,
+                    )
 
                     // Author
                     AuthorRow(
@@ -493,41 +587,53 @@ private fun HeaderCircleButton(
     }
 }
 
+/**
+ * Follow/Following pill for a deck you don't own.
+ *
+ * Deliberately worded "Follow deck", not "Save": following and cloning are different actions with
+ * different owners and lifecycles, and one ambiguous verb for both is what #33 set out to remove.
+ * The alpha while pending matches [AuthorRow]'s author-follow pill — the same optimistic flip.
+ */
 @Composable
-private fun DeleteDeckDialog(deckTitle: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun FollowDeckButton(
+    isFollowing: Boolean,
+    isPending: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = LoopkyTheme.colors
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = colors.surfaceCard,
-        // AlertDialog renders in its own window, so the root's testTagsAsResourceId does not
-        // reach it — journeys/05 could not find `deck_delete_confirm` without this.
-        modifier = Modifier.semantics { testTagsAsResourceId = true },
-        title = {
-            Text(
-                text = stringResource(R.string.deck_detail_delete_dialog_title),
-                color = colors.foregroundPrimary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-            )
-        },
-        text = {
-            Text(
-                text = stringResource(R.string.deck_detail_delete_dialog_message, deckTitle),
-                color = colors.foregroundSecondary,
-                fontSize = 14.sp,
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm, modifier = Modifier.testTag("deck_delete_confirm")) {
-                Text(stringResource(R.string.deck_detail_delete_confirm), color = colors.danger)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.deck_detail_delete_cancel), color = colors.foregroundMuted)
-            }
-        },
-    )
+    // A Material Button rather than a hand-rolled Box: it sits next to LoopkyPrimaryButton, and a
+    // padded Box does not agree with Material's own button metrics — the two pills came out
+    // different heights. Same component, same shape, same type scale; only the tint differs, which
+    // is the native-first rule (brand tokens *on* the native component).
+    Button(
+        onClick = onClick,
+        modifier = modifier.testTag("deck_follow"),
+        enabled = !isPending,
+        shape = CircleShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isFollowing) colors.accentSecondarySoft else colors.accentSecondary,
+            contentColor = if (isFollowing) colors.accentSecondary else colors.foregroundOnAccent,
+            // Dimmed while the write is in flight, not greyed out: the state has already flipped
+            // optimistically, so it must still read as the state it is claiming.
+            disabledContainerColor = (
+                if (isFollowing) colors.accentSecondarySoft else colors.accentSecondary
+                ).copy(alpha = FOLLOW_PENDING_ALPHA),
+            disabledContentColor = (
+                if (isFollowing) colors.accentSecondary else colors.foregroundOnAccent
+                ).copy(alpha = FOLLOW_PENDING_ALPHA),
+        ),
+        contentPadding = ButtonDefaults.ContentPadding,
+    ) {
+        Text(
+            text = stringResource(
+                if (isFollowing) R.string.deck_detail_following else R.string.deck_detail_follow,
+            ),
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+    }
 }
 
 /**
@@ -667,6 +773,11 @@ private fun DeckDetailScreenPreview() {
             onDeleteClick = {},
             onConfirmDelete = {},
             onDismissDelete = {},
+            onToggleFollow = {},
+            onCloneClick = {},
+            onConfirmClone = {},
+            onDismissClone = {},
+            onDismissError = {},
             onRetry = {},
         )
     }
@@ -685,6 +796,9 @@ private fun DeckDetailEmptyCardsPreview() {
                 coverEmoji = "🇯🇵",
                 author = PubkyIdentity("zyxwvu987654abc", "Mei", avatarUrl = null, bio = null),
                 isOwned = false,
+                isFollowing = true,
+                followerCount = 12,
+                clonedCount = 3,
                 tags = listOf("japanese"),
                 totalCards = 0,
                 dueCards = 0,
@@ -698,7 +812,15 @@ private fun DeckDetailEmptyCardsPreview() {
             onDeleteClick = {},
             onConfirmDelete = {},
             onDismissDelete = {},
+            onToggleFollow = {},
+            onCloneClick = {},
+            onConfirmClone = {},
+            onDismissClone = {},
+            onDismissError = {},
             onRetry = {},
         )
     }
 }
+
+/** Matches AuthorRow's follow pill: dimmed while the write is in flight, not disabled-looking. */
+private const val FOLLOW_PENDING_ALPHA = 0.5f

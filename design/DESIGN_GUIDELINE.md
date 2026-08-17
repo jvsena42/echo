@@ -94,7 +94,7 @@ Designers should produce **two flows per key screen** (iOS and Android) where th
 Primary bottom navigation (4 tabs):
 
 1. **Study** (default landing) — today's review queue
-2. **Decks** — user's library of decks (own + saved)
+2. **Decks** — user's library of decks (own + followed + clones; the tile badges say which — see §6.4 and issue #33)
 3. **Discover** — browse by Pubky tags, see what friends published
 4. **Profile** — own profile, friends, settings
 
@@ -129,8 +129,11 @@ Each screen requires the following **states**: empty, loading, populated/success
 - Deck cover image, title, description, author (pubky identity)
 - Tag chips (Pubky tags) — tappable to discover similar decks
 - Card count, last studied, SRS stats
-- Primary CTA: **Study this deck**
-- Secondary: Edit (if owner), Share, Save/Bookmark, Follow author
+- Primary CTA: **Study this deck** — but only for a deck you own or follow. A deck you are merely browsing offers **Follow deck** and **Clone deck** instead: studying writes review state, and grading a deck you have not kept would strand progress under something that never reaches your library or your due queue.
+- Secondary: Edit + Delete (owner only), Share, and — on someone else's deck — **Follow deck** and **Clone**
+  - These are two deliberately different actions and must never collapse into one "Save" (issue #33). **Follow deck** stores a subscription: the author keeps it, you receive their updates, and it is read-only. **Clone** copies it under your pubky: you own it, you can edit it, and it never receives their later changes. Cloning confirms first and names the card count.
+  - "Follow deck" is the deck-level action; "Follow author" on the author row is the separate user-level one.
+  - A clone shows "Cloned from @author", and follower/clone counts appear when the indexer has them (hidden at zero — an unreachable indexer must not read as "nobody").
 - List or grid of cards inside the deck
 
 ### 6.5 Deck editor / card creation
@@ -170,7 +173,7 @@ Each screen requires the following **states**: empty, loading, populated/success
 Design these reusable components with all states (default, hover/pressed, disabled, loading, selected):
 
 - **Card** (study card — front, back, flip animation, swipe affordances)
-- **Deck tile** (cover image, title, tag chips, card count, author avatar)
+- **Deck tile** (cover image, title, tag chips, card count, author avatar, and a relation badge — YOU / FOLLOWING / CLONE, with an update dot on a followed deck the author has changed since you last opened it)
 - **Tag chip** (selected, unselected, with count, removable in editor)
 - **SRS rating button row** (Again / Hard / Good / Easy with interval labels)
 - **Friend row** (avatar, name, truncated pubky, follow button)

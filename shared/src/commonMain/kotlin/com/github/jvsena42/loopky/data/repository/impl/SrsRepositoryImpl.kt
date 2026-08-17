@@ -15,6 +15,7 @@ import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.domain.model.isDue
@@ -84,8 +85,24 @@ class SrsRepositoryImpl(
     )
     override val changes: SharedFlow<String> = _changes.asSharedFlow()
 
-    override suspend fun dueToday(): List<Card> =
-        deckRepository.listOwned().flatMap { dueForDeck(it.id) }
+    /**
+     * Followed decks count too (#33). Review state is already author-keyed and lands on your own
+     * homeserver whoever wrote the deck, so a followed deck needs no storage change to be studied —
+     * only to be reachable from here, which owned-decks-only made it not.
+     */
+    override suspend fun dueToday(): List<Card> = studiableDecks().flatMap { dueForDeck(it.id) }
+
+    /** Decks you can study: the ones you own plus the ones you follow. */
+    private suspend fun studiableDecks(): List<Deck> {
+        val owned = deckRepository.listOwned()
+        // A followed deck lives on someone else's homeserver, so listing it can fail on its own.
+        // That must cost you the followed decks, not your whole queue.
+        val followed = runSuspendCatching { deckRepository.listFollowed() }.getOrElse {
+            Log.e(TAG, "dueToday: followed decks unavailable — ${it.message}", it)
+            emptyList()
+        }
+        return (owned + followed).distinctBy { it.id }
+    }
 
     override suspend fun dueForDeck(deckId: String): List<Card> {
         val deck = deckRepository.sync(deckId)
@@ -116,11 +133,29 @@ class SrsRepositoryImpl(
         cacheLock.withLock { cache.entries.firstOrNull { it.key.cardId == cardId }?.value }
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> = runSuspendCatching {
+        require(isStudiable(card.deckId)) {
+            "Deck ${card.deckId} is neither owned nor followed — follow or clone it to study it"
+        }
         val author = authorFor(card.deckId)
         val current = stateOf(author, card.deckId, card.id)
         val next = current.review(card.id, grade, epochMillis())
         upsert(card.deckId, next).getOrThrow()
         next
+    }
+
+    /**
+     * Whether review state may be written for [deckId] at all: it has to be a deck you own or one
+     * you follow.
+     *
+     * Browsing someone else's deck from Discover is not keeping it, and grading it would strand
+     * review state under a deck that never appears in your library or your due queue — progress the
+     * user can neither see nor resume. Keeping the deck is the deliberate act that earns SRS state,
+     * so the UI offers Follow (or Clone) before Study, and this is the same rule at the repository.
+     */
+    private suspend fun isStudiable(deckId: String): Boolean {
+        val deck = deckRepository.getLocal(deckId) ?: return false
+        if (deck.authorPubky == session.current()?.identity?.pubky) return true
+        return runSuspendCatching { deckRepository.isFollowingDeck(deckId) }.getOrDefault(false)
     }
 
     override suspend fun upsert(deckId: String, state: SrsState): Result<Unit> = runSuspendCatching {

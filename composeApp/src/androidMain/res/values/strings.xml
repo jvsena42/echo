@@ -36,6 +36,10 @@
     <string name="decks_loading">Shuffling your decks…</string>
     <string name="decks_retry">Retry</string>
 
+    <!-- Deck tile -->
+    <string name="deck_tile_followed_badge">FOLLOWING</string>
+    <string name="deck_tile_cloned_badge">CLONE</string>
+
     <!-- Deck detail -->
     <string name="deck_detail_error_title">Something went wrong</string>
     <string name="deck_detail_retry">Retry</string>
@@ -53,6 +57,18 @@
     <string name="deck_detail_delete_confirm">Delete</string>
     <string name="deck_detail_delete_cancel">Cancel</string>
     <string name="deck_detail_in_your_library">IN YOUR LIBRARY</string>
+    <string name="deck_detail_follow">Follow deck</string>
+    <string name="deck_detail_following">Following</string>
+    <string name="deck_detail_clone">Clone deck</string>
+    <string name="deck_detail_cloning">Cloning deck…</string>
+    <string name="deck_detail_clone_dialog_title">Clone deck</string>
+    <string name="deck_detail_clone_dialog_message">“%1$s” and its %2$d cards will be copied to your homeserver as a deck you own and can edit. It won\'t receive the author\'s later changes.</string>
+    <string name="deck_detail_clone_confirm">Clone</string>
+    <string name="deck_detail_clone_cancel">Cancel</string>
+    <string name="deck_detail_cloned_from">Cloned from %1$s</string>
+    <string name="deck_detail_followers">%1$d following</string>
+    <string name="deck_detail_clones">%1$d clones</string>
+    <string name="deck_detail_dismiss_error">Dismiss</string>
     <string name="deck_detail_cards_heading">Cards</string>
     <string name="deck_detail_cards_empty_owned">No cards yet. Tap Edit to add your first one.</string>
     <string name="deck_detail_cards_empty_foreign">This deck doesn\'t have any cards yet.</string>

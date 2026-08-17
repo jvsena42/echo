@@ -1,11 +1,17 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.data.pubky.CardChunkDto
 import com.github.jvsena42.loopky.data.pubky.ManifestDto
 import com.github.jvsena42.loopky.data.pubky.PubkyError
+import com.github.jvsena42.loopky.data.pubky.SubscriptionDto
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.repository.PublishProgress
+import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
+import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckSource
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
@@ -16,6 +22,7 @@ import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
+import com.github.jvsena42.loopky.testing.testDeckWithCards
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
@@ -32,10 +39,11 @@ class DeckRepositoryImplTest {
     private val session = signedInProvider()
     private val revalidator = CountingRevalidator()
     private val tagRepo = RecordingTagRepository()
+    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
     private val repo = DeckRepositoryImpl(
         pubky = pubky,
         session = session,
-        cardRepo = CardRepositoryImpl(pubky, session, revalidator),
+        cardRepo = cardRepo,
         revalidator = revalidator,
         tagRepo = tagRepo,
     )
@@ -354,6 +362,26 @@ class DeckRepositoryImplTest {
     }
 
     @Test
+    fun syncResolvesTheAuthorFromTheCachedDeckNotTheSession() = runTest {
+        val cards = listOf(testCard("c1", deckId = "foreign"), testCard("c2", deckId = "foreign"))
+        putRemoteDeck(author = "friendpk", deckId = "foreign", cards = cards)
+        // Reaching a foreign deck warms the cache — that is what sync resolves the author from.
+        repo.fetchRemote("friendpk", "foreign").getOrThrow()
+        pubky.gets.clear()
+
+        val synced = repo.sync("foreign").getOrThrow()
+
+        assertEquals("friendpk", synced.authorPubky)
+        assertEquals(listOf("c1", "c2"), cardRepo.listByDeck("foreign").map { it.id })
+        // sync used to hardcode the session as the author, so it read pubky://ownerpk/… for a deck
+        // that lives on someone else's homeserver and always failed (#33 blocker 1).
+        assertTrue(
+            pubky.gets.none { it.startsWith("pubky://$TEST_PUBKY/") },
+            "sync read under the session author: ${pubky.gets}",
+        )
+    }
+
+    @Test
     fun syncDropsCardsTheDeckNoLongerContains() = runTest {
         val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
         val repoWithCards = DeckRepositoryImpl(pubky, session, cardRepo, revalidator, tagRepo)
@@ -371,6 +399,332 @@ class DeckRepositoryImplTest {
         repoWithCards.sync("deck1").getOrThrow()
 
         assertEquals(listOf("c1"), cardRepo.listByDeck("deck1").map { it.id })
+    }
+
+    // ── follow deck ──────────────────────────────────────────────────────
+
+    @Test
+    fun followDeckWritesTheSubscriptionRecordAndTheReservedTag() = runTest {
+        val deck = putRemoteDeck("friendpk", "foreign", listOf(testCard("c1", deckId = "foreign")))
+
+        repo.followDeck(deck).getOrThrow()
+
+        // On *your* homeserver, author-keyed so two authors' decks cannot collide.
+        val record = pubky.store.getValue(subscriptionUrl("friendpk", "foreign"))
+        val dto = loopkyJson.decodeFromString<SubscriptionDto>(record)
+        assertEquals("friendpk", dto.author_pubky)
+        assertEquals("foreign", dto.deck_id)
+        assertEquals(deck.pubkyUri.value, dto.deck_uri)
+        // Following from deck detail means you are looking at it — no phantom "updated" badge.
+        assertEquals(deck.updatedAt, dto.last_seen_updated_at)
+
+        assertTrue(repo.isFollowingDeck("foreign"))
+        // The reserved label is what makes "N people follow this" fall out of the indexer.
+        assertEquals(listOf(deck.pubkyUri to ReservedTags.FOLLOWED), tagRepo.putReservedTags)
+    }
+
+    @Test
+    fun unfollowDeckDeletesTheRecordAndNothingElse() = runTest {
+        val deck = putRemoteDeck("friendpk", "foreign", listOf(testCard("c1", deckId = "foreign")))
+        repo.followDeck(deck).getOrThrow()
+        pubky.deletes.clear()
+
+        repo.unfollowDeck("friendpk", "foreign").getOrThrow()
+
+        // Only the subscription. SRS state is yours, not the author's, and re-following must not
+        // reset your progress (Architecture.md §8.3).
+        assertEquals(listOf(subscriptionUrl("friendpk", "foreign")), pubky.deletes)
+        assertFalse(repo.isFollowingDeck("foreign"))
+        assertEquals(listOf(deck.pubkyUri to ReservedTags.FOLLOWED), tagRepo.removedReservedTags)
+    }
+
+    @Test
+    fun listFollowedReadsDecksFromTheirAuthorsHomeservers() = runTest {
+        val alpha = putRemoteDeck("friendpk", "alpha", listOf(testCard("a1", deckId = "alpha")))
+        val beta = putRemoteDeck("otherpk", "beta", listOf(testCard("b1", deckId = "beta")))
+        repo.followDeck(alpha).getOrThrow()
+        repo.followDeck(beta).getOrThrow()
+
+        val followed = repo.listFollowed()
+
+        assertEquals(listOf("alpha", "beta"), followed.map { it.id }.sorted())
+        assertEquals(listOf("friendpk", "otherpk"), followed.map { it.authorPubky }.sorted())
+    }
+
+    @Test
+    fun listFollowedDropsADeckItsAuthorDeleted() = runTest {
+        val alpha = putRemoteDeck("friendpk", "alpha", listOf(testCard("a1", deckId = "alpha")))
+        val gone = putRemoteDeck("otherpk", "gone", listOf(testCard("g1", deckId = "gone")))
+        repo.followDeck(alpha).getOrThrow()
+        repo.followDeck(gone).getOrThrow()
+        // The author deleted it; the subscription outlived the deck.
+        pubky.store.remove("pubky://otherpk/pub/loopky/decks/gone/manifest.json")
+
+        // One dead subscription must not empty the whole library.
+        assertEquals(listOf("alpha"), repo.listFollowed().map { it.id })
+    }
+
+    @Test
+    fun listFollowedThrowsWhenNothingCanBeRead() = runTest {
+        val alpha = putRemoteDeck("friendpk", "alpha", listOf(testCard("a1", deckId = "alpha")))
+        repo.followDeck(alpha).getOrThrow()
+        pubky.failGetWith = PubkyError("HTTP transport error: error sending request for url (...)")
+
+        // An unreachable homeserver must not read as "you follow nothing" — same rule as
+        // listByAuthor, and for the same reason.
+        assertFailsWith<PubkyError> { repo.listFollowed() }
+    }
+
+    @Test
+    fun listFollowedIsEmptyWhenNothingIsFollowed() = runTest {
+        assertEquals(emptyList(), repo.listFollowed())
+    }
+
+    @Test
+    fun syncResolvesTheAuthorFromTheSubscriptionOnAColdCache() = runTest {
+        val deck = putRemoteDeck("friendpk", "foreign", listOf(testCard("c1", deckId = "foreign")))
+        repo.followDeck(deck).getOrThrow()
+
+        // A fresh repo over the same store: the subscription is on the homeserver, nothing cached.
+        val coldCards = CardRepositoryImpl(pubky, session, revalidator)
+        val coldRepo = DeckRepositoryImpl(pubky, session, coldCards, revalidator, tagRepo)
+
+        val synced = coldRepo.sync("foreign").getOrThrow()
+
+        assertEquals("friendpk", synced.authorPubky)
+        assertEquals(listOf("c1"), coldCards.listByDeck("foreign").map { it.id })
+    }
+
+    @Test
+    fun markSeenClearsTheUpdateFlagWithoutTouchingTheDeck() = runTest {
+        val deck = putRemoteDeck("friendpk", "foreign", listOf(testCard("c1", deckId = "foreign")))
+        repo.followDeck(deck).getOrThrow()
+        // The author edited it after you followed.
+        val edited = deck.copy(updatedAt = deck.updatedAt + 1_000L)
+        putRemoteDeck("friendpk", "foreign", listOf(testCard("c1", deckId = "foreign")))
+        pubky.store["pubky://friendpk/pub/loopky/decks/foreign/manifest.json"] =
+            loopkyJson.encodeToString(edited.toDto())
+        repo.fetchRemote("friendpk", "foreign").getOrThrow()
+        assertTrue(repo.hasUpdate("foreign"))
+
+        repo.markSeen(edited)
+
+        assertFalse(repo.hasUpdate("foreign"))
+        // The record moved; the author's deck did not.
+        val dto = loopkyJson.decodeFromString<SubscriptionDto>(
+            pubky.store.getValue(subscriptionUrl("friendpk", "foreign")),
+        )
+        assertEquals(edited.updatedAt, dto.last_seen_updated_at)
+    }
+
+    @Test
+    fun hasUpdateIsFalseForADeckYouOwn() = runTest {
+        repo.publish(testDeck(id = "deck1"), listOf(testCard("c1"))).getOrThrow()
+
+        assertFalse(repo.hasUpdate("deck1"))
+    }
+
+    @Test
+    fun deleteRejectsADeckYouDoNotOwn() = runTest {
+        val deck = putRemoteDeck("friendpk", "foreign", listOf(testCard("c1", deckId = "foreign")))
+        repo.followDeck(deck).getOrThrow()
+        pubky.deletes.clear()
+
+        // Deleting used to build its sweep paths from the session, so this ranged over your own
+        // namespace looking for a deck that was never there.
+        assertTrue(repo.delete("foreign").isFailure)
+        assertEquals(emptyList(), pubky.deletes)
+        assertTrue("pubky://friendpk/pub/loopky/decks/foreign/manifest.json" in pubky.store)
+    }
+
+    @Test
+    fun updateMetadataRejectsADeckYouDoNotOwn() = runTest {
+        val deck = putRemoteDeck("friendpk", "foreign", listOf(testCard("c1", deckId = "foreign")))
+
+        assertTrue(repo.updateMetadata(deck.copy(title = "Hijacked")).isFailure)
+    }
+
+    @Test
+    fun deleteCardRejectsADeckYouDoNotOwn() = runTest {
+        putRemoteDeck("friendpk", "foreign", listOf(testCard("c1", deckId = "foreign")))
+
+        assertTrue(repo.deleteCard("foreign", "c1").isFailure)
+    }
+
+    private fun subscriptionUrl(author: String, deckId: String) =
+        "pubky://$TEST_PUBKY/pub/loopky/subscriptions/$author/$deckId.json"
+
+    // ── clone deck ───────────────────────────────────────────────────────
+
+    @Test
+    fun cloneProducesAnIndependentDeckUnderYourPubkyWithNewCardIds() = runTest {
+        val source = putRemoteDeck(
+            "friendpk",
+            "orig",
+            listOf(testCard("c1", deckId = "orig"), testCard("c2", deckId = "orig")),
+        )
+
+        val clone = repo.clone(source).getOrThrow()
+
+        assertEquals(TEST_PUBKY, clone.authorPubky)
+        assertTrue(clone.id != source.id, "the clone reused the source's deck id")
+        assertEquals(source.title, clone.title)
+        assertEquals(expected = 2, actual = clone.cardCount)
+
+        // New card ids are what stop grading the clone from moving the original's review state:
+        // SRS is keyed by (author, deck, card).
+        val cloned = cardRepo.listByDeck(clone.id)
+        assertEquals(expected = 2, actual = cloned.size)
+        assertTrue(cloned.none { it.id == "c1" || it.id == "c2" }, "card ids were reused")
+        assertEquals(cloned.map { it.id }.distinct().size, cloned.size)
+        assertEquals(listOf("front of c1", "front of c2"), cloned.map { it.front.text })
+        assertTrue(cloned.all { it.deckId == clone.id })
+
+        // Everything written lands under your own pubky; the source is untouched.
+        assertTrue(
+            pubky.puts.none { it.first.startsWith("pubky://friendpk/") },
+            "clone wrote to the author's homeserver: ${pubky.puts.map { it.first }}",
+        )
+    }
+
+    @Test
+    fun cloneRecordsProvenanceThatSurvivesAFetchRoundTrip() = runTest {
+        val source = putRemoteDeck("friendpk", "orig", listOf(testCard("c1", deckId = "orig")))
+
+        val clone = repo.clone(source).getOrThrow()
+
+        // Read it back off the homeserver rather than trusting the in-memory copy.
+        val refetched = DeckRepositoryImpl(
+            pubky,
+            session,
+            CardRepositoryImpl(pubky, session, revalidator),
+            revalidator,
+            tagRepo,
+        ).fetchRemote(TEST_PUBKY, clone.id).getOrThrow()
+
+        assertEquals(DeckSource.Kind.Clone, refetched.source?.kind)
+        assertEquals(source.pubkyUri.value, refetched.source?.uri)
+    }
+
+    @Test
+    fun clonePinsMediaToTheSourceRatherThanReUploadingIt() = runTest {
+        val sha = "abc123"
+        val card = testCard("c1", deckId = "orig").copy(
+            back = CardSide(
+                text = "back",
+                imageRef = MediaRef.Image(
+                    path = "media/$sha.jpg",
+                    mime = "image/jpeg",
+                    sha256 = sha,
+                    width = 10,
+                    height = 10,
+                ),
+            ),
+        )
+        val source = putRemoteDeck("friendpk", "orig", listOf(card))
+
+        val clone = repo.clone(source).getOrThrow()
+
+        // Clone-by-reference: the ref points at the author's blob, so cloning an Anki-sized deck
+        // costs card records and nothing else.
+        val ref = assertNotNull(cardRepo.listByDeck(clone.id).single().back.imageRef)
+        assertEquals("pubky://friendpk/pub/loopky/decks/orig/media/$sha.jpg", ref.uri)
+        assertTrue(pubky.bytePuts.isEmpty(), "clone re-uploaded blobs: ${pubky.bytePuts.map { it.first }}")
+    }
+
+    @Test
+    fun cloneCopiesARemoteImageRefVerbatim() = runTest {
+        val card = testCard("c1", deckId = "orig").copy(
+            front = CardSide(
+                text = "front",
+                // An Unsplash cover: re-hosting the bytes would breach their licence, and there is
+                // no blob to pin an origin to.
+                imageRef = MediaRef.Image(
+                    path = "",
+                    mime = "image/jpeg",
+                    sha256 = "",
+                    width = null,
+                    height = null,
+                    url = "https://images.unsplash.com/photo-1",
+                ),
+            ),
+        )
+        val source = putRemoteDeck("friendpk", "orig", listOf(card))
+
+        val clone = repo.clone(source).getOrThrow()
+
+        val ref = assertNotNull(cardRepo.listByDeck(clone.id).single().front.imageRef)
+        assertEquals("https://images.unsplash.com/photo-1", ref.url)
+        assertNull(ref.uri, "a remote image was pinned to a homeserver blob that doesn't exist")
+    }
+
+    @Test
+    fun cloningACloneKeepsTheFirstOriginRatherThanChaining() = runTest {
+        val sha = "abc123"
+        val alreadyPinned = MediaRef.Image(
+            path = "media/$sha.jpg",
+            mime = "image/jpeg",
+            sha256 = sha,
+            width = null,
+            height = null,
+            uri = "pubky://firstpk/pub/loopky/decks/first/media/$sha.jpg",
+        )
+        val card = testCard("c1", deckId = "orig")
+            .copy(back = CardSide(text = "back", imageRef = alreadyPinned))
+        val source = putRemoteDeck("friendpk", "orig", listOf(card))
+
+        val clone = repo.clone(source).getOrThrow()
+
+        // friendpk never hosted this blob either — pointing at them would break the chain.
+        val ref = assertNotNull(cardRepo.listByDeck(clone.id).single().back.imageRef)
+        assertEquals(alreadyPinned.uri, ref.uri)
+    }
+
+    @Test
+    fun cloneCreditsTheOriginalAuthorAndUnfollowsTheSource() = runTest {
+        val source = putRemoteDeck("friendpk", "orig", listOf(testCard("c1", deckId = "orig")))
+        repo.followDeck(source).getOrThrow()
+
+        val clone = repo.clone(source).getOrThrow()
+
+        // The loopky-cloned label goes on the *source*, so credit accrues to the original author.
+        assertTrue(source.pubkyUri to ReservedTags.CLONED in tagRepo.putReservedTags)
+        // You own a copy now, so tracking their edits on theirs is noise.
+        assertFalse(repo.isFollowingDeck("orig"))
+        assertTrue(subscriptionUrl("friendpk", "orig") in pubky.deletes)
+        assertTrue(repo.isFollowingDeck(clone.id).not())
+    }
+
+    @Test
+    fun editingACloneNeverTouchesTheOriginal() = runTest {
+        val source = putRemoteDeck("friendpk", "orig", listOf(testCard("c1", deckId = "orig")))
+        val clone = repo.clone(source).getOrThrow()
+        val cardId = cardRepo.listByDeck(clone.id).single().id
+        pubky.puts.clear()
+
+        repo.upsertCard(clone.id, testCard(cardId, deckId = clone.id, front = "edited")).getOrThrow()
+
+        assertTrue(
+            pubky.puts.none { it.first.startsWith("pubky://friendpk/") },
+            "editing the clone wrote to the original: ${pubky.puts.map { it.first }}",
+        )
+        // And the original's own records still read as they did.
+        val original = loopkyJson.decodeFromString<CardChunkDto>(
+            pubky.store.getValue("pubky://friendpk/pub/loopky/decks/orig/cards/0.json"),
+        )
+        assertEquals(listOf("front of c1"), original.cards.map { it.front.text })
+    }
+
+    @Test
+    fun cloningYourOwnDeckDuplicatesItRatherThanFailing() = runTest {
+        val mine = repo.publish(testDeck(id = "deck1"), listOf(testCard("c1"))).getOrThrow()
+
+        val clone = repo.clone(mine).getOrThrow()
+
+        assertTrue(clone.id != mine.id)
+        assertEquals(TEST_PUBKY, clone.authorPubky)
+        // Your own blobs, under your own deck — no origin to pin.
+        assertEquals(DeckSource.Kind.Clone, clone.source?.kind)
     }
 
     // ── single-card writes ───────────────────────────────────────────────
@@ -475,5 +829,18 @@ class DeckRepositoryImplTest {
         val dto = testDeck(id = deckId, authorPubky = author, title = title).toDto()
         pubky.store["pubky://$author/pub/loopky/decks/$deckId/manifest.json"] =
             loopkyJson.encodeToString(dto)
+    }
+
+    /** A whole deck — manifest plus chunk records — on someone else's homeserver. */
+    private fun putRemoteDeck(author: String, deckId: String, cards: List<Card>): Deck {
+        val deck = testDeckWithCards(cards, id = deckId, authorPubky = author)
+        val root = "pubky://$author/pub/loopky/decks/$deckId"
+        pubky.store["$root/manifest.json"] = loopkyJson.encodeToString(deck.toDto())
+        cards.chunked(CHUNK_SIZE).forEachIndexed { n, batch ->
+            pubky.store["$root/cards/$n.json"] = loopkyJson.encodeToString(
+                CardChunkDto(deck_id = deckId, chunk = n, cards = batch.map { it.toDto() }),
+            )
+        }
+        return deck
     }
 }

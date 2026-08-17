@@ -86,6 +86,7 @@ val sharedModule = module {
             identityRepository = get(),
             srsRepository = get(),
             mediaRepository = get(),
+            tagRepository = get(),
         )
     }
     viewModel { params -> StudySessionViewModel(deckId = params.getOrNull(), srsRepository = get(), deckRepository = get()) }

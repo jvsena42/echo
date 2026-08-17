@@ -99,11 +99,11 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 | Repository | Responsibilities | Backing |
 |---|---|---|
 | `IdentityRepository` | Current session, pubky, capabilities, `signInWithRing()` / `signOut()` (brief §9.1) | Pubky FFI + `SecureSessionStore` (KVault) |
-| `DeckRepository` | CRUD + `publishDeck(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule | Pubky FFI + in-memory cache |
+| `DeckRepository` | CRUD + `publishDeck(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule. Also owns **deck** following — `followDeck()` / `unfollowDeck()` / `listFollowed()` — and `clone()` (§8.0). Deck follows live here rather than on `DiscoveryRepository` because `listFollowed()` merges with `listOwned()` behind one `changes` flow, `sync()` resolves a followed deck's author from the subscription, and `DiscoveryRepositoryImpl` already depends on this repo | Pubky FFI + in-memory cache |
 | `CardRepository` | CRUD cards within a deck | Pubky FFI + in-memory cache |
 | `ImportRepository` | `parse(rawText, separator)` per spec §6/§7 (col 1 → front, col 2 → back, extras dropped — spec §8), `setDecision()` / `keptRows()` triage, in-memory drafts, dedupe | In-memory |
 | `TagRepository` | Read/write Pubky tags on any subject (deck or profile — brief §9.3); the reserved `loopky-*` index labels via `putReservedTag`; deck-topic (`trendingDeckTags`), tagged-subject and tagger-count reads via Nexus (§7.7) | Pubky FFI + Nexus REST |
-| `DiscoveryRepository` | Decks by followed users, `followUser()` / `unfollowUser()` (brief §9.4), plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
+| `DiscoveryRepository` | Decks by followed **users**, `followUser()` / `unfollowUser()` (brief §9.4) — deck-level following is on `DeckRepository`, plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
 | `SrsRepository` | Per-card SRS state, today's due queue, `reviewCard(cardId, grade)` | In-memory (v1) |
 | `MediaRepository` | Image + audio blob storage for cards | Pubky FFI (blobs) + platform file I/O |
 
@@ -371,11 +371,13 @@ Cards are batched rather than stored one record per card, and the manifest carri
 /pub/loopky/decks/{deckId}/cards/{n}.json     — up to CHUNK_SIZE cards per record
 /pub/loopky/decks/{deckId}/media/{sha256}.{ext}
 /pub/loopky/srs/{authorPubky}/{deckId}/{cardId}.json   — your review state (see §8.3)
+/pub/loopky/subscriptions/{authorPubky}/{deckId}.json  — a deck you follow (see below)
 ```
 
 - `{deckId}` and `{cardId}` are UUIDv4, generated client-side.
 - `{n}` is the chunk ordinal, `0`-based and sequential.
 - SRS records live **outside** `/decks/` and are keyed by the deck's author: your review state for someone else's deck was never the owner's data. Author-scoping also stops two authors whose decks share a `deckId` colliding in your `srs/` tree. *(The move to author-scoped, chunked SRS is #43 §2; the path above is the target, and `PubkyPaths.srs` still writes the deck-nested form today.)*
+- Subscriptions live on the **follower's** homeserver, author-keyed for the same reason SRS is. A record's *existence* means "I follow this deck"; see the schema below.
 - `{sha256}` is the hex digest of the blob; acts as a content address and enables per-deck dedupe.
 - `.ext` is informational; MIME is carried in the card's media ref.
 
@@ -457,6 +459,27 @@ Each entry in `cards[]`:
 - A side must have at least one populated field; enforced in `DeckRepository.publish()`.
 - **Cards carry no tags.** Tags are deck-level and live in `manifest.json`; there is no per-card tag field and no plan for one in v1 (spec §8).
 - Media refs are relative to the deck path and resolved against `/pub/loopky/decks/{deckId}/`.
+
+**`subscriptions/{authorPubky}/{deckId}.json`** — following someone else's deck (#33):
+
+```json
+{
+  "schema_version": 1,
+  "deck_uri": "pubky://pk:other/pub/loopky/decks/uuid/manifest.json",
+  "author_pubky": "pk:other",
+  "deck_id": "uuid",
+  "followed_at": 1739000000000,
+  "last_seen_updated_at": 1739000500000
+}
+```
+
+- The relationship is carried by the record's **existence**, like a pubky.app follow. It lives on the *follower's* homeserver, so listing your subscriptions is one `list()` on `subscriptions/`.
+- Loopky's own namespace, not pubky.app's: a follow there means "I follow this *user*", and there is no ecosystem primitive for following a single deck.
+- `author_pubky` is the load-bearing field. `DeckRepository.sync` reads the manifest from the **owner's** homeserver, which it cannot locate from a deck id alone — this is what makes a followed deck syncable.
+- `last_seen_updated_at` is the manifest `updated_at` at the last open, so the library can tell "the author published changes" from "you have already seen them". `0` until first open.
+- **Keeping a deck is what earns review state.** `SrsRepository.review` rejects a deck you neither own nor follow, and deck detail offers Follow / Clone in place of Study for one you are only browsing. Otherwise grading from Discover would write SRS records under a deck absent from both the library and the due queue — progress the user can neither see nor resume.
+- Following writes `loopky-followed` on the deck's manifest, so "N people follow this" falls out of the indexer's tagger count (§7.7). Unfollowing removes the record and that label — **and nothing else**: review state is yours, not the author's, and re-following must not reset your progress (§8.3).
+- **Cloning is the other half of #33 and stores nothing here.** A clone is a full copy under your own pubky with a new `deck_id`, new card ids, and `source.kind = "clone"`; it never receives the original's updates. New card ids are what keep SRS state from bleeding between an original and its copy. Card media is copied **by reference** — each ref keeps the source author's blob in `uri` rather than re-uploading it, so cloning an Anki-sized deck costs card records rather than hundreds of MB. `MediaRepository.rehost` can later copy a blob under the clone's own path; because refs are content-addressed the digest is unchanged, so the swap is invisible. *(Nothing calls `rehost` yet — a clone stays dependent on the original's blobs until it does.)*
 
 **Sync algorithm (client side):**
 
@@ -553,7 +576,7 @@ yet persisted; add multiplatform-settings only if/when one is needed, and never 
 - **Published decks:** Pubky homeserver is canonical. An in-memory per-session cache holds the last
   fetched copy; nothing is persisted to disk in v1.
 - **Study progress (SRS):** Pubky-backed and canonical, under `/pub/loopky/srs/{authorPubky}/{deckId}/` — **on your own homeserver, for any deck, including decks you do not own**. An in-memory session cache fronts it. *(This row previously read "in-memory in v1; not synced to Pubky", which had been untrue since `SrsStateDto` landed.)*
-- **Decks you follow but do not own:** the owner's homeserver is canonical for the deck content (manifest, chunks, media) — you cannot write it. Your own homeserver is canonical for your review state over it. Unfollowing removes the subscription, not the SRS state.
+- **Decks you follow but do not own:** the owner's homeserver is canonical for the deck content (manifest, chunks, media) — you cannot write it, and every `DeckRepository` write is ownership-checked. Your own homeserver is canonical for your review state over it, and for the subscription record itself (`/pub/loopky/subscriptions/{authorPubky}/{deckId}.json`, §8.0). Unfollowing removes the subscription, not the SRS state.
 - **Import drafts:** in-memory only — each paste is a fresh canvas (spec §4 story 5).
 - **Private decks:** out of scope for v1 (spec §11). If spec §13 Q1 flips, local-only decks would need
   a persistent store (the §8.1 SQLDelight sketch) with `pubky_uri = NULL`.

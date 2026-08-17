@@ -52,7 +52,8 @@ fun MainScreen(
         ) { page ->
             when (LoopkyTab.entries[page]) {
                 LoopkyTab.STUDY -> HomeRoute(
-                    onOpenDeck = { deckId -> onNavigateDeckDetail(deckId, null) },
+                    // The author travels with the id so a followed deck resolves on a cold cache.
+                    onOpenDeck = onNavigateDeckDetail,
                     onCreateDeck = onNavigateCreateDeck,
                     onBrowseExamples = {
                         scope.launch { pagerState.animateScrollToPage(LoopkyTab.DISCOVER.ordinal) }
@@ -61,7 +62,7 @@ fun MainScreen(
                     onSignedOut = onSignOut,
                 )
                 LoopkyTab.DECKS -> DecksRoute(
-                    onDeckClick = { deckId -> onNavigateDeckDetail(deckId, null) },
+                    onDeckClick = onNavigateDeckDetail,
                     onImportClick = onNavigateImport,
                     onImportFileClick = onNavigateImportFile,
                     onCreateDeckClick = onNavigateCreateDeck,

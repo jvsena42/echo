@@ -13,6 +13,7 @@ import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.MediaRef
@@ -103,10 +104,10 @@ class FakeDeckRepository : DeckRepository {
     /** When set, [publish] blocks on it, so a test can act while the upload is still in flight. */
     var publishGate: CompletableDeferred<Unit>? = null
 
-    override suspend fun getLocal(id: String): Deck? = decks[id]
+    override suspend fun getLocal(id: String): Deck? = decks[id] ?: followedDecks[id]
 
     override suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck> =
-        decks[deckId]?.let { Result.success(it) }
+        getLocal(deckId)?.let { Result.success(it) }
             ?: Result.failure(IllegalStateException("deck $deckId not found"))
 
     override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> =
@@ -179,6 +180,66 @@ class FakeDeckRepository : DeckRepository {
         decks[deckId] = updated
         _changes.tryEmit(Unit)
         return Result.success(updated)
+    }
+
+    // ── Follow deck (#33) ────────────────────────────────────────────────
+
+    /** Decks followed rather than owned. Kept apart from [decks] so a test can tell them apart. */
+    val followedDecks = mutableMapOf<String, Deck>()
+    val seen = mutableListOf<String>()
+    var followError: Throwable? = null
+    var listFollowedError: Throwable? = null
+
+    /** Deck ids whose author has published changes since they were last opened. */
+    val updatedDecks = mutableSetOf<String>()
+
+    override suspend fun followDeck(deck: Deck): Result<Unit> {
+        followError?.let { return Result.failure(it) }
+        followedDecks[deck.id] = deck
+        _changes.tryEmit(Unit)
+        return Result.success(Unit)
+    }
+
+    override suspend fun unfollowDeck(authorPubky: String, deckId: String): Result<Unit> {
+        followError?.let { return Result.failure(it) }
+        followedDecks.remove(deckId)
+        _changes.tryEmit(Unit)
+        return Result.success(Unit)
+    }
+
+    override suspend fun isFollowingDeck(deckId: String): Boolean = deckId in followedDecks
+
+    override suspend fun listFollowed(): List<Deck> {
+        listFollowedError?.let { throw it }
+        return followedDecks.values.toList()
+    }
+
+    override suspend fun hasUpdate(deckId: String): Boolean = deckId in updatedDecks
+
+    override suspend fun markSeen(deck: Deck) {
+        seen.add(deck.id)
+        updatedDecks.remove(deck.id)
+    }
+
+    val cloned = mutableListOf<Deck>()
+    var cloneError: Throwable? = null
+
+    /** Held open so a test can act while a clone is still in flight. */
+    var cloneGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun clone(source: Deck): Result<Deck> {
+        cloneError?.let { return Result.failure(it) }
+        cloneGate?.await()
+        cloned.add(source)
+        val copy = source.copy(
+            id = "clone-of-${source.id}",
+            authorPubky = TEST_PUBKY,
+            source = DeckSource(kind = DeckSource.Kind.Clone, uri = source.pubkyUri.value),
+        )
+        decks[copy.id] = copy
+        followedDecks.remove(source.id)
+        _changes.tryEmit(Unit)
+        return Result.success(copy)
     }
 }
 

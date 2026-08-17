@@ -46,7 +46,7 @@ fun HomeRoute(
     onCreateDeck: () -> Unit = {},
     onBrowseExamples: () -> Unit = {},
     onStartStudy: () -> Unit = {},
-    onOpenDeck: (String) -> Unit = {},
+    onOpenDeck: (String, String?) -> Unit = { _, _ -> },
     onSignedOut: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<HomeViewModel>()
@@ -63,7 +63,7 @@ fun HomeRoute(
                 HomeEffect.NavigateCreateDeck -> currentCreate()
                 HomeEffect.NavigateBrowseExamples -> currentBrowse()
                 HomeEffect.NavigateStartStudy -> currentStart()
-                is HomeEffect.NavigateDeck -> currentOpen(effect.deckId)
+                is HomeEffect.NavigateDeck -> currentOpen(effect.deckId, effect.authorPubky)
                 HomeEffect.NavigateToOnboarding -> currentSignedOut()
             }
         }
@@ -232,6 +232,7 @@ private fun HomeScreenPreview() {
                     DeckSummary(
                         id = "1",
                         title = "Spanish Basics",
+                        authorPubky = "alex1xqz9",
                         cardCount = 60,
                         dueCount = 12,
                         coverInitial = 'S',
@@ -239,6 +240,7 @@ private fun HomeScreenPreview() {
                     DeckSummary(
                         id = "2",
                         title = "Kanji N5",
+                        authorPubky = "friend1xqz9",
                         cardCount = 103,
                         dueCount = 8,
                         coverInitial = 'K',
