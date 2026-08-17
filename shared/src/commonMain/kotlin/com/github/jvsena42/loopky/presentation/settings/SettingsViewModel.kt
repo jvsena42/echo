@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,14 +40,14 @@ class SettingsViewModel(
             Log.d(TAG, "load: fetching session")
             _state.update { it.copy(isLoading = true) }
 
-            val session = runCatching { identityRepository.currentSession() }.getOrNull()
-                ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
+            val session = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+                ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
 
             // Pubky Ring's session payload carries no `homeserver` field, so this was always
             // blank and Settings permanently showed "Unknown". Resolve it from the pkarr record.
             val homeserver = session?.homeserver?.takeIf { it.isNotBlank() }
                 ?: session?.identity?.pubky?.let { pubky ->
-                    runCatching { pubkyClient.getHomeserver(pubky).getOrNull() }.getOrNull()
+                    runSuspendCatching { pubkyClient.getHomeserver(pubky).getOrNull() }.getOrNull()
                 }
 
             _state.update {

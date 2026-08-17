@@ -15,6 +15,7 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,8 +69,8 @@ class DeckDetailViewModel(
             Log.d(TAG, "load: deckId=$deckId (silent=$silent)")
             if (!silent) _state.update { DeckDetailUiState.Loading }
 
-            val session = runCatching { identityRepository.currentSession() }.getOrNull()
-                ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
+            val session = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+                ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
 
             var deck = deckRepository.getLocal(deckId)
             if (deck == null && authorPubky != null) {
@@ -87,9 +88,9 @@ class DeckDetailViewModel(
 
             // Must be a fetch, not a cache read: nothing has loaded this deck's cards yet on a
             // cold launch, and for a deck you don't own nothing ever will.
-            runCatching { cardRepository.fetchByDeck(deck).getOrThrow().inStudyOrder() }
+            runSuspendCatching { cardRepository.fetchByDeck(deck).getOrThrow().inStudyOrder() }
                 .onSuccess { cards ->
-                    val dueCount = runCatching { srsRepository.dueForDeck(deckId).size }
+                    val dueCount = runSuspendCatching { srsRepository.dueForDeck(deckId).size }
                         .getOrDefault(0)
                     val mastered = masteredPercent(cards)
                     _state.update { deck.toContent(cards, session?.identity, dueCount, mastered) }
@@ -155,7 +156,7 @@ class DeckDetailViewModel(
     private suspend fun masteredPercent(cards: List<Card>): String {
         if (cards.isEmpty()) return "—"
         val mastered = cards.count { card ->
-            val state = runCatching { srsRepository.stateFor(card.id) }.getOrNull()
+            val state = runSuspendCatching { srsRepository.stateFor(card.id) }.getOrNull()
             state != null && state.intervalDays >= MATURE_INTERVAL_DAYS
         }
         return "${mastered * PERCENT / cards.size}%"

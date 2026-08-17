@@ -19,6 +19,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -136,8 +137,8 @@ class PublishDeckViewModel(
             }
             Log.d(TAG, "publish: title=${s.title}, cards=${importRepository.keptRows().size}")
 
-            val session = runCatching { identityRepository.currentSession() }.getOrNull()
-                ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
+            val session = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+                ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
             val authorPubky = session?.identity?.pubky ?: run {
                 _state.update { it.copy(isPublishing = false, error = "Not signed in.") }
                 return@launch

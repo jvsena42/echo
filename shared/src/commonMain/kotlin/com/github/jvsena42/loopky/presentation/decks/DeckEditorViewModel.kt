@@ -15,6 +15,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -184,8 +185,8 @@ class DeckEditorViewModel(
             _state.update { it.copy(isSaving = true, error = null) }
             Log.d(TAG, "save: title=${s.title}, cards=${s.cards.size}")
 
-            val session = runCatching { identityRepository.currentSession() }.getOrNull()
-                ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
+            val session = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+                ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
             val authorPubky = session?.identity?.pubky ?: run {
                 _state.update { it.copy(isSaving = false, error = "Not signed in.") }
                 return@launch

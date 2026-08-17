@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -59,7 +60,7 @@ class TagBrowseViewModel(
             _state.update { TagBrowseUiState.Loading }
             // Indexer-backed and documented never to throw, so an empty result is the failure
             // mode too — there is nothing to distinguish "offline" from "nobody tagged this" yet.
-            val decks = runCatching { discoveryRepository.decksByTagGlobal(tag, BROWSE_LIMIT) }
+            val decks = runSuspendCatching { discoveryRepository.decksByTagGlobal(tag, BROWSE_LIMIT) }
                 .onFailure { Log.e(TAG, "load('${tag.value}'): FAILED — ${it.message}", it) }
                 .getOrElse { emptyList() }
 

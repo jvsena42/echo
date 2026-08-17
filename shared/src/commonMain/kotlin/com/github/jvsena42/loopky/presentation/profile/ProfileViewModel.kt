@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.avatarInitial
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,8 +56,8 @@ class ProfileViewModel(
             Log.d(TAG, "load: fetching profile + stats (silent=$silent)")
             if (!silent) _state.update { it.copy(isLoading = true) }
 
-            val session = runCatching { identityRepository.currentSession() }.getOrNull()
-                ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
+            val session = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+                ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
 
             if (session == null) {
                 _state.update { it.copy(isLoading = false) }
@@ -67,12 +68,12 @@ class ProfileViewModel(
 
             // Fetch fresh profile from homeserver — this screen is where the name is edited, so it
             // reads past the cache the rest of the app shares.
-            val profile = runCatching {
+            val profile = runSuspendCatching {
                 identityRepository.fetchProfile(pubky, forceRefresh = true).getOrNull()
             }.getOrNull() ?: session.identity
 
             // Fetch deck stats
-            val decksResult = runCatching { deckRepository.listOwned() }
+            val decksResult = runSuspendCatching { deckRepository.listOwned() }
             if (decksResult.exceptionOrNull()?.requiresReauth() == true) {
                 handleSessionExpired()
                 return@launch
@@ -81,7 +82,7 @@ class ProfileViewModel(
             val deckCount = decks.size
             val cardCount = decks.sumOf { it.cardCount }
             // Degrade to 0 rather than failing the whole profile load if the SRS read fails.
-            val dueCount = runCatching { srsRepository.dueToday().size }.getOrDefault(0)
+            val dueCount = runSuspendCatching { srsRepository.dueToday().size }.getOrDefault(0)
 
             val displayName = profile.displayName ?: session.identity.displayName
             _state.update {
@@ -166,7 +167,7 @@ class ProfileViewModel(
     /** Best-effort sign-out + redirect to onboarding when the session can't be refreshed. */
     private suspend fun handleSessionExpired() {
         Log.d(TAG, "handleSessionExpired: session expired — signing out")
-        runCatching { identityRepository.signOut() }
+        runSuspendCatching { identityRepository.signOut() }
         _state.update { it.copy(isLoading = false, isSaving = false, showEditSheet = false) }
         _effects.emit(ProfileEffect.NavigateToOnboarding)
     }
