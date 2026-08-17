@@ -1,0 +1,44 @@
+<journey name="File import — Anki .apkg and plain text, from picker to published deck">
+  <description>
+    Bulk file import (#49, presentation layer finished in #55): pick a file, read a summary
+    rather than a swipe queue, and publish. Covers the pieces that were built at one end only —
+    rendered publish progress, the deck title the import already knows, the detected separator
+    and its override — plus the failure modes that used to arrive as a parser message.
+
+    Requires a signed-in session (run journey 01 first) and two fixtures in the device's
+    Downloads folder: an Anki `.apkg` export whose collection carries a real deck name, and a
+    tab-separated "Notes in Plain Text" export. A third file that is not UTF-8 text (any photo)
+    is needed for the wrong-file-type step.
+  </description>
+  <actions>
+    <action>Launch the Loopky app and verify the Home screen is shown</action>
+    <action>Tap the element with resource-id "tab_decks"</action>
+    <action>Verify the file-import CTA (resource-id: decks_import_file) reads "Import from Anki or a file", is horizontally centred, and sits directly under the "Paste to import" card rather than separated from it by the section gap</action>
+    <action>Tap the element with resource-id "decks_import_file"</action>
+    <action>Verify the "Import file" screen is shown with a hint naming Anki and a "Choose a file" button (resource-id: bulk_pick_file)</action>
+
+    <action>Tap the element with resource-id "bulk_pick_file" and choose the .apkg from Downloads</action>
+    <action>Verify a summary appears reading "N cards parsed" — NOT a swipe-triage queue, which nobody completes for a 20,000-card export</action>
+    <action>Verify the detected separator is shown (resource-id: bulk_separator_chip, e.g. "Separator: tab"). It was carried in state and rendered nowhere before #55</action>
+    <action>Verify a "Choose a different file" button (resource-id: bulk_repick) is present, so changing your mind is not a full restart</action>
+
+    <action>Tap the element with resource-id "bulk_separator_chip" and verify the override sheet opens listing separator options (resource-id: separator_option) — the same sheet the paste screen uses</action>
+    <action>Choose "comma" and verify the file re-parses: the card count drops to 0, a "N skipped (missing a front or back)" line appears, and the import button is disabled</action>
+    <action>Verify the skipped rows are genuinely dropped rather than merely reported — before #55 they reached publish and failed the whole import with "Card X has an empty side"</action>
+    <action>Tap "bulk_separator_chip" again, choose "tab", and verify the original card count returns</action>
+
+    <action>Tap the element with resource-id "bulk_import"</action>
+    <action>Verify the publish screen opens with the title field (resource-id: publish_title) PREFILLED with the .apkg's own deck name from its collection — not the file name, and not empty</action>
+    <action>Tap the element with resource-id "publish_button"</action>
+    <action>Verify a determinate progress bar (resource-id: publish_progress) and a live "Publishing N of M cards…" label (resource-id: publish_progress_label) appear, with N advancing — not an indeterminate spinner</action>
+    <action>Verify a "Cancel import" button (resource-id: publish_cancel) is shown alongside the bar</action>
+    <action>Verify the deck publishes and its detail screen shows the full card count</action>
+
+    <action>Return to Decks, tap "decks_import_file", and choose the tab-separated .txt export</action>
+    <action>Tap "bulk_import" and verify the title falls back to the file name with its extension stripped and underscores turned into spaces (e.g. "anki_export.txt" becomes "anki export")</action>
+
+    <action>Return to Decks, tap "decks_import_file", tap "bulk_pick_file" and choose a photo</action>
+    <action>Verify the error reads "That's not a text file" with advice to pick an .apkg or a plain-text export (resource-id: bulk_error) — NOT a parser message, and not a summary of junk cards decoded from the image bytes</action>
+    <action>Verify the error offers a retry that reopens the picker (resource-id: error_retry)</action>
+  </actions>
+</journey>
