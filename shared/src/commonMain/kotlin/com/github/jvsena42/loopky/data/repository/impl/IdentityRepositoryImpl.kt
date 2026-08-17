@@ -16,6 +16,7 @@ import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.encodeUriComponent
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -47,7 +48,7 @@ class IdentityRepositoryImpl(
         return handle.complete()
     }
 
-    override suspend fun signOut(): Result<Unit> = runCatching {
+    override suspend fun signOut(): Result<Unit> = runSuspendCatching {
         val current = sessionProvider.current()
         if (current != null) {
             pubky.signOut(current.sessionSecret)
@@ -87,7 +88,7 @@ class IdentityRepositoryImpl(
      * and so requires the user to approve in Ring again (#59).
      */
     private inner class RingAuthFlowHandle(override val authUrl: String) : AuthFlowHandle {
-        override suspend fun complete(): Result<Session> = runCatching {
+        override suspend fun complete(): Result<Session> = runSuspendCatching {
             Log.d(TAG, "complete: awaiting Pubky Ring approval")
             val sessionJson = pubky.awaitAuthApproval().getOrThrow()
             Log.d(TAG, "complete: got session payload=$sessionJson")
@@ -101,7 +102,7 @@ class IdentityRepositoryImpl(
             selfTagAsLoopkyUser(session)
 
             // Best-effort profile fetch — don't fail sign-in if this fails
-            val profile = runCatching { fetchProfile(session.identity.pubky).getOrNull() }.getOrNull()
+            val profile = runSuspendCatching { fetchProfile(session.identity.pubky).getOrNull() }.getOrNull()
             if (profile != null && (profile.displayName != null || profile.bio != null)) {
                 val enriched = session.copy(
                     identity = session.identity.copy(
@@ -113,7 +114,7 @@ class IdentityRepositoryImpl(
                 sessionStore.save(enriched)
                 sessionProvider.set(enriched)
                 Log.d(TAG, "complete: session enriched with profile")
-                return@runCatching enriched
+                return@runSuspendCatching enriched
             }
 
             session
@@ -160,7 +161,7 @@ class IdentityRepositoryImpl(
         if (!forceRefresh) {
             profileCacheLock.withLock { profileCache[pubky] }?.let { return Result.success(it) }
         }
-        return runCatching {
+        return runSuspendCatching {
             Log.d(TAG, "fetchProfile: pubky=${pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
             val json = this.pubky.get(PubkyPaths.profile(pubky)).getOrThrow()
             val dto = loopkyJson.decodeFromString<ProfileDto>(json)
@@ -174,7 +175,7 @@ class IdentityRepositoryImpl(
         profileCacheLock.withLock { profileCache[identity.pubky] = identity }
     }
 
-    override suspend fun updateProfile(name: String?, bio: String?): Result<PubkyIdentity> = runCatching {
+    override suspend fun updateProfile(name: String?, bio: String?): Result<PubkyIdentity> = runSuspendCatching {
         val session = sessionProvider.current() ?: error("Not signed in")
         val currentPubky = session.identity.pubky
         Log.d(TAG, "updateProfile: pubky=${currentPubky.take(PUBKY_LOG_PREFIX_LEN)}…")

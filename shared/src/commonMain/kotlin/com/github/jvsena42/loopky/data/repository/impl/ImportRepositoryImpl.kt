@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import com.github.jvsena42.loopky.domain.model.frontBackOf
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -137,7 +138,7 @@ class ImportRepositoryImpl : ImportRepository {
         rawText: String,
         separator: Separator?,
         options: ParseOptions,
-    ): Result<ImportDraft> = runCatching {
+    ): Result<ImportDraft> = runSuspendCatching {
         val maxChars = options.maxChars
         val maxCards = options.maxCards
         // A fresh parse invalidates any prior triage decisions/edits.
