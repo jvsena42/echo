@@ -10,6 +10,12 @@ data class ImportDraft(
      * over-long import lost its tail with nothing in the UI to say so.
      */
     val truncated: Int = 0,
+    /**
+     * A deck title to prefill the commit screen with: the `.apkg`'s own deck name, else the file
+     * it came from. Null for a paste — there is nothing to guess from, and an invented title is
+     * worse than an empty field the user knows to fill in.
+     */
+    val suggestedTitle: String? = null,
 )
 
 data class ParsedRow(

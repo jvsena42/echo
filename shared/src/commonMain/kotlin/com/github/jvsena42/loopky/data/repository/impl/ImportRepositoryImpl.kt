@@ -8,6 +8,13 @@ import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.TriageDecision
+import com.github.jvsena42.loopky.domain.model.frontBackOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 @Suppress("TooManyFunctions")
 class ImportRepositoryImpl : ImportRepository {
@@ -17,6 +24,9 @@ class ImportRepositoryImpl : ImportRepository {
     private val rowEdits = mutableMapOf<Int, Pair<String, String>>()
     private val rowFrontImages = mutableMapOf<Int, DraftCardImage>()
     private val rowBackImages = mutableMapOf<Int, DraftCardImage>()
+
+    /** Serialises parses, which can genuinely interleave now that they run off the main thread. */
+    private val parseLock = Mutex()
 
     override fun currentDraft(): ImportDraft? = draft
 
@@ -56,18 +66,80 @@ class ImportRepositoryImpl : ImportRepository {
         return row.copy(fields = fields, isValid = front.isNotBlank() || back.isNotBlank())
     }
 
-    override suspend fun parseBulk(rawText: String, separator: Separator?): Result<ImportDraft> =
-        parseInternal(rawText, separator, maxChars = MAX_BULK_CHARS, maxCards = MAX_BULK_CARDS)
-
-    override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
-        parseInternal(rawText, separator, maxChars = MAX_CHARS, maxCards = MAX_CARDS)
-
-    private fun parseInternal(
+    override suspend fun parseBulk(
         rawText: String,
         separator: Separator?,
-        maxChars: Int,
-        maxCards: Int,
+        suggestedTitle: String?,
+    ): Result<ImportDraft> =
+        parseInternal(
+            rawText,
+            separator,
+            ParseOptions(
+                maxChars = MAX_BULK_CHARS,
+                maxCards = MAX_BULK_CARDS,
+                suggestedTitle = suggestedTitle,
+                discardIncomplete = true,
+            ),
+        )
+
+    /**
+     * Bulk import has no triage step, so a row missing a front or a back has nowhere to be fixed —
+     * and [keptRows] only filters explicit [TriageDecision.Discard]s. Without this the summary
+     * screen reports them as "skipped" while they sail through to `publish`, which rejects an
+     * empty side and fails the whole import.
+     *
+     * This is parse-time policy rather than a ViewModel loop on purpose: [parseInternal] clears
+     * [triageDecisions] on every parse, so a caller-side loop would be one re-parse away from
+     * being silently dropped. [parse] deliberately does *not* do this — triage is exactly where a
+     * paste user fills the blanks in.
+     */
+    private fun discardIncompleteRows(draft: ImportDraft) {
+        draft.rows.forEach { row ->
+            val (front, back) = draft.frontBackOf(row)
+            if (front.isBlank() || back.isBlank()) {
+                setDecision(row.index, TriageDecision.Discard)
+            }
+        }
+    }
+
+    override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
+        parseInternal(rawText, separator, ParseOptions(maxChars = MAX_CHARS, maxCards = MAX_CARDS))
+
+    /**
+     * Runs off the main thread. `parse`/`parseBulk` have always been `suspend` — a promise of
+     * main-safety this body used to break, so a 20k-row file parsed on `Dispatchers.Main` and
+     * froze the UI for the whole detection/split/dedupe pass. `Default`, not `IO`: this is pure
+     * CPU work, and `Default` is in coroutines' common API on every target.
+     *
+     * The [parseLock] is what that move costs. This function clears the triage maps at the top and
+     * assigns [draft] at the bottom; while it ran in a single main-thread turn two parses could
+     * never interleave, and now they can — the paste debounce and a bulk re-pick both
+     * cancel-and-relaunch. Without serialising, parse N+1 could clear the maps and then parse N's
+     * tail assign a stale draft over it.
+     */
+    private suspend fun parseInternal(
+        rawText: String,
+        separator: Separator?,
+        options: ParseOptions,
+    ): Result<ImportDraft> = withContext(Dispatchers.Default) {
+        parseLock.withLock { parseLocked(rawText, separator, options) }
+    }
+
+    /** What separates a paste from a file import: its caps, and what it does with half-rows. */
+    private data class ParseOptions(
+        val maxChars: Int,
+        val maxCards: Int,
+        val suggestedTitle: String? = null,
+        val discardIncomplete: Boolean = false,
+    )
+
+    private suspend fun parseLocked(
+        rawText: String,
+        separator: Separator?,
+        options: ParseOptions,
     ): Result<ImportDraft> = runCatching {
+        val maxChars = options.maxChars
+        val maxCards = options.maxCards
         // A fresh parse invalidates any prior triage decisions/edits.
         triageDecisions.clear()
         rowEdits.clear()
@@ -102,13 +174,20 @@ class ImportRepositoryImpl : ImportRepository {
             } else { duplicatesCollapsed++; false }
         }
 
+        // A parse that lost the race must not overwrite the draft the winner just published.
+        currentCoroutineContext().ensureActive()
+
         ImportDraft(
             rawText = rawText,
             separator = resolved,
             rows = deduped,
             duplicatesCollapsed = duplicatesCollapsed,
             truncated = truncated,
-        ).also { draft = it }
+            suggestedTitle = options.suggestedTitle,
+        ).also {
+            draft = it
+            if (options.discardIncomplete) discardIncompleteRows(it)
+        }
     }
 
     override fun clear() {

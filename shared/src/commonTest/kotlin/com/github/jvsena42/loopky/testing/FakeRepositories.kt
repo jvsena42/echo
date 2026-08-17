@@ -100,6 +100,9 @@ class FakeDeckRepository : DeckRepository {
     var listOwnedError: Throwable? = null
     var publishError: Throwable? = null
 
+    /** When set, [publish] blocks on it, so a test can act while the upload is still in flight. */
+    var publishGate: CompletableDeferred<Unit>? = null
+
     override suspend fun getLocal(id: String): Deck? = decks[id]
 
     override suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck> =
@@ -117,6 +120,10 @@ class FakeDeckRepository : DeckRepository {
         onProgress: (PublishProgress) -> Unit,
     ): Result<Deck> {
         publishError?.let { return Result.failure(it) }
+        // Held open so a test can catch a publish mid-flight, the way cancelling a real upload
+        // does. The real publish() is a runCatching, so cancellation surfaces as a failed Result
+        // rather than propagating — mirrored here.
+        publishGate?.let { gate -> runCatching { gate.await() }.onFailure { return Result.failure(it) } }
         published.add(deck to cards)
         decks[deck.id] = deck
         val progress = PublishProgress(1, 1, cards.size, cards.size, done = true)
@@ -419,8 +426,14 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
     override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
         draft?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no draft"))
 
-    override suspend fun parseBulk(rawText: String, separator: Separator?): Result<ImportDraft> =
-        parse(rawText, separator)
+    override suspend fun parseBulk(
+        rawText: String,
+        separator: Separator?,
+        suggestedTitle: String?,
+    ): Result<ImportDraft> =
+        parse(rawText, separator).map { draft ->
+            draft.copy(suggestedTitle = suggestedTitle).also { this.draft = it }
+        }
 
     override fun decisions(): Map<Int, TriageDecision> = triageDecisions.toMap()
 

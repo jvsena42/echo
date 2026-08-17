@@ -30,6 +30,29 @@ fun LoopkyErrorBlock(
     modifier: Modifier = Modifier,
     canRetry: Boolean = true,
 ) {
+    LoopkyErrorBlock(
+        title = errorTitle(reason),
+        message = errorMessage(reason),
+        onRetry = onRetry,
+        modifier = modifier,
+        canRetry = canRetry,
+    )
+}
+
+/**
+ * The same block for failures [ErrorReason] doesn't model. That enum is network/session/auth
+ * throughout, so a local one — a file that won't open, a picked photo — supplies its own copy
+ * rather than forcing members into an enum eight unrelated screens exhaustively `when` over.
+ */
+@Composable
+fun LoopkyErrorBlock(
+    title: String,
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    canRetry: Boolean = true,
+    retryLabel: String = stringResource(R.string.home_retry),
+) {
     val colors = LoopkyTheme.colors
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -37,21 +60,21 @@ fun LoopkyErrorBlock(
         modifier = modifier.padding(horizontal = 24.dp),
     ) {
         Text(
-            text = errorTitle(reason),
+            text = title,
             color = colors.foregroundPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = errorMessage(reason),
+            text = message,
             color = colors.foregroundMuted,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
         )
         if (canRetry) {
             TextButton(onClick = onRetry, modifier = Modifier.testTag("error_retry")) {
-                Text(stringResource(R.string.home_retry), color = colors.accentPrimary)
+                Text(retryLabel, color = colors.accentPrimary)
             }
         }
     }

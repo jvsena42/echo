@@ -198,3 +198,47 @@ emulator-NAT limits before suspecting Loopky.
 
 **Consequence for anyone running 01: signing out is a one-way door on the emulator whenever the
 relay is in this state.** Journey 01 now carries that warning and covers the failure branch.
+
+---
+
+## 14 — File import — 2026-08-17, `emulator-5554`, signed in as `pk:bzbjrj…yhjzpo` (#55)
+
+New journey `14-file-import.xml`, driving the presentation-layer work in #55. Fixtures already on
+the device: `/sdcard/Download/japanese_core.apkg` (800 notes) and `anki_export.txt` (1,200 cards).
+
+### Verified
+
+| Step | Result |
+| --- | --- |
+| Decks CTA | PASSED — centred, tucked under the paste card, reads "Import from Anki or a file". It was left-aligned and stranded by the 20 dp section gap, saying only "Or import a file" |
+| `.apkg` → summary | PASSED — "800 cards parsed", sample rows, `bulk_repick` present |
+| Detected separator | PASSED — `bulk_separator_chip` reads "Separator: tab". The string `bulk_detected_separator` had existed unused since #49 |
+| Separator override | PASSED — the chip opens **paste's** sheet (`separator_option` ×9); choosing "comma" re-parses to "0 cards parsed · 800 skipped" and disables Import |
+| Skipped rows genuinely dropped | PASSED — the comma case is the regression in miniature: it reports 0 importable and blocks, where before the count stayed at 800 and `publish` then failed on the first empty side |
+| Title prefill from `.apkg` | PASSED — `publish_title` opened as **"Japanese Core"**, the collection's own deck name. The file-name fallback would have given lowercase "japanese core", so this is the `decks` table being read, not the filename |
+| Title prefill from `.txt` | PASSED — "anki_export.txt" → "anki export" (extension stripped, underscore to space) |
+| Determinate publish progress | PASSED — `publish_progress` bar plus `publish_progress_label` observed advancing "Publishing 0 of 800 cards…" → "Publishing 800 of 800 cards…", with `publish_cancel` beside it. Previously an indeterminate spinner for the whole upload |
+| 800-card publish | PASSED — deck detail showed "Japanese Core", Cards 800 |
+| 1,200-card publish | PASSED |
+| Wrong file type | PASSED — a `.png` gives "That's not a text file" + "Pick an Anki .apkg, or a deck exported as plain text", with a retry that reopens the picker. It used to decode to U+FFFD soup and parse into plausible junk cards |
+
+### Not exercisable from a script: cancel during publish
+
+`publish_cancel` renders and is reachable, but **the cancel itself could not be driven here**.
+Against this homeserver an 800-card publish completes in roughly a second and 1,200 in not much
+more, so the tap lands after the success screen has already replaced the button — `android layout`
+costs about as long as the whole upload. It is not a defect in the control; there is simply no
+window on a deck this size.
+
+Covered by unit test instead (`PublishDeckViewModelTest.cancellingAPublishSweepsThePartialDeck`,
+using a new `FakeDeckRepository.publishGate` to hold a publish open): cancel sweeps the partial
+deck, leaves `isPublishing`/`isCancelling` false, and sets **no** error — the last of those being
+the real hazard, since `DeckRepositoryImpl.publish` is a `runCatching` and hands a cancellation
+back as an ordinary failure. Re-check by hand on a 20k-card import, where the window is tens of
+seconds.
+
+### Notes
+
+- The app shows onboarding for a beat on cold start before the persisted session resolves. Not a
+  regression — worth knowing, because a layout dump taken too early reads as "signed out".
+- The 429-flakiness and rustls faults recorded above did not recur in this session.

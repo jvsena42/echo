@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.testing.FakeImportRepository
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.testDraft
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -53,6 +54,36 @@ class PublishDeckViewModelTest {
         identityRepository = identityRepo,
         mediaRepository = mediaRepo,
     )
+
+    // ── title prefill ────────────────────────────────────────────────────
+
+    @Test
+    fun aFileImportOpensWithTheTitleItAlreadyKnows() = runTest {
+        // The file name — or better, the .apkg's own deck name — reached the draft and was then
+        // thrown away, leaving the user to retype something the import already had.
+        importRepo.draft = testDraft("hola" to "hello").copy(suggestedTitle = "Japanese Core 2000")
+
+        val vm = viewModel()
+
+        assertEquals(expected = "Japanese Core 2000", actual = vm.state.value.title)
+        assertNull(vm.state.value.titleError)
+    }
+
+    @Test
+    fun aSuggestedTitleStaysEditable() = runTest {
+        importRepo.draft = testDraft("hola" to "hello").copy(suggestedTitle = "Anki Export")
+        val vm = viewModel()
+
+        vm.onTitleChanged("Spanish Basics")
+
+        assertEquals(expected = "Spanish Basics", actual = vm.state.value.title)
+    }
+
+    @Test
+    fun aPasteStillOpensWithAnEmptyTitle() = runTest {
+        // There is nothing to guess a title from, and inventing one is worse than a blank field.
+        assertEquals(expected = "", actual = viewModel().state.value.title)
+    }
 
     // ── validation ───────────────────────────────────────────────────────
 
@@ -157,6 +188,46 @@ class PublishDeckViewModelTest {
         assertEquals(listOf("hola", "gracias"), cards.map { it.front.text })
         assertEquals(listOf("hello", "thank you"), cards.map { it.back.text })
         assertEquals(cards.size, deck.cardCount)
+    }
+
+    @Test
+    fun cancellingAPublishSweepsThePartialDeck() = runTest {
+        // #49's marker manifest is written before the first chunk, so an interrupted publish
+        // leaves a reachable deck. That is what makes cancel offerable — but a deck the user just
+        // took back should not survive in their library.
+        deckRepo.publishGate = CompletableDeferred()
+        val vm = viewModel()
+        vm.onTitleChanged("Japanese Core")
+        vm.onPublishClick()
+        runCurrent()
+        assertTrue(vm.state.value.isPublishing)
+
+        vm.onCancelPublish()
+        runCurrent()
+
+        val state = vm.state.value
+        assertTrue(!state.isPublishing)
+        assertTrue(!state.isCancelling)
+        assertEquals(expected = 1, actual = deckRepo.deleted.size, "the partial deck was not swept")
+        // The cancellation must not surface as a publish failure — the repository's runCatching
+        // hands it back as an ordinary error, which used to read "…was cancelled" on screen.
+        assertNull(state.error)
+        assertNull(state.publishedDeckId)
+    }
+
+    @Test
+    fun cancellingKeepsTheDeckDetailsSoTheUserCanPublishAgain() = runTest {
+        deckRepo.publishGate = CompletableDeferred()
+        val vm = viewModel()
+        vm.onTitleChanged("Japanese Core")
+        vm.onPublishClick()
+        runCurrent()
+
+        vm.onCancelPublish()
+        runCurrent()
+
+        assertEquals(expected = "Japanese Core", actual = vm.state.value.title)
+        assertTrue(vm.state.value.canPublish, "cancel must not leave the form unusable")
     }
 
     @Test

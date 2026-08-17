@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.ui.importflow
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,12 +32,15 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +59,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -69,6 +75,7 @@ import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
+import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.components.formErrorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
@@ -106,6 +113,7 @@ fun PublishDeckRoute(
         onCoverWebSelected = viewModel::onCoverWebSelected,
         onCoverGallerySelected = viewModel::onCoverGallerySelected,
         onPublishClick = viewModel::onPublishClick,
+        onCancelPublish = viewModel::onCancelPublish,
         onUndoPublish = viewModel::onUndoPublish,
         onDonePublish = viewModel::onDonePublish,
         onBackClick = viewModel::onBackClick,
@@ -126,6 +134,7 @@ private fun PublishDeckScreen(
     onCoverWebSelected: (String) -> Unit,
     onCoverGallerySelected: (ByteArray, String) -> Unit,
     onPublishClick: () -> Unit,
+    onCancelPublish: () -> Unit,
     onUndoPublish: () -> Unit,
     onDonePublish: () -> Unit,
     onBackClick: () -> Unit,
@@ -133,7 +142,14 @@ private fun PublishDeckScreen(
     val colors = LoopkyTheme.colors
     var showTagSheet by remember { mutableStateOf(false) }
     var showCoverSheet by remember { mutableStateOf(false) }
+    var showCancelDialog by remember { mutableStateOf(false) }
     var tagInput by remember { mutableStateOf("") }
+
+    val busy = state.isPublishing || state.isCancelling
+
+    // Without this, back pops the destination, onCleared() cancels viewModelScope, and the
+    // partially-written deck is orphaned with no coroutine left to sweep it.
+    BackHandler(enabled = busy) { showCancelDialog = true }
 
     if (state.publishedDeckId != null) {
         PublishedContent(
@@ -167,7 +183,9 @@ private fun PublishDeckScreen(
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(colors.surfaceCard)
-                        .clickable(onClick = onBackClick),
+                        // Same guard as the system back: leaving mid-publish would orphan the
+                        // partly-written deck along with the scope that could sweep it.
+                        .clickable { if (busy) showCancelDialog = true else onBackClick() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -474,19 +492,37 @@ private fun PublishDeckScreen(
             state.error?.let { errorText ->
                 Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
             }
-            LoopkyPrimaryButton(
-                label = stringResource(R.string.publish_button),
-                onClick = onPublishClick,
-                // Enabled so validation can explain *why* it can't publish. Previously
-                // `enabled = state.canPublish` made `validateForPublish` dead code and the
-                // tap did nothing at all.
-                enabled = !state.isPublishing,
-                loading = state.isPublishing,
-                modifier = Modifier
-                    .testTag("publish_button")
-                    .fillMaxWidth(),
-            )
+            if (busy) {
+                PublishProgress(
+                    fraction = state.publishProgress,
+                    publishedCardCount = state.publishedCardCount,
+                    totalCardCount = state.cardCount,
+                    isCancelling = state.isCancelling,
+                    onCancelClick = { showCancelDialog = true },
+                )
+            } else {
+                LoopkyPrimaryButton(
+                    label = stringResource(R.string.publish_button),
+                    onClick = onPublishClick,
+                    // Enabled so validation can explain *why* it can't publish. Previously
+                    // `enabled = state.canPublish` made `validateForPublish` dead code and the
+                    // tap did nothing at all.
+                    modifier = Modifier
+                        .testTag("publish_button")
+                        .fillMaxWidth(),
+                )
+            }
         }
+    }
+
+    if (showCancelDialog) {
+        CancelPublishDialog(
+            onConfirm = {
+                showCancelDialog = false
+                onCancelPublish()
+            },
+            onDismiss = { showCancelDialog = false },
+        )
     }
 
     if (showTagSheet) {
@@ -693,6 +729,103 @@ private fun OptionToggleRow(
     }
 }
 
+/**
+ * Determinate publish progress.
+ *
+ * A 20k-card import is ~200 uploads; the repository has reported per-chunk progress since #49,
+ * but nothing consumed it, so a 1,200-card publish showed an indeterminate spinner for ~35s and
+ * read as hung rather than busy.
+ */
+@Composable
+private fun PublishProgress(
+    fraction: Float?,
+    publishedCardCount: Int,
+    totalCardCount: Int,
+    isCancelling: Boolean,
+    onCancelClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        LinearProgressIndicator(
+            progress = { fraction ?: 0f },
+            modifier = Modifier
+                .testTag("publish_progress")
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(50)),
+            color = colors.accentPrimary,
+            trackColor = colors.borderSubtle,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+        )
+        Text(
+            text = if (isCancelling) {
+                stringResource(R.string.publish_cancelling)
+            } else {
+                stringResource(R.string.publish_progress_count, publishedCardCount, totalCardCount)
+            },
+            fontSize = 13.sp,
+            color = colors.foregroundSecondary,
+            modifier = Modifier.testTag("publish_progress_label"),
+        )
+        if (!isCancelling) {
+            LoopkySecondaryButton(
+                text = stringResource(R.string.publish_cancel),
+                onClick = onCancelClick,
+                modifier = Modifier
+                    .testTag("publish_cancel")
+                    .fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/**
+ * Confirms before throwing away an upload in progress.
+ *
+ * Worth a dialog: this control sits where Publish just was, and a mis-tap 30s into a 20k-card
+ * upload discards all of it. `AlertDialog` renders in its own window, so the nav host's
+ * `testTagsAsResourceId` does not reach it.
+ */
+@Composable
+private fun CancelPublishDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val colors = LoopkyTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = colors.surfaceCard,
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
+        title = {
+            Text(
+                stringResource(R.string.publish_cancel_title),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = colors.foregroundPrimary,
+            )
+        },
+        text = {
+            Text(
+                stringResource(R.string.publish_cancel_message),
+                fontSize = 14.sp,
+                color = colors.foregroundSecondary,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, modifier = Modifier.testTag("publish_cancel_confirm")) {
+                Text(stringResource(R.string.publish_cancel_confirm), color = colors.danger)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("publish_cancel_keep")) {
+                Text(stringResource(R.string.publish_cancel_keep), color = colors.foregroundMuted)
+            }
+        },
+    )
+}
+
 @Composable
 private fun PublishedContent(
     state: PublishDeckUiState,
@@ -797,6 +930,37 @@ private fun PublishDeckScreenPreview() {
             onCoverWebSelected = {},
             onCoverGallerySelected = { _, _ -> },
             onPublishClick = {},
+            onCancelPublish = {},
+            onUndoPublish = {},
+            onDonePublish = {},
+            onBackClick = {},
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Preview
+@Composable
+private fun PublishDeckPublishingPreview() {
+    LoopkyTheme {
+        PublishDeckScreen(
+            state = PublishDeckUiState(
+                title = "Japanese Core 2000",
+                cardCount = 1_842,
+                isPublishing = true,
+                publishProgress = 0.42f,
+                publishedCardCount = 774,
+            ),
+            onTitleChanged = {},
+            onDescriptionChanged = {},
+            onAddTag = {},
+            onRemoveTag = {},
+            onToggleListen = {},
+            onToggleSpeak = {},
+            onCoverWebSelected = {},
+            onCoverGallerySelected = { _, _ -> },
+            onPublishClick = {},
+            onCancelPublish = {},
             onUndoPublish = {},
             onDonePublish = {},
             onBackClick = {},

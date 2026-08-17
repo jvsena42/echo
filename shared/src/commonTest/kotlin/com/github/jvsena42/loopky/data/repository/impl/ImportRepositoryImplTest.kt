@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.TriageDecision
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -414,5 +415,50 @@ class ImportRepositoryImplTest {
 
         assertEquals(listOf("hola", "hello"), draft.rows[0].fields)
         assertEquals(listOf("gracias", "thank you"), draft.rows[1].fields)
+    }
+
+    @Test
+    fun bulkImportDropsRowsMissingASideInsteadOfFailingThePublish() = runBlocking {
+        // Bulk has no triage step, so a half-row has nowhere to be fixed. It used to survive
+        // keptRows() and reach publish(), which rejects an empty side — one blank line in a
+        // 20k-card export failed the entire import.
+        val repo = repo()
+        val text = "hola\thello\nhuerfano\t\n\tsolo\ngracias\tthank you"
+
+        val draft = repo.parseBulk(text).getOrThrow()
+
+        assertEquals(expected = 4, actual = draft.rows.size, "the parse should still see them")
+        assertEquals(
+            expected = listOf("hola", "gracias"),
+            actual = repo.keptRows().map { it.fields[0] },
+            "rows missing a front or back must not reach publish",
+        )
+    }
+
+    @Test
+    fun aParseSupersededByTheNextOneDoesNotOverwriteTheDraft() = runBlocking {
+        // Parses used to run to completion in one main-thread turn and so could never interleave.
+        // Off the main thread they can, and the loser must not clear the winner's triage state or
+        // assign a stale draft over it.
+        val repo = repo()
+
+        val stale = launch { repo.parse((1..2_000).joinToString("\n") { "old$it\told$it" }) }
+        stale.cancel()
+        repo.parse("hola\thello\ngracias\tthank you").getOrThrow()
+        stale.join()
+
+        assertEquals(expected = 2, actual = repo.currentDraft()?.rows?.size)
+        assertEquals(expected = "hola", actual = repo.currentDraft()?.rows?.get(0)?.fields?.get(0))
+    }
+
+    @Test
+    fun aPasteKeepsRowsMissingASideSoTriageCanFillThemIn() = runBlocking {
+        // The mirror of the above: spec §9 says a single-column paste becomes fronts with empty
+        // backs that the user completes in triage. Dropping them there would delete their work.
+        val repo = repo()
+
+        repo.parse("dog\ncat\nbird").getOrThrow()
+
+        assertEquals(expected = 3, actual = repo.keptRows().size)
     }
 }
