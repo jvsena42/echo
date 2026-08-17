@@ -4,10 +4,12 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,6 +36,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -205,24 +208,111 @@ private fun BulkImportScreen(
     }
 }
 
+/**
+ * The empty state, which is where most of this screen's job gets done.
+ *
+ * It was a paragraph of prose and a button over two-thirds of blank screen, which said nothing
+ * about what a "file" is here. Mirrors the paste screen's example cards instead: name the two
+ * formats that work, say what each brings over, and — since the spec pitches Loopky at Anki
+ * refugees (§1) — spell out the export that produces them.
+ */
 @Composable
 private fun PickFilePrompt(onPickFile: () -> Unit) {
     val colors = LoopkyTheme.colors
-    Spacer(Modifier.height(48.dp))
+    Spacer(Modifier.height(28.dp))
+    Text(text = "📦", fontSize = 44.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+    Spacer(Modifier.height(12.dp))
     Text(
-        text = stringResource(R.string.bulk_pick_hint),
-        fontSize = 15.sp,
-        color = colors.foregroundSecondary,
+        text = stringResource(R.string.bulk_idle_title),
+        fontSize = 22.sp,
+        fontWeight = FontWeight.ExtraBold,
+        color = colors.foregroundPrimary,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
     )
+    Spacer(Modifier.height(6.dp))
+    Text(
+        text = stringResource(R.string.bulk_idle_subtitle),
+        fontSize = 14.sp,
+        color = colors.foregroundMuted,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(Modifier.height(28.dp))
+    Text(
+        text = stringResource(R.string.bulk_formats_label),
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.8.sp,
+        color = colors.foregroundMuted,
+    )
+    Spacer(Modifier.height(10.dp))
+    FormatCard(
+        extension = stringResource(R.string.bulk_format_apkg_ext),
+        title = stringResource(R.string.bulk_format_apkg_title),
+        detail = stringResource(R.string.bulk_format_apkg_detail),
+    )
+    Spacer(Modifier.height(10.dp))
+    FormatCard(
+        extension = stringResource(R.string.bulk_format_text_ext),
+        title = stringResource(R.string.bulk_format_text_title),
+        detail = stringResource(R.string.bulk_format_text_detail),
+    )
+
     Spacer(Modifier.height(24.dp))
     LoopkyPrimaryButton(
         label = stringResource(R.string.bulk_pick_file),
         onClick = onPickFile,
         modifier = Modifier.testTag("bulk_pick_file"),
     )
+    Spacer(Modifier.height(12.dp))
+    Text(
+        // Formatted from the reader's own ceiling so the copy cannot drift from the guard.
+        text = stringResource(R.string.bulk_idle_limit, MAX_IMPORT_FILE_BYTES / BYTES_PER_MB),
+        fontSize = 12.sp,
+        color = colors.foregroundMuted,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(24.dp))
 }
+
+/** One accepted file format: what it is, and what it does and doesn't bring over. */
+@Composable
+private fun FormatCard(extension: String, title: String, detail: String) {
+    val colors = LoopkyTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .border(1.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
+            .background(colors.surfaceCard)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary)
+            Text(
+                text = extension,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.accentPrimary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.accentPrimarySoft)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        Text(detail, fontSize = 13.sp, color = colors.foregroundSecondary)
+    }
+}
+
+private const val BYTES_PER_MB = 1024L * 1024
 
 @Composable
 private fun BusyIndicator(message: String) {

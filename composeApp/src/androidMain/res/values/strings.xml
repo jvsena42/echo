@@ -362,7 +362,16 @@
     <string name="bulk_title">Import file</string>
     <string name="bulk_cancel">Cancel</string>
     <string name="bulk_pick_file">Choose a file</string>
-    <string name="bulk_pick_hint">Bring a deck over from Anki — an .apkg export, or a deck exported as “Notes in Plain Text”. Any tab- or comma-separated list works too.</string>
+    <string name="bulk_idle_title">Bring your deck over</string>
+    <string name="bulk_idle_subtitle">Import from Anki, or any two-column list you already have.</string>
+    <string name="bulk_formats_label">WHAT WORKS</string>
+    <string name="bulk_format_apkg_ext">.apkg</string>
+    <string name="bulk_format_apkg_title">Anki deck export</string>
+    <string name="bulk_format_apkg_detail">Your cards and the deck\'s name come across. Images and audio don\'t — export without media to keep the file small.</string>
+    <string name="bulk_format_text_ext">.txt · .csv</string>
+    <string name="bulk_format_text_title">Plain text export</string>
+    <string name="bulk_format_text_detail">In Anki: File → Export → “Notes in Plain Text”. Any tab- or comma-separated list works too.</string>
+    <string name="bulk_idle_limit">Files up to %1$d MB</string>
     <string name="bulk_reading">Reading your file…</string>
     <string name="bulk_parsing">Reading %1$s…</string>
     <string name="bulk_summary_heading">Ready to import</string>
@@ -375,7 +384,7 @@
     <string name="bulk_error_unreadable_title">Couldn\'t open that file</string>
     <string name="bulk_error_unreadable_message">Loopky couldn\'t read it. Try picking it again, or copy it somewhere else first.</string>
     <string name="bulk_error_too_large_title">That file is too big</string>
-    <string name="bulk_error_too_large_message">Loopky can import files up to 32 MB. In Anki, export without media — Loopky doesn\'t use it.</string>
+    <string name="bulk_error_too_large_message">Loopky can import files up to %1$d MB. In Anki, export without media — Loopky doesn\'t use it.</string>
     <string name="bulk_error_not_text_title">That\'s not a text file</string>
     <string name="bulk_error_not_text_message">Pick an Anki .apkg, or a deck exported as plain text. Photos and PDFs can\'t become cards.</string>
     <string name="bulk_error_unsupported_apkg_title">Loopky can\'t open this .apkg</string>

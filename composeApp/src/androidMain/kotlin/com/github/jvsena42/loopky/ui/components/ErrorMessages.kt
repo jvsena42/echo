@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
+import com.github.jvsena42.loopky.ui.importflow.MAX_IMPORT_FILE_BYTES
 
 /**
  * Maps a shared [ErrorReason] to user-facing copy. The ViewModels deliberately carry no
@@ -60,16 +61,20 @@ fun bulkImportErrorTitle(reason: BulkImportError): String = stringResource(
 )
 
 @Composable
-fun bulkImportErrorMessage(reason: BulkImportError): String = stringResource(
-    when (reason) {
-        BulkImportError.Unreadable -> R.string.bulk_error_unreadable_message
-        BulkImportError.TooLarge -> R.string.bulk_error_too_large_message
-        BulkImportError.NotText -> R.string.bulk_error_not_text_message
-        BulkImportError.UnsupportedApkg -> R.string.bulk_error_unsupported_apkg_message
-        BulkImportError.NoCardsFound -> R.string.bulk_error_no_cards_message
-        BulkImportError.Unknown -> R.string.bulk_error_unknown_message
-    },
-)
+fun bulkImportErrorMessage(reason: BulkImportError): String = when (reason) {
+    // Formatted from the reader's own ceiling so the number in the copy cannot drift from it.
+    BulkImportError.TooLarge -> stringResource(
+        R.string.bulk_error_too_large_message,
+        MAX_IMPORT_FILE_BYTES / BYTES_PER_MB,
+    )
+    BulkImportError.Unreadable -> stringResource(R.string.bulk_error_unreadable_message)
+    BulkImportError.NotText -> stringResource(R.string.bulk_error_not_text_message)
+    BulkImportError.UnsupportedApkg -> stringResource(R.string.bulk_error_unsupported_apkg_message)
+    BulkImportError.NoCardsFound -> stringResource(R.string.bulk_error_no_cards_message)
+    BulkImportError.Unknown -> stringResource(R.string.bulk_error_unknown_message)
+}
+
+private const val BYTES_PER_MB = 1024L * 1024
 
 /** Field-level validation copy for [FormError]. */
 @Composable
