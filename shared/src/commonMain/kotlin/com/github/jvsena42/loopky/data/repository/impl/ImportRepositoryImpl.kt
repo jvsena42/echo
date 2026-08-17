@@ -9,6 +9,12 @@ import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import com.github.jvsena42.loopky.domain.model.frontBackOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 @Suppress("TooManyFunctions")
 class ImportRepositoryImpl : ImportRepository {
@@ -18,6 +24,9 @@ class ImportRepositoryImpl : ImportRepository {
     private val rowEdits = mutableMapOf<Int, Pair<String, String>>()
     private val rowFrontImages = mutableMapOf<Int, DraftCardImage>()
     private val rowBackImages = mutableMapOf<Int, DraftCardImage>()
+
+    /** Serialises parses, which can genuinely interleave now that they run off the main thread. */
+    private val parseLock = Mutex()
 
     override fun currentDraft(): ImportDraft? = draft
 
@@ -68,7 +77,8 @@ class ImportRepositoryImpl : ImportRepository {
             maxChars = MAX_BULK_CHARS,
             maxCards = MAX_BULK_CARDS,
             suggestedTitle = suggestedTitle,
-        ).onSuccess { discardIncompleteRows(it) }
+            discardIncomplete = true,
+        )
 
     /**
      * Bulk import has no triage step, so a row missing a front or a back has nowhere to be fixed —
@@ -93,12 +103,37 @@ class ImportRepositoryImpl : ImportRepository {
     override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
         parseInternal(rawText, separator, maxChars = MAX_CHARS, maxCards = MAX_CARDS)
 
-    private fun parseInternal(
+    /**
+     * Runs off the main thread. `parse`/`parseBulk` have always been `suspend` — a promise of
+     * main-safety this body used to break, so a 20k-row file parsed on `Dispatchers.Main` and
+     * froze the UI for the whole detection/split/dedupe pass. `Default`, not `IO`: this is pure
+     * CPU work, and `Default` is in coroutines' common API on every target.
+     *
+     * The [parseLock] is what that move costs. This function clears the triage maps at the top and
+     * assigns [draft] at the bottom; while it ran in a single main-thread turn two parses could
+     * never interleave, and now they can — the paste debounce and a bulk re-pick both
+     * cancel-and-relaunch. Without serialising, parse N+1 could clear the maps and then parse N's
+     * tail assign a stale draft over it.
+     */
+    private suspend fun parseInternal(
         rawText: String,
         separator: Separator?,
         maxChars: Int,
         maxCards: Int,
         suggestedTitle: String? = null,
+        discardIncomplete: Boolean = false,
+    ): Result<ImportDraft> = withContext(Dispatchers.Default) {
+        parseLock.withLock { parseLocked(rawText, separator, maxChars, maxCards, suggestedTitle, discardIncomplete) }
+    }
+
+    @Suppress("LongParameterList")
+    private suspend fun parseLocked(
+        rawText: String,
+        separator: Separator?,
+        maxChars: Int,
+        maxCards: Int,
+        suggestedTitle: String?,
+        discardIncomplete: Boolean,
     ): Result<ImportDraft> = runCatching {
         // A fresh parse invalidates any prior triage decisions/edits.
         triageDecisions.clear()
@@ -134,6 +169,9 @@ class ImportRepositoryImpl : ImportRepository {
             } else { duplicatesCollapsed++; false }
         }
 
+        // A parse that lost the race must not overwrite the draft the winner just published.
+        currentCoroutineContext().ensureActive()
+
         ImportDraft(
             rawText = rawText,
             separator = resolved,
@@ -141,7 +179,10 @@ class ImportRepositoryImpl : ImportRepository {
             duplicatesCollapsed = duplicatesCollapsed,
             truncated = truncated,
             suggestedTitle = suggestedTitle,
-        ).also { draft = it }
+        ).also {
+            draft = it
+            if (discardIncomplete) discardIncompleteRows(it)
+        }
     }
 
     override fun clear() {

@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.TriageDecision
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -432,6 +433,22 @@ class ImportRepositoryImplTest {
             actual = repo.keptRows().map { it.fields[0] },
             "rows missing a front or back must not reach publish",
         )
+    }
+
+    @Test
+    fun aParseSupersededByTheNextOneDoesNotOverwriteTheDraft() = runBlocking {
+        // Parses used to run to completion in one main-thread turn and so could never interleave.
+        // Off the main thread they can, and the loser must not clear the winner's triage state or
+        // assign a stale draft over it.
+        val repo = repo()
+
+        val stale = launch { repo.parse((1..2_000).joinToString("\n") { "old$it\told$it" }) }
+        stale.cancel()
+        repo.parse("hola\thello\ngracias\tthank you").getOrThrow()
+        stale.join()
+
+        assertEquals(expected = 2, actual = repo.currentDraft()?.rows?.size)
+        assertEquals(expected = "hola", actual = repo.currentDraft()?.rows?.get(0)?.fields?.get(0))
     }
 
     @Test

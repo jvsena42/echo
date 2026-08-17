@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Bulk file import: parse a whole exported deck and show a **summary**, not a swipe queue.
@@ -89,6 +90,9 @@ class BulkImportViewModel(
                     }
                 }
                 .onFailure { err ->
+                    // A re-pick cancels a parse that may run for seconds; the repository's
+                    // runCatching turns that into an ordinary failure. Superseded, not failed.
+                    if (err is CancellationException) return@onFailure
                     Log.e(TAG, "bulk parse: FAILED — ${err.message}", err)
                     _state.update {
                         BulkImportUiState.Error(err.message ?: "Could not read that file.")

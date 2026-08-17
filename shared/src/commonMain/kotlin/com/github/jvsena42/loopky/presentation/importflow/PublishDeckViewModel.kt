@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
 @Suppress("TooManyFunctions")
 class PublishDeckViewModel(
@@ -159,6 +160,10 @@ class PublishDeckViewModel(
                     startUndoCountdown(deckId)
                 }
                 .onFailure { err ->
+                    // publish() is a runCatching, so a user-initiated cancel surfaces here as an
+                    // ordinary failure. onCancelPublish owns the state in that case; letting this
+                    // run would overwrite it with "StandaloneCoroutine was cancelled".
+                    if (err is CancellationException) return@onFailure
                     Log.e(TAG, "publish: FAILED — ${err.message}", err)
                     _state.update {
                         it.copy(
