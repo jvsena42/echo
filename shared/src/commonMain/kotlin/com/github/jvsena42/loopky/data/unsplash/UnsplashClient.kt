@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.unsplash
 
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
 import com.github.jvsena42.loopky.data.repository.impl.loopkyJson
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.serialization.Serializable
 
 /**
@@ -34,7 +35,7 @@ class UnsplashClient(
     suspend fun search(query: String, perPage: Int = DEFAULT_PER_PAGE): Result<List<UnsplashPhoto>> {
         if (!isConfigured) return Result.success(emptyList())
         if (query.isBlank()) return random(perPage)
-        return runCatching {
+        return runSuspendCatching {
             val url = "$baseUrl/search/photos?per_page=$perPage&query=${query.urlEncode()}"
             val body = http.get(url, authHeaders).getOrThrow()
             loopkyJson.decodeFromString(UnsplashSearchResponseDto.serializer(), body)
@@ -57,7 +58,7 @@ class UnsplashClient(
     /** A random set of photos for the initial (no-query) grid. */
     suspend fun random(count: Int = DEFAULT_PER_PAGE): Result<List<UnsplashPhoto>> {
         if (!isConfigured) return Result.success(emptyList())
-        return runCatching {
+        return runSuspendCatching {
             val url = "$baseUrl/photos/random?count=$count"
             val body = http.get(url, authHeaders).getOrThrow()
             loopkyJson.decodeFromString(

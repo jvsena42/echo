@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.nexus
 
 import com.github.jvsena42.loopky.data.repository.impl.loopkyJson
 import com.github.jvsena42.loopky.util.encodeUriComponent
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -24,7 +25,7 @@ class NexusClient(
     suspend fun searchTagsByPrefix(
         prefix: String,
         limit: Int = DEFAULT_SEARCH_LIMIT,
-    ): Result<List<String>> = runCatching {
+    ): Result<List<String>> = runSuspendCatching {
         val encoded = encodeUriComponent(prefix)
         val body = http.get("$baseUrl/v0/search/tags/by_prefix/$encoded?limit=$limit").getOrThrow()
         loopkyJson.decodeFromString(ListSerializer(String.serializer()), body)
@@ -42,7 +43,7 @@ class NexusClient(
         label: String,
         limit: Int = DEFAULT_RESOURCE_LIMIT,
         skip: Int = 0,
-    ): Result<List<NexusResourceDto>> = runCatching {
+    ): Result<List<NexusResourceDto>> = runSuspendCatching {
         val url = buildString {
             append("$baseUrl/v0/stream/resources")
             append("?app=$LOOPKY_APP")
@@ -59,7 +60,7 @@ class NexusClient(
      * Every label on one resource with its distinct-tagger count — the read behind "N people
      * follow this deck". Fails with a 404 [HttpError] when nothing has ever tagged [uri].
      */
-    suspend fun resourceByUri(uri: String): Result<NexusResourceTagsDto> = runCatching {
+    suspend fun resourceByUri(uri: String): Result<NexusResourceTagsDto> = runSuspendCatching {
         val url = "$baseUrl/v0/resource/by-uri" +
             "?uri=${encodeUriComponent(uri)}" +
             "&limit_tags=$MAX_TAGS_PER_RESOURCE" +
@@ -77,7 +78,7 @@ class NexusClient(
     suspend fun taggersOfLabel(
         label: String,
         limit: Int = MAX_GLOBAL_TAGGERS_LIMIT,
-    ): Result<List<String>> = runCatching {
+    ): Result<List<String>> = runSuspendCatching {
         val url = "$baseUrl/v0/tags/taggers/${encodeUriComponent(label)}" +
             "?limit=${limit.coerceIn(1, MAX_GLOBAL_TAGGERS_LIMIT)}"
         val body = http.get(url).getOrThrow()
@@ -92,7 +93,7 @@ class NexusClient(
         userId: String,
         label: String,
         limit: Int = DEFAULT_USER_TAGGERS_LIMIT,
-    ): Result<List<String>> = runCatching {
+    ): Result<List<String>> = runSuspendCatching {
         val url = "$baseUrl/v0/user/${encodeUriComponent(userId)}/taggers/${encodeUriComponent(label)}" +
             "?limit=${limit.coerceIn(1, MAX_USER_TAGGERS_LIMIT)}"
         val body = http.get(url).getOrThrow()
