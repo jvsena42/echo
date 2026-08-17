@@ -239,6 +239,64 @@ class HomeViewModelTest {
         assertTrue(seen.none { it is HomeUiState.Loading }, "background refresh flashed the loader")
     }
 
+    // ── followed decks (#33) ─────────────────────────────────────────────
+
+    @Test
+    fun followedDecksGetARowAndADueBadge() = runTest {
+        deckRepo.decks["mine"] = testDeck(id = "mine", title = "Spanish")
+        deckRepo.followedDecks["theirs"] = testDeck(
+            id = "theirs",
+            authorPubky = "friendpk",
+            title = "Kanji",
+        )
+        srsRepo.due = listOf(testCard("t1", deckId = "theirs"))
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertEquals(listOf("mine", "theirs"), state.decks.map { it.id })
+        // Home listed owned decks only, so a followed deck's due cards had nowhere to show.
+        assertEquals(expected = 1, actual = state.dueToday)
+        assertEquals(expected = 1, actual = state.decks.single { it.id == "theirs" }.dueCount)
+    }
+
+    @Test
+    fun aFollowedDeckAloneIsNotAnEmptyHome() = runTest {
+        deckRepo.followedDecks["theirs"] = testDeck(id = "theirs", authorPubky = "friendpk")
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        assertIs<HomeUiState.Content>(vm.state.value)
+    }
+
+    @Test
+    fun unreachableFollowedDecksStillLeaveYourOwnOnHome() = runTest {
+        deckRepo.decks["mine"] = testDeck(id = "mine")
+        deckRepo.listFollowedError = PubkyError("HTTP transport error")
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertEquals(listOf("mine"), state.decks.map { it.id })
+    }
+
+    @Test
+    fun openingADeckCarriesItsAuthor() = runTest {
+        deckRepo.followedDecks["theirs"] = testDeck(id = "theirs", authorPubky = "friendpk")
+        val vm = viewModel()
+        val effects = collectEffects(vm)
+        advanceUntilIdle()
+
+        vm.onDeckClick("theirs")
+        advanceUntilIdle()
+
+        // Deck detail cannot fetch a manifest on another homeserver from an id alone.
+        assertEquals(listOf(HomeEffect.NavigateDeck("theirs", "friendpk")), effects)
+    }
+
     @Test
     fun nonPubkySessionMessageDoesNotTriggerReauth() = runTest {
         // Same message shape, but not a PubkyError — must not be treated as session expiry.

@@ -15,6 +15,7 @@ import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.domain.model.isDue
@@ -84,8 +85,24 @@ class SrsRepositoryImpl(
     )
     override val changes: SharedFlow<String> = _changes.asSharedFlow()
 
-    override suspend fun dueToday(): List<Card> =
-        deckRepository.listOwned().flatMap { dueForDeck(it.id) }
+    /**
+     * Followed decks count too (#33). Review state is already author-keyed and lands on your own
+     * homeserver whoever wrote the deck, so a followed deck needs no storage change to be studied —
+     * only to be reachable from here, which owned-decks-only made it not.
+     */
+    override suspend fun dueToday(): List<Card> = studiableDecks().flatMap { dueForDeck(it.id) }
+
+    /** Decks you can study: the ones you own plus the ones you follow. */
+    private suspend fun studiableDecks(): List<Deck> {
+        val owned = deckRepository.listOwned()
+        // A followed deck lives on someone else's homeserver, so listing it can fail on its own.
+        // That must cost you the followed decks, not your whole queue.
+        val followed = runSuspendCatching { deckRepository.listFollowed() }.getOrElse {
+            Log.e(TAG, "dueToday: followed decks unavailable — ${it.message}", it)
+            emptyList()
+        }
+        return (owned + followed).distinctBy { it.id }
+    }
 
     override suspend fun dueForDeck(deckId: String): List<Card> {
         val deck = deckRepository.sync(deckId)

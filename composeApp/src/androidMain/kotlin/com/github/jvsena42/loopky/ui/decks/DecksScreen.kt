@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.presentation.decks.DeckRelation
 import com.github.jvsena42.loopky.presentation.decks.DeckSort
 import com.github.jvsena42.loopky.presentation.decks.DeckTileModel
 import com.github.jvsena42.loopky.presentation.decks.DecksLibraryEffect
@@ -69,7 +70,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun DecksRoute(
-    onDeckClick: (String) -> Unit = {},
+    onDeckClick: (String, String?) -> Unit = { _, _ -> },
     onImportClick: () -> Unit = {},
     onImportFileClick: () -> Unit = {},
     onCreateDeckClick: () -> Unit = {},
@@ -83,7 +84,8 @@ fun DecksRoute(
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
-                is DecksLibraryEffect.NavigateDeckDetail -> currentDeckClick(effect.deckId)
+                is DecksLibraryEffect.NavigateDeckDetail ->
+                    currentDeckClick(effect.deckId, effect.authorPubky)
                 DecksLibraryEffect.NavigateImport -> currentImportClick()
                 DecksLibraryEffect.NavigateCreateDeck -> currentCreateDeckClick()
             }
@@ -496,7 +498,7 @@ private fun DecksScreenPreview() {
                         cardCount = 42,
                         coverEmoji = "🇪🇸",
                         author = PubkyIdentity("you9xqz1ghijkl", "Cosmic-Crystal-Panda", null, null),
-                        isOwned = true,
+                        relation = DeckRelation.Owned,
                         updatedAt = 0L,
                     ),
                     DeckTileModel(
@@ -505,7 +507,8 @@ private fun DecksScreenPreview() {
                         cardCount = 50,
                         coverEmoji = "🌍",
                         author = PubkyIdentity("alex1xqz9uvwxyz", "Alex", null, null),
-                        isOwned = false,
+                        relation = DeckRelation.Followed,
+                        hasUpdate = true,
                         updatedAt = 0L,
                     ),
                     DeckTileModel(
@@ -514,7 +517,7 @@ private fun DecksScreenPreview() {
                         cardCount = 30,
                         coverEmoji = "⚗️",
                         author = PubkyIdentity("you9xqz1ghijkl", "Cosmic-Crystal-Panda", null, null),
-                        isOwned = true,
+                        relation = DeckRelation.Owned,
                         updatedAt = 0L,
                     ),
                 ),

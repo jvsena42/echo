@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
@@ -56,16 +57,29 @@ class DecksLibraryViewModel(
             val myIdentity = session?.identity
 
             runSuspendCatching { deckRepository.listOwned() }
-                .onSuccess { decks ->
+                .onSuccess { owned ->
+                    // Followed decks live on other people's homeservers, so they fail
+                    // independently. Losing them must not turn a working library into an error.
+                    val followed = runSuspendCatching { deckRepository.listFollowed() }
+                        .onFailure { Log.e(TAG, "load: followed decks unavailable — ${it.message}", it) }
+                        .getOrDefault(emptyList())
+                    val decks = (owned + followed).distinctBy { it.id }
+
                     if (decks.isEmpty()) {
                         _state.update { DecksLibraryUiState.Empty }
                     } else {
+                        val followedIds = followed.mapTo(mutableSetOf()) { it.id }
+                        val updatedIds = followed
+                            .filter { deckRepository.hasUpdate(it.id) }
+                            .mapTo(mutableSetOf()) { it.id }
                         _state.update { DecksLibraryUiState.Content(
                             deckCount = decks.size,
-                            decks = decks.map { it.toTileModel(myIdentity) },
+                            decks = decks.map {
+                                it.toTileModel(myIdentity, it.id in followedIds, it.id in updatedIds)
+                            },
                         ) }
                     }
-                    Log.d(TAG, "load: decks=${decks.size}")
+                    Log.d(TAG, "load: owned=${owned.size} followed=${followed.size}")
                 }
                 .onFailure { err ->
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
@@ -83,7 +97,13 @@ class DecksLibraryViewModel(
     }
 
     fun onDeckClick(deckId: String) {
-        viewModelScope.launch { _effects.emit(DecksLibraryEffect.NavigateDeckDetail(deckId)) }
+        // The author travels with the deck id: for a followed deck it is the only way deck detail
+        // can fetch the manifest on a cold cache, since it lives on someone else's homeserver.
+        val author = (_state.value as? DecksLibraryUiState.Content)
+            ?.decks?.firstOrNull { it.id == deckId }?.author?.pubky
+        viewModelScope.launch {
+            _effects.emit(DecksLibraryEffect.NavigateDeckDetail(deckId, author))
+        }
     }
 
     fun onImportClick() {
@@ -95,10 +115,14 @@ class DecksLibraryViewModel(
     }
 
     /**
-     * The library only lists decks you own, so the author is the session identity — no profile
-     * lookup needed. Naming the author is the platform layer's job; this only carries who it is.
+     * Naming the author is the platform layer's job; this only carries who it is. For a followed
+     * deck that is someone else, so the tile falls back to the bare pubky until the UI resolves it.
      */
-    private fun Deck.toTileModel(myIdentity: PubkyIdentity?): DeckTileModel {
+    private fun Deck.toTileModel(
+        myIdentity: PubkyIdentity?,
+        isFollowed: Boolean,
+        hasUpdate: Boolean,
+    ): DeckTileModel {
         val isOwned = authorPubky == myIdentity?.pubky
         return DeckTileModel(
             id = id,
@@ -107,7 +131,14 @@ class DecksLibraryViewModel(
             coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
             author = myIdentity?.takeIf { isOwned }
                 ?: PubkyIdentity(authorPubky, displayName = null, avatarUrl = null, bio = null),
-            isOwned = isOwned,
+            relation = when {
+                isFollowed -> DeckRelation.Followed
+                isOwned && source?.kind == DeckSource.Kind.Clone -> DeckRelation.Cloned
+                isOwned -> DeckRelation.Owned
+                else -> DeckRelation.None
+            },
+            // Only ever true for a followed deck: your own edits are not news to you.
+            hasUpdate = hasUpdate,
             updatedAt = updatedAt,
         )
     }
@@ -146,18 +177,45 @@ sealed interface DecksLibraryUiState {
 
 enum class DeckSort { Recent, Alphabetical, CardCount }
 
+/**
+ * How the signed-in user relates to a deck. Replaces a bare `isOwned` flag: since #33 a library tile
+ * can be a deck you wrote, one you follow, or a copy you made of someone else's — and they behave
+ * differently enough (editable? receives the author's updates?) that the tile has to say which.
+ */
+enum class DeckRelation {
+    /** Yours, written here. */
+    Owned,
+
+    /** Someone else's; you hold a subscription and receive their updates. Read-only. */
+    Followed,
+
+    /** Yours, forked from someone else's. Editable, and it never receives the original's updates. */
+    Cloned,
+
+    /** Neither — a deck being browsed rather than kept. */
+    None,
+}
+
 data class DeckTileModel(
     val id: String,
     val title: String,
     val cardCount: Int,
     val coverEmoji: String,
     val author: PubkyIdentity,
-    val isOwned: Boolean,
+    val relation: DeckRelation,
+    /** The author has published changes since you last opened this. Followed decks only. */
+    val hasUpdate: Boolean = false,
     val updatedAt: Long,
-)
+) {
+    val isOwned: Boolean get() = relation == DeckRelation.Owned || relation == DeckRelation.Cloned
+}
 
 sealed interface DecksLibraryEffect {
-    data class NavigateDeckDetail(val deckId: String) : DecksLibraryEffect
+    /** [authorPubky] is null only when the tile could not name an author. */
+    data class NavigateDeckDetail(
+        val deckId: String,
+        val authorPubky: String? = null,
+    ) : DecksLibraryEffect
     data object NavigateImport : DecksLibraryEffect
     data object NavigateCreateDeck : DecksLibraryEffect
 }

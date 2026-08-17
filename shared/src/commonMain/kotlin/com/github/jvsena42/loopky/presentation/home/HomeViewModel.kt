@@ -64,7 +64,14 @@ class HomeViewModel(
             val identity = session?.identity
 
             runSuspendCatching { deckRepository.listOwned() }
-                .onSuccess { decks ->
+                .onSuccess { owned ->
+                    // Decks you follow are studiable and belong in the queue (#33). They live on
+                    // other homeservers, so losing them must not fail a working Home.
+                    val followed = runSuspendCatching { deckRepository.listFollowed() }
+                        .onFailure { Log.e(TAG, "load: followed decks unavailable — ${it.message}", it) }
+                        .getOrDefault(emptyList())
+                    val decks = (owned + followed).distinctBy { it.id }
+
                     _state.update { if (decks.isEmpty()) {
                         HomeUiState.Empty(identity)
                     } else {
@@ -88,7 +95,7 @@ class HomeViewModel(
                             },
                         )
                     } }
-                    Log.d(TAG, "load: decks=${decks.size}")
+                    Log.d(TAG, "load: owned=${owned.size} followed=${followed.size}")
                     refreshIdentity(identity)
                 }
                 .onFailure { err ->
@@ -142,12 +149,17 @@ class HomeViewModel(
     }
 
     fun onDeckClick(deckId: String) {
-        viewModelScope.launch { _effects.emit(HomeEffect.NavigateDeck(deckId)) }
+        // The author travels with the deck id: a followed deck's manifest is on someone else's
+        // homeserver, so deck detail cannot fetch it from an id alone on a cold cache.
+        val author = (_state.value as? HomeUiState.Content)
+            ?.decks?.firstOrNull { it.id == deckId }?.authorPubky
+        viewModelScope.launch { _effects.emit(HomeEffect.NavigateDeck(deckId, author)) }
     }
 
     private fun Deck.toSummary(dueCount: Int): DeckSummary = DeckSummary(
         id = id,
         title = title,
+        authorPubky = authorPubky,
         cardCount = cardCount,
         dueCount = dueCount,
         coverInitial = title.firstOrNull()?.uppercaseChar() ?: '•',
@@ -183,6 +195,8 @@ sealed interface HomeUiState {
 data class DeckSummary(
     val id: String,
     val title: String,
+    /** Whose homeserver the deck lives on — not necessarily you, now that followed decks list here. */
+    val authorPubky: String,
     val cardCount: Int,
     val dueCount: Int,
     val coverInitial: Char,
@@ -192,7 +206,8 @@ sealed interface HomeEffect {
     data object NavigateCreateDeck : HomeEffect
     data object NavigateBrowseExamples : HomeEffect
     data object NavigateStartStudy : HomeEffect
-    data class NavigateDeck(val deckId: String) : HomeEffect
+    /** [authorPubky] is null only when the row could not name an author. */
+    data class NavigateDeck(val deckId: String, val authorPubky: String? = null) : HomeEffect
 
     /** The stored session can no longer be used — the user must sign in again. */
     data object NavigateToOnboarding : HomeEffect
