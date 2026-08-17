@@ -19,7 +19,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.domain.model.avatarDisplayUrl
 import com.github.jvsena42.loopky.domain.model.avatarInitial
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
@@ -51,9 +53,12 @@ fun PubkyAvatar(
             fontWeight = FontWeight.W800,
             color = colors.accentSecondary,
         )
-        if (!identity.avatarUrl.isNullOrBlank()) {
+        // Not identity.avatarUrl: that is a `pubky://` file URI Coil cannot fetch, so every
+        // avatar silently failed to the initial below. See [avatarDisplayUrl].
+        val pictureUrl = identity.avatarDisplayUrl(NexusClient.DEFAULT_BASE_URL)
+        if (pictureUrl != null) {
             AsyncImage(
-                model = identity.avatarUrl,
+                model = pictureUrl,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
