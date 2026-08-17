@@ -111,7 +111,7 @@ publish → deck detail → editor → card editor → study → discover → fr
 | wifi/data off → Home shows "Nothing to study yet — create or import a deck", Decks shows "No decks yet" | `listByAuthor` no longer swallows transport failures into an empty list; both now show an error with retry |
 | Home showed the zero-decks empty state after finishing a session | new "all caught up" state carrying the next due time |
 | Onboarding printed `HTTP transport error: error sending request for url (https://httprelay.pubky.app/inbox/…)` verbatim | `ErrorReason` + per-platform copy; raw text stays in logcat |
-| Sign-in failed twice then succeeded on an identical third attempt | bounded retry on the auth-relay poll, transport failures only |
+| Sign-in failed twice then succeeded on an identical third attempt | bounded retry on the auth-relay poll, transport failures only — **wrong fix, reverted in #59; see the 2026-08-17 pass below** |
 | Paste "Next" with an empty box and Publish with an empty title: nothing happened, no message | real disabled styling, CTAs enabled so validation can speak, Publish CTA pinned above the fold |
 | Both Share buttons did nothing | one `Context.shareText` helper |
 | Editor drag handle did nothing when dragged | move up/down buttons + real reorder (needed the card-order fix first); the handle now drags too |
@@ -155,3 +155,46 @@ add-friend sheet and both sign-out dialogs.
   clears after toggling the radios. It classifies as a generic error rather than "offline" on
   purpose — it is a TLS-stack fault, and telling the user to check their connection would be
   misleading since retrying does not help.
+
+---
+
+## 01 re-run — auth-relay failure — 2026-08-17, `emulator-5554` (#59)
+
+Re-ran journey 01 to verify #59. **The relay-failure branch passed; the happy path could not be
+re-verified from a script** — see the flakiness note below.
+
+### Verified
+
+| Step | Result |
+| --- | --- |
+| Sign out → onboarding, radios off, tap sign in | PASSED — `beginSignIn` succeeds (the auth URL is generated locally), Ring opens |
+| Loopky surfaces the real cause | PASSED — `complete: FAILED — PubkyError: Auth approval failed: … HTTP transport error … httprelay.pubky.app/inbox/y1N6EOpH…`. **No** `awaitApproval: transport failure … retrying`, **no** `No auth flow in progress` |
+| On-screen copy | PASSED — "Loopky signs you in through Pubky's authorisation relay, and it isn't responding. Try again in a moment." |
+| One-tap restart from the error state | PASSED — a single tap logs `state=Starting, calling beginSignIn` and mints a new secret; Ring reopens |
+
+### Why the retry could never have worked
+
+`await_auth_approval` in the FFI does `AUTH_FLOW.lock().take()` and
+`PubkyAuthFlow::await_approval(self)` consumes the flow, so the first poll — success or failure
+— tears it down. The 2026-08-13 row above credits the retry with a recovery that actually came
+from the user re-tapping (a fresh `beginSignIn`). Independently, the SDK **already** retries the
+poll: logcat under tag `pubkycore` shows
+`Http relay inbox channel polling attempt 1/2/3 failed`. The app-level retry was redundant as
+well as broken.
+
+### The emulator flakiness, and what it is not
+
+Six scripted sign-ins between 07:23 and 07:35 failed identically, every one ~5.9s after
+`beginSignIn`. Ruled out: DNS resolves (`34.65.156.171`, **no AAAA record**, so not an IPv6
+fallback stall), ICMP reaches the host, Chrome on the same emulator loads the relay and reports
+"Connection is secure", no rustls panic in logcat, and a full `adb reboot` did not clear it.
+From the host the inbox long-poll holds open ≥25s.
+
+Then a **manual** sign-in at 07:39 succeeded on the same network — matching the report that
+failures are rarer when a human drives it. So it is not the network configuration and not the
+app build; the difference is something about scripted repetition (six fresh inbox channels in
+twelve minutes, each failure opening another). Unexplained, and worth suspecting relay-side or
+emulator-NAT limits before suspecting Loopky.
+
+**Consequence for anyone running 01: signing out is a one-way door on the emulator whenever the
+relay is in this state.** Journey 01 now carries that warning and covers the failure branch.

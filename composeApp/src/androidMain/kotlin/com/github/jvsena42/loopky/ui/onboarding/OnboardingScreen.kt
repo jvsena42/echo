@@ -104,7 +104,6 @@ fun OnboardingScreen(
         state = state,
         onSignInClick = viewModel::onSignInClick,
         onGetRingClick = viewModel::onGetRingClick,
-        onRetry = viewModel::onRetry,
     )
 }
 
@@ -113,7 +112,6 @@ private fun OnboardingContent(
     state: OnboardingUiState,
     onSignInClick: () -> Unit,
     onGetRingClick: () -> Unit,
-    onRetry: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     val isWorking = state is OnboardingUiState.Starting ||
@@ -171,7 +169,6 @@ private fun OnboardingContent(
             isWorking = isWorking,
             onSignInClick = onSignInClick,
             onGetRingClick = onGetRingClick,
-            onRetry = onRetry,
         )
     }
 }
@@ -209,7 +206,6 @@ private fun CtaBlock(
     isWorking: Boolean,
     onSignInClick: () -> Unit,
     onGetRingClick: () -> Unit,
-    onRetry: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -224,9 +220,9 @@ private fun CtaBlock(
                 OnboardingUiState.Verifying -> stringResource(R.string.onboarding_signin_verifying)
                 else -> stringResource(R.string.onboarding_signin_default)
             },
-            onClick = {
-                if (state is OnboardingUiState.Error) onRetry() else onSignInClick()
-            },
+            // Also the recovery path: a failed approval consumes the FFI's auth flow, so retrying
+            // means starting a whole new one. Clearing the error first would only cost a tap (#59).
+            onClick = onSignInClick,
             loading = isWorking,
             enabled = !isWorking,
             modifier = Modifier.testTag("onboarding_signin"),
@@ -274,7 +270,6 @@ private fun OnboardingContentPreview() {
             state = OnboardingUiState.Idle,
             onSignInClick = {},
             onGetRingClick = {},
-            onRetry = {},
         )
     }
 }

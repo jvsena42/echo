@@ -3,6 +3,17 @@
     First-run sign-in via the Pubky Ring deeplink auth flow against the staging homeserver.
     Requires: Loopky debug build installed, Pubky Ring installed and already set up with an
     identity (staging). Loopky must be signed out (fresh install or after Settings → Sign out).
+
+    Warning before running this: signing out is only reversible if the auth relay
+    (`httprelay.pubky.app`) is reachable *from the app's Rust HTTP stack*, which on the
+    emulator it intermittently is not — for stretches of ~15 minutes, while Chrome on the same
+    emulator loads the relay over TLS and homeserver + Nexus reads keep working. There is no
+    other way back into a signed-out session. Do not sign out unless you are willing to lose it.
+
+    The second half of this journey covers that failure, which is the more common outcome on the
+    emulator and is the reason #59 exists: the poll used to be retried in place against an auth
+    flow the FFI had already consumed, which replaced the real cause with "No auth flow in
+    progress" and blamed Pubky Ring for a relay outage.
   </description>
   <actions>
     <action>Launch the Loopky app (package com.github.jvsena42.loopky)</action>
@@ -11,5 +22,12 @@
     <action>Verify the Pubky Ring app opens with an authorization prompt for Loopky's capabilities</action>
     <action>Approve the authorization request in Pubky Ring (tap its confirm/authorize control)</action>
     <action>Verify Loopky returns to the foreground and lands on the Home screen (a greeting header is shown and the bottom tab bar is visible)</action>
+
+    <action>THE RELAY-FAILURE BRANCH. Force it deterministically by disabling the radios before tapping sign in: adb shell svc wifi disable &amp;&amp; adb shell svc data disable</action>
+    <action>Tap the element with resource-id "onboarding_signin", then return to Loopky (Pubky Ring still opens; press back or re-launch MainActivity)</action>
+    <action>Verify the onboarding screen shows "Loopky signs you in through Pubky's authorisation relay, and it isn't responding. Try again in a moment." — NOT "You're offline" (the relay is a different host from the homeserver) and NOT "Loopky couldn't confirm the authorisation with Pubky Ring" (Ring never saw the request)</action>
+    <action>Verify logcat contains "complete: FAILED — PubkyError: Auth approval failed" carrying the real transport error, and does NOT contain "awaitApproval: transport failure" or "No auth flow in progress" — either would mean the retry removed in #59 is back</action>
+    <action>Re-enable the radios, then tap "onboarding_signin" ONCE</action>
+    <action>Verify a single tap starts a whole new flow — logcat shows "state=Starting, calling beginSignIn" and a new authUrl with a different secret, and Pubky Ring reopens. The FFI auth flow is single-use, so restarting is the only recovery; a tap that merely clears the error is the two-tap regression #59 fixed.</action>
   </actions>
 </journey>

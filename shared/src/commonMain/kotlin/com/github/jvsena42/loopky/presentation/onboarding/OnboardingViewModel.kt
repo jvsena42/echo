@@ -83,14 +83,21 @@ class OnboardingViewModel(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "onSignInClick: completion FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    // Anything that isn't a recognised transport/session failure is still an
-                    // auth failure from the user's point of view, not a mystery.
-                    val reason = err.toErrorReason()
-                        .takeUnless { it == ErrorReason.Unknown }
-                        ?: ErrorReason.AuthFailed
-                    _state.update { OnboardingUiState.Error(reason) }
+                    _state.update { OnboardingUiState.Error(err.toSignInReason()) }
                 }
         }
+    }
+
+    /**
+     * Classify a failed approval. The only network the completion touches is the auth relay — the
+     * profile fetch inside it is best-effort — so a transport failure here is the relay being
+     * unreachable, not the user being offline. Anything we cannot classify is still an auth
+     * failure from the user's point of view, not a mystery.
+     */
+    private fun Throwable.toSignInReason(): ErrorReason = when (val reason = toErrorReason()) {
+        ErrorReason.Offline -> ErrorReason.AuthRelayUnreachable
+        ErrorReason.Unknown -> ErrorReason.AuthFailed
+        else -> reason
     }
 
     fun onGetRingClick() {
@@ -107,10 +114,6 @@ class OnboardingViewModel(
         signInJob?.cancel()
         signInJob = null
         _state.update { OnboardingUiState.Error(ErrorReason.RingNotInstalled) }
-    }
-
-    fun onRetry() {
-        _state.update { OnboardingUiState.Idle }
     }
 
     companion object {

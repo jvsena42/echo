@@ -27,6 +27,16 @@ enum class ErrorReason {
     /** The Pubky Ring authorisation did not complete. */
     AuthFailed,
 
+    /**
+     * Pubky's authorisation relay did not answer, so the approval could never be collected.
+     *
+     * Deliberately distinct from [Offline]: the relay is a different host from the homeserver and
+     * fails on its own — on the days this bites, deck reads and Nexus queries keep working, so
+     * "you're offline" would send the user to check a connection that is fine. It is also not
+     * [AuthFailed], which blames Pubky Ring for something Ring never saw (#59).
+     */
+    AuthRelayUnreachable,
+
     /** Anything we could not classify. */
     Unknown,
 }
