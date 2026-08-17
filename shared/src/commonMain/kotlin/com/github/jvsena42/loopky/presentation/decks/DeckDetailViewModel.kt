@@ -33,7 +33,7 @@ import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @OptIn(ExperimentalEncodingApi::class)
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "TooManyFunctions")
 class DeckDetailViewModel(
     private val deckId: String,
     private val authorPubky: String? = null,

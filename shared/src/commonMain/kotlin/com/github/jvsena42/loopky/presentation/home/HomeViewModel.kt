@@ -206,6 +206,7 @@ sealed interface HomeEffect {
     data object NavigateCreateDeck : HomeEffect
     data object NavigateBrowseExamples : HomeEffect
     data object NavigateStartStudy : HomeEffect
+
     /** [authorPubky] is null only when the row could not name an author. */
     data class NavigateDeck(val deckId: String, val authorPubky: String? = null) : HomeEffect
 

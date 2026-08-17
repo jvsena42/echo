@@ -17,12 +17,12 @@ import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
 import com.github.jvsena42.loopky.testing.testDeckWithCards
 import com.github.jvsena42.loopky.util.epochMillis
-import kotlinx.serialization.encodeToString
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

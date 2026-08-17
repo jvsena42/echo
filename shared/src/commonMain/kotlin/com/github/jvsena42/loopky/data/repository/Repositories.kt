@@ -85,6 +85,7 @@ interface AuthFlowHandle {
  * /pub/loopky/decks/{deckId}/media/{sha256}.{ext}
  * ```
  */
+@Suppress("TooManyFunctions")
 interface DeckRepository {
     /**
      * Emits after every local mutation ([publish], [updateMetadata], [delete]) so screens

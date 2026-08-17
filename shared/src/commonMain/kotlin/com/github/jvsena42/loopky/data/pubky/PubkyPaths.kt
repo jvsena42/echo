@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.pubky
 
+@Suppress("TooManyFunctions")
 internal object PubkyPaths {
     const val APP_NAMESPACE = "pub/loopky"
     private const val PUBKY_APP_NAMESPACE = "pub/pubky.app"
