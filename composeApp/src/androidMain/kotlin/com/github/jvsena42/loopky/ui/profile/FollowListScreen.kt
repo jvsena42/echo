@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -76,7 +77,6 @@ private fun FollowListScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .testTag("follow_list_screen")
             .background(colors.surfacePrimary)
             .windowInsetsPadding(WindowInsets.systemBars)
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp)),
@@ -130,13 +130,18 @@ private fun FollowListScreen(
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {
                 itemsIndexed(state.people, key = { _, person -> person.pubky }) { index, person ->
+                    // The whole row is the target, not just the name: a list of people is a list
+                    // of links. The click also has to live here for the test tag to reach the
+                    // accessibility tree — a tag on a node with no semantics of its own is merged
+                    // away and surfaces no resource-id to a journey test.
                     AuthorRow(
                         identity = person,
-                        onNameClick = { onOpenProfile(person.pubky) },
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onOpenProfile(person.pubky) }
                             .testTag("follow_row_$index")
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
                     )
                 }
                 // The list is filtered to Loopky accounts, so it is routinely shorter than the
@@ -161,12 +166,7 @@ private fun FollowListScreen(
 @Composable
 private fun EmptyFollowList(source: FollowSource) {
     val colors = LoopkyTheme.colors
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("follow_list_empty"),
-        contentAlignment = Alignment.Center,
-    ) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
             text = stringResource(
                 when (source) {
@@ -177,7 +177,11 @@ private fun EmptyFollowList(source: FollowSource) {
             fontSize = 14.sp,
             color = colors.foregroundMuted,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 24.dp),
+            // On the Text, not the Box around it: the tag has to share a node with real semantics
+            // or it never reaches the accessibility tree.
+            modifier = Modifier
+                .testTag("follow_list_empty")
+                .padding(horizontal = 24.dp),
         )
     }
 }
