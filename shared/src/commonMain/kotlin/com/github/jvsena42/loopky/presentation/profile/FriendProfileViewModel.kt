@@ -49,13 +49,19 @@ class FriendProfileViewModel(
         load()
     }
 
-    fun onRefresh() = load(forceRefresh = true)
+    fun onRefresh() = load(forceRefresh = true, silent = true)
 
-    /** [forceRefresh] reads the profile past the shared cache, for an explicit pull-to-refresh. */
-    private fun load(forceRefresh: Boolean = false) {
+    /**
+     * [forceRefresh] reads the profile past the shared cache, for an explicit pull-to-refresh.
+     * [silent] keeps the profile on screen while that runs — swapping it for the full-screen
+     * spinner would make a pull-to-refresh look like the screen had been thrown away.
+     */
+    private fun load(forceRefresh: Boolean = false, silent: Boolean = false) {
         if (loadJob?.isActive == true) return
         loadJob = viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
+            _state.update {
+                if (silent) it.copy(isRefreshing = true) else it.copy(isLoading = true)
+            }
 
             val profile = identityRepository.fetchProfile(targetPubky, forceRefresh).getOrNull()
             val decks = runSuspendCatching { deckRepository.listByAuthor(targetPubky) }.getOrElse {
@@ -74,10 +80,13 @@ class FriendProfileViewModel(
             _state.update {
                 it.copy(
                     isLoading = false,
+                    isRefreshing = false,
                     identity = identity,
                     isFollowing = isFollowing,
                     isSelf = isSelf,
                     decks = decks.map { it.toCard() },
+                    deckCount = decks.size,
+                    cardCount = decks.sumOf { deck -> deck.cardCount },
                 )
             }
             Log.d(TAG, "load: decks=${decks.size} following=$isFollowing")
@@ -88,8 +97,11 @@ class FriendProfileViewModel(
         if (followJob?.isActive == true || _state.value.isSelf) return
         followJob = viewModelScope.launch {
             val wasFollowing = _state.value.isFollowing
-            // Optimistic flip; revert on failure.
-            _state.update { it.copy(isFollowing = !wasFollowing, isProcessingFollow = true) }
+            // Optimistic flip; revert on failure. The previous attempt's error goes with it —
+            // it used to survive a later success, leaving a stale failure under a live Following.
+            _state.update {
+                it.copy(isFollowing = !wasFollowing, isProcessingFollow = true, errorReason = null)
+            }
 
             val result = if (wasFollowing) {
                 discoveryRepository.unfollowUser(targetPubky)
@@ -131,6 +143,8 @@ class FriendProfileViewModel(
 
 data class FriendProfileUiState(
     val isLoading: Boolean = true,
+    /** A pull-to-refresh in flight — unlike [isLoading], the profile stays on screen. */
+    val isRefreshing: Boolean = false,
     /** Who this profile belongs to — the name, avatar and pubky all read off this one value. */
     val identity: PubkyIdentity,
     val isFollowing: Boolean = false,
@@ -140,6 +154,9 @@ data class FriendProfileUiState(
     /** Set when a follow/unfollow fails; rendered inline. */
     val errorReason: ErrorReason? = null,
     val decks: List<FriendDeck> = emptyList(),
+    /** Derived from [decks] here rather than in the UI, so the screen stays a dumb renderer. */
+    val deckCount: Int = 0,
+    val cardCount: Int = 0,
 )
 
 data class FriendDeck(

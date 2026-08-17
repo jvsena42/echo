@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.ui.profile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,12 +18,17 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,9 +53,13 @@ import com.github.jvsena42.loopky.presentation.profile.FriendDeck
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileEffect
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileUiState
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileViewModel
-import com.github.jvsena42.loopky.ui.components.AuthorRow
 import com.github.jvsena42.loopky.ui.components.DeckTile
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
+import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
+import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
+import com.github.jvsena42.loopky.ui.components.ProfileHero
+import com.github.jvsena42.loopky.ui.components.ProfileStat
+import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
@@ -80,6 +90,7 @@ fun FriendProfileRoute(
     FriendProfileScreen(
         state = state,
         onBack = onBack,
+        onRefresh = viewModel::onRefresh,
         onToggleFollow = viewModel::onToggleFollow,
         onCopyPubky = viewModel::onCopyPubky,
         onOpenDeck = viewModel::onOpenDeck,
@@ -90,6 +101,7 @@ fun FriendProfileRoute(
 private fun FriendProfileScreen(
     state: FriendProfileUiState,
     onBack: () -> Unit,
+    onRefresh: () -> Unit,
     onToggleFollow: () -> Unit,
     onCopyPubky: () -> Unit,
     onOpenDeck: (String) -> Unit,
@@ -105,97 +117,176 @@ private fun FriendProfileScreen(
         return
     }
 
-    Column(
+    PullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = onRefresh,
         modifier = Modifier
             .fillMaxSize()
+            .testTag("friend_profile_screen")
             .background(colors.surfacePrimary)
-            .windowInsetsPadding(WindowInsets.systemBars)
-            .verticalScroll(rememberScrollState())
-            .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp)),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .windowInsetsPadding(WindowInsets.systemBars),
     ) {
-        // Back row
-        Box(
+        Column(
             modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(colors.surfaceCard)
-                .clickable(onClick = onBack),
-            contentAlignment = Alignment.Center,
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.friend_profile_back_content_description),
-                tint = colors.foregroundPrimary,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-
-        // Header: avatar + name + pubky + follow pill (reused AuthorRow)
-        AuthorRow(
-            identity = state.identity,
-            isOwned = state.isSelf,
-            isFollowing = state.isFollowing,
-            isFollowPending = state.isProcessingFollow,
-            onFollowClick = onToggleFollow,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        state.errorReason?.let { reason ->
-            Text(
-                text = errorMessage(reason),
-                color = colors.danger,
-                fontSize = 13.sp,
+            // Back row
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("friend_profile_error"),
-            )
-        }
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(colors.surfaceCard)
+                    .clickable(onClick = onBack)
+                    .testTag("friend_profile_back"),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.friend_profile_back_content_description),
+                    tint = colors.foregroundPrimary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
 
-        // Copyable full pubky
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(colors.surfaceSecondary)
-                .clickable(onClick = onCopyPubky)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.friend_profile_copy_pubky),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.foregroundMuted,
+            // Identity — the same hero the signed-in user's own profile uses, so a person reads
+            // as a person here rather than as a list row.
+            ProfileHero(
+                identity = state.identity,
+                isOwned = state.isSelf,
+                onPubkyClick = onCopyPubky,
+                modifier = Modifier.fillMaxWidth(),
             )
-        }
 
-        val bio = state.identity.bio
-        if (!bio.isNullOrBlank()) {
-            Text(
-                text = bio,
-                fontSize = 13.sp,
-                color = colors.foregroundSecondary,
-                lineHeight = 19.sp,
+            // Nothing to act on when this is you: following yourself is not a thing, and editing
+            // lives on the Profile tab. The hero's "You" badge already says whose profile this is.
+            if (!state.isSelf) {
+                FollowActionRow(
+                    isFollowing = state.isFollowing,
+                    isProcessingFollow = state.isProcessingFollow,
+                    onToggleFollow = onToggleFollow,
+                    onCopyPubky = onCopyPubky,
+                )
+            }
+
+            state.errorReason?.let { reason ->
+                Text(
+                    text = errorMessage(reason),
+                    color = colors.danger,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("friend_profile_error"),
+                )
+            }
+
+            // Two stats, not three: "due" is a fact about the signed-in user's review queue, so
+            // it says nothing about the person being looked at.
+            ProfileStatsCard(
+                stats = listOf(
+                    ProfileStat(
+                        value = state.deckCount.toString(),
+                        label = stringResource(R.string.profile_stat_decks),
+                        valueColor = colors.foregroundPrimary,
+                    ),
+                    ProfileStat(
+                        value = state.cardCount.toString(),
+                        label = stringResource(R.string.profile_stat_cards),
+                        valueColor = colors.accentPrimary,
+                    ),
+                ),
+                modifier = Modifier.testTag("friend_profile_stats"),
             )
-        }
 
-        // Decks
-        Text(
-            text = pluralStringResource(R.plurals.public_decks_count, state.decks.size, state.decks.size),
-            color = colors.foregroundPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.W700,
-        )
-        if (state.decks.isEmpty()) {
+            // Decks
             Text(
-                text = stringResource(R.string.friend_profile_no_public_decks),
-                color = colors.foregroundMuted,
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                text = pluralStringResource(R.plurals.public_decks_count, state.decks.size, state.decks.size),
+                color = colors.foregroundPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.W700,
+            )
+            if (state.decks.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.friend_profile_no_public_decks),
+                    color = colors.foregroundMuted,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                )
+            } else {
+                DeckGrid(decks = state.decks, onOpenDeck = onOpenDeck)
+            }
+        }
+    }
+}
+
+/**
+ * Follow as the screen's primary action, mirroring "Edit Profile" on the owner's profile.
+ * Following is a settled state rather than a call to action, so it steps down to the soft
+ * secondary button — the same solid/soft split the compact `AuthorRow` pill uses.
+ */
+@Composable
+private fun FollowActionRow(
+    isFollowing: Boolean,
+    isProcessingFollow: Boolean,
+    onToggleFollow: () -> Unit,
+    onCopyPubky: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (isFollowing) {
+            LoopkySecondaryButton(
+                text = stringResource(R.string.component_author_row_following),
+                onClick = onToggleFollow,
+                icon = Icons.Filled.Check,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("friend_profile_follow"),
             )
         } else {
-            DeckGrid(decks = state.decks, onOpenDeck = onOpenDeck)
+            LoopkyPrimaryButton(
+                label = stringResource(R.string.component_author_row_follow),
+                onClick = onToggleFollow,
+                loading = isProcessingFollow,
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.PersonAdd,
+                        contentDescription = null,
+                        tint = colors.foregroundOnAccent,
+                        modifier = Modifier.size(16.dp),
+                    )
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("friend_profile_follow"),
+            )
+        }
+
+        OutlinedIconButton(
+            onClick = onCopyPubky,
+            modifier = Modifier
+                .size(48.dp)
+                .testTag("friend_profile_copy"),
+            shape = CircleShape,
+            colors = IconButtonDefaults.outlinedIconButtonColors(
+                containerColor = colors.surfaceCard,
+                contentColor = colors.foregroundSecondary,
+            ),
+            border = BorderStroke(1.dp, colors.borderSubtle),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.ContentCopy,
+                contentDescription = stringResource(R.string.friend_profile_copy_pubky),
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
@@ -216,7 +307,9 @@ private fun DeckGrid(decks: List<FriendDeck>, onOpenDeck: (String) -> Unit) {
                         coverEmoji = deck.coverEmoji,
                         authorLabel = deck.tags.firstOrNull()?.let { "#$it" } ?: "",
                         onClick = { onOpenDeck(deck.id) },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("friend_profile_deck_tile"),
                     )
                 }
                 if (row.size == 1) {
@@ -232,36 +325,71 @@ private fun DeckGrid(decks: List<FriendDeck>, onOpenDeck: (String) -> Unit) {
 private fun FriendProfileScreenPreview() {
     LoopkyTheme {
         FriendProfileScreen(
-            state = FriendProfileUiState(
-                isLoading = false,
-                identity = PubkyIdentity(
-                    pubky = "abcdef1234567890abcdef",
-                    displayName = "Grace Hopper",
-                    avatarUrl = null,
-                    bio = "Compiler pioneer. Decks on debugging and history.",
-                ),
-                isFollowing = true,
-                decks = listOf(
-                    FriendDeck(
-                        id = "1",
-                        title = "Debugging 101",
-                        cardCount = 18,
-                        coverEmoji = "🐛",
-                        tags = listOf("engineering"),
-                    ),
-                    FriendDeck(
-                        id = "2",
-                        title = "Naval history",
-                        cardCount = 30,
-                        coverEmoji = "⚓",
-                        tags = listOf("history"),
-                    ),
-                ),
-            ),
+            state = previewState(isFollowing = false),
             onBack = {},
+            onRefresh = {},
             onToggleFollow = {},
             onCopyPubky = {},
             onOpenDeck = {},
         )
     }
 }
+
+@Preview
+@Composable
+private fun FriendProfileScreenFollowingPreview() {
+    LoopkyTheme {
+        FriendProfileScreen(
+            state = previewState(isFollowing = true),
+            onBack = {},
+            onRefresh = {},
+            onToggleFollow = {},
+            onCopyPubky = {},
+            onOpenDeck = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun FriendProfileScreenSelfPreview() {
+    LoopkyTheme {
+        FriendProfileScreen(
+            state = previewState(isFollowing = false).copy(isSelf = true),
+            onBack = {},
+            onRefresh = {},
+            onToggleFollow = {},
+            onCopyPubky = {},
+            onOpenDeck = {},
+        )
+    }
+}
+
+private fun previewState(isFollowing: Boolean) = FriendProfileUiState(
+    isLoading = false,
+    identity = PubkyIdentity(
+        pubky = "abcdef1234567890abcdef",
+        displayName = "Grace Hopper",
+        avatarUrl = null,
+        bio = "Compiler pioneer. Decks on debugging and history.",
+    ),
+    isFollowing = isFollowing,
+    decks = listOf(
+        FriendDeck(
+            id = "1",
+            title = "Debugging 101",
+            cardCount = 18,
+            coverEmoji = "🐛",
+            tags = listOf("engineering"),
+        ),
+        FriendDeck(
+            id = "2",
+            title = "Naval history",
+            cardCount = 30,
+            coverEmoji = "⚓",
+            tags = listOf("history"),
+        ),
+    ),
+    deckCount = 2,
+    cardCount = 48,
+)
