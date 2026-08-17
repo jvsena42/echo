@@ -35,6 +35,10 @@ import kotlinx.serialization.encodeToString
  * [decksByTag] is a local filter over decks the user can already reach (following + own).
  * [decksByTagGlobal] and [loopkyUsers] go wider, through the Nexus indexer — and everything they
  * read is untrusted, so each entry is verified before it is returned (see [verifiedDeck]).
+ *
+ * The discovery reads — [decksFromFollowing] and [decksByTagGlobal] — leave out the signed-in
+ * account's own decks. Those already have a home in Library, and on a young network they are
+ * otherwise most of what Discover has to show. [decksByTag] is deliberately not one of them.
  */
 class DiscoveryRepositoryImpl(
     private val pubky: PubkyClient,
@@ -81,7 +85,9 @@ class DiscoveryRepositoryImpl(
     }
 
     override suspend fun decksFromFollowing(): List<Deck> {
-        val followees = following()
+        val me = session.current()?.identity?.pubky
+        // Following yourself is reachable, and it would put your own decks on a Discover strip.
+        val followees = following().filterNot { it == me }
         return followees
             .flatMap { author ->
                 runSuspendCatching { deckRepository.listByAuthor(author) }.getOrElse {
@@ -102,6 +108,8 @@ class DiscoveryRepositoryImpl(
     }
 
     override suspend fun decksByTagGlobal(tag: Tag, limit: Int): List<Deck> {
+        // [limit] is spent at the indexer, before anything here drops an entry, so a browse can
+        // come back shorter than asked for — same as the verification drops below.
         val subjects = tagRepository.taggedSubjects(tag, limit)
         val decks = subjects.mapConcurrently { subject -> verifiedDeck(subject) }
         val kept = decks.filterNotNull().distinctBy { it.id }
@@ -118,9 +126,14 @@ class DiscoveryRepositoryImpl(
      * 2. the tagger has to be the deck's own author, so labelling someone else's deck does nothing;
      * 3. the manifest has to fetch and parse, which is what makes a forged entry useless rather
      *    than merely unlikely.
+     *
+     * And then one rule that is about relevance rather than trust: a deck of your own is dropped,
+     * because Library is where it belongs. Checked off the URI, before the manifest fetch, so your
+     * own decks cost nothing to skip.
      */
     private suspend fun verifiedDeck(subject: TaggedSubject): Deck? {
         val ref = PubkyUris.parseDeckManifest(subject.uri.value) ?: return null
+        if (ref.authorPubky == session.current()?.identity?.pubky) return null
         // An empty tagger list means the indexer capped it, not that nobody tagged it — only
         // reject when we can actually see the taggers and the author isn't among them.
         if (subject.taggers.isNotEmpty() && ref.authorPubky !in subject.taggers) {
