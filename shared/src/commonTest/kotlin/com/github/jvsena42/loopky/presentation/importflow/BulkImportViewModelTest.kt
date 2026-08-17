@@ -81,6 +81,45 @@ class BulkImportViewModelTest {
 
     // ── parse ────────────────────────────────────────────────────────────
 
+    // ── error modes ──────────────────────────────────────────────────────
+
+    @Test
+    fun aFileThatReadsButHoldsNoCardsSaysSoRatherThanBlamingTheRead() = runTest {
+        // These used to collapse into one message string, so someone who picked a photo got a
+        // parser complaint and someone whose export was empty got a read error.
+        importRepo.draft = null
+        val vm = viewModel()
+
+        vm.onFileLoaded(fileName = "empty.txt", text = "")
+        runCurrent()
+
+        val state = assertIs<BulkImportUiState.Error>(vm.state.value)
+        assertEquals(expected = BulkImportError.NoCardsFound, actual = state.reason)
+    }
+
+    @Test
+    fun aFailedReadKeepsItsOwnReason() = runTest {
+        val vm = viewModel()
+
+        vm.onFileReadFailed(BulkImportError.TooLarge)
+
+        val state = assertIs<BulkImportUiState.Error>(vm.state.value)
+        assertEquals(expected = BulkImportError.TooLarge, actual = state.reason)
+    }
+
+    @Test
+    fun pickingAnotherFileReturnsToThePicker() = runTest {
+        val vm = viewModel()
+        vm.onFileLoaded(fileName = "animals.txt", text = "dog\tcachorro")
+        runCurrent()
+        assertIs<BulkImportUiState.Ready>(vm.state.value)
+
+        vm.onPickAnother()
+
+        // Re-picking used to mean cancelling out of the flow entirely.
+        assertIs<BulkImportUiState.Idle>(vm.state.value)
+    }
+
     @Test
     fun aParsedFileCarriesItsSuggestedTitleOntoTheDraft() = runTest {
         val vm = viewModel()

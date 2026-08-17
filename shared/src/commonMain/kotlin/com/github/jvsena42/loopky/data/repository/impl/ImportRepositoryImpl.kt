@@ -74,10 +74,12 @@ class ImportRepositoryImpl : ImportRepository {
         parseInternal(
             rawText,
             separator,
-            maxChars = MAX_BULK_CHARS,
-            maxCards = MAX_BULK_CARDS,
-            suggestedTitle = suggestedTitle,
-            discardIncomplete = true,
+            ParseOptions(
+                maxChars = MAX_BULK_CHARS,
+                maxCards = MAX_BULK_CARDS,
+                suggestedTitle = suggestedTitle,
+                discardIncomplete = true,
+            ),
         )
 
     /**
@@ -101,7 +103,7 @@ class ImportRepositoryImpl : ImportRepository {
     }
 
     override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
-        parseInternal(rawText, separator, maxChars = MAX_CHARS, maxCards = MAX_CARDS)
+        parseInternal(rawText, separator, ParseOptions(maxChars = MAX_CHARS, maxCards = MAX_CARDS))
 
     /**
      * Runs off the main thread. `parse`/`parseBulk` have always been `suspend` — a promise of
@@ -118,23 +120,26 @@ class ImportRepositoryImpl : ImportRepository {
     private suspend fun parseInternal(
         rawText: String,
         separator: Separator?,
-        maxChars: Int,
-        maxCards: Int,
-        suggestedTitle: String? = null,
-        discardIncomplete: Boolean = false,
+        options: ParseOptions,
     ): Result<ImportDraft> = withContext(Dispatchers.Default) {
-        parseLock.withLock { parseLocked(rawText, separator, maxChars, maxCards, suggestedTitle, discardIncomplete) }
+        parseLock.withLock { parseLocked(rawText, separator, options) }
     }
 
-    @Suppress("LongParameterList")
+    /** What separates a paste from a file import: its caps, and what it does with half-rows. */
+    private data class ParseOptions(
+        val maxChars: Int,
+        val maxCards: Int,
+        val suggestedTitle: String? = null,
+        val discardIncomplete: Boolean = false,
+    )
+
     private suspend fun parseLocked(
         rawText: String,
         separator: Separator?,
-        maxChars: Int,
-        maxCards: Int,
-        suggestedTitle: String?,
-        discardIncomplete: Boolean,
+        options: ParseOptions,
     ): Result<ImportDraft> = runCatching {
+        val maxChars = options.maxChars
+        val maxCards = options.maxCards
         // A fresh parse invalidates any prior triage decisions/edits.
         triageDecisions.clear()
         rowEdits.clear()
@@ -178,10 +183,10 @@ class ImportRepositoryImpl : ImportRepository {
             rows = deduped,
             duplicatesCollapsed = duplicatesCollapsed,
             truncated = truncated,
-            suggestedTitle = suggestedTitle,
+            suggestedTitle = options.suggestedTitle,
         ).also {
             draft = it
-            if (discardIncomplete) discardIncompleteRows(it)
+            if (options.discardIncomplete) discardIncompleteRows(it)
         }
     }
 

@@ -179,19 +179,27 @@ private fun DecksScreenContent(
                 onQueryChanged = onQueryChanged,
             )
         }
-        PasteCtaCard(onClick = onImportClick)
-        // Secondary, because paste is the primary flow (spec §1). File import exists for decks
-        // too big to paste — an Anki export, not a hand-typed list.
-        TextButton(
-            onClick = onImportFileClick,
-            modifier = Modifier.testTag("decks_import_file"),
+        // Grouped so the outer 20.dp spacing doesn't apply between them: the file CTA belongs to
+        // the paste card, and the wide gap made it read as an unrelated stray control.
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = stringResource(R.string.decks_import_file_cta),
-                color = LoopkyTheme.colors.accentPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.W600,
-            )
+            PasteCtaCard(onClick = onImportClick)
+            // Secondary, because paste is the primary flow (spec §1). File import exists for decks
+            // too big to paste — an Anki export, not a hand-typed list — and says so, since the
+            // spec pitches Loopky at Anki refugees who won't find it under "a file".
+            TextButton(
+                onClick = onImportFileClick,
+                modifier = Modifier.testTag("decks_import_file"),
+            ) {
+                Text(
+                    text = stringResource(R.string.decks_import_file_cta),
+                    color = LoopkyTheme.colors.accentPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.W600,
+                )
+            }
         }
 
         when (state) {

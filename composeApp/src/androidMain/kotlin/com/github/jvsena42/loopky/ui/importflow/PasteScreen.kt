@@ -459,14 +459,15 @@ private fun ExampleCard(title: String, separator: String, lines: List<String>) {
     }
 }
 
-@StringRes
 /**
  * Spec §5.2 "tap to change": the detected-separator chip is an override control, not a label.
  * `ModalBottomSheet` renders in its own window, so it needs its own `testTagsAsResourceId`.
+ *
+ * Internal so the bulk-import summary reuses this sheet rather than growing a second one.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SeparatorOverrideSheet(
+internal fun SeparatorOverrideSheet(
     current: Separator?,
     onPick: (Separator) -> Unit,
     onDismiss: () -> Unit,
@@ -517,7 +518,8 @@ private fun SeparatorOverrideSheet(
     }
 }
 
-private fun separatorLabel(sep: Separator?): Int = when (sep) {
+@StringRes
+internal fun separatorLabel(sep: Separator?): Int = when (sep) {
     Separator.Tab -> R.string.paste_separator_tab
     Separator.Semicolon -> R.string.paste_separator_semicolon
     Separator.Pipe -> R.string.paste_separator_pipe
