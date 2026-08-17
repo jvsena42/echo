@@ -100,6 +100,24 @@ class NexusClient(
         loopkyJson.decodeFromString(NexusTaggersDto.serializer(), body).users
     }
 
+    /**
+     * Pubkys that follow [userId], most recent first.
+     *
+     * The one social read a homeserver cannot answer: a follow record lives on the *follower's*
+     * homeserver, so "who follows me" is a network-wide reverse lookup and only the indexer holds
+     * it. The forward direction needs nothing from here — list `/pub/pubky.app/follows/` on the
+     * user's own homeserver instead, which is both cheaper and first-hand.
+     */
+    suspend fun followers(
+        userId: String,
+        limit: Int = DEFAULT_FOLLOWS_LIMIT,
+    ): Result<List<String>> = runSuspendCatching {
+        val url = "$baseUrl/v0/user/${encodeUriComponent(userId)}/followers" +
+            "?limit=${limit.coerceIn(1, MAX_FOLLOWS_LIMIT)}"
+        val body = http.get(url).getOrThrow()
+        loopkyJson.decodeFromString(ListSerializer(String.serializer()), body)
+    }
+
     companion object {
         const val DEFAULT_BASE_URL = "https://nexus.staging.pubky.app"
 
@@ -113,6 +131,8 @@ class NexusClient(
         private const val MAX_GLOBAL_TAGGERS_LIMIT = 20
         private const val DEFAULT_USER_TAGGERS_LIMIT = 40
         private const val MAX_USER_TAGGERS_LIMIT = 100
+        private const val DEFAULT_FOLLOWS_LIMIT = 60
+        private const val MAX_FOLLOWS_LIMIT = 200
     }
 }
 

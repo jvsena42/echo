@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.FollowDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
@@ -47,6 +48,7 @@ class DiscoveryRepositoryImpl(
     private val deckRepository: DeckRepository,
     private val tagRepository: TagRepository,
     private val identityRepository: IdentityRepository,
+    private val nexus: NexusClient,
 ) : DiscoveryRepository {
 
     /** Followee pubkys for the session, or null until first loaded from the homeserver. */
@@ -82,6 +84,54 @@ class DiscoveryRepositoryImpl(
             .getOrThrow()
         cacheLock.withLock { cache?.remove(pubky) }
         Unit
+    }
+
+    override suspend fun followingProfiles(pubky: String): List<PubkyIdentity> {
+        val followees = if (pubky == session.current()?.identity?.pubky) {
+            // The session cache already holds this, and it includes a follow made a moment ago
+            // that no indexer has seen yet.
+            following()
+        } else {
+            val listJson = this.pubky.list(PubkyPaths.followsRoot(pubky))
+                .getOrElse { if (it.isNotFound()) null else throw it }
+            listJson?.let(::parseFolloweesFromList) ?: emptyList()
+        }
+        return loopkyAccountsAmong(followees, exclude = pubky)
+    }
+
+    override suspend fun followerProfiles(pubky: String): List<PubkyIdentity> {
+        val followers = nexus.followers(pubky)
+            .onFailure { Log.w(TAG, "followerProfiles: FAILED — ${it.message}") }
+            .getOrElse { emptyList() }
+        return loopkyAccountsAmong(followers, exclude = pubky)
+    }
+
+    /**
+     * The [candidates] that are Loopky accounts, as resolved profiles, in the order given.
+     *
+     * [exclude] drops the person whose list this is — following yourself is reachable, and seeing
+     * yourself in your own follower list is a puzzle rather than information.
+     */
+    private suspend fun loopkyAccountsAmong(
+        candidates: List<String>,
+        exclude: String,
+    ): List<PubkyIdentity> {
+        val considered = candidates
+            .filterNot { it == exclude }
+            .take(DiscoveryRepository.MAX_FOLLOW_CANDIDATES)
+        val kept = considered.mapConcurrently { candidate ->
+            if (!isLoopkyAccount(candidate)) {
+                null
+            } else {
+                // The self-tag already proved them a Loopky user, so a profile that fails to
+                // resolve downgrades the entry to a bare pubky instead of dropping a real account
+                // out of the list — same rule [suggestedPeople] applies to deck authors.
+                identityRepository.fetchProfile(candidate).getOrNull()
+                    ?: PubkyIdentity(candidate, displayName = null, avatarUrl = null, bio = null)
+            }
+        }.filterNotNull()
+        Log.d(TAG, "loopkyAccountsAmong: ${kept.size} Loopky of ${candidates.size} follows")
+        return kept
     }
 
     override suspend fun decksFromFollowing(): List<Deck> {
@@ -177,12 +227,29 @@ class DiscoveryRepositoryImpl(
 
     /** Kept only if the account tagged *itself*, and only if that account really exists. */
     private suspend fun verifiedUser(pubky: String): PubkyIdentity? {
-        if (!tagRepository.isSelfTagged(pubky, ReservedTags.USER)) {
-            Log.d(TAG, "verifiedUser: $pubky did not self-tag")
-            return null
-        }
+        if (!isLoopkyAccount(pubky)) return null
         return identityRepository.fetchProfile(pubky).getOrNull()
     }
+
+    /**
+     * Whether [pubky] announced itself as a Loopky user — a tag whose tagger and subject are the
+     * same account, which is what makes it verifiable rather than someone's claim about someone
+     * else.
+     *
+     * Cached for the session: a follow list asks this of every candidate, and the profile screen's
+     * follower/following counts ask it of the same people again a moment later. The answer is one
+     * indexer round-trip and does not change while the app is open.
+     */
+    private suspend fun isLoopkyAccount(pubky: String): Boolean {
+        loopkyAccountLock.withLock { loopkyAccountCache[pubky] }?.let { return it }
+        val selfTagged = tagRepository.isSelfTagged(pubky, ReservedTags.USER)
+        if (!selfTagged) Log.d(TAG, "isLoopkyAccount: $pubky did not self-tag")
+        loopkyAccountLock.withLock { loopkyAccountCache[pubky] = selfTagged }
+        return selfTagged
+    }
+
+    private val loopkyAccountCache = mutableMapOf<String, Boolean>()
+    private val loopkyAccountLock = Mutex()
 
     /**
      * Followee pubkys out of the FFI `list` payload, which is a JSON array of `pubky://…` urls —

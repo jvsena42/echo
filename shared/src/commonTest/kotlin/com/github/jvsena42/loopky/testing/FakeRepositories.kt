@@ -369,6 +369,26 @@ class FakeDiscoveryRepository : DiscoveryRepository {
         return Result.success(Unit)
     }
 
+    /** The Loopky accounts each follow list resolves to, keyed by whose list it is. */
+    var followingByUser: Map<String, List<PubkyIdentity>> = emptyMap()
+    var followersByUser: Map<String, List<PubkyIdentity>> = emptyMap()
+    var followListError: Throwable? = null
+
+    /** Held open, this lets a test assert the screen renders before the counts land. */
+    var followListGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun followingProfiles(pubky: String): List<PubkyIdentity> {
+        followListGate?.await()
+        followListError?.let { throw it }
+        return followingByUser[pubky].orEmpty()
+    }
+
+    override suspend fun followerProfiles(pubky: String): List<PubkyIdentity> {
+        followListGate?.await()
+        followListError?.let { throw it }
+        return followersByUser[pubky].orEmpty()
+    }
+
     override suspend fun decksFromFollowing(): List<Deck> {
         feedGate?.await()
         feedError?.let { throw it }
@@ -471,7 +491,13 @@ class RecordingTagRepository : TagRepository {
     override suspend fun taggersOf(tag: Tag, limit: Int): List<String> =
         taggersByTag[tag].orEmpty().take(limit)
 
-    override suspend fun isSelfTagged(pubky: String, tag: Tag): Boolean = pubky in selfTaggers
+    /** Every self-tag lookup, so a test can prove a repeated question is answered from a cache. */
+    val selfTagChecks = mutableListOf<String>()
+
+    override suspend fun isSelfTagged(pubky: String, tag: Tag): Boolean {
+        selfTagChecks.add(pubky)
+        return pubky in selfTaggers
+    }
 
     override suspend fun taggerCounts(subjectUri: PubkyUri): Map<Tag, Int> =
         counts[subjectUri].orEmpty()

@@ -1,7 +1,9 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.FollowDto
 import com.github.jvsena42.loopky.data.pubky.PubkyError
+import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
@@ -9,6 +11,7 @@ import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.testing.CountingRevalidator
+import com.github.jvsena42.loopky.testing.FakeHttpFetcher
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
@@ -43,6 +46,7 @@ class DiscoveryRepositoryImplTest {
         sessionProvider = session,
         tagRepository = tagRepo,
     )
+    private val http = FakeHttpFetcher()
     private val repo = DiscoveryRepositoryImpl(
         pubky = pubky,
         session = session,
@@ -50,6 +54,7 @@ class DiscoveryRepositoryImplTest {
         deckRepository = deckRepo,
         tagRepository = tagRepo,
         identityRepository = identityRepo,
+        nexus = NexusClient(http = http, baseUrl = NEXUS_BASE),
     )
 
     private fun followUrl(followee: String) =
@@ -105,6 +110,92 @@ class DiscoveryRepositoryImplTest {
         session.set(null)
 
         assertEquals(emptyList(), repo.following())
+    }
+
+    // ── follow lists ─────────────────────────────────────────────────────
+
+    private fun publishProfile(author: String, name: String) {
+        pubky.store[PubkyPaths.profile(author)] = """{"name":"$name","bio":null,"image":null}"""
+    }
+
+    @Test
+    fun followingProfilesKeepsOnlyTheLoopkyAccounts() = runTest {
+        // The follow graph is pubky.app's, so most of it is people who never opened Loopky —
+        // there is nothing to show them for, and a list of them is not a list of anything.
+        repo.followUser("loopkypk").getOrThrow()
+        repo.followUser("strangerpk").getOrThrow()
+        tagRepo.selfTaggers = setOf("loopkypk")
+        publishProfile("loopkypk", "Ada")
+        publishProfile("strangerpk", "Someone Else")
+
+        val following = repo.followingProfiles(TEST_PUBKY)
+
+        assertEquals(listOf("loopkypk"), following.map { it.pubky })
+        assertEquals("Ada", following.single().displayName)
+    }
+
+    @Test
+    fun followingProfilesReadsAnotherUsersHomeserverRatherThanTheIndexer() = runTest {
+        pubky.store["pubky://friendpk/pub/pubky.app/follows/loopkypk"] = """{"created_at":1}"""
+        tagRepo.selfTaggers = setOf("loopkypk")
+        publishProfile("loopkypk", "Ada")
+
+        assertEquals(listOf("loopkypk"), repo.followingProfiles("friendpk").map { it.pubky })
+        // Whose follows those are is a fact their own homeserver holds first-hand.
+        assertTrue(http.requestedUrls.isEmpty())
+    }
+
+    @Test
+    fun followingProfilesLeavesYouOutOfYourOwnList() = runTest {
+        repo.followUser(TEST_PUBKY).getOrThrow()
+        tagRepo.selfTaggers = setOf(TEST_PUBKY)
+        publishProfile(TEST_PUBKY, "Me")
+
+        assertEquals(emptyList(), repo.followingProfiles(TEST_PUBKY))
+    }
+
+    @Test
+    fun followingProfilesKeepsALoopkyAccountWhoseProfileIsMissing() = runTest {
+        // The self-tag already proved them real; dropping them would hide a genuine account.
+        repo.followUser("loopkypk").getOrThrow()
+        tagRepo.selfTaggers = setOf("loopkypk")
+
+        val following = repo.followingProfiles(TEST_PUBKY)
+
+        assertEquals(listOf("loopkypk"), following.map { it.pubky })
+        assertNull(following.single().displayName)
+    }
+
+    @Test
+    fun followerProfilesComesFromTheIndexerAndIsVerified() = runTest {
+        // Nobody's homeserver holds "who follows me" — the records live on each follower's.
+        http.respond(
+            "$NEXUS_BASE/v0/user/$TEST_PUBKY/followers?limit=60",
+            """["loopkypk","strangerpk"]""",
+        )
+        tagRepo.selfTaggers = setOf("loopkypk")
+        publishProfile("loopkypk", "Ada")
+
+        assertEquals(listOf("loopkypk"), repo.followerProfiles(TEST_PUBKY).map { it.pubky })
+    }
+
+    @Test
+    fun followerProfilesDegradesToEmptyWhenTheIndexerIsDown() = runTest {
+        // No canned response — an unreachable indexer must not take the profile screen with it.
+        assertEquals(emptyList(), repo.followerProfiles(TEST_PUBKY))
+    }
+
+    @Test
+    fun aLoopkyAccountIsCheckedAgainstTheIndexerOnlyOnce() = runTest {
+        repo.followUser("loopkypk").getOrThrow()
+        tagRepo.selfTaggers = setOf("loopkypk")
+        publishProfile("loopkypk", "Ada")
+
+        repo.followingProfiles(TEST_PUBKY)
+        repo.followingProfiles(TEST_PUBKY)
+
+        // The profile screen's counts and the list screen ask about the same people moments apart.
+        assertEquals(expected = 1, actual = tagRepo.selfTagChecks.count { it == "loopkypk" })
     }
 
     // ── feed ─────────────────────────────────────────────────────────────
@@ -347,6 +438,10 @@ class DiscoveryRepositoryImplTest {
         val decks = (1..5).map { testDeck(id = "d$it", authorPubky = "author$it") }
 
         assertEquals(expected = 2, actual = repo.suggestedPeople(decks, limit = 2).size)
+    }
+
+    private companion object {
+        const val NEXUS_BASE = "https://nexus.test"
     }
 }
 
