@@ -355,8 +355,7 @@ class DeckRepositoryImpl(
     }
 
     override suspend fun sync(deckId: String): Result<Deck> = runSuspendCatching {
-        val author = session.requireSession().identity.pubky
-        val remote = fetchRemote(author, deckId).getOrThrow()
+        val remote = fetchRemote(authorOf(deckId), deckId).getOrThrow()
 
         // fetchByDeck re-reads only the chunks whose `updated_at` moved, and rebuilds the deck's
         // cache entry from what it read. Cards dropped remotely simply aren't in any chunk any
@@ -366,6 +365,21 @@ class DeckRepositoryImpl(
         cardRepo.fetchByDeck(remote).getOrThrow()
         remote
     }
+
+    /**
+     * Whose homeserver [deckId] lives on.
+     *
+     * This used to be the signed-in user, unconditionally, which meant [sync] read
+     * `pubky://me/…` for a deck belonging to someone else and always failed — silently, because its
+     * only caller ([com.github.jvsena42.loopky.data.repository.SrsRepository.dueForDeck]) logs the
+     * failure and falls back to the local cache. Following a deck is worthless without this (#33).
+     *
+     * The cache knows for any deck that has been opened this session. Falling back to the session
+     * keeps a cold-cache sync of your own deck working, which is the only case that ever worked.
+     */
+    private suspend fun authorOf(deckId: String): String =
+        getLocal(deckId)?.authorPubky
+            ?: session.requireSession().identity.pubky
 
     /**
      * Every path under [prefix], following the cursor until the homeserver stops returning new

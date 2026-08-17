@@ -1,11 +1,14 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.data.pubky.CardChunkDto
 import com.github.jvsena42.loopky.data.pubky.ManifestDto
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.repository.PublishProgress
+import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
+import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
@@ -16,6 +19,7 @@ import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
+import com.github.jvsena42.loopky.testing.testDeckWithCards
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
@@ -32,10 +36,11 @@ class DeckRepositoryImplTest {
     private val session = signedInProvider()
     private val revalidator = CountingRevalidator()
     private val tagRepo = RecordingTagRepository()
+    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
     private val repo = DeckRepositoryImpl(
         pubky = pubky,
         session = session,
-        cardRepo = CardRepositoryImpl(pubky, session, revalidator),
+        cardRepo = cardRepo,
         revalidator = revalidator,
         tagRepo = tagRepo,
     )
@@ -354,6 +359,26 @@ class DeckRepositoryImplTest {
     }
 
     @Test
+    fun syncResolvesTheAuthorFromTheCachedDeckNotTheSession() = runTest {
+        val cards = listOf(testCard("c1", deckId = "foreign"), testCard("c2", deckId = "foreign"))
+        putRemoteDeck(author = "friendpk", deckId = "foreign", cards = cards)
+        // Reaching a foreign deck warms the cache — that is what sync resolves the author from.
+        repo.fetchRemote("friendpk", "foreign").getOrThrow()
+        pubky.gets.clear()
+
+        val synced = repo.sync("foreign").getOrThrow()
+
+        assertEquals("friendpk", synced.authorPubky)
+        assertEquals(listOf("c1", "c2"), cardRepo.listByDeck("foreign").map { it.id })
+        // sync used to hardcode the session as the author, so it read pubky://ownerpk/… for a deck
+        // that lives on someone else's homeserver and always failed (#33 blocker 1).
+        assertTrue(
+            pubky.gets.none { it.startsWith("pubky://$TEST_PUBKY/") },
+            "sync read under the session author: ${pubky.gets}",
+        )
+    }
+
+    @Test
     fun syncDropsCardsTheDeckNoLongerContains() = runTest {
         val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
         val repoWithCards = DeckRepositoryImpl(pubky, session, cardRepo, revalidator, tagRepo)
@@ -475,5 +500,18 @@ class DeckRepositoryImplTest {
         val dto = testDeck(id = deckId, authorPubky = author, title = title).toDto()
         pubky.store["pubky://$author/pub/loopky/decks/$deckId/manifest.json"] =
             loopkyJson.encodeToString(dto)
+    }
+
+    /** A whole deck — manifest plus chunk records — on someone else's homeserver. */
+    private fun putRemoteDeck(author: String, deckId: String, cards: List<Card>): Deck {
+        val deck = testDeckWithCards(cards, id = deckId, authorPubky = author)
+        val root = "pubky://$author/pub/loopky/decks/$deckId"
+        pubky.store["$root/manifest.json"] = loopkyJson.encodeToString(deck.toDto())
+        cards.chunked(CHUNK_SIZE).forEachIndexed { n, batch ->
+            pubky.store["$root/cards/$n.json"] = loopkyJson.encodeToString(
+                CardChunkDto(deck_id = deckId, chunk = n, cards = batch.map { it.toDto() }),
+            )
+        }
+        return deck
     }
 }
