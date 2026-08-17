@@ -167,6 +167,23 @@ interface DeckRepository {
 
     /** Record that you have seen [deck] at its current `updated_at`. No-op for decks you don't follow. */
     suspend fun markSeen(deck: Deck)
+
+    /**
+     * Copy [source] into your own account as an independent deck: new deck id, new card ids, you as
+     * the author, and `source` provenance pointing back at the original.
+     *
+     * A fork, not a subscription — the opposite trade from [followDeck]. It never receives the
+     * original's later edits, and editing it never touches the original. **New card ids are what
+     * keep SRS state from bleeding** between the two copies.
+     *
+     * Media is copied **by reference**: card refs are pinned to the source author's blobs rather
+     * than re-uploaded, so cloning an Anki-sized deck stays instant. See
+     * [com.github.jvsena42.loopky.data.pubky.absolutizedTo] and [MediaRepository.rehost].
+     *
+     * Commits through [publish] — no parallel commit path, the same rule Paste-to-Import follows.
+     * Unfollows [source] if you were following it: you own a copy now.
+     */
+    suspend fun clone(source: Deck): Result<Deck>
 }
 
 /**

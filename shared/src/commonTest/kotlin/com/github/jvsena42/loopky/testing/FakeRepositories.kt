@@ -13,6 +13,7 @@ import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.MediaRef
@@ -218,6 +219,27 @@ class FakeDeckRepository : DeckRepository {
     override suspend fun markSeen(deck: Deck) {
         seen.add(deck.id)
         updatedDecks.remove(deck.id)
+    }
+
+    val cloned = mutableListOf<Deck>()
+    var cloneError: Throwable? = null
+
+    /** Held open so a test can act while a clone is still in flight. */
+    var cloneGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun clone(source: Deck): Result<Deck> {
+        cloneError?.let { return Result.failure(it) }
+        cloneGate?.await()
+        cloned.add(source)
+        val copy = source.copy(
+            id = "clone-of-${source.id}",
+            authorPubky = TEST_PUBKY,
+            source = DeckSource(kind = DeckSource.Kind.Clone, uri = source.pubkyUri.value),
+        )
+        decks[copy.id] = copy
+        followedDecks.remove(source.id)
+        _changes.tryEmit(Unit)
+        return Result.success(copy)
     }
 }
 

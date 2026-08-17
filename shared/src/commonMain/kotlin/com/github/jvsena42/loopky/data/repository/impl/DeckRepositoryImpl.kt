@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
 import com.github.jvsena42.loopky.data.pubky.SubscriptionDto
+import com.github.jvsena42.loopky.data.pubky.absolutizedTo
 import com.github.jvsena42.loopky.data.pubky.deleteWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.isNotFound
 import com.github.jvsena42.loopky.data.pubky.mapConcurrently
@@ -20,13 +21,16 @@ import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.generateId
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -497,6 +501,71 @@ class DeckRepositoryImpl(
         subscriptionLock.withLock { subscriptions?.put(deck.id, updated) }
         _changes.tryEmit(Unit)
     }
+
+    override suspend fun clone(source: Deck): Result<Deck> = runSuspendCatching {
+        val me = session.requireSession().identity.pubky
+        // A fetch, not a cache read: for a deck you don't own, nothing has ever loaded its cards.
+        val sourceCards = cardRepo.fetchByDeck(source).getOrThrow()
+        val now = epochMillis()
+        val newId = generateId()
+
+        val cards = sourceCards.inStudyOrder().map { card ->
+            card.copy(
+                // A fresh id per card, so grading the clone never moves the original's review
+                // state and vice versa — they are keyed by (author, deck, card).
+                id = generateId(),
+                deckId = newId,
+                updatedAt = now,
+                front = card.front.absolutizedTo(source),
+                back = card.back.absolutizedTo(source),
+            )
+        }
+
+        val deck = source.copy(
+            id = newId,
+            authorPubky = me,
+            createdAt = now,
+            updatedAt = now,
+            coverImageRef = source.coverImageRef?.absolutizedTo(source.authorPubky, source.id),
+            cardCount = cards.size,
+            // publish() writes the real chunk table; the source's is about the source's records.
+            chunks = emptyList(),
+            incomplete = false,
+            source = DeckSource(
+                kind = DeckSource.Kind.Clone,
+                uri = source.pubkyUri.value,
+                importedAt = now,
+            ),
+        )
+
+        val published = publish(deck, cards).getOrThrow()
+
+        // On the *source* manifest, so credit for the copy accrues to the original author rather
+        // than to the fork. Best-effort, like every other reserved-tag write.
+        tagRepo.putReservedTag(source.pubkyUri, ReservedTags.CLONED).onFailure {
+            Log.e(TAG, "clone: ${ReservedTags.CLONED.value} write failed — ${it.message}", it)
+        }
+
+        // You own a copy now, so tracking the author's edits on theirs is noise. Best-effort: a
+        // failed unfollow leaves you with both, which is untidy rather than broken.
+        if (isFollowingDeck(source.id)) {
+            unfollowDeck(source.authorPubky, source.id).onFailure {
+                Log.e(TAG, "clone: unfollowing ${source.id} failed — ${it.message}", it)
+            }
+        }
+
+        Log.d(TAG, "clone: ${source.id} -> $newId (${cards.size} cards)")
+        published
+    }
+
+    /**
+     * A card side whose media refs point at [source]'s blobs rather than at paths under a deck the
+     * blobs were never uploaded to.
+     */
+    private fun CardSide.absolutizedTo(source: Deck): CardSide = copy(
+        imageRef = imageRef?.absolutizedTo(source.authorPubky, source.id),
+        audioRef = audioRef?.absolutizedTo(source.authorPubky, source.id),
+    )
 
     /** The subscription set for this session, read from the homeserver on first use. */
     private suspend fun loadSubscriptions(): Map<String, SubscriptionDto> {

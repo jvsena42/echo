@@ -10,6 +10,8 @@ import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckSource
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
@@ -551,6 +553,179 @@ class DeckRepositoryImplTest {
 
     private fun subscriptionUrl(author: String, deckId: String) =
         "pubky://$TEST_PUBKY/pub/loopky/subscriptions/$author/$deckId.json"
+
+    // ── clone deck ───────────────────────────────────────────────────────
+
+    @Test
+    fun cloneProducesAnIndependentDeckUnderYourPubkyWithNewCardIds() = runTest {
+        val source = putRemoteDeck(
+            "friendpk",
+            "orig",
+            listOf(testCard("c1", deckId = "orig"), testCard("c2", deckId = "orig")),
+        )
+
+        val clone = repo.clone(source).getOrThrow()
+
+        assertEquals(TEST_PUBKY, clone.authorPubky)
+        assertTrue(clone.id != source.id, "the clone reused the source's deck id")
+        assertEquals(source.title, clone.title)
+        assertEquals(expected = 2, actual = clone.cardCount)
+
+        // New card ids are what stop grading the clone from moving the original's review state:
+        // SRS is keyed by (author, deck, card).
+        val cloned = cardRepo.listByDeck(clone.id)
+        assertEquals(expected = 2, actual = cloned.size)
+        assertTrue(cloned.none { it.id == "c1" || it.id == "c2" }, "card ids were reused")
+        assertEquals(cloned.map { it.id }.distinct().size, cloned.size)
+        assertEquals(listOf("front of c1", "front of c2"), cloned.map { it.front.text })
+        assertTrue(cloned.all { it.deckId == clone.id })
+
+        // Everything written lands under your own pubky; the source is untouched.
+        assertTrue(
+            pubky.puts.none { it.first.startsWith("pubky://friendpk/") },
+            "clone wrote to the author's homeserver: ${pubky.puts.map { it.first }}",
+        )
+    }
+
+    @Test
+    fun cloneRecordsProvenanceThatSurvivesAFetchRoundTrip() = runTest {
+        val source = putRemoteDeck("friendpk", "orig", listOf(testCard("c1", deckId = "orig")))
+
+        val clone = repo.clone(source).getOrThrow()
+
+        // Read it back off the homeserver rather than trusting the in-memory copy.
+        val refetched = DeckRepositoryImpl(
+            pubky,
+            session,
+            CardRepositoryImpl(pubky, session, revalidator),
+            revalidator,
+            tagRepo,
+        ).fetchRemote(TEST_PUBKY, clone.id).getOrThrow()
+
+        assertEquals(DeckSource.Kind.Clone, refetched.source?.kind)
+        assertEquals(source.pubkyUri.value, refetched.source?.uri)
+    }
+
+    @Test
+    fun clonePinsMediaToTheSourceRatherThanReUploadingIt() = runTest {
+        val sha = "abc123"
+        val card = testCard("c1", deckId = "orig").copy(
+            back = CardSide(
+                text = "back",
+                imageRef = MediaRef.Image(
+                    path = "media/$sha.jpg",
+                    mime = "image/jpeg",
+                    sha256 = sha,
+                    width = 10,
+                    height = 10,
+                ),
+            ),
+        )
+        val source = putRemoteDeck("friendpk", "orig", listOf(card))
+
+        val clone = repo.clone(source).getOrThrow()
+
+        // Clone-by-reference: the ref points at the author's blob, so cloning an Anki-sized deck
+        // costs card records and nothing else.
+        val ref = assertNotNull(cardRepo.listByDeck(clone.id).single().back.imageRef)
+        assertEquals("pubky://friendpk/pub/loopky/decks/orig/media/$sha.jpg", ref.uri)
+        assertTrue(pubky.bytePuts.isEmpty(), "clone re-uploaded blobs: ${pubky.bytePuts.map { it.first }}")
+    }
+
+    @Test
+    fun cloneCopiesARemoteImageRefVerbatim() = runTest {
+        val card = testCard("c1", deckId = "orig").copy(
+            front = CardSide(
+                text = "front",
+                // An Unsplash cover: re-hosting the bytes would breach their licence, and there is
+                // no blob to pin an origin to.
+                imageRef = MediaRef.Image(
+                    path = "",
+                    mime = "image/jpeg",
+                    sha256 = "",
+                    width = null,
+                    height = null,
+                    url = "https://images.unsplash.com/photo-1",
+                ),
+            ),
+        )
+        val source = putRemoteDeck("friendpk", "orig", listOf(card))
+
+        val clone = repo.clone(source).getOrThrow()
+
+        val ref = assertNotNull(cardRepo.listByDeck(clone.id).single().front.imageRef)
+        assertEquals("https://images.unsplash.com/photo-1", ref.url)
+        assertNull(ref.uri, "a remote image was pinned to a homeserver blob that doesn't exist")
+    }
+
+    @Test
+    fun cloningACloneKeepsTheFirstOriginRatherThanChaining() = runTest {
+        val sha = "abc123"
+        val alreadyPinned = MediaRef.Image(
+            path = "media/$sha.jpg",
+            mime = "image/jpeg",
+            sha256 = sha,
+            width = null,
+            height = null,
+            uri = "pubky://firstpk/pub/loopky/decks/first/media/$sha.jpg",
+        )
+        val card = testCard("c1", deckId = "orig")
+            .copy(back = CardSide(text = "back", imageRef = alreadyPinned))
+        val source = putRemoteDeck("friendpk", "orig", listOf(card))
+
+        val clone = repo.clone(source).getOrThrow()
+
+        // friendpk never hosted this blob either — pointing at them would break the chain.
+        val ref = assertNotNull(cardRepo.listByDeck(clone.id).single().back.imageRef)
+        assertEquals(alreadyPinned.uri, ref.uri)
+    }
+
+    @Test
+    fun cloneCreditsTheOriginalAuthorAndUnfollowsTheSource() = runTest {
+        val source = putRemoteDeck("friendpk", "orig", listOf(testCard("c1", deckId = "orig")))
+        repo.followDeck(source).getOrThrow()
+
+        val clone = repo.clone(source).getOrThrow()
+
+        // The loopky-cloned label goes on the *source*, so credit accrues to the original author.
+        assertTrue(source.pubkyUri to ReservedTags.CLONED in tagRepo.putReservedTags)
+        // You own a copy now, so tracking their edits on theirs is noise.
+        assertFalse(repo.isFollowingDeck("orig"))
+        assertTrue(subscriptionUrl("friendpk", "orig") in pubky.deletes)
+        assertTrue(repo.isFollowingDeck(clone.id).not())
+    }
+
+    @Test
+    fun editingACloneNeverTouchesTheOriginal() = runTest {
+        val source = putRemoteDeck("friendpk", "orig", listOf(testCard("c1", deckId = "orig")))
+        val clone = repo.clone(source).getOrThrow()
+        val cardId = cardRepo.listByDeck(clone.id).single().id
+        pubky.puts.clear()
+
+        repo.upsertCard(clone.id, testCard(cardId, deckId = clone.id, front = "edited")).getOrThrow()
+
+        assertTrue(
+            pubky.puts.none { it.first.startsWith("pubky://friendpk/") },
+            "editing the clone wrote to the original: ${pubky.puts.map { it.first }}",
+        )
+        // And the original's own records still read as they did.
+        val original = loopkyJson.decodeFromString<CardChunkDto>(
+            pubky.store.getValue("pubky://friendpk/pub/loopky/decks/orig/cards/0.json"),
+        )
+        assertEquals(listOf("front of c1"), original.cards.map { it.front.text })
+    }
+
+    @Test
+    fun cloningYourOwnDeckDuplicatesItRatherThanFailing() = runTest {
+        val mine = repo.publish(testDeck(id = "deck1"), listOf(testCard("c1"))).getOrThrow()
+
+        val clone = repo.clone(mine).getOrThrow()
+
+        assertTrue(clone.id != mine.id)
+        assertEquals(TEST_PUBKY, clone.authorPubky)
+        // Your own blobs, under your own deck — no origin to pin.
+        assertEquals(DeckSource.Kind.Clone, clone.source?.kind)
+    }
 
     // ── single-card writes ───────────────────────────────────────────────
 
