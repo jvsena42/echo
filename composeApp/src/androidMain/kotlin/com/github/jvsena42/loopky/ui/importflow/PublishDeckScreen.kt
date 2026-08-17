@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -474,18 +475,24 @@ private fun PublishDeckScreen(
             state.error?.let { errorText ->
                 Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
             }
-            LoopkyPrimaryButton(
-                label = stringResource(R.string.publish_button),
-                onClick = onPublishClick,
-                // Enabled so validation can explain *why* it can't publish. Previously
-                // `enabled = state.canPublish` made `validateForPublish` dead code and the
-                // tap did nothing at all.
-                enabled = !state.isPublishing,
-                loading = state.isPublishing,
-                modifier = Modifier
-                    .testTag("publish_button")
-                    .fillMaxWidth(),
-            )
+            if (state.isPublishing) {
+                PublishProgress(
+                    fraction = state.publishProgress,
+                    publishedCardCount = state.publishedCardCount,
+                    totalCardCount = state.cardCount,
+                )
+            } else {
+                LoopkyPrimaryButton(
+                    label = stringResource(R.string.publish_button),
+                    onClick = onPublishClick,
+                    // Enabled so validation can explain *why* it can't publish. Previously
+                    // `enabled = state.canPublish` made `validateForPublish` dead code and the
+                    // tap did nothing at all.
+                    modifier = Modifier
+                        .testTag("publish_button")
+                        .fillMaxWidth(),
+                )
+            }
         }
     }
 
@@ -689,6 +696,46 @@ private fun OptionToggleRow(
                 checkedTrackColor = colors.accentPrimary,
                 uncheckedTrackColor = colors.borderSubtle,
             ),
+        )
+    }
+}
+
+/**
+ * Determinate publish progress.
+ *
+ * A 20k-card import is ~200 uploads; the repository has reported per-chunk progress since #49,
+ * but nothing consumed it, so a 1,200-card publish showed an indeterminate spinner for ~35s and
+ * read as hung rather than busy.
+ */
+@Composable
+private fun PublishProgress(
+    fraction: Float?,
+    publishedCardCount: Int,
+    totalCardCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        LinearProgressIndicator(
+            progress = { fraction ?: 0f },
+            modifier = Modifier
+                .testTag("publish_progress")
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(50)),
+            color = colors.accentPrimary,
+            trackColor = colors.borderSubtle,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+        )
+        Text(
+            text = stringResource(R.string.publish_progress_count, publishedCardCount, totalCardCount),
+            fontSize = 13.sp,
+            color = colors.foregroundSecondary,
+            modifier = Modifier.testTag("publish_progress_label"),
         )
     }
 }

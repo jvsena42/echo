@@ -176,6 +176,7 @@
     <string name="publish_public_title">Public on your profile</string>
     <string name="publish_public_subtitle">Anyone can find this deck on Discover.</string>
     <string name="publish_button">Publish deck</string>
+    <string name="publish_progress_count">Publishing %1$d of %2$d cards…</string>
     <string name="publish_tag_sheet_title">Add Tag</string>
     <string name="publish_tag_input_placeholder">Type a tag…</string>
     <string name="publish_suggested_label">SUGGESTED</string>

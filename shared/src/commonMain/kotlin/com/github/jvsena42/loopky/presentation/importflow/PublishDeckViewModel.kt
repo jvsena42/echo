@@ -116,7 +116,11 @@ class PublishDeckViewModel(
         }
 
         publishJob = viewModelScope.launch {
-            _state.update { it.copy(isPublishing = true, error = null) }
+            // publishedCardCount is reset here so a retry after a failure does not open on the
+            // count the failed run reached.
+            _state.update {
+                it.copy(isPublishing = true, error = null, publishProgress = 0f, publishedCardCount = 0)
+            }
             Log.d(TAG, "publish: title=${s.title}, cards=${importRepository.keptRows().size}")
 
             val session = runCatching { identityRepository.currentSession() }.getOrNull()
@@ -189,8 +193,10 @@ class PublishDeckViewModel(
     private suspend fun publishWithProgress(deck: Deck, cards: List<Card>) =
         deckRepository.publish(deck, cards) { progress ->
             _state.update {
+                // Not nulled on `done`: that made the bar blank for a frame at ~99% instead of
+                // filling. `isPublishing = false` is what removes the whole block.
                 it.copy(
-                    publishProgress = if (progress.done) null else progress.fraction,
+                    publishProgress = progress.fraction,
                     publishedCardCount = progress.cardsWritten,
                 )
             }
