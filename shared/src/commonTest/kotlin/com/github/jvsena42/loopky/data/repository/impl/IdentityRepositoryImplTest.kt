@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.PubkyUri
@@ -13,6 +14,7 @@ import com.github.jvsena42.loopky.testing.signedInProvider
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class IdentityRepositoryImplTest {
@@ -73,6 +75,36 @@ class IdentityRepositoryImplTest {
         repo.updateProfile(name = "Ada Lovelace", bio = null).getOrThrow()
 
         assertEquals("Ada Lovelace", repo.fetchProfile(TEST_PUBKY).getOrThrow().displayName)
+    }
+
+    // ── Pubky Ring sign-in ───────────────────────────────────────────────
+
+    @Test
+    fun aFailedApprovalIsSurfacedAsIsAndTheFlowIsPolledOnce() = runTest {
+        // The FFI takes its auth flow on the first poll, so polling again could only answer
+        // "No auth flow in progress" — replacing the real cause with a bogus one (#59).
+        val relayDown = PubkyError(
+            "Auth approval failed: Request failed: HTTP transport error: error sending " +
+                "request for url (https://httprelay.pubky.app/inbox/j42EOsZz)",
+        )
+        pubky.approvalResult = Result.failure(relayDown)
+
+        val failure = repo.beginSignIn().getOrThrow().complete().exceptionOrNull()
+
+        assertSame(relayDown, failure)
+        assertEquals(expected = 1, actual = pubky.awaitApprovalCalls)
+    }
+
+    @Test
+    fun anApprovedSignInPersistsTheSession() = runTest {
+        pubky.approvalResult = Result.success(
+            """{"pubky":"$TEST_PUBKY","capabilities":["/pub/loopky/:rw"],"session_secret":"s3cret"}""",
+        )
+
+        val signedIn = repo.beginSignIn().getOrThrow().complete().getOrThrow()
+
+        assertEquals(TEST_PUBKY, signedIn.identity.pubky)
+        assertEquals(TEST_PUBKY, store.saved?.identity?.pubky)
     }
 
     // ── the loopky-user self-tag ─────────────────────────────────────────

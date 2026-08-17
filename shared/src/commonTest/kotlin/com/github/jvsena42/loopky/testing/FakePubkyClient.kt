@@ -44,6 +44,17 @@ class FakePubkyClient : PubkyClient {
     /** When set, every [get] call fails with this error (simulates an unreachable homeserver). */
     var failGetWith: Throwable? = null
 
+    /** What [startAuthFlow] hands back, and the capabilities it was asked for. */
+    var authFlowResult: Result<String> = Result.success("pubkyauth:///?caps=&secret=test")
+    val authFlowCapabilities = mutableListOf<String>()
+
+    /**
+     * What [awaitAuthApproval] answers, and how often it was asked. The count matters: the real FFI
+     * consumes its auth flow on the first poll, so a second call could only ever fail (#59).
+     */
+    var approvalResult: Result<String> = Result.failure(PubkyError("No auth flow in progress"))
+    var awaitApprovalCalls = 0
+
     override suspend fun putWithSession(
         url: String,
         content: String,
@@ -137,8 +148,17 @@ class FakePubkyClient : PubkyClient {
     }
 
     override suspend fun revalidateSession(sessionSecret: String): Result<String> = unused()
-    override suspend fun startAuthFlow(capabilities: String): Result<String> = unused()
-    override suspend fun awaitAuthApproval(): Result<String> = unused()
+
+    override suspend fun startAuthFlow(capabilities: String): Result<String> {
+        authFlowCapabilities.add(capabilities)
+        return authFlowResult
+    }
+
+    override suspend fun awaitAuthApproval(): Result<String> {
+        awaitApprovalCalls++
+        return approvalResult
+    }
+
     override fun parseAuthUrl(url: String): Result<String> = unused()
     override suspend fun auth(url: String, secretKey: String): Result<String> = unused()
     override suspend fun publish(

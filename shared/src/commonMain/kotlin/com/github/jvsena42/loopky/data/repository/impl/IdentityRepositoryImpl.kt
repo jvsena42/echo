@@ -4,7 +4,6 @@ import com.github.jvsena42.loopky.data.pubky.MutableSessionProvider
 import com.github.jvsena42.loopky.data.pubky.ProfileDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
-import com.github.jvsena42.loopky.data.pubky.isNetworkFailure
 import com.github.jvsena42.loopky.data.pubky.parseSessionPayload
 import com.github.jvsena42.loopky.data.pubky.toDomain
 import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
@@ -17,7 +16,6 @@ import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.encodeUriComponent
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -81,10 +79,17 @@ class IdentityRepositoryImpl(
         return "$this${separator}x-success=$cb&x-cancel=$cb&x-error=$cb&x-source=$CALLBACK_SOURCE"
     }
 
+    /**
+     * A single-use handle: the FFI's auth flow is global state that `awaitAuthApproval` *takes*,
+     * so the first poll — successful or not — consumes it, and a second poll on the same handle can
+     * only answer "No auth flow in progress". A failed approval therefore has no in-place retry;
+     * recovering means a fresh [beginSignIn], which mints a new secret and a new `pubkyauth://` URL
+     * and so requires the user to approve in Ring again (#59).
+     */
     private inner class RingAuthFlowHandle(override val authUrl: String) : AuthFlowHandle {
         override suspend fun complete(): Result<Session> = runCatching {
             Log.d(TAG, "complete: awaiting Pubky Ring approval")
-            val sessionJson = awaitApprovalWithRetry().getOrThrow()
+            val sessionJson = pubky.awaitAuthApproval().getOrThrow()
             Log.d(TAG, "complete: got session payload=$sessionJson")
 
             val session = parseSessionPayload(sessionJson, loopkyJson)
@@ -114,31 +119,6 @@ class IdentityRepositoryImpl(
             session
         }.onFailure {
             Log.e(TAG, "complete: FAILED — ${it::class.simpleName}: ${it.message}", it)
-        }
-    }
-
-    /**
-     * `awaitAuthApproval` polls the auth relay, and that poll is flaky in practice — signing in
-     * on a device failed twice with `HTTP transport error: error sending request for url
-     * (https://httprelay.pubky.app/inbox/…)` and then succeeded on an identical third attempt.
-     * Retry only transport failures; a declined or expired request is terminal and retrying it
-     * would just make the user wait.
-     */
-    private suspend fun awaitApprovalWithRetry(): Result<String> {
-        repeat(AUTH_RETRIES) { attempt ->
-            val result = pubky.awaitAuthApproval()
-            if (result.isSuccess) return result
-
-            val error = result.exceptionOrNull() ?: return result
-            if (!error.isNetworkFailure()) {
-                Log.e(TAG, "awaitApproval: terminal failure — ${error::class.simpleName}: ${error.message}", error)
-                return result
-            }
-            Log.w(TAG, "awaitApproval: transport failure on attempt ${attempt + 1}, retrying — ${error.message}")
-            delay(AUTH_RETRY_DELAY_MS)
-        }
-        return pubky.awaitAuthApproval().onFailure {
-            Log.e(TAG, "awaitApproval: FAILED after $AUTH_RETRIES retries — ${it::class.simpleName}: ${it.message}", it)
         }
     }
 
@@ -237,9 +217,5 @@ class IdentityRepositoryImpl(
         /** Deeplink Pubky Ring re-opens after approval; registered in the platform manifest. */
         private const val CALLBACK_URL = "loopky://login-callback"
         private const val CALLBACK_SOURCE = "Loopky"
-
-        /** Extra attempts at the flaky auth-relay poll before giving up. */
-        private const val AUTH_RETRIES = 2
-        private const val AUTH_RETRY_DELAY_MS = 1_500L
     }
 }
