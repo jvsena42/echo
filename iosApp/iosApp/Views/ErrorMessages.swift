@@ -23,6 +23,11 @@ enum ErrorCopy {
             return NSLocalizedString("Pubky Ring not found", comment: "Error title: Ring missing")
         case .authFailed:
             return NSLocalizedString("Sign-in didn't finish", comment: "Error title: auth failed")
+        case .authRelayUnreachable:
+            return NSLocalizedString(
+                "Sign-in couldn't reach Pubky",
+                comment: "Error title: auth relay unreachable"
+            )
         default:
             return NSLocalizedString("Something went wrong", comment: "Error title: generic")
         }
@@ -63,6 +68,14 @@ enum ErrorCopy {
                 "Loopky couldn't confirm the authorisation with Pubky Ring. "
                     + "Check your connection and try again.",
                 comment: "Error message: auth failed"
+            )
+        case .authRelayUnreachable:
+            // Not "you're offline": the relay is its own host, and the homeserver is usually
+            // reachable while it is not.
+            return NSLocalizedString(
+                "Loopky signs you in through Pubky's authorisation relay, and it isn't "
+                    + "responding. Try again in a moment.",
+                comment: "Error message: auth relay unreachable"
             )
         default:
             return NSLocalizedString(

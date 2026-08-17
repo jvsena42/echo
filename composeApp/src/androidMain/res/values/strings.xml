@@ -319,6 +319,8 @@
     <string name="error_ring_not_installed_message">Loopky signs you in through Pubky Ring. Install it to continue.</string>
     <string name="error_auth_failed_title">Sign-in didn\'t finish</string>
     <string name="error_auth_failed_message">Loopky couldn\'t confirm the authorisation with Pubky Ring. Check your connection and try again.</string>
+    <string name="error_auth_relay_title">Sign-in couldn\'t reach Pubky</string>
+    <string name="error_auth_relay_message">Loopky signs you in through Pubky\'s authorisation relay, and it isn\'t responding. Try again in a moment.</string>
     <string name="error_generic_title">Something went wrong</string>
     <string name="error_generic_message">Something went wrong. Please try again.</string>
     <string name="home_caught_up_title">You\'re all caught up</string>
