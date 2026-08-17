@@ -408,7 +408,8 @@ private fun DeckGrid(decks: List<DeckTileModel>, onDeckClick: (String) -> Unit) 
                         coverEmoji = deck.coverEmoji,
                         authorLabel = deck.author.label(),
                         onClick = { onDeckClick(deck.id) },
-                        showYouBadge = deck.isOwned,
+                        relation = deck.relation,
+                        hasUpdate = deck.hasUpdate,
                         modifier = Modifier
                             .weight(1f)
                             .testTag("deck_tile_${deck.id}"),
