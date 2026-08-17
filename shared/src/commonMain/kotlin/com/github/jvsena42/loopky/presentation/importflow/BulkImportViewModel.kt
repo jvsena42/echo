@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +18,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Bulk file import: parse a whole exported deck and show a **summary**, not a swipe queue.
@@ -65,25 +65,22 @@ class BulkImportViewModel(
         parseJob?.cancel()
         parseJob = viewModelScope.launch {
             _state.update { BulkImportUiState.Parsing(fileName) }
-            load()
-                // Tag the load's own failure so it stays distinguishable from the parse's below;
-                // cancellation passes through untouched so the guard in onFailure still sees it.
-                .recoverCatching { err ->
-                    throw if (err is CancellationException) err else FailedToLoad(loadFailure, err)
-                }
-                .mapCatching { loaded ->
-                    importRepository.parseBulk(
-                        rawText = loaded.text,
-                        suggestedTitle = suggestedTitleFor(loaded.deckName, fileName),
-                    ).getOrThrow()
-                }
+            // One runSuspendCatching rather than a recoverCatching/mapCatching chain: both of those
+            // are inline, so their lambdas inherit this suspend context and would re-swallow the
+            // cancellation the repository now rethrows. getOrElse does not catch, so the load's
+            // own failure still gets tagged while a cancel passes straight through.
+            runSuspendCatching {
+                val loaded = load().getOrElse { throw FailedToLoad(loadFailure, it) }
+                importRepository.parseBulk(
+                    rawText = loaded.text,
+                    suggestedTitle = suggestedTitleFor(loaded.deckName, fileName),
+                ).getOrThrow()
+            }
                 .onSuccess { emitReady(fileName, it) }
                 .onFailure { err ->
-                    // A re-pick cancels a parse that may run for seconds; the repository's
-                    // runCatching turns that into an ordinary failure. Superseded, not failed.
-                    if (err is CancellationException) return@onFailure
-                    // Anything reaching here past the load is the parser's: it read fine, there
-                    // was just nothing card-shaped in it.
+                    // A re-pick cancels a parse that may run for seconds; that now kills this
+                    // coroutine outright, so only real failures reach here. Anything past the load
+                    // is the parser's: it read fine, there was just nothing card-shaped in it.
                     val reason = (err as? FailedToLoad)?.reason ?: BulkImportError.NoCardsFound
                     Log.e(TAG, "bulk parse: FAILED — $reason — ${err.message}", err)
                     _state.update { BulkImportUiState.Error(reason) }
@@ -171,7 +168,6 @@ class BulkImportViewModel(
                 .parseBulk(draft.rawText, separator, draft.suggestedTitle)
                 .onSuccess { emitReady(fileName, it) }
                 .onFailure { err ->
-                    if (err is CancellationException) return@onFailure
                     Log.e(TAG, "separator override: FAILED — ${err.message}", err)
                     _state.update { BulkImportUiState.Error(BulkImportError.NoCardsFound) }
                 }

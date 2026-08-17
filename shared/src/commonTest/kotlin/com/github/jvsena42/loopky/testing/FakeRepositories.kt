@@ -96,7 +96,7 @@ class FakeDeckRepository : DeckRepository {
         _changes.tryEmit(Unit)
     }
 
-    /** When set, [listOwned] throws (HomeViewModel wraps the call in runCatching). */
+    /** When set, [listOwned] throws (HomeViewModel wraps the call in runSuspendCatching). */
     var listOwnedError: Throwable? = null
     var publishError: Throwable? = null
 
@@ -121,9 +121,9 @@ class FakeDeckRepository : DeckRepository {
     ): Result<Deck> {
         publishError?.let { return Result.failure(it) }
         // Held open so a test can catch a publish mid-flight, the way cancelling a real upload
-        // does. The real publish() is a runCatching, so cancellation surfaces as a failed Result
-        // rather than propagating — mirrored here.
-        publishGate?.let { gate -> runCatching { gate.await() }.onFailure { return Result.failure(it) } }
+        // does. The real publish() is a runSuspendCatching, so cancellation propagates rather than
+        // coming back as a failed Result — mirrored here by not catching it.
+        publishGate?.await()
         published.add(deck to cards)
         decks[deck.id] = deck
         val progress = PublishProgress(1, 1, cards.size, cards.size, done = true)

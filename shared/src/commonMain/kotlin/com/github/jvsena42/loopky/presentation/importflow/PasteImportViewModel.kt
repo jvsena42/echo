@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.coroutines.cancellation.CancellationException
 
 class PasteImportViewModel(
     private val importRepository: ImportRepository,
@@ -89,11 +88,9 @@ class PasteImportViewModel(
                     Log.d(TAG, "parse: ${draft.rows.size} cards, separator=${draft.separator}")
                 }
                 .onFailure { err ->
-                    // The repository's runCatching swallows CancellationException, so a parse
-                    // superseded by the next keystroke arrives here as an ordinary failure. It is
-                    // not one — reporting it would flash "…was cancelled" at a user who is simply
-                    // still typing. (The repo-side rethrow is tracked separately.)
-                    if (err is CancellationException) return@onFailure
+                    // Only real parse failures reach here: the repository rethrows cancellation, so
+                    // a parse superseded by the next keystroke kills this coroutine instead of
+                    // flashing "…was cancelled" at a user who is simply still typing.
                     _state.update {
                         it.copy(
                             error = err.message ?: "Parse failed.",

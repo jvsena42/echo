@@ -209,8 +209,8 @@ class PublishDeckViewModelTest {
         assertTrue(!state.isPublishing)
         assertTrue(!state.isCancelling)
         assertEquals(expected = 1, actual = deckRepo.deleted.size, "the partial deck was not swept")
-        // The cancellation must not surface as a publish failure — the repository's runCatching
-        // hands it back as an ordinary error, which used to read "…was cancelled" on screen.
+        // The cancellation must not surface as a publish failure. It used to read "…was cancelled"
+        // on screen, because the repository's runCatching handed it back as an ordinary error.
         assertNull(state.error)
         assertNull(state.publishedDeckId)
     }
