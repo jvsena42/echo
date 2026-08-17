@@ -133,11 +133,29 @@ class SrsRepositoryImpl(
         cacheLock.withLock { cache.entries.firstOrNull { it.key.cardId == cardId }?.value }
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> = runSuspendCatching {
+        require(isStudiable(card.deckId)) {
+            "Deck ${card.deckId} is neither owned nor followed — follow or clone it to study it"
+        }
         val author = authorFor(card.deckId)
         val current = stateOf(author, card.deckId, card.id)
         val next = current.review(card.id, grade, epochMillis())
         upsert(card.deckId, next).getOrThrow()
         next
+    }
+
+    /**
+     * Whether review state may be written for [deckId] at all: it has to be a deck you own or one
+     * you follow.
+     *
+     * Browsing someone else's deck from Discover is not keeping it, and grading it would strand
+     * review state under a deck that never appears in your library or your due queue — progress the
+     * user can neither see nor resume. Keeping the deck is the deliberate act that earns SRS state,
+     * so the UI offers Follow (or Clone) before Study, and this is the same rule at the repository.
+     */
+    private suspend fun isStudiable(deckId: String): Boolean {
+        val deck = deckRepository.getLocal(deckId) ?: return false
+        if (deck.authorPubky == session.current()?.identity?.pubky) return true
+        return runSuspendCatching { deckRepository.isFollowingDeck(deckId) }.getOrDefault(false)
     }
 
     override suspend fun upsert(deckId: String, state: SrsState): Result<Unit> = runSuspendCatching {

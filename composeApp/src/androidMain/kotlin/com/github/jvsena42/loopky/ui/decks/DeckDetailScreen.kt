@@ -1,7 +1,6 @@
 package com.github.jvsena42.loopky.ui.decks
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +19,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -292,41 +294,69 @@ private fun DeckDetailContent(
     Scaffold(
         containerColor = colors.surfacePrimary,
         bottomBar = {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                LoopkyPrimaryButton(
-                    label = if (state.isOwned) {
-                        stringResource(R.string.deck_detail_start_studying, state.dueCards)
-                    } else {
-                        stringResource(R.string.deck_detail_study_this_deck)
-                    },
-                    onClick = onStudyClick,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("deck_study"),
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            tint = colors.foregroundOnAccent,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                )
-                // Studying is still the primary action on someone else's deck; following is what
-                // keeps it, so it sits beside Study rather than replacing it.
-                if (!state.isOwned) {
-                    FollowDeckButton(
-                        isFollowing = state.isFollowing,
-                        isPending = state.isFollowPending,
-                        onClick = onToggleFollow,
+                // Study is offered only for a deck you have kept. Grading a deck you are merely
+                // browsing would strand review state under something that never reaches your
+                // library or your due queue — progress you can neither see nor resume. Keeping the
+                // deck is what earns it, so Follow and Clone come first.
+                if (state.isOwned || state.isFollowing) {
+                    LoopkyPrimaryButton(
+                        label = if (state.isOwned) {
+                            stringResource(R.string.deck_detail_start_studying, state.dueCards)
+                        } else {
+                            stringResource(R.string.deck_detail_study_this_deck)
+                        },
+                        onClick = onStudyClick,
+                        modifier = Modifier.testTag("deck_study"),
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = colors.foregroundOnAccent,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        },
                     )
+                }
+
+                // The two ways of keeping someone else's deck, side by side and equally weighted:
+                // they are genuinely different choices, not a primary and an afterthought, and
+                // burying Clone behind an unlabelled icon made it invisible.
+                if (!state.isOwned) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        FollowDeckButton(
+                            isFollowing = state.isFollowing,
+                            isPending = state.isFollowPending,
+                            onClick = onToggleFollow,
+                            modifier = Modifier.weight(1f),
+                        )
+                        LoopkyPrimaryButton(
+                            label = stringResource(R.string.deck_detail_clone),
+                            onClick = onCloneClick,
+                            enabled = !state.isCloning,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("deck_clone"),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    tint = colors.foregroundOnAccent,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            },
+                        )
+                    }
                 }
             }
         },
@@ -347,12 +377,10 @@ private fun DeckDetailContent(
                     // Header: Back + Edit/Delete (owner only) + Share
                     HeaderBar(
                         isOwned = state.isOwned,
-                        isCloning = state.isCloning,
                         onBackClick = onBackClick,
                         onShareClick = onShareClick,
                         onEditClick = onEditClick,
                         onDeleteClick = onDeleteClick,
-                        onCloneClick = onCloneClick,
                     )
 
                     // Cover
@@ -488,12 +516,10 @@ private fun CardsEmptyState(isOwned: Boolean) {
 @Composable
 private fun HeaderBar(
     isOwned: Boolean,
-    isCloning: Boolean,
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onCloneClick: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     Row(
@@ -522,15 +548,6 @@ private fun HeaderBar(
                     tint = colors.danger,
                     onClick = onDeleteClick,
                     modifier = Modifier.testTag("deck_delete"),
-                )
-            } else {
-                // Cloning is only offered for someone else's deck — duplicating your own is a
-                // different intent, and there is no screen asking for it.
-                HeaderCircleButton(
-                    imageVector = Icons.Default.ContentCopy,
-                    contentDescription = stringResource(R.string.deck_detail_clone),
-                    onClick = { if (!isCloning) onCloneClick() },
-                    modifier = Modifier.testTag("deck_clone"),
                 )
             }
             HeaderCircleButton(
@@ -578,25 +595,42 @@ private fun HeaderCircleButton(
  * The alpha while pending matches [AuthorRow]'s author-follow pill — the same optimistic flip.
  */
 @Composable
-private fun FollowDeckButton(isFollowing: Boolean, isPending: Boolean, onClick: () -> Unit) {
+private fun FollowDeckButton(
+    isFollowing: Boolean,
+    isPending: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = LoopkyTheme.colors
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(percent = 50))
-            .background(if (isFollowing) colors.accentSecondarySoft else colors.accentSecondary)
-            .clickable(enabled = !isPending, onClick = onClick)
-            .alpha(if (isPending) FOLLOW_PENDING_ALPHA else 1f)
-            .padding(horizontal = 18.dp, vertical = 14.dp)
-            .testTag("deck_follow"),
-        contentAlignment = Alignment.Center,
+    // A Material Button rather than a hand-rolled Box: it sits next to LoopkyPrimaryButton, and a
+    // padded Box does not agree with Material's own button metrics — the two pills came out
+    // different heights. Same component, same shape, same type scale; only the tint differs, which
+    // is the native-first rule (brand tokens *on* the native component).
+    Button(
+        onClick = onClick,
+        modifier = modifier.testTag("deck_follow"),
+        enabled = !isPending,
+        shape = CircleShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isFollowing) colors.accentSecondarySoft else colors.accentSecondary,
+            contentColor = if (isFollowing) colors.accentSecondary else colors.foregroundOnAccent,
+            // Dimmed while the write is in flight, not greyed out: the state has already flipped
+            // optimistically, so it must still read as the state it is claiming.
+            disabledContainerColor = (
+                if (isFollowing) colors.accentSecondarySoft else colors.accentSecondary
+                ).copy(alpha = FOLLOW_PENDING_ALPHA),
+            disabledContentColor = (
+                if (isFollowing) colors.accentSecondary else colors.foregroundOnAccent
+                ).copy(alpha = FOLLOW_PENDING_ALPHA),
+        ),
+        contentPadding = ButtonDefaults.ContentPadding,
     ) {
         Text(
             text = stringResource(
                 if (isFollowing) R.string.deck_detail_following else R.string.deck_detail_follow,
             ),
-            fontSize = 14.sp,
-            fontWeight = FontWeight.W700,
-            color = if (isFollowing) colors.accentSecondary else colors.foregroundOnAccent,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
             maxLines = 1,
         )
     }

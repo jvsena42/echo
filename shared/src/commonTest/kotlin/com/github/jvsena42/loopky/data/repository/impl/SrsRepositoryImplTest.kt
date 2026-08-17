@@ -168,6 +168,9 @@ class SrsRepositoryImplTest {
 
     @Test
     fun coldRepoReadsPersistedStateBackFromTheRecord() = runTest {
+        // The deck has to exist and be yours: review() now refuses a deck you neither own nor
+        // follow, so a test that graded a deck it never created was leaning on a missing check.
+        publishDeck("deck1", "c1")
         val state = SrsState(
             cardId = "c1",
             dueAt = 123_456L,
@@ -276,6 +279,35 @@ class SrsRepositoryImplTest {
             pubky.puts.none { it.first.startsWith("pubky://friendpk/") },
             "wrote to the author's homeserver: ${pubky.puts.map { it.first }}",
         )
+    }
+
+    @Test
+    fun reviewIsRejectedForAForeignDeckYouHaveNotKept() = runTest {
+        val theirs = putRemoteDeck("friendpk", "theirs", listOf(testCard("t1", deckId = "theirs")))
+        // Reached from Discover and browsed, never followed.
+        deckRepo.fetchRemote("friendpk", "theirs").getOrThrow()
+        cardRepo.fetchByDeck(theirs).getOrThrow()
+        val card = cardRepo.listByDeck("theirs").single()
+
+        val result = repo.review(card, SrsGrade.Good)
+
+        assertTrue(result.isFailure, "graded a deck that was never kept")
+        assertTrue(
+            pubky.puts.none { it.first.contains("/srs/") },
+            "wrote review state anyway: ${pubky.puts.map { it.first }}",
+        )
+    }
+
+    @Test
+    fun reviewIsAllowedOnceTheDeckIsFollowed() = runTest {
+        val theirs = putRemoteDeck("friendpk", "theirs", listOf(testCard("t1", deckId = "theirs")))
+        deckRepo.followDeck(theirs).getOrThrow()
+        val card = repo.dueForDeck("theirs").single()
+
+        repo.review(card, SrsGrade.Good).getOrThrow()
+        repo.flush().getOrThrow()
+
+        assertTrue(pubky.puts.any { it.first.contains("/srs/friendpk/theirs/") })
     }
 
     @Test

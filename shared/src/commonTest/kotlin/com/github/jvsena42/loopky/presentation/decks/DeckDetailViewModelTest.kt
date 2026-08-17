@@ -314,6 +314,61 @@ class DeckDetailViewModelTest {
         assertTrue(deckRepo.seen.isEmpty())
     }
 
+    @Test
+    fun `a foreign deck you have not kept cannot be studied`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk", cardCount = 1)
+        val vm = viewModel(authorPubky = "friendpk")
+        advanceUntilIdle()
+
+        val effects = mutableListOf<DeckDetailEffect>()
+        val job = launch { vm.effects.collect { effects.add(it) } }
+        advanceUntilIdle()
+
+        vm.onStudyClick()
+        advanceUntilIdle()
+        job.cancel()
+
+        // Grading a deck you are only browsing would strand review state under something that
+        // never reaches your library or your due queue.
+        assertTrue(effects.isEmpty(), "browsing a deck was enough to study it: $effects")
+    }
+
+    @Test
+    fun `following a foreign deck makes it studiable`() = runTest(mainDispatcher) {
+        val deck = testDeck(id = "deck1", authorPubky = "friendpk", cardCount = 1)
+        deckRepo.decks["deck1"] = deck
+        deckRepo.followedDecks["deck1"] = deck
+        val vm = viewModel(authorPubky = "friendpk")
+        advanceUntilIdle()
+
+        val effects = mutableListOf<DeckDetailEffect>()
+        val job = launch { vm.effects.collect { effects.add(it) } }
+        advanceUntilIdle()
+
+        vm.onStudyClick()
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals<List<DeckDetailEffect>>(listOf(DeckDetailEffect.NavigateStudy), effects)
+    }
+
+    @Test
+    fun `your own deck is studiable without following anything`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(authorPubky = TEST_PUBKY, cardCount = 1)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<DeckDetailEffect>()
+        val job = launch { vm.effects.collect { effects.add(it) } }
+        advanceUntilIdle()
+
+        vm.onStudyClick()
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals<List<DeckDetailEffect>>(listOf(DeckDetailEffect.NavigateStudy), effects)
+    }
+
     // ── clone deck (#33) ─────────────────────────────────────────────────
 
     @Test

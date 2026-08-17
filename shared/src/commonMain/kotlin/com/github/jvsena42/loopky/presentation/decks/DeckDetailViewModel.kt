@@ -133,6 +133,10 @@ class DeckDetailViewModel(
     }
 
     fun onStudyClick() {
+        // Keeping the deck is what earns review state, so browsing someone else's deck is not
+        // enough to study it. The UI hides the button; this stops a stale click getting through.
+        val current = _state.value as? DeckDetailUiState.Content ?: return
+        if (!current.isOwned && !current.isFollowing) return
         viewModelScope.launch { _effects.emit(DeckDetailEffect.NavigateStudy) }
     }
 
