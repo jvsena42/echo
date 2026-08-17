@@ -38,6 +38,8 @@ fun AuthorRow(
     /** Disables + dims the pill while a follow/unfollow request is in flight. */
     isFollowPending: Boolean = false,
     onFollowClick: () -> Unit = {},
+    /** Opens this person's profile. Left null where there is nowhere to go — the row stays inert. */
+    onNameClick: (() -> Unit)? = null,
 ) {
     val colors = LoopkyTheme.colors
     val pillShape = RoundedCornerShape(50)
@@ -52,7 +54,15 @@ fun AuthorRow(
 
         // Name column — the same name every other screen shows for this person, with the pubky
         // truncated underneath it and ownership added as a badge rather than swapped in.
-        Column(modifier = Modifier.weight(1f)) {
+        // Tapping it opens them, so the author of the deck you are reading is a way to reach them
+        // rather than a dead label.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .then(
+                    if (onNameClick != null) Modifier.clickable(onClick = onNameClick) else Modifier,
+                ),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = identity.label(),
@@ -130,6 +140,11 @@ private fun AuthorRowPreview() {
             AuthorRow(
                 identity = previewIdentity("you9xqz1ghijkl", "Cosmic-Crystal-Panda"),
                 isOwned = true,
+            )
+            Spacer(modifier = Modifier.size(12.dp))
+            AuthorRow(
+                identity = previewIdentity("grace2ab7cdefgh", "Grace Hopper"),
+                onNameClick = {},
             )
         }
     }

@@ -91,6 +91,7 @@ fun DeckDetailRoute(
     onEditDeck: (String) -> Unit = {},
     onStudy: (String) -> Unit = {},
     onOpenTag: (String) -> Unit = {},
+    onOpenProfile: (String) -> Unit = {},
     onOpenClone: (String) -> Unit = {},
 ) {
     val viewModel = koinViewModel<DeckDetailViewModel> { parametersOf(deckId, authorPubky) }
@@ -100,6 +101,7 @@ fun DeckDetailRoute(
     val currentEditDeck by rememberUpdatedState(onEditDeck)
     val currentStudy by rememberUpdatedState(onStudy)
     val currentOpenTag by rememberUpdatedState(onOpenTag)
+    val currentOpenProfile by rememberUpdatedState(onOpenProfile)
     val currentOpenClone by rememberUpdatedState(onOpenClone)
 
     LaunchedEffect(viewModel) {
@@ -122,6 +124,7 @@ fun DeckDetailRoute(
     DeckDetailScreen(
         state = state,
         onOpenTag = currentOpenTag,
+        onOpenProfile = currentOpenProfile,
         onBackClick = viewModel::onBackClick,
         onShareClick = viewModel::onShareClick,
         onStudyClick = viewModel::onStudyClick,
@@ -142,6 +145,7 @@ fun DeckDetailRoute(
 fun DeckDetailScreen(
     state: DeckDetailUiState,
     onOpenTag: (String) -> Unit,
+    onOpenProfile: (String) -> Unit,
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onStudyClick: () -> Unit,
@@ -227,6 +231,7 @@ fun DeckDetailScreen(
             DeckDetailContent(
                 state = state,
                 onOpenTag = onOpenTag,
+                onOpenProfile = onOpenProfile,
                 onBackClick = onBackClick,
                 onShareClick = onShareClick,
                 onStudyClick = onStudyClick,
@@ -281,6 +286,7 @@ fun DeckDetailScreen(
 private fun DeckDetailContent(
     state: DeckDetailUiState.Content,
     onOpenTag: (String) -> Unit,
+    onOpenProfile: (String) -> Unit,
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onStudyClick: () -> Unit,
@@ -412,11 +418,20 @@ private fun DeckDetailContent(
                         clonedCount = state.clonedCount,
                     )
 
-                    // Author
+                    // Author — tapping them opens their profile. This is where you actually meet
+                    // a stranger, so leaving it inert was the one dead end into their decks.
+                    // Your own name stays inert: there is nowhere to go but the Profile tab.
                     AuthorRow(
                         identity = state.author,
                         isOwned = state.isOwned,
-                        modifier = Modifier.fillMaxWidth(),
+                        onNameClick = if (state.isOwned) {
+                            null
+                        } else {
+                            { onOpenProfile(state.author.pubky) }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("deck_detail_author"),
                     )
 
                     // Tags
@@ -749,6 +764,7 @@ private fun DeckDetailScreenPreview() {
     LoopkyTheme {
         DeckDetailScreen(
             onOpenTag = {},
+            onOpenProfile = {},
             state = DeckDetailUiState.Content(
                 deckId = "deck1",
                 title = "Spanish Essentials",
@@ -789,6 +805,7 @@ private fun DeckDetailEmptyCardsPreview() {
     LoopkyTheme {
         DeckDetailScreen(
             onOpenTag = {},
+            onOpenProfile = {},
             state = DeckDetailUiState.Content(
                 deckId = "deck2",
                 title = "Kanji N5",
