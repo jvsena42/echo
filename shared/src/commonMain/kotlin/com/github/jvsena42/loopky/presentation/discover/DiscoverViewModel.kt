@@ -12,6 +12,7 @@ import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -96,7 +97,7 @@ class DiscoverViewModel(
      * [DiscoveryRepository.decksFromFollowing].
      */
     private suspend fun loadFollowing() {
-        runCatching { discoveryRepository.decksFromFollowing() }
+        runSuspendCatching { discoveryRepository.decksFromFollowing() }
             .onSuccess { decks ->
                 feed = decks
                 _state.update {
@@ -122,7 +123,7 @@ class DiscoverViewModel(
     private suspend fun loadBrowse(tag: Tag?): List<Deck> {
         val label = tag ?: ReservedTags.DECK
         // Documented never to throw; guarded anyway so a future change cannot cancel siblings.
-        val decks = runCatching { discoveryRepository.decksByTagGlobal(label, BROWSE_LIMIT) }
+        val decks = runSuspendCatching { discoveryRepository.decksByTagGlobal(label, BROWSE_LIMIT) }
             .onFailure { Log.e(TAG, "loadBrowse('${label.value}'): FAILED — ${it.message}", it) }
             .getOrElse { emptyList() }
 
@@ -146,7 +147,7 @@ class DiscoverViewModel(
      * [DiscoveryRepository.suggestedPeople].
      */
     private suspend fun loadPeople(seed: List<Deck>) {
-        val people = runCatching { discoveryRepository.suggestedPeople(seed, PEOPLE_LIMIT) }
+        val people = runSuspendCatching { discoveryRepository.suggestedPeople(seed, PEOPLE_LIMIT) }
             .onFailure { Log.e(TAG, "loadPeople: FAILED — ${it.message}", it) }
             .getOrElse { emptyList() }
         _state.update { it.copy(people = it.people.loaded(people.map(::DiscoverPerson))) }
@@ -154,7 +155,7 @@ class DiscoverViewModel(
     }
 
     private suspend fun loadTopics() {
-        globalTopics = runCatching { tagRepository.trendingDeckTags() }
+        globalTopics = runSuspendCatching { tagRepository.trendingDeckTags() }
             .onFailure { Log.e(TAG, "loadTopics: FAILED — ${it.message}", it) }
             .getOrElse { emptyList() }
         _state.update { it.copy(topics = it.topics.loaded(mergedTopics())) }

@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.data.pubky.parseSessionPayload
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -41,7 +42,7 @@ class SessionRevalidatorImpl(
     }
 
     private suspend fun revalidateLocked(): Result<Session> =
-        runCatching {
+        runSuspendCatching {
             val current = sessionProvider.current()
                 ?: error("Cannot revalidate: no active session")
             Log.d(TAG, "revalidating session for ${current.identity.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")

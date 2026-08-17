@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,11 +51,11 @@ class DecksLibraryViewModel(
         loadJob = viewModelScope.launch {
             Log.d(TAG, "load: fetching decks (silent=$silent)")
             if (!silent) _state.update { DecksLibraryUiState.Loading }
-            val session = runCatching { identityRepository.currentSession() }.getOrNull()
-                ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
+            val session = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+                ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
             val myIdentity = session?.identity
 
-            runCatching { deckRepository.listOwned() }
+            runSuspendCatching { deckRepository.listOwned() }
                 .onSuccess { decks ->
                     if (decks.isEmpty()) {
                         _state.update { DecksLibraryUiState.Empty }

@@ -17,6 +17,7 @@ import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.serialization.encodeToString
 
 /**
@@ -48,27 +49,27 @@ class TagRepositoryImpl(
     private val nexus: NexusClient,
 ) : TagRepository {
 
-    override suspend fun putTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+    override suspend fun putTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runSuspendCatching {
         rejectReserved(tag).getOrThrow()
         write(subjectUri, tag).getOrThrow()
     }
 
-    override suspend fun removeTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+    override suspend fun removeTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runSuspendCatching {
         rejectReserved(tag).getOrThrow()
         erase(subjectUri, tag).getOrThrow()
     }
 
-    override suspend fun putReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+    override suspend fun putReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runSuspendCatching {
         requireReserved(tag).getOrThrow()
         write(subjectUri, tag).getOrThrow()
     }
 
-    override suspend fun removeReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+    override suspend fun removeReservedTag(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runSuspendCatching {
         requireReserved(tag).getOrThrow()
         erase(subjectUri, tag).getOrThrow()
     }
 
-    private suspend fun write(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+    private suspend fun write(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runSuspendCatching {
         val label = sanitizeLabel(tag).getOrThrow()
         val owner = session.requireSession().identity.pubky
         val tagId = pubky.createTagId(subjectUri.value, label).getOrThrow()
@@ -84,7 +85,7 @@ class TagRepositoryImpl(
         Unit
     }
 
-    private suspend fun erase(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runCatching {
+    private suspend fun erase(subjectUri: PubkyUri, tag: Tag): Result<Unit> = runSuspendCatching {
         val label = sanitizeLabel(tag).getOrThrow()
         val owner = session.requireSession().identity.pubky
         val tagId = pubky.createTagId(subjectUri.value, label).getOrThrow()

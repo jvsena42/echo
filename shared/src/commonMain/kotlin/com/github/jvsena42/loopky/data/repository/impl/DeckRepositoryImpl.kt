@@ -25,6 +25,7 @@ import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -59,14 +60,15 @@ class DeckRepositoryImpl(
 
     override suspend fun getLocal(id: String): Deck? = cacheLock.withLock { cache[id] }
 
-    override suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck> {
-        return pubky.get(PubkyPaths.manifest(authorPubky, deckId))
-            .mapCatching { json ->
-                val deck = loopkyJson.decodeFromString<ManifestDto>(json).toDomain()
-                cacheLock.withLock { cache[deck.id] = deck }
-                deck
-            }
-    }
+    // A runSuspendCatching block rather than mapCatching: mapCatching is inline, so its lambda
+    // inherits the suspend context and catches the cancellation that cacheLock.withLock can throw.
+    override suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck> =
+        runSuspendCatching {
+            val json = pubky.get(PubkyPaths.manifest(authorPubky, deckId)).getOrThrow()
+            val deck = loopkyJson.decodeFromString<ManifestDto>(json).toDomain()
+            cacheLock.withLock { cache[deck.id] = deck }
+            deck
+        }
 
     override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> =
         publish(deck, cards, onProgress = {})
@@ -75,7 +77,7 @@ class DeckRepositoryImpl(
         deck: Deck,
         cards: List<Card>,
         onProgress: (PublishProgress) -> Unit,
-    ): Result<Deck> = runCatching {
+    ): Result<Deck> = runSuspendCatching {
         val author = session.requireSession().identity.pubky
 
         require(deck.authorPubky == author) {
@@ -178,7 +180,7 @@ class DeckRepositoryImpl(
         }
     }
 
-    override suspend fun updateMetadata(deck: Deck): Result<Deck> = runCatching {
+    override suspend fun updateMetadata(deck: Deck): Result<Deck> = runSuspendCatching {
         require(deck.authorPubky == session.requireSession().identity.pubky) {
             "Deck author mismatch"
         }
@@ -190,7 +192,7 @@ class DeckRepositoryImpl(
         deck
     }
 
-    override suspend fun upsertCard(deckId: String, card: Card): Result<Deck> = runCatching {
+    override suspend fun upsertCard(deckId: String, card: Card): Result<Deck> = runSuspendCatching {
         require(!card.front.isEmpty && !card.back.isEmpty) { "Card ${card.id} has an empty side" }
         val deck = requireOwnedDeck(deckId)
 
@@ -206,9 +208,9 @@ class DeckRepositoryImpl(
         writeChunkAndManifest(deck, targetChunk, updated.inStudyOrder())
     }
 
-    override suspend fun deleteCard(deckId: String, cardId: String): Result<Deck> = runCatching {
+    override suspend fun deleteCard(deckId: String, cardId: String): Result<Deck> = runSuspendCatching {
         val deck = requireOwnedDeck(deckId)
-        val chunk = locateChunk(deck, cardId) ?: return@runCatching deck
+        val chunk = locateChunk(deck, cardId) ?: return@runSuspendCatching deck
         val remaining = cardRepo.readChunk(deck, chunk).getOrDefault(emptyList())
             .filterNot { it.id == cardId }
 
@@ -273,7 +275,7 @@ class DeckRepositoryImpl(
         return deck
     }
 
-    override suspend fun delete(deckId: String): Result<Unit> = runCatching {
+    override suspend fun delete(deckId: String): Result<Unit> = runSuspendCatching {
         val author = session.requireSession().identity.pubky
         val cached = getLocal(deckId)
 
@@ -352,7 +354,7 @@ class DeckRepositoryImpl(
         return decks
     }
 
-    override suspend fun sync(deckId: String): Result<Deck> = runCatching {
+    override suspend fun sync(deckId: String): Result<Deck> = runSuspendCatching {
         val author = session.requireSession().identity.pubky
         val remote = fetchRemote(author, deckId).getOrThrow()
 

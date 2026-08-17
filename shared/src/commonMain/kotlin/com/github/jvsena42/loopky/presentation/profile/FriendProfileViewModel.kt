@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,15 +58,15 @@ class FriendProfileViewModel(
             _state.update { it.copy(isLoading = true) }
 
             val profile = identityRepository.fetchProfile(targetPubky, forceRefresh).getOrNull()
-            val decks = runCatching { deckRepository.listByAuthor(targetPubky) }.getOrElse {
+            val decks = runSuspendCatching { deckRepository.listByAuthor(targetPubky) }.getOrElse {
                 Log.e(TAG, "load: listByAuthor failed — ${it.message}", it)
                 emptyList()
             }
-            val isFollowing = runCatching { discoveryRepository.isFollowing(targetPubky) }
+            val isFollowing = runSuspendCatching { discoveryRepository.isFollowing(targetPubky) }
                 .getOrDefault(false)
             // Pasting your own pubky into the add-friend sheet used to open this screen with a
             // live Follow button — you could follow yourself.
-            val myPubky = runCatching { identityRepository.currentSession()?.identity?.pubky }
+            val myPubky = runSuspendCatching { identityRepository.currentSession()?.identity?.pubky }
                 .getOrNull()
             val isSelf = myPubky != null && myPubky == targetPubky
 

@@ -21,6 +21,7 @@ import com.github.jvsena42.loopky.domain.model.isDue
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
@@ -114,7 +115,7 @@ class SrsRepositoryImpl(
     override suspend fun stateFor(cardId: String): SrsState? =
         cacheLock.withLock { cache.entries.firstOrNull { it.key.cardId == cardId }?.value }
 
-    override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> = runCatching {
+    override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> = runSuspendCatching {
         val author = authorFor(card.deckId)
         val current = stateOf(author, card.deckId, card.id)
         val next = current.review(card.id, grade, epochMillis())
@@ -122,7 +123,7 @@ class SrsRepositoryImpl(
         next
     }
 
-    override suspend fun upsert(deckId: String, state: SrsState): Result<Unit> = runCatching {
+    override suspend fun upsert(deckId: String, state: SrsState): Result<Unit> = runSuspendCatching {
         val author = authorFor(deckId)
         val key = StateKey(author, deckId, state.cardId)
         val chunk = cacheLock.withLock { stateChunks[key] } ?: chunkFor(deckId, state.cardId)
@@ -139,21 +140,26 @@ class SrsRepositoryImpl(
         if (shouldFlush) flush().getOrThrow()
     }
 
-    override suspend fun flush(): Result<Unit> = runCatching {
+    override suspend fun flush(): Result<Unit> = runSuspendCatching {
         val pending = cacheLock.withLock {
             val snapshot = dirty.toList()
             dirty.clear()
             sinceFlush = 0
             snapshot
         }
-        if (pending.isEmpty()) return@runCatching
+        if (pending.isEmpty()) return@runSuspendCatching
 
         val owner = session.requireSession().identity.pubky
-        runCatching {
+        // Not error handling — a restore-on-abnormal-exit, which is why it rethrows unconditionally
+        // and catches Throwable rather than using runSuspendCatching. Cancellation has to restore
+        // too: flush() is reachable from review()/upsert() on viewModelScope, so closing the study
+        // screen mid-flush would otherwise drop up to FLUSH_EVERY reviews on the floor.
+        @Suppress("TooGenericExceptionCaught")
+        try {
             pending.mapConcurrently { (author, deckId, chunk) ->
                 writeChunk(owner, author, deckId, chunk)
             }
-        }.onFailure { err ->
+        } catch (err: Throwable) {
             // Put them back so the next flush retries rather than silently losing progress.
             cacheLock.withLock { dirty.addAll(pending) }
             throw err

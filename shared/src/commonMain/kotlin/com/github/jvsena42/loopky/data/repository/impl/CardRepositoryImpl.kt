@@ -16,6 +16,7 @@ import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -50,7 +51,7 @@ class CardRepositoryImpl(
         cache[deckId]?.values?.toList()
     }.orEmpty().inStudyOrder()
 
-    override suspend fun fetchByDeck(deck: Deck): Result<List<Card>> = runCatching {
+    override suspend fun fetchByDeck(deck: Deck): Result<List<Card>> = runSuspendCatching {
         val fresh = mutableMapOf<String, Card>()
         var firstFailure: Throwable? = null
 
@@ -113,7 +114,7 @@ class CardRepositoryImpl(
     }
 
     override suspend fun writeChunk(deckId: String, chunk: Int, cards: List<Card>): Result<Unit> =
-        runCatching {
+        runSuspendCatching {
             val author = session.requireSession().identity.pubky
             val url = PubkyPaths.cardChunk(author, deckId, chunk)
             if (cards.isEmpty()) {

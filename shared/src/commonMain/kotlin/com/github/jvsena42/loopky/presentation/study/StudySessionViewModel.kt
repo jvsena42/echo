@@ -13,6 +13,7 @@ import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.previewIntervals
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,7 +64,7 @@ class StudySessionViewModel(
         viewModelScope.launch {
             _state.update { StudySessionUiState.Loading }
             deckTitle = deckId?.let { resolveDeckTitle(it) }.orEmpty()
-            runCatching {
+            runSuspendCatching {
                 if (deckId == null) srsRepository.dueToday() else srsRepository.dueForDeck(deckId)
             }
                 .onSuccess { cards ->
@@ -211,7 +212,7 @@ class StudySessionViewModel(
     private suspend fun resolveDeckTitle(id: String): String {
         deckRepository.getLocal(id)?.title?.takeIf { it.isNotBlank() }?.let { return it }
         if (deckTitles.isEmpty()) {
-            deckTitles = runCatching { deckRepository.listOwned() }
+            deckTitles = runSuspendCatching { deckRepository.listOwned() }
                 .onFailure { Log.e(TAG, "resolveDeckTitle: listOwned FAILED — ${it.message}", it) }
                 .getOrDefault(emptyList())
                 .associate { it.id to it.title }

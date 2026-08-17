@@ -11,6 +11,7 @@ import com.github.jvsena42.loopky.data.pubky.sha256Hex
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.io.encoding.Base64
@@ -45,7 +46,7 @@ class MediaRepositoryImpl(
         deckId: String,
         bytes: ByteArray,
         mime: String,
-    ): Result<MediaRef.Image> = runCatching {
+    ): Result<MediaRef.Image> = runSuspendCatching {
         val (sha, ext) = putBlob(deckId, bytes, mime)
         MediaRef.Image(
             path = PubkyPaths.relativeMedia(sha, ext),
@@ -60,7 +61,7 @@ class MediaRepositoryImpl(
         deckId: String,
         bytes: ByteArray,
         mime: String,
-    ): Result<MediaRef.Audio> = runCatching {
+    ): Result<MediaRef.Audio> = runSuspendCatching {
         val (sha, ext) = putBlob(deckId, bytes, mime)
         MediaRef.Audio(
             path = PubkyPaths.relativeMedia(sha, ext),
@@ -74,7 +75,7 @@ class MediaRepositoryImpl(
         authorPubky: String,
         deckId: String,
         ref: MediaRef,
-    ): Result<ByteArray> = runCatching {
+    ): Result<ByteArray> = runSuspendCatching {
         // An absolute ref points at another author's blob — a clone that has not re-hosted this
         // one yet. Resolving against the session author (as this used to) made every foreign
         // deck's media unreadable, since it looked for the blob under *your* pubky.
@@ -82,8 +83,8 @@ class MediaRepositoryImpl(
         fetch(ref.sha256, url)
     }
 
-    override suspend fun rehost(deckId: String, ref: MediaRef): Result<MediaRef> = runCatching {
-        val origin = ref.uri ?: return@runCatching ref
+    override suspend fun rehost(deckId: String, ref: MediaRef): Result<MediaRef> = runSuspendCatching {
+        val origin = ref.uri ?: return@runSuspendCatching ref
         val bytes = fetch(ref.sha256, origin)
         val (sha, ext) = putBlob(deckId, bytes, ref.mime)
         Log.d(TAG, "rehost: copied $origin under deck $deckId")
@@ -94,7 +95,7 @@ class MediaRepositoryImpl(
         }
     }
 
-    override suspend fun delete(deckId: String, ref: MediaRef): Result<Unit> = runCatching {
+    override suspend fun delete(deckId: String, ref: MediaRef): Result<Unit> = runSuspendCatching {
         val author = session.requireSession().identity.pubky
         val url = PubkyPaths.media(author, deckId, ref.sha256, ref.ext())
         pubky.deleteWithSessionRetry(url, session, revalidator).getOrThrow()

@@ -11,6 +11,7 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,17 +58,17 @@ class HomeViewModel(
         loadJob = viewModelScope.launch {
             Log.d(TAG, "load: fetching session + decks (silent=$silent)")
             if (!silent) _state.update { HomeUiState.Loading }
-            val session = runCatching { identityRepository.currentSession() }.getOrNull()
-                ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
+            val session = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+                ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
             // Carry who the user is, not what to call them — the platform layer owns the words.
             val identity = session?.identity
 
-            runCatching { deckRepository.listOwned() }
+            runSuspendCatching { deckRepository.listOwned() }
                 .onSuccess { decks ->
                     _state.update { if (decks.isEmpty()) {
                         HomeUiState.Empty(identity)
                     } else {
-                        val dueByDeck = runCatching { srsRepository.dueToday() }
+                        val dueByDeck = runSuspendCatching { srsRepository.dueToday() }
                             .getOrDefault(emptyList())
                             .groupingBy { it.deckId }
                             .eachCount()
@@ -81,7 +82,7 @@ class HomeViewModel(
                             decks = decks.map { it.toSummary(dueByDeck[it.id] ?: 0) },
                             // Only meaningful when the queue is empty; skip the lookup otherwise.
                             nextDueAtMillis = if (dueCount == 0) {
-                                runCatching { srsRepository.nextDueAt() }.getOrNull()
+                                runSuspendCatching { srsRepository.nextDueAt() }.getOrNull()
                             } else {
                                 null
                             },
@@ -94,7 +95,7 @@ class HomeViewModel(
                     Log.e(TAG, "load: FAILED — ${err::class.simpleName}: ${err.message}", err)
                     if (err.requiresReauth()) {
                         Log.d(TAG, "load: session expired — signing out")
-                        runCatching { identityRepository.signOut() }
+                        runSuspendCatching { identityRepository.signOut() }
                         _state.update { HomeUiState.Error(
                             identity = identity,
                             reason = ErrorReason.SessionExpired,

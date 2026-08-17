@@ -19,6 +19,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -30,7 +31,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.coroutines.cancellation.CancellationException
 
 @Suppress("TooManyFunctions")
 class PublishDeckViewModel(
@@ -136,8 +136,8 @@ class PublishDeckViewModel(
             }
             Log.d(TAG, "publish: title=${s.title}, cards=${importRepository.keptRows().size}")
 
-            val session = runCatching { identityRepository.currentSession() }.getOrNull()
-                ?: runCatching { identityRepository.loadPersistedSession() }.getOrNull()
+            val session = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+                ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
             val authorPubky = session?.identity?.pubky ?: run {
                 _state.update { it.copy(isPublishing = false, error = "Not signed in.") }
                 return@launch
@@ -168,10 +168,9 @@ class PublishDeckViewModel(
                     startUndoCountdown(deckId)
                 }
                 .onFailure { err ->
-                    // publish() is a runCatching, so a user-initiated cancel surfaces here as an
-                    // ordinary failure. onCancelPublish owns the state in that case; letting this
-                    // run would overwrite it with "StandaloneCoroutine was cancelled".
-                    if (err is CancellationException) return@onFailure
+                    // Only real failures reach here: publish() rethrows cancellation, so a
+                    // user-initiated cancel kills this coroutine and leaves the state to
+                    // onCancelPublish rather than overwriting it with "…was cancelled".
                     Log.e(TAG, "publish: FAILED — ${err.message}", err)
                     // Left for the user to retry over: chunk PUTs are idempotent, and the marker
                     // manifest keeps a half-written deck reachable rather than orphaned.

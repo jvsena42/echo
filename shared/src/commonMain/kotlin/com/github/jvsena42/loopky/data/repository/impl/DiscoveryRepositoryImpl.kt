@@ -22,6 +22,7 @@ import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -62,7 +63,7 @@ class DiscoveryRepositoryImpl(
 
     override suspend fun isFollowing(pubky: String): Boolean = following().contains(pubky)
 
-    override suspend fun followUser(pubky: String): Result<Unit> = runCatching {
+    override suspend fun followUser(pubky: String): Result<Unit> = runSuspendCatching {
         val owner = session.requireSession().identity.pubky
         val body = loopkyJson.encodeToString(FollowDto(created_at = epochMillis()))
         this.pubky.putWithSessionRetry(PubkyPaths.follow(owner, pubky), body, session, revalidator)
@@ -71,7 +72,7 @@ class DiscoveryRepositoryImpl(
         Unit
     }
 
-    override suspend fun unfollowUser(pubky: String): Result<Unit> = runCatching {
+    override suspend fun unfollowUser(pubky: String): Result<Unit> = runSuspendCatching {
         val owner = session.requireSession().identity.pubky
         this.pubky.deleteWithSessionRetry(PubkyPaths.follow(owner, pubky), session, revalidator)
             .getOrThrow()
@@ -83,7 +84,7 @@ class DiscoveryRepositoryImpl(
         val followees = following()
         return followees
             .flatMap { author ->
-                runCatching { deckRepository.listByAuthor(author) }.getOrElse {
+                runSuspendCatching { deckRepository.listByAuthor(author) }.getOrElse {
                     Log.e(TAG, "decksFromFollowing: listByAuthor failed for $author — ${it.message}", it)
                     emptyList()
                 }
@@ -93,7 +94,7 @@ class DiscoveryRepositoryImpl(
 
     override suspend fun decksByTag(tag: Tag): List<Deck> {
         val following = decksFromFollowing()
-        val own = runCatching { deckRepository.listOwned() }.getOrElse { emptyList() }
+        val own = runSuspendCatching { deckRepository.listOwned() }.getOrElse { emptyList() }
         return (following + own)
             .distinctBy { it.id }
             .filter { tag in it.tags }
@@ -138,7 +139,7 @@ class DiscoveryRepositoryImpl(
     override suspend fun suggestedPeople(seedDecks: List<Deck>, limit: Int): List<PubkyIdentity> {
         val me = session.current()?.identity?.pubky
         // A failure here must not empty the strip — worst case we suggest someone already followed.
-        val followed = runCatching { following() }.getOrElse { emptyList() }.toSet()
+        val followed = runSuspendCatching { following() }.getOrElse { emptyList() }.toSet()
         fun worthSuggesting(pubky: String) = pubky != me && pubky !in followed
 
         val directory = loopkyUsers(limit).filter { worthSuggesting(it.pubky) }
