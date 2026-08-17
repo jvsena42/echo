@@ -19,6 +19,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.generateId
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -392,11 +393,6 @@ class PublishDeckViewModel(
         internal const val TITLE_MAX_LENGTH = 120
 
         private const val DESCRIPTION_MAX_LENGTH = 500
-
-        private fun generateId(): String {
-            val chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-            return (1..12).map { chars.random() }.joinToString("")
-        }
     }
 }
 
