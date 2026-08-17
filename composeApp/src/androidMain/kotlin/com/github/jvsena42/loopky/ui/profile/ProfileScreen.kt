@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.presentation.profile.ProfileEffect
 import com.github.jvsena42.loopky.presentation.profile.ProfileUiState
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
@@ -80,6 +81,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun ProfileRoute(
     onSignedOut: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
+    onOpenFollows: (pubky: String, source: FollowSource) -> Unit = { _, _ -> },
 ) {
     val viewModel = koinViewModel<ProfileViewModel>()
 
@@ -103,10 +105,14 @@ fun ProfileRoute(
     }
 
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val currentOpenFollows by rememberUpdatedState(onOpenFollows)
     ProfileScreen(
         state = state,
         errorMessage = errorMessage,
         onOpenSettings = onOpenSettings,
+        onOpenFollows = { source ->
+            state.identity?.let { currentOpenFollows(it.pubky, source) }
+        },
         onEditProfileClick = viewModel::onEditProfileClick,
         onShareClick = viewModel::onShareClick,
         onCopyPubky = viewModel::onCopyPubky,
@@ -125,6 +131,7 @@ private fun ProfileScreen(
     state: ProfileUiState,
     errorMessage: String?,
     onOpenSettings: () -> Unit,
+    onOpenFollows: (FollowSource) -> Unit,
     onEditProfileClick: () -> Unit,
     onShareClick: () -> Unit,
     onCopyPubky: () -> Unit,
@@ -287,6 +294,29 @@ private fun ProfileScreen(
                     value = state.dueCount.toString(),
                     label = stringResource(R.string.profile_stat_due),
                     valueColor = colors.srsGood,
+                ),
+            ),
+        )
+
+        // --- People card ---
+        // A second strip rather than five columns in the first: on a phone that reduces every
+        // label to unreadable, and these two answer a different question than your library does.
+        val pending = stringResource(R.string.profile_stat_pending)
+        ProfileStatsCard(
+            stats = listOf(
+                ProfileStat(
+                    value = state.followingCount?.toString() ?: pending,
+                    label = stringResource(R.string.profile_stat_following),
+                    valueColor = colors.foregroundPrimary,
+                    onClick = { onOpenFollows(FollowSource.FOLLOWING) },
+                    testTag = "profile_stat_following",
+                ),
+                ProfileStat(
+                    value = state.followerCount?.toString() ?: pending,
+                    label = stringResource(R.string.profile_stat_followers),
+                    valueColor = colors.accentPrimary,
+                    onClick = { onOpenFollows(FollowSource.FOLLOWERS) },
+                    testTag = "profile_stat_followers",
                 ),
             ),
         )
@@ -495,6 +525,7 @@ private fun ProfileScreenPreview() {
             ),
             errorMessage = null,
             onOpenSettings = {},
+            onOpenFollows = {},
             onEditProfileClick = {},
             onShareClick = {},
             onCopyPubky = {},

@@ -35,6 +35,7 @@ import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.loopky.presentation.importflow.TriageViewModel
 import com.github.jvsena42.loopky.presentation.media.ImageSheetViewModel
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingViewModel
+import com.github.jvsena42.loopky.presentation.profile.FollowListViewModel
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
@@ -125,6 +126,7 @@ val sharedModule = module {
             identityRepository = get(),
             deckRepository = get(),
             srsRepository = get(),
+            discoveryRepository = get(),
         )
     }
     viewModel { params ->
@@ -150,6 +152,13 @@ val sharedModule = module {
             identityRepository = get(),
             discoveryRepository = get(),
             deckRepository = get(),
+        )
+    }
+    viewModel { params ->
+        FollowListViewModel(
+            targetPubky = params.get(),
+            source = params.get(),
+            discoveryRepository = get(),
         )
     }
 }

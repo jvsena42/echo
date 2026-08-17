@@ -9,6 +9,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.ui.decks.DecksRoute
 import com.github.jvsena42.loopky.ui.discover.DiscoverRoute
 import com.github.jvsena42.loopky.ui.home.HomeRoute
@@ -24,6 +25,7 @@ fun MainScreen(
     onNavigateStudy: (String?) -> Unit = {},
     onNavigateProfile: (String) -> Unit = {},
     onNavigateSettings: () -> Unit = {},
+    onNavigateFollows: (pubky: String, source: FollowSource) -> Unit = { _, _ -> },
     onSignOut: () -> Unit = {},
 ) {
     val pagerState = rememberPagerState(pageCount = { LoopkyTab.entries.size })
@@ -74,6 +76,7 @@ fun MainScreen(
                 LoopkyTab.PROFILE -> ProfileRoute(
                     onSignedOut = onSignOut,
                     onOpenSettings = onNavigateSettings,
+                    onOpenFollows = onNavigateFollows,
                 )
             }
         }

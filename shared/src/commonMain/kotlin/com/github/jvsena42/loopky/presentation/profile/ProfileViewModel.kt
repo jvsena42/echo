@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.pubky.requiresReauth
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
@@ -23,6 +24,7 @@ class ProfileViewModel(
     private val identityRepository: IdentityRepository,
     private val deckRepository: DeckRepository,
     private val srsRepository: SrsRepository,
+    private val discoveryRepository: DiscoveryRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ProfileUiState())
     val state: StateFlow<ProfileUiState> = _state.asStateFlow()
@@ -32,6 +34,7 @@ class ProfileViewModel(
 
     private var loadJob: Job? = null
     private var saveJob: Job? = null
+    private var followsJob: Job? = null
 
     init {
         load()
@@ -102,6 +105,32 @@ class ProfileViewModel(
                 )
             }
             Log.d(TAG, "load: done — decks=$deckCount cards=$cardCount due=$dueCount")
+            loadFollowCounts(pubky)
+        }
+    }
+
+    /**
+     * The people counts, on their own job.
+     *
+     * Deciding which of your follows are Loopky accounts costs an indexer round-trip each, so
+     * folding this into [load] would hold the whole profile behind the slowest of them. It runs
+     * after, and a failure leaves the counts null rather than taking the screen down — a stat you
+     * cannot fetch is not an error worth a snackbar.
+     */
+    private fun loadFollowCounts(pubky: String) {
+        followsJob?.cancel()
+        followsJob = viewModelScope.launch {
+            val following = runSuspendCatching { discoveryRepository.followingProfiles(pubky) }
+                .onFailure { Log.w(TAG, "loadFollowCounts: following FAILED — ${it.message}") }
+                .getOrNull()
+            val followers = runSuspendCatching { discoveryRepository.followerProfiles(pubky) }
+                .onFailure { Log.w(TAG, "loadFollowCounts: followers FAILED — ${it.message}") }
+                .getOrNull()
+
+            _state.update {
+                it.copy(followingCount = following?.size, followerCount = followers?.size)
+            }
+            Log.d(TAG, "loadFollowCounts: following=${following?.size} followers=${followers?.size}")
         }
     }
 
@@ -203,6 +232,13 @@ data class ProfileUiState(
     val deckCount: Int = 0,
     val cardCount: Int = 0,
     val dueCount: Int = 0,
+    /**
+     * People counts, null until they resolve — and they resolve later than the rest of the screen.
+     * Both are counts of *Loopky* accounts, matching the lists they open, so they are smaller than
+     * whatever pubky.app reports for the same graph.
+     */
+    val followingCount: Int? = null,
+    val followerCount: Int? = null,
     val showEditSheet: Boolean = false,
     val editName: String = "",
     val editBio: String = "",

@@ -41,6 +41,10 @@ import kotlinx.serialization.encodeToString
  * account's own decks. Those already have a home in Library, and on a young network they are
  * otherwise most of what Discover has to show. [decksByTag] is deliberately not one of them.
  */
+// Eight collaborators is a lot, but every one is a distinct source this repo has to join —
+// homeserver, session, deck/tag/identity repos, indexer — and folding any pair into a wrapper
+// would exist only to shorten this list.
+@Suppress("LongParameterList")
 class DiscoveryRepositoryImpl(
     private val pubky: PubkyClient,
     private val session: SessionProvider,
@@ -119,17 +123,12 @@ class DiscoveryRepositoryImpl(
         val considered = candidates
             .filterNot { it == exclude }
             .take(DiscoveryRepository.MAX_FOLLOW_CANDIDATES)
-        val kept = considered.mapConcurrently { candidate ->
-            if (!isLoopkyAccount(candidate)) {
-                null
-            } else {
-                // The self-tag already proved them a Loopky user, so a profile that fails to
-                // resolve downgrades the entry to a bare pubky instead of dropping a real account
-                // out of the list — same rule [suggestedPeople] applies to deck authors.
-                identityRepository.fetchProfile(candidate).getOrNull()
-                    ?: PubkyIdentity(candidate, displayName = null, avatarUrl = null, bio = null)
-            }
-        }.filterNotNull()
+        // keepUnresolved: the self-tag already proved them a Loopky user, so a profile that fails
+        // to resolve downgrades the entry to a bare pubky instead of dropping a real account out
+        // of the list — the same rule [suggestedPeople] applies to deck authors.
+        val kept = considered
+            .mapConcurrently { verifiedUser(it, keepUnresolved = true) }
+            .filterNotNull()
         Log.d(TAG, "loopkyAccountsAmong: ${kept.size} Loopky of ${candidates.size} follows")
         return kept
     }
@@ -225,31 +224,42 @@ class DiscoveryRepositoryImpl(
         return (directory + fromDecks).take(limit)
     }
 
-    /** Kept only if the account tagged *itself*, and only if that account really exists. */
-    private suspend fun verifiedUser(pubky: String): PubkyIdentity? {
-        if (!isLoopkyAccount(pubky)) return null
-        return identityRepository.fetchProfile(pubky).getOrNull()
-    }
-
     /**
-     * Whether [pubky] announced itself as a Loopky user — a tag whose tagger and subject are the
-     * same account, which is what makes it verifiable rather than someone's claim about someone
-     * else.
+     * Kept only if the account tagged *itself* with [ReservedTags.USER] — tagger and subject being
+     * the same account is what makes the claim verifiable rather than someone's claim about
+     * someone else.
      *
-     * Cached for the session: a follow list asks this of every candidate, and the profile screen's
-     * follower/following counts ask it of the same people again a moment later. The answer is one
+     * [keepUnresolved] returns the account under a bare pubky when its profile does not resolve,
+     * for callers whose entry is already corroborated by the self-tag and would rather show a
+     * truncated key than silently drop a real person.
+     *
+     * The self-tag answer is cached for the session: a follow list asks it of every candidate, and
+     * the profile screen's counts ask it of the same people again moments later. It costs an
      * indexer round-trip and does not change while the app is open.
      */
-    private suspend fun isLoopkyAccount(pubky: String): Boolean {
-        loopkyAccountLock.withLock { loopkyAccountCache[pubky] }?.let { return it }
-        val selfTagged = tagRepository.isSelfTagged(pubky, ReservedTags.USER)
-        if (!selfTagged) Log.d(TAG, "isLoopkyAccount: $pubky did not self-tag")
-        loopkyAccountLock.withLock { loopkyAccountCache[pubky] = selfTagged }
-        return selfTagged
+    private suspend fun verifiedUser(
+        pubky: String,
+        keepUnresolved: Boolean = false,
+    ): PubkyIdentity? {
+        val selfTagged = selfTagLock.withLock { selfTagCache[pubky] } ?: run {
+            tagRepository.isSelfTagged(pubky, ReservedTags.USER).also { answer ->
+                if (!answer) Log.d(TAG, "verifiedUser: $pubky did not self-tag")
+                selfTagLock.withLock { selfTagCache[pubky] = answer }
+            }
+        }
+        if (!selfTagged) return null
+
+        val profile = identityRepository.fetchProfile(pubky).getOrNull()
+        return when {
+            profile != null -> profile
+            keepUnresolved -> PubkyIdentity(pubky, displayName = null, avatarUrl = null, bio = null)
+            else -> null
+        }
     }
 
-    private val loopkyAccountCache = mutableMapOf<String, Boolean>()
-    private val loopkyAccountLock = Mutex()
+    /** Self-tag answers seen this session, keyed by pubky. */
+    private val selfTagCache = mutableMapOf<String, Boolean>()
+    private val selfTagLock = Mutex()
 
     /**
      * Followee pubkys out of the FFI `list` payload, which is a JSON array of `pubky://…` urls —

@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -43,7 +45,19 @@ fun ProfileStatsCard(
     ) {
         stats.forEach { stat ->
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .then(
+                        if (stat.onClick != null) {
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(onClick = stat.onClick)
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .then(stat.testTag?.let { Modifier.testTag(it) } ?: Modifier)
+                    .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
@@ -70,6 +84,10 @@ data class ProfileStat(
     val value: String,
     val label: String,
     val valueColor: Color,
+    /** Set where the count leads somewhere — the column becomes the tap target. */
+    val onClick: (() -> Unit)? = null,
+    /** Only where a journey test has to find this column; the card itself has no id. */
+    val testTag: String? = null,
 )
 
 @Preview

@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.ui.nav
 
 import android.net.Uri
+import com.github.jvsena42.loopky.presentation.profile.FollowSource
 
 object Routes {
     const val ONBOARDING = "onboarding"
@@ -27,6 +28,9 @@ object Routes {
     /** Every deck on the network carrying one tag — where a tag chip leads (brief §9.3). */
     const val TAG_BROWSE = "tag/{tag}"
 
+    /** One side of someone's follow graph. `source` is a [FollowSource] name, lowercased. */
+    const val FOLLOW_LIST = "follows/{pubky}/{source}"
+
     fun deckDetail(deckId: String, author: String? = null) =
         if (author != null) "deck/$deckId?author=$author" else "deck/$deckId"
 
@@ -35,6 +39,10 @@ object Routes {
      * a stray character produced a route no destination matched, i.e. a tap that did nothing.
      */
     fun friendProfile(pubky: String) = "profile/" + Uri.encode(pubky)
+
+    /** Encoded for the same reason [friendProfile] is — the pubky can come from typed text. */
+    fun followList(pubky: String, source: FollowSource) =
+        "follows/" + Uri.encode(pubky) + "/" + source.name.lowercase()
 
     /** Labels are sanitized to lowercase with no whitespace, but encode anyway — they are free text. */
     fun tagBrowse(tag: String) = "tag/" + Uri.encode(tag)
