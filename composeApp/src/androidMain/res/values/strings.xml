@@ -276,6 +276,10 @@
     <string name="profile_stat_decks">Decks</string>
     <string name="profile_stat_cards">Cards</string>
     <string name="profile_stat_due">Due</string>
+    <string name="profile_stat_following">Following</string>
+    <string name="profile_stat_followers">Followers</string>
+    <!-- Shown in a stat column whose count has not resolved yet. -->
+    <string name="profile_stat_pending">—</string>
     <string name="profile_sign_out">Sign out</string>
     <string name="profile_dismiss">Dismiss</string>
     <string name="profile_edit_profile_sheet_title">Edit Profile</string>
@@ -289,6 +293,16 @@
     <string name="friend_profile_back_content_description">Back</string>
     <string name="friend_profile_copy_pubky">Copy pubky</string>
     <string name="friend_profile_no_public_decks">No public decks yet.</string>
+
+    <!-- Follow lists -->
+    <string name="follow_list_following_title">Following</string>
+    <string name="follow_list_followers_title">Followers</string>
+    <string name="follow_list_back_content_description">Back</string>
+    <string name="follow_list_loading">Loading people…</string>
+    <string name="follow_list_empty_following">Nobody yet. People you follow who also use Loopky show up here.</string>
+    <string name="follow_list_empty_followers">Nobody yet. People using Loopky who follow you show up here.</string>
+    <!-- Explains why the list is shorter than the follow count another Pubky app would show. -->
+    <string name="follow_list_loopky_only">Only people with a Loopky account are listed.</string>
 
     <!-- Settings -->
     <string name="settings_back_content_description">Back</string>

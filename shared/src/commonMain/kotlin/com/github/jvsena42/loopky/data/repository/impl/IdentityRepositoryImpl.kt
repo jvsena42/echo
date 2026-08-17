@@ -180,10 +180,16 @@ class IdentityRepositoryImpl(
         val currentPubky = session.identity.pubky
         Log.d(TAG, "updateProfile: pubky=${currentPubky.take(PUBKY_LOG_PREFIX_LEN)}…")
 
+        // The picture comes off the *published* profile, not the session. Sign-in only enriches
+        // the session when the profile has a name or a bio (see RingAuthFlowHandle.complete), so
+        // an account with a picture and neither carries avatarUrl = null — and echoing that back
+        // here wrote `image: null`, deleting the user's avatar the first time they renamed
+        // themselves. Falling back to the session covers a homeserver that cannot be reached.
+        val publishedAvatar = fetchProfile(currentPubky, forceRefresh = true).getOrNull()?.avatarUrl
         val dto = ProfileDto(
             name = name,
             bio = bio,
-            image = session.identity.avatarUrl,
+            image = publishedAvatar ?: session.identity.avatarUrl,
         )
         val json = loopkyJson.encodeToString(ProfileDto.serializer(), dto)
         val putResult = pubky.putWithSession(PubkyPaths.profile(currentPubky), json, session.sessionSecret)

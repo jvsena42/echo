@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.ui.decks.DeckDetailRoute
 import com.github.jvsena42.loopky.ui.decks.DeckEditorRoute
 import com.github.jvsena42.loopky.ui.decks.EditCardRoute
@@ -15,6 +16,7 @@ import com.github.jvsena42.loopky.ui.importflow.PublishDeckRoute
 import com.github.jvsena42.loopky.ui.importflow.TriageEditCardRoute
 import com.github.jvsena42.loopky.ui.importflow.TriageRoute
 import com.github.jvsena42.loopky.ui.onboarding.OnboardingRoute
+import com.github.jvsena42.loopky.ui.profile.FollowListRoute
 import com.github.jvsena42.loopky.ui.profile.FriendProfileRoute
 import com.github.jvsena42.loopky.ui.settings.SettingsRoute
 import com.github.jvsena42.loopky.ui.study.StudySessionRoute
@@ -56,6 +58,9 @@ fun LoopkyNavHost() {
                 },
                 onNavigateSettings = {
                     navController.navigateTo(Routes.SETTINGS)
+                },
+                onNavigateFollows = { pubky, source ->
+                    navController.navigateTo(Routes.followList(pubky, source))
                 },
                 onSignOut = {
                     navController.navigateTo(Routes.ONBOARDING) {
@@ -213,6 +218,26 @@ fun LoopkyNavHost() {
                 pubky = pubky,
                 onBack = { navController.popBackStack() },
                 onOpenDeck = { deckId -> navController.navigateTo(Routes.deckDetail(deckId, author = pubky)) },
+            )
+        }
+        composable(
+            route = Routes.FOLLOW_LIST,
+            arguments = listOf(
+                navArgument("pubky") { type = NavType.StringType },
+                navArgument("source") { type = NavType.StringType },
+            ),
+        ) { backStackEntry ->
+            val pubky = backStackEntry.arguments?.getString("pubky") ?: return@composable
+            // An unrecognised source is a route nobody builds — Routes.followList writes it from
+            // the enum — so fall back rather than dropping the destination on the floor.
+            val source = FollowSource.entries
+                .firstOrNull { it.name.equals(backStackEntry.arguments?.getString("source"), ignoreCase = true) }
+                ?: FollowSource.FOLLOWING
+            FollowListRoute(
+                pubky = pubky,
+                source = source,
+                onBack = { navController.popBackStack() },
+                onOpenProfile = { person -> navController.navigateTo(Routes.friendProfile(person)) },
             )
         }
     }

@@ -35,6 +35,9 @@ complexity:
     excludes:
       - '**/data/pubky/PubkyClient.kt'
       - '**/data/pubky/AndroidPubkyClient.kt'
+      # Same reason as the two above: a wide interface, and the count is the interface's, not a
+      # cohesion problem in the implementation.
+      - '**/data/repository/impl/DiscoveryRepositoryImpl.kt'
       - '**/commonTest/**'
       - '**/androidUnitTest/**'
       - '**/testing/**'

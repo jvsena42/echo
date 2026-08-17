@@ -105,6 +105,20 @@ class NexusClientTest {
         assertEquals(listOf("pk1"), client.userTaggers("pk1", "loopky-user").getOrThrow())
     }
 
+    @Test
+    fun followersParsesThePubkyArray() = runTest {
+        http.respond("$BASE/v0/user/pk1/followers?limit=60", """["pk2","pk3"]""")
+
+        assertEquals(listOf("pk2", "pk3"), client.followers("pk1").getOrThrow())
+    }
+
+    @Test
+    fun followersEncodesTheUserAndClampsTheLimit() = runTest {
+        client.followers("pk/1", limit = 5000)
+
+        assertEquals("$BASE/v0/user/pk%2F1/followers?limit=200", http.requestedUrls.single())
+    }
+
     private companion object {
         const val BASE = "https://nexus.test"
     }

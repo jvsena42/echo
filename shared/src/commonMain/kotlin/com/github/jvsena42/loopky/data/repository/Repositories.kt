@@ -385,6 +385,29 @@ interface DiscoveryRepository {
     suspend fun unfollowUser(pubky: String): Result<Unit>
 
     /**
+     * The Loopky accounts [pubky] follows, as resolved profiles.
+     *
+     * Follows are the pubky.app primitive, so the graph is shared with every other app on the
+     * network — most of it is people who have never opened Loopky, and there is nothing here to do
+     * with them: no decks to read, no profile worth opening. So this is the follow list *through
+     * Loopky's lens*, filtered to accounts that announced themselves with [ReservedTags.USER] and
+     * whose profile resolves, the same bar [loopkyUsers] holds the directory to.
+     *
+     * Read from the homeserver rather than the indexer — a follow record lives on the follower's
+     * own homeserver, so this direction is first-hand and reflects a follow made seconds ago.
+     */
+    suspend fun followingProfiles(pubky: String): List<PubkyIdentity>
+
+    /**
+     * The Loopky accounts that follow [pubky], same filter as [followingProfiles].
+     *
+     * Indexer-backed of necessity: the records live on each follower's homeserver, so no single
+     * homeserver can answer this. That also makes the input untrusted, which the verification pass
+     * handles — a stranger cannot put themselves in this list by writing their own records.
+     */
+    suspend fun followerProfiles(pubky: String): List<PubkyIdentity>
+
+    /**
      * Decks published by people the user follows, newest first. Never the user's own, even if
      * they follow themselves — Library is where those live.
      */
@@ -445,6 +468,14 @@ interface DiscoveryRepository {
     companion object {
         /** A horizontal strip; enough to scroll, few enough to resolve quickly. */
         const val DEFAULT_SUGGESTED_PEOPLE_LIMIT = 12
+
+        /**
+         * How many follow-graph entries [followingProfiles]/[followerProfiles] will inspect.
+         * Every candidate costs an indexer round-trip to decide whether it is a Loopky account, and
+         * a long-standing pubky.app account can be followed by hundreds — that is a wait, not a
+         * list. Beyond this the tail is cut.
+         */
+        const val MAX_FOLLOW_CANDIDATES = 60
     }
 }
 
