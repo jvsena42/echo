@@ -78,6 +78,14 @@ points here rather than restating them.
   layer — shared `commonMain` has no Compose dependency.)
 - **Errors:** prefer `runCatching { … }.onSuccess { }.onFailure { }` / `Result` over try/catch; map
   domain `AppError` into the UI state. Prefer `requireNotNull(x) { "…" }` over `!!`.
+- **Cancellation:** any `runCatching` whose block calls **suspending** code must be
+  `runSuspendCatching` (`util/Coroutines.kt`) — plain `runCatching` catches `Throwable`, so it
+  swallows `CancellationException` and turns "the caller went away" into an ordinary failure.
+  Same for `mapCatching`/`recoverCatching` over a suspending lambda: fold them into one
+  `runSuspendCatching { … }` instead. Plain `runCatching` stays right for pure, synchronous blocks
+  (JSON decoding, an `Intent` launch) — they can't observe cancellation. A ViewModel should never
+  need an `if (err is CancellationException) return@onFailure` guard; if one looks necessary, a
+  suspending `runCatching` upstream is the actual bug.
 - **DI:** bind ViewModels with Koin's `viewModel { }` DSL (`org.koin.core.module.dsl.viewModel`) in
   `SharedModule.kt`; repositories stay `single { }`.
 - **Imports:** always import; never inline fully-qualified names (Kotlin and Swift).
