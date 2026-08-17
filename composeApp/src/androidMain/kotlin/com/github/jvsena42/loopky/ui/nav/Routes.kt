@@ -29,7 +29,12 @@ object Routes {
 
     fun deckDetail(deckId: String, author: String? = null) =
         if (author != null) "deck/$deckId?author=$author" else "deck/$deckId"
-    fun friendProfile(pubky: String) = "profile/$pubky"
+
+    /**
+     * Pubkys are z-base-32 and need no escaping, but the add-friend sheet takes free-typed text —
+     * a stray character produced a route no destination matched, i.e. a tap that did nothing.
+     */
+    fun friendProfile(pubky: String) = "profile/" + Uri.encode(pubky)
 
     /** Labels are sanitized to lowercase with no whitespace, but encode anyway — they are free text. */
     fun tagBrowse(tag: String) = "tag/" + Uri.encode(tag)

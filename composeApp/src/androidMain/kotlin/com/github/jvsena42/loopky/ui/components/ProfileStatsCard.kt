@@ -20,14 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
-/** One column of [ProfileStatsCard]. [valueColor] is what distinguishes the counts at a glance. */
-@Immutable
-data class ProfileStat(
-    val value: String,
-    val label: String,
-    val valueColor: Color,
-)
-
 /**
  * The rounded stats strip both profile screens carry. Takes however many stats the screen has —
  * the signed-in user gets three (decks / cards / due), someone else gets the two that can be
@@ -71,6 +63,14 @@ fun ProfileStatsCard(
         }
     }
 }
+
+/** One column of [ProfileStatsCard]. [valueColor] is what distinguishes the counts at a glance. */
+@Immutable
+data class ProfileStat(
+    val value: String,
+    val label: String,
+    val valueColor: Color,
+)
 
 @Preview
 @Composable
