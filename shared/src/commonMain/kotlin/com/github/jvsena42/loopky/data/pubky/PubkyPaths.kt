@@ -61,6 +61,21 @@ internal object PubkyPaths {
         "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/follows/$followeePubky"
 
     /**
+     * Decks the owner follows, on the **follower's** homeserver — existence-as-truth, like
+     * [follow], so listing your subscriptions is one [PubkyClient.list] on [subscriptionsRoot].
+     *
+     * Loopky's own namespace rather than pubky.app's: a follow there means "I follow this *user*",
+     * and there is no ecosystem primitive for following one deck. Keyed by author first so two
+     * authors whose decks share a `deckId` cannot collide — the same reason `srs/` is author-keyed
+     * (see [srsRoot]), and following decks from many authors is what raises those odds.
+     */
+    fun subscriptionsRoot(ownerPubky: String): String =
+        "pubky://$ownerPubky/$APP_NAMESPACE/subscriptions/"
+
+    fun subscription(ownerPubky: String, authorPubky: String, deckId: String): String =
+        "${subscriptionsRoot(ownerPubky)}$authorPubky/$deckId.json"
+
+    /**
      * pubky.app tag record — the namespace Nexus indexes into its **user/post** graph. Use it only
      * when the tagged subject is a pubky.app profile or post; Nexus rejects the record outright for
      * any other subject (see [loopkyTag] and Architecture.md §7.7). The id is content-derived per

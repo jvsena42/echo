@@ -131,6 +131,42 @@ interface DeckRepository {
 
     /** Pull-only sync driven by the manifest `updated_at` diff. */
     suspend fun sync(deckId: String): Result<Deck>
+
+    // ── Following someone else's deck (#33) ──────────────────────────────
+    //
+    // Deliberately here rather than on DiscoveryRepository, which owns *user* follows. Three
+    // reasons: [listFollowed] returns decks and has to merge with [listOwned] behind this one
+    // [changes] flow; [sync] resolves a followed deck's author from the subscription record and
+    // lives in this implementation; and DiscoveryRepository already depends on DeckRepository, so
+    // putting it there would make the dependency cycle.
+    //
+    // Following stores a subscription pointing at the owner's deck — you get their updates and you
+    // cannot edit it. Copying a deck into your own account is [clone], which is the opposite trade.
+
+    /** Subscribe to [deck]. Idempotent: re-following overwrites one record. */
+    suspend fun followDeck(deck: Deck): Result<Unit>
+
+    /**
+     * Drop the subscription — and only that. Review state stays: it is yours, not the author's, and
+     * re-following must not silently reset your progress (Architecture.md §8.3).
+     */
+    suspend fun unfollowDeck(authorPubky: String, deckId: String): Result<Unit>
+
+    suspend fun isFollowingDeck(deckId: String): Boolean
+
+    /**
+     * Decks you follow, fetched from their authors' homeservers. Unreadable decks are dropped
+     * rather than failing the call — an author who deleted a deck you follow must not empty your
+     * whole library — but a listing that resolved nothing at all still throws, for the same reason
+     * [listByAuthor] does.
+     */
+    suspend fun listFollowed(): List<Deck>
+
+    /** True when [deckId] is followed and its author has published changes since you last opened it. */
+    suspend fun hasUpdate(deckId: String): Boolean
+
+    /** Record that you have seen [deck] at its current `updated_at`. No-op for decks you don't follow. */
+    suspend fun markSeen(deck: Deck)
 }
 
 /**

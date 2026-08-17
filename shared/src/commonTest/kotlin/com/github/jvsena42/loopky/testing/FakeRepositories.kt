@@ -103,10 +103,10 @@ class FakeDeckRepository : DeckRepository {
     /** When set, [publish] blocks on it, so a test can act while the upload is still in flight. */
     var publishGate: CompletableDeferred<Unit>? = null
 
-    override suspend fun getLocal(id: String): Deck? = decks[id]
+    override suspend fun getLocal(id: String): Deck? = decks[id] ?: followedDecks[id]
 
     override suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck> =
-        decks[deckId]?.let { Result.success(it) }
+        getLocal(deckId)?.let { Result.success(it) }
             ?: Result.failure(IllegalStateException("deck $deckId not found"))
 
     override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> =
@@ -179,6 +179,45 @@ class FakeDeckRepository : DeckRepository {
         decks[deckId] = updated
         _changes.tryEmit(Unit)
         return Result.success(updated)
+    }
+
+    // ── Follow deck (#33) ────────────────────────────────────────────────
+
+    /** Decks followed rather than owned. Kept apart from [decks] so a test can tell them apart. */
+    val followedDecks = mutableMapOf<String, Deck>()
+    val seen = mutableListOf<String>()
+    var followError: Throwable? = null
+    var listFollowedError: Throwable? = null
+
+    /** Deck ids whose author has published changes since they were last opened. */
+    val updatedDecks = mutableSetOf<String>()
+
+    override suspend fun followDeck(deck: Deck): Result<Unit> {
+        followError?.let { return Result.failure(it) }
+        followedDecks[deck.id] = deck
+        _changes.tryEmit(Unit)
+        return Result.success(Unit)
+    }
+
+    override suspend fun unfollowDeck(authorPubky: String, deckId: String): Result<Unit> {
+        followError?.let { return Result.failure(it) }
+        followedDecks.remove(deckId)
+        _changes.tryEmit(Unit)
+        return Result.success(Unit)
+    }
+
+    override suspend fun isFollowingDeck(deckId: String): Boolean = deckId in followedDecks
+
+    override suspend fun listFollowed(): List<Deck> {
+        listFollowedError?.let { throw it }
+        return followedDecks.values.toList()
+    }
+
+    override suspend fun hasUpdate(deckId: String): Boolean = deckId in updatedDecks
+
+    override suspend fun markSeen(deck: Deck) {
+        seen.add(deck.id)
+        updatedDecks.remove(deck.id)
     }
 }
 

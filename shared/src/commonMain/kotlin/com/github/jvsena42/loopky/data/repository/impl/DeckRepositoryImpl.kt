@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
+import com.github.jvsena42.loopky.data.pubky.SubscriptionDto
 import com.github.jvsena42.loopky.data.pubky.deleteWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.isNotFound
 import com.github.jvsena42.loopky.data.pubky.mapConcurrently
@@ -21,6 +22,7 @@ import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
+import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
@@ -51,6 +53,14 @@ class DeckRepositoryImpl(
 
     private val cache = mutableMapOf<String, Deck>()
     private val cacheLock = Mutex()
+
+    /**
+     * deckId → subscription, or null until first loaded from the homeserver. Mirrors
+     * `DiscoveryRepositoryImpl`'s follow-set cache: null and empty mean different things, so
+     * "you follow nothing" is never confused with "we haven't looked yet".
+     */
+    private var subscriptions: MutableMap<String, SubscriptionDto>? = null
+    private val subscriptionLock = Mutex()
 
     private val _changes = MutableSharedFlow<Unit>(
         extraBufferCapacity = CHANGE_BUFFER,
@@ -276,8 +286,11 @@ class DeckRepositoryImpl(
     }
 
     override suspend fun delete(deckId: String): Result<Unit> = runSuspendCatching {
-        val author = session.requireSession().identity.pubky
-        val cached = getLocal(deckId)
+        // Guarded like every other write since decks you don't own became reachable (#33). Without
+        // it, deleting a followed deck built its sweep paths from *your* pubky and quietly ranged
+        // over your own namespace looking for a deck that was never there.
+        val cached = requireOwnedDeck(deckId)
+        val author = cached.authorPubky
 
         // Sweep everything under the deck root (cards, manifest, media blobs, SRS records)
         // so nothing orphans on the homeserver. The listing itself is the fallback source of
@@ -285,7 +298,7 @@ class DeckRepositoryImpl(
         val deckRoot = "${PubkyPaths.deckRoot(author, deckId)}/"
         val listedPaths = listAllPaths(deckRoot)
         val fallbackPaths = buildList {
-            cached?.chunks?.forEach { add(PubkyPaths.cardChunk(author, deckId, it.n)) }
+            cached.chunks.forEach { add(PubkyPaths.cardChunk(author, deckId, it.n)) }
             add(PubkyPaths.manifest(author, deckId))
         }
         val all = (listedPaths + fallbackPaths).distinct()
@@ -302,14 +315,12 @@ class DeckRepositoryImpl(
 
         // Remove the tag records pointing at the deleted deck (best-effort). The loopky-deck
         // marker goes too, or global browse keeps offering a deck that no longer resolves.
-        cached?.let { deck ->
-            tagRepo.removeReservedTag(deck.pubkyUri, ReservedTags.DECK).onFailure {
-                Log.e(TAG, "delete: ${ReservedTags.DECK.value} removal failed — ${it.message}", it)
-            }
-            for (tag in deck.tags.filterNot { ReservedTags.isReserved(it) }) {
-                tagRepo.removeTag(deck.pubkyUri, tag).onFailure {
-                    Log.e(TAG, "delete: tag '${tag.value}' removal failed — ${it.message}", it)
-                }
+        tagRepo.removeReservedTag(cached.pubkyUri, ReservedTags.DECK).onFailure {
+            Log.e(TAG, "delete: ${ReservedTags.DECK.value} removal failed — ${it.message}", it)
+        }
+        for (tag in cached.tags.filterNot { ReservedTags.isReserved(it) }) {
+            tagRepo.removeTag(cached.pubkyUri, tag).onFailure {
+                Log.e(TAG, "delete: tag '${tag.value}' removal failed — ${it.message}", it)
             }
         }
 
@@ -379,7 +390,132 @@ class DeckRepositoryImpl(
      */
     private suspend fun authorOf(deckId: String): String =
         getLocal(deckId)?.authorPubky
+            ?: loadSubscriptions()[deckId]?.author_pubky
             ?: session.requireSession().identity.pubky
+
+    // ── Following someone else's deck (#33) ──────────────────────────────
+
+    override suspend fun followDeck(deck: Deck): Result<Unit> = runSuspendCatching {
+        val owner = session.requireSession().identity.pubky
+        val record = SubscriptionDto(
+            deck_uri = deck.pubkyUri.value,
+            author_pubky = deck.authorPubky,
+            deck_id = deck.id,
+            followed_at = epochMillis(),
+            // Following from deck detail means you are looking at it, so it is seen by definition.
+            last_seen_updated_at = deck.updatedAt,
+        )
+        pubky.putWithSessionRetry(
+            PubkyPaths.subscription(owner, deck.authorPubky, deck.id),
+            loopkyJson.encodeToString(record),
+            session,
+            revalidator,
+        ).getOrThrow()
+
+        loadSubscriptions()
+        subscriptionLock.withLock { subscriptions?.put(deck.id, record) }
+
+        // Best-effort, like mirrorTags: the reserved label is what makes "N people follow this"
+        // fall out of the indexer's tagger count, but discoverability must not fail a follow.
+        tagRepo.putReservedTag(deck.pubkyUri, ReservedTags.FOLLOWED).onFailure {
+            Log.e(TAG, "followDeck: ${ReservedTags.FOLLOWED.value} write failed — ${it.message}", it)
+        }
+        _changes.tryEmit(Unit)
+    }
+
+    override suspend fun unfollowDeck(authorPubky: String, deckId: String): Result<Unit> =
+        runSuspendCatching {
+            val owner = session.requireSession().identity.pubky
+            pubky.deleteWithSessionRetry(
+                PubkyPaths.subscription(owner, authorPubky, deckId),
+                session,
+                revalidator,
+            ).getOrThrow()
+            subscriptionLock.withLock { subscriptions?.remove(deckId) }
+
+            // The subscription and its label go; the SRS state does not. Re-following must not
+            // reset your progress, and review state was never the author's data to begin with
+            // (Architecture.md §8.3).
+            val uri = PubkyUri(PubkyPaths.manifest(authorPubky, deckId))
+            tagRepo.removeReservedTag(uri, ReservedTags.FOLLOWED).onFailure {
+                Log.e(TAG, "unfollowDeck: ${ReservedTags.FOLLOWED.value} removal failed — ${it.message}", it)
+            }
+            _changes.tryEmit(Unit)
+        }
+
+    override suspend fun isFollowingDeck(deckId: String): Boolean =
+        loadSubscriptions().containsKey(deckId)
+
+    override suspend fun listFollowed(): List<Deck> {
+        val subs = loadSubscriptions().values.toList()
+        if (subs.isEmpty()) return emptyList()
+
+        val results = subs.mapConcurrently { sub ->
+            sub to fetchRemote(sub.author_pubky, sub.deck_id)
+        }
+        val decks = mutableListOf<Deck>()
+        var firstFailure: Throwable? = null
+        for ((sub, result) in results) {
+            result
+                .onSuccess { decks.add(it) }
+                .onFailure { err ->
+                    Log.e(TAG, "listFollowed: ${sub.deck_id} unreadable — ${err.message}", err)
+                    // A deck its author deleted is gone, not a failure — the subscription simply
+                    // outlived it. Anything else may be transient, so it still counts as a failure.
+                    if (firstFailure == null && !err.isNotFound()) firstFailure = err
+                }
+        }
+        // One unreachable deck must not hide the rest, but a set of subscriptions where nothing at
+        // all could be read is a connectivity failure, not an empty library — same rule as
+        // listByAuthor, and for the same reason.
+        if (decks.isEmpty() && firstFailure != null) throw requireNotNull(firstFailure)
+        return decks
+    }
+
+    override suspend fun hasUpdate(deckId: String): Boolean {
+        val sub = loadSubscriptions()[deckId] ?: return false
+        val deck = getLocal(deckId) ?: return false
+        return deck.updatedAt > sub.last_seen_updated_at
+    }
+
+    override suspend fun markSeen(deck: Deck) {
+        val sub = loadSubscriptions()[deck.id] ?: return
+        if (sub.last_seen_updated_at >= deck.updatedAt) return
+
+        val owner = session.current()?.identity?.pubky ?: return
+        val updated = sub.copy(last_seen_updated_at = deck.updatedAt)
+        pubky.putWithSessionRetry(
+            PubkyPaths.subscription(owner, sub.author_pubky, sub.deck_id),
+            loopkyJson.encodeToString(updated),
+            session,
+            revalidator,
+        ).onFailure {
+            // Cosmetic: the worst case is the "updated" dot showing one extra time.
+            Log.e(TAG, "markSeen: ${deck.id} not recorded — ${it.message}", it)
+            return
+        }
+        subscriptionLock.withLock { subscriptions?.put(deck.id, updated) }
+        _changes.tryEmit(Unit)
+    }
+
+    /** The subscription set for this session, read from the homeserver on first use. */
+    private suspend fun loadSubscriptions(): Map<String, SubscriptionDto> {
+        subscriptionLock.withLock { subscriptions }?.let { return it.toMap() }
+        val owner = session.current()?.identity?.pubky ?: return emptyMap()
+
+        val loaded = mutableMapOf<String, SubscriptionDto>()
+        for (path in listAllPaths(PubkyPaths.subscriptionsRoot(owner))) {
+            val json = pubky.get(path).getOrElse {
+                Log.e(TAG, "loadSubscriptions: $path unreadable — ${it.message}", it)
+                continue
+            }
+            runCatching { loopkyJson.decodeFromString<SubscriptionDto>(json) }
+                .onSuccess { loaded[it.deck_id] = it }
+                .onFailure { Log.e(TAG, "loadSubscriptions: $path is not a subscription", it) }
+        }
+        subscriptionLock.withLock { subscriptions = loaded }
+        return loaded.toMap()
+    }
 
     /**
      * Every path under [prefix], following the cursor until the homeserver stops returning new
