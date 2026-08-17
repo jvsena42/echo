@@ -20,6 +20,7 @@ import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +47,9 @@ class PublishDeckViewModel(
 
     private var publishJob: Job? = null
     private var undoCountdownJob: Job? = null
+
+    /** The deck id of the publish in flight, so a cancel knows what to sweep. */
+    private var publishingDeckId: String? = null
 
     init {
         val draft = importRepository.currentDraft()
@@ -114,7 +118,7 @@ class PublishDeckViewModel(
     }
 
     fun onPublishClick() {
-        if (publishJob?.isActive == true) return
+        if (publishJob?.isActive == true || _state.value.isCancelling) return
         val s = _state.value
         if (!validateForPublish(s)) return
 
@@ -141,6 +145,9 @@ class PublishDeckViewModel(
 
             val now = epochMillis()
             val deckId = generateId()
+            // Recorded before the first write so a cancel knows what to sweep. publish() writes a
+            // marker manifest first (#49), so anything from here on is reachable and deletable.
+            publishingDeckId = deckId
             val cards = buildCards(draft, deckId, now)
             val coverImageRef = resolveCoverImage(s, deckId)
 
@@ -149,6 +156,7 @@ class PublishDeckViewModel(
             publishWithProgress(deck, cards)
                 .onSuccess {
                     Log.d(TAG, "publish: SUCCESS deckId=$deckId")
+                    publishingDeckId = null
                     _state.update {
                         it.copy(
                             isPublishing = false,
@@ -165,6 +173,9 @@ class PublishDeckViewModel(
                     // run would overwrite it with "StandaloneCoroutine was cancelled".
                     if (err is CancellationException) return@onFailure
                     Log.e(TAG, "publish: FAILED — ${err.message}", err)
+                    // Left for the user to retry over: chunk PUTs are idempotent, and the marker
+                    // manifest keeps a half-written deck reachable rather than orphaned.
+                    publishingDeckId = null
                     _state.update {
                         it.copy(
                             isPublishing = false,
@@ -214,6 +225,49 @@ class PublishDeckViewModel(
                 )
             }
         }
+
+    /**
+     * Stop a publish in flight and sweep whatever reached the homeserver.
+     *
+     * Offerable at all because of #49's marker manifest: it is written before the first chunk, so
+     * an interrupted publish leaves a deck that is reachable and deletable rather than orphaned
+     * chunks. But a deck the user just took back has no business staying in their library — it was
+     * never announced and never appeared there — so it is deleted rather than left as an
+     * `incomplete` husk. If the sweep itself fails (offline being a likely reason to cancel a
+     * stalled upload) the husk stays, which is precisely the case the marker exists for.
+     */
+    fun onCancelPublish() {
+        val job = publishJob?.takeIf { it.isActive } ?: return
+        val deckId = publishingDeckId
+        publishJob = null
+        _state.update {
+            it.copy(
+                isPublishing = false,
+                isCancelling = deckId != null,
+                publishProgress = null,
+                error = null,
+            )
+        }
+        viewModelScope.launch {
+            // cancelAndJoin, not cancel: the publish coroutine must be finished before the sweep
+            // starts, or a chunk PUT still in flight lands after delete() walked the listing.
+            job.cancelAndJoin()
+            if (deckId == null) return@launch
+            Log.d(TAG, "cancel: sweeping partial deckId=$deckId")
+            deckRepository.delete(deckId)
+                .onSuccess {
+                    Log.d(TAG, "cancel: swept deckId=$deckId")
+                    _state.update { it.copy(isCancelling = false) }
+                }
+                .onFailure { err ->
+                    Log.e(TAG, "cancel: sweep FAILED — ${err.message}", err)
+                    _state.update {
+                        it.copy(isCancelling = false, error = err.message ?: "Couldn't remove the partial deck.")
+                    }
+                }
+            publishingDeckId = null
+        }
+    }
 
     fun onUndoPublish() {
         val deckId = _state.value.publishedDeckId ?: return
@@ -355,6 +409,8 @@ data class PublishDeckUiState(
     val cardCount: Int = 0,
     val discardedCount: Int = 0,
     val isPublishing: Boolean = false,
+    /** True from the moment a cancel is confirmed until the partial deck has been swept. */
+    val isCancelling: Boolean = false,
     /**
      * 0f..1f while uploading, null when not publishing or when the count is too small to be worth
      * a determinate bar. Lets a large import show real progress instead of an indefinite spinner.
@@ -374,7 +430,8 @@ data class PublishDeckUiState(
     val error: String? = null,
 ) {
     val canPublish: Boolean
-        get() = title.isNotBlank() && titleError == null && descriptionError == null && !isPublishing
+        get() = title.isNotBlank() && titleError == null && descriptionError == null &&
+            !isPublishing && !isCancelling
 }
 
 sealed interface PublishDeckEffect {

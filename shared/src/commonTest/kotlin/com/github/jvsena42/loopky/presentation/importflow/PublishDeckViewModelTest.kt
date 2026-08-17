@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.testing.FakeImportRepository
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.testDraft
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -187,6 +188,46 @@ class PublishDeckViewModelTest {
         assertEquals(listOf("hola", "gracias"), cards.map { it.front.text })
         assertEquals(listOf("hello", "thank you"), cards.map { it.back.text })
         assertEquals(cards.size, deck.cardCount)
+    }
+
+    @Test
+    fun cancellingAPublishSweepsThePartialDeck() = runTest {
+        // #49's marker manifest is written before the first chunk, so an interrupted publish
+        // leaves a reachable deck. That is what makes cancel offerable — but a deck the user just
+        // took back should not survive in their library.
+        deckRepo.publishGate = CompletableDeferred()
+        val vm = viewModel()
+        vm.onTitleChanged("Japanese Core")
+        vm.onPublishClick()
+        runCurrent()
+        assertTrue(vm.state.value.isPublishing)
+
+        vm.onCancelPublish()
+        runCurrent()
+
+        val state = vm.state.value
+        assertTrue(!state.isPublishing)
+        assertTrue(!state.isCancelling)
+        assertEquals(expected = 1, actual = deckRepo.deleted.size, "the partial deck was not swept")
+        // The cancellation must not surface as a publish failure — the repository's runCatching
+        // hands it back as an ordinary error, which used to read "…was cancelled" on screen.
+        assertNull(state.error)
+        assertNull(state.publishedDeckId)
+    }
+
+    @Test
+    fun cancellingKeepsTheDeckDetailsSoTheUserCanPublishAgain() = runTest {
+        deckRepo.publishGate = CompletableDeferred()
+        val vm = viewModel()
+        vm.onTitleChanged("Japanese Core")
+        vm.onPublishClick()
+        runCurrent()
+
+        vm.onCancelPublish()
+        runCurrent()
+
+        assertEquals(expected = "Japanese Core", actual = vm.state.value.title)
+        assertTrue(vm.state.value.canPublish, "cancel must not leave the form unusable")
     }
 
     @Test
