@@ -128,6 +128,17 @@ class DiscoveryRepositoryImplTest {
     }
 
     @Test
+    fun decksFromFollowingSkipsYourself() = runTest {
+        // Nothing stops an account following itself, and Discover is not where your own decks go.
+        repo.followUser(TEST_PUBKY).getOrThrow()
+        repo.followUser("friend1").getOrThrow()
+        putRemoteManifest(author = TEST_PUBKY, deckId = "mine", updatedAt = 300L)
+        putRemoteManifest(author = "friend1", deckId = "theirs", updatedAt = 100L)
+
+        assertEquals(listOf("theirs"), repo.decksFromFollowing().map { it.id })
+    }
+
+    @Test
     fun followingThrowsWhenTheHomeserverIsUnreachable() = runTest {
         // Must not degrade to "you follow nobody" — that is indistinguishable from the real
         // empty state and hides the fact that the device is offline.
@@ -203,6 +214,35 @@ class DiscoveryRepositoryImplTest {
         )
 
         assertEquals(emptyList(), repo.decksByTagGlobal(ReservedTags.DECK))
+    }
+
+    @Test
+    fun globalBrowseDropsYourOwnDeck() = runTest {
+        // Your decks are already in Library; repeating them here is what made Discover look empty
+        // of anything new on a young network.
+        putRemoteManifest(author = TEST_PUBKY, deckId = "mine", updatedAt = 200L)
+        putRemoteManifest(author = "strangerpk", deckId = "deck1", updatedAt = 100L)
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(
+                tagged(manifestUri(TEST_PUBKY, "mine"), taggers = listOf(TEST_PUBKY)),
+                tagged(manifestUri("strangerpk", "deck1"), taggers = listOf("strangerpk")),
+            ),
+        )
+
+        assertEquals(listOf("deck1"), repo.decksByTagGlobal(ReservedTags.DECK).map { it.id })
+    }
+
+    @Test
+    fun globalBrowseKeepsEveryDeckWhenSignedOut() = runTest {
+        // The own-deck rule is a filter on one pubky, not a blanket drop: with no session there is
+        // nobody to exclude.
+        session.set(null)
+        putRemoteManifest(author = TEST_PUBKY, deckId = "mine", updatedAt = 200L)
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(tagged(manifestUri(TEST_PUBKY, "mine"), listOf(TEST_PUBKY))),
+        )
+
+        assertEquals(listOf("mine"), repo.decksByTagGlobal(ReservedTags.DECK).map { it.id })
     }
 
     @Test

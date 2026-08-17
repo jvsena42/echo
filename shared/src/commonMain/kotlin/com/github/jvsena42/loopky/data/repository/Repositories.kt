@@ -384,7 +384,10 @@ interface DiscoveryRepository {
     suspend fun followUser(pubky: String): Result<Unit>
     suspend fun unfollowUser(pubky: String): Result<Unit>
 
-    /** Decks published by people the user follows, newest first. */
+    /**
+     * Decks published by people the user follows, newest first. Never the user's own, even if
+     * they follow themselves — Library is where those live.
+     */
     suspend fun decksFromFollowing(): List<Deck>
 
     /** Visible decks (following + own) carrying [tag]. */
@@ -395,6 +398,9 @@ interface DiscoveryRepository {
      * needed. Backed by the indexer, so entries are verified before being returned: the URI has to
      * be a deck manifest, the tagger has to be its author, and the manifest has to actually fetch
      * and parse. Anything else is dropped silently.
+     *
+     * The signed-in account's own decks are dropped too — not for trust, but because Library
+     * already lists them and a browse full of them shows the user nothing new.
      *
      * Pass [ReservedTags.DECK] to browse every Loopky deck.
      */
