@@ -71,6 +71,8 @@ import com.github.jvsena42.loopky.presentation.profile.ProfileUiState
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
+import com.github.jvsena42.loopky.ui.components.ProfileStat
+import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.shareText
 import com.github.jvsena42.loopky.ui.util.shortPubky
@@ -331,34 +333,25 @@ private fun ProfileScreen(
         }
 
         // --- Stats card ---
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(colors.surfaceSecondary)
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ProfileStatColumn(
-                value = state.deckCount.toString(),
-                label = stringResource(R.string.profile_stat_decks),
-                valueColor = colors.foregroundPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            ProfileStatColumn(
-                value = state.cardCount.toString(),
-                label = stringResource(R.string.profile_stat_cards),
-                valueColor = colors.accentPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            ProfileStatColumn(
-                value = state.dueCount.toString(),
-                label = stringResource(R.string.profile_stat_due),
-                valueColor = colors.srsGood,
-                modifier = Modifier.weight(1f),
-            )
-        }
+        ProfileStatsCard(
+            stats = listOf(
+                ProfileStat(
+                    value = state.deckCount.toString(),
+                    label = stringResource(R.string.profile_stat_decks),
+                    valueColor = colors.foregroundPrimary,
+                ),
+                ProfileStat(
+                    value = state.cardCount.toString(),
+                    label = stringResource(R.string.profile_stat_cards),
+                    valueColor = colors.accentPrimary,
+                ),
+                ProfileStat(
+                    value = state.dueCount.toString(),
+                    label = stringResource(R.string.profile_stat_due),
+                    valueColor = colors.srsGood,
+                ),
+            ),
+        )
 
         // --- Sign out ---
         FilledTonalButton(
@@ -541,34 +534,6 @@ private fun EditProfileSheet(
                 },
             )
         }
-    }
-}
-
-@Composable
-private fun ProfileStatColumn(
-    value: String,
-    label: String,
-    valueColor: Color,
-    modifier: Modifier = Modifier,
-) {
-    val colors = LoopkyTheme.colors
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(
-            text = value,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.W800,
-            color = valueColor,
-        )
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.W500,
-            color = colors.foregroundMuted,
-        )
     }
 }
 

@@ -94,6 +94,7 @@ fun LoopkyNavHost() {
                 onEditDeck = { id -> navController.navigateTo(Routes.deckEditor(id)) },
                 onStudy = { id -> navController.navigateTo(Routes.study(id)) },
                 onOpenTag = { tag -> navController.navigateTo(Routes.tagBrowse(tag)) },
+                onOpenProfile = { pubky -> navController.navigateTo(Routes.friendProfile(pubky)) },
                 // The clone is what the user now owns, so replace the source in the back stack
                 // rather than stacking a near-identical screen on top of it.
                 onOpenClone = { id ->
