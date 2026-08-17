@@ -60,20 +60,23 @@ class BulkImportViewModel(
             load()
                 .mapCatching { text -> importRepository.parseBulk(text).getOrThrow() }
                 .onSuccess { draft ->
-                    val skipped = draft.rows.count { row ->
-                        val (front, back) = draft.frontBackOf(row)
-                        front.isBlank() || back.isBlank()
-                    }
+                    // Both counts come off keptRows() so the summary and what actually publishes
+                    // agree by construction. Computing "skipped" independently is how they came
+                    // to disagree: the screen reported rows as dropped that publish still saw.
+                    val kept = importRepository.keptRows().size
+                    val skipped = draft.rows.size - kept
                     Log.d(TAG, "bulk parse: ${draft.rows.size} rows, $skipped skipped")
                     _state.update {
                         BulkImportUiState.Ready(
                             fileName = fileName,
                             separator = draft.separator,
-                            cardCount = draft.rows.size - skipped,
+                            cardCount = kept,
                             skippedCount = skipped,
                             duplicatesCollapsed = draft.duplicatesCollapsed,
                             truncatedCount = draft.truncated,
-                            sample = draft.rows.take(SAMPLE_SIZE).map { row ->
+                            // Sampled from the kept rows, not all of them: showing a card that is
+                            // about to be skipped is the one sample guaranteed to mislead.
+                            sample = importRepository.keptRows().take(SAMPLE_SIZE).map { row ->
                                 val (front, back) = draft.frontBackOf(row)
                                 SampleCard(front = front, back = back)
                             },

@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.TriageDecision
+import com.github.jvsena42.loopky.domain.model.frontBackOf
 
 @Suppress("TooManyFunctions")
 class ImportRepositoryImpl : ImportRepository {
@@ -58,6 +59,27 @@ class ImportRepositoryImpl : ImportRepository {
 
     override suspend fun parseBulk(rawText: String, separator: Separator?): Result<ImportDraft> =
         parseInternal(rawText, separator, maxChars = MAX_BULK_CHARS, maxCards = MAX_BULK_CARDS)
+            .onSuccess { discardIncompleteRows(it) }
+
+    /**
+     * Bulk import has no triage step, so a row missing a front or a back has nowhere to be fixed —
+     * and [keptRows] only filters explicit [TriageDecision.Discard]s. Without this the summary
+     * screen reports them as "skipped" while they sail through to `publish`, which rejects an
+     * empty side and fails the whole import.
+     *
+     * This is parse-time policy rather than a ViewModel loop on purpose: [parseInternal] clears
+     * [triageDecisions] on every parse, so a caller-side loop would be one re-parse away from
+     * being silently dropped. [parse] deliberately does *not* do this — triage is exactly where a
+     * paste user fills the blanks in.
+     */
+    private fun discardIncompleteRows(draft: ImportDraft) {
+        draft.rows.forEach { row ->
+            val (front, back) = draft.frontBackOf(row)
+            if (front.isBlank() || back.isBlank()) {
+                setDecision(row.index, TriageDecision.Discard)
+            }
+        }
+    }
 
     override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
         parseInternal(rawText, separator, maxChars = MAX_CHARS, maxCards = MAX_CARDS)
