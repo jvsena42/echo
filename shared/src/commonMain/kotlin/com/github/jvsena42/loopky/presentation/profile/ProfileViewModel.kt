@@ -6,7 +6,7 @@ import com.github.jvsena42.loopky.data.pubky.requiresReauth
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
-import com.github.jvsena42.loopky.domain.model.avatarInitial
+import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -84,14 +84,18 @@ class ProfileViewModel(
             // Degrade to 0 rather than failing the whole profile load if the SRS read fails.
             val dueCount = runSuspendCatching { srsRepository.dueToday().size }.getOrDefault(0)
 
-            val displayName = profile.displayName ?: session.identity.displayName
+            // Fall back field by field rather than whole-identity: a published profile that only
+            // sets a picture must not blank the name the session already knows.
+            val identity = PubkyIdentity(
+                pubky = pubky,
+                displayName = profile.displayName ?: session.identity.displayName,
+                avatarUrl = profile.avatarUrl ?: session.identity.avatarUrl,
+                bio = profile.bio ?: session.identity.bio,
+            )
             _state.update {
                 it.copy(
                     isLoading = false,
-                    displayName = displayName,
-                    pubky = pubky,
-                    bio = profile.bio ?: session.identity.bio,
-                    avatarInitial = profile.copy(displayName = displayName).avatarInitial,
+                    identity = identity,
                     deckCount = deckCount,
                     cardCount = cardCount,
                     dueCount = dueCount,
@@ -102,12 +106,12 @@ class ProfileViewModel(
     }
 
     fun onEditProfileClick() {
-        val current = _state.value
+        val identity = _state.value.identity
         _state.update {
             it.copy(
                 showEditSheet = true,
-                editName = current.displayName.orEmpty(),
-                editBio = current.bio.orEmpty(),
+                editName = identity?.displayName.orEmpty(),
+                editBio = identity?.bio.orEmpty(),
             )
         }
     }
@@ -140,9 +144,7 @@ class ProfileViewModel(
                     it.copy(
                         isSaving = false,
                         showEditSheet = false,
-                        displayName = identity.displayName,
-                        bio = identity.bio,
-                        avatarInitial = identity.avatarInitial,
+                        identity = identity,
                     )
                 }
             }.onFailure { err ->
@@ -158,10 +160,14 @@ class ProfileViewModel(
     }
 
     fun onShareClick() {
-        val pubky = _state.value.pubky
-        if (pubky.isNotBlank()) {
-            viewModelScope.launch { _effects.emit(ProfileEffect.ShareProfile("pubky://$pubky")) }
-        }
+        val pubky = _state.value.identity?.pubky ?: return
+        viewModelScope.launch { _effects.emit(ProfileEffect.ShareProfile("pubky://$pubky")) }
+    }
+
+    /** The pubky chip is the copy control, the same one someone else's profile carries. */
+    fun onCopyPubky() {
+        val pubky = _state.value.identity?.pubky ?: return
+        viewModelScope.launch { _effects.emit(ProfileEffect.CopyToClipboard(pubky)) }
     }
 
     /** Best-effort sign-out + redirect to onboarding when the session can't be refreshed. */
@@ -187,10 +193,13 @@ class ProfileViewModel(
 
 data class ProfileUiState(
     val isLoading: Boolean = true,
-    val displayName: String? = null,
-    val pubky: String = "",
-    val bio: String? = null,
-    val avatarInitial: Char = '?',
+    /**
+     * The whole identity rather than a name and an initial: the avatar slot needs
+     * [PubkyIdentity.avatarUrl] to draw a picture at all, and this screen used to keep only a
+     * `Char`, which is why the signed-in user was the one person in the app whose photo never
+     * appeared.
+     */
+    val identity: PubkyIdentity? = null,
     val deckCount: Int = 0,
     val cardCount: Int = 0,
     val dueCount: Int = 0,
@@ -203,5 +212,6 @@ data class ProfileUiState(
 sealed interface ProfileEffect {
     data object NavigateToOnboarding : ProfileEffect
     data class ShareProfile(val uri: String) : ProfileEffect
+    data class CopyToClipboard(val text: String) : ProfileEffect
     data class ShowError(val message: String) : ProfileEffect
 }

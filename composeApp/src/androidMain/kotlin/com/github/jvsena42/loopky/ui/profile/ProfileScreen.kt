@@ -24,8 +24,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -49,34 +47,32 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.presentation.profile.ProfileEffect
 import com.github.jvsena42.loopky.presentation.profile.ProfileUiState
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
+import com.github.jvsena42.loopky.ui.components.ProfileHero
 import com.github.jvsena42.loopky.ui.components.ProfileStat
 import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.shareText
-import com.github.jvsena42.loopky.ui.util.shortPubky
-import com.github.jvsena42.loopky.ui.util.truncatedPubky
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -88,6 +84,7 @@ fun ProfileRoute(
     val viewModel = koinViewModel<ProfileViewModel>()
 
     val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
     val currentSignedOut by rememberUpdatedState(onSignedOut)
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -99,6 +96,7 @@ fun ProfileRoute(
                     text = effect.uri,
                     chooserTitle = context.getString(R.string.share_profile_chooser_title),
                 )
+                is ProfileEffect.CopyToClipboard -> clipboard.setText(AnnotatedString(effect.text))
                 is ProfileEffect.ShowError -> { errorMessage = effect.message }
             }
         }
@@ -111,6 +109,7 @@ fun ProfileRoute(
         onOpenSettings = onOpenSettings,
         onEditProfileClick = viewModel::onEditProfileClick,
         onShareClick = viewModel::onShareClick,
+        onCopyPubky = viewModel::onCopyPubky,
         onSignOutClick = viewModel::onSignOutClick,
         onDismissEditSheet = viewModel::onDismissEditSheet,
         onEditNameChanged = viewModel::onEditNameChanged,
@@ -128,6 +127,7 @@ private fun ProfileScreen(
     onOpenSettings: () -> Unit,
     onEditProfileClick: () -> Unit,
     onShareClick: () -> Unit,
+    onCopyPubky: () -> Unit,
     onSignOutClick: () -> Unit,
     onDismissEditSheet: () -> Unit,
     onEditNameChanged: (String) -> Unit,
@@ -218,79 +218,17 @@ private fun ProfileScreen(
         }
 
         // --- Profile section ---
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            // Avatar (Loopky-brand custom)
-            Box(
-                modifier = Modifier
-                    .size(96.dp)
-                    .shadow(
-                        elevation = 24.dp,
-                        shape = CircleShape,
-                        ambientColor = colors.shadowAccent,
-                        spotColor = colors.shadowAccent,
-                    )
-                    .clip(CircleShape)
-                    .background(colors.accentPrimary),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = state.avatarInitial.toString(),
-                    color = Color.White,
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-            }
-
-            // Display name
-            Text(
-                text = state.displayName?.takeIf { it.isNotBlank() } ?: shortPubky(state.pubky),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = colors.foregroundPrimary,
+        // The same hero someone else's profile draws, so your own picture shows up here too —
+        // this screen used to hand-roll an initial-only circle and was the one avatar slot the
+        // pubky.app file-URI fix could not reach. No "You" badge: that marks you inside someone
+        // else's context, and everything on this tab is already yours.
+        val identity = state.identity
+        if (identity != null) {
+            ProfileHero(
+                identity = identity,
+                onPubkyClick = onCopyPubky,
+                modifier = Modifier.fillMaxWidth(),
             )
-
-            // Pubky badge
-            AssistChip(
-                onClick = {},
-                label = {
-                    Text(
-                        text = truncatedPubky(state.pubky),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        painter = painterResource(id = android.R.drawable.ic_menu_share),
-                        contentDescription = null,
-                        modifier = Modifier.size(12.dp),
-                    )
-                },
-                shape = RoundedCornerShape(50),
-                colors = AssistChipDefaults.assistChipColors(
-                    containerColor = colors.surfaceSecondary,
-                    labelColor = colors.foregroundMuted,
-                    leadingIconContentColor = colors.foregroundMuted,
-                ),
-                border = null,
-            )
-
-            // Bio
-            val bio = state.bio
-            if (!bio.isNullOrBlank()) {
-                Text(
-                    text = bio,
-                    fontSize = 13.sp,
-                    color = colors.foregroundSecondary,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 19.sp,
-                    modifier = Modifier.width(280.dp),
-                )
-            }
         }
 
         // --- Action row ---
@@ -545,10 +483,12 @@ private fun ProfileScreenPreview() {
         ProfileScreen(
             state = ProfileUiState(
                 isLoading = false,
-                displayName = "Ada Lovelace",
-                pubky = "abcdef1234567890abcdef",
-                bio = "Building decks about computing history.",
-                avatarInitial = 'A',
+                identity = PubkyIdentity(
+                    pubky = "abcdef1234567890abcdef",
+                    displayName = "Ada Lovelace",
+                    avatarUrl = null,
+                    bio = "Building decks about computing history.",
+                ),
                 deckCount = 8,
                 cardCount = 240,
                 dueCount = 12,
@@ -557,6 +497,7 @@ private fun ProfileScreenPreview() {
             onOpenSettings = {},
             onEditProfileClick = {},
             onShareClick = {},
+            onCopyPubky = {},
             onSignOutClick = {},
             onDismissEditSheet = {},
             onEditNameChanged = {},
