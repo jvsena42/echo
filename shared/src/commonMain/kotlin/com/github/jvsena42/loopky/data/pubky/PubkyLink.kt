@@ -100,6 +100,17 @@ object PubkyLinks {
     fun isPubky(candidate: String): Boolean =
         candidate.length == PUBKY_LENGTH && candidate.all { it in Z_BASE_32 }
 
+    /**
+     * True when [candidate] could be the *beginning* of a pubky — what search has to work with
+     * when someone was handed part of a key rather than the whole thing.
+     *
+     * Deliberately loose where [isPubky] is exact: it only rules out text that could not be a key
+     * at all, so a name in the search box does not cost a pubky-prefix lookup. [minLength] is the
+     * caller's floor — the indexer has one of its own.
+     */
+    fun isPubkyPrefix(candidate: String, minLength: Int): Boolean =
+        candidate.length in minLength..PUBKY_LENGTH && candidate.all { it in Z_BASE_32 }
+
     /** The canonical shareable address of someone's profile. */
     fun profileUri(pubky: String): String = "$SCHEME$pubky"
 }

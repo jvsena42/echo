@@ -44,7 +44,7 @@ struct DiscoverViewState {
 struct DiscoverView: View {
     var state = DiscoverViewState()
     var onTagTap: (String?) -> Void = { _ in }
-    var onAddFriendTap: () -> Void = {}
+    var onSearchTap: () -> Void = {}
     var onPersonTap: (String) -> Void = { _ in }
     var onFollowTap: (String) -> Void = { _ in }
     var onDeckTap: (String, String) -> Void = { _, _ in }
@@ -83,19 +83,18 @@ struct DiscoverView: View {
                 .font(.system(size: 28, weight: .heavy))
                 .foregroundColor(LoopkyColor.foregroundPrimary)
             Spacer()
-            Button(action: onAddFriendTap) {
-                HStack(spacing: 4) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 13, weight: .bold))
-                    Text("discover_add_friend")
-                        .font(.system(size: 13, weight: .bold))
-                }
-                .foregroundColor(LoopkyColor.accentSecondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(LoopkyColor.accentSecondarySoft))
+            // A magnifier alone: what it means needs no label, and search reaches everything the
+            // old "Add friend" pill did — pasting a pubky is one of the things it accepts now,
+            // rather than the only thing it could do.
+            Button(action: onSearchTap) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(LoopkyColor.accentSecondary)
+                    .padding(10)
+                    .background(Circle().fill(LoopkyColor.accentSecondarySoft))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text("discover_search"))
         }
     }
 
@@ -200,8 +199,8 @@ struct DiscoverView: View {
                 .font(.system(size: 13))
                 .foregroundColor(LoopkyColor.foregroundMuted)
                 .multilineTextAlignment(.center)
-            Button(action: onAddFriendTap) {
-                Text("discover_add_a_friend")
+            Button(action: onSearchTap) {
+                Text("discover_search_cta")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(.white)
                     .padding(.horizontal, 20)

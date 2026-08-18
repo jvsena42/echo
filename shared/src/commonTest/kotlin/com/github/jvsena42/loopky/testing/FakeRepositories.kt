@@ -425,6 +425,29 @@ class FakeDiscoveryRepository : DiscoveryRepository {
 
     override suspend fun loopkyUsers(limit: Int): List<PubkyIdentity> = loopkyUsers.take(limit)
 
+    /** Search results, canned per query. */
+    var peopleByQuery: Map<String, List<PubkyIdentity>> = emptyMap()
+    var decksByQuery: Map<String, List<Deck>> = emptyMap()
+
+    /** What each half of search was asked, so a test can prove a query was — or was not — run. */
+    val peopleQueries = mutableListOf<String>()
+    val deckQueries = mutableListOf<String>()
+
+    /** Held open, this lets a test assert the screen shows it is searching. */
+    var searchGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun searchPeople(query: String, limit: Int): List<PubkyIdentity> {
+        peopleQueries.add(query)
+        searchGate?.await()
+        return peopleByQuery[query].orEmpty().take(limit)
+    }
+
+    override suspend fun searchDecks(query: String, limit: Int): List<Deck> {
+        deckQueries.add(query)
+        searchGate?.await()
+        return decksByQuery[query].orEmpty().take(limit)
+    }
+
     /** Mirrors the real union: directory first, then deck authors, minus self and follows. */
     override suspend fun suggestedPeople(seedDecks: List<Deck>, limit: Int): List<PubkyIdentity> {
         suggestedRequests.add(limit)
@@ -485,8 +508,13 @@ class RecordingTagRepository : TagRepository {
     var selfTaggers: Set<String> = emptySet()
     var counts: Map<PubkyUri, Map<Tag, Int>> = emptyMap()
 
-    override suspend fun taggedSubjects(tag: Tag, limit: Int): List<TaggedSubject> =
-        subjectsByTag[tag].orEmpty().take(limit)
+    /** Every indexer read, so a test can pin how often a caller asks for the same thing. */
+    val taggedRequests = mutableListOf<Pair<Tag, Int>>()
+
+    override suspend fun taggedSubjects(tag: Tag, limit: Int): List<TaggedSubject> {
+        taggedRequests.add(tag to limit)
+        return subjectsByTag[tag].orEmpty().take(limit)
+    }
 
     override suspend fun taggersOf(tag: Tag, limit: Int): List<String> =
         taggersByTag[tag].orEmpty().take(limit)

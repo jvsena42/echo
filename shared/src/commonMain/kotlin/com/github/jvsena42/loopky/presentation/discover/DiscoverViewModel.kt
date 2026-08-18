@@ -226,8 +226,8 @@ class DiscoverViewModel(
         }
     }
 
-    fun onAddFriend() {
-        viewModelScope.launch { _effects.emit(DiscoverEffect.OpenAddFriend) }
+    fun onSearch() {
+        viewModelScope.launch { _effects.emit(DiscoverEffect.OpenSearch) }
     }
 
     fun onOpenAuthor(pubky: String) {
@@ -353,7 +353,12 @@ data class DiscoverDeck(
 )
 
 sealed interface DiscoverEffect {
-    data object OpenAddFriend : DiscoverEffect
+    /**
+     * Open search. Discover shows what the network happens to be publishing; search is how
+     * someone with a name, a pubky or a shared link finds the one thing they came for — including
+     * an account too new for any index, which is why pasting a pubky has to stay reachable.
+     */
+    data object OpenSearch : DiscoverEffect
     data class OpenProfile(val pubky: String) : DiscoverEffect
     data class OpenDeck(val authorPubky: String, val deckId: String) : DiscoverEffect
 

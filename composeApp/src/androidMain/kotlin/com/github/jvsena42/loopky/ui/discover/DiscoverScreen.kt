@@ -2,37 +2,31 @@ package com.github.jvsena42.loopky.ui.discover
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,21 +37,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
-import com.github.jvsena42.loopky.data.pubky.PubkyLink
-import com.github.jvsena42.loopky.data.pubky.PubkyLinks
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.Tag
@@ -76,19 +64,20 @@ import org.koin.compose.viewmodel.koinViewModel
 fun DiscoverRoute(
     onOpenProfile: (String) -> Unit = {},
     onOpenDeck: (deckId: String, author: String?) -> Unit = { _, _ -> },
+    onOpenSearch: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<DiscoverViewModel>()
 
     val context = LocalContext.current
     val currentOpenProfile by rememberUpdatedState(onOpenProfile)
     val currentOpenDeck by rememberUpdatedState(onOpenDeck)
-    var showAddFriend by remember { mutableStateOf(false) }
+    val currentOpenSearch by rememberUpdatedState(onOpenSearch)
     var followError by remember { mutableStateOf<ErrorReason?>(null) }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
-                DiscoverEffect.OpenAddFriend -> showAddFriend = true
+                DiscoverEffect.OpenSearch -> currentOpenSearch()
                 is DiscoverEffect.OpenProfile -> currentOpenProfile(effect.pubky)
                 is DiscoverEffect.OpenDeck -> currentOpenDeck(effect.deckId, effect.authorPubky)
                 is DiscoverEffect.ShowFollowError -> followError = effect.reason
@@ -109,28 +98,13 @@ fun DiscoverRoute(
     DiscoverScreen(
         state = state,
         onTagSelected = viewModel::onTagSelected,
-        onAddFriend = viewModel::onAddFriend,
+        onSearch = viewModel::onSearch,
         onOpenAuthor = viewModel::onOpenAuthor,
         onOpenDeck = viewModel::onOpenDeck,
         onFollowToggle = viewModel::onFollowToggle,
         onRefresh = viewModel::onRefresh,
         onRetryFollowing = viewModel::onRetryFollowing,
     )
-
-    if (showAddFriend) {
-        AddFriendSheet(
-            onDismiss = { showAddFriend = false },
-            // Whatever was pasted resolved to an address — a deck link opens the deck rather
-            // than dumping the user on its author.
-            onOpenLink = { link ->
-                showAddFriend = false
-                when (link) {
-                    is PubkyLink.Profile -> currentOpenProfile(link.pubky)
-                    is PubkyLink.Deck -> currentOpenDeck(link.deckId, link.pubky)
-                }
-            },
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -138,7 +112,7 @@ fun DiscoverRoute(
 private fun DiscoverScreen(
     state: DiscoverUiState,
     onTagSelected: (Tag?) -> Unit,
-    onAddFriend: () -> Unit,
+    onSearch: () -> Unit,
     onOpenAuthor: (String) -> Unit,
     onOpenDeck: (String, String) -> Unit,
     onFollowToggle: (String) -> Unit,
@@ -164,19 +138,19 @@ private fun DiscoverScreen(
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                item(key = "header") { DiscoverHeader(onAddFriend = onAddFriend) }
+                item(key = "header") { DiscoverHeader(onSearch = onSearch) }
 
                 topicsSection(state, onTagSelected)
                 // Picking a topic is an explicit question, so its answer leads. Unfiltered, browse
                 // is the fallback firehose and sits under the people and decks you chose — which
                 // costs a new account nothing, because the followed strip hides itself when empty.
                 if (state.selectedTag != null) {
-                    browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onAddFriend)
+                    browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onSearch)
                 }
                 peopleSection(state, onOpenAuthor, onFollowToggle)
                 followingSection(state, onOpenDeck, onOpenAuthor, onRetryFollowing)
                 if (state.selectedTag == null) {
-                    browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onAddFriend)
+                    browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onSearch)
                 }
             }
         }
@@ -240,7 +214,7 @@ private fun LazyListScope.browseSection(
     onTagSelected: (Tag?) -> Unit,
     onOpenDeck: (String, String) -> Unit,
     onOpenAuthor: (String) -> Unit,
-    onAddFriend: () -> Unit,
+    onSearch: () -> Unit,
 ) {
     item(key = "browse_header") {
         SectionHeader(
@@ -255,7 +229,7 @@ private fun LazyListScope.browseSection(
     }
     if (state.browse.isEmpty) {
         item(key = "browse_empty") {
-            BrowseEmptyBlock(selectedTag = state.selectedTag, onAddFriend = onAddFriend)
+            BrowseEmptyBlock(selectedTag = state.selectedTag, onSearch = onSearch)
         }
     }
     deckRows(
@@ -336,7 +310,7 @@ private fun ClearTagButton(onClick: () -> Unit) {
 }
 
 @Composable
-private fun DiscoverHeader(onAddFriend: () -> Unit) {
+private fun DiscoverHeader(onSearch: () -> Unit) {
     val colors = LoopkyTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -349,153 +323,21 @@ private fun DiscoverHeader(onAddFriend: () -> Unit) {
             fontSize = 28.sp,
             fontWeight = FontWeight.ExtraBold,
         )
-        Row(
-            modifier = Modifier
-                .testTag("discover_add_friend")
-                .clip(RoundedCornerShape(50))
-                .background(colors.accentSecondarySoft)
-                .clickable(onClick = onAddFriend)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        // A magnifier alone, and the platform's own button: what the icon means needs no label,
+        // and search reaches everything the old "Add friend" pill did — pasting a pubky is one of
+        // the things it accepts, rather than the only thing.
+        FilledIconButton(
+            onClick = onSearch,
+            modifier = Modifier.testTag("discover_search"),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = colors.accentSecondarySoft,
+                contentColor = colors.accentSecondary,
+            ),
         ) {
             Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = null,
-                tint = colors.accentSecondary,
-                modifier = Modifier.size(16.dp),
+                imageVector = Icons.Default.Search,
+                contentDescription = stringResource(R.string.discover_search),
             )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = stringResource(R.string.discover_add_friend),
-                color = colors.accentSecondary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.W700,
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddFriendSheet(
-    onDismiss: () -> Unit,
-    onOpenLink: (PubkyLink) -> Unit,
-) {
-    val colors = LoopkyTheme.colors
-    val context = LocalContext.current
-    var input by remember { mutableStateOf("") }
-    var isInvalid by remember { mutableStateOf(false) }
-
-    /**
-     * Everything that lands here was typed, pasted or scanned by a person, so it is parsed rather
-     * than sliced: pasting the whole shared message, a deck link or a `pk:`-prefixed key all used
-     * to produce a route nobody matched — a tap that did nothing.
-     */
-    fun submit(raw: String) {
-        val link = PubkyLinks.parse(raw)
-        if (link == null) isInvalid = true else onOpenLink(link)
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.surfaceCard,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                // ModalBottomSheet renders in its own window, so the flag set on the nav-host
-                // root does not reach it: without this the sheet's controls expose no ids at
-                // all and journeys/04 cannot target them.
-                .semantics { testTagsAsResourceId = true }
-                .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.discover_add_a_friend),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = colors.foregroundPrimary,
-            )
-            Text(
-                text = stringResource(R.string.discover_add_friend_sheet_subtitle),
-                fontSize = 13.sp,
-                color = colors.foregroundMuted,
-            )
-            BasicTextField(
-                value = input,
-                onValueChange = {
-                    input = it
-                    isInvalid = false
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("add_friend_input")
-                    .clip(RoundedCornerShape(14.dp))
-                    .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
-                    .background(colors.surfacePrimary)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                textStyle = TextStyle(fontSize = 15.sp, color = colors.foregroundPrimary),
-                cursorBrush = SolidColor(colors.accentPrimary),
-                singleLine = true,
-                decorationBox = { inner ->
-                    Box {
-                        if (input.isEmpty()) {
-                            Text(
-                                text = stringResource(R.string.discover_paste_pubky),
-                                fontSize = 15.sp,
-                                color = colors.foregroundMuted,
-                            )
-                        }
-                        inner()
-                    }
-                },
-            )
-            if (isInvalid) {
-                Text(
-                    text = stringResource(R.string.discover_add_friend_invalid),
-                    fontSize = 13.sp,
-                    color = colors.danger,
-                    modifier = Modifier.testTag("add_friend_error"),
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(50))
-                        .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(50))
-                        .clickable { scanPubky(context) { scanned -> submit(scanned) } }
-                        .testTag("add_friend_scan")
-                        .padding(vertical = 14.dp),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text = stringResource(R.string.discover_scan_qr),
-                        color = colors.foregroundSecondary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(50))
-                        .background(colors.accentSecondary)
-                        .clickable { submit(input) }
-                        .testTag("add_friend_open")
-                        .padding(vertical = 14.dp),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text = stringResource(R.string.discover_open),
-                        color = colors.foregroundOnAccent,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
         }
     }
 }
@@ -529,7 +371,7 @@ private fun DiscoverScreenPreview() {
                 ),
             ),
             onTagSelected = {},
-            onAddFriend = {},
+            onSearch = {},
             onOpenAuthor = {},
             onOpenDeck = { _, _ -> },
             onFollowToggle = {},
@@ -547,7 +389,7 @@ private fun DiscoverScreenEmptyBrowsePreview() {
         DiscoverScreen(
             state = DiscoverUiState(),
             onTagSelected = {},
-            onAddFriend = {},
+            onSearch = {},
             onOpenAuthor = {},
             onOpenDeck = { _, _ -> },
             onFollowToggle = {},

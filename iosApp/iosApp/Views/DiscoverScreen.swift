@@ -10,7 +10,7 @@ import Shared
 struct DiscoverScreen: View {
     var onOpenProfile: (String) -> Void = { _ in }
     var onOpenDeck: (String, String) -> Void = { _, _ in }
-    var onAddFriend: () -> Void = {}
+    var onSearch: () -> Void = {}
 
     @State private var viewModel: DiscoverViewModel?
     @State private var uiState: DiscoverUiState?
@@ -21,7 +21,7 @@ struct DiscoverScreen: View {
         DiscoverView(
             state: viewState,
             onTagTap: { viewModel?.onTagSelected(tag: $0.map { Tag(value: $0) }) },
-            onAddFriendTap: { viewModel?.onAddFriend() },
+            onSearchTap: { viewModel?.onSearch() },
             onPersonTap: { viewModel?.onOpenAuthor(pubky: $0) },
             onFollowTap: { viewModel?.onFollowToggle(pubky: $0) },
             onDeckTap: { author, deckId in
@@ -89,8 +89,8 @@ struct DiscoverScreen: View {
                 onOpenProfile(open.pubky)
             case let open as DiscoverEffectOpenDeck:
                 onOpenDeck(open.deckId, open.authorPubky)
-            case is DiscoverEffectOpenAddFriend:
-                onAddFriend()
+            case is DiscoverEffectOpenSearch:
+                onSearch()
             default:
                 break
             }

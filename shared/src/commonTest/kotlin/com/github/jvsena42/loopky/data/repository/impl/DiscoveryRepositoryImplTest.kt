@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Session
+import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakeHttpFetcher
 import com.github.jvsena42.loopky.testing.FakePubkyClient
@@ -60,8 +61,20 @@ class DiscoveryRepositoryImplTest {
     private fun followUrl(followee: String) =
         "pubky://$TEST_PUBKY/pub/pubky.app/follows/$followee"
 
-    private fun putRemoteManifest(author: String, deckId: String, updatedAt: Long) {
-        val dto = testDeck(id = deckId, authorPubky = author, updatedAt = updatedAt).toDto()
+    private fun putRemoteManifest(
+        author: String,
+        deckId: String,
+        updatedAt: Long,
+        title: String = "Deck $deckId",
+        tags: List<Tag> = emptyList(),
+    ) {
+        val dto = testDeck(
+            id = deckId,
+            authorPubky = author,
+            title = title,
+            tags = tags,
+            updatedAt = updatedAt,
+        ).toDto()
         pubky.store["pubky://$author/pub/loopky/decks/$deckId/manifest.json"] =
             loopkyJson.encodeToString(dto)
     }
@@ -438,6 +451,130 @@ class DiscoveryRepositoryImplTest {
         val decks = (1..5).map { testDeck(id = "d$it", authorPubky = "author$it") }
 
         assertEquals(expected = 2, actual = repo.suggestedPeople(decks, limit = 2).size)
+    }
+
+    // ── search ───────────────────────────────────────────────────────────
+
+    private fun respondUserSearch(kind: String, prefix: String, pubkys: List<String>) {
+        val body = pubkys.joinToString(prefix = "[", postfix = "]") { "\"" + it + "\"" }
+        http.respond("$NEXUS_BASE/v0/search/users/$kind/$prefix?limit=10", body)
+    }
+
+    /** Every deck in the global sample, tagged by its own author so verification keeps it. */
+    private fun sampleOf(vararg decks: Pair<String, String>) {
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to decks.map { (author, deckId) ->
+                tagged(manifestUri(author, deckId), taggers = listOf(author))
+            },
+        )
+    }
+
+    @Test
+    fun searchPeopleFindsAnAccountByNamePrefix() = runTest {
+        respondUserSearch("by_name", "ada", listOf("adapk"))
+        tagRepo.selfTaggers = setOf("adapk")
+
+        assertEquals(listOf("adapk"), repo.searchPeople("ada").map { it.pubky })
+    }
+
+    @Test
+    fun searchPeopleAlsoAsksThePubkyIndexWhenTheQueryCouldBeAKey() = runTest {
+        respondUserSearch("by_name", "ybnd", emptyList())
+        respondUserSearch("by_id", "ybnd", listOf("ybndkeypk"))
+        tagRepo.selfTaggers = setOf("ybndkeypk")
+
+        assertEquals(listOf("ybndkeypk"), repo.searchPeople("ybnd").map { it.pubky })
+    }
+
+    @Test
+    fun searchPeopleSkipsThePubkyIndexForTextThatCannotBeAKey() = runTest {
+        // "l" and "v" are outside z-base-32, so a by_id round-trip could only ever come back empty.
+        respondUserSearch("by_name", "lovelace", listOf("adapk"))
+        tagRepo.selfTaggers = setOf("adapk")
+
+        repo.searchPeople("lovelace")
+
+        assertTrue(http.requestedUrls.none { it.contains("by_id") }, http.requestedUrls.toString())
+    }
+
+    @Test
+    fun searchPeopleDropsAccountsThatNeverOpenedLoopky() = runTest {
+        // Nexus indexes the whole pubky.app network; the self-tag is what makes a match worth
+        // showing, exactly as it is for the directory.
+        respondUserSearch("by_name", "ada", listOf("adapk", "pubkyonlypk"))
+        tagRepo.selfTaggers = setOf("adapk")
+
+        assertEquals(listOf("adapk"), repo.searchPeople("ada").map { it.pubky })
+    }
+
+    @Test
+    fun searchPeopleExcludesYourself() = runTest {
+        respondUserSearch("by_name", "me", listOf(TEST_PUBKY, "adapk"))
+        tagRepo.selfTaggers = setOf(TEST_PUBKY, "adapk")
+
+        assertEquals(listOf("adapk"), repo.searchPeople("me").map { it.pubky })
+    }
+
+    @Test
+    fun searchPeopleIsEmptyWhenTheIndexerIsUnreachable() = runTest {
+        assertEquals(emptyList(), repo.searchPeople("ada"))
+    }
+
+    @Test
+    fun searchPeopleIgnoresAQueryTooShortToNarrowAnything() = runTest {
+        assertEquals(emptyList(), repo.searchPeople("a"))
+        assertTrue(http.requestedUrls.isEmpty(), "asked the indexer anyway")
+    }
+
+    @Test
+    fun searchDecksMatchesATitleAnywhereInIt() = runTest {
+        putRemoteManifest("strangerpk", "deck1", updatedAt = 100L, title = "Spanish verbs")
+        putRemoteManifest("strangerpk", "deck2", updatedAt = 100L, title = "Chess openings")
+        sampleOf("strangerpk" to "deck1", "strangerpk" to "deck2")
+
+        assertEquals(listOf("deck1"), repo.searchDecks("verbs").map { it.id })
+    }
+
+    @Test
+    fun searchDecksRanksATitlePrefixAboveATagMatch() = runTest {
+        putRemoteManifest("strangerpk", "tagged", updatedAt = 100L, title = "Verb drills", tags = listOf(Tag("spanish")))
+        putRemoteManifest("strangerpk", "titled", updatedAt = 100L, title = "Spanish verbs")
+        sampleOf("strangerpk" to "tagged", "strangerpk" to "titled")
+
+        assertEquals(listOf("titled", "tagged"), repo.searchDecks("spanish").map { it.id })
+    }
+
+    @Test
+    fun searchDecksReachesPastTheSampleThroughAnExactTag() = runTest {
+        putRemoteManifest("strangerpk", "sampled", updatedAt = 100L, title = "Chess openings")
+        putRemoteManifest("strangerpk", "obscure", updatedAt = 100L, title = "Endgames", tags = listOf(Tag("chess")))
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(tagged(manifestUri("strangerpk", "sampled"), listOf("strangerpk"))),
+            Tag("chess") to listOf(tagged(manifestUri("strangerpk", "obscure"), listOf("strangerpk"))),
+        )
+
+        assertEquals(listOf("sampled", "obscure"), repo.searchDecks("chess").map { it.id })
+    }
+
+    @Test
+    fun searchDecksAsksNoTagIndexForAPhrase() = runTest {
+        putRemoteManifest("strangerpk", "deck1", updatedAt = 100L, title = "Spanish verbs")
+        sampleOf("strangerpk" to "deck1")
+
+        assertEquals(listOf("deck1"), repo.searchDecks("spanish verbs").map { it.id })
+        assertEquals(listOf(ReservedTags.DECK), tagRepo.taggedRequests.map { it.first })
+    }
+
+    @Test
+    fun searchDecksFetchesTheSampleOnlyOncePerSession() = runTest {
+        putRemoteManifest("strangerpk", "deck1", updatedAt = 100L, title = "Spanish verbs")
+        sampleOf("strangerpk" to "deck1")
+
+        repo.searchDecks("spanish verbs")
+        repo.searchDecks("verbs")
+
+        // One indexer read for the sample; the second query filtered what was already in hand.
+        assertEquals(expected = 1, actual = tagRepo.taggedRequests.count { it.first == ReservedTags.DECK })
     }
 
     private companion object {

@@ -128,7 +128,7 @@
 
     <!-- Discover -->
     <string name="discover_title">Discover</string>
-    <string name="discover_add_friend">Add friend</string>
+    <string name="discover_search">Search</string>
     <string name="discover_topics_title">Topics</string>
     <string name="discover_people_title">People on Loopky</string>
     <string name="discover_browse_title">Discover decks</string>
@@ -141,14 +141,24 @@
     <string name="discover_empty_tag_emoji">🔍</string>
     <string name="discover_empty_tag_title">No decks tagged “%1$s” yet</string>
     <string name="discover_empty_tag_subtitle">Nobody has tagged a deck with this yet. Tap the tag again to see everything.</string>
-    <string name="discover_add_a_friend">Add a friend</string>
-    <string name="discover_add_friend_sheet_subtitle">Paste a pubky, a shared link or scan a QR code. Profile links open the person, deck links open the deck.</string>
-    <string name="discover_paste_pubky">Paste a pubky or pubky:// link</string>
-    <string name="discover_add_friend_invalid">No pubky or pubky:// link in that text.</string>
-    <string name="discover_scan_qr">Scan QR</string>
-    <string name="discover_open">Open</string>
 
     <!-- Tag browse -->
+    <string name="discover_search_cta">Search people &amp; decks</string>
+
+    <!-- Search -->
+    <string name="search_back">Back</string>
+    <string name="search_placeholder">Search or paste a pubky</string>
+    <string name="search_clear">Clear</string>
+    <string name="search_scan_qr">Scan QR code</string>
+    <string name="search_hint">Search by name, or paste a pubky, a shared link or scan a QR code.</string>
+    <string name="search_people_title">People</string>
+    <string name="search_decks_title">Decks</string>
+    <string name="search_open_profile">Open this profile</string>
+    <string name="search_open_deck">Open this deck</string>
+    <string name="search_empty_emoji">🔍</string>
+    <string name="search_empty_title">Nothing found for “%1$s”</string>
+    <string name="search_empty_subtitle">Try a different name, or paste their pubky to open them directly.</string>
+
     <string name="tag_browse_title">#%1$s</string>
     <string name="tag_browse_back">Back</string>
     <string name="tag_browse_empty_title">No decks tagged “%1$s” yet</string>

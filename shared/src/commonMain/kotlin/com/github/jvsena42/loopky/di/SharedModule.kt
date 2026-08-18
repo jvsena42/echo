@@ -27,6 +27,7 @@ import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditCardViewModel
 import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
+import com.github.jvsena42.loopky.presentation.discover.SearchViewModel
 import com.github.jvsena42.loopky.presentation.discover.TagBrowseViewModel
 import com.github.jvsena42.loopky.presentation.home.HomeViewModel
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportViewModel
@@ -138,6 +139,9 @@ val sharedModule = module {
     }
     viewModel {
         DiscoverViewModel(discoveryRepository = get(), tagRepository = get(), identityRepository = get())
+    }
+    viewModel {
+        SearchViewModel(discoveryRepository = get(), identityRepository = get())
     }
     viewModel { params ->
         TagBrowseViewModel(
