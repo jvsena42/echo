@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +24,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -638,6 +641,15 @@ private fun FollowDeckButton(
         ),
         contentPadding = ButtonDefaults.ContentPadding,
     ) {
+        // Icon + label, matching the Clone pill beside it — a bare word next to an iconed button
+        // read as the lesser of the two. Check vs Add also carries the state on its own, so the
+        // Follow/Following flip is legible without reading the label.
+        Icon(
+            imageVector = if (isFollowing) Icons.Default.Check else Icons.Default.Add,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.size(10.dp))
         Text(
             text = stringResource(
                 if (isFollowing) R.string.deck_detail_following else R.string.deck_detail_follow,
