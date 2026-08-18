@@ -14,6 +14,7 @@ import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.DecksLibraryViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditCardViewModel
 import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
+import com.github.jvsena42.loopky.presentation.discover.SearchViewModel
 import com.github.jvsena42.loopky.presentation.discover.TagBrowseViewModel
 import com.github.jvsena42.loopky.presentation.home.HomeViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PasteImportViewModel
@@ -50,6 +51,9 @@ private fun iosPlatformModule(rawPubkyClient: RawPubkyClient): Module = module {
 }
 
 /** Resolver helper for SwiftUI — avoids depending on Koin Swift bridges in v1. */
+// One function per ViewModel by construction, so the count tracks the number of screens rather
+// than any complexity here; splitting it would only move the same list into two files.
+@Suppress("TooManyFunctions")
 object IosDependencies {
     private val koin: Koin get() = KoinPlatform.getKoin()
 
@@ -72,6 +76,8 @@ object IosDependencies {
         koin.get { parametersOf(deckId) }
 
     fun discoverViewModel(): DiscoverViewModel = koin.get()
+
+    fun searchViewModel(): SearchViewModel = koin.get()
 
     fun tagBrowseViewModel(tag: String): TagBrowseViewModel = koin.get { parametersOf(tag) }
 
