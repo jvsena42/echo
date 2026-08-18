@@ -242,3 +242,36 @@ seconds.
 - The app shows onboarding for a beat on cold start before the persisted session resolves. Not a
   regression — worth knowing, because a layout dump taken too early reads as "signed out".
 - The 429-flakiness and rustls faults recorded above did not recur in this session.
+
+## 15 — Pubky links — ✅ PASS
+
+Run against the debug APK on `emulator-5554`, signed in as Cosmic-Crystal-Panda
+(`rc3omr…b4re3o`), following Silver-Otter-Sparrow (`bzbjrj…yhjzpo`), 2026-08-18.
+
+| Step | Result |
+| --- | --- |
+| `VIEW pubky://<their-pubky>` | PASSED — Silver-Otter-Sparrow's profile, with Follow + Copy + Share and a People card reading Following 1 / Followers 1 |
+| Their Following list | PASSED — opens from the stat column and lists Cosmic-Crystal-Panda; tapping the row opens that profile |
+| `VIEW pubky://<own-pubky>` | PASSED — "You" badge, no Follow button, Copy and Share centered on their own row |
+| `VIEW …/decks/<deckId>/manifest.json` | PASSED — deck detail for "Japanese Core", 800 cards |
+| Cold start via link | PASSED — force-stopped, then the link restored the session and still landed on the profile. Back returns to Home, so the link opens on top of the tabs rather than instead of them |
+| Share own profile | PASSED — share sheet carries `Cosmic-Crystal-Panda on Loopky` above `pubky://rc3omr…`, not a bare key |
+| Share sheet → Loopky | PASSED — Loopky is a target for `text/plain` and opens the profile the message points at, which is the path that matters since chat clients leave `pubky://` unlinkified |
+| Shared text with no address | PASSED — toast "No Loopky link in that text…" rather than opening silently on whatever screen was already there |
+| Deck link pasted into add-friend | PASSED — opens the **deck**. Previously the sheet sliced the URI by hand and could only ever reach its author |
+| Free text pasted into add-friend | PASSED — inline `add_friend_error` instead of a tap that does nothing |
+
+### Not exercised here
+
+Deep link **while signed out**: the pending link is held until the nav host leaves onboarding, so
+it should open right after sign-in. Not driven on device — this account stays signed in and
+re-auth through Ring is flaky on the emulator (see journey 01).
+
+### Pre-existing, unrelated to this change
+
+`decksFromFollowing` logs `listByAuthor failed for pubkybzbjrj9a…hjzpo — unexpected 'pubky' prefix
+in user id`. One follow record on this account's homeserver is keyed with a stray `pubky` prefix in
+front of the z32 id, so it can never resolve; `following()` passes it through verbatim. Harmless to
+the strips (the other followee still loads) but it inflates the follow count and spams the log.
+Worth a separate fix — either dropping ids that are not shaped like a pubky when parsing the
+follows listing, or finding whatever wrote that record.
