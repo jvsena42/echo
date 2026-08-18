@@ -343,13 +343,22 @@ client-side from `/v0/stream/resources?app=loopky&sorting=taggers_count` — whi
 distinct decks carry them. The stream returns each resource's *whole* label list with per-label
 tagger counts, which is what makes this possible from a single call.
 
-**4. Announcement posts (#39) are the only way deck topics could trend.** Making them trend for
-real would mean tagging the announcement *post* rather than the manifest, since a post is a
-`Post` target and a manifest can only be a resource. #39 built the post half —
-`DiscoveryRepository.announceDeck` writes a `pubky.app` post per create / follow / clone, behind
-a per-action consent prompt and a default-on Settings switch, because it is a public write to
-the user's social feed on their behalf. Tagging those posts is still open; the resource tag stays
-regardless, since it is how Loopky finds its own decks and must keep working with the switch off.
+**4. Announcement posts (#39) are how deck topics reach the global index.** A post is a `Post`
+target where a manifest can only be a resource, so `DiscoveryRepository.announceDeck` writes the
+deck's topics **and `loopky-deck` onto the post**, on top of the manifest tags. A deck is
+therefore labelled in both graphs, each for what it can do: the post tags reach
+`/v0/search/posts/by_tag/{label}`, `/v0/tags/hot` and every other app's feed; the manifest tags
+are how Loopky finds its own decks and keep working when announcing is switched off. **Post
+subjects route to the pubky.app namespace**, alongside profiles — a post tag under
+`/pub/loopky/tags/` does reach the same handler today, but only because `sync_put_resource`
+delegates `Post|User` subjects back to `sync_put`, which is an implementation detail rather than
+a contract.
+
+The post itself is a public write to the user's social feed on their behalf, which is why it sits
+behind #39's per-action consent prompt and default-on switch.
+
+Verified against staging: `/v0/search/posts/by_tag/kanjitest` and `/by_tag/loopky-deck` both
+return the announcement, while the manifest's own tags still resolve from `/v0/resource/by-uri`.
 
 Two things the post record has to get right, both silent when wrong:
 
@@ -358,6 +367,14 @@ Two things the post record has to get right, both silent when wrong:
   (`nexus-common/src/models/post/relationships.rs:117-121`). A deck manifest never is, so such a
   post parks in the retry queue and is never indexed. Attachments carry no dependency, so the
   deck cover rides along as one — and makes the post an `image` kind.
+- **Nothing makes the `pubky://` URI clickable on the web, so do not try again.** pubky.app
+  renders post content as markdown and neither path linkifies it: remark-gfm's autolink literals
+  cover only `http(s)`, `www.` and `mailto`, and a CommonMark autolink (`<pubky://…>`) survives
+  the parse only to have its `href` blanked by react-markdown 10's `defaultUrlTransform`, which
+  permits `https?|ircs?|mailto|xmpp` and nothing else. No public HTTPS gateway maps a `pubky://`
+  record to a browsable page either. What *is* clickable in pubky.app is `#hashtags` (→ its tag
+  search) and `pk:`/`pubky` + 52 chars (→ a profile, rendered as `@DisplayName`), which is why
+  the announcement carries its topics as hashtags.
 - **Post ids are timestamp-derived, not content-derived.** `TimestampId::create_id` is
   Crockford-base32 of the 8 big-endian bytes of a microsecond Unix timestamp — always 13 chars —
   and `validate_id` only checks the length, the decode, and that the time is after 2024-10-01 and
