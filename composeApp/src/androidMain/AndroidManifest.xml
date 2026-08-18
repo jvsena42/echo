@@ -48,6 +48,22 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="loopky" android:host="login-callback" />
             </intent-filter>
+            <!-- Shared profiles and decks: `pubky://{pubky}` and
+                 `pubky://{pubky}/pub/loopky/decks/{deckId}/manifest.json`. No host is declared
+                 because the host *is* the pubky — every one of them must match. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="pubky" />
+            </intent-filter>
+            <!-- Most chat clients do not linkify an unknown scheme, so a shared link usually
+                 arrives as plain text. Sharing that text into Loopky opens what it points at. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
     </application>
 

@@ -1,11 +1,16 @@
 package com.github.jvsena42.loopky.ui.nav
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.github.jvsena42.loopky.data.pubky.PubkyLink
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.ui.decks.DeckDetailRoute
 import com.github.jvsena42.loopky.ui.decks.DeckEditorRoute
@@ -22,9 +27,34 @@ import com.github.jvsena42.loopky.ui.settings.SettingsRoute
 import com.github.jvsena42.loopky.ui.study.StudySessionRoute
 import com.github.jvsena42.loopky.ui.tagbrowse.TagBrowseRoute
 
+/**
+ * [deepLink] is the `pubky://` address the app was opened with, if any. It is held rather than
+ * navigated to immediately: a cold start lands on onboarding while the session is restored, and
+ * pushing a profile on top of that would put a screen the user cannot use behind the sign-in
+ * flow. [onDeepLinkHandled] fires once it has been consumed, so a second tap on the same link
+ * still opens it.
+ */
 @Composable
-fun LoopkyNavHost() {
+fun LoopkyNavHost(
+    deepLink: PubkyLink? = null,
+    onDeepLinkHandled: () -> Unit = {},
+) {
     val navController = rememberNavController()
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val currentDeepLinkHandled by rememberUpdatedState(onDeepLinkHandled)
+
+    LaunchedEffect(deepLink, currentRoute) {
+        if (deepLink == null || currentRoute == null || currentRoute == Routes.ONBOARDING) {
+            return@LaunchedEffect
+        }
+        when (deepLink) {
+            is PubkyLink.Profile -> navController.navigateTo(Routes.friendProfile(deepLink.pubky))
+            is PubkyLink.Deck ->
+                navController.navigateTo(Routes.deckDetail(deepLink.deckId, deepLink.pubky))
+        }
+        currentDeepLinkHandled()
+    }
+
     NavHost(navController = navController, startDestination = Routes.ONBOARDING) {
         composable(Routes.ONBOARDING) {
             OnboardingRoute(

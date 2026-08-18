@@ -366,6 +366,7 @@
     <string name="share_deck_chooser_title">Share deck</string>
     <string name="share_profile_chooser_title">Share profile</string>
     <string name="share_deck_body">%1$s on Loopky\n%2$s</string>
+    <string name="deeplink_no_link_in_shared_text">No Loopky link in that text. Share a message containing a pubky:// address.</string>
     <string name="deck_editor_move_up">Move card up</string>
     <string name="deck_editor_move_down">Move card down</string>
     <string name="decks_sort_recent">Recent</string>
