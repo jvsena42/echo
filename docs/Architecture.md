@@ -365,16 +365,30 @@ Two things the post record has to get right, both silent when wrong:
 - **The embed kind must be `link`, never `short`.** Nexus reads a short embed as a *repost* and
   makes the embedded URI a dependency that must already be an indexed post
   (`nexus-common/src/models/post/relationships.rs:117-121`). A deck manifest never is, so such a
-  post parks in the retry queue and is never indexed. Attachments carry no dependency, so the
-  deck cover rides along as one — and makes the post an `image` kind.
+  post parks in the retry queue and is never indexed.
+- **The deck cover goes in the body, not in `attachments`.** pubky.app resolves a post's
+  attachments strictly as pubky.app **file records** — it calls `FileController.getMetadata` on
+  each URI and builds an image URL from the returned file id — so any other URI renders nothing at
+  all (`PostAttachments.tsx`). What it *does* render is the first `http(s)` link in the **content**:
+  it runs that through an OpenGraph probe and, when the response is an image content-type, shows
+  the image inline (`GenericPreview.tsx`, `detectMediaType`). So the cover travels as a plain URL
+  in the body. Nothing linkifies `pubky://`, so the cover is always the first link found whatever
+  order the body is in.
+- **A homeserver-blob cover cannot be shown on the web at all.** Only a web (Unsplash) cover has an
+  `http(s)` URL; a gallery upload has only a `pubky://` one, which the OpenGraph probe — an
+  ordinary HTTP fetch — cannot follow. Showing those means giving the cover a pubky.app **blob +
+  file record**, and a blob's id is Crockford-base32 of blake3 over its bytes, strictly validated
+  on ingest (`PubkyAppBlob::create_id`, `HashId::validate_id`). Neither platform ships blake3, the
+  FFI exposes only `create_tag_id`, and there is no Kotlin Multiplatform blake3 on Maven Central —
+  so this is blocked on an FFI addition, not on a few lines of Kotlin.
 - **Nothing makes the `pubky://` URI clickable on the web, so do not try again.** pubky.app
   renders post content as markdown and neither path linkifies it: remark-gfm's autolink literals
   cover only `http(s)`, `www.` and `mailto`, and a CommonMark autolink (`<pubky://…>`) survives
   the parse only to have its `href` blanked by react-markdown 10's `defaultUrlTransform`, which
   permits `https?|ircs?|mailto|xmpp` and nothing else. No public HTTPS gateway maps a `pubky://`
   record to a browsable page either. What *is* clickable in pubky.app is `#hashtags` (→ its tag
-  search) and `pk:`/`pubky` + 52 chars (→ a profile, rendered as `@DisplayName`), which is why
-  the announcement carries its topics as hashtags.
+  search) and `pk:`/`pubky` + 52 chars (→ a profile, rendered as `@DisplayName`) — neither of
+  which is a substitute for the deck link.
 - **Post ids are timestamp-derived, not content-derived.** `TimestampId::create_id` is
   Crockford-base32 of the 8 big-endian bytes of a microsecond Unix timestamp — always 13 chars —
   and `validate_id` only checks the length, the decode, and that the time is after 2024-10-01 and

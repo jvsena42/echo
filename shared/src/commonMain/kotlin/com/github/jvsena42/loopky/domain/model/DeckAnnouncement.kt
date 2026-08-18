@@ -24,26 +24,24 @@ data class DeckAnnouncement(
     /** The deck's cover emoji, which opens the post in place of the generic fallback. */
     val coverEmoji: String? = null,
     /**
-     * The deck's cover image as a post attachment, or null when it has none or it cannot be
-     * attached — see [attachableCoverUrl].
+     * The deck's cover as an `https://` image URL, or null when it has none or its cover is not
+     * reachable over the web — see [previewableCoverUrl].
      */
-    val coverUrl: String? = null,
+    val coverImageUrl: String? = null,
     /**
-     * The deck's topics, which the post carries twice over: as `#hashtags` in [content], and as
-     * real tag records written on the post by
-     * [com.github.jvsena42.loopky.data.repository.DiscoveryRepository.announceDeck].
+     * The deck's topics, written as real tag records on the post by
+     * [com.github.jvsena42.loopky.data.repository.DiscoveryRepository.announceDeck] — the records
+     * are what Nexus indexes into `/v0/tags/hot` and `/v0/search/posts/by_tag/{label}`.
      *
-     * Both are needed and neither is redundant. The records are what Nexus indexes — they put the
-     * label in `/v0/tags/hot` and `/v0/search/posts/by_tag/{label}`. The hashtags are what a
-     * *reader* can act on: pubky.app linkifies `#tag` to its own tag search, and a bare
-     * `pubky://` URI it cannot linkify at all (see [content]).
+     * Deliberately **not** repeated as `#hashtags` in [content]: the tag chips a reader sees under
+     * the post come from the records, so hashtags in the body only said the same thing twice.
      */
     val tags: List<Tag> = emptyList(),
 ) {
     enum class Kind { Created, Followed, Cloned }
 
     /**
-     * The post body: a headline, the deck's `pubky://` address, and the topics as hashtags.
+     * The post body: a headline, the deck's `pubky://` address, and the cover's image URL.
      *
      * **The URI is deliberately left bare, and it will not be clickable everywhere.** pubky.app
      * renders post content as markdown, and neither of the two things that could linkify it does:
@@ -53,7 +51,13 @@ data class DeckAnnouncement(
      * else. No public HTTPS gateway maps a `pubky://` record to a browsable page either, so there
      * is no form of this link that is both clickable *and* correct on the web. It stays the
      * canonical address: Loopky's own deep-link filter opens it, and so does any client that
-     * linkifies unknown schemes. The hashtags carry the clickable half.
+     * linkifies unknown schemes.
+     *
+     * **The cover URL is in the body because that is the only place a reader's client will look.**
+     * pubky.app resolves a post's `attachments` strictly as pubky.app *file records* and renders
+     * nothing for any other URI, but it runs the first `http(s)` link in the *content* through an
+     * OpenGraph probe and renders an image content-type inline. Same reason the URI above is safe
+     * to leave first: nothing linkifies `pubky://`, so the cover is the first link found.
      *
      * The title and author name are truncated because they are not always the user's own:
      * announcing a follow or a clone quotes another account's manifest, and pubky-app-specs
@@ -73,8 +77,8 @@ data class DeckAnnouncement(
                 Kind.Followed -> "$icon Now following the Loopky deck $title$by"
                 Kind.Cloned -> "$icon Cloned the Loopky deck $title$by into my library"
             }
-            val hashtags = tags.hashtagLine()
-            return "$headline\n\n${deckUri.value}" + if (hashtags.isEmpty()) "" else "\n\n$hashtags"
+            val cover = coverImageUrl?.let { "\n\n$it" }.orEmpty()
+            return "$headline\n\n${deckUri.value}$cover"
         }
 
     companion object {
@@ -86,7 +90,7 @@ data class DeckAnnouncement(
                 deckUri = deck.pubkyUri,
                 authorName = authorName,
                 coverEmoji = deck.coverEmoji,
-                coverUrl = deck.attachableCoverUrl(),
+                coverImageUrl = deck.previewableCoverUrl(),
                 tags = deck.announceableTags(),
             )
 
@@ -101,48 +105,44 @@ data class DeckAnnouncement(
  * network-wide — the label's whole purpose, and the reason it is not filtered out here the way a
  * hand-entered reserved label would be.
  *
- * Capped because every one of these costs a homeserver write on top of the post, and a post
- * trailing twenty hashtags reads as spam in someone else's feed.
+ * Capped because every one of these costs a homeserver write on top of the post, and a wall of
+ * tag chips under it reads as spam in someone else's feed.
  */
 private fun Deck.announceableTags(): List<Tag> =
     (tags.filterNot { ReservedTags.isReserved(it) }.take(MAX_ANNOUNCEMENT_TOPICS) + ReservedTags.DECK)
         .distinct()
 
-/** `#kanji #japanese #loopky-deck` — what pubky.app turns into links to its own tag search. */
-private fun List<Tag>.hashtagLine(): String =
-    joinToString(" ") { "#${it.value}" }
-
 /** Topics per announcement, before [ReservedTags.DECK] is appended. */
 private const val MAX_ANNOUNCEMENT_TOPICS = 5
 
 /**
- * The deck's cover image as a URL a post may attach, or null when there is nothing attachable.
+ * The deck's cover as a URL a reader's client can actually fetch, or null when there is none.
  *
- * A cover comes in three shapes and only two of them are already addressable: a remote web image
- * carries its own `url`, a clone's ref is pinned to the origin blob through `uri`, and an
- * own-homeserver blob has only a deck-relative `media/{sha}.{ext}` path that has to be made
- * absolute here. Built literally rather than through `PubkyPaths` for the same reason
- * [Deck.pubkyUri] is: domain models must not depend on the data layer (Architecture §4.1).
+ * **Web covers only, and that is a real limit rather than an oversight.** A deck cover comes in
+ * two shapes: an Unsplash-style remote image, which already has an `https://` URL, and a blob the
+ * user uploaded to their own homeserver, which has only a `pubky://` one. Nothing outside a Pubky
+ * client can fetch the latter — no public gateway maps a `pubky://` record to an HTTP URL — so a
+ * gallery cover is dropped here and its announcement simply goes out without an image.
  *
- * Held to the pubky-app-specs attachment rules — an allowed protocol, at most
- * [MAX_ATTACHMENT_URL_LENGTH] characters — because a post that breaks them is rejected by the
- * indexer wholesale. A cover that does not fit is dropped; the announcement still goes out.
+ * Fixing that means giving the cover a pubky.app **blob + file record** and attaching *that*,
+ * which is the only form pubky.app resolves. It is not done here because a blob's id is
+ * Crockford-base32 of blake3 over its bytes, strictly validated on ingest, and neither platform
+ * nor the FFI (`create_tag_id` only) can compute one.
  */
-private fun Deck.attachableCoverUrl(): String? {
+private fun Deck.previewableCoverUrl(): String? {
     val ref = coverImageRef ?: return null
-    val url = ref.url
-        ?: ref.uri
-        ?: ref.path.takeIf { it.isNotEmpty() }
-            ?.let { "pubky://$authorPubky/pub/loopky/decks/$id/$it" }
-        ?: return null
-    val allowed = ATTACHMENT_PROTOCOLS.any { url.startsWith("$it://") }
+    val url = ref.url ?: return null
+    val allowed = PREVIEW_PROTOCOLS.any { url.startsWith("$it://") }
     return url.takeIf { allowed && it.length <= MAX_ATTACHMENT_URL_LENGTH }
 }
 
-/** `post_allowed_attachment_protocols` in pubky-app-specs. */
-private val ATTACHMENT_PROTOCOLS = listOf("pubky", "https", "http")
+/** Only what a browser can fetch; see [previewableCoverUrl]. */
+private val PREVIEW_PROTOCOLS = listOf("https", "http")
 
-/** `post_attachment_url_max_length` in pubky-app-specs. */
+/**
+ * Kept at pubky-app-specs' `post_attachment_url_max_length` even though the URL now travels in
+ * the body: a cover URL long enough to trip that limit is long enough to swamp the post.
+ */
 private const val MAX_ATTACHMENT_URL_LENGTH = 200
 
 private const val ELLIPSIS = "…"

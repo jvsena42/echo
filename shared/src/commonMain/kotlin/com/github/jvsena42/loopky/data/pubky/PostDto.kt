@@ -8,7 +8,8 @@ import kotlinx.serialization.Serializable
  * [PostIds].
  *
  * A deck announcement carries the deck's `pubky://…/manifest.json` in both the body text and the
- * embed, plus the deck's cover image as its single attachment when it has one.
+ * embed, and its cover as an `https` link in the body — not as an attachment, which pubky.app
+ * resolves strictly as pubky.app file records.
  */
 @Serializable
 internal data class PostDto(
@@ -37,7 +38,6 @@ internal data class PostEmbedDto(
 internal object PostKinds {
     const val SHORT = "short"
     const val LINK = "link"
-    const val IMAGE = "image"
 
     /** `post_short_content_max_length` — the cap every kind but `long` is held to. */
     const val MAX_CONTENT_LENGTH = 2_000

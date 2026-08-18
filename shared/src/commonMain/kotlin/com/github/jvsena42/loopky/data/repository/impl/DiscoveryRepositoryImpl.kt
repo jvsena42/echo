@@ -116,13 +116,15 @@ class DiscoveryRepositoryImpl(
             val body = loopkyJson.encodeToString(
                 PostDto(
                     content = announcement.content,
-                    // The cover is what makes the post look like a deck rather than a bare link,
-                    // so it decides the kind too: `image` is how a feed knows to lead with it.
-                    kind = if (announcement.coverUrl != null) PostKinds.IMAGE else PostKinds.LINK,
+                    // A link post either way: the body always carries the deck's URI, and the
+                    // cover — when there is one — travels as a link in the body too rather than
+                    // as an attachment. `attachments` is left empty on purpose; pubky.app
+                    // resolves it strictly as pubky.app file records and renders nothing for
+                    // anything else, so a URL there was invisible. See DeckAnnouncement.content.
+                    kind = PostKinds.LINK,
                     // A `short` embed is how Nexus spells "repost", and it then demands the
                     // embedded URI already be an indexed post — see PostKinds.
                     embed = PostEmbedDto(kind = PostKinds.LINK, uri = announcement.deckUri.value),
-                    attachments = announcement.coverUrl?.let { listOf(it) },
                 ),
             )
             val path = PubkyPaths.post(owner, postId)

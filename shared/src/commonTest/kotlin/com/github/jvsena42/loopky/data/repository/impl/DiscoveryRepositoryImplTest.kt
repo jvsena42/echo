@@ -618,26 +618,19 @@ class DiscoveryRepositoryImplTest {
     }
 
     @Test
-    fun `announceDeck attaches the deck cover and posts it as an image`() = runTest {
-        val deck = testDeck(id = "d1", coverImageRef = testCoverImage(sha = "cafe"))
+    fun `the deck cover travels in the body, never as an attachment`() = runTest {
+        val deck = testDeck(
+            coverImageRef = testCoverImage().copy(path = "", sha256 = "", url = "https://img.test/c.jpg"),
+        )
 
         repo.announceDeck(DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created)).getOrThrow()
 
         val post = loopkyJson.decodeFromString<PostDto>(pubky.puts.last().second)
-        assertEquals(PostKinds.IMAGE, post.kind)
-        assertEquals(
-            listOf("pubky://$TEST_PUBKY/pub/loopky/decks/d1/media/cafe.png"),
-            post.attachments,
-        )
-    }
-
-    @Test
-    fun `a coverless announcement is a link post with no attachments`() = runTest {
-        repo.announceDeck(DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created)).getOrThrow()
-
-        val post = loopkyJson.decodeFromString<PostDto>(pubky.puts.last().second)
-        assertEquals(PostKinds.LINK, post.kind)
+        // pubky.app resolves `attachments` strictly as pubky.app file records, so a URL there is
+        // invisible — it renders the first http(s) link in the *content* instead.
         assertNull(post.attachments)
+        assertTrue(post.content.contains("https://img.test/c.jpg"), post.content)
+        assertEquals(PostKinds.LINK, post.kind)
     }
 
     @Test

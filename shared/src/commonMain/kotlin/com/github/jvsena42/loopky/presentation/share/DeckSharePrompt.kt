@@ -19,5 +19,5 @@ data class DeckSharePrompt(
 ) {
     val kind: DeckAnnouncement.Kind get() = announcement.kind
     val preview: String get() = announcement.content
-    val coverUrl: String? get() = announcement.coverUrl
+    val coverImageUrl: String? get() = announcement.coverImageUrl
 }

@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.testing.testCoverImage
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -47,55 +48,60 @@ class DeckAnnouncementTest {
     }
 
     @Test
-    fun `a homeserver cover is attached as an absolute pubky url`() {
-        val deck = testDeck(id = "d1", coverImageRef = testCoverImage(sha = "cafe"))
-        assertEquals(
-            "pubky://$TEST_PUBKY/pub/loopky/decks/d1/media/cafe.png",
-            DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).coverUrl,
-        )
-    }
-
-    @Test
-    fun `a web cover is attached by its own url`() {
+    fun `a web cover goes in the body, where a reader's client will look for it`() {
         val deck = testDeck(
             coverImageRef = testCoverImage().copy(path = "", sha256 = "", url = "https://img.test/c.jpg"),
         )
-        assertEquals(
-            "https://img.test/c.jpg",
-            DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).coverUrl,
-        )
+
+        val announcement = DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created)
+
+        assertEquals("https://img.test/c.jpg", announcement.coverImageUrl)
+        // pubky.app probes the first http(s) link in the content and renders an image content-type
+        // inline; nothing linkifies the pubky:// URI, so the cover is the only candidate.
+        assertTrue(announcement.content.endsWith("https://img.test/c.jpg"), announcement.content)
     }
 
     @Test
-    fun `a cloned cover keeps the origin uri it is pinned to`() {
+    fun `a homeserver cover is dropped rather than linked to a URL nobody can fetch`() {
+        // Only a Pubky client could resolve pubky://…/media/cafe.png, and the OpenGraph probe on
+        // the other end is an ordinary HTTP fetch. Announcing without an image beats a dead link.
+        val deck = testDeck(id = "d1", coverImageRef = testCoverImage(sha = "cafe"))
+
+        val announcement = DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created)
+
+        assertNull(announcement.coverImageUrl)
+        assertTrue(announcement.content.endsWith("manifest.json"), announcement.content)
+    }
+
+    @Test
+    fun `a cloned cover pinned to its origin is dropped for the same reason`() {
         val origin = "pubky://otherpk/pub/loopky/decks/src/media/cafe.png"
         val deck = testDeck(coverImageRef = testCoverImage(sha = "cafe").copy(uri = origin))
-        assertEquals(origin, DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).coverUrl)
+
+        assertNull(DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).coverImageUrl)
     }
 
     @Test
-    fun `no cover means no attachment`() {
-        assertNull(DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created).coverUrl)
+    fun `no cover means no image link`() {
+        assertNull(DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created).coverImageUrl)
     }
 
     @Test
-    fun `an over-long cover url is dropped rather than failing the post`() {
-        // pubky-app-specs rejects the whole post over post_attachment_url_max_length, and a
-        // rejected post is written and then silently never indexed.
+    fun `an over-long cover url is dropped rather than swamping the post`() {
         val long = "https://img.test/" + "q".repeat(200)
         val deck = testDeck(coverImageRef = testCoverImage().copy(path = "", sha256 = "", url = long))
-        assertNull(DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).coverUrl)
+
+        assertNull(DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).coverImageUrl)
     }
 
     @Test
-    fun `the body carries the deck topics as hashtags, plus loopky-deck`() {
+    fun `topics never appear in the body`() {
         val deck = testDeck(title = "Kanji N5", tags = listOf(Tag("kanji"), Tag("japanese")))
 
         val content = DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).content
 
-        // pubky.app linkifies #tag to its own tag search; it cannot linkify the pubky:// URI at
-        // all, so these are the clickable half of the post.
-        assertTrue(content.endsWith("#kanji #japanese #loopky-deck"), content)
+        // The tag records put chips under the post already; hashtags said it twice.
+        assertFalse(content.contains("#"), content)
     }
 
     @Test
@@ -103,7 +109,6 @@ class DeckAnnouncementTest {
         val announcement = DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created)
 
         assertEquals(listOf(ReservedTags.DECK), announcement.tags)
-        assertTrue(announcement.content.endsWith("#loopky-deck"), announcement.content)
     }
 
     @Test
