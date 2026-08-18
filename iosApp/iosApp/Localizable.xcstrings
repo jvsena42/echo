@@ -1079,13 +1079,24 @@
         }
       }
     },
-    "discover_add_friend": {
+    "discover_search": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add friend"
+            "value": "Search"
+          }
+        }
+      }
+    },
+    "discover_search_cta": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search people & decks"
           }
         }
       }
@@ -1240,61 +1251,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add a friend by their pubky to follow them and discover their public decks."
-          }
-        }
-      }
-    },
-    "discover_add_a_friend": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add a friend"
-          }
-        }
-      }
-    },
-    "discover_add_friend_sheet_subtitle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paste a pubky or scan their QR code to view their profile and follow them."
-          }
-        }
-      }
-    },
-    "discover_paste_pubky": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paste a pubky"
-          }
-        }
-      }
-    },
-    "discover_scan_qr": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scan QR"
-          }
-        }
-      }
-    },
-    "discover_open": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open"
           }
         }
       }
@@ -2494,6 +2450,127 @@
           "stringUnit": {
             "state": "translated",
             "value": "there"
+          }
+        }
+      }
+    },
+    "search_back": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "search_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search people, decks or paste a pubky"
+          }
+        }
+      }
+    },
+    "search_clear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        }
+      }
+    },
+    "search_scan_qr": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan QR code"
+          }
+        }
+      }
+    },
+    "search_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search by name, or paste a pubky, a shared link or scan a QR code."
+          }
+        }
+      }
+    },
+    "search_people_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People"
+          }
+        }
+      }
+    },
+    "search_decks_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decks"
+          }
+        }
+      }
+    },
+    "search_open_profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open this profile"
+          }
+        }
+      }
+    },
+    "search_open_deck": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open this deck"
+          }
+        }
+      }
+    },
+    "search_empty_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing found for “%@”"
+          }
+        }
+      }
+    },
+    "search_empty_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try a different name, or paste their pubky to open them directly."
           }
         }
       }

@@ -8,6 +8,10 @@ struct MainView: View {
     var onCreateDeckTap: () -> Void = {}
     var onSignedOut: () -> Void = {}
 
+    /// Search is presented over the tabs rather than pushed: it is a way to reach a screen, not a
+    /// place in the tab hierarchy, and dismissing it must return to whatever tab asked for it.
+    @State private var isSearching = false
+
     var body: some View {
         // Native `TabView` → system `UITabBar` (Liquid Glass on the iOS 26 SDK). We only tint it
         // with Loopky's accent. See `design/DESIGN_GUIDELINE.md §4` (native-first implementation).
@@ -30,9 +34,12 @@ struct MainView: View {
             .tabItem { Label(LoopkyTab.decks.title, systemImage: LoopkyTab.decks.iconName) }
             .tag(LoopkyTab.decks)
 
-            DiscoverScreen(onOpenDeck: { _, deckId in onDeckTap(deckId) })
-                .tabItem { Label(LoopkyTab.discover.title, systemImage: LoopkyTab.discover.iconName) }
-                .tag(LoopkyTab.discover)
+            DiscoverScreen(
+                onOpenDeck: { _, deckId in onDeckTap(deckId) },
+                onSearch: { isSearching = true }
+            )
+            .tabItem { Label(LoopkyTab.discover.title, systemImage: LoopkyTab.discover.iconName) }
+            .tag(LoopkyTab.discover)
 
             ProfileView()
                 .tabItem { Label(LoopkyTab.profile.title, systemImage: LoopkyTab.profile.iconName) }
@@ -44,5 +51,14 @@ struct MainView: View {
         // Tab screens render their own in-content titles, so hide the NavigationStack's empty
         // navigation bar — otherwise it reserves space above each page title.
         .navigationBarHidden(true)
+        .sheet(isPresented: $isSearching) {
+            SearchScreen(
+                onOpenProfile: { _ in isSearching = false },
+                onOpenDeck: { _, deckId in
+                    isSearching = false
+                    onDeckTap(deckId)
+                }
+            )
+        }
     }
 }
