@@ -149,6 +149,10 @@ class HomeViewModel(
         viewModelScope.launch { _effects.emit(HomeEffect.NavigateBrowseExamples) }
     }
 
+    fun onSeeAllDecksClick() {
+        viewModelScope.launch { _effects.emit(HomeEffect.NavigateAllDecks) }
+    }
+
     fun onDeckClick(deckId: String) {
         // The author travels with the deck id: a followed deck's manifest is on someone else's
         // homeserver, so deck detail cannot fetch it from an id alone on a cold cache.
@@ -209,6 +213,9 @@ data class DeckSummary(
 sealed interface HomeEffect {
     data object NavigateCreateDeck : HomeEffect
     data object NavigateBrowseExamples : HomeEffect
+
+    /** "See all" over today's decks — the full library, i.e. the Decks tab. */
+    data object NavigateAllDecks : HomeEffect
     data object NavigateStartStudy : HomeEffect
 
     /** [authorPubky] is null only when the row could not name an author. */

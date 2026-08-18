@@ -48,6 +48,7 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 fun HomeContent(
     state: HomeUiState.Content,
     onStartStudyClick: () -> Unit,
+    onSeeAllDecksClick: () -> Unit,
     onDeckClick: (String) -> Unit,
 ) {
     if (state.isCaughtUp) {
@@ -59,7 +60,11 @@ fun HomeContent(
             onStartStudyClick = onStartStudyClick,
         )
     }
-    TodaysDecksSection(decks = state.decks, onDeckClick = onDeckClick)
+    TodaysDecksSection(
+        decks = state.decks,
+        onSeeAllClick = onSeeAllDecksClick,
+        onDeckClick = onDeckClick,
+    )
 }
 
 /**
@@ -225,6 +230,7 @@ private fun ProgressBar(progress: Float) {
 @Composable
 private fun TodaysDecksSection(
     decks: List<DeckSummary>,
+    onSeeAllClick: () -> Unit,
     onDeckClick: (String) -> Unit,
 ) {
     val colors = LoopkyTheme.colors
@@ -245,6 +251,11 @@ private fun TodaysDecksSection(
                 color = colors.accentSecondary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onSeeAllClick)
+                    .testTag("home_see_all")
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }
         decks.forEach { deck ->
@@ -351,6 +362,7 @@ private fun HomeContentPreview() {
                     ),
                 ),
                 onStartStudyClick = {},
+                onSeeAllDecksClick = {},
                 onDeckClick = {},
             )
         }
