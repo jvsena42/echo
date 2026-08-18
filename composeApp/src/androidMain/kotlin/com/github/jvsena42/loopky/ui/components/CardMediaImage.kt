@@ -27,6 +27,11 @@ fun CardMediaImage(
     authorPubky: String,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
+    /**
+     * Whether to draw a spinner while a blob loads. Callers that already paint something in the
+     * slot — a deck cover's emoji, say — pass false so the two don't stack on top of each other.
+     */
+    showLoadingIndicator: Boolean = true,
 ) {
     if (image.isRemote) {
         AsyncImage(
@@ -44,8 +49,10 @@ fun CardMediaImage(
     }
     val data = bytes
     if (data == null) {
-        Box(modifier, contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(strokeWidth = 2.dp)
+        if (showLoadingIndicator) {
+            Box(modifier, contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(strokeWidth = 2.dp)
+            }
         }
     } else {
         AsyncImage(

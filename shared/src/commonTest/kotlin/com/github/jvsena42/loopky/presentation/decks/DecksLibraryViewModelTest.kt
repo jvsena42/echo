@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
+import com.github.jvsena42.loopky.testing.testCoverImage
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -154,4 +155,18 @@ class DecksLibraryViewModelTest {
                 effects,
             )
         }
+
+    @Test
+    fun `tiles carry the deck's cover image so the grid can render it`() = runTest(mainDispatcher) {
+        val cover = testCoverImage()
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", coverImageRef = cover)
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        // Dropping the ref here is what made a deck with a cover look coverless outside its
+        // detail screen — the tile only ever had the emoji to fall back on.
+        val tile = assertIs<DecksLibraryUiState.Content>(vm.state.value).decks.single()
+        assertEquals(cover, tile.coverImage)
+    }
 }

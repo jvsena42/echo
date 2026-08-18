@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
+import com.github.jvsena42.loopky.testing.testCoverImage
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -179,5 +180,19 @@ class FriendProfileViewModelTest {
         advanceUntilIdle()
 
         assertTrue(vm.state.value.isSelf)
+    }
+
+    @Test
+    fun deckCardsCarryTheAuthorAndCoverSoTheGridCanRenderIt() = runTest {
+        val cover = testCoverImage()
+        decks.decks["d0"] = testDeck(id = "d0", authorPubky = stranger, coverImageRef = cover)
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        // The blob lives on *their* homeserver, so the tile needs the author as well as the ref.
+        val card = vm.state.value.decks.single()
+        assertEquals(cover, card.coverImage)
+        assertEquals(stranger, card.authorPubky)
     }
 }

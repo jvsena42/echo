@@ -27,11 +27,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.presentation.decks.DeckRelation
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 @Composable
 fun DeckTile(
+    deckId: String,
+    /** The *deck's* author — a followed deck's cover blob lives on their homeserver, not yours. */
+    authorPubky: String,
     title: String,
     cardCount: Int,
     coverEmoji: String,
@@ -39,6 +43,8 @@ fun DeckTile(
     authorLabel: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The deck's cover art. Drawn over [coverEmoji]; null leaves the emoji showing. */
+    coverImage: MediaRef.Image? = null,
     coverColor: Color = LoopkyTheme.colors.accentPrimarySoft,
     /**
      * How the signed-in user relates to this deck. Drives the badge beside the author name, which
@@ -66,15 +72,15 @@ fun DeckTile(
             .clickable(onClick = onClick),
     ) {
         // Cover area
-        Box(
+        DeckCover(
+            coverImage = coverImage,
+            deckId = deckId,
+            authorPubky = authorPubky,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            background = coverColor,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(120.dp)
-                .background(
-                    color = coverColor,
-                    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                ),
-            contentAlignment = Alignment.Center,
+                .height(120.dp),
         ) {
             Text(
                 text = coverEmoji,
@@ -188,6 +194,8 @@ private fun DeckTilePreview() {
                 .padding(16.dp),
         ) {
             DeckTile(
+                deckId = "deck-1",
+                authorPubky = "ada1xqz9uvwxyz",
                 title = "Spanish Basics",
                 cardCount = 42,
                 coverEmoji = "🇪🇸",

@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -163,6 +164,7 @@ class HomeViewModel(
         cardCount = cardCount,
         dueCount = dueCount,
         coverInitial = title.firstOrNull()?.uppercaseChar() ?: '•',
+        coverImage = coverImageRef,
     )
 
     companion object {
@@ -200,6 +202,8 @@ data class DeckSummary(
     val cardCount: Int,
     val dueCount: Int,
     val coverInitial: Char,
+    /** The deck's cover art, when it has one. Renders over [coverInitial]; null falls back to it. */
+    val coverImage: MediaRef.Image? = null,
 )
 
 sealed interface HomeEffect {

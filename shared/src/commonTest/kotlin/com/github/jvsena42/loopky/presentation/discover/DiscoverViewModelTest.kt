@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
+import com.github.jvsena42.loopky.testing.testCoverImage
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -369,5 +370,18 @@ class DiscoverViewModelTest {
 
         assertFalse(vm.state.value.isRefreshing)
         assertNotNull(vm.state.value.browse.items.firstOrNull())
+    }
+
+    @Test
+    fun browseTilesCarryTheDeckCoverImage() = runTest {
+        val cover = testCoverImage()
+        discovery.globalDecks = listOf(testDeck(id = "kanji", authorPubky = "stranger2", coverImageRef = cover))
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        // Discover's tiles used to get the emoji only, so a deck with real cover art rendered
+        // as its title initial here and on the tag-browse screen that reuses the same row.
+        assertEquals(cover, vm.state.value.browse.items.single().coverImage)
     }
 }

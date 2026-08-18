@@ -38,6 +38,7 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.presentation.home.DeckSummary
 import com.github.jvsena42.loopky.presentation.home.HomeUiState
+import com.github.jvsena42.loopky.ui.components.DeckCover
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /**
@@ -270,12 +271,12 @@ private fun DeckRow(deck: DeckSummary, onClick: () -> Unit) {
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(colors.accentPrimarySoft),
-            contentAlignment = Alignment.Center,
+        DeckCover(
+            coverImage = deck.coverImage,
+            deckId = deck.id,
+            authorPubky = deck.authorPubky,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.size(56.dp),
         ) {
             Text(
                 text = deck.coverInitial.toString(),

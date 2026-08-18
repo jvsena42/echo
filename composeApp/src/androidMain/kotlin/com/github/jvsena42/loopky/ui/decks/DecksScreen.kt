@@ -403,9 +403,12 @@ private fun DeckGrid(decks: List<DeckTileModel>, onDeckClick: (String) -> Unit) 
             ) {
                 row.forEach { deck ->
                     DeckTile(
+                        deckId = deck.id,
+                        authorPubky = deck.author.pubky,
                         title = deck.title,
                         cardCount = deck.cardCount,
                         coverEmoji = deck.coverEmoji,
+                        coverImage = deck.coverImage,
                         authorLabel = deck.author.label(),
                         onClick = { onDeckClick(deck.id) },
                         relation = deck.relation,
