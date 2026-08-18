@@ -12,6 +12,7 @@ import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -45,6 +46,10 @@ import kotlinx.coroutines.launch
  * indexer would answer questions nobody finished asking, so the text is debounced and only the
  * latest search survives — [collectLatest] cancels the one in flight when a newer query lands.
  */
+// Flow.debounce is still @FlowPreview in coroutines 1.10. The alternative — a hand-rolled
+// job + delay — is the same behaviour with the cancellation logic written out by hand, which is
+// the part worth not owning.
+@OptIn(FlowPreview::class)
 class SearchViewModel(
     private val discoveryRepository: DiscoveryRepository,
     private val identityRepository: IdentityRepository,
