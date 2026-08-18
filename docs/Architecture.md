@@ -257,6 +257,14 @@ A future Gradle task can automate this; not worth building until the fork stabil
 Keystore-backed EncryptedSharedPreferences, `IosSecureSessionStore` wraps the Keychain.
 Secrets never touch multiplatform-settings or ad-hoc storage.
 
+Non-secret user preferences go through a *separate* interface in the same package,
+`AppPreferences` — `AndroidAppPreferences` over `SharedPreferences`, `IosAppPreferences` over
+`NSUserDefaults`. Deliberately not the same door: `SecureSessionStore` pays keystore/keychain
+costs for the session, and a boolean the user flipped in Settings has no business sharing it.
+Device-local for v1; a preference that has to survive a reinstall belongs in a
+`/pub/loopky/settings.json` record, and this interface is the seam that would move. First
+tenant is `shareOnPubky` (#39).
+
 ### 7.6 Nexus indexer (global reads)
 
 Global questions a single homeserver cannot answer — trending tags, prefix search, "which
@@ -335,10 +343,27 @@ client-side from `/v0/stream/resources?app=loopky&sorting=taggers_count` — whi
 distinct decks carry them. The stream returns each resource's *whole* label list with per-label
 tagger counts, which is what makes this possible from a single call.
 
-**4. Why not announcement posts.** Making deck topics trend for real would mean minting a
-pubky.app post per published deck and tagging the post. That is a public write to the user's
-social feed on their behalf, which is what #39 ("Ask before announcing on Pubky") exists to
-gate — so it belongs there, not in the tag layer.
+**4. Announcement posts (#39) are the only way deck topics could trend.** Making them trend for
+real would mean tagging the announcement *post* rather than the manifest, since a post is a
+`Post` target and a manifest can only be a resource. #39 built the post half —
+`DiscoveryRepository.announceDeck` writes a `pubky.app` post per create / follow / clone, behind
+a per-action consent prompt and a default-on Settings switch, because it is a public write to
+the user's social feed on their behalf. Tagging those posts is still open; the resource tag stays
+regardless, since it is how Loopky finds its own decks and must keep working with the switch off.
+
+Two things the post record has to get right, both silent when wrong:
+
+- **The embed kind must be `link`, never `short`.** Nexus reads a short embed as a *repost* and
+  makes the embedded URI a dependency that must already be an indexed post
+  (`nexus-common/src/models/post/relationships.rs:117-121`). A deck manifest never is, so such a
+  post parks in the retry queue and is never indexed. Attachments carry no dependency, so the
+  deck cover rides along as one — and makes the post an `image` kind.
+- **Post ids are timestamp-derived, not content-derived.** `TimestampId::create_id` is
+  Crockford-base32 of the 8 big-endian bytes of a microsecond Unix timestamp — always 13 chars —
+  and `validate_id` only checks the length, the decode, and that the time is after 2024-10-01 and
+  under two hours ahead. The FFI exposes no helper (`create_tag_id` only), so `PostIds` mints them
+  in pure Kotlin. That is safe here in a way hand-rolling a tag id would not be: a tag id has to
+  match a blake3 derivation byte for byte.
 
 **5. The universal path does not validate or sanitize.** Unlike the pubky.app path it checks
 neither the tag id against the body nor the label's casing
