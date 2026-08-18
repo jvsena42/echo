@@ -10,6 +10,8 @@ import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -49,6 +51,24 @@ class ProfileViewModelTest {
     )
 
     private val friend = PubkyIdentity("friendpk", "Grace Hopper", null, null)
+
+    @Test
+    fun sharingHandsOutAnAddressRatherThanABareKey() = runTest {
+        identity.profiles[TEST_PUBKY] = PubkyIdentity(TEST_PUBKY, "Ada", null, null)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<ProfileEffect>()
+        val job = launch { vm.effects.toList(effects) }
+        vm.onShareClick()
+        advanceUntilIdle()
+        job.cancel()
+
+        val shared = effects.filterIsInstance<ProfileEffect.ShareProfile>().single()
+        assertEquals("pubky://$TEST_PUBKY", shared.uri)
+        // Named, so a recipient knows whose profile they are about to open.
+        assertEquals("Ada", shared.identity.displayName)
+    }
 
     @Test
     fun theWholeIdentityReachesTheStateSoTheAvatarCanBeDrawn() = runTest {

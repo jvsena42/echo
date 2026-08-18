@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.data.pubky.PubkyLink
+import com.github.jvsena42.loopky.data.pubky.PubkyLinks
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.Tag
@@ -118,9 +120,14 @@ fun DiscoverRoute(
     if (showAddFriend) {
         AddFriendSheet(
             onDismiss = { showAddFriend = false },
-            onOpenProfile = { pubky ->
+            // Whatever was pasted resolved to an address — a deck link opens the deck rather
+            // than dumping the user on its author.
+            onOpenLink = { link ->
                 showAddFriend = false
-                currentOpenProfile(pubky)
+                when (link) {
+                    is PubkyLink.Profile -> currentOpenProfile(link.pubky)
+                    is PubkyLink.Deck -> currentOpenDeck(link.deckId, link.pubky)
+                }
             },
         )
     }
@@ -372,15 +379,21 @@ private fun DiscoverHeader(onAddFriend: () -> Unit) {
 @Composable
 private fun AddFriendSheet(
     onDismiss: () -> Unit,
-    onOpenProfile: (String) -> Unit,
+    onOpenLink: (PubkyLink) -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     val context = LocalContext.current
     var input by remember { mutableStateOf("") }
+    var isInvalid by remember { mutableStateOf(false) }
 
+    /**
+     * Everything that lands here was typed, pasted or scanned by a person, so it is parsed rather
+     * than sliced: pasting the whole shared message, a deck link or a `pk:`-prefixed key all used
+     * to produce a route nobody matched — a tap that did nothing.
+     */
     fun submit(raw: String) {
-        val pubky = raw.trim().removePrefix("pubky://").substringBefore('/').trim()
-        if (pubky.isNotEmpty()) onOpenProfile(pubky)
+        val link = PubkyLinks.parse(raw)
+        if (link == null) isInvalid = true else onOpenLink(link)
     }
 
     ModalBottomSheet(
@@ -412,7 +425,10 @@ private fun AddFriendSheet(
             )
             BasicTextField(
                 value = input,
-                onValueChange = { input = it },
+                onValueChange = {
+                    input = it
+                    isInvalid = false
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("add_friend_input")
@@ -436,6 +452,14 @@ private fun AddFriendSheet(
                     }
                 },
             )
+            if (isInvalid) {
+                Text(
+                    text = stringResource(R.string.discover_add_friend_invalid),
+                    fontSize = 13.sp,
+                    color = colors.danger,
+                    modifier = Modifier.testTag("add_friend_error"),
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     modifier = Modifier

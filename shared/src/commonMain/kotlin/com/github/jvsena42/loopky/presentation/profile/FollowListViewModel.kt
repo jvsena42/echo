@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
+import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
@@ -27,6 +28,7 @@ class FollowListViewModel(
     private val targetPubky: String,
     private val source: FollowSource,
     private val discoveryRepository: DiscoveryRepository,
+    private val identityRepository: IdentityRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(FollowListUiState(source = source))
     val state: StateFlow<FollowListUiState> = _state.asStateFlow()
@@ -43,6 +45,12 @@ class FollowListViewModel(
         if (loadJob?.isActive == true) return
         loadJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true, errorReason = null) }
+
+            // Whose graph this is decides the wording of the empty state: "people you follow"
+            // is wrong the moment this screen is opened from someone else's profile.
+            val myPubky = runSuspendCatching { identityRepository.currentSession()?.identity?.pubky }
+                .getOrNull()
+            _state.update { it.copy(isSelf = myPubky != null && myPubky == targetPubky) }
 
             runSuspendCatching {
                 when (source) {
@@ -70,6 +78,8 @@ enum class FollowSource { FOLLOWING, FOLLOWERS }
 data class FollowListUiState(
     val source: FollowSource,
     val isLoading: Boolean = true,
+    /** True when this is the signed-in user's own graph — the empty state addresses them. */
+    val isSelf: Boolean = false,
     val people: List<PubkyIdentity> = emptyList(),
     val errorReason: ErrorReason? = null,
 )

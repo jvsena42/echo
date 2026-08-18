@@ -24,7 +24,7 @@
     <action>Pull to refresh and verify the followed person no longer appears in the People strip — suggestions exclude people you already follow</action>
     <action>Note: the People strip is legitimately absent when the only published decks are your own, since suggestions exclude yourself. That is a pass.</action>
     <action>Tap the element with resource-id "discover_add_friend"</action>
-    <action>Verify a bottom sheet appears with a "Paste a pubky" input (resource-id: add_friend_input), a "Scan QR" button (resource-id: add_friend_scan) and an "Open" button (resource-id: add_friend_open) — these ids only surface because the sheet sets its own testTagsAsResourceId</action>
+    <action>Verify a bottom sheet appears with a "Paste a pubky or pubky:// link" input (resource-id: add_friend_input), a "Scan QR" button (resource-id: add_friend_scan) and an "Open" button (resource-id: add_friend_open) — these ids only surface because the sheet sets its own testTagsAsResourceId</action>
     <action>Type your OWN pubky into the field with resource-id "add_friend_input" and tap the element with resource-id "add_friend_open"</action>
     <action>Verify your own profile is shown with NO Follow button (regression: you could follow yourself)</action>
     <action>Navigate back to Discover</action>

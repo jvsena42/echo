@@ -159,6 +159,7 @@ val sharedModule = module {
             targetPubky = params.get(),
             source = params.get(),
             discoveryRepository = get(),
+            identityRepository = get(),
         )
     }
 }

@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.presentation.profile
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
+import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,6 +24,7 @@ import kotlin.test.assertTrue
 class FollowListViewModelTest {
 
     private val discovery = FakeDiscoveryRepository()
+    private val identity = FakeIdentityRepository()
     private val mainDispatcher = StandardTestDispatcher()
 
     @BeforeTest
@@ -35,11 +37,13 @@ class FollowListViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(source: FollowSource) = FollowListViewModel(
-        targetPubky = TEST_PUBKY,
-        source = source,
-        discoveryRepository = discovery,
-    )
+    private fun viewModel(source: FollowSource, targetPubky: String = TEST_PUBKY) =
+        FollowListViewModel(
+            targetPubky = targetPubky,
+            source = source,
+            discoveryRepository = discovery,
+            identityRepository = identity,
+        )
 
     private val grace = PubkyIdentity("gracepk", "Grace Hopper", null, null)
     private val ada = PubkyIdentity("adapk", "Ada Lovelace", null, null)
@@ -66,6 +70,19 @@ class FollowListViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("adapk"), vm.state.value.people.map { it.pubky })
+    }
+
+    @Test
+    fun knowsWhoseGraphItIsShowing() = runTest {
+        // The empty state addresses the user in the second person, which is wrong the moment this
+        // screen is opened from someone else's profile.
+        val own = viewModel(FollowSource.FOLLOWING)
+        val other = viewModel(FollowSource.FOLLOWING, targetPubky = "gracepk")
+
+        advanceUntilIdle()
+
+        assertTrue(own.state.value.isSelf)
+        assertFalse(other.state.value.isSelf)
     }
 
     @Test

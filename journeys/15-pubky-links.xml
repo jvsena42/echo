@@ -1,0 +1,41 @@
+<journey name="Pubky links — share a profile or deck, open one back">
+  <description>
+    The round trip a shared address makes. Loopky hands out `pubky://` URIs from the share buttons
+    on both profiles and on a deck; this journey checks the other half — that tapping one, or
+    sharing the message that carries it back into Loopky, lands on the screen it names.
+
+    Needs a signed-in session (journey 01), one published deck (journey 02) and, for the foreign
+    half, one account you follow (journey 04). Deck ids appear in logcat as
+    `Loopky/DeckDetailVM: load: deckId=…`; your own pubky is on the Profile tab's chip.
+
+    Most chat clients do not linkify an unknown scheme, so both intake paths matter: ACTION_VIEW
+    for the ones that do, ACTION_SEND for the far more common paste-and-share.
+  </description>
+  <actions>
+    <action>Launch the Loopky app and verify the Home screen is shown</action>
+
+    <action>Send a profile link with `adb shell am start -a android.intent.action.VIEW -d "pubky://&lt;their-pubky&gt;"` and verify their profile opens (resource-id: friend_profile_screen)</action>
+    <action>Verify the profile carries a Follow control (resource-id: friend_profile_follow), a Copy button (resource-id: friend_profile_copy) and a Share button (resource-id: friend_profile_share)</action>
+    <action>Verify a People card is shown with Following (resource-id: friend_profile_stat_following) and Followers (resource-id: friend_profile_stat_followers) counts. A dash while the follow graph resolves is a pass; a 0 that never resolves is not — the counts stay unset rather than reading as zero.</action>
+    <action>Tap the element with resource-id "friend_profile_stat_following" and verify their Following list opens. Its empty copy must NOT address you in the second person ("people you follow") — this is someone else's graph.</action>
+    <action>Navigate back, then press back again and verify the app returns to Home rather than exiting — a deep link opens on top of the tabs, not instead of them</action>
+
+    <action>Send your OWN profile link the same way and verify it opens with a "You" badge, no Follow button, and the Copy and Share buttons centered on their own row</action>
+
+    <action>Send a deck link with `adb shell am start -a android.intent.action.VIEW -d "pubky://&lt;author&gt;/pub/loopky/decks/&lt;deckId&gt;/manifest.json"` and verify the deck detail screen opens for that deck. Use a deck by someone else: the author travels with the link, so it must resolve on a cold cache.</action>
+
+    <action>Force-stop the app, send a profile link again, and verify the app cold-starts, restores the session, and still lands on that profile — the link is held until onboarding is past, not dropped</action>
+
+    <action>Open your own profile from the Profile tab and tap the Share button</action>
+    <action>Verify the system share sheet carries your name above a `pubky://` address, not a bare key</action>
+    <action>Pick Loopky from that share sheet and verify it opens the profile the message points at — this is the ACTION_SEND path a chat client leaves as plain text</action>
+
+    <action>Send text with no address in it: `adb shell "am start -a android.intent.action.SEND -t text/plain -e android.intent.extra.TEXT 'definitely not a link' -n com.github.jvsena42.loopky/.MainActivity"`</action>
+    <action>Verify a toast says no Loopky link was found, rather than the app opening silently on whatever screen was already there</action>
+
+    <action>Tap the element with resource-id "tab_discover", then "discover_add_friend"</action>
+    <action>Paste a DECK link into the element with resource-id "add_friend_input" and tap "add_friend_open". Verify the deck opens — not its author's profile (regression: the sheet used to slice the URI by hand and could only reach people).</action>
+    <action>Reopen the sheet, type free text with no address ("just some text") and tap Open. Verify an inline error (resource-id: add_friend_error) appears rather than a tap that does nothing.</action>
+    <action>Reopen the sheet, paste the whole shared message — greeting line and address together — and verify it still opens the right screen</action>
+  </actions>
+</journey>

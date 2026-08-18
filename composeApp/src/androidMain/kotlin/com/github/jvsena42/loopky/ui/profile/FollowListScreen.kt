@@ -122,7 +122,7 @@ private fun FollowListScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            state.people.isEmpty() -> EmptyFollowList(source = state.source)
+            state.people.isEmpty() -> EmptyFollowList(source = state.source, isSelf = state.isSelf)
 
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -164,14 +164,18 @@ private fun FollowListScreen(
 }
 
 @Composable
-private fun EmptyFollowList(source: FollowSource) {
+private fun EmptyFollowList(source: FollowSource, isSelf: Boolean) {
     val colors = LoopkyTheme.colors
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
+            // Second person only when the graph is yours — this screen is now also reachable
+            // from someone else's profile.
             text = stringResource(
-                when (source) {
-                    FollowSource.FOLLOWING -> R.string.follow_list_empty_following
-                    FollowSource.FOLLOWERS -> R.string.follow_list_empty_followers
+                when {
+                    source == FollowSource.FOLLOWING && isSelf -> R.string.follow_list_empty_following
+                    source == FollowSource.FOLLOWING -> R.string.follow_list_empty_following_other
+                    isSelf -> R.string.follow_list_empty_followers
+                    else -> R.string.follow_list_empty_followers_other
                 },
             ),
             fontSize = 14.sp,
