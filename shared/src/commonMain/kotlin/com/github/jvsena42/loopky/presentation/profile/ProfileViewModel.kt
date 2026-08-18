@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.loopky.data.pubky.PubkyLinks
 import com.github.jvsena42.loopky.data.pubky.requiresReauth
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
@@ -189,8 +190,12 @@ class ProfileViewModel(
     }
 
     fun onShareClick() {
-        val pubky = _state.value.identity?.pubky ?: return
-        viewModelScope.launch { _effects.emit(ProfileEffect.ShareProfile("pubky://$pubky")) }
+        val identity = _state.value.identity ?: return
+        viewModelScope.launch {
+            _effects.emit(
+                ProfileEffect.ShareProfile(identity, PubkyLinks.profileUri(identity.pubky)),
+            )
+        }
     }
 
     /** The pubky chip is the copy control, the same one someone else's profile carries. */
@@ -247,7 +252,9 @@ data class ProfileUiState(
 
 sealed interface ProfileEffect {
     data object NavigateToOnboarding : ProfileEffect
-    data class ShareProfile(val uri: String) : ProfileEffect
+
+    /** [identity] names the person in the shared message; [uri] is what opens Loopky on them. */
+    data class ShareProfile(val identity: PubkyIdentity, val uri: String) : ProfileEffect
     data class CopyToClipboard(val text: String) : ProfileEffect
     data class ShowError(val message: String) : ProfileEffect
 }

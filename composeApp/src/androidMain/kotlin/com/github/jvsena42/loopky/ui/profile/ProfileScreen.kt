@@ -73,6 +73,7 @@ import com.github.jvsena42.loopky.ui.components.ProfileHero
 import com.github.jvsena42.loopky.ui.components.ProfileStat
 import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.label
 import com.github.jvsena42.loopky.ui.util.shareText
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -95,7 +96,12 @@ fun ProfileRoute(
             when (effect) {
                 ProfileEffect.NavigateToOnboarding -> currentSignedOut()
                 is ProfileEffect.ShareProfile -> context.shareText(
-                    text = effect.uri,
+                    // Named, not a bare key: a recipient sees who it is before tapping.
+                    text = context.getString(
+                        R.string.share_profile_body,
+                        effect.identity.label(context),
+                        effect.uri,
+                    ),
                     chooserTitle = context.getString(R.string.share_profile_chooser_title),
                 )
                 is ProfileEffect.CopyToClipboard -> clipboard.setText(AnnotatedString(effect.text))

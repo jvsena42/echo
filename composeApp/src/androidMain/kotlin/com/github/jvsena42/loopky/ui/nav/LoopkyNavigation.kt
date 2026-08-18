@@ -248,6 +248,9 @@ fun LoopkyNavHost(
                 pubky = pubky,
                 onBack = { navController.popBackStack() },
                 onOpenDeck = { deckId -> navController.navigateTo(Routes.deckDetail(deckId, author = pubky)) },
+                onOpenFollows = { person, source ->
+                    navController.navigateTo(Routes.followList(person, source))
+                },
             )
         }
         composable(

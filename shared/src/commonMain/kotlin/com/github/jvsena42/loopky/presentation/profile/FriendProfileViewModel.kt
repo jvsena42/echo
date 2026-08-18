@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.loopky.data.pubky.PubkyLinks
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
@@ -44,6 +45,7 @@ class FriendProfileViewModel(
 
     private var loadJob: Job? = null
     private var followJob: Job? = null
+    private var followCountsJob: Job? = null
 
     init {
         load()
@@ -90,6 +92,30 @@ class FriendProfileViewModel(
                 )
             }
             Log.d(TAG, "load: decks=${decks.size} following=$isFollowing")
+            loadFollowCounts()
+        }
+    }
+
+    /**
+     * The people counts, on their own job — the same split the signed-in user's own profile makes.
+     * Resolving a follow graph costs an indexer round-trip per person, so folding this into
+     * [load] would hold the whole profile behind it, and a count that cannot be fetched stays
+     * null rather than reading as zero.
+     */
+    private fun loadFollowCounts() {
+        followCountsJob?.cancel()
+        followCountsJob = viewModelScope.launch {
+            val following = runSuspendCatching { discoveryRepository.followingProfiles(targetPubky) }
+                .onFailure { Log.w(TAG, "loadFollowCounts: following FAILED — ${it.message}") }
+                .getOrNull()
+            val followers = runSuspendCatching { discoveryRepository.followerProfiles(targetPubky) }
+                .onFailure { Log.w(TAG, "loadFollowCounts: followers FAILED — ${it.message}") }
+                .getOrNull()
+
+            _state.update {
+                it.copy(followingCount = following?.size, followerCount = followers?.size)
+            }
+            Log.d(TAG, "loadFollowCounts: following=${following?.size} followers=${followers?.size}")
         }
     }
 
@@ -122,6 +148,20 @@ class FriendProfileViewModel(
 
     fun onCopyPubky() {
         viewModelScope.launch { _effects.emit(FriendProfileEffect.CopyToClipboard(targetPubky)) }
+    }
+
+    /**
+     * Passing someone else on is the point of a public profile, and this screen had no way to do
+     * it — the pubky could only be copied, which puts a bare key on the clipboard rather than
+     * something a recipient can tap.
+     */
+    fun onShareClick() {
+        val identity = _state.value.identity
+        viewModelScope.launch {
+            _effects.emit(
+                FriendProfileEffect.ShareProfile(identity, PubkyLinks.profileUri(targetPubky)),
+            )
+        }
     }
 
     fun onOpenDeck(deckId: String) {
@@ -157,6 +197,9 @@ data class FriendProfileUiState(
     /** Derived from [decks] here rather than in the UI, so the screen stays a dumb renderer. */
     val deckCount: Int = 0,
     val cardCount: Int = 0,
+    /** Null until the follow graph resolves, and after it fails — never a stand-in zero. */
+    val followingCount: Int? = null,
+    val followerCount: Int? = null,
 )
 
 data class FriendDeck(
@@ -170,4 +213,7 @@ data class FriendDeck(
 sealed interface FriendProfileEffect {
     data class CopyToClipboard(val text: String) : FriendProfileEffect
     data class OpenDeck(val authorPubky: String, val deckId: String) : FriendProfileEffect
+
+    /** [identity] names the person in the shared message; [uri] is what opens Loopky on them. */
+    data class ShareProfile(val identity: PubkyIdentity, val uri: String) : FriendProfileEffect
 }

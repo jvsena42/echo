@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedIconButton
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -49,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.presentation.profile.FriendDeck
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileEffect
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileUiState
@@ -62,6 +65,8 @@ import com.github.jvsena42.loopky.ui.components.ProfileStat
 import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.label
+import com.github.jvsena42.loopky.ui.util.shareText
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -71,10 +76,13 @@ fun FriendProfileRoute(
     pubky: String,
     onBack: () -> Unit = {},
     onOpenDeck: (String) -> Unit = {},
+    onOpenFollows: (pubky: String, source: FollowSource) -> Unit = { _, _ -> },
 ) {
     val viewModel = koinViewModel<FriendProfileViewModel> { parametersOf(pubky) }
 
+    val context = LocalContext.current
     val currentOpenDeck by rememberUpdatedState(onOpenDeck)
+    val currentOpenFollows by rememberUpdatedState(onOpenFollows)
     val clipboard = LocalClipboardManager.current
 
     LaunchedEffect(viewModel) {
@@ -82,6 +90,15 @@ fun FriendProfileRoute(
             when (effect) {
                 is FriendProfileEffect.CopyToClipboard -> clipboard.setText(AnnotatedString(effect.text))
                 is FriendProfileEffect.OpenDeck -> currentOpenDeck(effect.deckId)
+                is FriendProfileEffect.ShareProfile -> context.shareText(
+                    // Named, not a bare key: a recipient sees who it is before tapping.
+                    text = context.getString(
+                        R.string.share_profile_body,
+                        effect.identity.label(context),
+                        effect.uri,
+                    ),
+                    chooserTitle = context.getString(R.string.share_profile_chooser_title),
+                )
             }
         }
     }
@@ -93,6 +110,8 @@ fun FriendProfileRoute(
         onRefresh = viewModel::onRefresh,
         onToggleFollow = viewModel::onToggleFollow,
         onCopyPubky = viewModel::onCopyPubky,
+        onShare = viewModel::onShareClick,
+        onOpenFollows = { source -> currentOpenFollows(state.identity.pubky, source) },
         onOpenDeck = viewModel::onOpenDeck,
     )
 }
@@ -104,6 +123,8 @@ private fun FriendProfileScreen(
     onRefresh: () -> Unit,
     onToggleFollow: () -> Unit,
     onCopyPubky: () -> Unit,
+    onShare: () -> Unit,
+    onOpenFollows: (FollowSource) -> Unit,
     onOpenDeck: (String) -> Unit,
 ) {
     val colors = LoopkyTheme.colors
@@ -160,16 +181,17 @@ private fun FriendProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            // Nothing to act on when this is you: following yourself is not a thing, and editing
-            // lives on the Profile tab. The hero's "You" badge already says whose profile this is.
-            if (!state.isSelf) {
-                FollowActionRow(
-                    isFollowing = state.isFollowing,
-                    isProcessingFollow = state.isProcessingFollow,
-                    onToggleFollow = onToggleFollow,
-                    onCopyPubky = onCopyPubky,
-                )
-            }
+            // Following yourself is not a thing, and editing lives on the Profile tab — but
+            // copying and sharing still are, so the row stays and only loses the Follow button.
+            // The hero's "You" badge already says whose profile this is.
+            ProfileActionRow(
+                isSelf = state.isSelf,
+                isFollowing = state.isFollowing,
+                isProcessingFollow = state.isProcessingFollow,
+                onToggleFollow = onToggleFollow,
+                onCopyPubky = onCopyPubky,
+                onShare = onShare,
+            )
 
             state.errorReason?.let { reason ->
                 Text(
@@ -200,6 +222,28 @@ private fun FriendProfileScreen(
                 modifier = Modifier.testTag("friend_profile_stats"),
             )
 
+            // People — the same second strip the signed-in user's own profile carries, and the
+            // way into someone else's graph: their follows are how you find the next person.
+            val pending = stringResource(R.string.profile_stat_pending)
+            ProfileStatsCard(
+                stats = listOf(
+                    ProfileStat(
+                        value = state.followingCount?.toString() ?: pending,
+                        label = stringResource(R.string.profile_stat_following),
+                        valueColor = colors.foregroundPrimary,
+                        onClick = { onOpenFollows(FollowSource.FOLLOWING) },
+                        testTag = "friend_profile_stat_following",
+                    ),
+                    ProfileStat(
+                        value = state.followerCount?.toString() ?: pending,
+                        label = stringResource(R.string.profile_stat_followers),
+                        valueColor = colors.accentPrimary,
+                        onClick = { onOpenFollows(FollowSource.FOLLOWERS) },
+                        testTag = "friend_profile_stat_followers",
+                    ),
+                ),
+            )
+
             // Decks
             Text(
                 text = pluralStringResource(R.plurals.public_decks_count, state.decks.size, state.decks.size),
@@ -226,48 +270,58 @@ private fun FriendProfileScreen(
  * Follow as the screen's primary action, mirroring "Edit Profile" on the owner's profile.
  * Following is a settled state rather than a call to action, so it steps down to the soft
  * secondary button — the same solid/soft split the compact `AuthorRow` pill uses.
+ *
+ * Copy and Share sit beside it as the two ways to pass this person on: copy for a bare key, share
+ * for a `pubky://` address a recipient can tap straight back into Loopky.
  */
 @Composable
-private fun FollowActionRow(
+private fun ProfileActionRow(
+    isSelf: Boolean,
     isFollowing: Boolean,
     isProcessingFollow: Boolean,
     onToggleFollow: () -> Unit,
     onCopyPubky: () -> Unit,
+    onShare: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
 
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        // Centered so the two icon buttons do not hang off the left edge on your own profile,
+        // where there is no Follow button to fill the row.
+        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (isFollowing) {
-            LoopkySecondaryButton(
-                text = stringResource(R.string.component_author_row_following),
-                onClick = onToggleFollow,
-                icon = Icons.Filled.Check,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("friend_profile_follow"),
-            )
-        } else {
-            LoopkyPrimaryButton(
-                label = stringResource(R.string.component_author_row_follow),
-                onClick = onToggleFollow,
-                loading = isProcessingFollow,
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.PersonAdd,
-                        contentDescription = null,
-                        tint = colors.foregroundOnAccent,
-                        modifier = Modifier.size(16.dp),
-                    )
-                },
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("friend_profile_follow"),
-            )
+        // Following yourself is not a thing, so your own profile shows the icons alone.
+        if (!isSelf) {
+            if (isFollowing) {
+                LoopkySecondaryButton(
+                    text = stringResource(R.string.component_author_row_following),
+                    onClick = onToggleFollow,
+                    icon = Icons.Filled.Check,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("friend_profile_follow"),
+                )
+            } else {
+                LoopkyPrimaryButton(
+                    label = stringResource(R.string.component_author_row_follow),
+                    onClick = onToggleFollow,
+                    loading = isProcessingFollow,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Filled.PersonAdd,
+                            contentDescription = null,
+                            tint = colors.foregroundOnAccent,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("friend_profile_follow"),
+                )
+            }
         }
 
         OutlinedIconButton(
@@ -285,6 +339,25 @@ private fun FollowActionRow(
             Icon(
                 imageVector = Icons.Filled.ContentCopy,
                 contentDescription = stringResource(R.string.friend_profile_copy_pubky),
+                modifier = Modifier.size(18.dp),
+            )
+        }
+
+        OutlinedIconButton(
+            onClick = onShare,
+            modifier = Modifier
+                .size(48.dp)
+                .testTag("friend_profile_share"),
+            shape = CircleShape,
+            colors = IconButtonDefaults.outlinedIconButtonColors(
+                containerColor = colors.surfaceCard,
+                contentColor = colors.foregroundSecondary,
+            ),
+            border = BorderStroke(1.dp, colors.borderSubtle),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Share,
+                contentDescription = stringResource(R.string.friend_profile_share),
                 modifier = Modifier.size(18.dp),
             )
         }
@@ -330,6 +403,8 @@ private fun FriendProfileScreenPreview() {
             onRefresh = {},
             onToggleFollow = {},
             onCopyPubky = {},
+            onShare = {},
+            onOpenFollows = {},
             onOpenDeck = {},
         )
     }
@@ -345,6 +420,8 @@ private fun FriendProfileScreenFollowingPreview() {
             onRefresh = {},
             onToggleFollow = {},
             onCopyPubky = {},
+            onShare = {},
+            onOpenFollows = {},
             onOpenDeck = {},
         )
     }
@@ -360,6 +437,8 @@ private fun FriendProfileScreenSelfPreview() {
             onRefresh = {},
             onToggleFollow = {},
             onCopyPubky = {},
+            onShare = {},
+            onOpenFollows = {},
             onOpenDeck = {},
         )
     }

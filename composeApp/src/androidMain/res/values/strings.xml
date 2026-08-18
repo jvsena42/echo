@@ -294,6 +294,7 @@
     <string name="friend_profile_back_content_description">Back</string>
     <string name="friend_profile_copy_pubky">Copy pubky</string>
     <string name="friend_profile_no_public_decks">No public decks yet.</string>
+    <string name="friend_profile_share">Share profile</string>
 
     <!-- Follow lists -->
     <string name="follow_list_following_title">Following</string>
@@ -302,6 +303,8 @@
     <string name="follow_list_loading">Loading people…</string>
     <string name="follow_list_empty_following">Nobody yet. People you follow who also use Loopky show up here.</string>
     <string name="follow_list_empty_followers">Nobody yet. People using Loopky who follow you show up here.</string>
+    <string name="follow_list_empty_following_other">Nobody yet. People they follow who also use Loopky show up here.</string>
+    <string name="follow_list_empty_followers_other">Nobody yet. People using Loopky who follow them show up here.</string>
     <!-- Explains why the list is shorter than the follow count another Pubky app would show. -->
     <string name="follow_list_loopky_only">Only people with a Loopky account are listed.</string>
 
@@ -367,6 +370,7 @@
     <string name="share_deck_chooser_title">Share deck</string>
     <string name="share_profile_chooser_title">Share profile</string>
     <string name="share_deck_body">%1$s on Loopky\n%2$s</string>
+    <string name="share_profile_body">%1$s on Loopky\n%2$s</string>
     <string name="deeplink_no_link_in_shared_text">No Loopky link in that text. Share a message containing a pubky:// address.</string>
     <string name="deck_editor_move_up">Move card up</string>
     <string name="deck_editor_move_down">Move card down</string>

@@ -60,6 +60,47 @@ class FriendProfileViewModelTest {
     }
 
     @Test
+    fun countsTheirFollowGraphSoTheirPeopleAreReachable() = runTest {
+        val grace = PubkyIdentity("gracepk", "Grace Hopper", null, null)
+        discovery.followingByUser = mapOf(stranger to listOf(grace))
+        discovery.followersByUser = mapOf(stranger to listOf(grace, PubkyIdentity("adapk", null, null, null)))
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        assertEquals(1, vm.state.value.followingCount)
+        assertEquals(2, vm.state.value.followerCount)
+    }
+
+    @Test
+    fun aFollowGraphThatCannotBeReadStaysNullRatherThanReadingAsZero() = runTest {
+        discovery.followListError = IllegalStateException("indexer down")
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.followingCount)
+        assertNull(vm.state.value.followerCount)
+    }
+
+    @Test
+    fun sharingHandsOutAnAddressRatherThanABareKey() = runTest {
+        identity.profiles[stranger] = PubkyIdentity(stranger, "Grace Hopper", null, null)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<FriendProfileEffect>()
+        val collector = launch { vm.effects.toList(effects) }
+        vm.onShareClick()
+        advanceUntilIdle()
+        collector.cancel()
+
+        val shared = effects.filterIsInstance<FriendProfileEffect.ShareProfile>().single()
+        assertEquals("pubky://$stranger", shared.uri)
+        assertEquals("Grace Hopper", shared.identity.displayName)
+    }
+
+    @Test
     fun countsTheirDecksAndCardsForTheStatsCard() = runTest {
         givenStrangerHasDecks(18, 30)
         identity.profiles[stranger] = PubkyIdentity(stranger, "Grace Hopper", null, null)
