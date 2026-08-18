@@ -279,6 +279,15 @@ Reads in use today:
 | `resourceByUri` | `/v0/resource/by-uri` | per-deck tagger counts ("N followers") |
 | `taggersOfLabel` | `/v0/tags/taggers/{label}` | the `loopky-user` directory — **empty in practice, see §7.7 point 8** |
 | `userTaggers` | `/v0/user/{id}/taggers/{label}` | verifying a self-tag |
+| `searchUsersByName` | `/v0/search/users/by_name/{prefix}` | the people half of search — a name *prefix*, lexicographic, not a substring |
+| `searchUsersById` | `/v0/search/users/by_id/{prefix}` | the same, by pubky prefix (Nexus rejects fewer than 3 chars) |
+| `followers` | `/v0/user/{id}/followers` | who follows someone — the one direction a homeserver cannot answer |
+
+**Deck titles are not indexed anywhere.** A manifest is a record on a homeserver and nothing
+crawls its contents, so `DiscoveryRepository.searchDecks` matches titles against manifests the
+client has actually fetched: the global browse sample (cached for the session, ~30 manifest reads)
+widened by an exact `resourcesByTag` read when the query is a single word. A deck outside both is
+not findable by title until something indexes titles — the same ceiling as #58 for topics.
 
 `hotTags` (`/v0/tags/hot`) was removed in #26. It returns pubky.app *social* labels — live it hands
 back `pubky` and `bitcoin` — and point 3 below makes it structurally impossible for a deck label to
