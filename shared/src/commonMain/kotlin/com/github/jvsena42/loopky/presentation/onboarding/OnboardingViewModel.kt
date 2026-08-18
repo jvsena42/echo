@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +29,7 @@ class OnboardingViewModel(
     private val identityRepository: IdentityRepository,
     private val pubkyRingInstallUrl: String = DEFAULT_INSTALL_URL,
 ) : ViewModel() {
-    private val _state = MutableStateFlow<OnboardingUiState>(OnboardingUiState.Idle)
+    private val _state = MutableStateFlow<OnboardingUiState>(OnboardingUiState.Restoring)
     val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
 
     private val _effects = MutableSharedFlow<OnboardingEffect>(extraBufferCapacity = 4)
@@ -39,13 +40,18 @@ class OnboardingViewModel(
     init {
         Log.d(TAG, "init: checking persisted session")
         viewModelScope.launch {
-            val persisted = identityRepository.loadPersistedSession()
+            // The screen sits on the branded splash until this resolves, so every exit from here
+            // — including a store that throws — has to move the state on or the splash never lifts.
+            val persisted = runSuspendCatching { identityRepository.loadPersistedSession() }
+                .onFailure { Log.e(TAG, "init: reading the persisted session failed", it) }
+                .getOrNull()
             if (persisted != null) {
                 Log.d(TAG, "init: found persisted session pubky=${persisted.identity.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
                 _state.update { OnboardingUiState.Success(persisted) }
                 _effects.emit(OnboardingEffect.NavigateHome)
             } else {
                 Log.d(TAG, "init: no persisted session")
+                _state.update { OnboardingUiState.Idle }
             }
         }
     }

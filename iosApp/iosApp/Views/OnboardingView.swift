@@ -27,12 +27,7 @@ struct OnboardingView: View {
 
     private var brandRow: some View {
         HStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(red: 1.0, green: 0.36, blue: 0.0))
-                    .frame(width: 44, height: 44)
-                Text("🦊").font(.system(size: 24))
-            }
+            FoxPlate(size: 44, glyphSize: 24, containerColor: LoopkyColor.accentPrimary, cornerRadius: 14)
             Text("onboarding_brand_name")
                 .font(.system(size: 24, weight: .heavy))
                 .foregroundColor(Color(red: 0.11, green: 0.11, blue: 0.12))
@@ -41,13 +36,8 @@ struct OnboardingView: View {
 
     private var heroBlock: some View {
         VStack(spacing: 20) {
-            ZStack {
-                Circle()
-                    .fill(Color(red: 1.0, green: 0.91, blue: 0.84))
-                    .frame(width: 160, height: 160)
-                Text("🦊").font(.system(size: 96))
-            }
-            Text("onboarding_hero_title")
+            FoxPlate(size: 160, glyphSize: 96, containerColor: LoopkyColor.accentPrimarySoft)
+            Text("brand_tagline")
                 .font(.system(size: 30, weight: .heavy))
                 .foregroundColor(Color(red: 0.11, green: 0.11, blue: 0.12))
                 .multilineTextAlignment(.center)
