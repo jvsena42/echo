@@ -61,6 +61,9 @@ fun MainScreen(
                     onBrowseExamples = {
                         scope.launch { pagerState.animateScrollToPage(LoopkyTab.DISCOVER.ordinal) }
                     },
+                    onSeeAllDecks = {
+                        scope.launch { pagerState.animateScrollToPage(LoopkyTab.DECKS.ordinal) }
+                    },
                     onStartStudy = { onNavigateStudy(null) },
                     onSignedOut = onSignOut,
                 )

@@ -45,6 +45,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun HomeRoute(
     onCreateDeck: () -> Unit = {},
     onBrowseExamples: () -> Unit = {},
+    onSeeAllDecks: () -> Unit = {},
     onStartStudy: () -> Unit = {},
     onOpenDeck: (String, String?) -> Unit = { _, _ -> },
     onSignedOut: () -> Unit = {},
@@ -53,6 +54,7 @@ fun HomeRoute(
 
     val currentCreate by rememberUpdatedState(onCreateDeck)
     val currentBrowse by rememberUpdatedState(onBrowseExamples)
+    val currentSeeAll by rememberUpdatedState(onSeeAllDecks)
     val currentStart by rememberUpdatedState(onStartStudy)
     val currentOpen by rememberUpdatedState(onOpenDeck)
     val currentSignedOut by rememberUpdatedState(onSignedOut)
@@ -62,6 +64,7 @@ fun HomeRoute(
             when (effect) {
                 HomeEffect.NavigateCreateDeck -> currentCreate()
                 HomeEffect.NavigateBrowseExamples -> currentBrowse()
+                HomeEffect.NavigateAllDecks -> currentSeeAll()
                 HomeEffect.NavigateStartStudy -> currentStart()
                 is HomeEffect.NavigateDeck -> currentOpen(effect.deckId, effect.authorPubky)
                 HomeEffect.NavigateToOnboarding -> currentSignedOut()
@@ -75,6 +78,7 @@ fun HomeRoute(
         onStartStudyClick = viewModel::onStartStudyClick,
         onCreateDeckClick = viewModel::onCreateDeckClick,
         onBrowseExamplesClick = viewModel::onBrowseExamplesClick,
+        onSeeAllDecksClick = viewModel::onSeeAllDecksClick,
         onDeckClick = viewModel::onDeckClick,
         onRetry = viewModel::onRefresh,
     )
@@ -87,6 +91,7 @@ fun HomeScreen(
     onStartStudyClick: () -> Unit,
     onCreateDeckClick: () -> Unit,
     onBrowseExamplesClick: () -> Unit,
+    onSeeAllDecksClick: () -> Unit,
     onDeckClick: (String) -> Unit,
     onRetry: () -> Unit,
 ) {
@@ -110,6 +115,7 @@ fun HomeScreen(
                     onStartStudyClick = onStartStudyClick,
                     onCreateDeckClick = onCreateDeckClick,
                     onBrowseExamplesClick = onBrowseExamplesClick,
+                    onSeeAllDecksClick = onSeeAllDecksClick,
                     onDeckClick = onDeckClick,
                     onRetry = onRetry,
                 )
@@ -124,6 +130,7 @@ private fun HomeScreenContent(
     onStartStudyClick: () -> Unit,
     onCreateDeckClick: () -> Unit,
     onBrowseExamplesClick: () -> Unit,
+    onSeeAllDecksClick: () -> Unit,
     onDeckClick: (String) -> Unit,
     onRetry: () -> Unit,
 ) {
@@ -151,6 +158,7 @@ private fun HomeScreenContent(
                 HomeContent(
                     state = state,
                     onStartStudyClick = onStartStudyClick,
+                    onSeeAllDecksClick = onSeeAllDecksClick,
                     onDeckClick = onDeckClick,
                 )
             }
@@ -250,6 +258,7 @@ private fun HomeScreenPreview() {
             onStartStudyClick = {},
             onCreateDeckClick = {},
             onBrowseExamplesClick = {},
+            onSeeAllDecksClick = {},
             onDeckClick = {},
             onRetry = {},
         )
