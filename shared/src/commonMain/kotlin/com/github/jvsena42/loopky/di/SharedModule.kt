@@ -69,7 +69,9 @@ val sharedModule = module {
     single<MediaRepository> { MediaRepositoryImpl(get(), get(), get()) }
     single<ImportRepository> { ImportRepositoryImpl() }
     single<SrsRepository> { SrsRepositoryImpl(get(), get(), get(), get(), get()) }
-    single<DiscoveryRepository> { DiscoveryRepositoryImpl(get(), get(), get(), get(), get(), get(), get()) }
+    single<DiscoveryRepository> {
+        DiscoveryRepositoryImpl(get(), get(), get(), get(), get(), get(), get(), get())
+    }
 
     single { NexusClient(http = get()) }
     single<TagRepository> {
@@ -89,6 +91,8 @@ val sharedModule = module {
             srsRepository = get(),
             mediaRepository = get(),
             tagRepository = get(),
+            discoveryRepository = get(),
+            appPreferences = get(),
         )
     }
     viewModel { params -> StudySessionViewModel(deckId = params.getOrNull(), srsRepository = get(), deckRepository = get()) }
@@ -99,6 +103,8 @@ val sharedModule = module {
             cardRepository = get(),
             identityRepository = get(),
             mediaRepository = get(),
+            discoveryRepository = get(),
+            appPreferences = get(),
         )
     }
     viewModel { params ->
@@ -120,6 +126,8 @@ val sharedModule = module {
             deckRepository = get(),
             identityRepository = get(),
             mediaRepository = get(),
+            discoveryRepository = get(),
+            appPreferences = get(),
         )
     }
     viewModel {
@@ -134,6 +142,7 @@ val sharedModule = module {
         SettingsViewModel(
             identityRepository = get(),
             pubkyClient = get(),
+            appPreferences = get(),
             appVersion = params.getOrNull() ?: "",
         )
     }

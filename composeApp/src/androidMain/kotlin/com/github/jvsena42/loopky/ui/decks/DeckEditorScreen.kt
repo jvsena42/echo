@@ -61,6 +61,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -79,10 +80,12 @@ import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditableCardModel
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
+import com.github.jvsena42.loopky.ui.components.SharePromptDialog
 import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.components.rememberReorderableListState
 import com.github.jvsena42.loopky.ui.components.reorderableHandle
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.toast
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -99,6 +102,7 @@ fun DeckEditorRoute(
     val currentBack by rememberUpdatedState(onBack)
     val currentEditCard by rememberUpdatedState(onEditCard)
     val currentSaved by rememberUpdatedState(onSaved)
+    val context = LocalContext.current
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -106,6 +110,8 @@ fun DeckEditorRoute(
                 DeckEditorEffect.NavigateBack -> currentBack()
                 is DeckEditorEffect.NavigateEditCard -> currentEditCard(effect.deckId, effect.cardId)
                 is DeckEditorEffect.SaveSuccess -> currentSaved(effect.deckId)
+                DeckEditorEffect.Shared -> context.toast(R.string.share_prompt_posted)
+                DeckEditorEffect.ShareFailed -> context.toast(R.string.share_prompt_failed)
             }
         }
     }
@@ -125,6 +131,17 @@ fun DeckEditorRoute(
         onCoverWebSelected = viewModel::onCoverWebSelected,
         onCoverGallerySelected = viewModel::onCoverGallerySelected,
     )
+
+    // Shown over the editor rather than on the destination: saving a new deck leaves this screen,
+    // so the offer has to be answered before the navigation happens (#39).
+    state.sharePrompt?.let { prompt ->
+        SharePromptDialog(
+            prompt = prompt,
+            onConfirm = viewModel::onShareConfirm,
+            onDismiss = viewModel::onShareDismiss,
+            onNeverAsk = viewModel::onShareNeverAsk,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -28,6 +28,8 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -94,6 +96,7 @@ fun SettingsRoute(
         state = state,
         onBack = onBack,
         onCopyPubkyClick = viewModel::onCopyPubkyClick,
+        onShareOnPubkyChange = viewModel::onShareOnPubkyChange,
         onSignOutClick = viewModel::onSignOutClick,
     )
 }
@@ -103,6 +106,7 @@ private fun SettingsScreen(
     state: SettingsUiState,
     onBack: () -> Unit,
     onCopyPubkyClick: () -> Unit,
+    onShareOnPubkyChange: (Boolean) -> Unit,
     onSignOutClick: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
@@ -197,6 +201,22 @@ private fun SettingsScreen(
             SettingsValueRow(
                 label = stringResource(R.string.settings_homeserver_label),
                 value = state.homeserver.ifBlank { stringResource(R.string.settings_homeserver_unknown) },
+            )
+        }
+
+        // --- Sharing section ---
+        SettingsSectionLabel(text = stringResource(R.string.settings_section_sharing))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(colors.surfaceSecondary),
+        ) {
+            SettingsSwitchRow(
+                label = stringResource(R.string.settings_share_on_pubky_label),
+                description = stringResource(R.string.settings_share_on_pubky_description),
+                checked = state.shareOnPubky,
+                onCheckedChange = onShareOnPubkyChange,
             )
         }
 
@@ -334,6 +354,55 @@ private fun SettingsValueRow(
     }
 }
 
+/**
+ * A preference the user toggles. Distinct from [SettingsValueRow] in carrying a description: this
+ * one changes what the app does, and "Share on Pubky" in particular has to say that it governs a
+ * *post*, not who can see the deck — published decks are public either way (spec §11).
+ */
+@Composable
+private fun SettingsSwitchRow(
+    label: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val colors = LoopkyTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = label,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.foregroundPrimary,
+            )
+            Text(
+                text = description,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                color = colors.foregroundMuted,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.testTag("settings_share_on_pubky"),
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = colors.surfacePrimary,
+                checkedTrackColor = colors.accentPrimary,
+            ),
+        )
+    }
+}
+
 @Composable
 private fun SettingsDivider() {
     HorizontalDivider(
@@ -356,6 +425,7 @@ private fun SettingsScreenPreview() {
             ),
             onBack = {},
             onCopyPubkyClick = {},
+            onShareOnPubkyChange = {},
             onSignOutClick = {},
         )
     }

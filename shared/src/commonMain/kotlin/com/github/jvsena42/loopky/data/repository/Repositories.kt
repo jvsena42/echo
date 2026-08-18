@@ -398,6 +398,11 @@ interface DiscoveryRepository {
      * into the global graph, so the announcement reaches every app on the network. A deck manifest
      * can only ever be a generic *resource*, which no cross-app feed reads (Architecture.md §7.7).
      *
+     * Fails without writing anything when
+     * [com.github.jvsena42.loopky.data.storage.AppPreferences.shareOnPubky] is off. The gate is
+     * here as well as in the callers so that "off" is an invariant of the write rather than a rule
+     * three ViewModels each have to remember.
+     *
      * **Best-effort by contract.** Callers must treat a failure as cosmetic: the deck was created,
      * the follow or the clone stands, and only the post is missing. Never roll the action back.
      */

@@ -15,6 +15,7 @@ import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
+import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeHttpFetcher
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
@@ -52,6 +53,7 @@ class DiscoveryRepositoryImplTest {
         tagRepository = tagRepo,
     )
     private val http = FakeHttpFetcher()
+    private val preferences = FakeAppPreferences()
     private val repo = DiscoveryRepositoryImpl(
         pubky = pubky,
         session = session,
@@ -60,6 +62,7 @@ class DiscoveryRepositoryImplTest {
         tagRepository = tagRepo,
         identityRepository = identityRepo,
         nexus = NexusClient(http = http, baseUrl = NEXUS_BASE),
+        preferences = preferences,
     )
 
     private fun followUrl(followee: String) =
@@ -635,6 +638,20 @@ class DiscoveryRepositoryImplTest {
         val post = loopkyJson.decodeFromString<PostDto>(pubky.puts.last().second)
         assertEquals(PostKinds.LINK, post.kind)
         assertNull(post.attachments)
+    }
+
+    @Test
+    fun `announceDeck writes nothing while sharing is off`() = runTest {
+        preferences.setShareOnPubky(false)
+
+        val result = repo.announceDeck(
+            DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created),
+        )
+
+        // The gate is the write's own invariant, not just the callers': "off" in #39 means nothing
+        // reaches the homeserver, however the call got here.
+        assertTrue(result.isFailure)
+        assertTrue(pubky.puts.none { it.first.contains("/pub/pubky.app/posts/") })
     }
 
     @Test

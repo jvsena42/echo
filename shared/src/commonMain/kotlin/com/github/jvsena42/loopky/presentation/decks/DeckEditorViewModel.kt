@@ -4,15 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
+import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
+import com.github.jvsena42.loopky.presentation.share.DeckSharePrompt
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
 import com.github.jvsena42.loopky.util.generateId
@@ -24,16 +28,21 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-@Suppress("TooManyFunctions")
+// Seven collaborators because the editor writes a deck end to end: manifest, cards, cover upload,
+// the author it stamps, and — since #39 — the announcement it offers on a create.
+@Suppress("TooManyFunctions", "LongParameterList")
 class DeckEditorViewModel(
     private val deckId: String?,
     private val deckRepository: DeckRepository,
     private val cardRepository: CardRepository,
     private val identityRepository: IdentityRepository,
     private val mediaRepository: MediaRepository,
+    private val discoveryRepository: DiscoveryRepository,
+    private val appPreferences: AppPreferences,
 ) : ViewModel() {
     private val _state = MutableStateFlow(DeckEditorUiState())
     val state: StateFlow<DeckEditorUiState> = _state.asStateFlow()
@@ -60,6 +69,9 @@ class DeckEditorViewModel(
 
     /** The deck's cards as loaded, so a save can tell whether the card set actually changed. */
     private var loadedCards: List<Card> = emptyList()
+
+    /** The id the last successful save wrote — the destination once the share prompt resolves. */
+    private var savedDeckId: String? = null
 
     init {
         if (deckId != null) loadExisting()
@@ -204,13 +216,70 @@ class DeckEditorViewModel(
                 .onSuccess {
                     Log.d(TAG, "save: SUCCESS deckId=$actualDeckId")
                     _state.update { it.copy(isSaving = false) }
-                    _effects.emit(DeckEditorEffect.SaveSuccess(actualDeckId))
+                    settle(deck, isCreate = deckId == null)
                 }
                 .onFailure { err ->
                     Log.e(TAG, "save: FAILED — ${err.message}", err)
                     _state.update { it.copy(isSaving = false, error = err.message ?: "Save failed.") }
                 }
         }
+    }
+
+    /**
+     * Leave the editor, offering to announce the deck first when this save *created* it (#39).
+     *
+     * [isCreate] keys off the constructor's `deckId` being null, which is the editor's only honest
+     * "new deck" signal: `save()` republishes the whole manifest on every edit, so announcing from
+     * the success path unconditionally would post again every time someone fixed a typo.
+     */
+    private suspend fun settle(deck: Deck, isCreate: Boolean) {
+        savedDeckId = deck.id
+        if (isCreate && appPreferences.shareOnPubky.first()) {
+            _state.update {
+                it.copy(
+                    sharePrompt = DeckSharePrompt(
+                        DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created),
+                    ),
+                )
+            }
+            return
+        }
+        _effects.emit(DeckEditorEffect.SaveSuccess(deck.id))
+    }
+
+    /** Post the announcement, then leave regardless — a failed post is not a failed save. */
+    fun onShareConfirm() {
+        val prompt = _state.value.sharePrompt?.takeIf { !it.isPosting } ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(sharePrompt = prompt.copy(isPosting = true)) }
+            discoveryRepository.announceDeck(prompt.announcement)
+                .onSuccess { _effects.emit(DeckEditorEffect.Shared) }
+                .onFailure { err ->
+                    Log.e(TAG, "share: FAILED — ${err.message}", err)
+                    _effects.emit(DeckEditorEffect.ShareFailed)
+                }
+            dismissSharePrompt()
+        }
+    }
+
+    fun onShareDismiss() {
+        _state.value.sharePrompt?.takeIf { !it.isPosting } ?: return
+        viewModelScope.launch { dismissSharePrompt() }
+    }
+
+    /** Declines *and* turns the offer off, so the prompt and the Settings switch stay one setting. */
+    fun onShareNeverAsk() {
+        _state.value.sharePrompt?.takeIf { !it.isPosting } ?: return
+        viewModelScope.launch {
+            appPreferences.setShareOnPubky(false)
+            dismissSharePrompt()
+        }
+    }
+
+    private suspend fun dismissSharePrompt() {
+        val savedId = savedDeckId ?: return
+        _state.update { it.copy(sharePrompt = null) }
+        _effects.emit(DeckEditorEffect.SaveSuccess(savedId))
     }
 
     /**
@@ -366,6 +435,8 @@ data class DeckEditorUiState(
     val titleError: String? = null,
     val descriptionError: String? = null,
     val error: String? = null,
+    /** Set after a save that created the deck, unless the user has opted out of being asked (#39). */
+    val sharePrompt: DeckSharePrompt? = null,
 )
 
 data class EditableCardModel(
@@ -385,4 +456,8 @@ sealed interface DeckEditorEffect {
     data object NavigateBack : DeckEditorEffect
     data class NavigateEditCard(val deckId: String, val cardId: String) : DeckEditorEffect
     data class SaveSuccess(val deckId: String) : DeckEditorEffect
+
+    /** The announcement post went out, or didn't. Cosmetic either way — the deck is saved. */
+    data object Shared : DeckEditorEffect
+    data object ShareFailed : DeckEditorEffect
 }

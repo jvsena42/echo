@@ -328,6 +328,10 @@
     <string name="settings_copy">Copy</string>
     <string name="settings_homeserver_label">Homeserver</string>
     <string name="settings_homeserver_unknown">Unknown</string>
+    <string name="settings_section_sharing">SHARING</string>
+    <string name="settings_share_on_pubky_label">Ask to share on Pubky</string>
+    <!-- Must not read as a privacy control: published decks are public either way (spec 11). -->
+    <string name="settings_share_on_pubky_description">After you create, follow or clone a deck, offer to post about it so your Pubky followers see it. Your decks stay public either way — this only controls the post.</string>
     <string name="settings_section_about">ABOUT</string>
     <string name="settings_app_version_label">App version</string>
     <string name="settings_app_version_unknown">—</string>
@@ -335,6 +339,17 @@
     <string name="settings_sign_out_dialog_title">Sign out?</string>
     <string name="settings_sign_out_dialog_message">Your decks stay on your homeserver. Signing back in restores everything.</string>
     <string name="settings_cancel">Cancel</string>
+
+    <!-- Share-on-Pubky consent prompt (#39), shown after create / follow / clone -->
+    <string name="share_prompt_title_created">Share this deck on Pubky?</string>
+    <string name="share_prompt_title_followed">Share this follow on Pubky?</string>
+    <string name="share_prompt_title_cloned">Share this copy on Pubky?</string>
+    <string name="share_prompt_body">Posts to your Pubky feed so the people following you see it. The deck is public either way.</string>
+    <string name="share_prompt_confirm">Share on Pubky</string>
+    <string name="share_prompt_dismiss">Not now</string>
+    <string name="share_prompt_never">Don\'t ask again</string>
+    <string name="share_prompt_failed">Couldn\'t post to Pubky. The deck is unaffected.</string>
+    <string name="share_prompt_posted">Shared on Pubky</string>
 
     <!-- Identity — one presentation of a pubky user, shared by every screen -->
     <string name="identity_pubky_short">pk:%1$s</string>

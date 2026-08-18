@@ -1,7 +1,10 @@
 package com.github.jvsena42.loopky.presentation.importflow
 
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.FormError
+import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
+import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.FakeImportRepository
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
@@ -21,6 +24,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -35,6 +39,8 @@ class PublishDeckViewModelTest {
     private val deckRepo = FakeDeckRepository()
     private val identityRepo = FakeIdentityRepository()
     private val mediaRepo = FakeMediaRepository()
+    private val discoveryRepo = FakeDiscoveryRepository()
+    private val preferences = FakeAppPreferences()
 
     private val mainDispatcher = StandardTestDispatcher()
 
@@ -53,6 +59,8 @@ class PublishDeckViewModelTest {
         deckRepository = deckRepo,
         identityRepository = identityRepo,
         mediaRepository = mediaRepo,
+        discoveryRepository = discoveryRepo,
+        appPreferences = preferences,
     )
 
     // ── title prefill ────────────────────────────────────────────────────
@@ -279,6 +287,7 @@ class PublishDeckViewModelTest {
 
     @Test
     fun donePublishEmitsPublishedAndClearsTheDraft() = runTest {
+        preferences.setShareOnPubky(false)
         val vm = viewModel()
         val effects = mutableListOf<PublishDeckEffect>()
         backgroundScope.launch { vm.effects.collect { effects.add(it) } }
@@ -297,6 +306,7 @@ class PublishDeckViewModelTest {
 
     @Test
     fun countdownExpiryAutoEmitsPublished() = runTest {
+        preferences.setShareOnPubky(false)
         val vm = viewModel()
         val effects = mutableListOf<PublishDeckEffect>()
         backgroundScope.launch { vm.effects.collect { effects.add(it) } }
@@ -312,5 +322,136 @@ class PublishDeckViewModelTest {
         assertEquals(deckId, effect.deckId)
         assertEquals(expected = 1, actual = importRepo.clearCount)
         assertEquals(expected = 0, actual = vm.state.value.undoSecondsRemaining)
+    }
+
+    // ── share on Pubky (#39) ─────────────────────────────────────────────
+
+    @Test
+    fun theShareOfferWaitsForTheUndoWindowToRunOut() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onPublishClick()
+        runCurrent()
+
+        // Nothing asked while the deck can still be taken back — a post about a deck that is
+        // deleted a second later advertises nothing.
+        assertNull(vm.state.value.sharePrompt)
+
+        advanceTimeBy(11_000L)
+        runCurrent()
+
+        val prompt = assertNotNull(vm.state.value.sharePrompt)
+        assertEquals(DeckAnnouncement.Kind.Created, prompt.kind)
+        assertTrue(prompt.preview.contains("Spanish"), prompt.preview)
+    }
+
+    @Test
+    fun undoingInsideTheWindowAsksNothingAndPostsNothing() = runTest {
+        val vm = viewModel()
+        val effects = mutableListOf<PublishDeckEffect>()
+        backgroundScope.launch { vm.effects.collect { effects.add(it) } }
+        vm.onTitleChanged("Spanish")
+        vm.onPublishClick()
+        runCurrent()
+
+        vm.onUndoPublish()
+        advanceTimeBy(11_000L)
+        runCurrent()
+
+        assertNull(vm.state.value.sharePrompt)
+        assertTrue(discoveryRepo.announcements.isEmpty())
+        assertTrue(effects.isEmpty())
+    }
+
+    @Test
+    fun acceptingTheOfferPostsAndThenLeaves() = runTest {
+        val vm = viewModel()
+        val effects = mutableListOf<PublishDeckEffect>()
+        backgroundScope.launch { vm.effects.collect { effects.add(it) } }
+        vm.onTitleChanged("Spanish")
+        vm.onPublishClick()
+        runCurrent()
+        val deckId = assertNotNull(vm.state.value.publishedDeckId)
+        advanceTimeBy(11_000L)
+        runCurrent()
+
+        vm.onShareConfirm()
+        runCurrent()
+
+        assertEquals(expected = 1, actual = discoveryRepo.announcements.size)
+        assertNull(vm.state.value.sharePrompt)
+        assertEquals(
+            listOf(PublishDeckEffect.Shared, PublishDeckEffect.Published(deckId)),
+            effects,
+        )
+    }
+
+    @Test
+    fun aFailedPostStillLeavesTheDeckPublished() = runTest {
+        discoveryRepo.announceError = IllegalStateException("homeserver down")
+        val vm = viewModel()
+        val effects = mutableListOf<PublishDeckEffect>()
+        backgroundScope.launch { vm.effects.collect { effects.add(it) } }
+        vm.onTitleChanged("Spanish")
+        vm.onPublishClick()
+        runCurrent()
+        val deckId = assertNotNull(vm.state.value.publishedDeckId)
+        advanceTimeBy(11_000L)
+        runCurrent()
+
+        vm.onShareConfirm()
+        runCurrent()
+
+        assertTrue(deckRepo.deleted.isEmpty())
+        assertEquals(
+            listOf(PublishDeckEffect.ShareFailed, PublishDeckEffect.Published(deckId)),
+            effects,
+        )
+    }
+
+    @Test
+    fun decliningPostsNothing() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onPublishClick()
+        runCurrent()
+        advanceTimeBy(11_000L)
+        runCurrent()
+
+        vm.onShareDismiss()
+        runCurrent()
+
+        assertTrue(discoveryRepo.announcements.isEmpty())
+        assertTrue(preferences.shareOnPubkyValue, "Not now must not be a permanent opt-out")
+    }
+
+    @Test
+    fun dontAskAgainTurnsTheSettingsSwitchOff() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onPublishClick()
+        runCurrent()
+        advanceTimeBy(11_000L)
+        runCurrent()
+
+        vm.onShareNeverAsk()
+        runCurrent()
+
+        assertFalse(preferences.shareOnPubkyValue)
+        assertTrue(discoveryRepo.announcements.isEmpty())
+    }
+
+    @Test
+    fun theOfferIsSkippedEntirelyWhenSharingIsOff() = runTest {
+        preferences.setShareOnPubky(false)
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onPublishClick()
+        runCurrent()
+        advanceTimeBy(11_000L)
+        runCurrent()
+
+        assertNull(vm.state.value.sharePrompt)
+        assertTrue(discoveryRepo.announcements.isEmpty())
     }
 }

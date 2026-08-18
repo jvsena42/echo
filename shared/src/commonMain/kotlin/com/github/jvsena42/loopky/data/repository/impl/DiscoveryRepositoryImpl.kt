@@ -22,6 +22,7 @@ import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
+import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
@@ -33,6 +34,7 @@ import com.github.jvsena42.loopky.util.epochMillis
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -50,9 +52,9 @@ import kotlinx.serialization.encodeToString
  * account's own decks. Those already have a home in Library, and on a young network they are
  * otherwise most of what Discover has to show. [decksByTag] is deliberately not one of them.
  */
-// Eight collaborators is a lot, but every one is a distinct source this repo has to join —
-// homeserver, session, deck/tag/identity repos, indexer — and folding any pair into a wrapper
-// would exist only to shorten this list.
+// Nine collaborators is a lot, but every one is a distinct source this repo has to join —
+// homeserver, session, deck/tag/identity repos, indexer, and the share preference that gates
+// announcing — and folding any pair into a wrapper would exist only to shorten this list.
 @Suppress("LongParameterList")
 class DiscoveryRepositoryImpl(
     private val pubky: PubkyClient,
@@ -62,6 +64,7 @@ class DiscoveryRepositoryImpl(
     private val tagRepository: TagRepository,
     private val identityRepository: IdentityRepository,
     private val nexus: NexusClient,
+    private val preferences: AppPreferences,
 ) : DiscoveryRepository {
 
     /** Followee pubkys for the session, or null until first loaded from the homeserver. */
@@ -101,6 +104,10 @@ class DiscoveryRepositoryImpl(
 
     override suspend fun announceDeck(announcement: DeckAnnouncement): Result<PubkyUri> =
         runSuspendCatching {
+            // The gate lives next to the write, not only in the callers. "Off" in #39 means
+            // nothing reaches the homeserver, and three separate ViewModels each remembering to
+            // check is three chances to post behind the user's back.
+            check(preferences.shareOnPubky.first()) { "Sharing on Pubky is turned off" }
             val owner = session.requireSession().identity.pubky
             // Microseconds is what pubky-app-specs encodes, and epochMillis() is the only clock
             // commonMain has. Two announcements inside one millisecond would land on one id, which

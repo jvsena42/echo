@@ -73,6 +73,7 @@ import com.github.jvsena42.loopky.ui.components.AuthorRow
 import com.github.jvsena42.loopky.ui.components.CardPreviewRow
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
+import com.github.jvsena42.loopky.ui.components.SharePromptDialog
 import com.github.jvsena42.loopky.ui.components.StatsBar
 import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.components.errorMessage
@@ -80,6 +81,7 @@ import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
 import com.github.jvsena42.loopky.ui.util.shareText
+import com.github.jvsena42.loopky.ui.util.toast
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -119,6 +121,8 @@ fun DeckDetailRoute(
                 )
                 DeckDetailEffect.Deleted -> currentBack()
                 is DeckDetailEffect.Cloned -> currentOpenClone(effect.deckId)
+                DeckDetailEffect.Shared -> context.toast(R.string.share_prompt_posted)
+                DeckDetailEffect.ShareFailed -> context.toast(R.string.share_prompt_failed)
             }
         }
     }
@@ -142,6 +146,17 @@ fun DeckDetailRoute(
         onDismissError = viewModel::onDismissError,
         onRetry = viewModel::onRefresh,
     )
+
+    // Raised by a follow or a clone, over the loaded deck. A clone's navigation waits on it: the
+    // screen would otherwise move to the copy and take the unanswered offer with it (#39).
+    (state as? DeckDetailUiState.Content)?.sharePrompt?.let { prompt ->
+        SharePromptDialog(
+            prompt = prompt,
+            onConfirm = viewModel::onShareConfirm,
+            onDismiss = viewModel::onShareDismiss,
+            onNeverAsk = viewModel::onShareNeverAsk,
+        )
+    }
 }
 
 @Composable

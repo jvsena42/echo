@@ -11,6 +11,7 @@ import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
+import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
@@ -32,9 +33,13 @@ import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.domain.model.review
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRepository {
     var signOutCount = 0
@@ -642,5 +647,18 @@ class FailingChunkCardRepository(
         if (written >= failAfter) return Result.failure(IllegalStateException("upload died"))
         written++
         return delegate.writeChunk(deckId, chunk, cards)
+    }
+}
+
+/** [AppPreferences] in memory, starting from the production defaults. */
+class FakeAppPreferences(shareOnPubky: Boolean = true) : AppPreferences {
+    private val _shareOnPubky = MutableStateFlow(shareOnPubky)
+    override val shareOnPubky: Flow<Boolean> = _shareOnPubky.asStateFlow()
+
+    /** The current value, for a test that asserts on it without collecting. */
+    val shareOnPubkyValue: Boolean get() = _shareOnPubky.value
+
+    override suspend fun setShareOnPubky(enabled: Boolean) {
+        _shareOnPubky.update { enabled }
     }
 }

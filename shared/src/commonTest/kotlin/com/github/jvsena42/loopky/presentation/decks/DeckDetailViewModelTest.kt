@@ -1,11 +1,14 @@
 package com.github.jvsena42.loopky.presentation.decks
 
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.SrsGrade
+import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeCardRepository
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
+import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakeSrsRepository
@@ -25,6 +28,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -43,6 +47,8 @@ class DeckDetailViewModelTest {
     private val cardRepo = FakeCardRepository()
     private val srsRepo = FakeSrsRepository()
     private val tagRepo = RecordingTagRepository()
+    private val discoveryRepo = FakeDiscoveryRepository()
+    private val preferences = FakeAppPreferences()
 
     private val mainDispatcher = StandardTestDispatcher()
 
@@ -66,6 +72,8 @@ class DeckDetailViewModelTest {
             srsRepository = srsRepo,
             mediaRepository = FakeMediaRepository(),
             tagRepository = tagRepo,
+            discoveryRepository = discoveryRepo,
+            appPreferences = preferences,
         )
 
     @Test
@@ -373,6 +381,9 @@ class DeckDetailViewModelTest {
 
     @Test
     fun `cloning confirms first then navigates to the copy`() = runTest(mainDispatcher) {
+        // The share offer is exercised separately below; here it would only sit between the clone
+        // and its navigation.
+        preferences.setShareOnPubky(false)
         deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk", cardCount = 40)
         val vm = viewModel(authorPubky = "friendpk")
         advanceUntilIdle()
@@ -479,4 +490,141 @@ class DeckDetailViewModelTest {
             assertEquals(expected = 0, actual = state.followerCount)
             assertEquals(expected = 0, actual = state.clonedCount)
         }
+
+    // ── share on Pubky (#39) ─────────────────────────────────────────────
+
+    @Test
+    fun `following a deck offers to announce it, crediting the author`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk", title = "Kanji N5")
+        identityRepo.profiles["friendpk"] = PubkyIdentity(
+            pubky = "friendpk",
+            displayName = "Ada",
+            avatarUrl = null,
+            bio = null,
+        )
+        val vm = viewModel(authorPubky = "friendpk")
+        advanceUntilIdle()
+
+        vm.onToggleFollow()
+        advanceUntilIdle()
+
+        val prompt = assertNotNull(assertIs<DeckDetailUiState.Content>(vm.state.value).sharePrompt)
+        assertEquals(DeckAnnouncement.Kind.Followed, prompt.kind)
+        assertTrue(prompt.preview.contains("Kanji N5 by Ada"), prompt.preview)
+        // Nothing written until the user says so.
+        assertTrue(discoveryRepo.announcements.isEmpty())
+    }
+
+    @Test
+    fun `unfollowing is never announced`() = runTest(mainDispatcher) {
+        val deck = testDeck(id = "deck1", authorPubky = "friendpk")
+        deckRepo.decks["deck1"] = deck
+        deckRepo.followedDecks["deck1"] = deck
+        val vm = viewModel(authorPubky = "friendpk")
+        advanceUntilIdle()
+
+        vm.onToggleFollow()
+        advanceUntilIdle()
+
+        assertNull(assertIs<DeckDetailUiState.Content>(vm.state.value).sharePrompt)
+    }
+
+    @Test
+    fun `a failed follow raises no offer`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk")
+        deckRepo.followError = IllegalStateException("homeserver unreachable")
+        val vm = viewModel(authorPubky = "friendpk")
+        advanceUntilIdle()
+
+        vm.onToggleFollow()
+        advanceUntilIdle()
+
+        assertNull(assertIs<DeckDetailUiState.Content>(vm.state.value).sharePrompt)
+    }
+
+    @Test
+    fun `accepting the offer posts and then follows through to the clone`() =
+        runTest(mainDispatcher) {
+            deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk", cardCount = 40)
+            val vm = viewModel(authorPubky = "friendpk")
+            advanceUntilIdle()
+            val effects = mutableListOf<DeckDetailEffect>()
+            val job = launch { vm.effects.collect { effects.add(it) } }
+
+            vm.onCloneClick()
+            vm.onConfirmClone()
+            advanceUntilIdle()
+
+            // The clone is done, but the screen has not moved yet — the offer is still up.
+            assertEquals(listOf("deck1"), deckRepo.cloned.map { it.id })
+            val prompt = assertNotNull(assertIs<DeckDetailUiState.Content>(vm.state.value).sharePrompt)
+            assertEquals(DeckAnnouncement.Kind.Cloned, prompt.kind)
+            assertTrue(effects.isEmpty())
+
+            vm.onShareConfirm()
+            advanceUntilIdle()
+            job.cancel()
+
+            assertEquals(expected = 1, actual = discoveryRepo.announcements.size)
+            assertEquals<List<DeckDetailEffect>>(
+                listOf(DeckDetailEffect.Shared, DeckDetailEffect.Cloned("clone-of-deck1")),
+                effects,
+            )
+        }
+
+    @Test
+    fun `a failed announcement still leaves the clone intact and navigates`() =
+        runTest(mainDispatcher) {
+            discoveryRepo.announceError = IllegalStateException("homeserver down")
+            deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk", cardCount = 40)
+            val vm = viewModel(authorPubky = "friendpk")
+            advanceUntilIdle()
+            val effects = mutableListOf<DeckDetailEffect>()
+            val job = launch { vm.effects.collect { effects.add(it) } }
+
+            vm.onCloneClick()
+            vm.onConfirmClone()
+            advanceUntilIdle()
+            vm.onShareConfirm()
+            advanceUntilIdle()
+            job.cancel()
+
+            assertEquals(listOf("deck1"), deckRepo.cloned.map { it.id })
+            assertEquals<List<DeckDetailEffect>>(
+                listOf(DeckDetailEffect.ShareFailed, DeckDetailEffect.Cloned("clone-of-deck1")),
+                effects,
+            )
+        }
+
+    @Test
+    fun `dont ask again turns the settings switch off and posts nothing`() =
+        runTest(mainDispatcher) {
+            deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk")
+            val vm = viewModel(authorPubky = "friendpk")
+            advanceUntilIdle()
+
+            vm.onToggleFollow()
+            advanceUntilIdle()
+            vm.onShareNeverAsk()
+            advanceUntilIdle()
+
+            assertFalse(preferences.shareOnPubkyValue)
+            assertTrue(discoveryRepo.announcements.isEmpty())
+            assertNull(assertIs<DeckDetailUiState.Content>(vm.state.value).sharePrompt)
+        }
+
+    @Test
+    fun `with sharing off nothing is asked and nothing is posted`() = runTest(mainDispatcher) {
+        preferences.setShareOnPubky(false)
+        deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk")
+        val vm = viewModel(authorPubky = "friendpk")
+        advanceUntilIdle()
+
+        vm.onToggleFollow()
+        advanceUntilIdle()
+
+        assertTrue("deck1" in deckRepo.followedDecks)
+        assertNull(assertIs<DeckDetailUiState.Content>(vm.state.value).sharePrompt)
+        assertTrue(discoveryRepo.announcements.isEmpty())
+    }
 }

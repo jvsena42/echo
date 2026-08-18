@@ -5,18 +5,22 @@ import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
+import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
+import com.github.jvsena42.loopky.presentation.share.DeckSharePrompt
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -27,6 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.io.encoding.Base64
@@ -43,6 +48,8 @@ class DeckDetailViewModel(
     private val srsRepository: SrsRepository,
     private val mediaRepository: MediaRepository,
     private val tagRepository: TagRepository,
+    private val discoveryRepository: DiscoveryRepository,
+    private val appPreferences: AppPreferences,
 ) : ViewModel() {
     private val _state = MutableStateFlow<DeckDetailUiState>(DeckDetailUiState.Loading)
     val state: StateFlow<DeckDetailUiState> = _state.asStateFlow()
@@ -54,6 +61,12 @@ class DeckDetailViewModel(
 
     /** Re-entrancy guard, so double-tapping the follow pill cannot race two writes. */
     private var followJob: Job? = null
+
+    /**
+     * Where to go once the share prompt resolves, when the action that raised it was a clone.
+     * Null for a follow, which leaves the user on this screen.
+     */
+    private var pendingCloneDeckId: String? = null
 
     init {
         load()
@@ -206,6 +219,11 @@ class DeckDetailViewModel(
                     _state.update { s ->
                         (s as? DeckDetailUiState.Content)?.copy(isFollowPending = false) ?: s
                     }
+                    // Only a follow is worth announcing. Unfollowing is not news, and posting it
+                    // would tell someone's followers what they stopped reading.
+                    if (!wasFollowing) {
+                        offerShare(deck, DeckAnnouncement.Kind.Followed, current.author.displayName)
+                    }
                 }
                 .onFailure { err ->
                     Log.e(TAG, "onToggleFollow: FAILED — ${err.message}", err)
@@ -245,9 +263,18 @@ class DeckDetailViewModel(
             deckRepository.clone(source)
                 .onSuccess { clone ->
                     Log.d(TAG, "onConfirmClone: $deckId -> ${clone.id}")
+                    // The copy is what gets announced — it is the deck the user now owns — with
+                    // the source author credited in the text, matching the clone's provenance.
+                    pendingCloneDeckId = clone.id
+                    val offered = offerShare(
+                        clone,
+                        DeckAnnouncement.Kind.Cloned,
+                        current.author.displayName,
+                    )
                     // Navigate to the copy: it is what the user now owns, and the source screen
-                    // would otherwise sit there looking unchanged.
-                    _effects.emit(DeckDetailEffect.Cloned(clone.id))
+                    // would otherwise sit there looking unchanged. Held back while the prompt is
+                    // up, or the dialog would be torn down before it could be answered.
+                    if (!offered) leaveAfterClone()
                 }
                 .onFailure { err ->
                     Log.e(TAG, "onConfirmClone: FAILED — ${err.message}", err)
@@ -259,6 +286,74 @@ class DeckDetailViewModel(
                     }
                 }
         }
+    }
+
+    /**
+     * Offer to announce [deck] on Pubky (#39), returning whether the prompt was actually raised.
+     *
+     * False when the user has turned the offer off in Settings, in which case nothing is asked and
+     * nothing is written — that is what "off" means here, not "post silently".
+     */
+    private suspend fun offerShare(
+        deck: Deck,
+        kind: DeckAnnouncement.Kind,
+        authorName: String?,
+    ): Boolean {
+        if (!appPreferences.shareOnPubky.first()) return false
+        val announcement = DeckAnnouncement.of(deck, kind, authorName)
+        _state.update { s ->
+            (s as? DeckDetailUiState.Content)?.copy(
+                isCloning = false,
+                sharePrompt = DeckSharePrompt(announcement),
+            ) ?: s
+        }
+        return true
+    }
+
+    /** Post the announcement, then resolve the prompt regardless — the action itself stands. */
+    fun onShareConfirm() {
+        val prompt = sharePromptIfIdle() ?: return
+        viewModelScope.launch {
+            _state.update { s ->
+                (s as? DeckDetailUiState.Content)?.copy(sharePrompt = prompt.copy(isPosting = true)) ?: s
+            }
+            discoveryRepository.announceDeck(prompt.announcement)
+                .onSuccess { _effects.emit(DeckDetailEffect.Shared) }
+                .onFailure { err ->
+                    Log.e(TAG, "onShareConfirm: FAILED — ${err.message}", err)
+                    _effects.emit(DeckDetailEffect.ShareFailed)
+                }
+            dismissSharePrompt()
+        }
+    }
+
+    fun onShareDismiss() {
+        sharePromptIfIdle() ?: return
+        viewModelScope.launch { dismissSharePrompt() }
+    }
+
+    /** Declines *and* turns the offer off, so the prompt and the Settings switch stay one setting. */
+    fun onShareNeverAsk() {
+        sharePromptIfIdle() ?: return
+        viewModelScope.launch {
+            appPreferences.setShareOnPubky(false)
+            dismissSharePrompt()
+        }
+    }
+
+    private fun sharePromptIfIdle(): DeckSharePrompt? =
+        (_state.value as? DeckDetailUiState.Content)?.sharePrompt?.takeIf { !it.isPosting }
+
+    private suspend fun dismissSharePrompt() {
+        _state.update { s -> (s as? DeckDetailUiState.Content)?.copy(sharePrompt = null) ?: s }
+        leaveAfterClone()
+    }
+
+    /** No-op after a follow, which never leaves this screen. */
+    private suspend fun leaveAfterClone() {
+        val cloneId = pendingCloneDeckId ?: return
+        pendingCloneDeckId = null
+        _effects.emit(DeckDetailEffect.Cloned(cloneId))
     }
 
     fun onDismissError() {
@@ -444,6 +539,8 @@ sealed interface DeckDetailUiState {
         val cardPreviews: List<CardPreviewModel>,
         val showDeleteConfirm: Boolean = false,
         val isDeleting: Boolean = false,
+        /** "Share this on Pubky?" after a follow or a clone, unless the user opted out (#39). */
+        val sharePrompt: DeckSharePrompt? = null,
         /** A recoverable failure worth showing without tearing down the loaded deck. */
         val errorReason: ErrorReason? = null,
     ) : DeckDetailUiState
@@ -469,4 +566,8 @@ sealed interface DeckDetailEffect {
 
     /** The clone is what the user now owns, so the screen moves to it rather than staying put. */
     data class Cloned(val deckId: String) : DeckDetailEffect
+
+    /** The announcement post went out, or didn't. Cosmetic either way — the action stands. */
+    data object Shared : DeckDetailEffect
+    data object ShareFailed : DeckDetailEffect
 }
