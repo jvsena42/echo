@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.data.repository.impl
 import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.FollowDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
+import com.github.jvsena42.loopky.data.pubky.PubkyLinks
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.PubkyUris
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
@@ -24,6 +25,8 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
 import com.github.jvsena42.loopky.util.runSuspendCatching
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -192,6 +195,89 @@ class DiscoveryRepositoryImpl(
         return deckRepository.fetchRemote(ref.authorPubky, ref.deckId).getOrNull()
     }
 
+    override suspend fun searchPeople(query: String, limit: Int): List<PubkyIdentity> {
+        val q = query.trim()
+        if (q.length < DiscoveryRepository.MIN_SEARCH_QUERY_LENGTH) return emptyList()
+        val me = session.current()?.identity?.pubky
+
+        // Two indexes, one query: a name prefix and a pubky prefix are different lookups, and the
+        // box does not ask which one was typed. The pubky lookup is skipped for anything that
+        // could not be a key, so a name costs one request rather than two.
+        val (byName, byId) = coroutineScope {
+            val name = async { nexus.searchUsersByName(q, limit).orEmptyLogging("by_name") }
+            val id = async {
+                if (!PubkyLinks.isPubkyPrefix(q, NexusClient.MIN_USER_ID_PREFIX)) {
+                    emptyList()
+                } else {
+                    nexus.searchUsersById(q, limit).orEmptyLogging("by_id")
+                }
+            }
+            name.await() to id.await()
+        }
+
+        // Names first: someone who typed letters meant a name, and a pubky-prefix hit on the same
+        // letters is the weaker reading of the same input.
+        val candidates = (byName + byId).distinct().filterNot { it == me }.take(limit)
+        val kept = candidates.mapConcurrently { verifiedUser(it, keepUnresolved = true) }.filterNotNull()
+        Log.d(TAG, "searchPeople('$q'): ${kept.size} Loopky of ${candidates.size} indexed")
+        return kept
+    }
+
+    override suspend fun searchDecks(query: String, limit: Int): List<Deck> {
+        val q = query.trim()
+        if (q.length < DiscoveryRepository.MIN_SEARCH_QUERY_LENGTH) return emptyList()
+        val needle = q.lowercase()
+
+        // The sample is what makes a *title* searchable at all; the tag read is what reaches past
+        // it, since a deck tagged "spanish" is findable by that label however unpopular it is.
+        val (sample, tagged) = coroutineScope {
+            val sample = async { searchableDecks() }
+            val tagged = async {
+                if (!isTagShaped(needle)) {
+                    emptyList()
+                } else {
+                    runSuspendCatching { decksByTagGlobal(Tag(needle), limit) }
+                        .onFailure { Log.w(TAG, "searchDecks: tag read failed — ${it.message}") }
+                        .getOrElse { emptyList() }
+                }
+            }
+            sample.await() to tagged.await()
+        }
+
+        val matches = (sample.filter { it.matches(needle) } + tagged)
+            .distinctBy { it.authorPubky + "/" + it.id }
+            .sortedByDescending { it.relevanceTo(needle) }
+            .take(limit)
+        Log.d(TAG, "searchDecks('$q'): ${matches.size} of ${sample.size} sampled + ${tagged.size} tagged")
+        return matches
+    }
+
+    /**
+     * The decks a title search runs against, fetched once per session.
+     *
+     * The lock is held across the fetch on purpose: it is ~[DiscoveryRepository.SEARCH_DECK_SAMPLE]
+     * manifest reads, and a second keystroke landing mid-fetch should wait for that one rather
+     * than start its own. An empty result is never cached — an indexer that was down for one query
+     * must not leave search dead for the rest of the session.
+     */
+    private suspend fun searchableDecks(): List<Deck> = deckSampleLock.withLock {
+        deckSample?.let { return@withLock it }
+        val decks = runSuspendCatching {
+            decksByTagGlobal(ReservedTags.DECK, DiscoveryRepository.SEARCH_DECK_SAMPLE)
+        }
+            .onFailure { Log.e(TAG, "searchableDecks: FAILED — ${it.message}", it) }
+            .getOrElse { emptyList() }
+        if (decks.isNotEmpty()) deckSample = decks
+        decks
+    }
+
+    /** The global deck sample search matches titles against, or null until first searched. */
+    private var deckSample: List<Deck>? = null
+    private val deckSampleLock = Mutex()
+
+    private fun <T> Result<List<T>>.orEmptyLogging(what: String): List<T> =
+        onFailure { Log.w(TAG, "searchPeople: $what failed — ${it.message}") }.getOrElse { emptyList() }
+
     override suspend fun loopkyUsers(limit: Int): List<PubkyIdentity> {
         val me = session.current()?.identity?.pubky
         val candidates = tagRepository.taggersOf(ReservedTags.USER, limit).filterNot { it == me }
@@ -289,3 +375,29 @@ class DiscoveryRepositoryImpl(
         private const val FOLLOWS_MARKER = "/pub/pubky.app/follows/"
     }
 }
+
+/**
+ * How well a deck answers [needle], most specific first: the title someone typed, then the title
+ * they half-remembered, then a topic, then a key they were handed.
+ */
+private fun Deck.relevanceTo(needle: String): Int = when {
+    title.lowercase().startsWith(needle) -> TITLE_PREFIX_MATCH
+    title.lowercase().contains(needle) -> TITLE_BODY_MATCH
+    tags.any { it.value.lowercase().startsWith(needle) } -> TAG_MATCH
+    authorPubky.startsWith(needle) -> AUTHOR_MATCH
+    else -> NO_MATCH
+}
+
+private fun Deck.matches(needle: String): Boolean = relevanceTo(needle) > NO_MATCH
+
+/**
+ * Whether [needle] could be a tag label. Tags are single lowercase words, so a phrase is a title
+ * search and asking the indexer about it would only cost a round-trip that cannot match.
+ */
+private fun isTagShaped(needle: String): Boolean = needle.none { it.isWhitespace() }
+
+private const val TITLE_PREFIX_MATCH = 4
+private const val TITLE_BODY_MATCH = 3
+private const val TAG_MATCH = 2
+private const val AUTHOR_MATCH = 1
+private const val NO_MATCH = 0

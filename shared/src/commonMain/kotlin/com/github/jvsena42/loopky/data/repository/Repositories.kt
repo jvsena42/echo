@@ -444,6 +444,41 @@ interface DiscoveryRepository {
     ): List<PubkyIdentity>
 
     /**
+     * Loopky accounts matching a typed [query]: a display-name prefix, or the first characters of
+     * a pubky when the query is shaped like one. Backed by the indexer, which is the only thing
+     * that can see accounts the user has no relationship with.
+     *
+     * Held to the same bar as [loopkyUsers] — an account is kept only if it self-tagged with
+     * [ReservedTags.USER]. Nexus indexes every pubky.app profile, and most of the network has
+     * never opened Loopky: without the filter, searching a common name returns strangers with no
+     * decks, no Loopky profile and nothing to do on their screen. A *whole* pubky needs no search
+     * at all and should be opened directly, which is what the search screen does with one.
+     *
+     * Never throws: empty on indexer failure, like the rest of the global reads.
+     */
+    suspend fun searchPeople(
+        query: String,
+        limit: Int = DEFAULT_SEARCH_PEOPLE_LIMIT,
+    ): List<PubkyIdentity>
+
+    /**
+     * Published decks matching a typed [query] by title, tag or author pubky, best match first.
+     *
+     * Nexus indexes deck *tags*, not deck titles — a manifest is a record on a homeserver and
+     * nothing crawls its contents — so a title search has to match against manifests the client
+     * has actually fetched. That is a sample of the network, not the whole of it: the decks global
+     * browse can reach, plus whatever an exact tag match pulls in. A deck whose title matches but
+     * which is outside both is not findable, and cannot be until something indexes titles (#58 is
+     * the same ceiling for topics).
+     *
+     * Never throws: empty on indexer failure.
+     */
+    suspend fun searchDecks(
+        query: String,
+        limit: Int = DEFAULT_SEARCH_DECKS_LIMIT,
+    ): List<Deck>
+
+    /**
      * People worth showing to someone who follows nobody: the [loopkyUsers] directory first, then
      * the authors of [seedDecks] — pass the decks global browse already fetched, so this costs no
      * second browse.
@@ -468,6 +503,25 @@ interface DiscoveryRepository {
     companion object {
         /** A horizontal strip; enough to scroll, few enough to resolve quickly. */
         const val DEFAULT_SUGGESTED_PEOPLE_LIMIT = 12
+
+        /**
+         * People per search. Every candidate costs a self-tag check plus a profile fetch, and
+         * results below the fold are not what someone typing a name is waiting for.
+         */
+        const val DEFAULT_SEARCH_PEOPLE_LIMIT = 10
+
+        /** Decks per search, same reasoning: two columns, five rows. */
+        const val DEFAULT_SEARCH_DECKS_LIMIT = 10
+
+        /**
+         * How many decks the title search matches against. Each one is a manifest fetch the first
+         * time a session searches, so this is the wait before the first result — every later
+         * query reuses the same sample.
+         */
+        const val SEARCH_DECK_SAMPLE = 30
+
+        /** Below this a query matches nearly everything, and a pubky prefix is not yet a prefix. */
+        const val MIN_SEARCH_QUERY_LENGTH = 2
 
         /**
          * How many follow-graph entries [followingProfiles]/[followerProfiles] will inspect.
