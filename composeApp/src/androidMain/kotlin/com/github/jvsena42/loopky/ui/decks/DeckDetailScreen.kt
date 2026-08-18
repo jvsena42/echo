@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +24,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -300,70 +303,32 @@ private fun DeckDetailContent(
     Scaffold(
         containerColor = colors.surfacePrimary,
         bottomBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // Study is offered only for a deck you have kept. Grading a deck you are merely
-                // browsing would strand review state under something that never reaches your
-                // library or your due queue — progress you can neither see nor resume. Keeping the
-                // deck is what earns it, so Follow and Clone come first.
-                if (state.isOwned || state.isFollowing) {
-                    LoopkyPrimaryButton(
-                        label = if (state.isOwned) {
-                            stringResource(R.string.deck_detail_start_studying, state.dueCards)
-                        } else {
-                            stringResource(R.string.deck_detail_study_this_deck)
-                        },
-                        onClick = onStudyClick,
-                        modifier = Modifier.testTag("deck_study"),
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = colors.foregroundOnAccent,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        },
-                    )
-                }
-
-                // The two ways of keeping someone else's deck, side by side and equally weighted:
-                // they are genuinely different choices, not a primary and an afterthought, and
-                // burying Clone behind an unlabelled icon made it invisible.
-                if (!state.isOwned) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        FollowDeckButton(
-                            isFollowing = state.isFollowing,
-                            isPending = state.isFollowPending,
-                            onClick = onToggleFollow,
-                            modifier = Modifier.weight(1f),
+            // Study is offered only for a deck you have kept. Grading a deck you are merely
+            // browsing would strand review state under something that never reaches your
+            // library or your due queue — progress you can neither see nor resume. Keeping the
+            // deck is what earns it, so Follow and Clone sit up in the header instead, next to
+            // the stats they act on, and the bottom bar stays a single unambiguous action.
+            if (state.isOwned || state.isFollowing) {
+                LoopkyPrimaryButton(
+                    label = if (state.isOwned) {
+                        stringResource(R.string.deck_detail_start_studying, state.dueCards)
+                    } else {
+                        stringResource(R.string.deck_detail_study_this_deck)
+                    },
+                    onClick = onStudyClick,
+                    modifier = Modifier
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                        .testTag("deck_study"),
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = colors.foregroundOnAccent,
+                            modifier = Modifier.size(20.dp),
                         )
-                        LoopkyPrimaryButton(
-                            label = stringResource(R.string.deck_detail_clone),
-                            onClick = onCloneClick,
-                            enabled = !state.isCloning,
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("deck_clone"),
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = null,
-                                    tint = colors.foregroundOnAccent,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            },
-                        )
-                    }
-                }
+                    },
+                )
             }
         },
     ) { innerPadding ->
@@ -455,6 +420,42 @@ private fun DeckDetailContent(
                         dueCards = state.dueCards,
                         masteredPercent = state.masteredPercent,
                     )
+
+                    // The two ways of keeping someone else's deck, side by side and equally
+                    // weighted: they are genuinely different choices, not a primary and an
+                    // afterthought. They sit under the stats rather than in the bottom bar —
+                    // crowded against Study they read as three competing primaries, and Study
+                    // is the only action that belongs to a deck you have already kept.
+                    if (!state.isOwned) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            FollowDeckButton(
+                                isFollowing = state.isFollowing,
+                                isPending = state.isFollowPending,
+                                onClick = onToggleFollow,
+                                modifier = Modifier.weight(1f),
+                            )
+                            LoopkyPrimaryButton(
+                                label = stringResource(R.string.deck_detail_clone),
+                                onClick = onCloneClick,
+                                enabled = !state.isCloning,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("deck_clone"),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = null,
+                                        tint = colors.foregroundOnAccent,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                },
+                            )
+                        }
+                    }
                 }
             }
 
@@ -640,6 +641,15 @@ private fun FollowDeckButton(
         ),
         contentPadding = ButtonDefaults.ContentPadding,
     ) {
+        // Icon + label, matching the Clone pill beside it — a bare word next to an iconed button
+        // read as the lesser of the two. Check vs Add also carries the state on its own, so the
+        // Follow/Following flip is legible without reading the label.
+        Icon(
+            imageVector = if (isFollowing) Icons.Default.Check else Icons.Default.Add,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.size(10.dp))
         Text(
             text = stringResource(
                 if (isFollowing) R.string.deck_detail_following else R.string.deck_detail_follow,
