@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Brand colours the platform needs before Compose is running (launcher icon, splash window).
+  These mirror LoopkyLightColors — keep the two in step.
+-->
+<resources>
+    <color name="brand_surface">#FFFBF5</color>
+    <color name="brand_accent_soft">#FFFFE8D6</color>
+</resources>
