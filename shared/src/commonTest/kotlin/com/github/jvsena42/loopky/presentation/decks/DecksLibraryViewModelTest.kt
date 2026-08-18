@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.presentation.decks
 
 import com.github.jvsena42.loopky.domain.model.DeckSource
+import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
@@ -60,6 +61,31 @@ class DecksLibraryViewModelTest {
         assertEquals(TEST_PUBKY, tile.author.pubky)
         assertTrue(tile.isOwned)
     }
+
+    @Test
+    fun `a deck by someone else is named after its owner`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", authorPubky = "friendpk")
+        identityRepo.profiles["friendpk"] = PubkyIdentity("friendpk", "Ada", null, null)
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val tile = assertIs<DecksLibraryUiState.Content>(vm.state.value).decks.single()
+        assertEquals("Ada", tile.author.displayName)
+    }
+
+    @Test
+    fun `an owner with no published profile leaves the tile on the bare pubky`() =
+        runTest(mainDispatcher) {
+            deckRepo.decks["deck1"] = testDeck(id = "deck1", authorPubky = "friendpk")
+
+            val vm = viewModel()
+            advanceUntilIdle()
+
+            val tile = assertIs<DecksLibraryUiState.Content>(vm.state.value).decks.single()
+            assertEquals("friendpk", tile.author.pubky)
+            assertEquals(null, tile.author.displayName)
+        }
 
     @Test
     fun `a deck by someone else is not marked as yours`() = runTest(mainDispatcher) {

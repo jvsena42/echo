@@ -47,9 +47,9 @@ fun DeckTile(
     coverImage: MediaRef.Image? = null,
     coverColor: Color = LoopkyTheme.colors.accentPrimarySoft,
     /**
-     * How the signed-in user relates to this deck. Drives the badge beside the author name, which
-     * is the only thing distinguishing a deck you wrote from one you follow or forked — and they
-     * differ in whether they are editable and whether they receive the author's updates.
+     * How the signed-in user relates to this deck. Only a fork is badged: the author's name already
+     * says whose a deck is, so "You" and "FOLLOWING" were repeating it. A clone has no such tell —
+     * it carries *your* name while being someone else's deck — so it keeps its badge.
      */
     relation: DeckRelation = DeckRelation.None,
     /** The author has published changes since this followed deck was last opened. */
@@ -131,9 +131,13 @@ fun DeckTile(
                         }
                         ).weight(1f, fill = false),
                 )
+                if (hasUpdate) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    UpdateDot()
+                }
                 relationBadge(relation)?.let { label ->
                     Spacer(modifier = Modifier.width(6.dp))
-                    RelationBadge(label = label, hasUpdate = hasUpdate)
+                    RelationBadge(label = label)
                 }
             }
         }
@@ -141,47 +145,45 @@ fun DeckTile(
 }
 
 /**
- * The badge text for a relation, or null when there is nothing to say. A deck you merely browse
- * ([DeckRelation.None]) carries no badge — the author's name already says whose it is.
+ * The badge text for a relation, or null when there is nothing to say. Owning or following a deck
+ * says nothing the author's name doesn't already — only a clone, which reads as yours while being
+ * someone else's work, needs the label.
  */
 @Composable
 private fun relationBadge(relation: DeckRelation): String? = when (relation) {
-    DeckRelation.Owned -> stringResource(R.string.identity_you_badge)
-    DeckRelation.Followed -> stringResource(R.string.deck_tile_followed_badge)
     DeckRelation.Cloned -> stringResource(R.string.deck_tile_cloned_badge)
-    DeckRelation.None -> null
+    DeckRelation.Owned, DeckRelation.Followed, DeckRelation.None -> null
 }
 
 /**
- * Pill beside the author name. Carries a dot when a followed deck has moved since you last opened
- * it — enough to notice, not enough to nag, and it clears itself when the deck is opened.
+ * The author of a followed deck has published changes since you last opened it — enough to notice,
+ * not enough to nag, and it clears itself when the deck is opened. Stands on its own now that
+ * "FOLLOWING" is gone, rather than riding inside that pill.
  */
 @Composable
-private fun RelationBadge(label: String, hasUpdate: Boolean) {
+private fun UpdateDot() {
+    Box(
+        modifier = Modifier
+            .size(6.dp)
+            .clip(RoundedCornerShape(50))
+            .background(LoopkyTheme.colors.accentPrimary),
+    )
+}
+
+/** Pill beside the author name. */
+@Composable
+private fun RelationBadge(label: String) {
     val colors = LoopkyTheme.colors
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    Text(
+        text = label,
+        fontSize = 10.sp,
+        fontWeight = FontWeight.W700,
+        color = colors.accentSecondary,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(colors.accentSecondarySoft)
             .padding(horizontal = 6.dp, vertical = 2.dp),
-    ) {
-        if (hasUpdate) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(colors.accentPrimary),
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-        }
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.W700,
-            color = colors.accentSecondary,
-        )
-    }
+    )
 }
 
 @Preview

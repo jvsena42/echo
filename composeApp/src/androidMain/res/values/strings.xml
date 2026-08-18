@@ -37,7 +37,6 @@
     <string name="decks_retry">Retry</string>
 
     <!-- Deck tile -->
-    <string name="deck_tile_followed_badge">FOLLOWING</string>
     <string name="deck_tile_cloned_badge">CLONE</string>
 
     <!-- Deck detail -->
