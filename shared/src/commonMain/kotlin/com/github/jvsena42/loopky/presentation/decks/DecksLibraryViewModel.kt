@@ -13,6 +13,9 @@ import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -33,6 +36,9 @@ class DecksLibraryViewModel(
     val effects: SharedFlow<DecksLibraryEffect> = _effects.asSharedFlow()
 
     private var loadJob: Job? = null
+
+    /** Resolved author profiles, keyed by pubky. Survives a reload so names don't flicker back. */
+    private val authors = mutableMapOf<String, PubkyIdentity>()
 
     init {
         load()
@@ -79,6 +85,7 @@ class DecksLibraryViewModel(
                                 it.toTileModel(myIdentity, it.id in followedIds, it.id in updatedIds)
                             },
                         ) }
+                        loadAuthorProfiles(decks, myIdentity?.pubky)
                     }
                     Log.d(TAG, "load: owned=${owned.size} followed=${followed.size}")
                 }
@@ -116,8 +123,39 @@ class DecksLibraryViewModel(
     }
 
     /**
-     * Naming the author is the platform layer's job; this only carries who it is. For a followed
-     * deck that is someone else, so the tile falls back to the bare pubky until the UI resolves it.
+     * Owner names arrive after first paint: a followed deck's author lives on someone else's
+     * homeserver, so its tile shows the bare pubky until that profile lands — and an author who
+     * published no profile keeps it.
+     */
+    private suspend fun loadAuthorProfiles(decks: List<Deck>, myPubky: String?) {
+        val pending = decks
+            .map { it.authorPubky }
+            .distinct()
+            .filterNot { it == myPubky || it in authors }
+        if (pending.isEmpty()) return
+        val resolved = coroutineScope {
+            pending.map { pubky -> async { identityRepository.fetchProfile(pubky).getOrNull() } }
+                .awaitAll()
+        }
+        resolved.filterNotNull().forEach { authors[it.pubky] = it }
+        if (resolved.all { it == null }) return
+        _state.update { s ->
+            if (s !is DecksLibraryUiState.Content) {
+                s
+            } else {
+                s.copy(
+                    decks = s.decks.map { tile ->
+                        authors[tile.author.pubky]?.let { tile.copy(author = it) } ?: tile
+                    },
+                )
+            }
+        }
+        Log.d(TAG, "loadAuthorProfiles: resolved=${resolved.count { it != null }}/${pending.size}")
+    }
+
+    /**
+     * Naming the author is the platform layer's job; this only carries who it is. A deck someone
+     * else wrote resolves through [loadAuthorProfiles]; until then it is the bare pubky.
      */
     private fun Deck.toTileModel(
         myIdentity: PubkyIdentity?,
@@ -132,6 +170,7 @@ class DecksLibraryViewModel(
             coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
             coverImage = coverImageRef,
             author = myIdentity?.takeIf { isOwned }
+                ?: authors[authorPubky]
                 ?: PubkyIdentity(authorPubky, displayName = null, avatarUrl = null, bio = null),
             relation = when {
                 isFollowed -> DeckRelation.Followed
