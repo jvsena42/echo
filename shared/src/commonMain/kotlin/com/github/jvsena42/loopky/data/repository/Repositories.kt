@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.repository
 
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.MediaRef
@@ -383,6 +384,24 @@ interface DiscoveryRepository {
     suspend fun isFollowing(pubky: String): Boolean
     suspend fun followUser(pubky: String): Result<Unit>
     suspend fun unfollowUser(pubky: String): Result<Unit>
+
+    /**
+     * Write [announcement] to the user's pubky.app feed as a post, and return the post's own
+     * `pubky://` URI.
+     *
+     * **Announcing is not publishing.** The deck is already public — this only tells the user's
+     * followers it exists, which is why it is opt-in per action behind
+     * [com.github.jvsena42.loopky.data.storage.AppPreferences.shareOnPubky] and never happens
+     * as a side effect of creating, following or cloning.
+     *
+     * A `pubky.app` post rather than a Loopky-namespaced record on purpose: Nexus indexes posts
+     * into the global graph, so the announcement reaches every app on the network. A deck manifest
+     * can only ever be a generic *resource*, which no cross-app feed reads (Architecture.md §7.7).
+     *
+     * **Best-effort by contract.** Callers must treat a failure as cosmetic: the deck was created,
+     * the follow or the clone stands, and only the post is missing. Never roll the action back.
+     */
+    suspend fun announceDeck(announcement: DeckAnnouncement): Result<PubkyUri>
 
     /**
      * The Loopky accounts [pubky] follows, as resolved profiles.

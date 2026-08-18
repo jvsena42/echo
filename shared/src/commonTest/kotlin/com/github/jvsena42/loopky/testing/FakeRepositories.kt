@@ -13,6 +13,7 @@ import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ImportDraft
@@ -367,6 +368,16 @@ class FakeDiscoveryRepository : DiscoveryRepository {
         followError?.let { return Result.failure(it) }
         follows.remove(pubky)
         return Result.success(Unit)
+    }
+
+    /** Announcements written, in order — the assertion surface for the #39 consent prompt. */
+    val announcements = mutableListOf<DeckAnnouncement>()
+    var announceError: Throwable? = null
+
+    override suspend fun announceDeck(announcement: DeckAnnouncement): Result<PubkyUri> {
+        announceError?.let { return Result.failure(it) }
+        announcements.add(announcement)
+        return Result.success(PubkyUri("pubky://author/pub/pubky.app/posts/0032TESTPOST0"))
     }
 
     /** The Loopky accounts each follow list resolves to, keyed by whose list it is. */

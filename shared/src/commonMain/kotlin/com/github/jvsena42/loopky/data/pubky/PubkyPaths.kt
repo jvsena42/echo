@@ -77,6 +77,14 @@ internal object PubkyPaths {
         "${subscriptionsRoot(ownerPubky)}$authorPubky/$deckId.json"
 
     /**
+     * pubky.app post record. The id is a Crockford-base32 microsecond timestamp ([PostIds]), not
+     * content-derived — two announcements of the same deck are two posts, which is what a feed
+     * expects.
+     */
+    fun post(ownerPubky: String, postId: String): String =
+        "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/posts/$postId"
+
+    /**
      * pubky.app tag record — the namespace Nexus indexes into its **user/post** graph. Use it only
      * when the tagged subject is a pubky.app profile or post; Nexus rejects the record outright for
      * any other subject (see [loopkyTag] and Architecture.md §7.7). The id is content-derived per

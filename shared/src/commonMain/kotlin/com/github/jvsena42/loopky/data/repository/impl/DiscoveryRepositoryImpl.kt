@@ -2,6 +2,10 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.FollowDto
+import com.github.jvsena42.loopky.data.pubky.PostDto
+import com.github.jvsena42.loopky.data.pubky.PostEmbedDto
+import com.github.jvsena42.loopky.data.pubky.PostIds
+import com.github.jvsena42.loopky.data.pubky.PostKinds
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyLinks
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
@@ -19,7 +23,9 @@ import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.util.Log
@@ -92,6 +98,31 @@ class DiscoveryRepositoryImpl(
         cacheLock.withLock { cache?.remove(pubky) }
         Unit
     }
+
+    override suspend fun announceDeck(announcement: DeckAnnouncement): Result<PubkyUri> =
+        runSuspendCatching {
+            val owner = session.requireSession().identity.pubky
+            // Microseconds is what pubky-app-specs encodes, and epochMillis() is the only clock
+            // commonMain has. Two announcements inside one millisecond would land on one id, which
+            // takes two taps a millisecond apart — the id is a timestamp, not a uniqueness claim.
+            val postId = PostIds.create(epochMillis() * MICROS_PER_MILLI)
+            val body = loopkyJson.encodeToString(
+                PostDto(
+                    content = announcement.content,
+                    // The cover is what makes the post look like a deck rather than a bare link,
+                    // so it decides the kind too: `image` is how a feed knows to lead with it.
+                    kind = if (announcement.coverUrl != null) PostKinds.IMAGE else PostKinds.LINK,
+                    // A `short` embed is how Nexus spells "repost", and it then demands the
+                    // embedded URI already be an indexed post — see PostKinds.
+                    embed = PostEmbedDto(kind = PostKinds.LINK, uri = announcement.deckUri.value),
+                    attachments = announcement.coverUrl?.let { listOf(it) },
+                ),
+            )
+            val path = PubkyPaths.post(owner, postId)
+            this.pubky.putWithSessionRetry(path, body, session, revalidator).getOrThrow()
+            Log.d(TAG, "announceDeck: ${announcement.kind} -> $path")
+            PubkyUri(path)
+        }.onFailure { Log.w(TAG, "announceDeck: FAILED — ${it.message}", it) }
 
     override suspend fun followingProfiles(pubky: String): List<PubkyIdentity> {
         val followees = if (pubky == session.current()?.identity?.pubky) {
@@ -373,6 +404,9 @@ class DiscoveryRepositoryImpl(
 
         /** The segment a follow record's url carries just before the followee's pubky. */
         private const val FOLLOWS_MARKER = "/pub/pubky.app/follows/"
+
+        /** pubky-app-specs post ids are microsecond timestamps; commonMain's clock is millis. */
+        private const val MICROS_PER_MILLI = 1_000L
     }
 }
 

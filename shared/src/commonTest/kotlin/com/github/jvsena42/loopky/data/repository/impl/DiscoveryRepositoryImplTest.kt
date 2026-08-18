@@ -2,11 +2,14 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.FollowDto
+import com.github.jvsena42.loopky.data.pubky.PostDto
+import com.github.jvsena42.loopky.data.pubky.PostKinds
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Session
@@ -17,6 +20,7 @@ import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.signedInProvider
+import com.github.jvsena42.loopky.testing.testCoverImage
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
@@ -577,8 +581,78 @@ class DiscoveryRepositoryImplTest {
         assertEquals(expected = 1, actual = tagRepo.taggedRequests.count { it.first == ReservedTags.DECK })
     }
 
+    // --- announceDeck (#39) ---------------------------------------------------
+
+    @Test
+    fun `announceDeck writes a pubky app post linking the deck`() = runTest {
+        val deck = testDeck(id = "d1", title = "Kanji N5")
+
+        val uri = repo.announceDeck(
+            DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created),
+        ).getOrThrow()
+
+        // pubky.app's own namespace, not Loopky's — a Loopky-namespaced record is a generic
+        // resource and no cross-app feed reads those (Architecture.md §7.7).
+        assertTrue(uri.value.startsWith("pubky://$TEST_PUBKY/pub/pubky.app/posts/"), uri.value)
+        val postId = uri.value.substringAfterLast('/')
+        assertEquals(POST_ID_LENGTH, postId.length, postId)
+
+        val post = loopkyJson.decodeFromString<PostDto>(pubky.store.getValue(uri.value))
+        assertTrue(post.content.contains("Kanji N5"), post.content)
+        assertTrue(post.content.contains(deck.pubkyUri.value), post.content)
+        assertEquals(deck.pubkyUri.value, post.embed?.uri)
+    }
+
+    @Test
+    fun `announceDeck never embeds as a repost`() = runTest {
+        // A `short` embed is what Nexus reads as a repost, and it then blocks on the embedded URI
+        // being an already-indexed post. A deck manifest never is, so the post would sit in the
+        // retry queue forever.
+        repo.announceDeck(DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created)).getOrThrow()
+
+        val post = loopkyJson.decodeFromString<PostDto>(pubky.puts.last().second)
+        assertEquals(PostKinds.LINK, post.embed?.kind)
+    }
+
+    @Test
+    fun `announceDeck attaches the deck cover and posts it as an image`() = runTest {
+        val deck = testDeck(id = "d1", coverImageRef = testCoverImage(sha = "cafe"))
+
+        repo.announceDeck(DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created)).getOrThrow()
+
+        val post = loopkyJson.decodeFromString<PostDto>(pubky.puts.last().second)
+        assertEquals(PostKinds.IMAGE, post.kind)
+        assertEquals(
+            listOf("pubky://$TEST_PUBKY/pub/loopky/decks/d1/media/cafe.png"),
+            post.attachments,
+        )
+    }
+
+    @Test
+    fun `a coverless announcement is a link post with no attachments`() = runTest {
+        repo.announceDeck(DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created)).getOrThrow()
+
+        val post = loopkyJson.decodeFromString<PostDto>(pubky.puts.last().second)
+        assertEquals(PostKinds.LINK, post.kind)
+        assertNull(post.attachments)
+    }
+
+    @Test
+    fun `announceDeck reports failure rather than throwing`() = runTest {
+        pubky.failNextSessionCallWith = PubkyError("homeserver unreachable")
+        // Not retryable-as-session-expiry, so the revalidator does not paper over it.
+        val result = repo.announceDeck(
+            DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created),
+        )
+
+        assertTrue(result.isFailure)
+    }
+
     private companion object {
         const val NEXUS_BASE = "https://nexus.test"
+
+        /** pubky-app-specs timestamp ids are always 13 Crockford-base32 characters. */
+        const val POST_ID_LENGTH = 13
     }
 }
 
