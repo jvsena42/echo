@@ -147,7 +147,7 @@
 
     <!-- Search -->
     <string name="search_back">Back</string>
-    <string name="search_placeholder">Search people, decks or paste a pubky</string>
+    <string name="search_placeholder">Search or paste a pubky</string>
     <string name="search_clear">Clear</string>
     <string name="search_scan_qr">Scan QR code</string>
     <string name="search_hint">Search by name, or paste a pubky, a shared link or scan a QR code.</string>

@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -278,10 +279,14 @@ private fun SearchField(
             .testTag("search_input")
             .focusRequester(focusRequester),
         placeholder = {
+            // One line, always: the title slot of a top bar is narrow, and a placeholder that
+            // wraps pushes the field out of the bar.
             Text(
                 text = stringResource(R.string.search_placeholder),
                 fontSize = 15.sp,
                 color = colors.foregroundMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         },
         trailingIcon = {
