@@ -1,4 +1,4 @@
-<journey name="Discover — global browse, topics, people, add friend">
+<journey name="Discover — global browse, topics, people, search">
   <description>
     Discover with ZERO follows is the point of this journey (#26): a brand-new account must see
     real decks and real people without knowing anyone's pubky. Everything below the header comes
@@ -6,7 +6,7 @@
     published network-wide with a topical tag — journey 02 produces exactly that.
 
     If the indexer has not ingested anything yet, the browse strip shows "Nothing published here
-    yet" with an Add-a-friend CTA. That is a pass for the empty case, not a failure: verify the
+    yet" with a "Search people & decks" CTA. That is a pass for the empty case, not a failure: verify the
     honest empty state rather than skipping the journey. Confirm which case you are in with
     `curl 'https://nexus.staging.pubky.app/v0/stream/resources?app=loopky&amp;tags=loopky-deck&amp;limit=5'`
     before starting.
@@ -14,18 +14,24 @@
   <actions>
     <action>Launch the Loopky app and verify the Home screen is shown</action>
     <action>Tap the element with resource-id "tab_discover" in the bottom tab bar</action>
-    <action>Verify the Discover screen is shown (resource-id: discover_screen) with an "Add friend" button (resource-id: discover_add_friend)</action>
+    <action>Verify the Discover screen is shown (resource-id: discover_screen) with a search button (resource-id: discover_search) in the header — a magnifier, not the old "Add friend" pill</action>
     <action>Verify a "Browse decks" section is present — this is the global browse, and it must NOT require following anyone</action>
-    <action>Wait for the browse strip to settle, then verify EITHER at least one deck tile (resource-id: discover_deck_tile) OR the empty block (resource-id: discover_browse_empty) reading "Nothing published here yet" with an "Add a friend" button. There must never be a bare "Follow a friend to see their decks here" dead end.</action>
+    <action>Wait for the browse strip to settle, then verify EITHER at least one deck tile (resource-id: discover_deck_tile) OR the empty block (resource-id: discover_browse_empty) reading "Nothing published here yet" with a "Search people &amp; decks" button (resource-id: discover_browse_empty_search). There must never be a bare "Follow a friend to see their decks here" dead end.</action>
     <action>If a topic chip row is visible (resource-id: discover_topic_row), tap the first chip (resource-id: discover_topic_chip)</action>
     <action>Verify the browse heading changes to "Decks tagged “…”" and a "Clear" control appears (resource-id: discover_clear_tag). The deck list is re-queried from the indexer, so it may legitimately differ from the unfiltered list.</action>
     <action>Tap the element with resource-id "discover_clear_tag" and verify the heading returns to "Browse decks"</action>
     <action>If a "People on Loopky" strip is visible (resource-id: discover_people_row), tap the Follow pill on the first person (resource-id: discover_follow) and verify it flips to "Following" immediately</action>
     <action>Pull to refresh and verify the followed person no longer appears in the People strip — suggestions exclude people you already follow</action>
     <action>Note: the People strip is legitimately absent when the only published decks are your own, since suggestions exclude yourself. That is a pass.</action>
-    <action>Tap the element with resource-id "discover_add_friend"</action>
-    <action>Verify a bottom sheet appears with a "Paste a pubky or pubky:// link" input (resource-id: add_friend_input), a "Scan QR" button (resource-id: add_friend_scan) and an "Open" button (resource-id: add_friend_open) — these ids only surface because the sheet sets its own testTagsAsResourceId</action>
-    <action>Type your OWN pubky into the field with resource-id "add_friend_input" and tap the element with resource-id "add_friend_open"</action>
+    <action>Tap the element with resource-id "discover_search"</action>
+    <action>Verify the search screen opens (resource-id: search_screen) with the keyboard already up on the input (resource-id: search_input), a scan button (resource-id: search_scan) and the hint "Search by name, or paste a pubky…" (resource-id: search_hint)</action>
+    <action>Type the first few letters of a known Loopky display name and wait ~1s WITHOUT typing further. Verify one search runs after the pause rather than one per keystroke: a spinner (resource-id: search_loading) appears once, then a "People" section with rows (resource-id: search_person) and/or a "Decks" section (resource-id: search_deck_tile).</action>
+    <action>Verify each person row carries a Follow pill; tap it and verify it flips to "Following" immediately</action>
+    <action>Type nonsense that cannot match ("zzzqqqx") and verify the no-matches block (resource-id: search_empty) reading “Nothing found for …”, not a blank screen</action>
+    <action>Clear the box with the element with resource-id "search_clear" and verify the hint returns</action>
+    <action>Type your OWN pubky into the field with resource-id "search_input"</action>
+    <action>Verify a direct-hit row appears immediately (resource-id: search_direct_hit) reading "Open this profile" — an address needs no index, so it must NOT wait for the debounce or the network</action>
+    <action>Tap the element with resource-id "search_direct_hit"</action>
     <action>Verify your own profile is shown with NO Follow button (regression: you could follow yourself)</action>
     <action>Navigate back to Discover</action>
     <action>Turn the device radios off, pull to refresh, and verify the screen still renders: the "From people you follow" section shows an error with a working Retry, while the other strips show their own empty states. The screen must never go blank.</action>

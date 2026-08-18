@@ -33,9 +33,9 @@
     <action>Send text with no address in it: `adb shell "am start -a android.intent.action.SEND -t text/plain -e android.intent.extra.TEXT 'definitely not a link' -n com.github.jvsena42.loopky/.MainActivity"`</action>
     <action>Verify a toast says no Loopky link was found, rather than the app opening silently on whatever screen was already there</action>
 
-    <action>Tap the element with resource-id "tab_discover", then "discover_add_friend"</action>
-    <action>Paste a DECK link into the element with resource-id "add_friend_input" and tap "add_friend_open". Verify the deck opens — not its author's profile (regression: the sheet used to slice the URI by hand and could only reach people).</action>
-    <action>Reopen the sheet, type free text with no address ("just some text") and tap Open. Verify an inline error (resource-id: add_friend_error) appears rather than a tap that does nothing.</action>
-    <action>Reopen the sheet, paste the whole shared message — greeting line and address together — and verify it still opens the right screen</action>
+    <action>Tap the element with resource-id "tab_discover", then "discover_search"</action>
+    <action>Paste a DECK link into the element with resource-id "search_input" and tap the direct-hit row (resource-id: search_direct_hit), which must read "Open this deck". Verify the deck opens — not its author's profile (regression: the intake used to slice the URI by hand and could only reach people).</action>
+    <action>Go back to search, type free text with no address ("just some text") and verify it is treated as a QUERY — a people/deck search or the no-matches block (resource-id: search_empty) — with no direct-hit row offered</action>
+    <action>Go back to search, paste the whole shared message — greeting line and address together — and verify the direct-hit row still resolves the right screen</action>
   </actions>
 </journey>

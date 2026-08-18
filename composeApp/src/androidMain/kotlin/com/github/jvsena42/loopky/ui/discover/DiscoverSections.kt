@@ -229,7 +229,7 @@ fun PersonTile(
 @Composable
 fun BrowseEmptyBlock(
     selectedTag: Tag?,
-    onAddFriend: () -> Unit,
+    onSearch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
@@ -269,14 +269,15 @@ fun BrowseEmptyBlock(
         if (selectedTag == null) {
             Spacer(modifier = Modifier.size(4.dp))
             Text(
-                text = stringResource(R.string.discover_add_a_friend),
+                text = stringResource(R.string.discover_search_cta),
                 color = colors.foregroundOnAccent,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
+                    .testTag("discover_browse_empty_search")
                     .clip(RoundedCornerShape(50))
                     .background(colors.accentSecondary)
-                    .clickable(onClick = onAddFriend)
+                    .clickable(onClick = onSearch)
                     .padding(horizontal = 20.dp, vertical = 12.dp),
             )
         }
