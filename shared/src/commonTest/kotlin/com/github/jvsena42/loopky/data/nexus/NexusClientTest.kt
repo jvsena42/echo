@@ -17,6 +17,27 @@ class NexusClientTest {
         assertEquals(listOf("spanish", "spark"), client.searchTagsByPrefix("spa").getOrThrow())
     }
 
+    @Test
+    fun searchUsersByNameParsesThePubkyArray() = runTest {
+        http.respond("$BASE/v0/search/users/by_name/ada?limit=20", """["pk1","pk2"]""")
+
+        assertEquals(listOf("pk1", "pk2"), client.searchUsersByName("ada").getOrThrow())
+    }
+
+    @Test
+    fun searchUsersByNameEncodesThePrefixAndClampsTheLimit() = runTest {
+        client.searchUsersByName("ada lovelace", limit = 5000)
+
+        assertEquals("$BASE/v0/search/users/by_name/ada%20lovelace?limit=100", http.requestedUrls.single())
+    }
+
+    @Test
+    fun searchUsersByIdParsesThePubkyArray() = runTest {
+        http.respond("$BASE/v0/search/users/by_id/pk1?limit=20", """["pk1abc"]""")
+
+        assertEquals(listOf("pk1abc"), client.searchUsersById("pk1").getOrThrow())
+    }
+
     // ── resource + tagger reads (global discovery) ───────────────────────
 
     @Test

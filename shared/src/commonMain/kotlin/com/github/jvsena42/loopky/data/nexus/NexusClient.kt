@@ -32,6 +32,43 @@ class NexusClient(
     }
 
     /**
+     * Pubkys whose profile name starts with [prefix] — the people half of Loopky's search box.
+     *
+     * Indexes every pubky.app profile, not only accounts that have opened Loopky, so callers
+     * decide which matches are worth showing (see
+     * [com.github.jvsena42.loopky.data.repository.DiscoveryRepository.searchPeople]).
+     *
+     * Lexicographic on the indexed name: a prefix, not a substring. Searching "ada" finds "Ada
+     * Lovelace" and never "Grace Ada".
+     */
+    suspend fun searchUsersByName(
+        prefix: String,
+        limit: Int = DEFAULT_USER_SEARCH_LIMIT,
+    ): Result<List<String>> = runSuspendCatching {
+        val url = "$baseUrl/v0/search/users/by_name/${encodeUriComponent(prefix)}" +
+            "?limit=${limit.coerceIn(1, MAX_USER_SEARCH_LIMIT)}"
+        val body = http.get(url).getOrThrow()
+        loopkyJson.decodeFromString(ListSerializer(String.serializer()), body)
+    }
+
+    /**
+     * The same search over pubkys rather than names — someone who was handed part of a key rather
+     * than a name.
+     *
+     * Nexus rejects a prefix shorter than [MIN_USER_ID_PREFIX] characters outright, so callers
+     * must not ask below it; a full pubky needs no search at all and should be opened directly.
+     */
+    suspend fun searchUsersById(
+        prefix: String,
+        limit: Int = DEFAULT_USER_SEARCH_LIMIT,
+    ): Result<List<String>> = runSuspendCatching {
+        val url = "$baseUrl/v0/search/users/by_id/${encodeUriComponent(prefix)}" +
+            "?limit=${limit.coerceIn(1, MAX_USER_SEARCH_LIMIT)}"
+        val body = http.get(url).getOrThrow()
+        loopkyJson.decodeFromString(ListSerializer(String.serializer()), body)
+    }
+
+    /**
      * Loopky resources carrying [label], most-tagged first — the label → URIs read behind global
      * browse.
      *
@@ -124,7 +161,12 @@ class NexusClient(
         /** The `/pub/{app}/tags/` segment Loopky writes deck tag records under. */
         const val LOOPKY_APP = "loopky"
 
+        /** Nexus rejects a shorter pubky prefix than this on `/search/users/by_id`. */
+        const val MIN_USER_ID_PREFIX = 3
+
         private const val DEFAULT_SEARCH_LIMIT = 10
+        private const val DEFAULT_USER_SEARCH_LIMIT = 20
+        private const val MAX_USER_SEARCH_LIMIT = 100
         private const val DEFAULT_RESOURCE_LIMIT = 30
         private const val MAX_RESOURCE_LIMIT = 100
         private const val MAX_TAGS_PER_RESOURCE = 100
