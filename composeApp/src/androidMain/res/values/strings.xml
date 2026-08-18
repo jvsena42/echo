@@ -142,8 +142,9 @@
     <string name="discover_empty_tag_title">No decks tagged “%1$s” yet</string>
     <string name="discover_empty_tag_subtitle">Nobody has tagged a deck with this yet. Tap the tag again to see everything.</string>
     <string name="discover_add_a_friend">Add a friend</string>
-    <string name="discover_add_friend_sheet_subtitle">Paste a pubky or scan their QR code to view their profile and follow them.</string>
-    <string name="discover_paste_pubky">Paste a pubky</string>
+    <string name="discover_add_friend_sheet_subtitle">Paste a pubky, a shared link or scan a QR code. Profile links open the person, deck links open the deck.</string>
+    <string name="discover_paste_pubky">Paste a pubky or pubky:// link</string>
+    <string name="discover_add_friend_invalid">No pubky or pubky:// link in that text.</string>
     <string name="discover_scan_qr">Scan QR</string>
     <string name="discover_open">Open</string>
 
