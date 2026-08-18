@@ -28,11 +28,32 @@ data class DeckAnnouncement(
      * attached — see [attachableCoverUrl].
      */
     val coverUrl: String? = null,
+    /**
+     * The deck's topics, which the post carries twice over: as `#hashtags` in [content], and as
+     * real tag records written on the post by
+     * [com.github.jvsena42.loopky.data.repository.DiscoveryRepository.announceDeck].
+     *
+     * Both are needed and neither is redundant. The records are what Nexus indexes — they put the
+     * label in `/v0/tags/hot` and `/v0/search/posts/by_tag/{label}`. The hashtags are what a
+     * *reader* can act on: pubky.app linkifies `#tag` to its own tag search, and a bare
+     * `pubky://` URI it cannot linkify at all (see [content]).
+     */
+    val tags: List<Tag> = emptyList(),
 ) {
     enum class Kind { Created, Followed, Cloned }
 
     /**
-     * The post body, URI included.
+     * The post body: a headline, the deck's `pubky://` address, and the topics as hashtags.
+     *
+     * **The URI is deliberately left bare, and it will not be clickable everywhere.** pubky.app
+     * renders post content as markdown, and neither of the two things that could linkify it does:
+     * remark-gfm's autolink literals cover only `http(s)`, `www.` and `mailto`, and a CommonMark
+     * autolink (`<pubky://…>`) survives the parse only to have its `href` blanked by
+     * react-markdown's `defaultUrlTransform`, which allows `https?|ircs?|mailto|xmpp` and nothing
+     * else. No public HTTPS gateway maps a `pubky://` record to a browsable page either, so there
+     * is no form of this link that is both clickable *and* correct on the web. It stays the
+     * canonical address: Loopky's own deep-link filter opens it, and so does any client that
+     * linkifies unknown schemes. The hashtags carry the clickable half.
      *
      * The title and author name are truncated because they are not always the user's own:
      * announcing a follow or a clone quotes another account's manifest, and pubky-app-specs
@@ -52,7 +73,8 @@ data class DeckAnnouncement(
                 Kind.Followed -> "$icon Now following the Loopky deck $title$by"
                 Kind.Cloned -> "$icon Cloned the Loopky deck $title$by into my library"
             }
-            return "$headline\n\n${deckUri.value}"
+            val hashtags = tags.hashtagLine()
+            return "$headline\n\n${deckUri.value}" + if (hashtags.isEmpty()) "" else "\n\n$hashtags"
         }
 
     companion object {
@@ -65,6 +87,7 @@ data class DeckAnnouncement(
                 authorName = authorName,
                 coverEmoji = deck.coverEmoji,
                 coverUrl = deck.attachableCoverUrl(),
+                tags = deck.announceableTags(),
             )
 
         private const val DEFAULT_ICON = "📚"
@@ -72,6 +95,25 @@ data class DeckAnnouncement(
         private const val MAX_AUTHOR_LENGTH = 40
     }
 }
+
+/**
+ * The deck's topics, plus [ReservedTags.DECK] so the announcement is findable as a Loopky deck
+ * network-wide — the label's whole purpose, and the reason it is not filtered out here the way a
+ * hand-entered reserved label would be.
+ *
+ * Capped because every one of these costs a homeserver write on top of the post, and a post
+ * trailing twenty hashtags reads as spam in someone else's feed.
+ */
+private fun Deck.announceableTags(): List<Tag> =
+    (tags.filterNot { ReservedTags.isReserved(it) }.take(MAX_ANNOUNCEMENT_TOPICS) + ReservedTags.DECK)
+        .distinct()
+
+/** `#kanji #japanese #loopky-deck` — what pubky.app turns into links to its own tag search. */
+private fun List<Tag>.hashtagLine(): String =
+    joinToString(" ") { "#${it.value}" }
+
+/** Topics per announcement, before [ReservedTags.DECK] is appended. */
+private const val MAX_ANNOUNCEMENT_TOPICS = 5
 
 /**
  * The deck's cover image as a URL a post may attach, or null when there is nothing attachable.

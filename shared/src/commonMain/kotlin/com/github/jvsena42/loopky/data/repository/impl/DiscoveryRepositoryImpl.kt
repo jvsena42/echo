@@ -128,8 +128,36 @@ class DiscoveryRepositoryImpl(
             val path = PubkyPaths.post(owner, postId)
             this.pubky.putWithSessionRetry(path, body, session, revalidator).getOrThrow()
             Log.d(TAG, "announceDeck: ${announcement.kind} -> $path")
-            PubkyUri(path)
+            val uri = PubkyUri(path)
+            tagAnnouncement(uri, announcement.tags)
+            uri
         }.onFailure { Log.w(TAG, "announceDeck: FAILED — ${it.message}", it) }
+
+    /**
+     * Label the announcement post with the deck's topics and [ReservedTags.DECK].
+     *
+     * **This is the only way a deck's topics can ever trend.** Nexus admits a label into its
+     * global tag index only when the subject is a pubky.app post or profile
+     * (`nexus-common/src/db/graph/queries/get.rs:614-640`); a deck manifest can only be a generic
+     * resource, so the manifest tags Loopky already writes are invisible to `/v0/tags/hot`,
+     * `/v0/search/posts/by_tag/{label}` and every other app's feed. Tagging the *post* puts them
+     * all in reach. The manifest tags stay regardless — they are how Loopky finds its own decks,
+     * and they keep working when announcing is switched off (Architecture.md §7.7).
+     *
+     * Best-effort, one label at a time: the post is already written and worth having, so a tag
+     * that fails is logged and the rest still go out. Written after the post so the subject
+     * exists — Nexus retries a tag whose post it has not indexed yet, but only for a while.
+     */
+    private suspend fun tagAnnouncement(postUri: PubkyUri, tags: List<Tag>) {
+        for (tag in tags) {
+            val result = if (ReservedTags.isReserved(tag)) {
+                tagRepository.putReservedTag(postUri, tag)
+            } else {
+                tagRepository.putTag(postUri, tag)
+            }
+            result.onFailure { Log.w(TAG, "announceDeck: tag '${tag.value}' FAILED — ${it.message}") }
+        }
+    }
 
     override suspend fun followingProfiles(pubky: String): List<PubkyIdentity> {
         val followees = if (pubky == session.current()?.identity?.pubky) {

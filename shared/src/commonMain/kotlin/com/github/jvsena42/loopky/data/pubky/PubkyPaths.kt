@@ -84,6 +84,10 @@ internal object PubkyPaths {
     fun post(ownerPubky: String, postId: String): String =
         "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/posts/$postId"
 
+    /** The `posts/` directory under one account, for recognising a post URI. */
+    fun postsRoot(ownerPubky: String): String =
+        "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/posts/"
+
     /**
      * pubky.app tag record — the namespace Nexus indexes into its **user/post** graph. Use it only
      * when the tagged subject is a pubky.app profile or post; Nexus rejects the record outright for

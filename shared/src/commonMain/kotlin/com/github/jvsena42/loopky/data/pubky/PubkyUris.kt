@@ -24,6 +24,21 @@ internal object PubkyUris {
     }
 
     /**
+     * True when [uri] is exactly some user's pubky.app post record.
+     *
+     * Same job as [isProfile]: deciding which namespace a tag record on this subject belongs in.
+     * Nexus indexes a tag into the post/user graph only for these two shapes — see
+     * [com.github.jvsena42.loopky.data.repository.impl.TagRepositoryImpl].
+     */
+    fun isPost(uri: String): Boolean {
+        val owner = ownerOf(uri) ?: return false
+        val root = PubkyPaths.postsRoot(owner)
+        if (!uri.startsWith(root)) return false
+        val id = uri.removePrefix(root)
+        return id.isNotEmpty() && '/' !in id
+    }
+
+    /**
      * Parse a deck manifest URI back into its author and deck id, or `null` if [uri] is not
      * exactly `pubky://{author}/pub/loopky/decks/{deckId}/manifest.json`.
      *

@@ -641,6 +641,35 @@ class DiscoveryRepositoryImplTest {
     }
 
     @Test
+    fun `announceDeck tags the post with the deck topics and loopky-deck`() = runTest {
+        val deck = testDeck(id = "d1", tags = listOf(Tag("kanji"), Tag("japanese")))
+
+        val postUri = repo.announceDeck(
+            DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created),
+        ).getOrThrow()
+
+        // The subject is the *post*, not the manifest — a manifest tag is a generic resource and
+        // resource tags never trend (Architecture.md §7.7).
+        assertEquals(
+            listOf(postUri to Tag("kanji"), postUri to Tag("japanese")),
+            tagRepo.putTags,
+        )
+        assertEquals(listOf(postUri to ReservedTags.DECK), tagRepo.putReservedTags)
+    }
+
+    @Test
+    fun `a tag that fails still leaves the announcement standing`() = runTest {
+        tagRepo.failWith = IllegalStateException("indexer unreachable")
+
+        val result = repo.announceDeck(
+            DeckAnnouncement.of(testDeck(tags = listOf(Tag("kanji"))), DeckAnnouncement.Kind.Created),
+        )
+
+        assertTrue(result.isSuccess)
+        assertTrue(pubky.store.containsKey(result.getOrThrow().value))
+    }
+
+    @Test
     fun `announceDeck writes nothing while sharing is off`() = runTest {
         preferences.setShareOnPubky(false)
 

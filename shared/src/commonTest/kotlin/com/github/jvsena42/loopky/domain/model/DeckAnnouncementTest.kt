@@ -16,7 +16,7 @@ class DeckAnnouncementTest {
         val content = DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).content
 
         assertTrue(content.startsWith("📚 I published a new deck on Loopky: Kanji N5"), content)
-        assertTrue(content.endsWith("pubky://$TEST_PUBKY/pub/loopky/decks/d1/manifest.json"), content)
+        assertTrue(content.contains("pubky://$TEST_PUBKY/pub/loopky/decks/d1/manifest.json"), content)
     }
 
     @Test
@@ -85,6 +85,45 @@ class DeckAnnouncementTest {
         val long = "https://img.test/" + "q".repeat(200)
         val deck = testDeck(coverImageRef = testCoverImage().copy(path = "", sha256 = "", url = long))
         assertNull(DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).coverUrl)
+    }
+
+    @Test
+    fun `the body carries the deck topics as hashtags, plus loopky-deck`() {
+        val deck = testDeck(title = "Kanji N5", tags = listOf(Tag("kanji"), Tag("japanese")))
+
+        val content = DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).content
+
+        // pubky.app linkifies #tag to its own tag search; it cannot linkify the pubky:// URI at
+        // all, so these are the clickable half of the post.
+        assertTrue(content.endsWith("#kanji #japanese #loopky-deck"), content)
+    }
+
+    @Test
+    fun `a deck with no topics still announces itself as a Loopky deck`() {
+        val announcement = DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created)
+
+        assertEquals(listOf(ReservedTags.DECK), announcement.tags)
+        assertTrue(announcement.content.endsWith("#loopky-deck"), announcement.content)
+    }
+
+    @Test
+    fun `topics are capped so a post does not trail twenty hashtags`() {
+        val many = (1..12).map { Tag("topic$it") }
+        val announcement = DeckAnnouncement.of(testDeck(tags = many), DeckAnnouncement.Kind.Created)
+
+        // Five topics plus the reserved label; each costs a homeserver write of its own.
+        assertEquals(expected = 6, actual = announcement.tags.size)
+        assertEquals(ReservedTags.DECK, announcement.tags.last())
+    }
+
+    @Test
+    fun `a reserved label smuggled onto a deck is not re-announced`() {
+        val deck = testDeck(tags = listOf(Tag("loopky-user"), Tag("kanji")))
+
+        assertEquals(
+            listOf(Tag("kanji"), ReservedTags.DECK),
+            DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created).tags,
+        )
     }
 
     @Test
