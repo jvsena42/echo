@@ -375,9 +375,12 @@ private fun DeckGrid(decks: List<FriendDeck>, onOpenDeck: (String) -> Unit) {
             ) {
                 row.forEach { deck ->
                     DeckTile(
+                        deckId = deck.id,
+                        authorPubky = deck.authorPubky,
                         title = deck.title,
                         cardCount = deck.cardCount,
                         coverEmoji = deck.coverEmoji,
+                        coverImage = deck.coverImage,
                         authorLabel = deck.tags.firstOrNull()?.let { "#$it" } ?: "",
                         onClick = { onOpenDeck(deck.id) },
                         modifier = Modifier
@@ -456,6 +459,7 @@ private fun previewState(isFollowing: Boolean) = FriendProfileUiState(
     decks = listOf(
         FriendDeck(
             id = "1",
+            authorPubky = "grace1xqz9",
             title = "Debugging 101",
             cardCount = 18,
             coverEmoji = "🐛",
@@ -463,6 +467,7 @@ private fun previewState(isFollowing: Boolean) = FriendProfileUiState(
         ),
         FriendDeck(
             id = "2",
+            authorPubky = "grace1xqz9",
             title = "Naval history",
             cardCount = 30,
             coverEmoji = "⚓",

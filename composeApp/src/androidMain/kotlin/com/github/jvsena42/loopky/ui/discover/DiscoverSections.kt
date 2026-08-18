@@ -138,9 +138,12 @@ fun DeckRow(
     ) {
         decks.forEach { deck ->
             DeckTile(
+                deckId = deck.id,
+                authorPubky = deck.authorPubky,
                 title = deck.title,
                 cardCount = deck.cardCount,
                 coverEmoji = deck.coverEmoji,
+                coverImage = deck.coverImage,
                 authorLabel = deck.author.label(),
                 onClick = { onOpenDeck(deck.authorPubky, deck.id) },
                 onAuthorClick = { onOpenAuthor(deck.authorPubky) },
