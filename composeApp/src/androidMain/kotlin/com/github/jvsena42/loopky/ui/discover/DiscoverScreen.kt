@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,9 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -325,18 +325,14 @@ private fun DiscoverHeader(onSearch: () -> Unit) {
         )
         // A magnifier alone, and the platform's own button: what the icon means needs no label,
         // and search reaches everything the old "Add friend" pill did — pasting a pubky is one of
-        // the things it accepts, rather than the only thing.
-        FilledIconButton(
-            onClick = onSearch,
-            modifier = Modifier.testTag("discover_search"),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = colors.accentSecondarySoft,
-                contentColor = colors.accentSecondary,
-            ),
-        ) {
+        // the things it accepts, rather than the only thing. Styled like the Decks header's search
+        // button so the two tab headers read as the same furniture.
+        IconButton(onClick = onSearch, modifier = Modifier.testTag("discover_search")) {
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = stringResource(R.string.discover_search),
+                tint = colors.foregroundPrimary,
+                modifier = Modifier.size(24.dp),
             )
         }
     }
