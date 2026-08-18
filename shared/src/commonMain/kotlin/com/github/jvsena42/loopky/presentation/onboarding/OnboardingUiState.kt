@@ -4,7 +4,13 @@ import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.Session
 
 sealed interface OnboardingUiState {
-    /** Initial/resting state — CTA enabled. */
+    /**
+     * Cold start: the persisted session is being read back. The UI shows the branded splash
+     * here, so a returning user never sees the sign-in CTA flash by on the way home.
+     */
+    data object Restoring : OnboardingUiState
+
+    /** Resting state — no session to restore, CTA enabled. */
     data object Idle : OnboardingUiState
 
     /** Calling `startAuthFlow`, no deeplink yet. CTA disabled, spinner on button. */

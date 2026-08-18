@@ -6,7 +6,6 @@ import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -31,7 +29,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -45,6 +42,7 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingEffect
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingUiState
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingViewModel
+import com.github.jvsena42.loopky.ui.components.FoxPlate
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
@@ -113,6 +111,11 @@ private fun OnboardingContent(
     onSignInClick: () -> Unit,
     onGetRingClick: () -> Unit,
 ) {
+    if (state is OnboardingUiState.Restoring) {
+        SplashContent()
+        return
+    }
+
     val colors = LoopkyTheme.colors
     val isWorking = state is OnboardingUiState.Starting ||
         state is OnboardingUiState.AwaitingApproval ||
@@ -136,18 +139,15 @@ private fun OnboardingContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(160.dp)
-                    .clip(CircleShape)
-                    .background(colors.accentPrimarySoft),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(text = "\uD83E\uDD8A", fontSize = 96.sp)
-            }
+            FoxPlate(
+                size = 160.dp,
+                shape = CircleShape,
+                glyphSize = 96.sp,
+                containerColor = colors.accentPrimarySoft,
+            )
             Spacer(Modifier.height(20.dp))
             Text(
-                text = stringResource(R.string.onboarding_hero_title),
+                text = stringResource(R.string.brand_tagline),
                 color = colors.foregroundPrimary,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -181,15 +181,12 @@ private fun BrandRow() {
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(colors.accentPrimary),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(text = "\uD83E\uDD8A", fontSize = 24.sp)
-        }
+        FoxPlate(
+            size = 44.dp,
+            shape = RoundedCornerShape(BRAND_BADGE_RADIUS),
+            glyphSize = 24.sp,
+            containerColor = colors.accentPrimary,
+        )
         Spacer(Modifier.width(10.dp))
         Text(
             text = stringResource(R.string.onboarding_brand_name),
@@ -259,6 +256,58 @@ private fun CtaBlock(
                 fontWeight = FontWeight.SemiBold,
             )
         }
+    }
+}
+
+/**
+ * The branded splash. Drawn while the persisted session is being read back, and deliberately a
+ * continuation of the system splash window (same cream surface, same fox on the same accent
+ * circle, same position) so the two read as one screen — this one just adds the words.
+ */
+@Composable
+private fun SplashContent() {
+    val colors = LoopkyTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.surfacePrimary)
+            .padding(horizontal = 32.dp)
+            .testTag("splash"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        FoxPlate(
+            size = 160.dp,
+            shape = CircleShape,
+            glyphSize = 96.sp,
+            containerColor = colors.accentPrimarySoft,
+        )
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = stringResource(R.string.onboarding_brand_name),
+            color = colors.foregroundPrimary,
+            fontSize = 30.sp,
+            fontWeight = FontWeight.ExtraBold,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = stringResource(R.string.brand_tagline),
+            color = colors.foregroundSecondary,
+            fontSize = 16.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 22.sp,
+        )
+    }
+}
+
+/** Matches the launcher's rounded-square mask, so the badge reads as the app icon. */
+private val BRAND_BADGE_RADIUS = 14.dp
+
+@Preview
+@Composable
+private fun SplashContentPreview() {
+    LoopkyTheme {
+        SplashContent()
     }
 }
 

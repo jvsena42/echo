@@ -1772,7 +1772,7 @@
         }
       }
     },
-    "onboarding_hero_title": {
+    "brand_tagline": {
       "extractionState": "manual",
       "localizations": {
         "en": {

@@ -24,14 +24,26 @@ struct OnboardingScreen: View {
     }
 
     var body: some View {
-        OnboardingView(
-            isWorking: isWorking,
-            errorMessage: errorMessage,
-            onSignInTapped: { viewModel.onSignInClick() },
-            onInstallTapped: { viewModel.onGetRingClick() }
-        )
+        Group {
+            if isRestoring {
+                SplashView()
+            } else {
+                OnboardingView(
+                    isWorking: isWorking,
+                    errorMessage: errorMessage,
+                    onSignInTapped: { viewModel.onSignInClick() },
+                    onInstallTapped: { viewModel.onGetRingClick() }
+                )
+            }
+        }
         .onAppear { attachEffects() }
         .onDisappear { viewModel.onDispose() }
+    }
+
+    /// Cold start, still reading the persisted session back. Showing the splash here keeps a
+    /// returning user from seeing the sign-in CTA flash by on the way home.
+    private var isRestoring: Bool {
+        state.value is OnboardingUiStateRestoring
     }
 
     private var isWorking: Bool {

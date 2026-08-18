@@ -13,6 +13,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.data.pubky.PubkyLink
 import com.github.jvsena42.loopky.ui.nav.LoopkyNavHost
@@ -32,6 +33,10 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Swaps Theme.Loopky.Starting for Theme.Loopky. Must run before super.onCreate, and it
+        // hands straight off to SplashContent — the splash window and that screen are drawn to
+        // look the same, so there is no flash between them.
+        installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         intent?.let(::consume)
