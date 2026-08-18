@@ -117,12 +117,21 @@ points here rather than restating them.
 
 ## Git
 
+- **Branch off `main` before touching anything.** Never commit onto `main` — start a
+  `feat/…` / `fix/…` branch first, even for a one-line change.
+- **Finish the work by opening a PR.** Push the branch and `gh pr create` against `main`; the
+  change isn't delivered while it only exists locally.
 - **Always use atomic commits.** Each commit should capture one logical, self-contained change.
   Don't bundle unrelated changes (e.g. a feature plus a refactor plus a formatting sweep) into a
   single commit — split them so each commit can be reviewed and reverted independently.
 - **Don't run lint/build after every small edit.** Builds and lint (`./gradlew detektAll`,
   `assembleDebug`, etc.) are slow — run them at the end of a plan or at strategic checkpoints, not
   continuously. Verify at those points, then commit.
+- **Verify UI changes on a device with `android-cli`, not just by building.** `android run --apks
+  composeApp/build/outputs/apk/debug/composeApp-debug.apk`, drive the screen with `adb shell input
+  tap`, read the result with `android layout` (flat JSON list, fastest way to assert on text) and
+  `android screen capture -o <file>` for the look of it. A green `assembleDebug` says nothing about
+  what the screen renders.
 - Write focused, descriptive commit messages that explain the change and its rationale.
 - **Use commit history as context when investigating why a change was made.** Before changing or
   reverting code, check `git log`/`git blame` (e.g. `git log -p <file>`, `git blame -L`) — the commit
