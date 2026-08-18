@@ -3,12 +3,15 @@ package com.github.jvsena42.loopky.presentation.importflow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
+import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.FormError
@@ -17,6 +20,7 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.frontBackOf
+import com.github.jvsena42.loopky.presentation.share.DeckSharePrompt
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
 import com.github.jvsena42.loopky.util.generateId
@@ -30,6 +34,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -39,6 +44,8 @@ class PublishDeckViewModel(
     private val deckRepository: DeckRepository,
     private val identityRepository: IdentityRepository,
     private val mediaRepository: MediaRepository,
+    private val discoveryRepository: DiscoveryRepository,
+    private val appPreferences: AppPreferences,
 ) : ViewModel() {
     private val _state = MutableStateFlow(PublishDeckUiState())
     val state: StateFlow<PublishDeckUiState> = _state.asStateFlow()
@@ -51,6 +58,13 @@ class PublishDeckViewModel(
 
     /** The deck id of the publish in flight, so a cancel knows what to sweep. */
     private var publishingDeckId: String? = null
+
+    /**
+     * The deck as published, kept for the share prompt — an announcement quotes the title, the
+     * cover and the manifest URI, none of which the UI state carries in one piece. Cleared by an
+     * undo so a deck the user took back can never be announced.
+     */
+    private var publishedDeck: Deck? = null
 
     init {
         val draft = importRepository.currentDraft()
@@ -158,6 +172,7 @@ class PublishDeckViewModel(
                 .onSuccess {
                     Log.d(TAG, "publish: SUCCESS deckId=$deckId")
                     publishingDeckId = null
+                    publishedDeck = deck
                     _state.update {
                         it.copy(
                             isPublishing = false,
@@ -277,6 +292,7 @@ class PublishDeckViewModel(
             deckRepository.delete(deckId)
                 .onSuccess {
                     Log.d(TAG, "undo: SUCCESS deckId=$deckId")
+                    publishedDeck = null
                     _state.update {
                         it.copy(publishedDeckId = null, undoSecondsRemaining = 0, error = null)
                     }
@@ -291,8 +307,7 @@ class PublishDeckViewModel(
     fun onDonePublish() {
         val deckId = _state.value.publishedDeckId ?: return
         undoCountdownJob?.cancel()
-        importRepository.clear()
-        viewModelScope.launch { _effects.emit(PublishDeckEffect.Published(deckId)) }
+        viewModelScope.launch { settle(deckId) }
     }
 
     private fun startUndoCountdown(deckId: String) {
@@ -304,9 +319,67 @@ class PublishDeckViewModel(
                 remaining -= 1
                 _state.update { it.copy(undoSecondsRemaining = remaining) }
             }
-            importRepository.clear()
-            _effects.emit(PublishDeckEffect.Published(deckId))
+            settle(deckId)
         }
+    }
+
+    /**
+     * The undo window is over — by tapping Done or by letting it run out — so the deck is real and
+     * the user can be asked about announcing it (#39).
+     *
+     * Deliberately not asked *during* the window: a post about a deck that gets deleted a second
+     * later advertises nothing. Undo clears [publishedDeck], so the path that reaches here after an
+     * undo asks nothing and posts nothing.
+     */
+    private suspend fun settle(deckId: String) {
+        importRepository.clear()
+        val deck = publishedDeck
+        if (deck != null && appPreferences.shareOnPubky.first()) {
+            _state.update {
+                it.copy(
+                    sharePrompt = DeckSharePrompt(
+                        DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created),
+                    ),
+                )
+            }
+            return
+        }
+        _effects.emit(PublishDeckEffect.Published(deckId))
+    }
+
+    /** Post the announcement, then leave regardless — a failed post is not a failed publish. */
+    fun onShareConfirm() {
+        val prompt = _state.value.sharePrompt?.takeIf { !it.isPosting } ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(sharePrompt = prompt.copy(isPosting = true)) }
+            discoveryRepository.announceDeck(prompt.announcement)
+                .onSuccess { _effects.emit(PublishDeckEffect.Shared) }
+                .onFailure { err ->
+                    Log.e(TAG, "share: FAILED — ${err.message}", err)
+                    _effects.emit(PublishDeckEffect.ShareFailed)
+                }
+            dismissSharePrompt()
+        }
+    }
+
+    fun onShareDismiss() {
+        if (_state.value.sharePrompt?.isPosting == true) return
+        viewModelScope.launch { dismissSharePrompt() }
+    }
+
+    /** Declines *and* turns the offer off, so the prompt and the Settings switch stay one setting. */
+    fun onShareNeverAsk() {
+        if (_state.value.sharePrompt?.isPosting == true) return
+        viewModelScope.launch {
+            appPreferences.setShareOnPubky(false)
+            dismissSharePrompt()
+        }
+    }
+
+    private suspend fun dismissSharePrompt() {
+        val deckId = _state.value.publishedDeckId
+        _state.update { it.copy(sharePrompt = null) }
+        deckId?.let { _effects.emit(PublishDeckEffect.Published(it)) }
     }
 
     /** Maps the kept triage rows to [Card]s, uploading any per-row images attached during triage. */
@@ -415,6 +488,8 @@ data class PublishDeckUiState(
     val publishedCardCount: Int = 0,
     val publishedDeckId: String? = null,
     val undoSecondsRemaining: Int = 0,
+    /** Set once the undo window resolves, when the user has not opted out of being asked (#39). */
+    val sharePrompt: DeckSharePrompt? = null,
     val listenEnabled: Boolean = true,
     val speakEnabled: Boolean = true,
     val coverImageUrl: String? = null,
@@ -432,4 +507,8 @@ data class PublishDeckUiState(
 sealed interface PublishDeckEffect {
     data object NavigateBack : PublishDeckEffect
     data class Published(val deckId: String) : PublishDeckEffect
+
+    /** The announcement post went out, or didn't. Cosmetic either way — the deck is published. */
+    data object Shared : PublishDeckEffect
+    data object ShareFailed : PublishDeckEffect
 }

@@ -29,8 +29,9 @@ import kotlinx.serialization.encodeToString
  * **Which namespace the record goes in is decided by the subject**, because Nexus has two ingest
  * paths and picks between them on the record's own path (Architecture.md §7.7):
  *
- * - subject is a pubky.app `profile.json` → [PubkyPaths.tag], the pubky.app namespace, indexed
- *   into the user graph (reachable from `/v0/tags/taggers/{label}`);
+ * - subject is a pubky.app `profile.json` or `posts/{id}` → [PubkyPaths.tag], the pubky.app
+ *   namespace, indexed into the user/post graph — the only one `/v0/tags/hot`,
+ *   `/v0/tags/taggers/{label}` and `/v0/search/posts/by_tag/{label}` can see;
  * - anything else, i.e. a deck manifest → [PubkyPaths.loopkyTag], indexed as a generic resource
  *   (reachable from `/v0/stream/resources?app=loopky`).
  *
@@ -197,9 +198,15 @@ private fun requireReserved(tag: Tag): Result<Unit> =
         )
     }
 
-/** See [TagRepositoryImpl]: Nexus routes on the record's own namespace, so the subject picks it. */
+/**
+ * See [TagRepositoryImpl]: Nexus routes on the record's own namespace, so the subject picks it.
+ *
+ * Posts join profiles on the pubky.app side as of #39: a deck announcement is a post, and tagging
+ * it is the only way a deck's topics can reach the global tag index — a manifest can only ever be
+ * a generic resource, and resource tags never trend (Architecture.md §7.7).
+ */
 private fun recordPath(owner: String, subjectUri: PubkyUri, tagId: String): String =
-    if (PubkyUris.isProfile(subjectUri.value)) {
+    if (PubkyUris.isProfile(subjectUri.value) || PubkyUris.isPost(subjectUri.value)) {
         PubkyPaths.tag(owner, tagId)
     } else {
         PubkyPaths.loopkyTag(owner, tagId)

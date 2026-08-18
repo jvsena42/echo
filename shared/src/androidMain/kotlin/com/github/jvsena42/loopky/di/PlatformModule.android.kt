@@ -4,7 +4,9 @@ import com.github.jvsena42.loopky.data.nexus.AndroidHttpFetcher
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
 import com.github.jvsena42.loopky.data.pubky.AndroidPubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
+import com.github.jvsena42.loopky.data.storage.AndroidAppPreferences
 import com.github.jvsena42.loopky.data.storage.AndroidSecureSessionStore
+import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.platform.AndroidMediaProcessor
@@ -28,6 +30,7 @@ fun androidPlatformModule(unsplashAccessKey: String): Module = module {
     single<PubkyClient> { AndroidPubkyClient() }
     single<HttpFetcher> { AndroidHttpFetcher() }
     single<SecureSessionStore> { AndroidSecureSessionStore(androidContext()) }
+    single<AppPreferences> { AndroidAppPreferences(androidContext()) }
     single<Speaker> { AndroidSpeaker(androidContext()) }
     single<MediaProcessor> { AndroidMediaProcessor() }
     single<SpeechRecognizer> { AndroidSpeechRecognizer(androidContext()) }

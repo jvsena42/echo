@@ -11,8 +11,10 @@ import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
+import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ImportDraft
@@ -31,9 +33,13 @@ import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.domain.model.review
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRepository {
     var signOutCount = 0
@@ -369,6 +375,16 @@ class FakeDiscoveryRepository : DiscoveryRepository {
         return Result.success(Unit)
     }
 
+    /** Announcements written, in order — the assertion surface for the #39 consent prompt. */
+    val announcements = mutableListOf<DeckAnnouncement>()
+    var announceError: Throwable? = null
+
+    override suspend fun announceDeck(announcement: DeckAnnouncement): Result<PubkyUri> {
+        announceError?.let { return Result.failure(it) }
+        announcements.add(announcement)
+        return Result.success(PubkyUri("pubky://author/pub/pubky.app/posts/0032TESTPOST0"))
+    }
+
     /** The Loopky accounts each follow list resolves to, keyed by whose list it is. */
     var followingByUser: Map<String, List<PubkyIdentity>> = emptyMap()
     var followersByUser: Map<String, List<PubkyIdentity>> = emptyMap()
@@ -631,5 +647,18 @@ class FailingChunkCardRepository(
         if (written >= failAfter) return Result.failure(IllegalStateException("upload died"))
         written++
         return delegate.writeChunk(deckId, chunk, cards)
+    }
+}
+
+/** [AppPreferences] in memory, starting from the production defaults. */
+class FakeAppPreferences(shareOnPubky: Boolean = true) : AppPreferences {
+    private val _shareOnPubky = MutableStateFlow(shareOnPubky)
+    override val shareOnPubky: Flow<Boolean> = _shareOnPubky.asStateFlow()
+
+    /** The current value, for a test that asserts on it without collecting. */
+    val shareOnPubkyValue: Boolean get() = _shareOnPubky.value
+
+    override suspend fun setShareOnPubky(enabled: Boolean) {
+        _shareOnPubky.update { enabled }
     }
 }

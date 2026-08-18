@@ -3,15 +3,19 @@ package com.github.jvsena42.loopky.presentation.decks
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.ChunkMeta
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.MediaRef
+import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeCardRepository
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
+import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -21,6 +25,9 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -33,6 +40,8 @@ class DeckEditorViewModelTest {
 
     private val identityRepo = FakeIdentityRepository()
     private val deckRepo = FakeDeckRepository()
+    private val discoveryRepo = FakeDiscoveryRepository()
+    private val preferences = FakeAppPreferences()
     private val cardRepo = FakeCardRepository()
 
     private val mainDispatcher = StandardTestDispatcher()
@@ -90,12 +99,14 @@ class DeckEditorViewModelTest {
         )
     }
 
-    private fun viewModel() = DeckEditorViewModel(
-        deckId = "deck1",
+    private fun viewModel(deckId: String? = "deck1") = DeckEditorViewModel(
+        deckId = deckId,
         deckRepository = deckRepo,
         cardRepository = cardRepo,
         identityRepository = identityRepo,
         mediaRepository = FakeMediaRepository(),
+        discoveryRepository = discoveryRepo,
+        appPreferences = preferences,
     )
 
     @Test
@@ -251,5 +262,96 @@ class DeckEditorViewModelTest {
 
         val (_, cards) = deckRepo.published.single()
         assertTrue(cards.any { it.id == newCardId }, "the new card was not published")
+    }
+
+    // ── share on Pubky (#39) ─────────────────────────────────────────────
+
+    @Test
+    fun `creating a deck in the editor offers to announce it`() = runTest(mainDispatcher) {
+        val vm = viewModel(deckId = null)
+        advanceUntilIdle()
+        vm.onTitleChanged("Kanji N5")
+
+        vm.onSaveClick()
+        advanceUntilIdle()
+
+        val prompt = assertNotNull(vm.state.value.sharePrompt)
+        assertEquals(DeckAnnouncement.Kind.Created, prompt.kind)
+        assertTrue(prompt.preview.contains("Kanji N5"), prompt.preview)
+        assertTrue(discoveryRepo.announcements.isEmpty())
+    }
+
+    @Test
+    fun `editing an existing deck never offers and never posts`() = runTest(mainDispatcher) {
+        // save() republishes the whole manifest on every edit, so announcing from the success path
+        // unconditionally would post again every time someone fixed a typo.
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Kanji N5")
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onTitleChanged("Kanji N5 revised")
+
+        vm.onSaveClick()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.sharePrompt)
+        assertTrue(discoveryRepo.announcements.isEmpty())
+    }
+
+    @Test
+    fun `accepting the offer posts and then leaves for the new deck`() = runTest(mainDispatcher) {
+        val vm = viewModel(deckId = null)
+        advanceUntilIdle()
+        vm.onTitleChanged("Kanji N5")
+        val effects = mutableListOf<DeckEditorEffect>()
+        val job = launch { vm.effects.collect { effects.add(it) } }
+
+        vm.onSaveClick()
+        advanceUntilIdle()
+        // The editor stays put while the offer is up; navigating would take it off screen.
+        assertTrue(effects.isEmpty())
+
+        vm.onShareConfirm()
+        advanceUntilIdle()
+        job.cancel()
+
+        assertEquals(expected = 1, actual = discoveryRepo.announcements.size)
+        assertEquals(expected = 2, actual = effects.size)
+        assertEquals(DeckEditorEffect.Shared, effects.first())
+        assertIs<DeckEditorEffect.SaveSuccess>(effects.last())
+    }
+
+    @Test
+    fun `declining leaves for the new deck without posting`() = runTest(mainDispatcher) {
+        val vm = viewModel(deckId = null)
+        advanceUntilIdle()
+        vm.onTitleChanged("Kanji N5")
+        val effects = mutableListOf<DeckEditorEffect>()
+        val job = launch { vm.effects.collect { effects.add(it) } }
+
+        vm.onSaveClick()
+        advanceUntilIdle()
+        vm.onShareDismiss()
+        advanceUntilIdle()
+        job.cancel()
+
+        assertTrue(discoveryRepo.announcements.isEmpty())
+        assertIs<DeckEditorEffect.SaveSuccess>(effects.single())
+    }
+
+    @Test
+    fun `with sharing off the save leaves immediately`() = runTest(mainDispatcher) {
+        preferences.setShareOnPubky(false)
+        val vm = viewModel(deckId = null)
+        advanceUntilIdle()
+        vm.onTitleChanged("Kanji N5")
+        val effects = mutableListOf<DeckEditorEffect>()
+        val job = launch { vm.effects.collect { effects.add(it) } }
+
+        vm.onSaveClick()
+        advanceUntilIdle()
+        job.cancel()
+
+        assertNull(vm.state.value.sharePrompt)
+        assertIs<DeckEditorEffect.SaveSuccess>(effects.single())
     }
 }

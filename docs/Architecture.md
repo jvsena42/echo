@@ -257,6 +257,14 @@ A future Gradle task can automate this; not worth building until the fork stabil
 Keystore-backed EncryptedSharedPreferences, `IosSecureSessionStore` wraps the Keychain.
 Secrets never touch multiplatform-settings or ad-hoc storage.
 
+Non-secret user preferences go through a *separate* interface in the same package,
+`AppPreferences` — `AndroidAppPreferences` over `SharedPreferences`, `IosAppPreferences` over
+`NSUserDefaults`. Deliberately not the same door: `SecureSessionStore` pays keystore/keychain
+costs for the session, and a boolean the user flipped in Settings has no business sharing it.
+Device-local for v1; a preference that has to survive a reinstall belongs in a
+`/pub/loopky/settings.json` record, and this interface is the seam that would move. First
+tenant is `shareOnPubky` (#39).
+
 ### 7.6 Nexus indexer (global reads)
 
 Global questions a single homeserver cannot answer — trending tags, prefix search, "which
@@ -335,10 +343,58 @@ client-side from `/v0/stream/resources?app=loopky&sorting=taggers_count` — whi
 distinct decks carry them. The stream returns each resource's *whole* label list with per-label
 tagger counts, which is what makes this possible from a single call.
 
-**4. Why not announcement posts.** Making deck topics trend for real would mean minting a
-pubky.app post per published deck and tagging the post. That is a public write to the user's
-social feed on their behalf, which is what #39 ("Ask before announcing on Pubky") exists to
-gate — so it belongs there, not in the tag layer.
+**4. Announcement posts (#39) are how deck topics reach the global index.** A post is a `Post`
+target where a manifest can only be a resource, so `DiscoveryRepository.announceDeck` writes the
+deck's topics **and `loopky-deck` onto the post**, on top of the manifest tags. A deck is
+therefore labelled in both graphs, each for what it can do: the post tags reach
+`/v0/search/posts/by_tag/{label}`, `/v0/tags/hot` and every other app's feed; the manifest tags
+are how Loopky finds its own decks and keep working when announcing is switched off. **Post
+subjects route to the pubky.app namespace**, alongside profiles — a post tag under
+`/pub/loopky/tags/` does reach the same handler today, but only because `sync_put_resource`
+delegates `Post|User` subjects back to `sync_put`, which is an implementation detail rather than
+a contract.
+
+The post itself is a public write to the user's social feed on their behalf, which is why it sits
+behind #39's per-action consent prompt and default-on switch.
+
+Verified against staging: `/v0/search/posts/by_tag/kanjitest` and `/by_tag/loopky-deck` both
+return the announcement, while the manifest's own tags still resolve from `/v0/resource/by-uri`.
+
+Two things the post record has to get right, both silent when wrong:
+
+- **The embed kind must be `link`, never `short`.** Nexus reads a short embed as a *repost* and
+  makes the embedded URI a dependency that must already be an indexed post
+  (`nexus-common/src/models/post/relationships.rs:117-121`). A deck manifest never is, so such a
+  post parks in the retry queue and is never indexed.
+- **The deck cover goes in the body, not in `attachments`.** pubky.app resolves a post's
+  attachments strictly as pubky.app **file records** — it calls `FileController.getMetadata` on
+  each URI and builds an image URL from the returned file id — so any other URI renders nothing at
+  all (`PostAttachments.tsx`). What it *does* render is the first `http(s)` link in the **content**:
+  it runs that through an OpenGraph probe and, when the response is an image content-type, shows
+  the image inline (`GenericPreview.tsx`, `detectMediaType`). So the cover travels as a plain URL
+  in the body. Nothing linkifies `pubky://`, so the cover is always the first link found whatever
+  order the body is in.
+- **A homeserver-blob cover cannot be shown on the web at all.** Only a web (Unsplash) cover has an
+  `http(s)` URL; a gallery upload has only a `pubky://` one, which the OpenGraph probe — an
+  ordinary HTTP fetch — cannot follow. Showing those means giving the cover a pubky.app **blob +
+  file record**, and a blob's id is Crockford-base32 of blake3 over its bytes, strictly validated
+  on ingest (`PubkyAppBlob::create_id`, `HashId::validate_id`). Neither platform ships blake3, the
+  FFI exposes only `create_tag_id`, and there is no Kotlin Multiplatform blake3 on Maven Central —
+  so this is blocked on an FFI addition, not on a few lines of Kotlin.
+- **Nothing makes the `pubky://` URI clickable on the web, so do not try again.** pubky.app
+  renders post content as markdown and neither path linkifies it: remark-gfm's autolink literals
+  cover only `http(s)`, `www.` and `mailto`, and a CommonMark autolink (`<pubky://…>`) survives
+  the parse only to have its `href` blanked by react-markdown 10's `defaultUrlTransform`, which
+  permits `https?|ircs?|mailto|xmpp` and nothing else. No public HTTPS gateway maps a `pubky://`
+  record to a browsable page either. What *is* clickable in pubky.app is `#hashtags` (→ its tag
+  search) and `pk:`/`pubky` + 52 chars (→ a profile, rendered as `@DisplayName`) — neither of
+  which is a substitute for the deck link.
+- **Post ids are timestamp-derived, not content-derived.** `TimestampId::create_id` is
+  Crockford-base32 of the 8 big-endian bytes of a microsecond Unix timestamp — always 13 chars —
+  and `validate_id` only checks the length, the decode, and that the time is after 2024-10-01 and
+  under two hours ahead. The FFI exposes no helper (`create_tag_id` only), so `PostIds` mints them
+  in pure Kotlin. That is safe here in a way hand-rolling a tag id would not be: a tag id has to
+  match a blake3 derivation byte for byte.
 
 **5. The universal path does not validate or sanitize.** Unlike the pubky.app path it checks
 neither the tag id against the body nor the label's casing

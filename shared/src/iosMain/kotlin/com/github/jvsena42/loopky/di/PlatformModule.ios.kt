@@ -5,6 +5,8 @@ import com.github.jvsena42.loopky.data.nexus.IosHttpFetcher
 import com.github.jvsena42.loopky.data.pubky.IosPubkyClientAdapter
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.RawPubkyClient
+import com.github.jvsena42.loopky.data.storage.AppPreferences
+import com.github.jvsena42.loopky.data.storage.IosAppPreferences
 import com.github.jvsena42.loopky.data.storage.IosSecureSessionStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.platform.IosSpeaker
@@ -47,6 +49,7 @@ private fun iosPlatformModule(rawPubkyClient: RawPubkyClient): Module = module {
     single<PubkyClient> { IosPubkyClientAdapter(rawPubkyClient) }
     single<HttpFetcher> { IosHttpFetcher() }
     single<SecureSessionStore> { IosSecureSessionStore() }
+    single<AppPreferences> { IosAppPreferences() }
     single<Speaker> { IosSpeaker() }
 }
 

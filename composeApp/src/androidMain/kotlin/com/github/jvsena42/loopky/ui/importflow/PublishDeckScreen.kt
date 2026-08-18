@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -76,9 +77,11 @@ import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
+import com.github.jvsena42.loopky.ui.components.SharePromptBody
 import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.components.formErrorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.toast
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -91,12 +94,15 @@ fun PublishDeckRoute(
 
     val currentBack by rememberUpdatedState(onBack)
     val currentPublished by rememberUpdatedState(onPublished)
+    val context = LocalContext.current
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 PublishDeckEffect.NavigateBack -> currentBack()
                 is PublishDeckEffect.Published -> currentPublished(effect.deckId)
+                PublishDeckEffect.Shared -> context.toast(R.string.share_prompt_posted)
+                PublishDeckEffect.ShareFailed -> context.toast(R.string.share_prompt_failed)
             }
         }
     }
@@ -116,6 +122,9 @@ fun PublishDeckRoute(
         onCancelPublish = viewModel::onCancelPublish,
         onUndoPublish = viewModel::onUndoPublish,
         onDonePublish = viewModel::onDonePublish,
+        onShareConfirm = viewModel::onShareConfirm,
+        onShareDismiss = viewModel::onShareDismiss,
+        onShareNeverAsk = viewModel::onShareNeverAsk,
         onBackClick = viewModel::onBackClick,
     )
 }
@@ -137,6 +146,9 @@ private fun PublishDeckScreen(
     onCancelPublish: () -> Unit,
     onUndoPublish: () -> Unit,
     onDonePublish: () -> Unit,
+    onShareConfirm: () -> Unit,
+    onShareDismiss: () -> Unit,
+    onShareNeverAsk: () -> Unit,
     onBackClick: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
@@ -156,6 +168,9 @@ private fun PublishDeckScreen(
             state = state,
             onUndoPublish = onUndoPublish,
             onDonePublish = onDonePublish,
+            onShareConfirm = onShareConfirm,
+            onShareDismiss = onShareDismiss,
+            onShareNeverAsk = onShareNeverAsk,
         )
         return
     }
@@ -831,6 +846,9 @@ private fun PublishedContent(
     state: PublishDeckUiState,
     onUndoPublish: () -> Unit,
     onDonePublish: () -> Unit,
+    onShareConfirm: () -> Unit,
+    onShareDismiss: () -> Unit,
+    onShareNeverAsk: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
 
@@ -872,33 +890,70 @@ private fun PublishedContent(
 
         Spacer(Modifier.height(10.dp))
 
-        // Done button
-        LoopkyPrimaryButton(
-            label = stringResource(R.string.publish_done),
-            onClick = onDonePublish,
-            modifier = Modifier
-                .testTag("publish_done")
-                .fillMaxWidth(),
-        )
-
-        // Undo button with countdown
-        Row(
-            modifier = Modifier
-                .testTag("publish_undo")
-                .fillMaxWidth()
-                .clip(CircleShape)
-                .border(1.5.dp, colors.borderSubtle, CircleShape)
-                .clickable(onClick = onUndoPublish)
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.publish_undo, state.undoSecondsRemaining),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = colors.foregroundPrimary,
+        // The share prompt replaces Done/Undo rather than stacking a dialog over them: by the
+        // time it appears the undo window is over, so those two controls are spent (#39).
+        val prompt = state.sharePrompt
+        if (prompt != null) {
+            SharePromptBody(
+                prompt = prompt,
+                modifier = Modifier.fillMaxWidth(),
+                onNeverAsk = onShareNeverAsk,
             )
+            LoopkyPrimaryButton(
+                label = stringResource(R.string.share_prompt_confirm),
+                onClick = onShareConfirm,
+                enabled = !prompt.isPosting,
+                modifier = Modifier
+                    .testTag("share_prompt_confirm")
+                    .fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier
+                    .testTag("share_prompt_dismiss")
+                    .fillMaxWidth()
+                    .clip(CircleShape)
+                    .border(1.5.dp, colors.borderSubtle, CircleShape)
+                    .clickable(enabled = !prompt.isPosting, onClick = onShareDismiss)
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.share_prompt_dismiss),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.foregroundPrimary,
+                )
+            }
+        } else {
+            // Done button
+            LoopkyPrimaryButton(
+                label = stringResource(R.string.publish_done),
+                onClick = onDonePublish,
+                modifier = Modifier
+                    .testTag("publish_done")
+                    .fillMaxWidth(),
+            )
+
+            // Undo button with countdown
+            Row(
+                modifier = Modifier
+                    .testTag("publish_undo")
+                    .fillMaxWidth()
+                    .clip(CircleShape)
+                    .border(1.5.dp, colors.borderSubtle, CircleShape)
+                    .clickable(onClick = onUndoPublish)
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.publish_undo, state.undoSecondsRemaining),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.foregroundPrimary,
+                )
+            }
         }
 
         // Error
@@ -933,6 +988,9 @@ private fun PublishDeckScreenPreview() {
             onCancelPublish = {},
             onUndoPublish = {},
             onDonePublish = {},
+            onShareConfirm = {},
+            onShareDismiss = {},
+            onShareNeverAsk = {},
             onBackClick = {},
         )
     }
@@ -963,6 +1021,9 @@ private fun PublishDeckPublishingPreview() {
             onCancelPublish = {},
             onUndoPublish = {},
             onDonePublish = {},
+            onShareConfirm = {},
+            onShareDismiss = {},
+            onShareNeverAsk = {},
             onBackClick = {},
         )
     }

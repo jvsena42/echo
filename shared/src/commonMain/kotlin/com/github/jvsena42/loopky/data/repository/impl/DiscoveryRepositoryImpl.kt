@@ -2,6 +2,10 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.FollowDto
+import com.github.jvsena42.loopky.data.pubky.PostDto
+import com.github.jvsena42.loopky.data.pubky.PostEmbedDto
+import com.github.jvsena42.loopky.data.pubky.PostIds
+import com.github.jvsena42.loopky.data.pubky.PostKinds
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyLinks
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
@@ -18,8 +22,11 @@ import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
+import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.util.Log
@@ -27,6 +34,7 @@ import com.github.jvsena42.loopky.util.epochMillis
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -44,9 +52,9 @@ import kotlinx.serialization.encodeToString
  * account's own decks. Those already have a home in Library, and on a young network they are
  * otherwise most of what Discover has to show. [decksByTag] is deliberately not one of them.
  */
-// Eight collaborators is a lot, but every one is a distinct source this repo has to join —
-// homeserver, session, deck/tag/identity repos, indexer — and folding any pair into a wrapper
-// would exist only to shorten this list.
+// Nine collaborators is a lot, but every one is a distinct source this repo has to join —
+// homeserver, session, deck/tag/identity repos, indexer, and the share preference that gates
+// announcing — and folding any pair into a wrapper would exist only to shorten this list.
 @Suppress("LongParameterList")
 class DiscoveryRepositoryImpl(
     private val pubky: PubkyClient,
@@ -56,6 +64,7 @@ class DiscoveryRepositoryImpl(
     private val tagRepository: TagRepository,
     private val identityRepository: IdentityRepository,
     private val nexus: NexusClient,
+    private val preferences: AppPreferences,
 ) : DiscoveryRepository {
 
     /** Followee pubkys for the session, or null until first loaded from the homeserver. */
@@ -91,6 +100,65 @@ class DiscoveryRepositoryImpl(
             .getOrThrow()
         cacheLock.withLock { cache?.remove(pubky) }
         Unit
+    }
+
+    override suspend fun announceDeck(announcement: DeckAnnouncement): Result<PubkyUri> =
+        runSuspendCatching {
+            // The gate lives next to the write, not only in the callers. "Off" in #39 means
+            // nothing reaches the homeserver, and three separate ViewModels each remembering to
+            // check is three chances to post behind the user's back.
+            check(preferences.shareOnPubky.first()) { "Sharing on Pubky is turned off" }
+            val owner = session.requireSession().identity.pubky
+            // Microseconds is what pubky-app-specs encodes, and epochMillis() is the only clock
+            // commonMain has. Two announcements inside one millisecond would land on one id, which
+            // takes two taps a millisecond apart — the id is a timestamp, not a uniqueness claim.
+            val postId = PostIds.create(epochMillis() * MICROS_PER_MILLI)
+            val body = loopkyJson.encodeToString(
+                PostDto(
+                    content = announcement.content,
+                    // A link post either way: the body always carries the deck's URI, and the
+                    // cover — when there is one — travels as a link in the body too rather than
+                    // as an attachment. `attachments` is left empty on purpose; pubky.app
+                    // resolves it strictly as pubky.app file records and renders nothing for
+                    // anything else, so a URL there was invisible. See DeckAnnouncement.content.
+                    kind = PostKinds.LINK,
+                    // A `short` embed is how Nexus spells "repost", and it then demands the
+                    // embedded URI already be an indexed post — see PostKinds.
+                    embed = PostEmbedDto(kind = PostKinds.LINK, uri = announcement.deckUri.value),
+                ),
+            )
+            val path = PubkyPaths.post(owner, postId)
+            this.pubky.putWithSessionRetry(path, body, session, revalidator).getOrThrow()
+            Log.d(TAG, "announceDeck: ${announcement.kind} -> $path")
+            val uri = PubkyUri(path)
+            tagAnnouncement(uri, announcement.tags)
+            uri
+        }.onFailure { Log.w(TAG, "announceDeck: FAILED — ${it.message}", it) }
+
+    /**
+     * Label the announcement post with the deck's topics and [ReservedTags.DECK].
+     *
+     * **This is the only way a deck's topics can ever trend.** Nexus admits a label into its
+     * global tag index only when the subject is a pubky.app post or profile
+     * (`nexus-common/src/db/graph/queries/get.rs:614-640`); a deck manifest can only be a generic
+     * resource, so the manifest tags Loopky already writes are invisible to `/v0/tags/hot`,
+     * `/v0/search/posts/by_tag/{label}` and every other app's feed. Tagging the *post* puts them
+     * all in reach. The manifest tags stay regardless — they are how Loopky finds its own decks,
+     * and they keep working when announcing is switched off (Architecture.md §7.7).
+     *
+     * Best-effort, one label at a time: the post is already written and worth having, so a tag
+     * that fails is logged and the rest still go out. Written after the post so the subject
+     * exists — Nexus retries a tag whose post it has not indexed yet, but only for a while.
+     */
+    private suspend fun tagAnnouncement(postUri: PubkyUri, tags: List<Tag>) {
+        for (tag in tags) {
+            val result = if (ReservedTags.isReserved(tag)) {
+                tagRepository.putReservedTag(postUri, tag)
+            } else {
+                tagRepository.putTag(postUri, tag)
+            }
+            result.onFailure { Log.w(TAG, "announceDeck: tag '${tag.value}' FAILED — ${it.message}") }
+        }
     }
 
     override suspend fun followingProfiles(pubky: String): List<PubkyIdentity> {
@@ -373,6 +441,9 @@ class DiscoveryRepositoryImpl(
 
         /** The segment a follow record's url carries just before the followee's pubky. */
         private const val FOLLOWS_MARKER = "/pub/pubky.app/follows/"
+
+        /** pubky-app-specs post ids are microsecond timestamps; commonMain's clock is millis. */
+        private const val MICROS_PER_MILLI = 1_000L
     }
 }
 
