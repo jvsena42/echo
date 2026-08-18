@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.FakeSrsRepository
 import com.github.jvsena42.loopky.testing.fakeSession
 import com.github.jvsena42.loopky.testing.testCard
+import com.github.jvsena42.loopky.testing.testCoverImage
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -309,5 +310,18 @@ class HomeViewModelTest {
         assertIs<HomeUiState.Error>(vm.state.value)
         assertEquals(expected = 0, actual = identityRepo.signOutCount)
         assertTrue(effects.isEmpty())
+    }
+
+    @Test
+    fun deckSummaryCarriesTheCoverImage() = runTest(mainDispatcher) {
+        val cover = testCoverImage()
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", coverImageRef = cover)
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        // Today's deck rows drew the title initial only; the ref never reached them.
+        val summary = assertIs<HomeUiState.Content>(vm.state.value).decks.single()
+        assertEquals(cover, summary.coverImage)
     }
 }

@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
@@ -298,6 +299,7 @@ internal fun List<Deck>.toCards(authors: Map<String, PubkyIdentity>): List<Disco
         title = deck.title,
         cardCount = deck.cardCount,
         coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.toString() ?: FALLBACK_EMOJI,
+        coverImage = deck.coverImageRef,
         author = authors[deck.authorPubky] ?: bareIdentity(deck.authorPubky),
         tags = deck.tags.map { it.value },
     )
@@ -344,6 +346,8 @@ data class DiscoverDeck(
     val title: String,
     val cardCount: Int,
     val coverEmoji: String,
+    /** The deck's cover art, when it has one. Renders over [coverEmoji]; null falls back to it. */
+    val coverImage: MediaRef.Image? = null,
     val author: PubkyIdentity,
     val tags: List<String>,
 )

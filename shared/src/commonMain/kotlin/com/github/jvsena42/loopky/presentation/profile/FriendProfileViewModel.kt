@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -170,9 +171,11 @@ class FriendProfileViewModel(
 
     private fun Deck.toCard(): FriendDeck = FriendDeck(
         id = id,
+        authorPubky = authorPubky,
         title = title,
         cardCount = cardCount,
         coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
+        coverImage = coverImageRef,
         tags = tags.map { it.value },
     )
 
@@ -204,9 +207,13 @@ data class FriendProfileUiState(
 
 data class FriendDeck(
     val id: String,
+    /** Whose homeserver the deck — and its cover blob — lives on. */
+    val authorPubky: String,
     val title: String,
     val cardCount: Int,
     val coverEmoji: String,
+    /** The deck's cover art, when it has one. Renders over [coverEmoji]; null falls back to it. */
+    val coverImage: MediaRef.Image? = null,
     val tags: List<String>,
 )
 

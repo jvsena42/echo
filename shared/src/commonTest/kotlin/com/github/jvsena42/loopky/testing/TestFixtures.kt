@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.ChunkMeta
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.Tag
@@ -80,6 +81,15 @@ fun testCard(
     ord = ord,
 )
 
+/** A blob-backed cover image, as a published deck's manifest carries one. */
+fun testCoverImage(sha: String = "abc123"): MediaRef.Image = MediaRef.Image(
+    path = "media/$sha.png",
+    mime = "image/png",
+    sha256 = sha,
+    width = null,
+    height = null,
+)
+
 fun testDeck(
     id: String = "deck1",
     authorPubky: String = TEST_PUBKY,
@@ -89,13 +99,14 @@ fun testDeck(
     chunks: List<ChunkMeta> = emptyList(),
     createdAt: Long = 1_000L,
     updatedAt: Long = 2_000L,
+    coverImageRef: MediaRef.Image? = null,
 ): Deck = Deck(
     id = id,
     authorPubky = authorPubky,
     title = title,
     description = null,
     coverEmoji = null,
-    coverImageRef = null,
+    coverImageRef = coverImageRef,
     tags = tags,
     createdAt = createdAt,
     updatedAt = updatedAt,
