@@ -33,6 +33,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.domain.model.review
+import com.github.jvsena42.loopky.platform.BackgroundTasks
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
@@ -706,5 +707,14 @@ class FakeAppPreferences(shareOnPubky: Boolean = true) : AppPreferences {
 
     override suspend fun setShareOnPubky(enabled: Boolean) {
         _shareOnPubky.update { enabled }
+    }
+}
+
+class FakeBackgroundTasks : BackgroundTasks {
+    var scheduled = 0
+        private set
+
+    override fun scheduleMediaRehost() {
+        scheduled++
     }
 }
