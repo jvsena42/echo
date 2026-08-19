@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.di
 
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
 import com.github.jvsena42.loopky.data.nexus.IosHttpFetcher
+import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.IosPubkyClientAdapter
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.RawPubkyClient
@@ -40,19 +41,27 @@ import org.koin.mp.KoinPlatform
  * pass-through implemented in `iosApp/iosApp/Pubky/IosPubkyClient.swift`); it is wrapped into
  * the shared [PubkyClient] contract by [IosPubkyClientAdapter] on the Kotlin side, because
  * `kotlin.Result` and suspend functions cannot be implemented from Swift.
+ *
+ * [nexusBaseUrl] is the Pubky Nexus indexer, which differs between environments — Swift passes
+ * staging under `#if DEBUG` and production otherwise. No default, so a release build cannot
+ * silently fall back to staging (#42).
  */
-fun doInitKoin(rawPubkyClient: RawPubkyClient) {
+fun doInitKoin(rawPubkyClient: RawPubkyClient, nexusBaseUrl: String) {
     startKoin {
-        modules(sharedModule, iosPlatformModule(rawPubkyClient))
+        modules(sharedModule, iosPlatformModule(rawPubkyClient, nexusBaseUrl))
     }
     // BGTaskScheduler rejects a handler registered after the app has finished launching, so this
     // cannot be deferred to the first schedule (#53).
     (KoinPlatform.getKoin().get<BackgroundTasks>() as? IosBackgroundTasks)?.register()
 }
 
-private fun iosPlatformModule(rawPubkyClient: RawPubkyClient): Module = module {
+private fun iosPlatformModule(
+    rawPubkyClient: RawPubkyClient,
+    nexusBaseUrl: String,
+): Module = module {
     single<PubkyClient> { IosPubkyClientAdapter(rawPubkyClient) }
     single<HttpFetcher> { IosHttpFetcher() }
+    single { NexusClient(http = get(), baseUrl = nexusBaseUrl) }
     single<SecureSessionStore> { IosSecureSessionStore() }
     single<AppPreferences> { IosAppPreferences() }
     single<Speaker> { IosSpeaker() }

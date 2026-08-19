@@ -1,6 +1,5 @@
 package com.github.jvsena42.loopky.di
 
-import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.MutableSessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
@@ -46,8 +45,10 @@ import org.koin.dsl.module
 
 /**
  * Shared commonMain Koin module. Platform modules must additionally provide bindings for
- * [com.github.jvsena42.loopky.data.pubky.PubkyClient] and
- * [com.github.jvsena42.loopky.data.storage.SecureSessionStore].
+ * [com.github.jvsena42.loopky.data.pubky.PubkyClient],
+ * [com.github.jvsena42.loopky.data.storage.SecureSessionStore] and
+ * [com.github.jvsena42.loopky.data.nexus.NexusClient] — the last because its base URL is
+ * build-type dependent (staging for debug, production for release; #42).
  */
 val sharedModule = module {
     single { MutableSessionProvider() }
@@ -73,7 +74,6 @@ val sharedModule = module {
         DiscoveryRepositoryImpl(get(), get(), get(), get(), get(), get(), get(), get())
     }
 
-    single { NexusClient(http = get()) }
     single<TagRepository> {
         TagRepositoryImpl(pubky = get(), session = get(), revalidator = get(), nexus = get())
     }

@@ -24,6 +24,7 @@ import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.avatarDisplayUrl
 import com.github.jvsena42.loopky.domain.model.avatarInitial
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import org.koin.compose.koinInject
 
 /**
  * Someone's avatar: their picture when they have set one, otherwise the initial [AuthorRow] and
@@ -54,8 +55,11 @@ fun PubkyAvatar(
             color = colors.accentSecondary,
         )
         // Not identity.avatarUrl: that is a `pubky://` file URI Coil cannot fetch, so every
-        // avatar silently failed to the initial below. See [avatarDisplayUrl].
-        val pictureUrl = identity.avatarDisplayUrl(NexusClient.DEFAULT_BASE_URL)
+        // avatar silently failed to the initial below. See [avatarDisplayUrl]. Resolved against
+        // the injected indexer rather than a constant so it follows the build type (#42) —
+        // guarded so a @Preview, which has no Koin graph, still renders the initial.
+        val pictureUrl = identity.avatarUrl?.takeIf { it.isNotBlank() }
+            ?.let { identity.avatarDisplayUrl(koinInject<NexusClient>().baseUrl) }
         if (pictureUrl != null) {
             AsyncImage(
                 model = pictureUrl,
