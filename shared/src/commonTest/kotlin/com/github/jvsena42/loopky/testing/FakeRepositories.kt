@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.data.repository.PublishProgress
+import com.github.jvsena42.loopky.data.repository.RehostOutcome
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
@@ -98,6 +99,16 @@ class FakeDeckRepository : DeckRepository {
         rehostedBlobs.add(deckId to sha256)
         return Result.success(Unit)
     }
+
+    val sweeps = mutableListOf<String>()
+
+    override suspend fun rehostPendingMedia(deckId: String, maxChunks: Int): Result<RehostOutcome> {
+        sweeps.add(deckId)
+        return Result.success(RehostOutcome(0, 0, 0, 0, complete = true))
+    }
+
+    override suspend fun decksPendingRehost(): List<Deck> =
+        decks.values.filter { it.source?.kind == DeckSource.Kind.Clone && !it.mediaRehosted }
 
     private val _changes = MutableSharedFlow<Unit>(
         extraBufferCapacity = 8,

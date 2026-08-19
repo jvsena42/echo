@@ -146,6 +146,32 @@ interface DeckRepository {
      * dangling rather than written into the card, because a 404 today may be an outage tomorrow.
      */
     suspend fun rehostBlob(deckId: String, sha256: String): Result<Unit>
+
+    /**
+     * Re-host the blobs [rehostBlob] never sees, so a clone becomes fully self-contained instead
+     * of only partially (#53). Walks the deck's chunks from its persisted cursor, copying every
+     * ref still pinned to another author, at most [maxChunks] chunks per call.
+     *
+     * Budgeted in **chunks, not blobs**: a 200-chunk deck with media in ten of them still costs
+     * 200 reads to find them, so a blob budget would never terminate the run.
+     *
+     * Resumable and idempotent. The chunk record is the durable unit — it is written as each chunk
+     * is processed — while the manifest, and with it the cursor, is patched every
+     * [REHOST_MANIFEST_BATCH] chunks and once at the end. Re-running from a stale cursor re-reads
+     * a few clean chunks and copies nothing, because a re-hosted ref no longer carries a `uri`.
+     *
+     * A no-op for a deck you do not own, and for one already marked [Deck.mediaRehosted].
+     */
+    suspend fun rehostPendingMedia(
+        deckId: String,
+        maxChunks: Int = DEFAULT_REHOST_CHUNK_BUDGET,
+    ): Result<RehostOutcome>
+
+    /**
+     * Decks of yours whose media may still be pinned to another author — clones that have not
+     * completed a sweep. What the background job iterates.
+     */
+    suspend fun decksPendingRehost(): List<Deck>
     suspend fun listOwned(): List<Deck>
 
     /** Public decks for any author (their homeserver, read-only). Powers friend profiles + Discover. */
@@ -630,6 +656,32 @@ interface SrsRepository {
      */
     fun flushAsync()
 }
+
+/** How far one [DeckRepository.rehostPendingMedia] pass got. */
+data class RehostOutcome(
+    val chunksScanned: Int,
+    val rehosted: Int,
+    /**
+     * Origins that are gone — the author deleted the blob. Counted separately from [failed]
+     * because nothing will ever fix them: letting a 404 block completion would sweep the deck
+     * forever, on every device, for a blob that is not coming back.
+     */
+    val missing: Int,
+    /** Transient failures — an outage, a rate limit. These keep the deck pending. */
+    val failed: Int,
+    /** True when the pass reached the end of the deck with no transient failures. */
+    val complete: Boolean,
+)
+
+/**
+ * Chunks one [DeckRepository.rehostPendingMedia] call will read before returning, so a background
+ * run that is killed partway keeps its progress. Deliberately well inside WorkManager's ~10 minute
+ * window for a media-heavy deck.
+ */
+const val DEFAULT_REHOST_CHUNK_BUDGET = 25
+
+/** Chunks processed per manifest patch. The chunk record is the durable unit; see the KDoc. */
+const val REHOST_MANIFEST_BATCH = 10
 
 /**
  * A blob just served from another author's homeserver, on a deck the signed-in user owns — a
