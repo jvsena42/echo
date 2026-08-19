@@ -1,11 +1,14 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.sha256Hex
+import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.signedInProvider
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -170,5 +173,91 @@ class MediaRepositoryImplTest {
 
         // A card's image must not re-download on every recomposition.
         assertEquals(gets, pubky.gets.size)
+    }
+
+    // ── pinned-blob signal (#65) ─────────────────────────────────────────
+
+    /** A ref pointing at [author]'s copy of [sha], as `absolutizedTo` writes one at clone time. */
+    private fun pinnedRef(sha: String = "abc", author: String = "friendpk"): MediaRef.Image {
+        val origin = "pubky://$author/pub/loopky/decks/original/media/$sha.jpg"
+        pubky.store[origin] = Base64.encode(bytes)
+        return MediaRef.Image(
+            path = "media/$sha.jpg",
+            mime = "image/jpeg",
+            sha256 = sha,
+            width = null,
+            height = null,
+            uri = origin,
+        )
+    }
+
+    @Test
+    fun getSignalsAPinnedBlobOnAnOwnedDeck() = runTest {
+        repo.get(TEST_PUBKY, "my-clone", pinnedRef()).getOrThrow()
+
+        assertEquals(listOf(PinnedBlob("my-clone", "abc")), repo.pinnedFetches.replayCache)
+    }
+
+    @Test
+    fun getDoesNotSignalForADeckYouDoNotOwn() = runTest {
+        // A deck you follow, not one you cloned. Copying its blobs would write them under your
+        // own pubky at a deckId you do not own and cannot edit.
+        repo.get("friendpk", "their-deck", pinnedRef()).getOrThrow()
+
+        assertEquals(emptyList(), repo.pinnedFetches.replayCache)
+    }
+
+    @Test
+    fun getDoesNotSignalForABlobAlreadyUnderThisDeck() = runTest {
+        val ref = repo.putImage("deck1", bytes, "image/jpeg").getOrThrow()
+
+        repo.get(TEST_PUBKY, "deck1", ref).getOrThrow()
+
+        assertEquals(emptyList(), repo.pinnedFetches.replayCache)
+    }
+
+    @Test
+    fun getDoesNotSignalForARemoteWebImage() = runTest {
+        // Re-hosting an Unsplash photo's bytes would breach their licence, so `absolutizedTo`
+        // never pins one. Guarded here too rather than assumed upstream.
+        val ref = pinnedRef().copy(url = "https://images.unsplash.com/photo-1")
+
+        repo.get(TEST_PUBKY, "my-clone", ref).getOrThrow()
+
+        assertEquals(emptyList(), repo.pinnedFetches.replayCache)
+    }
+
+    @Test
+    fun getDoesNotSignalWhenTheFetchFails() = runTest {
+        pubky.failGetWith = PubkyError("homeserver down")
+
+        assertTrue(repo.get(TEST_PUBKY, "my-clone", pinnedRef()).isFailure)
+        assertEquals(emptyList(), repo.pinnedFetches.replayCache)
+    }
+
+    @Test
+    fun pinnedFetchesReachACollectorThatSubscribedLater() = runTest {
+        // DeckRepositoryImpl is a lazy Koin single, so it may not exist when the first card
+        // renders. Without replay the signal would emit into nothing and the blob would stay
+        // pinned until the deferred sweep noticed.
+        repo.get(TEST_PUBKY, "my-clone", pinnedRef()).getOrThrow()
+
+        assertEquals(PinnedBlob("my-clone", "abc"), repo.pinnedFetches.first())
+    }
+
+    @Test
+    fun deleteResolvesUnderTheSessionAuthorAndNeverTouchesTheOrigin() = runTest {
+        val ref = pinnedRef()
+        val origin = ref.uri!!
+
+        // A clone's media that has not been re-hosted yet has no blob under the clone, so this
+        // 404s. Benign — but it must not reach through the uri and delete the author's copy.
+        repo.delete("my-clone", ref)
+
+        assertTrue(origin in pubky.store, "deleted the original author's blob")
+        assertEquals(
+            listOf("pubky://$TEST_PUBKY/pub/loopky/decks/my-clone/media/abc.jpg"),
+            pubky.deletes,
+        )
     }
 }

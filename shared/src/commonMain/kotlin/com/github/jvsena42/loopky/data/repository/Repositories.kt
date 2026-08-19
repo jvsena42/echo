@@ -612,11 +612,32 @@ interface SrsRepository {
 }
 
 /**
+ * A blob just served from another author's homeserver, on a deck the signed-in user owns — a
+ * clone that has not re-hosted this one yet.
+ */
+data class PinnedBlob(val deckId: String, val sha256: String)
+
+/**
  * Blob storage for image and audio media referenced by cards. Blobs live under the owning
  * deck's Pubky path (`/pub/loopky/decks/{deckId}/media/{sha256}.{ext}`) so they sync with the
  * deck and dedupe by content hash.
  */
 interface MediaRepository {
+
+    /**
+     * Emits after a successful [get] of a ref still pinned to another author's blob, on a deck
+     * the signed-in user owns — the moment at which the blob is worth copying, since the bytes
+     * are already in hand.
+     *
+     * Only a signal: persisting the re-hosted ref is [DeckRepository.rehostBlob]'s job, because
+     * a card's chunk and the manifest entry describing it have to be written as a pair. Keeping
+     * that here would make the blob store depend on the deck layout.
+     *
+     * **Best-effort by design.** The deferred sweep (#53) is the backstop, so a dropped signal
+     * costs latency, not correctness.
+     */
+    val pinnedFetches: SharedFlow<PinnedBlob>
+
     suspend fun putImage(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Image>
     suspend fun putAudio(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Audio>
 

@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
+import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
@@ -598,6 +599,14 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
 class FakeMediaRepository : MediaRepository {
     val putImages = mutableListOf<Triple<String, ByteArray, String>>()
 
+    private val _pinnedFetches = MutableSharedFlow<PinnedBlob>(replay = 16, extraBufferCapacity = 16)
+    override val pinnedFetches: SharedFlow<PinnedBlob> = _pinnedFetches.asSharedFlow()
+
+    /** Drive the collector under test without going through a real fetch. */
+    fun emitPinnedFetch(deckId: String, sha256: String) {
+        _pinnedFetches.tryEmit(PinnedBlob(deckId, sha256))
+    }
+
     override suspend fun putImage(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Image> {
         putImages.add(Triple(deckId, bytes, mime))
         return Result.success(
@@ -619,7 +628,27 @@ class FakeMediaRepository : MediaRepository {
         return Result.success(ByteArray(0))
     }
 
-    override suspend fun rehost(deckId: String, ref: MediaRef): Result<MediaRef> = Result.success(ref)
+    val rehosts = mutableListOf<Pair<String, MediaRef>>()
+
+    /** When set, the next [rehost] fails with this instead of copying. */
+    var failRehostWith: Throwable? = null
+
+    /**
+     * Mirrors the real implementation: the copy lands under [deckId] and the ref stops pointing
+     * at the origin. An identity pass-through would make any write-back logic driven through this
+     * fake invisible.
+     */
+    override suspend fun rehost(deckId: String, ref: MediaRef): Result<MediaRef> {
+        rehosts.add(deckId to ref)
+        failRehostWith?.let { return Result.failure(it) }
+        if (ref.uri == null) return Result.success(ref)
+        return Result.success(
+            when (ref) {
+                is MediaRef.Image -> ref.copy(uri = null)
+                is MediaRef.Audio -> ref.copy(uri = null)
+            },
+        )
+    }
 
     override suspend fun delete(deckId: String, ref: MediaRef): Result<Unit> = Result.success(Unit)
 }
