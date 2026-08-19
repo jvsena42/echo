@@ -48,7 +48,7 @@ class DeckAnnouncementTest {
     }
 
     @Test
-    fun `a web cover goes in the body, where a reader's client will look for it`() {
+    fun `a web cover goes in the body where a reader's client will look for it`() {
         val deck = testDeck(
             coverImageRef = testCoverImage().copy(path = "", sha256 = "", url = "https://img.test/c.jpg"),
         )

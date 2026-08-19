@@ -622,7 +622,7 @@ class DiscoveryRepositoryImplTest {
     }
 
     @Test
-    fun `the deck cover travels in the body, never as an attachment`() = runTest {
+    fun `the deck cover travels in the body rather than as an attachment`() = runTest {
         val deck = testDeck(
             coverImageRef = testCoverImage().copy(path = "", sha256 = "", url = "https://img.test/c.jpg"),
         )
