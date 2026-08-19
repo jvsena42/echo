@@ -31,6 +31,7 @@ import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
+import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
 import com.github.jvsena42.loopky.util.generateId
@@ -60,6 +61,7 @@ class DeckRepositoryImpl(
     private val revalidator: SessionRevalidator,
     private val tagRepo: TagRepository,
     private val mediaRepo: MediaRepository,
+    private val backgroundTasks: BackgroundTasks,
     /**
      * App-scoped, like `SrsRepositoryImpl`'s: re-hosting outlives whatever screen triggered it, so
      * it cannot run on a `viewModelScope` that dies in `onCleared()`. Injectable so tests can pass
@@ -532,7 +534,16 @@ class DeckRepositoryImpl(
 
     override suspend fun listOwned(): List<Deck> {
         val author = session.current()?.identity?.pubky ?: return emptyList()
-        return listByAuthor(author)
+        val owned = listByAuthor(author)
+
+        // The self-heal. There is no single app-start hook — session restore is spread across
+        // ViewModels — but this runs whenever Home or the library loads, and the job is unique
+        // work with KEEP, so asking again costs nothing. Recovers a dropped inline signal or a
+        // sweep the system cancelled.
+        if (owned.any { it.source?.kind == DeckSource.Kind.Clone && !it.mediaRehosted }) {
+            backgroundTasks.scheduleMediaRehost()
+        }
+        return owned
     }
 
     /**
@@ -750,6 +761,11 @@ class DeckRepositoryImpl(
                 Log.e(TAG, "clone: unfollowing ${source.id} failed — ${it.message}", it)
             }
         }
+
+        // A fresh clone's media is entirely pinned to the source author. Scheduled from the repo
+        // rather than a ViewModel so it is not a screen's responsibility to remember, and so it is
+        // testable in commonTest.
+        backgroundTasks.scheduleMediaRehost()
 
         Log.d(TAG, "clone: ${source.id} -> $newId (${cards.size} cards)")
         published

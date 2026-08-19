@@ -16,10 +16,12 @@ import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FailingChunkCardRepository
+import com.github.jvsena42.loopky.testing.FakeBackgroundTasks
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
+import com.github.jvsena42.loopky.testing.deckRepository
 import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
@@ -41,14 +43,7 @@ class DeckRepositoryImplTest {
     private val revalidator = CountingRevalidator()
     private val tagRepo = RecordingTagRepository()
     private val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
-    private val repo = DeckRepositoryImpl(
-        pubky = pubky,
-        session = session,
-        cardRepo = cardRepo,
-        revalidator = revalidator,
-        tagRepo = tagRepo,
-        mediaRepo = FakeMediaRepository(),
-    )
+    private val repo = deckRepository(pubky, session, cardRepo, revalidator, tagRepo)
 
     private val deckRoot = "pubky://$TEST_PUBKY/pub/loopky/decks/deck1"
 
@@ -186,7 +181,7 @@ class DeckRepositoryImplTest {
     @Test
     fun aPublishThatDiesPartWayLeavesTheDeckListableSoItCanBeDeleted() = runTest {
         val cardRepo = FailingChunkCardRepository(CardRepositoryImpl(pubky, session, revalidator))
-        val failing = DeckRepositoryImpl(pubky, session, cardRepo, revalidator, tagRepo, FakeMediaRepository())
+        val failing = deckRepository(pubky, session, cardRepo, revalidator, tagRepo)
 
         val result = failing.publish(testDeck(id = "deck1"), (1..250).map { testCard("c$it") })
 
@@ -351,7 +346,7 @@ class DeckRepositoryImplTest {
         // A fresh repo pair over the same store: the manifest and card records are on the
         // homeserver, nothing is cached.
         val coldCardRepo = CardRepositoryImpl(pubky, session, revalidator)
-        val coldRepo = DeckRepositoryImpl(pubky, session, coldCardRepo, revalidator, tagRepo, FakeMediaRepository())
+        val coldRepo = deckRepository(pubky, session, coldCardRepo, revalidator, tagRepo)
         pubky.puts.clear()
 
         coldRepo.sync("deck1").getOrThrow()
@@ -386,7 +381,7 @@ class DeckRepositoryImplTest {
     @Test
     fun syncDropsCardsTheDeckNoLongerContains() = runTest {
         val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
-        val repoWithCards = DeckRepositoryImpl(pubky, session, cardRepo, revalidator, tagRepo, FakeMediaRepository())
+        val repoWithCards = deckRepository(pubky, session, cardRepo, revalidator, tagRepo)
         repoWithCards.publish(
             testDeck(id = "deck1"),
             listOf(testCard("c1"), testCard("c2")),
@@ -489,7 +484,7 @@ class DeckRepositoryImplTest {
 
         // A fresh repo over the same store: the subscription is on the homeserver, nothing cached.
         val coldCards = CardRepositoryImpl(pubky, session, revalidator)
-        val coldRepo = DeckRepositoryImpl(pubky, session, coldCards, revalidator, tagRepo, FakeMediaRepository())
+        val coldRepo = deckRepository(pubky, session, coldCards, revalidator, tagRepo)
 
         val synced = coldRepo.sync("foreign").getOrThrow()
 
@@ -603,6 +598,7 @@ class DeckRepositoryImplTest {
             revalidator,
             tagRepo,
             FakeMediaRepository(),
+            FakeBackgroundTasks(),
         ).fetchRemote(TEST_PUBKY, clone.id).getOrThrow()
 
         assertEquals(DeckSource.Kind.Clone, refetched.source?.kind)

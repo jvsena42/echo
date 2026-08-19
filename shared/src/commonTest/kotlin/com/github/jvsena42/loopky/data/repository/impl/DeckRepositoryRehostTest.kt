@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.testing.CountingRevalidator
+import com.github.jvsena42.loopky.testing.FakeBackgroundTasks
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
@@ -58,6 +59,7 @@ class DeckRepositoryRehostTest {
         revalidator = revalidator,
         tagRepo = RecordingTagRepository(),
         mediaRepo = media,
+        backgroundTasks = FakeBackgroundTasks(),
         scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
     )
 

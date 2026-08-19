@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.testing.CountingRevalidator
+import com.github.jvsena42.loopky.testing.FakeBackgroundTasks
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
@@ -40,6 +41,7 @@ class DeckRepositorySweepTest {
     private val revalidator = CountingRevalidator()
     private val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
     private val media = FakeMediaRepository()
+    private val backgroundTasks = FakeBackgroundTasks()
 
     private fun TestScope.repo() = DeckRepositoryImpl(
         pubky = pubky,
@@ -48,6 +50,7 @@ class DeckRepositorySweepTest {
         revalidator = revalidator,
         tagRepo = RecordingTagRepository(),
         mediaRepo = media,
+        backgroundTasks = backgroundTasks,
         scope = CoroutineScope(
             backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler),
         ),
@@ -238,6 +241,36 @@ class DeckRepositorySweepTest {
         assertEquals(0, outcome.rehosted)
         assertTrue(media.rehosts.isEmpty())
         assertTrue(outcome.complete)
+    }
+
+    // ── scheduling ───────────────────────────────────────────────────────
+
+    @Test
+    fun cloningSchedulesAMediaSweep() = runTest {
+        val repo = repo()
+        putRemoteDeck(listOf(cardWith("c1", pinnedImage("sha1"))))
+        val before = backgroundTasks.scheduled
+
+        repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+
+        // Scheduled from the repository, not a ViewModel: a clone's media is entirely pinned, and
+        // no screen should have to remember to ask.
+        assertTrue(backgroundTasks.scheduled > before)
+    }
+
+    @Test
+    fun listingOwnedDecksReschedulesWhileAClonesMediaIsStillPinned() = runTest {
+        val (repo, clone) = clonedDeck(listOf(cardWith("c1", pinnedImage("sha1"))))
+
+        // The self-heal: recovers a dropped inline signal or a sweep the system cancelled.
+        val before = backgroundTasks.scheduled
+        repo.listOwned()
+        assertTrue(backgroundTasks.scheduled > before, "no reschedule while media is pinned")
+
+        repo.rehostPendingMedia(clone.id).getOrThrow()
+        val after = backgroundTasks.scheduled
+        repo.listOwned()
+        assertEquals(after, backgroundTasks.scheduled, "kept scheduling for a finished clone")
     }
 
     @Test

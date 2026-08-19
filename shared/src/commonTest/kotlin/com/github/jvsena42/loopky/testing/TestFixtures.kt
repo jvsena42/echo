@@ -2,7 +2,13 @@ package com.github.jvsena42.loopky.testing
 
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
 import com.github.jvsena42.loopky.data.pubky.MutableSessionProvider
+import com.github.jvsena42.loopky.data.pubky.PubkyClient
+import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
+import com.github.jvsena42.loopky.data.repository.CardRepository
+import com.github.jvsena42.loopky.data.repository.MediaRepository
+import com.github.jvsena42.loopky.data.repository.TagRepository
+import com.github.jvsena42.loopky.data.repository.impl.DeckRepositoryImpl
 import com.github.jvsena42.loopky.domain.model.Capability
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
@@ -12,6 +18,9 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.Tag
+import com.github.jvsena42.loopky.platform.BackgroundTasks
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 
 const val TEST_PUBKY = "ownerpk"
 
@@ -132,4 +141,28 @@ fun testDeckWithCards(
         ChunkMeta(n = n, count = batch.size, updatedAt = updatedAt)
     },
     updatedAt = updatedAt,
+)
+
+/**
+ * A [DeckRepositoryImpl] with the collaborators a test rarely cares about defaulted, so a test
+ * that only needs a different `cardRepo` says only that.
+ */
+fun deckRepository(
+    pubky: PubkyClient,
+    session: SessionProvider,
+    cardRepo: CardRepository,
+    revalidator: SessionRevalidator,
+    tagRepo: TagRepository = RecordingTagRepository(),
+    mediaRepo: MediaRepository = FakeMediaRepository(),
+    backgroundTasks: BackgroundTasks = FakeBackgroundTasks(),
+    scope: CoroutineScope = CoroutineScope(SupervisorJob()),
+): DeckRepositoryImpl = DeckRepositoryImpl(
+    pubky = pubky,
+    session = session,
+    cardRepo = cardRepo,
+    revalidator = revalidator,
+    tagRepo = tagRepo,
+    mediaRepo = mediaRepo,
+    backgroundTasks = backgroundTasks,
+    scope = scope,
 )
