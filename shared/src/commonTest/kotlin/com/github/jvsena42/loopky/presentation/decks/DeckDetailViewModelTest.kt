@@ -494,7 +494,7 @@ class DeckDetailViewModelTest {
     // ── share on Pubky (#39) ─────────────────────────────────────────────
 
     @Test
-    fun `following a deck offers to announce it, crediting the author`() = runTest(mainDispatcher) {
+    fun `following a deck offers to announce it and credit the author`() = runTest(mainDispatcher) {
         deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk", title = "Kanji N5")
         identityRepo.profiles["friendpk"] = PubkyIdentity(
             pubky = "friendpk",
