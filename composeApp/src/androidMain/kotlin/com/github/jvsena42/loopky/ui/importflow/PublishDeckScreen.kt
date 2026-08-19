@@ -36,12 +36,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -73,6 +71,7 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckEffect
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckUiState
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
+import com.github.jvsena42.loopky.ui.components.AddTagSheet
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
@@ -155,7 +154,6 @@ private fun PublishDeckScreen(
     var showTagSheet by remember { mutableStateOf(false) }
     var showCoverSheet by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
-    var tagInput by remember { mutableStateOf("") }
 
     val busy = state.isPublishing || state.isCancelling
 
@@ -541,143 +539,12 @@ private fun PublishDeckScreen(
     }
 
     if (showTagSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showTagSheet = false },
-            sheetState = rememberModalBottomSheetState(),
-            containerColor = colors.surfaceCard,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            dragHandle = {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(width = 36.dp, height = 4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(colors.borderSubtle)
-                    )
-                }
-            },
-        ) {
-            val suggestedTags = remember {
-                listOf("language", "beginner", "travel", "daily")
-            }.filter { it !in state.tags }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.publish_tag_sheet_title),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = colors.foregroundPrimary,
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(colors.surfacePrimary)
-                        .border(1.5.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Text(
-                        text = "#",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.accentSecondary,
-                    )
-                    BasicTextField(
-                        value = tagInput,
-                        onValueChange = { tagInput = it },
-                        textStyle = TextStyle(
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = colors.foregroundPrimary,
-                        ),
-                        cursorBrush = SolidColor(colors.accentPrimary),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        decorationBox = { inner ->
-                            Box {
-                                if (tagInput.isEmpty()) {
-                                    Text(
-                                        stringResource(R.string.publish_tag_input_placeholder),
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = colors.foregroundMuted,
-                                    )
-                                }
-                                inner()
-                            }
-                        },
-                    )
-                }
-
-                if (suggestedTags.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = stringResource(R.string.publish_suggested_label),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            color = colors.foregroundMuted,
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            suggestedTags.forEach { tag ->
-                                TagChip(tag = tag, onClick = { onAddTag(tag) })
-                            }
-                        }
-                    }
-                }
-
-                if (state.tags.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = stringResource(R.string.publish_current_tags_label),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            color = colors.foregroundMuted,
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            state.tags.forEach { tag ->
-                                TagChip(tag = tag, onRemove = { onRemoveTag(tag) })
-                            }
-                        }
-                    }
-                }
-
-                LoopkyPrimaryButton(
-                    label = stringResource(R.string.publish_add_tag_button),
-                    onClick = {
-                        onAddTag(tagInput)
-                        tagInput = ""
-                    },
-                    enabled = tagInput.isNotBlank(),
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = null,
-                            tint = colors.foregroundOnAccent,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    },
-                )
-            }
-        }
+        AddTagSheet(
+            tags = state.tags,
+            onAddTag = onAddTag,
+            onRemoveTag = onRemoveTag,
+            onDismiss = { showTagSheet = false },
+        )
     }
 
     if (showCoverSheet) {

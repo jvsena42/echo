@@ -18,7 +18,16 @@ import kotlinx.serialization.builtins.serializer
  */
 class NexusClient(
     private val http: HttpFetcher,
-    private val baseUrl: String = DEFAULT_BASE_URL,
+    /**
+     * Which indexer this build talks to. Deliberately has no default: staging and production
+     * index different networks, so a missing wire-up must fail to compile rather than quietly
+     * ship a release pointed at staging (#42). Platform modules supply it — see
+     * `androidPlatformModule` / `doInitKoin`.
+     *
+     * Public because the indexer also serves profile pictures, which callers build URLs for
+     * themselves (see [com.github.jvsena42.loopky.domain.model.avatarDisplayUrl]).
+     */
+    val baseUrl: String,
 ) {
 
     /** Tag labels starting with [prefix] — powers tag-input autocomplete. */
@@ -156,8 +165,6 @@ class NexusClient(
     }
 
     companion object {
-        const val DEFAULT_BASE_URL = "https://nexus.staging.pubky.app"
-
         /** The `/pub/{app}/tags/` segment Loopky writes deck tag records under. */
         const val LOOPKY_APP = "loopky"
 

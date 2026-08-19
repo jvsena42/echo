@@ -172,6 +172,16 @@ class PublishDeckViewModelTest {
         assertEquals(listOf("spanish"), vm.state.value.tags)
     }
 
+    @Test
+    fun aLabelAlreadyOnTheDeckIsNotAddedTwice() = runTest {
+        val vm = viewModel()
+
+        vm.onAddTag("spanish")
+        vm.onAddTag(" SPANish ")
+
+        assertEquals(listOf("spanish"), vm.state.value.tags)
+    }
+
     // ── publish ──────────────────────────────────────────────────────────
 
     @Test

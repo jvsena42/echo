@@ -209,11 +209,6 @@
     <string name="publish_cancel_message">The cards uploaded so far will be removed. Your deck details are kept, so you can publish again.</string>
     <string name="publish_cancel_confirm">Cancel import</string>
     <string name="publish_cancel_keep">Keep publishing</string>
-    <string name="publish_tag_sheet_title">Add Tag</string>
-    <string name="publish_tag_input_placeholder">Type a tag…</string>
-    <string name="publish_suggested_label">SUGGESTED</string>
-    <string name="publish_current_tags_label">CURRENT TAGS</string>
-    <string name="publish_add_tag_button">Add Tag</string>
     <string name="publish_published_icon_desc">Published</string>
     <string name="publish_published_title">Deck published!</string>
     <string name="publish_done">Done</string>
@@ -466,4 +461,10 @@
         <item quantity="other">Import %1$d cards</item>
     </plurals>
     <string name="deck_incomplete_warning">This deck didn\'t finish uploading — some cards are missing. Import it again to complete it, or delete it.</string>
+    <!-- Add-tag sheet, shared by the publish flow and the deck editor -->
+    <string name="tag_sheet_title">Add Tag</string>
+    <string name="tag_sheet_input_placeholder">Type a tag…</string>
+    <string name="tag_sheet_suggested_label">SUGGESTED</string>
+    <string name="tag_sheet_current_label">CURRENT TAGS</string>
+    <string name="tag_sheet_add_button">Add Tag</string>
 </resources>

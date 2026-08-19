@@ -18,7 +18,11 @@ class LoopkyApp : Application() {
             // Debug-only — it logs network activity.
             initLogging()
         }
-        initKoinAndroid(unsplashAccessKey = BuildConfig.UNSPLASH_ACCESS_KEY) {
+        initKoinAndroid(
+            unsplashAccessKey = BuildConfig.UNSPLASH_ACCESS_KEY,
+            // Staging on debug, production on release — see composeApp/build.gradle.kts.
+            nexusBaseUrl = BuildConfig.NEXUS_BASE_URL,
+        ) {
             androidLogger()
             androidContext(this@LoopkyApp)
         }
