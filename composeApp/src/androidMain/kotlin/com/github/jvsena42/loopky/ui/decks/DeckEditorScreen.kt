@@ -38,11 +38,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -263,6 +263,30 @@ fun DeckEditorScreen(
                 ),
             )
         },
+        // A FAB rather than a button after the last row: the list is the deck, so on an
+        // 800-card deck the old trailing button was only reachable by paging the whole thing in.
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onAddCard,
+                modifier = Modifier.testTag("deck_editor_add_card"),
+                containerColor = colors.accentPrimary,
+                contentColor = colors.surfacePrimary,
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+                text = {
+                    Text(
+                        text = stringResource(R.string.deck_editor_add_card),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.W700,
+                    )
+                },
+            )
+        },
     ) { innerPadding ->
         // A LazyColumn rather than a scrolling Column: it is what pages the deck in, and
         // drag-to-reorder needs its layout info to know which row the finger is over.
@@ -300,7 +324,8 @@ fun DeckEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+            // Extra bottom room so the FAB never covers the last card.
+            contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // 1. Metadata card
@@ -343,28 +368,7 @@ fun DeckEditorScreen(
                 item(key = "cards_loading") { CardsLoadingRow() }
             }
 
-            // 5. Add card button
-            item(key = "add_card") {
-                OutlinedButton(
-                    onClick = onAddCard,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.accentPrimary),
-                    border = BorderStroke(1.5.dp, colors.accentPrimary),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.deck_editor_add_card),
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = stringResource(R.string.deck_editor_add_card), fontSize = 15.sp, fontWeight = FontWeight.W700)
-                }
-            }
-
-            // 6. Error toast
+            // 5. Error toast
             state.error?.let { errorText ->
                 item(key = "error") {
                     Text(
