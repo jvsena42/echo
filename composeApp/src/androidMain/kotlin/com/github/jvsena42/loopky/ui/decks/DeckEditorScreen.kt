@@ -71,6 +71,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.github.jvsena42.loopky.R
@@ -115,6 +117,10 @@ fun DeckEditorRoute(
             }
         }
     }
+
+    // Coming back from the card editor, which wrote its card straight to the repository — pull
+    // that in so the list is not showing, and would not save back, the pre-edit card.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
 
     val state by viewModel.state.collectAsStateWithLifecycle()
     DeckEditorScreen(

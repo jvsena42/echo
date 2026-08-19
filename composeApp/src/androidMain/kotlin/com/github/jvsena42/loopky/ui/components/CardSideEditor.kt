@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /**
@@ -44,6 +45,13 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
  *
  * Shared by the post-publish editor ([com.github.jvsena42.loopky.ui.decks.EditCardScreen]) and the
  * paste/triage editor so both match the design. [onSpeak] adds a TTS icon when non-null.
+ *
+ * Two ways in for the thumbnail, because the two callers hold an image at different stages.
+ * [imageModel] is anything Coil can decode on its own — a web URL, or raw bytes just picked from
+ * the gallery and not uploaded yet. [imageRef] is an image already *stored* on a homeserver, whose
+ * bytes have to be fetched before anything can be drawn ([CardMediaImage] does that). Passing only
+ * `imageRef?.url` used to lose exactly that case: a saved blob ref carries no URL, so the editor
+ * fell back to "Add image" and the card's image looked discarded (#80).
  */
 @Composable
 fun CardSideEditor(
@@ -58,6 +66,10 @@ fun CardSideEditor(
     imageTag: String,
     fieldTag: String,
     modifier: Modifier = Modifier,
+    imageRef: MediaRef.Image? = null,
+    deckId: String = "",
+    /** The *deck's* author, not the signed-in user — see [CardMediaImage]. */
+    authorPubky: String = "",
     error: String? = null,
     onSpeak: (() -> Unit)? = null,
     speakDescription: String? = null,
@@ -101,15 +113,26 @@ fun CardSideEditor(
                             .size(18.dp),
                     )
                 }
-                if (imageModel == null) {
-                    AddImagePill(onClick = onPickImage, tag = "${imageTag}_add")
-                } else {
-                    ImagePreview(
-                        model = imageModel,
-                        onChange = onPickImage,
-                        onRemove = onRemoveImage,
-                        tag = imageTag,
-                    )
+                when {
+                    imageRef != null -> ImagePreview(onPickImage, onRemoveImage, imageTag) { thumb ->
+                        CardMediaImage(
+                            image = imageRef,
+                            deckId = deckId,
+                            authorPubky = authorPubky,
+                            modifier = thumb,
+                        )
+                    }
+
+                    imageModel != null -> ImagePreview(onPickImage, onRemoveImage, imageTag) { thumb ->
+                        AsyncImage(
+                            model = imageModel,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = thumb,
+                        )
+                    }
+
+                    else -> AddImagePill(onClick = onPickImage, tag = "${imageTag}_add")
                 }
             }
         }
@@ -159,8 +182,14 @@ private fun AddImagePill(onClick: () -> Unit, tag: String) {
     }
 }
 
+/** The thumbnail-plus-remove chip. [thumbnail] draws the image itself into the modifier it gets. */
 @Composable
-private fun ImagePreview(model: Any, onChange: () -> Unit, onRemove: () -> Unit, tag: String) {
+private fun ImagePreview(
+    onChange: () -> Unit,
+    onRemove: () -> Unit,
+    tag: String,
+    thumbnail: @Composable (Modifier) -> Unit,
+) {
     val colors = LoopkyTheme.colors
     Row(
         modifier = Modifier
@@ -170,11 +199,8 @@ private fun ImagePreview(model: Any, onChange: () -> Unit, onRemove: () -> Unit,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
-            model = model,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
+        thumbnail(
+            Modifier
                 .testTag("${tag}_chip")
                 .size(36.dp)
                 .clip(RoundedCornerShape(8.dp))

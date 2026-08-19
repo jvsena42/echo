@@ -127,6 +127,65 @@ class DeckEditorViewModelTest {
     }
 
     @Test
+    fun `save rebuilds cards from the repository rather than the list this editor loaded`() =
+        runTest(mainDispatcher) {
+            seedDeckWithMedia()
+            val vm = viewModel()
+            advanceUntilIdle()
+
+            // What the card editor does on its own screen while this one stays on the back stack.
+            val addedImage = frontImage.copy(path = "media/back.jpg", sha256 = "backimagesha")
+            cardRepo.seed(
+                Card(
+                    id = "card1",
+                    deckId = "deck1",
+                    updatedAt = 2_000L,
+                    front = CardSide(text = "hola", imageRef = frontImage),
+                    back = CardSide(text = "hello", imageRef = addedImage, audioRef = backAudio),
+                ),
+            )
+
+            // Adding a card changes the card set, so this takes the full-publish path — the one
+            // that rewrites every card record and would destroy the edit above (#80).
+            vm.onAddCard()
+            vm.onSaveClick()
+            advanceUntilIdle()
+
+            val (_, cards) = deckRepo.published.single()
+            assertEquals(
+                addedImage,
+                cards.first { it.id == "card1" }.back.imageRef,
+                "an image added in the card editor was overwritten by the deck editor's stale copy",
+            )
+        }
+
+    @Test
+    fun `onResume picks up a card the card editor changed`() = runTest(mainDispatcher) {
+        seedDeckWithMedia()
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals("hello", vm.state.value.cards.single().backText)
+
+        cardRepo.seed(
+            Card(
+                id = "card1",
+                deckId = "deck1",
+                updatedAt = 2_000L,
+                front = CardSide(text = "hola", imageRef = frontImage),
+                back = CardSide(text = "hi there", audioRef = backAudio),
+            ),
+        )
+        vm.onResume()
+        advanceUntilIdle()
+
+        assertEquals(
+            "hi there",
+            vm.state.value.cards.single().backText,
+            "the list still shows the card as it was before the card editor wrote it",
+        )
+    }
+
+    @Test
     fun `save preserves the deck cover and card options`() = runTest(mainDispatcher) {
         seedDeckWithMedia()
         val vm = viewModel()

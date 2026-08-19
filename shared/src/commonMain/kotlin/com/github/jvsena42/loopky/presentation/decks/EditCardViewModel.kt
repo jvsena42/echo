@@ -57,6 +57,10 @@ class EditCardViewModel(
                 .let { if (it >= 0) it + 1 else 0 }
             val totalCards = deck?.cardCount ?: 0
             _state.update { EditCardUiState(
+                deckId = deckId,
+                // The deck's author, not the signed-in user: a blob on a followed deck lives
+                // under *their* pubky, and the editor renders its thumbnail from there.
+                authorPubky = deck?.authorPubky ?: "",
                 deckTitle = deck?.title ?: "",
                 cardIndex = cardIndex,
                 totalCards = totalCards,
@@ -221,6 +225,8 @@ class EditCardViewModel(
 }
 
 data class EditCardUiState(
+    val deckId: String = "",
+    val authorPubky: String = "",
     val deckTitle: String = "",
     val cardIndex: Int = 0,
     val totalCards: Int = 0,
