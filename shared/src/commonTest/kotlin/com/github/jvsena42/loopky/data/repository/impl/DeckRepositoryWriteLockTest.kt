@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.testing.CountingRevalidator
+import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.signedInProvider
@@ -37,6 +38,7 @@ class DeckRepositoryWriteLockTest {
         cardRepo = cardRepo,
         revalidator = revalidator,
         tagRepo = RecordingTagRepository(),
+        mediaRepo = FakeMediaRepository(),
     )
 
     @Test

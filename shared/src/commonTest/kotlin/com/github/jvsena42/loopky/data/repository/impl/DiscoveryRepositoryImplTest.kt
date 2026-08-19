@@ -17,6 +17,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeHttpFetcher
+import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
@@ -44,6 +45,7 @@ class DiscoveryRepositoryImplTest {
         cardRepo = cardRepo,
         revalidator = revalidator,
         tagRepo = RecordingTagRepository(),
+        mediaRepo = FakeMediaRepository(),
     )
     private val tagRepo = RecordingTagRepository()
     private val identityRepo = IdentityRepositoryImpl(

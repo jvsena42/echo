@@ -18,12 +18,14 @@ import com.github.jvsena42.loopky.data.pubky.toDomain
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckSource
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
@@ -32,10 +34,13 @@ import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
 import com.github.jvsena42.loopky.util.generateId
 import com.github.jvsena42.loopky.util.runSuspendCatching
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
@@ -46,14 +51,33 @@ import kotlinx.serialization.encodeToString
  *
  * See `docs/Architecture.md §8.0` for the on-homeserver layout this implementation writes.
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LongParameterList")
 class DeckRepositoryImpl(
     private val pubky: PubkyClient,
     private val session: SessionProvider,
     private val cardRepo: CardRepository,
     private val revalidator: SessionRevalidator,
     private val tagRepo: TagRepository,
+    private val mediaRepo: MediaRepository,
+    /**
+     * App-scoped, like `SrsRepositoryImpl`'s: re-hosting outlives whatever screen triggered it, so
+     * it cannot run on a `viewModelScope` that dies in `onCleared()`. Injectable so tests can pass
+     * `backgroundScope` instead of leaking work onto `Dispatchers.Default` under `runTest`.
+     */
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob()),
 ) : DeckRepository {
+
+    init {
+        // Sequential by construction — `collect` handles one signal at a time — so two cards
+        // sharing a blob cannot both copy it.
+        scope.launch {
+            mediaRepo.pinnedFetches.collect { (deckId, sha256) ->
+                rehostBlob(deckId, sha256).onFailure {
+                    Log.e(TAG, "rehostBlob: $deckId/$sha256 failed — ${it.message}", it)
+                }
+            }
+        }
+    }
 
     private val cache = mutableMapOf<String, Deck>()
     private val cacheLock = Mutex()
@@ -77,6 +101,17 @@ class DeckRepositoryImpl(
      */
     private val deckWriteLocks = mutableMapOf<String, Mutex>()
     private val deckWriteLocksGuard = Mutex()
+
+    /**
+     * (deckId, sha256) pairs already attempted this session, successful or not.
+     *
+     * Success has to be recorded or a card that stays on screen re-copies its blob on every
+     * render — idempotent PUTs, so silent waste rather than corruption, which is worse because
+     * nobody would notice. Failure is recorded too: retrying a dangling origin on every render
+     * is the same waste. A fresh session, or the deferred sweep, tries again.
+     */
+    private val rehostAttempted = mutableSetOf<Pair<String, String>>()
+    private val rehostLock = Mutex()
 
     private val _changes = MutableSharedFlow<Unit>(
         extraBufferCapacity = CHANGE_BUFFER,
@@ -263,6 +298,100 @@ class DeckRepositoryImpl(
 
             cardRepo.evict(deckId, cardId)
             writeChunkAndManifestLocked(deck, chunk, remaining)
+        }
+    }
+
+    override suspend fun rehostBlob(deckId: String, sha256: String): Result<Unit> =
+        runSuspendCatching {
+            val key = deckId to sha256
+            if (!rehostLock.withLock { rehostAttempted.add(key) }) return@runSuspendCatching
+
+            // Cache reads only. requireOwnedDeck would fetch the manifest, and a blob that is not
+            // already on screen is the sweep's job, not this path's.
+            val deck = getLocal(deckId) ?: return@runSuspendCatching
+            if (deck.authorPubky != session.current()?.identity?.pubky) return@runSuspendCatching
+
+            val cover = deck.coverImageRef?.takeIf { it.isPinnedTo(sha256) }
+            val cards = cardRepo.listByDeck(deckId).filter { it.hasPinned(sha256) }
+            val sample = cover ?: cards.firstNotNullOfOrNull { it.pinnedRef(sha256) }
+                ?: return@runSuspendCatching
+
+            // One copy, however many cards reference it — the blob is content-addressed, so the
+            // digest is unchanged and every ref carrying that sha stays valid.
+            val rehosted = mediaRepo.rehost(deckId, sample).getOrThrow()
+            if (rehosted.uri != null) return@runSuspendCatching
+
+            withDeckWrite(deckId) {
+                val current = requireNotNull(getLocal(deckId)) { "Deck $deckId is not loaded" }
+                writeRehostedCards(current, cards, sha256, rehosted)
+                if (cover != null) {
+                    patchDeckLocked(deckId, emitChange = false) {
+                        it.copy(coverImageRef = it.coverImageRef?.relocatedTo(rehosted, sha256))
+                    }
+                }
+            }
+            Log.d(TAG, "rehostBlob: $deckId/$sha256 across ${cards.size} card(s)")
+        }
+
+    /** Rewrite [cards]' refs to the re-hosted blob, one chunk write per chunk they live in. */
+    private suspend fun writeRehostedCards(
+        deck: Deck,
+        cards: List<Card>,
+        sha256: String,
+        rehosted: MediaRef,
+    ) {
+        val byChunk = cards.groupBy { cardRepo.chunkOf(deck.id, it.id) ?: locateChunk(deck, it.id) }
+        for ((chunk, inChunk) in byChunk) {
+            if (chunk == null) {
+                Log.w(TAG, "rehostBlob: ${inChunk.size} card(s) not in any chunk of ${deck.id}")
+                continue
+            }
+            val ids = inChunk.mapTo(mutableSetOf()) { it.id }
+            val stored = cardRepo.readChunk(deck, chunk).getOrDefault(emptyList())
+            val updated = stored.map { card ->
+                if (card.id in ids) card.relocatedTo(rehosted, sha256) else card
+            }
+            // touchDeck = false: re-hosting rewrites refs to blobs the deck already had, so
+            // nothing user-visible changed. Bumping updated_at would tell every follower the
+            // author published changes, and emitting `changes` would reload the library.
+            writeChunkAndManifestLocked(deck, chunk, updated, touchDeck = false)
+        }
+    }
+
+    /** Whether this ref still points at another author's copy of [sha256]. */
+    private fun MediaRef.isPinnedTo(sha256: String): Boolean = uri != null && this.sha256 == sha256
+
+    private fun Card.hasPinned(sha256: String): Boolean = pinnedRef(sha256) != null
+
+    private fun Card.pinnedRef(sha256: String): MediaRef? =
+        listOfNotNull(
+            front.imageRef, front.audioRef, back.imageRef, back.audioRef,
+        ).firstOrNull { it.isPinnedTo(sha256) }
+
+    private fun Card.relocatedTo(rehosted: MediaRef, sha256: String): Card = copy(
+        front = front.relocatedTo(rehosted, sha256),
+        back = back.relocatedTo(rehosted, sha256),
+    )
+
+    private fun CardSide.relocatedTo(rehosted: MediaRef, sha256: String): CardSide = copy(
+        imageRef = imageRef?.relocatedTo(rehosted, sha256),
+        audioRef = audioRef?.relocatedTo(rehosted, sha256),
+    )
+
+    /**
+     * This ref pointed at the blob's new home, or unchanged when it is not that blob.
+     *
+     * The path comes from what [MediaRepository.rehost] returned rather than being rebuilt here:
+     * it recomputes the digest from the fetched bytes and the extension from the mime type, so a
+     * hand-assembled path could disagree with where the copy actually landed.
+     */
+    private fun <T : MediaRef> T.relocatedTo(rehosted: MediaRef, sha256: String): T {
+        if (!isPinnedTo(sha256)) return this
+        @Suppress("UNCHECKED_CAST")
+        return when (this) {
+            is MediaRef.Image -> copy(path = rehosted.path, uri = null) as T
+            is MediaRef.Audio -> copy(path = rehosted.path, uri = null) as T
+            else -> this
         }
     }
 

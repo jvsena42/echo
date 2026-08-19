@@ -126,6 +126,26 @@ interface DeckRepository {
 
     /** Remove a single card, rewriting its chunk and patching the manifest. */
     suspend fun deleteCard(deckId: String, cardId: String): Result<Deck>
+
+    /**
+     * Copy the blob [sha256] under [deckId]'s own media path and rewrite every ref carrying it —
+     * card sides and the deck cover — so a clone stops depending on the original author's copy.
+     *
+     * Driven by [MediaRepository.pinnedFetches]: the blob has just been fetched to draw a card, so
+     * its bytes are already in hand. Copying it is only half the job — without rewriting the record
+     * the card keeps its `uri`, reads keep resolving to the origin, and every session re-copies the
+     * same blob for nothing.
+     *
+     * **Cache-only and best-effort.** There is no sha→card index, so finding the card any other way
+     * would mean reading every chunk — ~200 requests on a 20k-card deck — which would defeat the
+     * point of doing this opportunistically. The card that triggered the fetch is in the card
+     * cache; anything that is not is left to the deferred sweep (#53).
+     *
+     * A no-op for a deck you do not own, and idempotent: a blob already attempted this session is
+     * not attempted again. A failure leaves the deck exactly as it was — a missing origin is left
+     * dangling rather than written into the card, because a 404 today may be an outage tomorrow.
+     */
+    suspend fun rehostBlob(deckId: String, sha256: String): Result<Unit>
     suspend fun listOwned(): List<Deck>
 
     /** Public decks for any author (their homeserver, read-only). Powers friend profiles + Discover. */

@@ -92,6 +92,12 @@ class FakeDeckRepository : DeckRepository {
     val decks = mutableMapOf<String, Deck>()
     val published = mutableListOf<Pair<Deck, List<Card>>>()
     val deleted = mutableListOf<String>()
+    val rehostedBlobs = mutableListOf<Pair<String, String>>()
+
+    override suspend fun rehostBlob(deckId: String, sha256: String): Result<Unit> {
+        rehostedBlobs.add(deckId to sha256)
+        return Result.success(Unit)
+    }
 
     private val _changes = MutableSharedFlow<Unit>(
         extraBufferCapacity = 8,
