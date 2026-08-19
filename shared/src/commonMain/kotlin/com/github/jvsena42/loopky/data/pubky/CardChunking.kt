@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.pubky
 
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.ChunkMeta
+import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
 import com.github.jvsena42.loopky.domain.model.ordForIndex
 
 /**
@@ -66,4 +67,55 @@ internal object CardChunking {
      * only place the true count survives is the per-chunk counts.
      */
     fun cardCount(chunks: List<ChunkMeta>): Int = chunks.sumOf { it.count }
+
+    /**
+     * Where study position [index] falls in [chunks] — which record holds it, and at what offset.
+     *
+     * Derived from the per-chunk counts rather than from any card's `ord`, so it costs no reads:
+     * locating position 12,345 of a 20k-card deck is arithmetic over the manifest, not a scan.
+     *
+     * [excluding] names a chunk whose count is one short of what the manifest says — the chunk a
+     * card is being moved *out of*. A move target is expressed over the deck **without** that
+     * card, the same way `List.add(index)` on an already-shortened list lands at `index`; without
+     * this, moving a card forwards would land it one place short.
+     *
+     * An index past the end resolves to the tail, so "move to the end" is expressible.
+     */
+    fun positionAt(chunks: List<ChunkMeta>, index: Int, excluding: Int? = null): ChunkPosition {
+        val ordered = chunks.sortedBy { it.n }
+        if (ordered.isEmpty()) return ChunkPosition(chunk = 0, offset = 0)
+        var remaining = index.coerceAtLeast(0)
+        for (meta in ordered) {
+            val count = countOf(meta, excluding)
+            if (remaining < count) return ChunkPosition(chunk = meta.n, offset = remaining)
+            remaining -= count
+        }
+        val last = ordered.last()
+        return ChunkPosition(chunk = last.n, offset = countOf(last, excluding))
+    }
+
+    private fun countOf(meta: ChunkMeta, excluding: Int?): Int =
+        if (meta.n == excluding) (meta.count - 1).coerceAtLeast(0) else meta.count
+
+    /**
+     * Re-stamp [cards] with `ord`s spread across chunk [n]'s own slice of the ord line.
+     *
+     * [chunk] assigns `ordForIndex(globalIndex)`, so chunk `n` owns exactly
+     * `[n * CHUNK_SIZE * ORD_STRIDE, (n + 1) * CHUNK_SIZE * ORD_STRIDE)` — a private range no
+     * other chunk can reach into. Renumbering inside that range is therefore a purely local
+     * write: one chunk record moves, and every other chunk in the deck keeps sorting where it did.
+     *
+     * Preferred over midpointing a single card with [com.github.jvsena42.loopky.domain.model.ordBetween]
+     * because the chunk record is being rewritten whole anyway, so re-spacing every card in it is
+     * free — and it removes the "no midpoint left, caller must renumber" case entirely.
+     */
+    fun renumber(cards: List<Card>, n: Int): List<Card> {
+        if (cards.isEmpty()) return cards
+        val base = n.toLong() * CHUNK_SIZE * ORD_STRIDE
+        val step = (CHUNK_SIZE.toLong() * ORD_STRIDE / (cards.size + 1)).coerceAtLeast(1L)
+        return cards.mapIndexed { index, card -> card.copy(ord = base + (index + 1) * step) }
+    }
 }
+
+/** A card's home: the chunk record it lives in, and its offset within that record. */
+internal data class ChunkPosition(val chunk: Int, val offset: Int)

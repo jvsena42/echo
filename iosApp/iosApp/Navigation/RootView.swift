@@ -55,6 +55,8 @@ struct RootView: View {
                             deckId: deckId,
                             onBack: { deckRoute = nil },
                             onEditCard: { d, c in deckRoute = .editCard(d, c) },
+                            // Blank card id: the card editor mints one and appends on save.
+                            onNewCard: { d in deckRoute = .editCard(d, "") },
                             onSaved: { id in deckRoute = .detail(id) }
                         )
                     case .editorNew:
@@ -62,6 +64,7 @@ struct RootView: View {
                             deckId: nil,
                             onBack: { deckRoute = nil },
                             onEditCard: { d, c in deckRoute = .editCard(d, c) },
+                            onNewCard: { d in deckRoute = .editCard(d, "") },
                             onSaved: { id in deckRoute = .detail(id) }
                         )
                     case .editCard(let deckId, let cardId):

@@ -7,9 +7,11 @@ import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
+import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.generateId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,14 +22,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * The single-card editor.
+ *
+ * [providedCardId] blank means "a card that does not exist yet" — how the deck editor adds a card
+ * now that its own list is a page rather than the whole deck (#52). The card is written by the
+ * same [DeckRepository.upsertCard] either way; creating one just appends instead of replacing.
+ */
 @Suppress("TooManyFunctions")
 class EditCardViewModel(
     private val deckId: String,
-    private val cardId: String,
+    providedCardId: String,
     private val cardRepository: CardRepository,
     private val deckRepository: DeckRepository,
     private val mediaRepository: MediaRepository,
 ) : ViewModel() {
+    private val isNewCard = providedCardId.isBlank()
+    private val cardId = providedCardId.ifBlank { generateId() }
+
     private val _state = MutableStateFlow(EditCardUiState())
     val state: StateFlow<EditCardUiState> = _state.asStateFlow()
 
@@ -43,36 +55,44 @@ class EditCardViewModel(
 
     private fun load() {
         loadJob = viewModelScope.launch {
-            Log.d(TAG, "load: deckId=$deckId cardId=$cardId")
+            Log.d(TAG, "load: deckId=$deckId cardId=$cardId isNew=$isNewCard")
             val deck = deckRepository.getLocal(deckId)
-            val card = cardRepository.get(deckId, cardId)
-            if (card == null) {
+            // Never looked up for a new card: a miss makes `get` walk every chunk in the deck
+            // looking for an id nothing has, which is ~200 requests on a 20k-card deck.
+            val card = if (isNewCard) null else cardRepository.get(deckId, cardId)
+            if (card == null && !isNewCard) {
                 _state.update { it.copy(error = "Card not found.") }
                 return@launch
             }
+            val deckCards = deck?.cardCount ?: 0
             // Position by study order among the cards loaded for this deck; the manifest no
-            // longer carries a card index to look it up in.
-            val cardIndex = cardRepository.listByDeck(deckId)
-                .indexOfFirst { it.id == cardId }
-                .let { if (it >= 0) it + 1 else 0 }
-            val totalCards = deck?.cardCount ?: 0
-            _state.update { EditCardUiState(
-                deckId = deckId,
-                // The deck's author, not the signed-in user: a blob on a followed deck lives
-                // under *their* pubky, and the editor renders its thumbnail from there.
-                authorPubky = deck?.authorPubky ?: "",
-                deckTitle = deck?.title ?: "",
-                cardIndex = cardIndex,
-                totalCards = totalCards,
-                frontText = card.front.text ?: "",
-                backText = card.back.text ?: "",
-                frontImageRef = card.front.imageRef,
-                backImageRef = card.back.imageRef,
-                hasImage = card.front.imageRef != null || card.back.imageRef != null,
-                hasAudio = card.front.audioRef != null || card.back.audioRef != null,
-            ) }
+            // longer carries a card index to look it up in. A new card is the deck's next one.
+            val cardIndex = if (isNewCard) deckCards + 1 else studyPosition()
+            _state.update { loadedState(deck, card, cardIndex, deckCards) }
         }
     }
+
+    private suspend fun studyPosition(): Int =
+        cardRepository.listByDeck(deckId)
+            .indexOfFirst { it.id == cardId }
+            .let { if (it >= 0) it + 1 else 0 }
+
+    private fun loadedState(deck: Deck?, card: Card?, cardIndex: Int, deckCards: Int) = EditCardUiState(
+        deckId = deckId,
+        // The deck's author, not the signed-in user: a blob on a followed deck lives under
+        // *their* pubky, and the editor renders its thumbnail from there.
+        authorPubky = deck?.authorPubky ?: "",
+        deckTitle = deck?.title ?: "",
+        isNewCard = isNewCard,
+        cardIndex = cardIndex,
+        totalCards = if (isNewCard) deckCards + 1 else deckCards,
+        frontText = card?.front?.text ?: "",
+        backText = card?.back?.text ?: "",
+        frontImageRef = card?.front?.imageRef,
+        backImageRef = card?.back?.imageRef,
+        hasImage = card?.front?.imageRef != null || card?.back?.imageRef != null,
+        hasAudio = card?.front?.audioRef != null || card?.back?.audioRef != null,
+    )
 
     /** A web (Unsplash) image was chosen for the card front — saved by URL. */
     fun onFrontImageWebSelected(url: String) {
@@ -145,7 +165,7 @@ class EditCardViewModel(
             _state.update { it.copy(isSaving = true, error = null) }
             Log.d(TAG, "save: cardId=$cardId")
 
-            val existingCard = cardRepository.get(deckId, cardId)
+            val existingCard = if (isNewCard) null else cardRepository.get(deckId, cardId)
             val now = epochMillis()
             val frontImage = resolveFrontImage(s)
             val backImage = resolveBackImage(s)
@@ -181,6 +201,11 @@ class EditCardViewModel(
     }
 
     fun onDeleteCard() {
+        // Nothing was ever written, so there is nothing to delete — just leave.
+        if (isNewCard) {
+            viewModelScope.launch { _effects.emit(EditCardEffect.NavigateBack) }
+            return
+        }
         viewModelScope.launch {
             Log.d(TAG, "delete: cardId=$cardId")
             deckRepository.deleteCard(deckId, cardId)
@@ -228,6 +253,8 @@ data class EditCardUiState(
     val deckId: String = "",
     val authorPubky: String = "",
     val deckTitle: String = "",
+    /** True while editing a card that has not been written yet — hides Delete, titles the screen. */
+    val isNewCard: Boolean = false,
     val cardIndex: Int = 0,
     val totalCards: Int = 0,
     val frontText: String = "",

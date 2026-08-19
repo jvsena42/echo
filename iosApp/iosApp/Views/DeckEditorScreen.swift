@@ -7,6 +7,8 @@ struct DeckEditorScreen: View {
     var deckId: String?
     var onBack: () -> Void = {}
     var onEditCard: (String, String) -> Void = { _, _ in }
+    /// A card that does not exist yet — the editor mints its id and appends it on save.
+    var onNewCard: (String) -> Void = { _ in }
     var onSaved: (String) -> Void = { _ in }
 
     @State private var viewModel: DeckEditorViewModel?
@@ -30,6 +32,9 @@ struct DeckEditorScreen: View {
                     hasAudio: $0.hasAudio
                 )
             },
+            totalCards: Int(uiState?.totalCards ?? 0),
+            isLoadingCards: uiState?.isLoadingCards ?? false,
+            hasMoreCards: uiState?.hasMoreCards ?? false,
             isSaving: uiState?.isSaving ?? false,
             titleError: uiState?.titleError,
             descriptionError: uiState?.descriptionError,
@@ -40,6 +45,7 @@ struct DeckEditorScreen: View {
             onRemoveTag: { viewModel?.onRemoveTag(tag: $0) },
             onAddCard: { viewModel?.onAddCard() },
             onCardTap: { viewModel?.onCardClick(cardId: $0) },
+            onLoadMoreCards: { viewModel?.onLoadMoreCards() },
             onClose: { viewModel?.onCloseClick() },
             onSave: { viewModel?.onSaveClick() }
         )
@@ -59,6 +65,8 @@ struct DeckEditorScreen: View {
                 onBack()
             case let editCard as DeckEditorEffectNavigateEditCard:
                 onEditCard(editCard.deckId, editCard.cardId)
+            case let newCard as DeckEditorEffectNavigateNewCard:
+                onNewCard(newCard.deckId)
             case let saved as DeckEditorEffectSaveSuccess:
                 onSaved(saved.deckId)
             default:

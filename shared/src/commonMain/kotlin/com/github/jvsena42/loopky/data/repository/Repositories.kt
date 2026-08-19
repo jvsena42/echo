@@ -137,6 +137,21 @@ interface DeckRepository {
     suspend fun deleteCard(deckId: String, cardId: String): Result<Deck>
 
     /**
+     * Move [cardId] to study position [toIndex] (0-based over the whole deck), rewriting only the
+     * chunk it leaves and the chunk it lands in.
+     *
+     * The editor used to persist order by republishing the deck in list order — ~201 writes and
+     * every card re-uploaded to move one row (#52). Order travels on [Card.ord], and each chunk
+     * owns a private slice of the ord line, so a move is at most two chunk writes plus the
+     * manifest, whatever the deck's size.
+     *
+     * [toIndex] is read against the deck **without** the moved card, so it is the position the
+     * card ends up at. Out-of-range clamps to the ends rather than failing; a card the deck does
+     * not contain is a no-op.
+     */
+    suspend fun moveCard(deckId: String, cardId: String, toIndex: Int): Result<Deck>
+
+    /**
      * Copy the blob [sha256] under [deckId]'s own media path and rewrite every ref carrying it —
      * card sides and the deck cover — so a clone stops depending on the original author's copy.
      *

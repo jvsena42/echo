@@ -5,6 +5,8 @@ import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.ChunkMeta
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.MediaRef
+import com.github.jvsena42.loopky.domain.model.ordForIndex
+import com.github.jvsena42.loopky.testing.CardMove
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeCardRepository
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
@@ -13,6 +15,7 @@ import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.testDeck
+import com.github.jvsena42.loopky.testing.testDeckWithCards
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -25,15 +28,19 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Saving the deck editor republishes the whole manifest and every card record, so anything the
- * editor does not expose has to survive the round-trip. It previously did not: card media and
- * the deck cover were wiped off the homeserver on every save.
+ * The deck editor's two load-bearing rules, both from #52: the card list is a **page** of the deck
+ * rather than the deck, and saving an existing deck writes the manifest alone. Everything a card
+ * change does — adding, moving — is written when it happens, one or two chunks at a time.
+ *
+ * The older half of this suite guards what saving must not destroy: anything the editor does not
+ * expose (card media, the deck cover, Listen/Speak) used to be wiped on every save.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DeckEditorViewModelTest {
@@ -70,6 +77,8 @@ class DeckEditorViewModelTest {
     @BeforeTest
     fun setUp() {
         Dispatchers.setMain(mainDispatcher)
+        // So a move is visible on a reload, not just recorded.
+        deckRepo.cardRepository = cardRepo
     }
 
     @AfterTest
@@ -99,6 +108,31 @@ class DeckEditorViewModelTest {
         )
     }
 
+    private fun seedTwoCardDeck() {
+        val cards = listOf(
+            Card("card1", "deck1", 1L, CardSide(text = "first"), CardSide(text = "1"), ord = 0L),
+            Card("card2", "deck1", 2L, CardSide(text = "second"), CardSide(text = "2"), ord = 1_000L),
+        )
+        deckRepo.decks["deck1"] = testDeckWithCards(cards)
+        cardRepo.seed(*cards.toTypedArray())
+    }
+
+    /** A deck laid out over several chunk records, so the editor has pages to walk. */
+    private fun seedPagedDeck(cardCount: Int) {
+        val cards = List(cardCount) { index ->
+            Card(
+                id = "card${index.toString().padStart(3, '0')}",
+                deckId = "deck1",
+                updatedAt = 1_000L,
+                front = CardSide(text = "front $index"),
+                back = CardSide(text = "back $index"),
+                ord = ordForIndex(index),
+            )
+        }
+        deckRepo.decks["deck1"] = testDeckWithCards(cards)
+        cardRepo.seed(*cards.toTypedArray())
+    }
+
     private fun viewModel(deckId: String? = "deck1") = DeckEditorViewModel(
         deckId = deckId,
         deckRepository = deckRepo,
@@ -110,54 +144,41 @@ class DeckEditorViewModelTest {
     )
 
     @Test
-    fun `save preserves card image and audio the editor cannot edit`() = runTest(mainDispatcher) {
+    fun `saving an existing deck never rewrites its cards`() = runTest(mainDispatcher) {
         seedDeckWithMedia()
         val vm = viewModel()
         advanceUntilIdle()
 
-        // Adding a card changes the card set, so this takes the full-publish path.
-        vm.onAddCard()
+        vm.onTitleChanged("Spanish Basics")
         vm.onSaveClick()
         advanceUntilIdle()
 
-        val (_, cards) = deckRepo.published.single()
-        val saved = cards.first { it.id == "card1" }
+        // The card list is a page of the deck, so rebuilding the deck's cards from it would
+        // delete everything not paged in — and destroy card media the editor cannot even see.
+        assertTrue(deckRepo.published.isEmpty(), "a metadata save republished the deck's cards")
+        val saved = cardRepo.cards.getValue("deck1").getValue("card1")
         assertEquals(frontImage, saved.front.imageRef, "front image was dropped on save")
         assertEquals(backAudio, saved.back.audioRef, "back audio was dropped on save")
     }
 
     @Test
-    fun `save rebuilds cards from the repository rather than the list this editor loaded`() =
-        runTest(mainDispatcher) {
-            seedDeckWithMedia()
-            val vm = viewModel()
-            advanceUntilIdle()
+    fun `a metadata save keeps the chunk table a card write moved`() = runTest(mainDispatcher) {
+        seedDeckWithMedia()
+        val vm = viewModel()
+        advanceUntilIdle()
 
-            // What the card editor does on its own screen while this one stays on the back stack.
-            val addedImage = frontImage.copy(path = "media/back.jpg", sha256 = "backimagesha")
-            cardRepo.seed(
-                Card(
-                    id = "card1",
-                    deckId = "deck1",
-                    updatedAt = 2_000L,
-                    front = CardSide(text = "hola", imageRef = frontImage),
-                    back = CardSide(text = "hello", imageRef = addedImage, audioRef = backAudio),
-                ),
-            )
+        // What the card editor's upsertCard does while this screen sits on the back stack.
+        val patched = listOf(ChunkMeta(n = 0, count = 2, updatedAt = 9_000L))
+        deckRepo.decks["deck1"] = deckRepo.decks.getValue("deck1").copy(cardCount = 2, chunks = patched)
 
-            // Adding a card changes the card set, so this takes the full-publish path — the one
-            // that rewrites every card record and would destroy the edit above (#80).
-            vm.onAddCard()
-            vm.onSaveClick()
-            advanceUntilIdle()
+        vm.onTitleChanged("Renamed")
+        vm.onSaveClick()
+        advanceUntilIdle()
 
-            val (_, cards) = deckRepo.published.single()
-            assertEquals(
-                addedImage,
-                cards.first { it.id == "card1" }.back.imageRef,
-                "an image added in the card editor was overwritten by the deck editor's stale copy",
-            )
-        }
+        val saved = deckRepo.decks.getValue("deck1")
+        assertEquals(patched, saved.chunks, "the pre-edit chunk table was written back, orphaning a chunk")
+        assertEquals(expected = 2, actual = saved.cardCount)
+    }
 
     @Test
     fun `onResume picks up a card the card editor changed`() = runTest(mainDispatcher) {
@@ -214,47 +235,71 @@ class DeckEditorViewModelTest {
         assertEquals("Renamed", deckRepo.decks.getValue("deck1").title)
     }
 
-    @Test
-    fun `save leaves the sync timestamp alone for untouched cards`() = runTest(mainDispatcher) {
-        seedDeckWithMedia()
-        val vm = viewModel()
-        advanceUntilIdle()
-
-        vm.onAddCard()
-        vm.onSaveClick()
-        advanceUntilIdle()
-
-        val (_, cards) = deckRepo.published.single()
-        assertEquals(
-            1_000L,
-            cards.first { it.id == "card1" }.updatedAt,
-            "an unchanged card should keep its updated_at so sync does not re-download it",
-        )
-    }
+    // ── reordering (#52) ─────────────────────────────────────────────────
 
     @Test
-    fun `moving a card reorders it and the new order is what gets published`() = runTest {
-        deckRepo.decks["deck1"] = testDeck(
-            id = "deck1",
-            cardCount = 2,
-        )
-        cardRepo.seed(
-            Card("card1", "deck1", 1L, CardSide(text = "first"), CardSide(text = "1")),
-            Card("card2", "deck1", 2L, CardSide(text = "second"), CardSide(text = "2")),
-        )
+    fun `moving a card reorders the list and writes the move straight away`() = runTest(mainDispatcher) {
+        seedTwoCardDeck()
         val vm = viewModel()
         advanceUntilIdle()
         assertEquals(listOf("card1", "card2"), vm.state.value.cards.map { it.id })
 
         vm.onMoveCard(from = 0, to = 1)
-        vm.onSaveClick()
         advanceUntilIdle()
 
-        val (deck, cards) = deckRepo.published.single()
-        // Reorder now persists through the cards' `ord`, assigned by publish in list order,
-        // rather than through the manifest's card index.
-        assertEquals(listOf("card2", "card1"), cards.map { it.id })
-        assertEquals(expected = 2, actual = deck.cardCount)
+        assertEquals(listOf("card2", "card1"), vm.state.value.cards.map { it.id })
+        // Republishing would rewrite every chunk in the deck to move one row.
+        assertTrue(deckRepo.published.isEmpty(), "a reorder republished the whole deck")
+        assertEquals(CardMove("deck1", "card1", 1), deckRepo.movedCards.single())
+    }
+
+    @Test
+    fun `a move that fails puts the list back`() = runTest(mainDispatcher) {
+        seedTwoCardDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+        deckRepo.moveCardError = IllegalStateException("offline")
+
+        vm.onMoveCard(from = 0, to = 1)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("card1", "card2"),
+            vm.state.value.cards.map { it.id },
+            "the optimistic reorder was left standing after the write failed",
+        )
+        assertNotNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `a card can be moved past the loaded window`() = runTest(mainDispatcher) {
+        seedPagedDeck(cardCount = 250)
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals(expected = 100, actual = vm.state.value.cards.size)
+
+        // The destination is in a chunk this screen has never read — the whole point of
+        // "move to position…" on a deck too big to drag through.
+        vm.onMoveCard(from = 0, to = 200)
+        advanceUntilIdle()
+
+        assertEquals(CardMove("deck1", "card000", 200), deckRepo.movedCards.single())
+        assertTrue(
+            vm.state.value.cards.none { it.id == "card000" },
+            "a card moved out of the loaded window is still shown inside it",
+        )
+    }
+
+    @Test
+    fun `a move target past the end of the deck lands on the last position`() = runTest(mainDispatcher) {
+        seedTwoCardDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onMoveCard(from = 0, to = 99)
+        advanceUntilIdle()
+
+        assertEquals(CardMove("deck1", "card1", 1), deckRepo.movedCards.single())
     }
 
     @Test
@@ -297,42 +342,145 @@ class DeckEditorViewModelTest {
     }
 
     @Test
-    fun `adding a card still republishes the deck`() = runTest {
+    fun `adding a card to an existing deck opens the card editor`() = runTest(mainDispatcher) {
         seedDeckWithMedia()
         val vm = viewModel()
         advanceUntilIdle()
+        val effects = mutableListOf<DeckEditorEffect>()
+        val job = launch { vm.effects.collect { effects.add(it) } }
 
         vm.onAddCard()
-        vm.onSaveClick()
         advanceUntilIdle()
+        job.cancel()
 
-        assertEquals(expected = 1, actual = deckRepo.published.size)
+        // A blank row in this list has nowhere to go now that saving never rewrites the cards.
+        assertEquals(DeckEditorEffect.NavigateNewCard("deck1"), effects.single())
+        assertEquals(expected = 1, actual = vm.state.value.cards.size)
     }
 
     @Test
-    fun `moving a card out of bounds is ignored`() = runTest {
-        seedDeckWithMedia()
-        val vm = viewModel()
-        advanceUntilIdle()
-
-        vm.onMoveCard(from = 0, to = 5)
-
-        assertEquals(listOf("card1"), vm.state.value.cards.map { it.id })
-    }
-
-    @Test
-    fun `a card added in this session is published with its typed text`() = runTest(mainDispatcher) {
-        seedDeckWithMedia()
-        val vm = viewModel()
+    fun `adding a card to a deck that does not exist yet keeps it in the list`() = runTest(mainDispatcher) {
+        val vm = viewModel(deckId = null)
         advanceUntilIdle()
 
         vm.onAddCard()
-        val newCardId = vm.state.value.cards.last().id
+
+        // Nowhere to write it: the deck has no manifest yet, so Save publishes it with the rest.
+        assertEquals(expected = 1, actual = vm.state.value.cards.size)
+        assertEquals(expected = 1, actual = vm.state.value.totalCards)
+    }
+
+    @Test
+    fun `a blank row is not published with a new deck`() = runTest(mainDispatcher) {
+        val vm = viewModel(deckId = null)
+        advanceUntilIdle()
+        vm.onTitleChanged("Kanji N5")
+
+        // publish() rejects an empty side, so an untouched Add-card row would fail the save.
+        vm.onAddCard()
         vm.onSaveClick()
         advanceUntilIdle()
 
         val (_, cards) = deckRepo.published.single()
-        assertTrue(cards.any { it.id == newCardId }, "the new card was not published")
+        assertTrue(cards.isEmpty(), "an untouched blank row was published")
+    }
+
+    @Test
+    fun `moving a card from out of bounds is ignored`() = runTest(mainDispatcher) {
+        seedDeckWithMedia()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onMoveCard(from = 4, to = 0)
+        advanceUntilIdle()
+
+        assertEquals(listOf("card1"), vm.state.value.cards.map { it.id })
+        assertTrue(deckRepo.movedCards.isEmpty())
+    }
+
+    // ── paging (#52) ─────────────────────────────────────────────────────
+
+    @Test
+    fun `opening a deck reads one chunk, not the whole deck`() = runTest(mainDispatcher) {
+        seedPagedDeck(cardCount = 250)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertEquals(expected = 100, actual = state.cards.size, "the editor loaded more than one page")
+        assertEquals(expected = 250, actual = state.totalCards, "the header counts the page, not the deck")
+        assertTrue(state.hasMoreCards)
+        assertEquals(listOf("deck1" to 0), cardRepo.readChunks)
+    }
+
+    @Test
+    fun `scrolling pulls the next chunk in`() = runTest(mainDispatcher) {
+        seedPagedDeck(cardCount = 250)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onLoadMoreCards()
+        advanceUntilIdle()
+        assertEquals(expected = 200, actual = vm.state.value.cards.size)
+        assertTrue(vm.state.value.hasMoreCards)
+
+        vm.onLoadMoreCards()
+        advanceUntilIdle()
+        assertEquals(expected = 250, actual = vm.state.value.cards.size)
+        assertFalse(vm.state.value.hasMoreCards, "the last chunk still reports more to come")
+    }
+
+    @Test
+    fun `a deck bigger than a page does not offer drag-to-reorder`() = runTest(mainDispatcher) {
+        seedPagedDeck(cardCount = 250)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertFalse(
+            vm.state.value.canDragReorder,
+            "dragging one row across 250 would have to cross rows that are not loaded",
+        )
+    }
+
+    @Test
+    fun `a deck that fits in one page still drags`() = runTest(mainDispatcher) {
+        seedTwoCardDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.canDragReorder)
+    }
+
+    @Test
+    fun `a deck published before the chunk table still loads whole`() = runTest(mainDispatcher) {
+        // No chunks in the manifest: there are no page boundaries to walk, so the old
+        // whole-deck read is what such a deck gets.
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 2)
+        cardRepo.seed(
+            Card("card1", "deck1", 1L, CardSide(text = "first"), CardSide(text = "1"), ord = 0L),
+            Card("card2", "deck1", 2L, CardSide(text = "second"), CardSide(text = "2"), ord = 1_000L),
+        )
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("card1", "card2"), vm.state.value.cards.map { it.id })
+        assertFalse(vm.state.value.hasMoreCards)
+        assertEquals(expected = 1, actual = cardRepo.fetchCount)
+    }
+
+    @Test
+    fun `onResume re-reads only the pages already on screen`() = runTest(mainDispatcher) {
+        seedPagedDeck(cardCount = 250)
+        val vm = viewModel()
+        advanceUntilIdle()
+        cardRepo.readChunks.clear()
+
+        vm.onResume()
+        advanceUntilIdle()
+
+        // Returning from a card edit must not silently re-download the rest of a big deck.
+        assertEquals(listOf("deck1" to 0), cardRepo.readChunks)
+        assertEquals(expected = 100, actual = vm.state.value.cards.size)
     }
 
     // ── share on Pubky (#39) ─────────────────────────────────────────────

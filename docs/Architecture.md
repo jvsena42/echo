@@ -677,7 +677,16 @@ The trade-off is deliberate: editing one card now rewrites a ~63 KB chunk instea
 3. **`list()` behaviour on large directories.** It accepts `cursor`/`limit` and `delete()` now pages through them, but the server's own page cap is unverified.
 4. **Real latency at 20k cards.** ~200 chunk GETs on deck open is untested at that size; 1,200 cards (12 chunks) is comfortable.
 
-**Known gaps:** chunk compaction (deletes leave holes, nothing rebalances); the deck editor loads every card into memory as an `EditableCardModel`, so a 20k-card deck needs a paged editor — chunking does not solve that.
+**The deck editor is paged** (#52). It reads one chunk record at a time as the list scrolls, and shows the manifest's `card_count` in the header rather than the length of what it happens to have read. Two rules follow, and both are load-bearing:
+
+- **Saving an existing deck writes only the manifest.** The card list is a window, so rebuilding the deck's cards from it would delete everything not paged in. Renaming a 20k-card deck is one write, not ~201.
+- **Card changes are written when they happen**, not on Save. Adding a card hands over to the card editor (`upsertCard`); moving one goes through `DeckRepository.moveCard`.
+
+`moveCard` is what makes reordering affordable at that size. Order lives on `Card.ord`, and `chunk n` owns exactly `[n · CHUNK_SIZE · ORD_STRIDE, (n+1) · CHUNK_SIZE · ORD_STRIDE)` — a private slice of the ord line — so the landing chunk is renumbered inside its own range and no other chunk moves. A move is one chunk write plus the manifest, or two when it crosses a boundary; the **landing** chunk is written first, so a failure between the two leaves the card in both records rather than in neither. Destination positions come from `CardChunking.positionAt`, arithmetic over the manifest's chunk counts, so locating position 12,345 costs no reads.
+
+Drag-to-reorder is therefore offered only while the whole deck fits in one page (`DRAG_REORDER_LIMIT`, 100). Above that the row's position number opens "move to position…", which can target a position the list has never loaded.
+
+**Known gaps:** chunk compaction (deletes leave holes, nothing rebalances); a deck published before the chunk table existed has no page boundaries to walk, so the editor still reads it whole (small by construction — the layout landed before any Anki-sized import could).
 
 ## 9. Cross-cutting concerns
 
