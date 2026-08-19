@@ -80,6 +80,7 @@ import com.github.jvsena42.loopky.presentation.decks.DeckEditorEffect
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorUiState
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditableCardModel
+import com.github.jvsena42.loopky.ui.components.AddTagSheet
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.SharePromptDialog
@@ -364,6 +365,7 @@ private fun DeckMetadataCard(
     modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
+    var showTagSheet by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -511,16 +513,26 @@ private fun DeckMetadataCard(
                 }
 
                 AssistChip(
-                    onClick = { onAddTag("new") },
+                    onClick = { showTagSheet = true },
                     label = {
                         Text(text = stringResource(R.string.deck_editor_add_tag), fontSize = 13.sp, fontWeight = FontWeight.W600)
                     },
+                    modifier = Modifier.testTag("deck_editor_add_tag"),
                     shape = RoundedCornerShape(50),
                     colors = AssistChipDefaults.assistChipColors(labelColor = colors.accentSecondary),
                     border = BorderStroke(1.dp, colors.accentSecondary),
                 )
             }
         }
+    }
+
+    if (showTagSheet) {
+        AddTagSheet(
+            tags = state.tags,
+            onAddTag = onAddTag,
+            onRemoveTag = onRemoveTag,
+            onDismiss = { showTagSheet = false },
+        )
     }
 }
 

@@ -161,7 +161,9 @@ class DeckEditorViewModel(
             Log.d(TAG, "onAddTag: ignoring reserved label '$trimmed'")
             return
         }
-        _state.update { s -> s.copy(tags = s.tags + trimmed) }
+        // Dedup: the tag input can be tapped twice with the same label, and a tag record is keyed
+        // by label, so a duplicate is a no-op on the homeserver but a second chip in the UI (#83).
+        _state.update { s -> if (trimmed in s.tags) s else s.copy(tags = s.tags + trimmed) }
     }
 
     fun onRemoveTag(tag: String) {
