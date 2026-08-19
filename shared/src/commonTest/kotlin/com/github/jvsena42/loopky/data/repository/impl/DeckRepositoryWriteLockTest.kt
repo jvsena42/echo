@@ -1,7 +1,9 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.testing.CountingRevalidator
+import com.github.jvsena42.loopky.testing.FakeBackgroundTasks
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
@@ -39,6 +41,7 @@ class DeckRepositoryWriteLockTest {
         revalidator = revalidator,
         tagRepo = RecordingTagRepository(),
         mediaRepo = FakeMediaRepository(),
+        backgroundTasks = FakeBackgroundTasks(),
     )
 
     @Test
@@ -86,5 +89,27 @@ class DeckRepositoryWriteLockTest {
         assertEquals("Renamed", deck.title)
         assertEquals(listOf(0, 1), deck.chunks.map { it.n })
         assertEquals(CHUNK_SIZE + 1, deck.cardCount)
+    }
+
+    @Test
+    fun upsertCardKeepsAnImageRefOnTheStoredCard() = runTest {
+        // Driving the real app, a card image added in the editor came back missing. This pins the
+        // repository half of that path: whatever else is wrong, `upsertCard` must not be the thing
+        // dropping the ref.
+        repo.publish(testDeck(id = "deck1"), listOf(testCard("c1"))).getOrThrow()
+        val image = MediaRef.Image(
+            path = "media/abc.jpg",
+            mime = "image/jpeg",
+            sha256 = "abc",
+            width = null,
+            height = null,
+        )
+        val withImage = testCard("c1").let { it.copy(back = it.back.copy(imageRef = image)) }
+
+        repo.upsertCard("deck1", withImage).getOrThrow()
+
+        val stored = CardRepositoryImpl(pubky, session, revalidator)
+            .fetchByDeck(repo.getLocal("deck1")!!).getOrThrow().single()
+        assertEquals(image, stored.back.imageRef)
     }
 }

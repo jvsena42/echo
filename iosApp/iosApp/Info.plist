@@ -15,9 +15,17 @@
 			</array>
 		</dict>
 	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.github.jvsena42.loopky.media-rehost</string>
+	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>pubkyring</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
 	</array>
 </dict>
 </plist>

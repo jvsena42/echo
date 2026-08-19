@@ -45,6 +45,16 @@ internal data class ManifestDto(
     val incomplete: Boolean = false,
     val listen_enabled: Boolean = true,
     val speak_enabled: Boolean = true,
+    /**
+     * Chunk to resume the media re-host scan at (#53). Meaningless unless `source.kind == "clone"`.
+     *
+     * A cursor rather than deriving progress from the refs themselves: a chunk with nothing pinned
+     * in it is never rewritten, so without this a budgeted sweep restarts at chunk 0 every run and
+     * a deck with more chunks than the budget never finishes.
+     */
+    val media_rehost_cursor: Int = 0,
+    /** True once a full pass found nothing left pinned to another author. */
+    val media_rehosted: Boolean = false,
 )
 
 @Serializable
@@ -123,6 +133,8 @@ internal fun Deck.toDto() = ManifestDto(
     incomplete = incomplete,
     listen_enabled = listenEnabled,
     speak_enabled = speakEnabled,
+    media_rehost_cursor = mediaRehostCursor,
+    media_rehosted = mediaRehosted,
 )
 
 internal fun ManifestDto.toDomain() = Deck(
@@ -141,6 +153,8 @@ internal fun ManifestDto.toDomain() = Deck(
     incomplete = incomplete,
     listenEnabled = listen_enabled,
     speakEnabled = speak_enabled,
+    mediaRehostCursor = media_rehost_cursor,
+    mediaRehosted = media_rehosted,
 )
 
 internal fun DeckSource.toDto() = SourceDto(

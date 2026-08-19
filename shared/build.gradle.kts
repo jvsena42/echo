@@ -41,6 +41,9 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.koin.android)
+            // The media re-host job (#53). Lives here rather than in :composeApp because
+            // PlatformModule.android.kt binds it and :shared cannot depend on the app module.
+            implementation(libs.androidx.work.runtime)
             // JNA is required by the UniFFI-generated Kotlin bindings (uniffi.pubkycore).
             // `@aar` pulls the Android-flavored artifact with the native .so bundled.
             implementation("${libs.jna.get().module}:${libs.versions.jna.get()}@aar")

@@ -31,6 +31,13 @@ data class Deck(
     val listenEnabled: Boolean = true,
     /** Opt-in: pronunciation practice (speech recognition) on the card back during study. */
     val speakEnabled: Boolean = true,
+    /**
+     * Chunk the media re-host sweep should resume at (#53). Only meaningful for a clone, whose
+     * card media starts out pinned to the original author's blobs.
+     */
+    val mediaRehostCursor: Int = 0,
+    /** True once a full sweep found nothing left pinned to another author. */
+    val mediaRehosted: Boolean = false,
 ) {
     // Built literally rather than via PubkyPaths: that lives in `data/pubky`, and domain models
     // must not depend on the data layer (Architecture §4.1).

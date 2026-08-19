@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.data.repository.PublishProgress
+import com.github.jvsena42.loopky.data.repository.RehostOutcome
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
@@ -32,6 +33,7 @@ import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.domain.model.review
+import com.github.jvsena42.loopky.platform.BackgroundTasks
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
@@ -98,6 +100,16 @@ class FakeDeckRepository : DeckRepository {
         rehostedBlobs.add(deckId to sha256)
         return Result.success(Unit)
     }
+
+    val sweeps = mutableListOf<String>()
+
+    override suspend fun rehostPendingMedia(deckId: String, maxChunks: Int): Result<RehostOutcome> {
+        sweeps.add(deckId)
+        return Result.success(RehostOutcome(0, 0, 0, 0, complete = true))
+    }
+
+    override suspend fun decksPendingRehost(): List<Deck> =
+        decks.values.filter { it.source?.kind == DeckSource.Kind.Clone && !it.mediaRehosted }
 
     private val _changes = MutableSharedFlow<Unit>(
         extraBufferCapacity = 8,
@@ -695,5 +707,14 @@ class FakeAppPreferences(shareOnPubky: Boolean = true) : AppPreferences {
 
     override suspend fun setShareOnPubky(enabled: Boolean) {
         _shareOnPubky.update { enabled }
+    }
+}
+
+class FakeBackgroundTasks : BackgroundTasks {
+    var scheduled = 0
+        private set
+
+    override fun scheduleMediaRehost() {
+        scheduled++
     }
 }

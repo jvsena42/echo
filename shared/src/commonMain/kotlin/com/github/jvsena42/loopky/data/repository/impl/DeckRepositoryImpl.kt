@@ -20,6 +20,7 @@ import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.PublishProgress
+import com.github.jvsena42.loopky.data.repository.RehostOutcome
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
@@ -30,6 +31,7 @@ import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
+import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
 import com.github.jvsena42.loopky.util.generateId
@@ -59,6 +61,7 @@ class DeckRepositoryImpl(
     private val revalidator: SessionRevalidator,
     private val tagRepo: TagRepository,
     private val mediaRepo: MediaRepository,
+    private val backgroundTasks: BackgroundTasks,
     /**
      * App-scoped, like `SrsRepositoryImpl`'s: re-hosting outlives whatever screen triggered it, so
      * it cannot run on a `viewModelScope` that dies in `onCleared()`. Injectable so tests can pass
@@ -311,8 +314,8 @@ class DeckRepositoryImpl(
             val deck = getLocal(deckId) ?: return@runSuspendCatching
             if (deck.authorPubky != session.current()?.identity?.pubky) return@runSuspendCatching
 
-            val cover = deck.coverImageRef?.takeIf { it.isPinnedTo(sha256) }
-            val cards = cardRepo.listByDeck(deckId).filter { it.hasPinned(sha256) }
+            val cover = deck.coverImageRef?.takeIf { it.isRehostable() && it.sha256 == sha256 }
+            val cards = cardRepo.listByDeck(deckId).filter { it.pinnedRef(sha256) != null }
             val sample = cover ?: cards.firstNotNullOfOrNull { it.pinnedRef(sha256) }
                 ?: return@runSuspendCatching
 
@@ -332,6 +335,34 @@ class DeckRepositoryImpl(
             }
             Log.d(TAG, "rehostBlob: $deckId/$sha256 across ${cards.size} card(s)")
         }
+
+    override suspend fun decksPendingRehost(): List<Deck> = listOwned()
+        .filter { it.source?.kind == DeckSource.Kind.Clone && !it.mediaRehosted }
+
+    override suspend fun rehostPendingMedia(
+        deckId: String,
+        maxChunks: Int,
+    ): Result<RehostOutcome> = runSuspendCatching {
+        val deck = requireOwnedDeck(deckId)
+        if (deck.mediaRehosted) {
+            RehostOutcome(0, 0, 0, 0, complete = true)
+        } else {
+            sweeper.sweep(deck, maxChunks)
+        }
+    }
+
+    /** [DeckMediaSweeper]'s window onto this class, keeping the write lock owned here. */
+    private val writeAccess = object : DeckWriteAccess {
+        override suspend fun localDeck(deckId: String): Deck? = getLocal(deckId)
+
+        override suspend fun <T> inWriteLock(deckId: String, block: suspend () -> T): T =
+            withDeckWrite(deckId, block)
+
+        override suspend fun patchLocked(deckId: String, patch: (Deck) -> Deck): Deck =
+            patchDeckLocked(deckId, emitChange = false, patch = patch)
+    }
+
+    private val sweeper = DeckMediaSweeper(cardRepo, mediaRepo, writeAccess)
 
     /** Rewrite [cards]' refs to the re-hosted blob, one chunk write per chunk they live in. */
     private suspend fun writeRehostedCards(
@@ -355,43 +386,6 @@ class DeckRepositoryImpl(
             // nothing user-visible changed. Bumping updated_at would tell every follower the
             // author published changes, and emitting `changes` would reload the library.
             writeChunkAndManifestLocked(deck, chunk, updated, touchDeck = false)
-        }
-    }
-
-    /** Whether this ref still points at another author's copy of [sha256]. */
-    private fun MediaRef.isPinnedTo(sha256: String): Boolean = uri != null && this.sha256 == sha256
-
-    private fun Card.hasPinned(sha256: String): Boolean = pinnedRef(sha256) != null
-
-    private fun Card.pinnedRef(sha256: String): MediaRef? =
-        listOfNotNull(
-            front.imageRef, front.audioRef, back.imageRef, back.audioRef,
-        ).firstOrNull { it.isPinnedTo(sha256) }
-
-    private fun Card.relocatedTo(rehosted: MediaRef, sha256: String): Card = copy(
-        front = front.relocatedTo(rehosted, sha256),
-        back = back.relocatedTo(rehosted, sha256),
-    )
-
-    private fun CardSide.relocatedTo(rehosted: MediaRef, sha256: String): CardSide = copy(
-        imageRef = imageRef?.relocatedTo(rehosted, sha256),
-        audioRef = audioRef?.relocatedTo(rehosted, sha256),
-    )
-
-    /**
-     * This ref pointed at the blob's new home, or unchanged when it is not that blob.
-     *
-     * The path comes from what [MediaRepository.rehost] returned rather than being rebuilt here:
-     * it recomputes the digest from the fetched bytes and the extension from the mime type, so a
-     * hand-assembled path could disagree with where the copy actually landed.
-     */
-    private fun <T : MediaRef> T.relocatedTo(rehosted: MediaRef, sha256: String): T {
-        if (!isPinnedTo(sha256)) return this
-        @Suppress("UNCHECKED_CAST")
-        return when (this) {
-            is MediaRef.Image -> copy(path = rehosted.path, uri = null) as T
-            is MediaRef.Audio -> copy(path = rehosted.path, uri = null) as T
-            else -> this
         }
     }
 
@@ -540,7 +534,16 @@ class DeckRepositoryImpl(
 
     override suspend fun listOwned(): List<Deck> {
         val author = session.current()?.identity?.pubky ?: return emptyList()
-        return listByAuthor(author)
+        val owned = listByAuthor(author)
+
+        // The self-heal. There is no single app-start hook — session restore is spread across
+        // ViewModels — but this runs whenever Home or the library loads, and the job is unique
+        // work with KEEP, so asking again costs nothing. Recovers a dropped inline signal or a
+        // sweep the system cancelled.
+        if (owned.any { it.source?.kind == DeckSource.Kind.Clone && !it.mediaRehosted }) {
+            backgroundTasks.scheduleMediaRehost()
+        }
+        return owned
     }
 
     /**
@@ -758,6 +761,11 @@ class DeckRepositoryImpl(
                 Log.e(TAG, "clone: unfollowing ${source.id} failed — ${it.message}", it)
             }
         }
+
+        // A fresh clone's media is entirely pinned to the source author. Scheduled from the repo
+        // rather than a ViewModel so it is not a screen's responsibility to remember, and so it is
+        // testable in commonTest.
+        backgroundTasks.scheduleMediaRehost()
 
         Log.d(TAG, "clone: ${source.id} -> $newId (${cards.size} cards)")
         published
