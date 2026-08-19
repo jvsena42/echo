@@ -9,9 +9,11 @@ import com.github.jvsena42.loopky.data.storage.AndroidSecureSessionStore
 import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
+import com.github.jvsena42.loopky.platform.AndroidBackgroundTasks
 import com.github.jvsena42.loopky.platform.AndroidMediaProcessor
 import com.github.jvsena42.loopky.platform.AndroidSpeaker
 import com.github.jvsena42.loopky.platform.AndroidSpeechRecognizer
+import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.MediaProcessor
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.platform.SpeechRecognizer
@@ -34,6 +36,7 @@ fun androidPlatformModule(unsplashAccessKey: String): Module = module {
     single<Speaker> { AndroidSpeaker(androidContext()) }
     single<MediaProcessor> { AndroidMediaProcessor() }
     single<SpeechRecognizer> { AndroidSpeechRecognizer(androidContext()) }
+    single<BackgroundTasks> { AndroidBackgroundTasks(androidContext()) }
     single { UnsplashClient(http = get(), accessKey = unsplashAccessKey) }
     factory {
         OnboardingViewModel(
