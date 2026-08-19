@@ -9,6 +9,8 @@ import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.IosAppPreferences
 import com.github.jvsena42.loopky.data.storage.IosSecureSessionStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.platform.BackgroundTasks
+import com.github.jvsena42.loopky.platform.IosBackgroundTasks
 import com.github.jvsena42.loopky.platform.IosSpeaker
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.presentation.decks.DeckDetailViewModel
@@ -43,6 +45,9 @@ fun doInitKoin(rawPubkyClient: RawPubkyClient) {
     startKoin {
         modules(sharedModule, iosPlatformModule(rawPubkyClient))
     }
+    // BGTaskScheduler rejects a handler registered after the app has finished launching, so this
+    // cannot be deferred to the first schedule (#53).
+    (KoinPlatform.getKoin().get<BackgroundTasks>() as? IosBackgroundTasks)?.register()
 }
 
 private fun iosPlatformModule(rawPubkyClient: RawPubkyClient): Module = module {
@@ -51,6 +56,7 @@ private fun iosPlatformModule(rawPubkyClient: RawPubkyClient): Module = module {
     single<SecureSessionStore> { IosSecureSessionStore() }
     single<AppPreferences> { IosAppPreferences() }
     single<Speaker> { IosSpeaker() }
+    single<BackgroundTasks> { IosBackgroundTasks(identity = get(), decks = get()) }
 }
 
 /** Resolver helper for SwiftUI — avoids depending on Koin Swift bridges in v1. */
