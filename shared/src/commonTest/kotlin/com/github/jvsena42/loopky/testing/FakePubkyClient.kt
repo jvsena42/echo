@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.testing
 
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyError
+import kotlinx.coroutines.CompletableDeferred
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -55,11 +56,19 @@ class FakePubkyClient : PubkyClient {
     var approvalResult: Result<String> = Result.failure(PubkyError("No auth flow in progress"))
     var awaitApprovalCalls = 0
 
+    /**
+     * When set, [putWithSession] parks until it completes. `runTest` runs on one thread, so without
+     * a real suspension point inside the write two "concurrent" writers can never interleave and a
+     * race test passes vacuously.
+     */
+    var putGate: CompletableDeferred<Unit>? = null
+
     override suspend fun putWithSession(
         url: String,
         content: String,
         sessionSecret: String,
     ): Result<String> {
+        putGate?.await()
         consumeInjectedFailure()?.let { return Result.failure(it) }
         store[url] = content
         puts.add(url to content)

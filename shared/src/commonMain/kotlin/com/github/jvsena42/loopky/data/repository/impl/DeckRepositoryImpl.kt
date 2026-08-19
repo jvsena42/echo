@@ -66,6 +66,18 @@ class DeckRepositoryImpl(
     private var subscriptions: MutableMap<String, SubscriptionDto>? = null
     private val subscriptionLock = Mutex()
 
+    /**
+     * One write lock per deck, guarding the read-manifest → write-chunk → write-manifest sequence.
+     *
+     * Deliberately not [cacheLock]: that one is held only for map access, and holding it across
+     * network I/O would serialize `getLocal` app-wide — which is on the study hot path.
+     *
+     * `kotlinx` [Mutex] is **not reentrant**, so the lock is taken at exactly one level: the public
+     * entry points. Anything named `…Locked` assumes the caller already holds it.
+     */
+    private val deckWriteLocks = mutableMapOf<String, Mutex>()
+    private val deckWriteLocksGuard = Mutex()
+
     private val _changes = MutableSharedFlow<Unit>(
         extraBufferCapacity = CHANGE_BUFFER,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -97,6 +109,16 @@ class DeckRepositoryImpl(
         require(deck.authorPubky == author) {
             "Deck author mismatch: expected $author, got ${deck.authorPubky}"
         }
+        withDeckWrite(deck.id) { publishLocked(deck, cards, author, onProgress) }
+    }
+
+    /** [publish]'s body. **The caller must hold [Deck.id]'s write lock.** */
+    private suspend fun publishLocked(
+        deck: Deck,
+        cards: List<Card>,
+        author: String,
+        onProgress: (PublishProgress) -> Unit,
+    ): Deck {
         cards.forEach {
             require(!it.front.isEmpty && !it.back.isEmpty) {
                 "Card ${it.id} has an empty side"
@@ -172,7 +194,7 @@ class DeckRepositoryImpl(
 
         cacheLock.withLock { cache[manifestDeck.id] = manifestDeck }
         _changes.tryEmit(Unit)
-        manifestDeck
+        return manifestDeck
     }
 
     /**
@@ -194,42 +216,54 @@ class DeckRepositoryImpl(
         }
     }
 
+    /**
+     * Write the deck's metadata, keeping whatever chunk table is current rather than the caller's.
+     *
+     * A ViewModel holds the `Deck` it loaded when the editor opened; anything that rewrote a chunk
+     * in the meantime — a card edit on another screen, a media re-host — is invisible to it, and
+     * writing its `chunks`/`cardCount` back would orphan those chunks.
+     */
     override suspend fun updateMetadata(deck: Deck): Result<Deck> = runSuspendCatching {
-        require(deck.authorPubky == session.requireSession().identity.pubky) {
-            "Deck author mismatch"
+        requireOwnedDeck(deck.id)
+        withDeckWrite(deck.id) {
+            patchDeckLocked(deck.id) { current ->
+                deck.copy(chunks = current.chunks, cardCount = current.cardCount)
+            }
         }
-        val url = PubkyPaths.manifest(deck.authorPubky, deck.id)
-        val body = loopkyJson.encodeToString(deck.toDto())
-        pubky.putWithSessionRetry(url, body, session, revalidator).getOrThrow()
-        cacheLock.withLock { cache[deck.id] = deck }
-        _changes.tryEmit(Unit)
-        deck
     }
 
     override suspend fun upsertCard(deckId: String, card: Card): Result<Deck> = runSuspendCatching {
         require(!card.front.isEmpty && !card.back.isEmpty) { "Card ${card.id} has an empty side" }
-        val deck = requireOwnedDeck(deckId)
+        requireOwnedDeck(deckId)
 
-        // An existing card is rewritten in place; a new one appends to the last chunk with room.
-        val existing = locateChunk(deck, card.id)
-        val targetChunk = existing ?: CardChunking.appendTarget(deck.chunks)
-        val current = cardRepo.readChunk(deck, targetChunk).getOrDefault(emptyList())
+        withDeckWrite(deckId) {
+            val deck = requireNotNull(getLocal(deckId)) { "Deck $deckId is not loaded" }
 
-        val ord = current.firstOrNull { it.id == card.id }?.ord
-            ?: ((current.maxOfOrNull { it.ord } ?: -ORD_STRIDE) + ORD_STRIDE)
-        val updated = current.filterNot { it.id == card.id } + card.copy(ord = ord)
+            // An existing card is rewritten in place; a new one appends to the last chunk with room.
+            val existing = locateChunk(deck, card.id)
+            val targetChunk = existing ?: CardChunking.appendTarget(deck.chunks)
+            val current = cardRepo.readChunk(deck, targetChunk).getOrDefault(emptyList())
 
-        writeChunkAndManifest(deck, targetChunk, updated.inStudyOrder())
+            val ord = current.firstOrNull { it.id == card.id }?.ord
+                ?: ((current.maxOfOrNull { it.ord } ?: -ORD_STRIDE) + ORD_STRIDE)
+            val updated = current.filterNot { it.id == card.id } + card.copy(ord = ord)
+
+            writeChunkAndManifestLocked(deck, targetChunk, updated.inStudyOrder())
+        }
     }
 
     override suspend fun deleteCard(deckId: String, cardId: String): Result<Deck> = runSuspendCatching {
-        val deck = requireOwnedDeck(deckId)
-        val chunk = locateChunk(deck, cardId) ?: return@runSuspendCatching deck
-        val remaining = cardRepo.readChunk(deck, chunk).getOrDefault(emptyList())
-            .filterNot { it.id == cardId }
+        requireOwnedDeck(deckId)
 
-        cardRepo.evict(deckId, cardId)
-        writeChunkAndManifest(deck, chunk, remaining)
+        withDeckWrite(deckId) {
+            val deck = requireNotNull(getLocal(deckId)) { "Deck $deckId is not loaded" }
+            val chunk = locateChunk(deck, cardId) ?: return@withDeckWrite deck
+            val remaining = cardRepo.readChunk(deck, chunk).getOrDefault(emptyList())
+                .filterNot { it.id == cardId }
+
+            cardRepo.evict(deckId, cardId)
+            writeChunkAndManifestLocked(deck, chunk, remaining)
+        }
     }
 
     /**
@@ -248,6 +282,43 @@ class DeckRepositoryImpl(
         return null
     }
 
+    /** Run [block] holding [deckId]'s write lock, so its manifest read-modify-write is atomic. */
+    private suspend fun <T> withDeckWrite(deckId: String, block: suspend () -> T): T {
+        val lock = deckWriteLocksGuard.withLock { deckWriteLocks.getOrPut(deckId) { Mutex() } }
+        return lock.withLock { block() }
+    }
+
+    /**
+     * Read-modify-write the manifest. **The caller must hold [deckId]'s write lock.**
+     *
+     * The deck is re-read from the cache rather than taken from a snapshot the caller captured:
+     * every manifest write serializes the *whole* record, so patching a `Deck` fetched before a
+     * concurrent write would silently restore its chunk table. A dropped chunk entry orphans the
+     * chunk record — the cards in it stay on the homeserver but vanish from the deck.
+     *
+     * [emitChange] is false for writes with nothing user-visible in them (media re-hosting), so a
+     * sweep does not trigger a library reload per chunk.
+     */
+    private suspend fun patchDeckLocked(
+        deckId: String,
+        emitChange: Boolean = true,
+        patch: (Deck) -> Deck,
+    ): Deck {
+        val current = requireNotNull(getLocal(deckId)) { "Deck $deckId is not loaded" }
+        val updated = patch(current)
+        val body = loopkyJson.encodeToString(updated.toDto())
+        pubky.putWithSessionRetry(
+            PubkyPaths.manifest(updated.authorPubky, updated.id),
+            body,
+            session,
+            revalidator,
+        ).getOrThrow()
+
+        cacheLock.withLock { cache[updated.id] = updated }
+        if (emitChange) _changes.tryEmit(Unit)
+        return updated
+    }
+
     /**
      * Write one chunk and the manifest entry that describes it, as a pair. Deliberately a single
      * function: the old layout let a card record and its manifest entry be written independently,
@@ -255,28 +326,28 @@ class DeckRepositoryImpl(
      *
      * The chunk is written first — a chunk the manifest doesn't yet describe is invisible, whereas
      * a manifest pointing at a chunk that was never written is a broken deck.
+     *
+     * **The caller must hold [Deck.id]'s write lock.** [touchDeck] is false for a write that
+     * changes no content — re-hosting media rewrites refs to blobs the deck already had, and
+     * bumping `updated_at` would light up every follower's "the author published changes" badge.
      */
-    private suspend fun writeChunkAndManifest(deck: Deck, chunk: Int, cards: List<Card>): Deck {
+    private suspend fun writeChunkAndManifestLocked(
+        deck: Deck,
+        chunk: Int,
+        cards: List<Card>,
+        touchDeck: Boolean = true,
+    ): Deck {
         cardRepo.writeChunk(deck.id, chunk, cards).getOrThrow()
 
         val now = epochMillis()
-        val chunks = CardChunking.withChunk(deck.chunks, chunk, cards.size, now)
-        val updated = deck.copy(
-            chunks = chunks,
-            cardCount = CardChunking.cardCount(chunks),
-            updatedAt = now,
-        )
-        val body = loopkyJson.encodeToString(updated.toDto())
-        pubky.putWithSessionRetry(
-            PubkyPaths.manifest(deck.authorPubky, deck.id),
-            body,
-            session,
-            revalidator,
-        ).getOrThrow()
-
-        cacheLock.withLock { cache[updated.id] = updated }
-        _changes.tryEmit(Unit)
-        return updated
+        return patchDeckLocked(deck.id, emitChange = touchDeck) { current ->
+            val chunks = CardChunking.withChunk(current.chunks, chunk, cards.size, now)
+            current.copy(
+                chunks = chunks,
+                cardCount = CardChunking.cardCount(chunks),
+                updatedAt = if (touchDeck) now else current.updatedAt,
+            )
+        }
     }
 
     /** The deck, confirmed to exist and to belong to the signed-in user. */
@@ -294,6 +365,12 @@ class DeckRepositoryImpl(
         // it, deleting a followed deck built its sweep paths from *your* pubky and quietly ranged
         // over your own namespace looking for a deck that was never there.
         val cached = requireOwnedDeck(deckId)
+        withDeckWrite(deckId) { deleteLocked(cached) }
+    }
+
+    /** [delete]'s body. **The caller must hold the deck's write lock.** */
+    private suspend fun deleteLocked(cached: Deck) {
+        val deckId = cached.id
         val author = cached.authorPubky
 
         // Sweep everything under the deck root (cards, manifest, media blobs, SRS records)
@@ -330,7 +407,6 @@ class DeckRepositoryImpl(
 
         cacheLock.withLock { cache.remove(deckId) }
         _changes.tryEmit(Unit)
-        Unit
     }
 
     override suspend fun listOwned(): List<Deck> {
