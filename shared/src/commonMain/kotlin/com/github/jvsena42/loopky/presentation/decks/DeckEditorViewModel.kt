@@ -103,6 +103,43 @@ class DeckEditorViewModel(
         }
     }
 
+    /**
+     * Re-read the deck's cards, for when the screen comes back to the foreground.
+     *
+     * The card editor is a separate screen writing straight through to the repository, so on the
+     * way back this list is showing the card as it was before that edit — and since a save
+     * rebuilds every card from it, it would write that stale version back over the edit. Order and
+     * any not-yet-saved card added here are kept; only the cards the repository actually knows are
+     * refreshed.
+     */
+    fun onResume() {
+        if (deckId == null) return
+        viewModelScope.launch {
+            val latest = refreshSnapshot().cardsById
+            if (latest.isEmpty()) return@launch
+            _state.update { s ->
+                s.copy(cards = s.cards.map { editable -> latest[editable.id]?.toEditable() ?: editable })
+            }
+        }
+    }
+
+    /**
+     * Re-read the deck and its cards, and re-baseline [loadedCards] against them.
+     *
+     * The card editor is a separate screen writing straight through to the repository, so the
+     * snapshot this editor took when it opened goes stale the moment a card is edited there.
+     * Both halves matter: a full publish rebuilt from the stale cards would write that card back
+     * as it was and destroy the edit — an image added in the card editor, say (#80) — and a
+     * metadata-only save would restore the pre-edit chunk table over the one `upsertCard` just
+     * patched. Empty for a deck that does not exist yet.
+     */
+    private suspend fun refreshSnapshot(): DeckSnapshot {
+        val currentDeckId = deckId ?: return DeckSnapshot(null, emptyMap())
+        val cardsById = cardRepository.listByDeck(currentDeckId).associateBy(Card::id)
+        loadedCards = loadedCards.map { cardsById[it.id] ?: it }
+        return DeckSnapshot(deckRepository.getLocal(currentDeckId) ?: loadedDeck, cardsById)
+    }
+
     fun onTitleChanged(text: String) {
         _state.update { it.copy(title = text, titleError = titleErrorFor(text)) }
     }
@@ -207,8 +244,8 @@ class DeckEditorViewModel(
 
             val now = epochMillis()
             val actualDeckId = deckId ?: generateId()
-            val existing = loadedDeck ?: deckId?.let { deckRepository.getLocal(it) }
-            val cards = buildCards(s.cards, actualDeckId, now)
+            val (existing, latest) = refreshSnapshot()
+            val cards = buildCards(s.cards, actualDeckId, now, latest)
             val cover = resolveCoverImage(s, actualDeckId, mediaRepository) ?: existing?.coverImageRef
             val deck = buildDeck(s, authorPubky, actualDeckId, existing, cards, now, cover)
 
@@ -370,7 +407,7 @@ private suspend fun resolveCoverImage(
 }
 
 /**
- * Saving republishes every card record, so each side is rebuilt *from* the loaded card:
+ * Saving republishes every card record, so each side is rebuilt *from* the card as stored:
  * the editor only edits text, and dropping the rest would wipe the card's image and audio
  * off the homeserver.
  */
@@ -378,8 +415,10 @@ private fun buildCards(
     editables: List<EditableCardModel>,
     deckId: String,
     now: Long,
+    latest: Map<String, Card>,
 ): List<Card> = editables.map { editable ->
-    val original = editable.original
+    // The repository's copy first: it has anything the card editor changed since this list loaded.
+    val original = latest[editable.id] ?: editable.original
     val front = (original?.front ?: CardSide()).copy(text = editable.frontText.ifBlank { null })
     val back = (original?.back ?: CardSide()).copy(text = editable.backText.ifBlank { null })
     val unchanged = original != null && original.front == front && original.back == back
@@ -420,6 +459,9 @@ private fun buildDeck(
     listenEnabled = existing?.listenEnabled ?: true,
     speakEnabled = existing?.speakEnabled ?: true,
 )
+
+/** The deck and its cards as the repository has them right now — see `refreshSnapshot`. */
+private data class DeckSnapshot(val deck: Deck?, val cardsById: Map<String, Card>)
 
 data class DeckEditorUiState(
     val isNew: Boolean = true,
