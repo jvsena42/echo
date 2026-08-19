@@ -2574,6 +2574,28 @@
           }
         }
       }
+    },
+    "deck_editor_loading_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading more cards…"
+          }
+        }
+      }
+    },
+    "deck_editor_load_more_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load more cards"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

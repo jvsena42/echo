@@ -15,7 +15,12 @@ struct DeckEditorView: View {
     var title: String = ""
     var description: String = ""
     var tags: [String] = []
+    /// The cards paged in so far — a prefix of the deck, not the deck. See `totalCards`.
     var cards: [EditorCardData] = []
+    /// Cards in the whole deck, from the manifest. What the header counts.
+    var totalCards: Int = 0
+    var isLoadingCards: Bool = false
+    var hasMoreCards: Bool = false
     var isSaving: Bool = false
     var titleError: String?
     var descriptionError: String?
@@ -27,6 +32,7 @@ struct DeckEditorView: View {
     var onRemoveTag: (String) -> Void = { _ in }
     var onAddCard: () -> Void = {}
     var onCardTap: (String) -> Void = { _ in }
+    var onLoadMoreCards: () -> Void = {}
     var onClose: () -> Void = {}
     var onSave: () -> Void = {}
 
@@ -141,7 +147,7 @@ struct DeckEditorView: View {
                 }
 
                 // Cards header
-                Text(String(format: NSLocalizedString("deck_editor_cards_count", comment: ""), cards.count))
+                Text(String(format: NSLocalizedString("deck_editor_cards_count", comment: ""), totalCards))
                     .font(.system(size: 16, weight: .heavy))
                     .foregroundColor(LoopkyColor.foregroundPrimary)
 
@@ -190,6 +196,23 @@ struct DeckEditorView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                }
+
+                // The tail of the deck arrives a chunk record at a time (#52): a 20k-card deck
+                // must not become 20,000 rows the moment this screen opens.
+                if isLoadingCards {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("deck_editor_loading_cards")
+                            .font(.system(size: 13))
+                            .foregroundColor(LoopkyColor.foregroundMuted)
+                    }
+                    .frame(maxWidth: .infinity)
+                } else if hasMoreCards {
+                    Button(action: onLoadMoreCards) {
+                        Text("deck_editor_load_more_cards")
+                    }
+                    .buttonStyle(.loopkyOutline)
                 }
 
                 // Add card button
