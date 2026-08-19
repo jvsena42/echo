@@ -331,6 +331,42 @@ class DeckRepositoryImpl(
         }
     }
 
+    override suspend fun moveCard(deckId: String, cardId: String, toIndex: Int): Result<Deck> =
+        runSuspendCatching {
+            requireOwnedDeck(deckId)
+
+            withDeckWrite(deckId) {
+                val deck = requireNotNull(getLocal(deckId)) { "Deck $deckId is not loaded" }
+                val from = locateChunk(deck, cardId) ?: return@withDeckWrite deck
+                val sourceCards = cardRepo.readChunk(deck, from).getOrThrow().inStudyOrder()
+                val card = sourceCards.firstOrNull { it.id == cardId } ?: return@withDeckWrite deck
+                val remaining = sourceCards.filterNot { it.id == cardId }
+
+                val target = CardChunking.positionAt(deck.chunks, toIndex, excluding = from)
+                if (target.chunk == from) {
+                    val reordered = remaining.toMutableList().apply {
+                        add(target.offset.coerceIn(0, size), card)
+                    }
+                    writeChunkAndManifestLocked(deck, from, CardChunking.renumber(reordered, from))
+                } else {
+                    val landing = cardRepo.readChunk(deck, target.chunk).getOrThrow()
+                        .inStudyOrder()
+                        .toMutableList()
+                        .apply { add(target.offset.coerceIn(0, size), card) }
+                    // Landing chunk first. Between the two writes the card is in both chunks,
+                    // which reads as one card because membership is keyed by id — whereas the
+                    // other order would leave it in neither, and a failure there loses it.
+                    writeChunksAndManifestLocked(
+                        deck,
+                        listOf(
+                            target.chunk to CardChunking.renumber(landing, target.chunk),
+                            from to remaining,
+                        ),
+                    )
+                }
+            }
+        }
+
     override suspend fun rehostBlob(deckId: String, sha256: String): Result<Unit> =
         runSuspendCatching {
             val key = deckId to sha256
@@ -486,12 +522,28 @@ class DeckRepositoryImpl(
         chunk: Int,
         cards: List<Card>,
         touchDeck: Boolean = true,
+    ): Deck = writeChunksAndManifestLocked(deck, listOf(chunk to cards), touchDeck)
+
+    /**
+     * [writeChunkAndManifestLocked] for a write that spans more than one chunk — a card moved
+     * across a chunk boundary. The chunks are written in the order given, then described by a
+     * **single** manifest patch: two patches would leave a window where the manifest counts the
+     * card twice, and would cost a second full-record write of the whole chunk table.
+     *
+     * **The caller must hold [Deck.id]'s write lock.**
+     */
+    private suspend fun writeChunksAndManifestLocked(
+        deck: Deck,
+        updates: List<Pair<Int, List<Card>>>,
+        touchDeck: Boolean = true,
     ): Deck {
-        cardRepo.writeChunk(deck.id, chunk, cards).getOrThrow()
+        updates.forEach { (chunk, cards) -> cardRepo.writeChunk(deck.id, chunk, cards).getOrThrow() }
 
         val now = epochMillis()
         return patchDeckLocked(deck.id, emitChange = touchDeck) { current ->
-            val chunks = CardChunking.withChunk(current.chunks, chunk, cards.size, now)
+            val chunks = updates.fold(current.chunks) { acc, (chunk, cards) ->
+                CardChunking.withChunk(acc, chunk, cards.size, now)
+            }
             current.copy(
                 chunks = chunks,
                 cardCount = CardChunking.cardCount(chunks),

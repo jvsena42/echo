@@ -32,6 +32,7 @@ import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
+import com.github.jvsena42.loopky.domain.model.ordForIndex
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import kotlinx.coroutines.CompletableDeferred
@@ -207,6 +208,24 @@ class FakeDeckRepository : DeckRepository {
         return Result.success(updated)
     }
 
+    val movedCards = mutableListOf<CardMove>()
+    var moveCardError: Throwable? = null
+
+    /**
+     * Set to have [moveCard] actually re-stamp the cards' `ord`, so a test can reload the deck and
+     * see the new order. Left null when a test only cares that the move was requested.
+     */
+    var cardRepository: FakeCardRepository? = null
+
+    override suspend fun moveCard(deckId: String, cardId: String, toIndex: Int): Result<Deck> {
+        moveCardError?.let { return Result.failure(it) }
+        movedCards.add(CardMove(deckId, cardId, toIndex))
+        val deck = decks[deckId] ?: return Result.failure(IllegalStateException("deck $deckId not found"))
+        cardRepository?.reorder(deckId, cardId, toIndex)
+        _changes.tryEmit(Unit)
+        return Result.success(deck)
+    }
+
     // ── Follow deck (#33) ────────────────────────────────────────────────
 
     /** Decks followed rather than owned. Kept apart from [decks] so a test can tell them apart. */
@@ -314,8 +333,35 @@ class FakeCardRepository : CardRepository {
         return Result.success(Unit)
     }
 
-    override suspend fun readChunk(deck: Deck, chunk: Int): Result<List<Card>> =
-        Result.success(cards[deck.id]?.values?.toList().orEmpty().inStudyOrder())
+    /**
+     * Slices this deck's cards the way the manifest's chunk table says they are stored, so a test
+     * of a paged reader sees page boundaries rather than the whole deck on every read. A deck with
+     * no chunk table has no boundaries to honour and comes back whole.
+     */
+    override suspend fun readChunk(deck: Deck, chunk: Int): Result<List<Card>> {
+        readChunks.add(deck.id to chunk)
+        readChunkError?.let { return Result.failure(it) }
+        val all = cards[deck.id]?.values?.toList().orEmpty().inStudyOrder()
+        val ordered = deck.chunks.sortedBy { it.n }
+        if (ordered.isEmpty()) return Result.success(all)
+        var start = 0
+        for (meta in ordered) {
+            if (meta.n == chunk) return Result.success(all.drop(start).take(meta.count))
+            start += meta.count
+        }
+        return Result.success(emptyList())
+    }
+
+    /** Re-stamp `ord` so [cardId] sits at [toIndex] of this deck's study order. */
+    fun reorder(deckId: String, cardId: String, toIndex: Int) {
+        val deckCards = cards[deckId] ?: return
+        val ordered = deckCards.values.toList().inStudyOrder().toMutableList()
+        val from = ordered.indexOfFirst { it.id == cardId }
+        if (from < 0) return
+        val card = ordered.removeAt(from)
+        ordered.add(toIndex.coerceIn(0, ordered.size), card)
+        ordered.forEachIndexed { index, moved -> deckCards[moved.id] = moved.copy(ord = ordForIndex(index)) }
+    }
 
     override suspend fun chunkOf(deckId: String, cardId: String): Int? =
         if (cards[deckId]?.containsKey(cardId) == true) 0 else null
@@ -325,7 +371,16 @@ class FakeCardRepository : CardRepository {
     }
 
     val writtenChunks = mutableListOf<Pair<String, Int>>()
+
+    /** (deckId, chunk) pairs [readChunk] was asked for, in order — the paging assertion surface. */
+    val readChunks = mutableListOf<Pair<String, Int>>()
+
+    /** When set, [readChunk] fails (a chunk record that will not load). */
+    var readChunkError: Throwable? = null
 }
+
+/** One [FakeDeckRepository.moveCard] call. */
+data class CardMove(val deckId: String, val cardId: String, val toIndex: Int)
 
 /** Grades through the real scheduler so VM tests see realistic state transitions. */
 class FakeSrsRepository : SrsRepository {
