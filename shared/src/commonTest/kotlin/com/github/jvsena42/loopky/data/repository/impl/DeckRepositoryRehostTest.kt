@@ -131,7 +131,7 @@ class DeckRepositoryRehostTest {
 
         // Content-addressed, so one copy serves every card carrying that sha.
         assertEquals(1, media.rehosts.size)
-        assertTrue(storedCards(repo.getLocal(clone.id)!!).all { it.back.imageRef?.uri == null })
+        assertTrue(storedCards(repo.getLocal(clone.id)!!).all { it.back.imageRef.isRehostedNotDropped() })
     }
 
     @Test
@@ -248,3 +248,11 @@ class DeckRepositoryRehostTest {
         assertNull(storedCards(repo.getLocal(clone.id)!!).single().back.imageRef?.uri)
     }
 }
+
+/**
+ * The ref is still there and no longer points at the origin.
+ *
+ * Not `imageRef?.uri == null`: that is also satisfied by the ref having been dropped altogether,
+ * which would let a re-host that deleted a card's image pass as a success.
+ */
+private fun MediaRef.Image?.isRehostedNotDropped(): Boolean = this != null && uri == null

@@ -111,7 +111,7 @@ class DeckRepositorySweepTest {
         val deck = repo.fetchRemote(TEST_PUBKY, clone.id).getOrThrow()
         assertTrue(deck.mediaRehosted)
         assertEquals(null, deck.coverImageRef?.uri)
-        assertTrue(storedCards(deck).all { it.back.imageRef?.uri == null })
+        assertTrue(storedCards(deck).all { it.back.imageRef.isRehostedNotDropped() })
     }
 
     @Test
@@ -121,7 +121,7 @@ class DeckRepositorySweepTest {
         repo.rehostPendingMedia(clone.id).getOrThrow()
 
         assertEquals(1, media.rehosts.size)
-        assertTrue(storedCards(repo.getLocal(clone.id)!!).all { it.back.imageRef?.uri == null })
+        assertTrue(storedCards(repo.getLocal(clone.id)!!).all { it.back.imageRef.isRehostedNotDropped() })
     }
 
     @Test
@@ -136,7 +136,13 @@ class DeckRepositorySweepTest {
         repo.rehostPendingMedia(clone.id).getOrThrow()
 
         assertEquals(1, media.rehosts.size)
-        assertTrue(storedCards(repo.getLocal(clone.id)!!).all { it.back.imageRef?.uri == null })
+        // Cloning assigns fresh card ids, so the two ends are identified by their text. Counting
+        // them is the point: a re-host that dropped the ref instead of rewriting it would leave
+        // zero cards carrying an image, which "every ref has a null uri" would happily accept.
+        val stored = storedCards(repo.getLocal(clone.id)!!)
+        val carrying = stored.filter { it.back.text in setOf("bfirst", "bsecond") }
+        assertEquals(2, carrying.size)
+        assertTrue(carrying.all { it.back.imageRef.isRehostedNotDropped() })
     }
 
     @Test
@@ -284,3 +290,11 @@ class DeckRepositorySweepTest {
         assertTrue(repo.decksPendingRehost().isEmpty())
     }
 }
+
+/**
+ * The ref is still there and no longer points at the origin.
+ *
+ * Not `imageRef?.uri == null`: that is also satisfied by the ref having been dropped altogether,
+ * which would let a re-host that deleted a card's image pass as a success.
+ */
+private fun MediaRef.Image?.isRehostedNotDropped(): Boolean = this != null && uri == null
