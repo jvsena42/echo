@@ -31,7 +31,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
+/**
+ * The deck editor: metadata, plus a **paged** view of the deck's cards.
+ *
+ * Two rules follow from Anki-sized decks (#52), and the rest of this class is their consequence:
+ *
+ * 1. **The card list is a window, never the deck.** Cards arrive one chunk record at a time as the
+ *    user scrolls. A 20k-card deck must not become 20,000 `EditableCardModel`s the moment the
+ *    screen opens.
+ * 2. **Saving an existing deck writes the manifest only.** Since the list is a window, rebuilding
+ *    the deck's cards from it would delete everything not yet paged in. Card mutations therefore
+ *    do not wait for Save at all: they go straight through [DeckRepository.upsertCard] (from the
+ *    card editor) and [DeckRepository.moveCard], each of which touches one or two chunks.
+ *
+ * A deck that does not exist yet ([deckId] null) is the exception on both counts — it has nowhere
+ * to write incrementally, so its cards stay in memory and Save publishes them. That deck is small
+ * by construction: it has only the cards typed into this screen.
+ */
 // Seven collaborators because the editor writes a deck end to end: manifest, cards, cover upload,
 // the author it stamps, and — since #39 — the announcement it offers on a create.
 @Suppress("TooManyFunctions", "LongParameterList")
@@ -51,24 +70,28 @@ class DeckEditorViewModel(
     val effects: SharedFlow<DeckEditorEffect> = _effects.asSharedFlow()
 
     private var loadJob: Job? = null
+    private var pageJob: Job? = null
     private var saveJob: Job? = null
 
     /**
-     * Set when an existing deck's cards could not be read. Saving rewrites the deck's chunks from
-     * [DeckEditorUiState.cards], so saving an editor that failed to load would drop every card out
-     * of the deck — the user's deck, gone. Block the save instead.
-     */
-    private var cardsLoadFailed = false
-
-    /**
-     * The deck as loaded from the repository. Saving rewrites the whole manifest, so the fields
-     * the editor does not expose (cover image, Listen/Speak, provenance) must be carried forward
-     * from here or they are destroyed on the homeserver.
+     * The deck as last read. Saving rewrites the whole manifest, so the fields the editor does not
+     * expose (cover image, Listen/Speak, provenance) — and the chunk table, which only the card
+     * writes move — must be carried forward from here or they are destroyed on the homeserver.
      */
     private var loadedDeck: Deck? = null
 
-    /** The deck's cards as loaded, so a save can tell whether the card set actually changed. */
-    private var loadedCards: List<Card> = emptyList()
+    /** The deck's chunk records in study order: this editor's page list. */
+    private var pageOrder: List<Int> = emptyList()
+
+    /** How many of [pageOrder] have been read in. Also the index of the next page to fetch. */
+    private var pagesLoaded = 0
+
+    /**
+     * Serializes the writes behind [onMoveCard]. Each move resolves its destination from the
+     * manifest's chunk counts, so two in flight at once would both plan against the pre-move
+     * table and the second would land in the wrong place.
+     */
+    private val moveLock = Mutex()
 
     /** The id the last successful save wrote — the destination once the share prompt resolves. */
     private var savedDeckId: String? = null
@@ -82,62 +105,121 @@ class DeckEditorViewModel(
             Log.d(TAG, "loadExisting: deckId=$deckId")
             val deck = deckRepository.getLocal(deckId!!) ?: return@launch
             loadedDeck = deck
-            // A cache read returns nothing on a cold launch, which would open the editor empty.
-            val cards = cardRepository.fetchByDeck(deck)
-                .onFailure { err ->
-                    Log.e(TAG, "loadExisting: cards FAILED — ${err.message}", err)
-                    cardsLoadFailed = true
-                }
-                .getOrDefault(emptyList())
-                .inStudyOrder()
-            loadedCards = cards
-            _state.update { DeckEditorUiState(
-                isNew = false,
-                coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.toString() ?: "",
-                title = deck.title,
-                description = deck.description ?: "",
-                tags = deck.tags.map { it.value },
-                cards = cards.map { it.toEditable() },
-                error = if (cardsLoadFailed) CARDS_LOAD_FAILED else null,
-            ) }
+            _state.update {
+                DeckEditorUiState(
+                    isNew = false,
+                    coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.toString() ?: "",
+                    title = deck.title,
+                    description = deck.description ?: "",
+                    tags = deck.tags.map { tag -> tag.value },
+                    totalCards = deck.cardCount,
+                    isLoadingCards = true,
+                )
+            }
+            pageOrder = deck.chunks.sortedBy { it.n }.map { it.n }
+            pagesLoaded = 0
+            if (pageOrder.isEmpty()) loadWholeDeck(deck) else appendNextPage(deck)
         }
     }
 
     /**
-     * Re-read the deck's cards, for when the screen comes back to the foreground.
+     * Read every card in one go, for a deck whose manifest carries no chunk table.
+     *
+     * Only decks published before the chunked layout look like this, and they are small — the
+     * layout landed before any Anki-sized import could. Without page boundaries there is nothing
+     * to page along, so this is the old whole-deck read, kept for exactly those decks.
+     */
+    private suspend fun loadWholeDeck(deck: Deck) {
+        val cards = cardRepository.fetchByDeck(deck)
+            .onFailure { err -> Log.e(TAG, "loadWholeDeck: FAILED — ${err.message}", err) }
+            .getOrNull()
+            ?.inStudyOrder()
+        _state.update { s ->
+            s.copy(
+                cards = cards.orEmpty().map { it.toEditable() },
+                totalCards = maxOf(deck.cardCount, cards?.size ?: 0),
+                isLoadingCards = false,
+                hasMoreCards = false,
+                error = if (cards == null) CARDS_LOAD_FAILED else s.error,
+            )
+        }
+    }
+
+    /** Read the next chunk record and append it to the list. */
+    private suspend fun appendNextPage(deck: Deck) {
+        val chunk = pageOrder.getOrNull(pagesLoaded)
+        if (chunk == null) {
+            _state.update { it.copy(isLoadingCards = false, hasMoreCards = false) }
+            return
+        }
+        cardRepository.readChunk(deck, chunk)
+            .onSuccess { page ->
+                pagesLoaded++
+                _state.update { s ->
+                    s.copy(
+                        cards = s.cards + page.inStudyOrder().map { it.toEditable() },
+                        isLoadingCards = false,
+                        hasMoreCards = pagesLoaded < pageOrder.size,
+                    )
+                }
+            }
+            .onFailure { err ->
+                // hasMoreCards is left alone: the page is still there to try again for, and
+                // clearing it would tell the list the deck ends here.
+                Log.e(TAG, "appendNextPage: chunk $chunk FAILED — ${err.message}", err)
+                _state.update { it.copy(isLoadingCards = false, error = CARDS_LOAD_FAILED) }
+            }
+    }
+
+    /** The list scrolled near its end — pull in the next chunk. */
+    fun onLoadMoreCards() {
+        if (pageJob?.isActive == true || loadJob?.isActive == true) return
+        if (!_state.value.hasMoreCards) return
+        val deck = loadedDeck ?: return
+        pageJob = viewModelScope.launch {
+            _state.update { it.copy(isLoadingCards = true, error = null) }
+            appendNextPage(deck)
+        }
+    }
+
+    /**
+     * Re-read the pages already on screen, for when the screen comes back to the foreground.
      *
      * The card editor is a separate screen writing straight through to the repository, so on the
-     * way back this list is showing the card as it was before that edit — and since a save
-     * rebuilds every card from it, it would write that stale version back over the edit. Order and
-     * any not-yet-saved card added here are kept; only the cards the repository actually knows are
-     * refreshed.
+     * way back this list is showing each card as it was before that edit — and a card added or
+     * deleted there has moved the deck's totals and chunk table. Only the pages already paged in
+     * are re-read; the tail stays where it was, so returning from a card edit does not silently
+     * re-download the rest of a 20k-card deck.
      */
     fun onResume() {
-        if (deckId == null) return
-        viewModelScope.launch {
-            val latest = refreshSnapshot().cardsById
-            if (latest.isEmpty()) return@launch
-            _state.update { s ->
-                s.copy(cards = s.cards.map { editable -> latest[editable.id]?.toEditable() ?: editable })
-            }
-        }
+        if (deckId == null || loadJob?.isActive == true) return
+        viewModelScope.launch { reloadLoadedPages() }
     }
 
-    /**
-     * Re-read the deck and its cards, and re-baseline [loadedCards] against them.
-     *
-     * The card editor is a separate screen writing straight through to the repository, so the
-     * snapshot this editor took when it opened goes stale the moment a card is edited there.
-     * Both halves matter: a full publish rebuilt from the stale cards would write that card back
-     * as it was and destroy the edit — an image added in the card editor, say (#80) — and a
-     * metadata-only save would restore the pre-edit chunk table over the one `upsertCard` just
-     * patched. Empty for a deck that does not exist yet.
-     */
-    private suspend fun refreshSnapshot(): DeckSnapshot {
-        val currentDeckId = deckId ?: return DeckSnapshot(null, emptyMap())
-        val cardsById = cardRepository.listByDeck(currentDeckId).associateBy(Card::id)
-        loadedCards = loadedCards.map { cardsById[it.id] ?: it }
-        return DeckSnapshot(deckRepository.getLocal(currentDeckId) ?: loadedDeck, cardsById)
+    private suspend fun reloadLoadedPages() {
+        val currentDeckId = deckId ?: return
+        val deck = deckRepository.getLocal(currentDeckId) ?: loadedDeck ?: return
+        loadedDeck = deck
+        val order = deck.chunks.sortedBy { it.n }.map { it.n }
+        if (order.isEmpty()) {
+            loadWholeDeck(deck)
+            return
+        }
+        // At least one page: a deck whose every card was deleted still has to stop showing them.
+        val pages = pagesLoaded.coerceIn(1, order.size)
+        val cards = mutableListOf<Card>()
+        for (index in 0 until pages) {
+            cards += cardRepository.readChunk(deck, order[index]).getOrDefault(emptyList())
+        }
+        pageOrder = order
+        pagesLoaded = pages
+        _state.update { s ->
+            s.copy(
+                cards = cards.inStudyOrder().map { it.toEditable() },
+                totalCards = deck.cardCount,
+                hasMoreCards = pages < order.size,
+            )
+        }
     }
 
     fun onTitleChanged(text: String) {
@@ -170,15 +252,29 @@ class DeckEditorViewModel(
         _state.update { s -> s.copy(tags = s.tags - tag) }
     }
 
+    /**
+     * Add a card. On an existing deck this hands straight over to the card editor, which writes
+     * the card through `upsertCard` when it is saved.
+     *
+     * It cannot be a blank row in this list any more: the list no longer holds the whole deck, so
+     * there is no full publish left to sweep such a row up into. A deck that does not exist yet
+     * has no `upsertCard` to call either, so there the blank row is still the only option — and
+     * Save publishes whatever was typed into it.
+     */
     fun onAddCard() {
-        val newCard = EditableCardModel(
-            id = generateId(),
-            frontText = "",
-            backText = "",
-            hasImage = false,
-            hasAudio = false,
-        )
-        _state.update { s -> s.copy(cards = s.cards + newCard) }
+        val currentDeckId = deckId
+        if (currentDeckId == null) {
+            val newCard = EditableCardModel(
+                id = generateId(),
+                frontText = "",
+                backText = "",
+                hasImage = false,
+                hasAudio = false,
+            )
+            _state.update { s -> s.copy(cards = s.cards + newCard, totalCards = s.totalCards + 1) }
+            return
+        }
+        viewModelScope.launch { _effects.emit(DeckEditorEffect.NavigateNewCard(currentDeckId)) }
     }
 
     /**
@@ -195,15 +291,47 @@ class DeckEditorViewModel(
     }
 
     /**
-     * Move a card one position. Order persists through each card's `ord`, which `publish` assigns
-     * from the editor's list order, so reordering here is all that is needed.
+     * Move a card one position, or straight to [to] — the "move to position…" affordance a deck
+     * too big to drag through needs.
+     *
+     * Persisted immediately rather than on Save, through [DeckRepository.moveCard], which rewrites
+     * only the chunks the move touches. The list moves first and is put back if the write fails:
+     * a reorder that waited on the homeserver would feel broken at every deck size.
+     *
+     * [from] indexes the loaded list, which is a prefix of the deck, so it is also the card's
+     * study position. [to] is a position anywhere in the **deck** — a destination past the loaded
+     * window is the whole point of the affordance, and the row simply leaves the window rather
+     * than sitting at a position this list cannot show.
      */
     fun onMoveCard(from: Int, to: Int) {
+        val cards = _state.value.cards
+        if (from !in cards.indices) return
+        val total = maxOf(_state.value.totalCards, cards.size)
+        val target = to.coerceIn(0, (total - 1).coerceAtLeast(0))
+        if (target == from) return
+        val cardId = cards[from].id
         _state.update { s ->
-            if (from !in s.cards.indices || to !in s.cards.indices || from == to) return@update s
+            if (from !in s.cards.indices) return@update s
             val reordered = s.cards.toMutableList()
-            reordered.add(to, reordered.removeAt(from))
+            val moved = reordered.removeAt(from)
+            if (target < reordered.size || !s.hasMoreCards) {
+                reordered.add(target.coerceAtMost(reordered.size), moved)
+            }
             s.copy(cards = reordered)
+        }
+
+        // No deck yet, so nothing to move on the homeserver — publish writes the order on save.
+        val currentDeckId = deckId ?: return
+        viewModelScope.launch {
+            moveLock.withLock {
+                deckRepository.moveCard(currentDeckId, cardId, target)
+                    .onSuccess { loadedDeck = it }
+                    .onFailure { err ->
+                        Log.e(TAG, "onMoveCard: FAILED — ${err.message}", err)
+                        _state.update { it.copy(error = MOVE_FAILED) }
+                        reloadLoadedPages()
+                    }
+            }
         }
     }
 
@@ -219,10 +347,6 @@ class DeckEditorViewModel(
     fun onSaveClick() {
         if (saveJob?.isActive == true) return
         val s = _state.value
-        if (cardsLoadFailed) {
-            _state.update { it.copy(error = CARDS_LOAD_FAILED) }
-            return
-        }
         if (s.title.isBlank()) {
             _state.update { it.copy(error = "Title is required.") }
             return
@@ -246,16 +370,20 @@ class DeckEditorViewModel(
 
             val now = epochMillis()
             val actualDeckId = deckId ?: generateId()
-            val (existing, latest) = refreshSnapshot()
-            val cards = buildCards(s.cards, actualDeckId, now, latest)
+            // Re-read rather than trusting the snapshot this screen opened with: a card written
+            // from the card editor has moved the chunk table, and writing the old one back would
+            // orphan the chunk it patched.
+            val existing = deckId?.let { deckRepository.getLocal(it) ?: loadedDeck }
+            val cards = if (deckId == null) newDeckCards(s.cards, actualDeckId, now) else emptyList()
             val cover = resolveCoverImage(s, actualDeckId, mediaRepository) ?: existing?.coverImageRef
             val deck = buildDeck(s, authorPubky, actualDeckId, existing, cards, now, cover)
 
-            writeDeck(deck, cards, existing)
-                .onSuccess {
+            writeDeck(deck, cards, isCreate = deckId == null)
+                .onSuccess { saved ->
                     Log.d(TAG, "save: SUCCESS deckId=$actualDeckId")
+                    loadedDeck = saved
                     _state.update { it.copy(isSaving = false) }
-                    settle(deck, isCreate = deckId == null)
+                    settle(saved, isCreate = deckId == null)
                 }
                 .onFailure { err ->
                     Log.e(TAG, "save: FAILED — ${err.message}", err)
@@ -268,8 +396,8 @@ class DeckEditorViewModel(
      * Leave the editor, offering to announce the deck first when this save *created* it (#39).
      *
      * [isCreate] keys off the constructor's `deckId` being null, which is the editor's only honest
-     * "new deck" signal: `save()` republishes the whole manifest on every edit, so announcing from
-     * the success path unconditionally would post again every time someone fixed a typo.
+     * "new deck" signal: an edit saves the manifest again every time, so announcing from the
+     * success path unconditionally would post again every time someone fixed a typo.
      */
     private suspend fun settle(deck: Deck, isCreate: Boolean) {
         savedDeckId = deck.id
@@ -322,46 +450,38 @@ class DeckEditorViewModel(
     }
 
     /**
-     * Persist the deck, writing as little as the change allows.
+     * Persist the deck. An existing one writes **only** its manifest.
      *
-     * Republishing rewrites every chunk. For a metadata-only edit — a rename, a tag, a new cover —
-     * that would re-upload the entire deck to change a single field: ~201 requests and every card's
-     * bytes for a 20k-card deck. When the card set is untouched, only the manifest is written.
+     * Republishing would rewrite every chunk — ~201 requests and every card's bytes re-uploaded to
+     * change one field on a 20k-card deck — and, now that the card list is a page rather than the
+     * deck, it would write back only the cards this screen happens to have read. Card changes have
+     * already been written by the time Save is tapped, each as one or two chunk writes.
      */
-    private suspend fun writeDeck(deck: Deck, cards: List<Card>, existing: Deck?): Result<Deck> =
-        if (existing != null && !cardsChanged(existing, cards)) {
-            Log.d(TAG, "save: metadata-only deckId=${deck.id} cards=${cards.size}")
-            deckRepository.updateMetadata(
-                deck.copy(cardCount = existing.cardCount, chunks = existing.chunks),
-            )
-        } else {
-            Log.d(TAG, "save: full publish deckId=${deck.id} cards=${cards.size}")
+    private suspend fun writeDeck(deck: Deck, cards: List<Card>, isCreate: Boolean): Result<Deck> =
+        if (isCreate) {
+            Log.d(TAG, "save: publish deckId=${deck.id} cards=${cards.size}")
             deckRepository.publish(deck, cards)
+        } else {
+            Log.d(TAG, "save: metadata-only deckId=${deck.id}")
+            deckRepository.updateMetadata(deck)
         }
-
-    /**
-     * Whether the card set differs from what was loaded — in membership, order, or content.
-     *
-     * Compares against [loadedCards] rather than a count, so an edit that swaps a card's text
-     * without changing how many there are still triggers a full write. `updatedAt` is ignored:
-     * [buildCards] restamps every card with `now`, so comparing it would report every save as a
-     * change and defeat the check.
-     */
-    private fun cardsChanged(existing: Deck, cards: List<Card>): Boolean {
-        if (loadedCards.size != cards.size) return true
-        if (existing.chunks.isEmpty() && existing.cardCount > 0) return true // chunk table unknown
-        return loadedCards.zip(cards).any { (before, after) ->
-            before.id != after.id || before.front != after.front || before.back != after.back
-        }
-    }
 
     companion object {
         private const val TAG = "Loopky/DeckEditorVM"
+
+        /**
+         * Above this the card list stops offering drag-to-reorder. Dragging one row across
+         * thousands is not a usable gesture, and the list it would have to drag through is not
+         * even loaded — "move to position…" is the affordance at that size (#52).
+         */
+        const val DRAG_REORDER_LIMIT = 100
     }
 }
 
 private const val CARDS_LOAD_FAILED =
-    "Couldn't load this deck's cards. Saving now would remove them, so try again when you're back online."
+    "Couldn't load this deck's cards. Your changes to the deck's details will still save."
+
+private const val MOVE_FAILED = "Couldn't move that card. Check your connection and try again."
 
 private const val TITLE_MAX_LENGTH = 120
 private const val DESCRIPTION_MAX_LENGTH = 500
@@ -383,7 +503,6 @@ private fun Card.toEditable(): EditableCardModel = EditableCardModel(
     backText = back.text ?: "",
     hasImage = front.imageRef != null || back.imageRef != null,
     hasAudio = front.audioRef != null || back.audioRef != null,
-    original = this,
 )
 
 /** Uploads picked gallery bytes or wraps a web URL; null means "keep whatever is there". */
@@ -409,29 +528,20 @@ private suspend fun resolveCoverImage(
 }
 
 /**
- * Saving republishes every card record, so each side is rebuilt *from* the card as stored:
- * the editor only edits text, and dropping the rest would wipe the card's image and audio
- * off the homeserver.
+ * The cards a not-yet-published deck will be created with.
+ *
+ * Rows with nothing on either side are dropped rather than published: `publish` rejects an empty
+ * side, so an untouched "Add card" row would otherwise fail the whole save.
  */
-private fun buildCards(
+private fun newDeckCards(
     editables: List<EditableCardModel>,
     deckId: String,
     now: Long,
-    latest: Map<String, Card>,
-): List<Card> = editables.map { editable ->
-    // The repository's copy first: it has anything the card editor changed since this list loaded.
-    val original = latest[editable.id] ?: editable.original
-    val front = (original?.front ?: CardSide()).copy(text = editable.frontText.ifBlank { null })
-    val back = (original?.back ?: CardSide()).copy(text = editable.backText.ifBlank { null })
-    val unchanged = original != null && original.front == front && original.back == back
-    Card(
-        id = editable.id,
-        deckId = deckId,
-        // Only bump the timestamp the sync reads when the card actually changed.
-        updatedAt = if (unchanged) original.updatedAt else now,
-        front = front,
-        back = back,
-    )
+): List<Card> = editables.mapNotNull { editable ->
+    val front = CardSide(text = editable.frontText.ifBlank { null })
+    val back = CardSide(text = editable.backText.ifBlank { null })
+    if (front.isEmpty || back.isEmpty) return@mapNotNull null
+    Card(id = editable.id, deckId = deckId, updatedAt = now, front = front, back = back)
 }
 
 /** [existing] supplies the fields this editor does not expose, so a save cannot destroy them. */
@@ -454,16 +564,17 @@ private fun buildDeck(
     tags = s.tags.map { Tag(it) },
     createdAt = if (s.isNew) now else existing?.createdAt ?: now,
     updatedAt = now,
-    // publish() recomputes the chunk table from the cards it writes, so the count here is just
-    // the optimistic value; `chunks` is deliberately left empty rather than guessed at.
-    cardCount = cards.size,
+    // The card set is the chunk table's business, never this screen's: on a create publish()
+    // recomputes both from the cards it writes, and on an edit these are carried through
+    // untouched so a metadata save cannot orphan a chunk a card write just added.
+    cardCount = existing?.cardCount ?: cards.size,
+    chunks = existing?.chunks.orEmpty(),
     source = existing?.source,
     listenEnabled = existing?.listenEnabled ?: true,
     speakEnabled = existing?.speakEnabled ?: true,
+    mediaRehostCursor = existing?.mediaRehostCursor ?: 0,
+    mediaRehosted = existing?.mediaRehosted ?: false,
 )
-
-/** The deck and its cards as the repository has them right now — see `refreshSnapshot`. */
-private data class DeckSnapshot(val deck: Deck?, val cardsById: Map<String, Card>)
 
 data class DeckEditorUiState(
     val isNew: Boolean = true,
@@ -471,7 +582,14 @@ data class DeckEditorUiState(
     val title: String = "",
     val description: String = "",
     val tags: List<String> = emptyList(),
+    /** The cards paged in so far — a prefix of the deck, not the deck. See [totalCards]. */
     val cards: List<EditableCardModel> = emptyList(),
+    /** Cards in the whole deck, from the manifest. What the header counts. */
+    val totalCards: Int = 0,
+    /** A page is in flight. */
+    val isLoadingCards: Boolean = false,
+    /** There are chunk records left to page in. */
+    val hasMoreCards: Boolean = false,
     val coverImageUrl: String? = null,
     val coverPendingBytes: ByteArray? = null,
     val coverPendingMime: String? = null,
@@ -481,7 +599,14 @@ data class DeckEditorUiState(
     val error: String? = null,
     /** Set after a save that created the deck, unless the user has opted out of being asked (#39). */
     val sharePrompt: DeckSharePrompt? = null,
-)
+) {
+    /**
+     * Whether the list should offer the drag handle. False once the deck is big enough that a drag
+     * would have to cross rows that are not loaded — "move to position…" is the affordance there.
+     */
+    val canDragReorder: Boolean
+        get() = !hasMoreCards && totalCards <= DeckEditorViewModel.DRAG_REORDER_LIMIT
+}
 
 data class EditableCardModel(
     val id: String,
@@ -489,16 +614,14 @@ data class EditableCardModel(
     val backText: String,
     val hasImage: Boolean,
     val hasAudio: Boolean,
-    /**
-     * The card this model was loaded from, kept so a save round-trip preserves the image and
-     * audio refs the editor cannot edit. `null` for cards added in this session.
-     */
-    val original: Card? = null,
 )
 
 sealed interface DeckEditorEffect {
     data object NavigateBack : DeckEditorEffect
     data class NavigateEditCard(val deckId: String, val cardId: String) : DeckEditorEffect
+
+    /** Open the card editor on a card that does not exist yet; it writes it on save. */
+    data class NavigateNewCard(val deckId: String) : DeckEditorEffect
     data class SaveSuccess(val deckId: String) : DeckEditorEffect
 
     /** The announcement post went out, or didn't. Cosmetic either way — the deck is saved. */

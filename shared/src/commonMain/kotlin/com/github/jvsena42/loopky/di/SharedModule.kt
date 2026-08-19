@@ -110,7 +110,8 @@ val sharedModule = module {
     viewModel { params ->
         EditCardViewModel(
             deckId = params.get(0),
-            cardId = params.get(1),
+            // Blank creates a card rather than editing one — see EditCardViewModel.
+            providedCardId = params.get(1),
             cardRepository = get(),
             deckRepository = get(),
             mediaRepository = get(),
