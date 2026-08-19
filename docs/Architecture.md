@@ -544,7 +544,7 @@ Each entry in `cards[]`:
 - `last_seen_updated_at` is the manifest `updated_at` at the last open, so the library can tell "the author published changes" from "you have already seen them". `0` until first open.
 - **Keeping a deck is what earns review state.** `SrsRepository.review` rejects a deck you neither own nor follow, and deck detail offers Follow / Clone in place of Study for one you are only browsing. Otherwise grading from Discover would write SRS records under a deck absent from both the library and the due queue — progress the user can neither see nor resume.
 - Following writes `loopky-followed` on the deck's manifest, so "N people follow this" falls out of the indexer's tagger count (§7.7). Unfollowing removes the record and that label — **and nothing else**: review state is yours, not the author's, and re-following must not reset your progress (§8.3).
-- **Cloning is the other half of #33 and stores nothing here.** A clone is a full copy under your own pubky with a new `deck_id`, new card ids, and `source.kind = "clone"`; it never receives the original's updates. New card ids are what keep SRS state from bleeding between an original and its copy. Card media is copied **by reference** — each ref keeps the source author's blob in `uri` rather than re-uploading it, so cloning an Anki-sized deck costs card records rather than hundreds of MB. `MediaRepository.rehost` can later copy a blob under the clone's own path; because refs are content-addressed the digest is unchanged, so the swap is invisible. *(Nothing calls `rehost` yet — a clone stays dependent on the original's blobs until it does.)*
+- **Cloning is the other half of #33 and stores nothing here.** A clone is a full copy under your own pubky with a new `deck_id`, new card ids, and `source.kind = "clone"`; it never receives the original's updates. New card ids are what keep SRS state from bleeding between an original and its copy. Card media is copied **by reference** — each ref keeps the source author's blob in `uri` rather than re-uploading it, so cloning an Anki-sized deck costs card records rather than hundreds of MB. `MediaRepository.rehost` copies a blob under the clone's own path; because refs are content-addressed the digest is unchanged, so the swap is invisible. **Re-hosting happens on first fetch (#65):** `MediaRepository.get` emits a `PinnedBlob` once it has served a still-pinned ref, and `DeckRepository.rehostBlob` copies the blob and rewrites every ref carrying that sha — card sides through the chunk+manifest pair, the cover through the manifest. Three things that path has to get right: it is **ownership-guarded** at both the signal and the write, so a *followed* deck's blobs are never copied under your pubky at a deckId you cannot edit; it is **cache-only**, because there is no sha→card index and locating the card otherwise would cost ~200 chunk reads on a 20k-card deck; and it writes with `touchDeck = false`, since re-hosting changes no content and bumping `updated_at` would tell every follower the author published changes. A failed copy leaves the ref dangling rather than clearing it — a 404 today may be an outage tomorrow — and is not retried for the rest of the session. *(Blobs the user never looks at are still pinned until the deferred sweep lands — #53.)*
 
 **Sync algorithm (client side):**
 
@@ -706,9 +706,11 @@ initializer and hands VMs to SwiftUI views via initializers.
 ### 9.2 Async
 
 Kotlin Coroutines + Flow everywhere. ViewModels launch in `viewModelScope`; all public repository
-methods are `suspend` or return `Flow`. The Swift↔Flow bridge is **not yet wired** — SKIE is the
-working assumption (see §12 #2) but no bridge dependency is in the build today, which is part of why
-the iOS app is still inert.
+methods are `suspend` or return `Flow`. The Swift↔Flow bridge **is wired**, hand-rolled rather than
+SKIE: `IosFlowWatcher` (`shared/iosMain/util/`) exposes a `Flow` as a callback Swift can subscribe
+to, and `FlowObserver` / `FlowEffectSink` (`iosApp/DI/`) wrap it as an `ObservableObject`. Generics
+erase across the ObjC bridge, so values arrive as `Any` and are cast to the concrete `UiState` /
+`Effect` type the framework exports. See §12 #2 for why not SKIE.
 
 ### 9.3 Error handling
 
@@ -761,7 +763,7 @@ Reserve a `Logger` interface in `commonMain` with no-op default. Platform actual
 Pulled forward from spec §13 plus architecture-specific items.
 
 1. **UI strategy final call.** Working assumption: fully native UI per platform. Compose Multiplatform UI is not used. Confirm with design + eng leads before the first screen ships.
-2. **Swift ↔ Flow bridge.** SKIE vs KMP-NativeCoroutines. SKIE is the working assumption; revisit if it blocks iOS builds.
+2. **Swift ↔ Flow bridge.** ~~SKIE vs KMP-NativeCoroutines~~ **Resolved**: neither. Kotlin 2.3.x predates SKIE support, so the bridge is hand-rolled — `IosFlowWatcher` on the Kotlin side, `FlowObserver` on the Swift side (§9.2). Revisit if SKIE catches up and the erased-generics casting becomes a burden.
 3. **Multi-module split timing.** Single `shared` module for v1; split into `:core / :data / :domain / :feature-*` if build times or ownership boundaries require it. Relatedly, **SRS at Anki scale is what forces the persistent-cache (SQLDelight) question** (§8.1): a local DB as SRS source of truth is the endgame for #43 §2, and reverses "Pubky is the source of truth" for that one slice.
 4. **Private decks.** If spec §13 Q1 flips in favor of private decks, `DeckRepository` gains a local-only write path and `pubky_uri` stays `NULL` until the user opts in.
 5. **Secret key & session storage** (§7.5). ~~Needs a decision~~ **Resolved**: `SecureSessionStore` via Liftric KVault (Keystore-backed EncryptedSharedPreferences on Android, Keychain on iOS).
