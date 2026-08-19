@@ -394,6 +394,14 @@
     <string name="deeplink_no_link_in_shared_text">No Loopky link in that text. Share a message containing a pubky:// address.</string>
     <string name="deck_editor_move_up">Move card up</string>
     <string name="deck_editor_move_down">Move card down</string>
+    <string name="deck_editor_move_to">Move to position</string>
+    <string name="deck_editor_move_to_title">Move card</string>
+    <string name="deck_editor_move_to_label">Position (1–%1$d)</string>
+    <string name="deck_editor_move_to_confirm">Move</string>
+    <string name="deck_editor_move_to_cancel">Cancel</string>
+    <string name="deck_editor_card_position">Card %1$d</string>
+    <string name="deck_editor_loading_cards">Loading more cards…</string>
+    <string name="edit_card_title_new">New card</string>
     <string name="decks_sort_recent">Recent</string>
     <string name="decks_sort_alphabetical">A–Z</string>
     <string name="decks_sort_cards">Most cards</string>

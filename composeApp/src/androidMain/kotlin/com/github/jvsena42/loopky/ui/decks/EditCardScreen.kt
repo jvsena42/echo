@@ -126,7 +126,11 @@ fun EditCardScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.edit_card_title),
+                        text = if (state.isNewCard) {
+                            stringResource(R.string.edit_card_title_new)
+                        } else {
+                            stringResource(R.string.edit_card_title)
+                        },
                         fontSize = 18.sp,
                         fontWeight = FontWeight.W800,
                     )
@@ -256,23 +260,25 @@ fun EditCardScreen(
             // Tags are a deck-level concept (spec §8) — cards carry none, so there is no
             // tag section here. Deck tags are edited on the deck editor / publish screen.
 
-            // 5. Delete button
-            FilledTonalButton(
-                onClick = onDeleteCard,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = colors.dangerSoft,
-                    contentColor = colors.srsAgain,
-                ),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.edit_card_delete),
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = stringResource(R.string.edit_card_delete), fontSize = 15.sp, fontWeight = FontWeight.W700)
+            // 5. Delete button — nothing to delete on a card that has not been written yet.
+            if (!state.isNewCard) {
+                FilledTonalButton(
+                    onClick = onDeleteCard,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = colors.dangerSoft,
+                        contentColor = colors.srsAgain,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.edit_card_delete),
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = stringResource(R.string.edit_card_delete), fontSize = 15.sp, fontWeight = FontWeight.W700)
+                }
             }
 
             state.error?.let { errorText ->

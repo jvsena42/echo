@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -174,6 +176,7 @@ fun LoopkyNavHost(
                 deckId = deckId,
                 onBack = { navController.popBackStack() },
                 onEditCard = { dId, cId -> navController.navigateTo(Routes.editCard(dId, cId)) },
+                onNewCard = { dId -> navController.navigateTo(Routes.newCard(dId)) },
                 onSaved = { savedDeckId ->
                     navController.popBackStack()
                     navController.navigateTo(Routes.deckDetail(savedDeckId))
@@ -221,21 +224,7 @@ fun LoopkyNavHost(
                 },
             )
         }
-        composable(
-            route = Routes.EDIT_CARD,
-            arguments = listOf(
-                navArgument("deckId") { type = NavType.StringType },
-                navArgument("cardId") { type = NavType.StringType },
-            ),
-        ) { backStackEntry ->
-            val deckId = backStackEntry.arguments?.getString("deckId") ?: return@composable
-            val cardId = backStackEntry.arguments?.getString("cardId") ?: return@composable
-            EditCardRoute(
-                deckId = deckId,
-                cardId = cardId,
-                onBack = { navController.popBackStack() },
-            )
-        }
+        cardEditorDestinations(navController)
         composable(
             route = Routes.STUDY,
             arguments = listOf(
@@ -286,5 +275,41 @@ fun LoopkyNavHost(
                 onOpenProfile = { person -> navController.navigateTo(Routes.friendProfile(person)) },
             )
         }
+    }
+}
+
+/**
+ * The card editor, reached either on an existing card or on one that does not exist yet.
+ *
+ * Two routes rather than a flag on one: the "new" route has a segment fewer, so the two patterns
+ * cannot both match the same URL.
+ */
+private fun NavGraphBuilder.cardEditorDestinations(navController: NavHostController) {
+    composable(
+        route = Routes.EDIT_CARD,
+        arguments = listOf(
+            navArgument("deckId") { type = NavType.StringType },
+            navArgument("cardId") { type = NavType.StringType },
+        ),
+    ) { backStackEntry ->
+        val deckId = backStackEntry.arguments?.getString("deckId") ?: return@composable
+        val cardId = backStackEntry.arguments?.getString("cardId") ?: return@composable
+        EditCardRoute(
+            deckId = deckId,
+            cardId = cardId,
+            onBack = { navController.popBackStack() },
+        )
+    }
+    composable(
+        route = Routes.NEW_CARD,
+        arguments = listOf(navArgument("deckId") { type = NavType.StringType }),
+    ) { backStackEntry ->
+        val deckId = backStackEntry.arguments?.getString("deckId") ?: return@composable
+        // Blank card id: the editor mints one and appends the card on save.
+        EditCardRoute(
+            deckId = deckId,
+            cardId = "",
+            onBack = { navController.popBackStack() },
+        )
     }
 }

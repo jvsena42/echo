@@ -11,6 +11,12 @@ object Routes {
     const val DECK_EDITOR = "deck/editor/{deckId}"
     const val EDIT_CARD = "deck/{deckId}/card/{cardId}/edit"
 
+    /**
+     * The card editor on a card that does not exist yet. A separate route rather than a flag on
+     * [EDIT_CARD]: one fewer path segment, so the two patterns cannot match the same URL.
+     */
+    const val NEW_CARD = "deck/{deckId}/card/new"
+
     const val IMPORT_PASTE = "import/paste"
 
     /** Bulk file import: summary + one confirm, not the swipe queue (spec §5.4). */
@@ -51,6 +57,7 @@ object Routes {
     fun tagBrowse(tag: String) = "tag/" + Uri.encode(tag)
     fun deckEditor(deckId: String) = "deck/editor/$deckId"
     fun editCard(deckId: String, cardId: String) = "deck/$deckId/card/$cardId/edit"
+    fun newCard(deckId: String) = "deck/$deckId/card/new"
     fun study(deckId: String?) = if (deckId != null) "study?deckId=$deckId" else "study"
     fun triageEditCard(rowIndex: Int) = "import/triage/edit/$rowIndex"
 }
