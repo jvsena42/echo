@@ -285,6 +285,18 @@ class DeckEditorViewModelTest {
     }
 
     @Test
+    fun `a label already on the deck is not added twice`() = runTest {
+        seedDeckWithMedia()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAddTag("spanish")
+        vm.onAddTag(" SPANish ")
+
+        assertEquals(listOf("spanish"), vm.state.value.tags)
+    }
+
+    @Test
     fun `adding a card still republishes the deck`() = runTest {
         seedDeckWithMedia()
         val vm = viewModel()
