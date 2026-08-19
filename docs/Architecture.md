@@ -481,6 +481,7 @@ Cards are batched rather than stored one record per card, and the manifest carri
 - `source` records provenance — one block rather than a field per origin, so clone / import / the AI-OCR-URL sources in spec §14 don't each churn the schema. `kind` is `original` | `clone` | `import`. Absent on decks written before it existed.
 - Study order is **not** manifest position; it is the card's own `ord` (see below).
 - Manifest `updated_at` bumps on any deck-metadata change or any card add/remove/reorder.
+- `media_rehost_cursor` / `media_rehosted` track the deferred media re-host (#53) and are meaningless unless `source.kind` is `clone`. Additive — schema stays `1`, and a manifest written before they existed decodes to `0` / `false`, so an older clone is simply swept once. See §8.0's clone paragraph for why the cursor is load-bearing.
 - `listen_enabled` / `speak_enabled` are deck-level study opt-ins (TTS playback of the back / pronunciation practice). Both default `true`; manifests written before these fields existed decode to `true`. Additive — schema stays `1`.
 - A media ref (`cover_image_ref`, `image_ref`, `audio_ref`) may instead carry a `"url"` field for a **web image** (e.g. an Unsplash photo). When `url` is set, `path`/`sha256` are empty (`""`) and no blob is stored on the homeserver; the client loads the remote URL directly.
 - **Unsplash licensing.** Their API guidelines are licensing terms, and breaching them costs API access. Loading the remote `url` rather than re-hosting the bytes satisfies the hotlinking rule; the image picker credits the photographer on every grid cell and links both them and unsplash.com with `?utm_source=loopky&utm_medium=referral`; and `UnsplashClient.trackDownload` pings `links.download_location` when a pick is committed. **Known gap:** a media ref carries no attribution fields, so a published deck cover or card face displays its Unsplash photo uncredited. Closing that means adding `author_name` / `author_url` to `MediaRefDto` (additive, schema stays `1` — `ignoreUnknownKeys` keeps older manifests readable) and rendering a credit wherever a remote image is shown.
@@ -544,7 +545,7 @@ Each entry in `cards[]`:
 - `last_seen_updated_at` is the manifest `updated_at` at the last open, so the library can tell "the author published changes" from "you have already seen them". `0` until first open.
 - **Keeping a deck is what earns review state.** `SrsRepository.review` rejects a deck you neither own nor follow, and deck detail offers Follow / Clone in place of Study for one you are only browsing. Otherwise grading from Discover would write SRS records under a deck absent from both the library and the due queue — progress the user can neither see nor resume.
 - Following writes `loopky-followed` on the deck's manifest, so "N people follow this" falls out of the indexer's tagger count (§7.7). Unfollowing removes the record and that label — **and nothing else**: review state is yours, not the author's, and re-following must not reset your progress (§8.3).
-- **Cloning is the other half of #33 and stores nothing here.** A clone is a full copy under your own pubky with a new `deck_id`, new card ids, and `source.kind = "clone"`; it never receives the original's updates. New card ids are what keep SRS state from bleeding between an original and its copy. Card media is copied **by reference** — each ref keeps the source author's blob in `uri` rather than re-uploading it, so cloning an Anki-sized deck costs card records rather than hundreds of MB. `MediaRepository.rehost` copies a blob under the clone's own path; because refs are content-addressed the digest is unchanged, so the swap is invisible. **Re-hosting happens on first fetch (#65):** `MediaRepository.get` emits a `PinnedBlob` once it has served a still-pinned ref, and `DeckRepository.rehostBlob` copies the blob and rewrites every ref carrying that sha — card sides through the chunk+manifest pair, the cover through the manifest. Three things that path has to get right: it is **ownership-guarded** at both the signal and the write, so a *followed* deck's blobs are never copied under your pubky at a deckId you cannot edit; it is **cache-only**, because there is no sha→card index and locating the card otherwise would cost ~200 chunk reads on a 20k-card deck; and it writes with `touchDeck = false`, since re-hosting changes no content and bumping `updated_at` would tell every follower the author published changes. A failed copy leaves the ref dangling rather than clearing it — a 404 today may be an outage tomorrow — and is not retried for the rest of the session. *(Blobs the user never looks at are still pinned until the deferred sweep lands — #53.)*
+- **Cloning is the other half of #33 and stores nothing here.** A clone is a full copy under your own pubky with a new `deck_id`, new card ids, and `source.kind = "clone"`; it never receives the original's updates. New card ids are what keep SRS state from bleeding between an original and its copy. Card media is copied **by reference** — each ref keeps the source author's blob in `uri` rather than re-uploading it, so cloning an Anki-sized deck costs card records rather than hundreds of MB. `MediaRepository.rehost` copies a blob under the clone's own path; because refs are content-addressed the digest is unchanged, so the swap is invisible. **Re-hosting happens on first fetch (#65):** `MediaRepository.get` emits a `PinnedBlob` once it has served a still-pinned ref, and `DeckRepository.rehostBlob` copies the blob and rewrites every ref carrying that sha — card sides through the chunk+manifest pair, the cover through the manifest. Three things that path has to get right: it is **ownership-guarded** at both the signal and the write, so a *followed* deck's blobs are never copied under your pubky at a deckId you cannot edit; it is **cache-only**, because there is no sha→card index and locating the card otherwise would cost ~200 chunk reads on a 20k-card deck; and it writes with `touchDeck = false`, since re-hosting changes no content and bumping `updated_at` would tell every follower the author published changes. A failed copy leaves the ref dangling rather than clearing it — a 404 today may be an outage tomorrow — and is not retried for the rest of the session. **Blobs the user never looks at are handled by the deferred sweep (#53):** `DeckRepository.rehostPendingMedia` walks the deck's chunks from a persisted cursor, copying every ref still pinned, at most `DEFAULT_REHOST_CHUNK_BUDGET` chunks per call. Two additive manifest fields carry the progress — `media_rehost_cursor` and `media_rehosted` — because re-host progress is *deck* state, not device state: it should survive a reinstall and hold across the user's devices. **The cursor is what makes the pass resumable**, and the reason is not obvious: a re-hosted ref loses its `uri`, but a chunk with nothing pinned in it is never rewritten, so without a cursor a budgeted run restarts at chunk 0 and a deck with more chunks than the budget never reaches its tail. The budget is counted in **chunks, not blobs** — a 200-chunk deck with media in ten of them still costs 200 reads to find them. The chunk record is the durable unit, written as each chunk is processed; the manifest is patched every `REHOST_MANIFEST_BATCH` chunks and once at the end. A **deleted origin** (`isNotFound()`) counts as *missing* and does not block completion — treating it as a failure would re-sweep the deck forever, on every device, for a blob that is not coming back — while a transient failure keeps it pending. Scheduling goes through the `BackgroundTasks` seam (§9.6), triggered after a clone and from `listOwned()` as a self-heal.
 
 **Sync algorithm (client side):**
 
@@ -733,6 +734,33 @@ Shared VMs expose semantic labels (e.g. `"Card 1 of 3 preview, front: hola"`) as
 ### 9.5 Logging
 
 Reserve a `Logger` interface in `commonMain` with no-op default. Platform actuals can plug into Logcat / `os_log`. Telemetry is out of scope for v1.
+
+### 9.6 Background work
+
+`platform/BackgroundTasks` is the seam for work that must outlive the foreground. A plain interface
+bound per platform via Koin, **not** `expect`/`actual` — the repo has zero `expect class` /
+`expect interface`, and both implementations wrap a stateful platform scheduler rather than a
+top-level function. The job identifier is a shared `internal const` so the two sides cannot drift.
+
+| | Android | iOS |
+|---|---|---|
+| Mechanism | `WorkManager` unique `OneTimeWorkRequest` (`KEEP`) | `BGProcessingTaskRequest` via `BGTaskScheduler` |
+| Constraints | `UNMETERED` + battery-not-low | `requiresNetworkConnectivity` |
+| Retry | `Result.retry()`, exponential backoff | re-submits itself on completion *and* expiry |
+| Registration | none — `work-runtime` merges its own `InitializationProvider` | `register()` from `doInitKoin`, before launch completes |
+| Manifest | none | `Info.plist`: `BGTaskSchedulerPermittedIdentifiers` + `UIBackgroundModes: [processing]` |
+
+Two things that are easy to get wrong:
+
+- **A WorkManager-started process has Koin but no session.** `LoopkyApp.onCreate` runs, so the graph
+  and `RustlsInit` are up, but `loadPersistedSession()` is only ever called from ViewModels. A worker
+  must call it first or every write fails on "Not signed in", silently and forever.
+- **Do not add `Configuration.Provider`** without also removing `WorkManagerInitializer` from the
+  merged manifest — that initialises WorkManager twice. The default `WorkerFactory` is enough
+  because workers resolve from Koin rather than through their constructors.
+
+The iOS implementation is **written but unverified** — the iOS app has never been driven against a
+real homeserver.
 
 ---
 
