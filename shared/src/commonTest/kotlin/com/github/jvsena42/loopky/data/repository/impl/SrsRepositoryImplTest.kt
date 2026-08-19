@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.testing.CountingRevalidator
+import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
@@ -40,6 +41,7 @@ class SrsRepositoryImplTest {
         cardRepo = cardRepo,
         revalidator = revalidator,
         tagRepo = RecordingTagRepository(),
+        mediaRepo = FakeMediaRepository(),
     )
     private val repo = SrsRepositoryImpl(
         pubky = pubky,

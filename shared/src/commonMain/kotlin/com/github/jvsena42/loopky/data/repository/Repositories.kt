@@ -126,6 +126,26 @@ interface DeckRepository {
 
     /** Remove a single card, rewriting its chunk and patching the manifest. */
     suspend fun deleteCard(deckId: String, cardId: String): Result<Deck>
+
+    /**
+     * Copy the blob [sha256] under [deckId]'s own media path and rewrite every ref carrying it —
+     * card sides and the deck cover — so a clone stops depending on the original author's copy.
+     *
+     * Driven by [MediaRepository.pinnedFetches]: the blob has just been fetched to draw a card, so
+     * its bytes are already in hand. Copying it is only half the job — without rewriting the record
+     * the card keeps its `uri`, reads keep resolving to the origin, and every session re-copies the
+     * same blob for nothing.
+     *
+     * **Cache-only and best-effort.** There is no sha→card index, so finding the card any other way
+     * would mean reading every chunk — ~200 requests on a 20k-card deck — which would defeat the
+     * point of doing this opportunistically. The card that triggered the fetch is in the card
+     * cache; anything that is not is left to the deferred sweep (#53).
+     *
+     * A no-op for a deck you do not own, and idempotent: a blob already attempted this session is
+     * not attempted again. A failure leaves the deck exactly as it was — a missing origin is left
+     * dangling rather than written into the card, because a 404 today may be an outage tomorrow.
+     */
+    suspend fun rehostBlob(deckId: String, sha256: String): Result<Unit>
     suspend fun listOwned(): List<Deck>
 
     /** Public decks for any author (their homeserver, read-only). Powers friend profiles + Discover. */
@@ -612,11 +632,32 @@ interface SrsRepository {
 }
 
 /**
+ * A blob just served from another author's homeserver, on a deck the signed-in user owns — a
+ * clone that has not re-hosted this one yet.
+ */
+data class PinnedBlob(val deckId: String, val sha256: String)
+
+/**
  * Blob storage for image and audio media referenced by cards. Blobs live under the owning
  * deck's Pubky path (`/pub/loopky/decks/{deckId}/media/{sha256}.{ext}`) so they sync with the
  * deck and dedupe by content hash.
  */
 interface MediaRepository {
+
+    /**
+     * Emits after a successful [get] of a ref still pinned to another author's blob, on a deck
+     * the signed-in user owns — the moment at which the blob is worth copying, since the bytes
+     * are already in hand.
+     *
+     * Only a signal: persisting the re-hosted ref is [DeckRepository.rehostBlob]'s job, because
+     * a card's chunk and the manifest entry describing it have to be written as a pair. Keeping
+     * that here would make the blob store depend on the deck layout.
+     *
+     * **Best-effort by design.** The deferred sweep (#53) is the backstop, so a dropped signal
+     * costs latency, not correctness.
+     */
+    val pinnedFetches: SharedFlow<PinnedBlob>
+
     suspend fun putImage(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Image>
     suspend fun putAudio(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Audio>
 

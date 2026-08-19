@@ -9,9 +9,14 @@ import com.github.jvsena42.loopky.data.pubky.putBytesWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.requireSession
 import com.github.jvsena42.loopky.data.pubky.sha256Hex
 import com.github.jvsena42.loopky.data.repository.MediaRepository
+import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.io.encoding.Base64
@@ -41,6 +46,19 @@ class MediaRepositoryImpl(
     /** sha256 → bytes, most-recently-used last. Bounded by [CACHE_ENTRIES]. */
     private val cache = LinkedHashMap<String, ByteArray>()
     private val cacheLock = Mutex()
+
+    /**
+     * Replayed rather than fire-and-forget. `extraBufferCapacity` only buffers for subscribers
+     * that already exist, and the collector — `DeckRepositoryImpl` — is a lazy Koin `single`, so
+     * a blob fetched before anything resolves it would emit into nothing. Replaying a stale entry
+     * is harmless: `rehostBlob` is idempotent and short-circuits on what it has already done.
+     */
+    private val _pinnedFetches = MutableSharedFlow<PinnedBlob>(
+        replay = PINNED_REPLAY,
+        extraBufferCapacity = PINNED_REPLAY,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    override val pinnedFetches: SharedFlow<PinnedBlob> = _pinnedFetches.asSharedFlow()
 
     override suspend fun putImage(
         deckId: String,
@@ -80,7 +98,30 @@ class MediaRepositoryImpl(
         // one yet. Resolving against the session author (as this used to) made every foreign
         // deck's media unreadable, since it looked for the blob under *your* pubky.
         val url = ref.uri ?: PubkyPaths.media(authorPubky, deckId, ref.sha256, ref.ext())
-        fetch(ref.sha256, url)
+        val bytes = fetch(ref.sha256, url)
+        signalIfRehostable(authorPubky, deckId, ref)
+        bytes
+    }
+
+    /**
+     * Flag a blob worth copying under the deck's own path, now that its bytes are in hand (#65).
+     *
+     * `tryEmit` rather than `emit`: the card is already on screen waiting for these bytes, and the
+     * copy must never be on that path.
+     *
+     * Skipped are refs that need no origin — matching what `absolutizedTo` declines to pin: one
+     * with no [MediaRef.uri], a remote web image (re-hosting Unsplash bytes would breach their
+     * licence), and an empty [MediaRef.sha256], which addresses no blob.
+     *
+     * The last condition is the load-bearing one. A **followed** deck's blobs must not be copied
+     * under your own pubky at a `deckId` you do not own and cannot edit — that would write junk
+     * into your namespace for a deck that is not yours.
+     */
+    private fun signalIfRehostable(authorPubky: String, deckId: String, ref: MediaRef) {
+        if (ref.uri == null || ref.sha256.isEmpty()) return
+        if ((ref as? MediaRef.Image)?.isRemote == true) return
+        if (authorPubky != session.current()?.identity?.pubky) return
+        _pinnedFetches.tryEmit(PinnedBlob(deckId, ref.sha256))
     }
 
     override suspend fun rehost(deckId: String, ref: MediaRef): Result<MediaRef> = runSuspendCatching {
@@ -163,5 +204,8 @@ class MediaRepositoryImpl(
          * more media than fits in memory, which is what makes the lazy fetch non-negotiable.
          */
         private const val CACHE_ENTRIES = 32
+
+        /** Pinned-blob signals held for a collector that has not been constructed yet. */
+        private const val PINNED_REPLAY = 16
     }
 }
