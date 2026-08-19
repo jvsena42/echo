@@ -111,6 +111,15 @@ interface DeckRepository {
         cards: List<Card>,
         onProgress: (PublishProgress) -> Unit,
     ): Result<Deck>
+
+    /**
+     * Write a deck's metadata without touching its cards — the cheap save for a rename, a new
+     * cover or a tag edit, where [publish] would re-upload every card record.
+     *
+     * Reconciles the deck's tag records too, exactly as [publish] does: tag records live apart
+     * from the manifest, so a metadata write that skipped them would leave a dropped label
+     * indexed and a new one invisible (#47).
+     */
     suspend fun updateMetadata(deck: Deck): Result<Deck>
     suspend fun delete(deckId: String): Result<Unit>
 

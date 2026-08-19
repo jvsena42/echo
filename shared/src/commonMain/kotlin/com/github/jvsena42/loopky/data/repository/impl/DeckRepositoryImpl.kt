@@ -30,6 +30,7 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
+import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.util.Log
@@ -167,9 +168,11 @@ class DeckRepositoryImpl(
         val chunkMeta = CardChunking.metaFor(batches, deck.updatedAt)
         val manifestUrl = PubkyPaths.manifest(author, deck.id)
 
-        // A deck that shrank leaves chunk records past the new tail. Read the old chunk count
-        // before writing, since the cache entry is replaced below.
-        val previousChunkCount = getLocal(deck.id)?.chunks?.size ?: 0
+        // A deck that shrank leaves chunk records past the new tail, and a tag dropped in the
+        // editor leaves a tag record behind. Read what the deck was before writing, since the
+        // cache entry is replaced below.
+        val previous = getLocal(deck.id)
+        val previousChunkCount = previous?.chunks?.size ?: 0
 
         val manifestDeck = deck.copy(cardCount = cards.size, chunks = chunkMeta)
 
@@ -228,7 +231,7 @@ class DeckRepositoryImpl(
             PublishProgress(batches.size, batches.size, cards.size, cards.size, done = true),
         )
 
-        mirrorTags(manifestDeck)
+        syncTags(previous?.tags.orEmpty(), manifestDeck)
 
         cacheLock.withLock { cache[manifestDeck.id] = manifestDeck }
         _changes.tryEmit(Unit)
@@ -236,20 +239,39 @@ class DeckRepositoryImpl(
     }
 
     /**
-     * Mirror a deck's tags as tag records so Nexus indexes them network-wide, and add the
-     * `loopky-deck` marker that puts the deck in the global list — without it the deck is only
-     * reachable by people who already follow the author (#40).
+     * Bring the deck's tag records in line with [deck]'s tag list so Nexus indexes them
+     * network-wide, and add the `loopky-deck` marker that puts the deck in the global list —
+     * without it the deck is only reachable by people who already follow the author (#40).
      *
-     * Best-effort throughout: discoverability is a bonus on top of a publish, not a precondition,
-     * so a failed tag write must not fail the publish.
+     * Called from **every** manifest write that can carry a tag change, not just the first publish
+     * (#47). Tag records are separate records, so a manifest write alone changes nothing an indexer
+     * sees: a label dropped in the editor would stay indexed forever, and one added after the
+     * initial publish would never appear.
+     *
+     * [previousTags] is what the manifest carried before this write — anything it has that [deck]
+     * no longer does gets its record removed. Reserved labels are Loopky's own index, never
+     * user-authored, so they are excluded from both ends of the diff and only the deck marker is
+     * (idempotently) re-asserted.
+     *
+     * Best-effort throughout: discoverability is a bonus on top of a save, not a precondition, so
+     * a failed tag write must not fail the write that triggered it.
      */
-    private suspend fun mirrorTags(deck: Deck) {
+    private suspend fun syncTags(previousTags: List<Tag>, deck: Deck) {
         tagRepo.putReservedTag(deck.pubkyUri, ReservedTags.DECK).onFailure {
-            Log.e(TAG, "publish: ${ReservedTags.DECK.value} write failed — ${it.message}", it)
+            Log.e(TAG, "syncTags: ${ReservedTags.DECK.value} write failed — ${it.message}", it)
         }
-        for (tag in deck.tags.filterNot { ReservedTags.isReserved(it) }) {
+
+        val current = deck.tags.filterNot { ReservedTags.isReserved(it) }
+        for (tag in current) {
             tagRepo.putTag(deck.pubkyUri, tag).onFailure {
-                Log.e(TAG, "publish: tag '${tag.value}' write failed — ${it.message}", it)
+                Log.e(TAG, "syncTags: tag '${tag.value}' write failed — ${it.message}", it)
+            }
+        }
+
+        val dropped = previousTags.filterNot { ReservedTags.isReserved(it) } - current.toSet()
+        for (tag in dropped) {
+            tagRepo.removeTag(deck.pubkyUri, tag).onFailure {
+                Log.e(TAG, "syncTags: tag '${tag.value}' removal failed — ${it.message}", it)
             }
         }
     }
@@ -264,9 +286,14 @@ class DeckRepositoryImpl(
     override suspend fun updateMetadata(deck: Deck): Result<Deck> = runSuspendCatching {
         requireOwnedDeck(deck.id)
         withDeckWrite(deck.id) {
-            patchDeckLocked(deck.id) { current ->
+            // Read inside the lock and before the patch: patchDeckLocked replaces the cache entry,
+            // so afterwards there is nothing left to diff the tag records against.
+            val previousTags = getLocal(deck.id)?.tags.orEmpty()
+            val updated = patchDeckLocked(deck.id) { current ->
                 deck.copy(chunks = current.chunks, cardCount = current.cardCount)
             }
+            syncTags(previousTags, updated)
+            updated
         }
     }
 
