@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
+import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.impl.CardRepositoryImpl
@@ -18,6 +19,7 @@ import com.github.jvsena42.loopky.data.repository.impl.IdentityRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.ImportRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.MediaRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.SessionRevalidatorImpl
+import com.github.jvsena42.loopky.data.repository.impl.SignupRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.SrsRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.TagRepositoryImpl
 import com.github.jvsena42.loopky.domain.model.Tag
@@ -39,7 +41,13 @@ import com.github.jvsena42.loopky.presentation.profile.FollowListViewModel
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
+import com.github.jvsena42.loopky.presentation.signup.InviteCodeViewModel
+import com.github.jvsena42.loopky.presentation.signup.LightningVerificationViewModel
+import com.github.jvsena42.loopky.presentation.signup.PhoneVerificationViewModel
+import com.github.jvsena42.loopky.presentation.signup.SignupHandoffViewModel
+import com.github.jvsena42.loopky.presentation.signup.SignupStartViewModel
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
+import com.github.jvsena42.loopky.util.epochMillis
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -69,6 +77,14 @@ val sharedModule = module {
     single<DeckRepository> { DeckRepositoryImpl(get(), get(), get(), get(), get(), get(), get()) }
     single<MediaRepository> { MediaRepositoryImpl(get(), get(), get()) }
     single<ImportRepository> { ImportRepositoryImpl() }
+    single<SignupRepository> {
+        SignupRepositoryImpl(
+            homegate = get(),
+            tokenStore = get(),
+            environment = get(),
+            nowMillis = ::epochMillis,
+        )
+    }
     single<SrsRepository> { SrsRepositoryImpl(get(), get(), get(), get(), get()) }
     single<DiscoveryRepository> {
         DiscoveryRepositoryImpl(get(), get(), get(), get(), get(), get(), get(), get())
@@ -79,6 +95,13 @@ val sharedModule = module {
     }
 
     viewModel { OnboardingViewModel(identityRepository = get()) }
+    viewModel { SignupStartViewModel(signupRepository = get()) }
+    viewModel { InviteCodeViewModel(signupRepository = get()) }
+    viewModel { PhoneVerificationViewModel(signupRepository = get()) }
+    viewModel { LightningVerificationViewModel(signupRepository = get()) }
+    viewModel {
+        SignupHandoffViewModel(signupRepository = get(), identityRepository = get())
+    }
     viewModel { HomeViewModel(identityRepository = get(), deckRepository = get(), srsRepository = get()) }
     viewModel { DecksLibraryViewModel(deckRepository = get(), identityRepository = get()) }
     viewModel { params ->

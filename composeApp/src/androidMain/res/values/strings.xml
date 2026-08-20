@@ -392,6 +392,83 @@
     <string name="nav_tab_discover">Discover</string>
     <string name="nav_tab_profile">Profile</string>
 
+
+    <!-- Signup: obtaining a homeserver account. Errors are flow-local, not ErrorReason. -->
+    <string name="signup_start_title">Prove you\'re not a robot.</string>
+    <string name="signup_start_subtitle">No email needed. Verify with a text or a small payment, or use an invite code.</string>
+    <string name="signup_sms_card_title">SMS verification</string>
+    <string name="signup_sms_card_price">Free</string>
+    <string name="signup_sms_card_note">Uses your phone number</string>
+    <string name="signup_lightning_card_title">Bitcoin payment</string>
+    <string name="signup_lightning_card_note">No phone number needed</string>
+    <string name="signup_lightning_card_price">Pay ₿ %1$d once</string>
+    <string name="signup_lightning_card_price_unknown">Pay once</string>
+    <string name="signup_card_unavailable">Not available in your country</string>
+    <string name="signup_invite_link">Have an invite code?</string>
+
+    <string name="signup_invite_title">Enter your invite code.</string>
+    <string name="signup_invite_subtitle">Ask the Pubky team for a code to get an account on their homeserver.</string>
+    <string name="signup_invite_label">Invite code</string>
+    <string name="signup_invite_placeholder">XXXX-XXXX-XXXX</string>
+    <string name="signup_invite_submit">Continue</string>
+
+    <string name="signup_phone_title">Proof of phone.</string>
+    <string name="signup_phone_subtitle">We\'ll text you a verification code.</string>
+    <string name="signup_phone_label">Phone number</string>
+    <string name="signup_phone_placeholder">+316XXXXXXXX</string>
+    <string name="signup_phone_hint">Include your country code (for example +1 for the US).</string>
+    <string name="signup_phone_send">Send code</string>
+    <string name="signup_code_title">Enter the code.</string>
+    <string name="signup_code_subtitle">We sent a 6-digit code to %1$s.</string>
+    <string name="signup_code_label">Verification code</string>
+    <string name="signup_code_verify">Verify</string>
+    <string name="signup_code_resend">Resend code</string>
+    <string name="signup_code_resend_in">Resend in %1$ds</string>
+    <string name="signup_code_change_number">Change number</string>
+
+    <string name="signup_lightning_title">Scan or tap to pay.</string>
+    <string name="signup_lightning_amount">Pay ₿ %1$d to continue.</string>
+    <string name="signup_lightning_open_wallet">Open in wallet</string>
+    <string name="signup_lightning_copy">Copy invoice</string>
+    <string name="signup_lightning_copied">Invoice copied</string>
+    <string name="signup_lightning_no_wallet">No Lightning wallet found — invoice copied instead</string>
+    <string name="signup_lightning_waiting">Waiting for payment…</string>
+    <string name="signup_lightning_new_invoice">New invoice</string>
+
+    <string name="signup_handoff_title">Finishing in Pubky Ring…</string>
+    <string name="signup_handoff_subtitle">Pubky Ring is creating your key and claiming your account. Approve it there, then come back.</string>
+    <string name="signup_handoff_retry">Try again</string>
+    <string name="signup_handoff_copy_code">Copy my code</string>
+    <string name="signup_handoff_code_copied">Code copied — keep it somewhere safe</string>
+    <string name="signup_handoff_use_existing">I already have a Pubky</string>
+    <!-- Shown under the retry button: the reason a retry is safe, in the user\'s terms. -->
+    <string name="signup_handoff_token_safe">Your code hasn\'t been used yet, so trying again won\'t cost you anything.</string>
+
+    <string name="signup_error_geoblocked_title">Not available here</string>
+    <string name="signup_error_geoblocked_message">This method isn\'t offered in your country. Try another one, or use an invite code.</string>
+    <string name="signup_error_phone_blocked_title">Number can\'t be used</string>
+    <string name="signup_error_phone_blocked_message">This phone number can\'t be used for verification. Try another, or use an invite code.</string>
+    <string name="signup_error_rate_limited_title">Too many attempts</string>
+    <string name="signup_error_rate_limited_message">Give it a few minutes and try again.</string>
+    <string name="signup_error_rate_limited_weekly_title">Weekly limit reached</string>
+    <string name="signup_error_rate_limited_weekly_message">This number has used all its verifications this week. Try a payment or an invite code instead.</string>
+    <string name="signup_error_rate_limited_yearly_title">Yearly limit reached</string>
+    <string name="signup_error_rate_limited_yearly_message">This number has used all its verifications for the year. Try a payment or an invite code instead.</string>
+    <string name="signup_error_code_incorrect_title">That code didn\'t work</string>
+    <string name="signup_error_code_incorrect_message">Check it and try again.</string>
+    <string name="signup_error_invoice_expired_title">Invoice expired</string>
+    <string name="signup_error_invoice_expired_message">That invoice timed out before it was paid. Ask for a new one.</string>
+    <string name="signup_error_verification_lost_title">Let\'s start over</string>
+    <string name="signup_error_verification_lost_message">We lost track of this verification. Starting again is safe.</string>
+    <string name="signup_error_ring_failed_title">Pubky Ring didn\'t finish</string>
+    <string name="signup_error_ring_failed_message">The setup didn\'t complete. Your code is untouched, so you can try again.</string>
+    <string name="signup_error_ring_missing_title">Pubky Ring not found</string>
+    <string name="signup_error_ring_missing_message">Loopky creates your account through Pubky Ring. Install it to continue.</string>
+    <string name="signup_error_unavailable_title">Couldn\'t reach the service</string>
+    <string name="signup_error_unavailable_message">Check your connection and try again.</string>
+
+    <string name="onboarding_create_pubky">Create a Pubky</string>
+
     <!-- Error states. Reason-based copy; the raw FFI message stays in logcat. -->
     <string name="error_offline_title">You\'re offline</string>
     <string name="error_offline_message">Loopky can\'t reach your homeserver. Your decks are safe — they live on Pubky. Check your connection and try again.</string>

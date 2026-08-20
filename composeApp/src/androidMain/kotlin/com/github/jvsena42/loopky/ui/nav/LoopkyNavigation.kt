@@ -27,6 +27,11 @@ import com.github.jvsena42.loopky.ui.profile.FollowListRoute
 import com.github.jvsena42.loopky.ui.profile.FriendProfileRoute
 import com.github.jvsena42.loopky.ui.search.SearchRoute
 import com.github.jvsena42.loopky.ui.settings.SettingsRoute
+import com.github.jvsena42.loopky.ui.signup.InviteCodeRoute
+import com.github.jvsena42.loopky.ui.signup.LightningVerificationRoute
+import com.github.jvsena42.loopky.ui.signup.PhoneVerificationRoute
+import com.github.jvsena42.loopky.ui.signup.SignupHandoffRoute
+import com.github.jvsena42.loopky.ui.signup.SignupStartRoute
 import com.github.jvsena42.loopky.ui.study.StudySessionRoute
 import com.github.jvsena42.loopky.ui.tagbrowse.TagBrowseRoute
 
@@ -61,6 +66,7 @@ fun LoopkyNavHost(
     NavHost(navController = navController, startDestination = Routes.ONBOARDING) {
         composable(Routes.ONBOARDING) {
             OnboardingRoute(
+                onCreatePubky = { navController.navigateTo(Routes.SIGNUP_START) },
                 onNavigateHome = {
                     navController.navigateTo(Routes.MAIN) {
                         popUpTo(Routes.ONBOARDING) { inclusive = true }
@@ -237,6 +243,7 @@ fun LoopkyNavHost(
                 onOpenSettings = { navController.navigateTo(Routes.settings(Routes.SETTINGS_FOCUS_UNSPLASH)) },
             )
         }
+        signupDestinations(navController)
         cardEditorDestinations(navController)
         composable(
             route = Routes.STUDY,
@@ -297,6 +304,58 @@ fun LoopkyNavHost(
  * Two routes rather than a flag on one: the "new" route has a segment fewer, so the two patterns
  * cannot both match the same URL.
  */
+/**
+ * The signup flow: obtain a token, then hand it to Pubky Ring.
+ *
+ * Grouped like [cardEditorDestinations] and flat like the import flow — the token in flight lives
+ * in `SignupRepository`, so no step needs a nav argument and every back press is a plain pop.
+ */
+private fun NavGraphBuilder.signupDestinations(navController: NavHostController) {
+    composable(Routes.SIGNUP_START) {
+        SignupStartRoute(
+            onBack = { navController.popBackStack() },
+            onSms = { navController.navigateTo(Routes.SIGNUP_PHONE) },
+            onLightning = { navController.navigateTo(Routes.SIGNUP_LIGHTNING) },
+            onInviteCode = { navController.navigateTo(Routes.SIGNUP_INVITE) },
+        )
+    }
+    composable(Routes.SIGNUP_PHONE) {
+        PhoneVerificationRoute(
+            onBack = { navController.popBackStack() },
+            onDone = { navController.navigateTo(Routes.SIGNUP_HANDOFF) },
+        )
+    }
+    composable(Routes.SIGNUP_LIGHTNING) {
+        LightningVerificationRoute(
+            onBack = { navController.popBackStack() },
+            onDone = { navController.navigateTo(Routes.SIGNUP_HANDOFF) },
+        )
+    }
+    composable(Routes.SIGNUP_INVITE) {
+        InviteCodeRoute(
+            onBack = { navController.popBackStack() },
+            onDone = { navController.navigateTo(Routes.SIGNUP_HANDOFF) },
+        )
+    }
+    composable(Routes.SIGNUP_HANDOFF) {
+        SignupHandoffRoute(
+            onBack = { navController.popBackStack() },
+            // The whole signup stack is dropped: coming "back" into a spent flow would offer to
+            // redeem a token that no longer exists.
+            onSignedUp = {
+                navController.navigateTo(Routes.MAIN) {
+                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                }
+            },
+            onSignIn = {
+                navController.navigateTo(Routes.ONBOARDING) {
+                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                }
+            },
+        )
+    }
+}
+
 private fun NavGraphBuilder.cardEditorDestinations(navController: NavHostController) {
     composable(
         route = Routes.EDIT_CARD,

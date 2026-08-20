@@ -31,8 +31,27 @@ interface AppPreferences {
     val shareOnPubky: Flow<Boolean>
 
     suspend fun setShareOnPubky(enabled: Boolean)
+
+    /**
+     * Which Pubky environment to talk to, as a [com.github.jvsena42.loopky.data.homegate.PubkyEnvironment]
+     * name, or blank to use the build's own default.
+     *
+     * **Debug builds only.** A release ships pointed at production and offers no way to change it,
+     * for the same reason the Nexus URL is not overridable in release (#42).
+     *
+     * Read once at Koin start-up, not collected: the Homegate client is a singleton that captures
+     * its base URL when constructed, so a change here applies on the next launch. The Settings row
+     * that writes it says so.
+     *
+     * Emits the current value immediately and again on every change.
+     */
+    val pubkyEnvironment: Flow<String>
+
+    suspend fun setPubkyEnvironment(name: String)
 }
 
 internal const val PREFERENCES_NAME = "loopky.preferences"
 internal const val KEY_SHARE_ON_PUBKY = "share_on_pubky"
 internal const val DEFAULT_SHARE_ON_PUBKY = true
+internal const val KEY_PUBKY_ENVIRONMENT = "pubky_environment"
+internal const val DEFAULT_PUBKY_ENVIRONMENT = ""

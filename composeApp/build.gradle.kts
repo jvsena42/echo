@@ -10,6 +10,14 @@ import java.util.Properties
 val NEXUS_STAGING_URL = "https://nexus.staging.pubky.app"
 val NEXUS_PRODUCTION_URL = "https://nexus.pubky.app"
 
+/**
+ * Which Homegate issues signup tokens, and therefore which homeserver those tokens are good for.
+ * The two travel together as [PubkyEnvironment]; only the name is threaded through BuildConfig.
+ * A token is single-use, so spending one minted on the wrong environment loses it for good.
+ */
+val PUBKY_ENV_STAGING = "Staging"
+val PUBKY_ENV_PRODUCTION = "Production"
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidApplication)
@@ -90,11 +98,18 @@ android {
             val override = (localProps.getProperty("NEXUS_BASE_URL") ?: "").trim()
             val debugNexusUrl = override.ifEmpty { NEXUS_STAGING_URL }
             buildConfigField("String", "NEXUS_BASE_URL", "\"$debugNexusUrl\"")
+
+            // The build-time default only; a debug build can also switch environment at runtime
+            // from Settings, which takes effect on the next launch.
+            val envOverride = (localProps.getProperty("PUBKY_ENV") ?: "").trim()
+            val debugEnv = envOverride.ifEmpty { PUBKY_ENV_STAGING }
+            buildConfigField("String", "PUBKY_ENV", "\"$debugEnv\"")
         }
         getByName("release") {
             isMinifyEnabled = false
             // Never overridable: a release must read the same network its users publish to (#42).
             buildConfigField("String", "NEXUS_BASE_URL", "\"$NEXUS_PRODUCTION_URL\"")
+            buildConfigField("String", "PUBKY_ENV", "\"$PUBKY_ENV_PRODUCTION\"")
         }
     }
     compileOptions {

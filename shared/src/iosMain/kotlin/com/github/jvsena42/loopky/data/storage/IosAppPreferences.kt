@@ -25,4 +25,16 @@ class IosAppPreferences : AppPreferences {
         defaults.setBool(enabled, KEY_SHARE_ON_PUBKY)
         _shareOnPubky.update { enabled }
     }
+
+    // No absence probe needed here: the default is the empty string, which is also what
+    // `stringForKey` yields for a key that was never written.
+    private val _pubkyEnvironment = MutableStateFlow(
+        defaults.stringForKey(KEY_PUBKY_ENVIRONMENT) ?: DEFAULT_PUBKY_ENVIRONMENT,
+    )
+    override val pubkyEnvironment: Flow<String> = _pubkyEnvironment.asStateFlow()
+
+    override suspend fun setPubkyEnvironment(name: String) {
+        defaults.setObject(name, KEY_PUBKY_ENVIRONMENT)
+        _pubkyEnvironment.update { name }
+    }
 }

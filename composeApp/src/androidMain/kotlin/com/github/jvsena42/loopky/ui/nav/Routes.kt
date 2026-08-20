@@ -23,6 +23,16 @@ object Routes {
      */
     const val NEW_CARD = "deck/{deckId}/card/new"
 
+    /**
+     * Getting a homeserver account. Flat siblings rather than a nested graph, matching the import
+     * flow: the in-flight token lives in `SignupRepository`, not in nav arguments.
+     */
+    const val SIGNUP_START = "signup"
+    const val SIGNUP_PHONE = "signup/phone"
+    const val SIGNUP_LIGHTNING = "signup/lightning"
+    const val SIGNUP_INVITE = "signup/invite"
+    const val SIGNUP_HANDOFF = "signup/handoff"
+
     const val IMPORT_PASTE = "import/paste"
 
     /** Bulk file import: summary + one confirm, not the swipe queue (spec §5.4). */

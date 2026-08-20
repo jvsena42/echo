@@ -50,11 +50,12 @@ import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun OnboardingRoute(onNavigateHome: () -> Unit) {
+fun OnboardingRoute(onNavigateHome: () -> Unit, onCreatePubky: () -> Unit) {
     val viewModel = koinViewModel<OnboardingViewModel>()
     OnboardingScreen(
         viewModel = viewModel,
         onNavigateHome = onNavigateHome,
+        onCreatePubky = onCreatePubky,
     )
 }
 
@@ -62,6 +63,7 @@ fun OnboardingRoute(onNavigateHome: () -> Unit) {
 fun OnboardingScreen(
     viewModel: OnboardingViewModel,
     onNavigateHome: () -> Unit,
+    onCreatePubky: () -> Unit,
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -102,6 +104,7 @@ fun OnboardingScreen(
         state = state,
         onSignInClick = viewModel::onSignInClick,
         onGetRingClick = viewModel::onGetRingClick,
+        onCreatePubky = onCreatePubky,
     )
 }
 
@@ -110,6 +113,7 @@ private fun OnboardingContent(
     state: OnboardingUiState,
     onSignInClick: () -> Unit,
     onGetRingClick: () -> Unit,
+    onCreatePubky: () -> Unit,
 ) {
     if (state is OnboardingUiState.Restoring) {
         SplashContent()
@@ -169,6 +173,7 @@ private fun OnboardingContent(
             isWorking = isWorking,
             onSignInClick = onSignInClick,
             onGetRingClick = onGetRingClick,
+            onCreatePubky = onCreatePubky,
         )
     }
 }
@@ -203,6 +208,7 @@ private fun CtaBlock(
     isWorking: Boolean,
     onSignInClick: () -> Unit,
     onGetRingClick: () -> Unit,
+    onCreatePubky: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -242,6 +248,20 @@ private fun CtaBlock(
                 color = colors.danger,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
+            )
+        }
+        // The second entry point: signing in assumes an account already exists, and on a
+        // token-gated homeserver most new users do not have one.
+        TextButton(
+            onClick = onCreatePubky,
+            enabled = !isWorking,
+            modifier = Modifier.testTag("onboarding_create_pubky"),
+            colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
+        ) {
+            Text(
+                text = stringResource(R.string.onboarding_create_pubky),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
             )
         }
         TextButton(
@@ -319,6 +339,7 @@ private fun OnboardingContentPreview() {
             state = OnboardingUiState.Idle,
             onSignInClick = {},
             onGetRingClick = {},
+            onCreatePubky = {},
         )
     }
 }

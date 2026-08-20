@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.di
 
+import com.github.jvsena42.loopky.data.homegate.HomegateClient
+import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.data.nexus.AndroidHttpFetcher
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
 import com.github.jvsena42.loopky.data.nexus.NexusClient
@@ -7,9 +9,11 @@ import com.github.jvsena42.loopky.data.pubky.AndroidPubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.storage.AndroidAppPreferences
 import com.github.jvsena42.loopky.data.storage.AndroidSecureSessionStore
+import com.github.jvsena42.loopky.data.storage.AndroidSignupTokenStore
 import com.github.jvsena42.loopky.data.storage.AndroidUnsplashKeyStore
 import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.platform.AndroidBackgroundTasks
@@ -34,17 +38,21 @@ private const val PUBKY_RING_PLAY_STORE_URL =
 fun androidPlatformModule(
     unsplashFallbackKey: String,
     nexusBaseUrl: String,
+    pubkyEnvironment: PubkyEnvironment,
 ): Module = module {
     single<PubkyClient> { AndroidPubkyClient() }
     single<HttpFetcher> { AndroidHttpFetcher() }
     single<SecureSessionStore> { AndroidSecureSessionStore(androidContext()) }
     single<AppPreferences> { AndroidAppPreferences(androidContext()) }
     single<UnsplashKeyStore> { AndroidUnsplashKeyStore(androidContext()) }
+    single<SignupTokenStore> { AndroidSignupTokenStore(androidContext()) }
     single<Speaker> { AndroidSpeaker(androidContext()) }
     single<MediaProcessor> { AndroidMediaProcessor() }
     single<SpeechRecognizer> { AndroidSpeechRecognizer(androidContext()) }
     single<BackgroundTasks> { AndroidBackgroundTasks(androidContext()) }
     single { NexusClient(http = get(), baseUrl = nexusBaseUrl) }
+    single { pubkyEnvironment }
+    single { HomegateClient(http = get(), baseUrl = pubkyEnvironment.homegateBaseUrl) }
     single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }
     factory {
         OnboardingViewModel(
@@ -61,14 +69,21 @@ fun androidPlatformModule(
  * [nexusBaseUrl] has no default on purpose: the indexer is the one endpoint that differs between
  * environments, and a release build must never fall back to the staging network (#42). The app
  * passes `BuildConfig.NEXUS_BASE_URL`, which the build type picks.
+ *
+ * [pubkyEnvironment] likewise, and for a sharper reason: it decides which Homegate mints signup
+ * tokens and which homeserver those tokens are valid on. A token is single-use, so one minted
+ * against the wrong environment is rejected and gone. Resolved once here rather than read live,
+ * because [HomegateClient] is a singleton that captures its base URL when constructed — a debug
+ * build's Settings override therefore applies on the next launch, which that screen states.
  */
 fun initKoinAndroid(
     unsplashFallbackKey: String = "",
     nexusBaseUrl: String,
+    pubkyEnvironment: PubkyEnvironment,
     appDeclaration: KoinAppDeclaration = {},
 ) {
     startKoin {
         appDeclaration()
-        modules(sharedModule, androidPlatformModule(unsplashFallbackKey, nexusBaseUrl))
+        modules(sharedModule, androidPlatformModule(unsplashFallbackKey, nexusBaseUrl, pubkyEnvironment))
     }
 }

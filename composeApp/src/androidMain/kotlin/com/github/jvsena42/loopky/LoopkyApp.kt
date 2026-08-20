@@ -1,6 +1,8 @@
 package com.github.jvsena42.loopky
 
 import android.app.Application
+import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
+import com.github.jvsena42.loopky.data.storage.resolveStartupEnvironment
 import com.github.jvsena42.loopky.di.initKoinAndroid
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
@@ -24,6 +26,13 @@ class LoopkyApp : Application() {
             unsplashFallbackKey = BuildConfig.UNSPLASH_ACCESS_KEY,
             // Staging on debug, production on release — see composeApp/build.gradle.kts.
             nexusBaseUrl = BuildConfig.NEXUS_BASE_URL,
+            // Which Homegate mints signup tokens, and which homeserver they are valid on. A
+            // debug build can override this from Settings; a release cannot (#42).
+            pubkyEnvironment = resolveStartupEnvironment(
+                context = this,
+                buildDefault = PubkyEnvironment.fromNameOrProduction(BuildConfig.PUBKY_ENV),
+                allowStoredOverride = BuildConfig.DEBUG,
+            ),
         ) {
             androidLogger()
             androidContext(this@LoopkyApp)

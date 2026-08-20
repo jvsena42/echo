@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.testing
 
+import com.github.jvsena42.loopky.data.homegate.LnInvoice
+import com.github.jvsena42.loopky.data.homegate.MethodAvailability
 import com.github.jvsena42.loopky.data.pubky.CardChunking
 import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
 import com.github.jvsena42.loopky.data.repository.CardRepository
@@ -12,10 +14,14 @@ import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.RehostOutcome
+import com.github.jvsena42.loopky.data.repository.SignupAvailability
+import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.data.storage.AppPreferences
+import com.github.jvsena42.loopky.data.storage.PendingSignup
+import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
@@ -790,7 +796,10 @@ class FailingChunkCardRepository(
 }
 
 /** [AppPreferences] in memory, starting from the production defaults. */
-class FakeAppPreferences(shareOnPubky: Boolean = true) : AppPreferences {
+class FakeAppPreferences(
+    shareOnPubky: Boolean = true,
+    pubkyEnvironment: String = "",
+) : AppPreferences {
     private val _shareOnPubky = MutableStateFlow(shareOnPubky)
     override val shareOnPubky: Flow<Boolean> = _shareOnPubky.asStateFlow()
 
@@ -799,6 +808,94 @@ class FakeAppPreferences(shareOnPubky: Boolean = true) : AppPreferences {
 
     override suspend fun setShareOnPubky(enabled: Boolean) {
         _shareOnPubky.update { enabled }
+    }
+
+    private val _pubkyEnvironment = MutableStateFlow(pubkyEnvironment)
+    override val pubkyEnvironment: Flow<String> = _pubkyEnvironment.asStateFlow()
+
+    /** The current value, for a test that asserts on it without collecting. */
+    val pubkyEnvironmentValue: String get() = _pubkyEnvironment.value
+
+    override suspend fun setPubkyEnvironment(name: String) {
+        _pubkyEnvironment.update { name }
+    }
+}
+
+/** [SignupRepository] in memory. Counts gate calls, so a test can prove a retry did not re-mint. */
+class FakeSignupRepository(pending: PendingSignup? = null) : SignupRepository {
+    private val _pending = MutableStateFlow(pending)
+    override val pending: Flow<PendingSignup?> = _pending.asStateFlow()
+
+    val stored: PendingSignup? get() = _pending.value
+
+    var clearCount: Int = 0
+        private set
+
+    /** How many times a *new* token was requested from Homegate. */
+    var mintCount: Int = 0
+        private set
+
+    var availability: SignupAvailability = SignupAvailability(
+        sms = MethodAvailability.Unknown,
+        lightning = MethodAvailability.Unknown,
+    )
+    var availabilityError: Throwable? = null
+    var redeemResult: Result<PendingSignup.Redeemable>? = null
+    var sendSmsResult: Result<Unit> = Result.success(Unit)
+    var invoiceResult: Result<LnInvoice> = Result.failure(IllegalStateException("no invoice set"))
+
+    override suspend fun availability(): SignupAvailability =
+        availabilityError?.let { throw it } ?: availability
+
+    override suspend fun sendSmsCode(phoneNumber: String): Result<Unit> = sendSmsResult
+
+    override suspend fun redeemSmsCode(phoneNumber: String, code: String): Result<PendingSignup.Redeemable> = mint()
+
+    override suspend fun createInvoice(): Result<LnInvoice> = invoiceResult
+
+    override suspend fun awaitInvoice(invoice: LnInvoice): Result<PendingSignup.Redeemable> = mint()
+
+    override suspend fun redeemInviteCode(code: String): Result<PendingSignup.Redeemable> = mint()
+
+    var resumableInvoice: LnInvoice? = null
+    var resumableSmsPhoneNumber: String? = null
+
+    override suspend fun resumableInvoice(): LnInvoice? = resumableInvoice
+
+    override suspend fun resumableSmsPhoneNumber(): String? = resumableSmsPhoneNumber
+
+    override suspend fun clearPending() {
+        clearCount++
+        _pending.update { null }
+    }
+
+    private fun mint(): Result<PendingSignup.Redeemable> {
+        mintCount++
+        val result = redeemResult ?: Result.failure(IllegalStateException("no redeem result set"))
+        result.getOrNull()?.let { granted -> _pending.update { granted } }
+        return result
+    }
+}
+
+/** [SignupTokenStore] in memory — no keychain, and nothing that outlives the test. */
+class FakeSignupTokenStore(pending: PendingSignup? = null) : SignupTokenStore {
+    private val _pending = MutableStateFlow(pending)
+    override val pending: Flow<PendingSignup?> = _pending.asStateFlow()
+
+    /** The current value, for a test that asserts on it without collecting. */
+    val stored: PendingSignup? get() = _pending.value
+
+    /** How many times the token was cleared — clearing it wrongly loses the user's payment. */
+    var clearCount: Int = 0
+        private set
+
+    override suspend fun save(pending: PendingSignup) {
+        _pending.update { pending }
+    }
+
+    override suspend fun clear() {
+        clearCount++
+        _pending.update { null }
     }
 }
 

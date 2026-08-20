@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.di
 
+import com.github.jvsena42.loopky.data.homegate.HomegateClient
+import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
 import com.github.jvsena42.loopky.data.nexus.IosHttpFetcher
 import com.github.jvsena42.loopky.data.nexus.NexusClient
@@ -9,8 +11,10 @@ import com.github.jvsena42.loopky.data.pubky.RawPubkyClient
 import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.IosAppPreferences
 import com.github.jvsena42.loopky.data.storage.IosSecureSessionStore
+import com.github.jvsena42.loopky.data.storage.IosSignupTokenStore
 import com.github.jvsena42.loopky.data.storage.IosUnsplashKeyStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.platform.BackgroundTasks
@@ -52,10 +56,24 @@ import org.koin.mp.KoinPlatform
  * [nexusBaseUrl] is the Pubky Nexus indexer, which differs between environments — Swift passes
  * staging under `#if DEBUG` and production otherwise. No default, so a release build cannot
  * silently fall back to staging (#42).
+ *
+ * [pubkyEnvironmentName] is a [PubkyEnvironment] name, picked the same `#if DEBUG` way. It decides
+ * which Homegate mints signup tokens *and* which homeserver those tokens are valid on — an
+ * unrecognised name resolves to production, because a token minted against the wrong environment
+ * is rejected and, being single-use, is gone.
  */
-fun doInitKoin(rawPubkyClient: RawPubkyClient, nexusBaseUrl: String, unsplashFallbackKey: String) {
+fun doInitKoin(
+    rawPubkyClient: RawPubkyClient,
+    nexusBaseUrl: String,
+    unsplashFallbackKey: String,
+    pubkyEnvironmentName: String,
+) {
+    val environment = PubkyEnvironment.fromNameOrProduction(pubkyEnvironmentName)
     startKoin {
-        modules(sharedModule, iosPlatformModule(rawPubkyClient, nexusBaseUrl, unsplashFallbackKey))
+        modules(
+            sharedModule,
+            iosPlatformModule(rawPubkyClient, nexusBaseUrl, unsplashFallbackKey, environment),
+        )
     }
     // BGTaskScheduler rejects a handler registered after the app has finished launching, so this
     // cannot be deferred to the first schedule (#53).
@@ -66,13 +84,17 @@ private fun iosPlatformModule(
     rawPubkyClient: RawPubkyClient,
     nexusBaseUrl: String,
     unsplashFallbackKey: String,
+    pubkyEnvironment: PubkyEnvironment,
 ): Module = module {
     single<PubkyClient> { IosPubkyClientAdapter(rawPubkyClient) }
     single<HttpFetcher> { IosHttpFetcher() }
     single { NexusClient(http = get(), baseUrl = nexusBaseUrl) }
+    single { pubkyEnvironment }
+    single { HomegateClient(http = get(), baseUrl = pubkyEnvironment.homegateBaseUrl) }
     single<SecureSessionStore> { IosSecureSessionStore() }
     single<AppPreferences> { IosAppPreferences() }
     single<UnsplashKeyStore> { IosUnsplashKeyStore() }
+    single<SignupTokenStore> { IosSignupTokenStore() }
     single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }
     single<Speaker> { IosSpeaker() }
     single<BackgroundTasks> { IosBackgroundTasks(identity = get(), decks = get()) }
