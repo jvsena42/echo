@@ -239,8 +239,14 @@
     <string name="image_sheet_done">Done</string>
     <string name="image_sheet_search_placeholder">Search images…</string>
     <string name="image_sheet_from_gallery">From gallery</string>
-    <string name="image_sheet_empty">Search the web or pick from your gallery</string>
     <string name="image_sheet_no_results">No images found</string>
+    <!-- Web-search failures. The first three are fixed by setting a key; the last one is not. -->
+    <string name="image_sheet_error_missing_key">Web image search needs an Unsplash API key. It\'s free and takes about two minutes.</string>
+    <string name="image_sheet_error_invalid_key">Unsplash rejected that key. Check it in Settings.</string>
+    <string name="image_sheet_error_rate_limited">Unsplash\'s hourly limit is used up. Your own key gets you your own limit.</string>
+    <string name="image_sheet_error_unavailable">Couldn\'t reach Unsplash. Check your connection, or pick from your gallery.</string>
+    <string name="image_sheet_get_key">Get a key</string>
+    <string name="image_sheet_add_key">Add key</string>
     <string name="image_sheet_remove">Remove image</string>
     <string name="image_sheet_photo">Photo</string>
     <!-- Attribution required by the Unsplash API guidelines: photographer + platform, both linked. -->
@@ -327,6 +333,25 @@
     <string name="settings_share_on_pubky_label">Ask to share on Pubky</string>
     <!-- Must not read as a privacy control: published decks are public either way (spec 11). -->
     <string name="settings_share_on_pubky_description">After you create, follow or clone a deck, offer to post about it so your Pubky followers see it. Your decks stay public either way — this only controls the post.</string>
+    <!-- Image search (Unsplash API key). Never renders a key: the built-in one is not shown at
+         all, and the user's own is reduced to its last four characters. -->
+    <string name="settings_section_image_search">IMAGE SEARCH</string>
+    <string name="settings_unsplash_key_label">Unsplash access key</string>
+    <string name="settings_unsplash_key_not_set">Not set — web image search is off</string>
+    <string name="settings_unsplash_key_built_in">Using Loopky\'s shared key (limited)</string>
+    <string name="settings_unsplash_key_user_set">Key set · ••••%1$s</string>
+    <string name="settings_unsplash_key_set">Set</string>
+    <string name="settings_unsplash_key_replace">Replace</string>
+    <string name="settings_unsplash_key_remove">Remove</string>
+    <string name="settings_unsplash_key_save">Save</string>
+    <string name="settings_unsplash_key_cancel">Cancel</string>
+    <string name="settings_unsplash_key_placeholder">Paste your Access Key</string>
+    <string name="settings_unsplash_key_hint">Free from Unsplash: create an application in your developer dashboard, then copy its Access Key — not the Secret key.</string>
+    <string name="settings_unsplash_key_get">Get a key</string>
+    <string name="settings_unsplash_key_error_invalid">Unsplash rejected that key. Check you copied the Access Key in full.</string>
+    <string name="settings_unsplash_key_error_missing">Enter a key first.</string>
+    <string name="settings_unsplash_key_error_rate_limited">That key has hit its hourly limit. Try again later.</string>
+    <string name="settings_unsplash_key_error_unavailable">Couldn\'t reach Unsplash to check the key.</string>
     <string name="settings_section_about">ABOUT</string>
     <string name="settings_app_version_label">App version</string>
     <string name="settings_app_version_unknown">—</string>
