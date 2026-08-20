@@ -169,23 +169,7 @@ class PublishDeckViewModel(
             // Recorded before the first write so a cancel knows what to sweep. publish() writes a
             // marker manifest first (#49), so anything from here on is reachable and deletable.
             publishingDeckId = deckId
-            // Uploaded before the marker manifest exists, so a failure here cannot be swept by
-            // deckRepository.delete — it needs a manifest to walk. The blobs are tracked as they
-            // land and removed by hand instead.
-            val uploaded = mutableListOf<MediaRef>()
-            val prepared = runSuspendCatching {
-                val cards = buildCards(draft, deckId, now, uploaded)
-                cards to resolveCoverImage(s, deckId, uploaded)
-            }.getOrElse { err ->
-                Log.e(TAG, "publish: media upload FAILED — ${err.message}", err)
-                sweepUploadedMedia(deckId, uploaded)
-                publishingDeckId = null
-                _state.update {
-                    it.copy(isPublishing = false, error = PublishError.Publish(err.toErrorReason()))
-                }
-                return@launch
-            }
-            val (cards, coverImageRef) = prepared
+            val (cards, coverImageRef) = prepareContent(draft, s, deckId, now) ?: return@launch
 
             val deck = s.toDeck(deckId, authorPubky, coverImageRef, cards, now)
 
@@ -220,6 +204,35 @@ class PublishDeckViewModel(
                         )
                     }
                 }
+        }
+    }
+
+    /**
+     * The cards and cover to publish, with every attached image uploaded — or null when an upload
+     * failed, in which case the error is already in the state and the caller must stop.
+     *
+     * Media goes up before the marker manifest exists, so a failure here cannot be swept by
+     * [DeckRepository.delete] — it needs a manifest to walk. The refs are tracked as they land and
+     * removed by hand instead.
+     */
+    private suspend fun prepareContent(
+        draft: ImportDraft,
+        s: PublishDeckUiState,
+        deckId: String,
+        now: Long,
+    ): Pair<List<Card>, MediaRef.Image?>? {
+        val uploaded = mutableListOf<MediaRef>()
+        return runSuspendCatching {
+            val cards = buildCards(draft, deckId, now, uploaded)
+            cards to resolveCoverImage(s, deckId, uploaded)
+        }.getOrElse { err ->
+            Log.e(TAG, "publish: media upload FAILED — ${err.message}", err)
+            sweepUploadedMedia(deckId, uploaded)
+            publishingDeckId = null
+            _state.update {
+                it.copy(isPublishing = false, error = PublishError.Publish(err.toErrorReason()))
+            }
+            null
         }
     }
 

@@ -116,8 +116,8 @@ internal class DeckMediaSweeper(
             // Same reason as the chunk loop, one level down: once the disk is full the rest of
             // this chunk's blobs cannot be copied either. What was copied is still written below.
             if (state.quotaError != null) break
-            val rehosted = copyOnce(deckId, ref, state) ?: continue
-            cards = cards.map { it.relocatedTo(rehosted, ref.sha256) }
+            val rehosted = copyOnce(deckId, ref, state)
+            if (rehosted != null) cards = cards.map { it.relocatedTo(rehosted, ref.sha256) }
         }
         if (cards == stored) return
 

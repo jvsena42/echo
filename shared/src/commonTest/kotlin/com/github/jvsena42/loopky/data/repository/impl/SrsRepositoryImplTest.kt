@@ -2,15 +2,18 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.data.pubky.CardChunkDto
+import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.SrsChunkDto
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakeBackgroundTasks
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
+import com.github.jvsena42.loopky.testing.FakePendingReviewStore
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
@@ -20,6 +23,7 @@ import com.github.jvsena42.loopky.testing.testDeck
 import com.github.jvsena42.loopky.testing.testDeckWithCards
 import com.github.jvsena42.loopky.util.epochMillis
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -45,12 +49,14 @@ class SrsRepositoryImplTest {
         mediaRepo = FakeMediaRepository(),
         backgroundTasks = FakeBackgroundTasks(),
     )
+    private val journal = FakePendingReviewStore()
     private val repo = SrsRepositoryImpl(
         pubky = pubky,
         session = session,
         revalidator = revalidator,
         deckRepository = deckRepo,
         cardRepository = cardRepo,
+        pendingReviews = journal,
     )
 
     private val dayMs = 86_400_000L
@@ -188,7 +194,7 @@ class SrsRepositoryImplTest {
 
         // A fresh repo has a cold cache; building the due queue must load the persisted state
         // from the homeserver (repetitions grows from 3, not from a zeroed new-card baseline).
-        val coldRepo = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo)
+        val coldRepo = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal)
         coldRepo.dueForDeck("deck1")
         val next = coldRepo.review(testCard("c1"), SrsGrade.Good).getOrThrow()
         assertEquals(4, next.repetitions)
@@ -323,6 +329,83 @@ class SrsRepositoryImplTest {
         pubky.store.remove("pubky://friendpk/pub/loopky/decks/theirs/manifest.json")
 
         assertEquals(setOf("c1"), repo.dueToday().map { it.id }.toSet())
+    }
+
+    // ── the journal (#91) ────────────────────────────────────────────────
+
+    @Test
+    fun anUnflushableReviewSurvivesTheProcess() = runTest {
+        // The scenario the journal exists for: a full homeserver, every flush 507s, the reviews go
+        // back into an in-memory dirty set — and used to die with it, silently, after a full
+        // session of study the user watched the counters move through.
+        publishDeck("deck1", "c1")
+        val card = repo.dueForDeck("deck1").single()
+        pubky.failAllSessionCallsWith = PubkyError("Request failed: 507 Insufficient Storage")
+
+        repo.review(card, SrsGrade.Good).getOrThrow()
+        assertTrue(repo.flush().isFailure)
+
+        // A new instance over the same journal stands in for a restarted process.
+        pubky.failAllSessionCallsWith = null
+        val restarted = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal)
+        restarted.flush().getOrThrow()
+
+        val url = "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/0.json"
+        val written = loopkyJson.decodeFromString<SrsChunkDto>(pubky.store.getValue(url))
+        assertEquals("c1", written.states.single().card_id)
+        assertEquals(SrsGrade.Good.ordinal, written.states.single().last_grade)
+    }
+
+    @Test
+    fun aSuccessfulFlushClearsTheJournal() = runTest {
+        publishDeck("deck1", "c1")
+        val card = repo.dueForDeck("deck1").single()
+
+        repo.review(card, SrsGrade.Good).getOrThrow()
+        assertTrue(journal.entries.isNotEmpty(), "the review was never journalled")
+        repo.flush().getOrThrow()
+
+        // Nothing is pending any more, and a stale entry would re-write an old state over a newer
+        // one the next time a process restores.
+        assertTrue(journal.entries.isEmpty(), "journal still holds ${journal.entries}")
+    }
+
+    @Test
+    fun aRestoredReviewKeepsItsChunkRatherThanBeingRecomputed() = runTest {
+        // The chunk is recorded when a state is first written and never re-derived; a restore that
+        // guessed differently would persist the review into the wrong record.
+        val state = SrsState(
+            cardId = "c1",
+            dueAt = 99L,
+            intervalDays = 5,
+            easeFactor = 2.2,
+            repetitions = 3,
+            lastGrade = SrsGrade.Hard,
+        )
+        repo.upsert("deck1", state).getOrThrow()
+        val chunk = journal.entries.single().chunk
+
+        val restarted = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal)
+        restarted.flush().getOrThrow()
+
+        val url = "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/$chunk.json"
+        assertTrue(pubky.store.containsKey(url), "landed elsewhere: ${pubky.store.keys}")
+        assertEquals(state, restarted.stateFor("c1"))
+    }
+
+    @Test
+    fun aFailedBackgroundFlushIsSurfacedRatherThanOnlyLogged() = runTest {
+        publishDeck("deck1", "c1")
+        val card = repo.dueForDeck("deck1").single()
+        pubky.failAllSessionCallsWith = PubkyError("Request failed: 507 Insufficient Storage")
+        repo.review(card, SrsGrade.Good).getOrThrow()
+
+        repo.flushAsync()
+        advanceUntilIdle()
+
+        // Replayed, so a collector attaching after the fact still sees it — the flush that fails
+        // is usually the one started as the study screen goes away.
+        assertEquals(ErrorReason.StorageFull, repo.flushFailures.first())
     }
 
     /** A whole deck — manifest plus chunk records — on someone else's homeserver. */

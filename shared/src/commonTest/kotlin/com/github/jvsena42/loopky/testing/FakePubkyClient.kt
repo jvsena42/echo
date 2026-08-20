@@ -30,6 +30,13 @@ class FakePubkyClient : PubkyClient {
     /** When set, the next session-authenticated write/delete fails once with this error. */
     var failNextSessionCallWith: Throwable? = null
 
+    /**
+     * When set, *every* session-authenticated write/delete fails with this error. For conditions
+     * that do not clear on their own — a full storage quota is the one this exists for, where the
+     * point is that retrying cannot help.
+     */
+    var failAllSessionCallsWith: Throwable? = null
+
     /** Fails the next N session-authenticated writes with 429, as a busy homeserver would. */
     var rateLimitNextCalls: Int = 0
 
@@ -122,6 +129,7 @@ class FakePubkyClient : PubkyClient {
         Result.success("TAGID-" + (uri + label).hashCode().toUInt().toString(16))
 
     private fun consumeInjectedFailure(): Throwable? {
+        failAllSessionCallsWith?.let { return it }
         if (rateLimitNextCalls > 0) {
             rateLimitNextCalls--
             return PubkyError("Request failed: Server responded with an error: 429 Too Many Requests")

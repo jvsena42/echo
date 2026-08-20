@@ -50,12 +50,27 @@ class StudySessionViewModel(
     private var deckTitle = ""
     private var speakPhase: SpeakPhase = SpeakPhase.Idle
 
+    /**
+     * Why buffered reviews are not reaching the homeserver, if they are not. Held on the VM rather
+     * than only in the state because [emitCurrent] rebuilds the state on every card, and a warning
+     * the user has not acted on must not vanish when they grade the next one.
+     */
+    private var syncError: ErrorReason? = null
+
     /** id → title, warmed lazily from [DeckRepository.listOwned] so multi-deck sessions can label each card. */
     private var deckTitles: Map<String, String> = emptyMap()
     private var gradeJob: Job? = null
 
     init {
         load()
+        // The flush that fails is usually the one started as this screen goes away, so the
+        // repository replays its last failure — a collector attaching here still learns about it.
+        viewModelScope.launch {
+            srsRepository.flushFailures.collect { reason ->
+                Log.e(TAG, "flush failed — $reason")
+                setSyncError(reason)
+            }
+        }
     }
 
     fun onRefresh() = load()
@@ -93,7 +108,14 @@ class StudySessionViewModel(
         val card = queue.getOrNull(index) ?: return
         gradeJob = viewModelScope.launch {
             srsRepository.review(card, grade)
-                .onFailure { Log.e(TAG, "grade: FAILED — ${it.message}", it) }
+                .onFailure { err ->
+                    Log.e(TAG, "grade: FAILED — ${err.message}", err)
+                    // The automatic every-FLUSH_EVERY flush comes back through here, so this is
+                    // where a full quota first becomes visible mid-session rather than only when
+                    // the screen closes. The grade itself is buffered either way; the card still
+                    // advances, and the banner says the writing is what stopped (#91).
+                    syncError = err.toErrorReason()
+                }
             reviewedCount++
             index++
             revealed = false
@@ -167,6 +189,30 @@ class StudySessionViewModel(
         super.onCleared()
     }
 
+    /** Record a sync failure and reflect it into whatever state is on screen right now. */
+    private fun setSyncError(reason: ErrorReason) {
+        syncError = reason
+        _state.update { current ->
+            when (current) {
+                is StudySessionUiState.Reviewing -> current.copy(syncError = reason)
+                is StudySessionUiState.Complete -> current.copy(syncError = reason)
+                else -> current
+            }
+        }
+    }
+
+    /** The user has read the sync warning. Clears it from the screen, not from the buffer. */
+    fun onDismissSyncError() {
+        syncError = null
+        _state.update { current ->
+            when (current) {
+                is StudySessionUiState.Reviewing -> current.copy(syncError = null)
+                is StudySessionUiState.Complete -> current.copy(syncError = null)
+                else -> current
+            }
+        }
+    }
+
     private fun emitCurrent() {
         if (queue.isEmpty()) {
             _state.update { StudySessionUiState.Empty(deckTitle) }
@@ -176,7 +222,7 @@ class StudySessionViewModel(
         if (card == null) {
             // Queue exhausted — persist the session's reviews.
             srsRepository.flushAsync()
-            _state.update { StudySessionUiState.Complete(reviewedCount) }
+            _state.update { StudySessionUiState.Complete(reviewedCount, syncError) }
             return
         }
         viewModelScope.launch {
@@ -200,6 +246,7 @@ class StudySessionViewModel(
                 deckId = card.deckId,
                 authorPubky = deck?.authorPubky.orEmpty(),
                 frontImageRef = card.front.imageRef,
+                syncError = syncError,
             ) }
         }
     }
@@ -249,9 +296,15 @@ sealed interface StudySessionUiState {
         val authorPubky: String = "",
         /** Front-side image, shown as a circular avatar on the card back (design `aLoMj`). */
         val frontImageRef: MediaRef.Image? = null,
+        /**
+         * Set when graded reviews are not reaching the homeserver. Not an [Error]: the session
+         * carries on and the reviews are buffered and journalled, so blanking the card the user is
+         * mid-way through would cost them more than the warning is worth.
+         */
+        val syncError: ErrorReason? = null,
     ) : StudySessionUiState
 
-    data class Complete(val reviewed: Int) : StudySessionUiState
+    data class Complete(val reviewed: Int, val syncError: ErrorReason? = null) : StudySessionUiState
 
     data class Error(val reason: ErrorReason) : StudySessionUiState
 }

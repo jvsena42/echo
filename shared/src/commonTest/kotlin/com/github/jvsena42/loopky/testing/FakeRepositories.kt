@@ -20,6 +20,8 @@ import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.data.storage.AppPreferences
+import com.github.jvsena42.loopky.data.storage.PendingReview
+import com.github.jvsena42.loopky.data.storage.PendingReviewStore
 import com.github.jvsena42.loopky.data.storage.PendingSignup
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
@@ -28,6 +30,7 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ParsedRow
@@ -425,6 +428,24 @@ class FakeCardRepository : CardRepository {
 /** One [FakeDeckRepository.moveCard] call. */
 data class CardMove(val deckId: String, val cardId: String, val toIndex: Int)
 
+/**
+ * In-memory [PendingReviewStore]. Shared between two repo instances in a test, it stands in for
+ * the journal outliving the process.
+ */
+class FakePendingReviewStore : PendingReviewStore {
+    var entries: List<PendingReview> = emptyList()
+        private set
+
+    val saves = mutableListOf<List<PendingReview>>()
+
+    override suspend fun load(): List<PendingReview> = entries
+
+    override suspend fun save(entries: List<PendingReview>) {
+        this.entries = entries
+        saves.add(entries)
+    }
+}
+
 /** Grades through the real scheduler so VM tests see realistic state transitions. */
 class FakeSrsRepository : SrsRepository {
     var due: List<Card> = emptyList()
@@ -436,6 +457,18 @@ class FakeSrsRepository : SrsRepository {
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     override val changes: SharedFlow<String> = _changes.asSharedFlow()
+
+    private val _flushFailures = MutableSharedFlow<ErrorReason>(
+        replay = 1,
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    override val flushFailures: SharedFlow<ErrorReason> = _flushFailures.asSharedFlow()
+
+    /** Drive the study screen's sync warning without a real failing homeserver. */
+    fun emitFlushFailure(reason: ErrorReason) {
+        _flushFailures.tryEmit(reason)
+    }
 
     override suspend fun dueToday(): List<Card> = due
     override suspend fun dueForDeck(deckId: String): List<Card> = due.filter { it.deckId == deckId }

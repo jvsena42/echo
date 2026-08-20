@@ -10,9 +10,11 @@ import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.RawPubkyClient
 import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.IosAppPreferences
+import com.github.jvsena42.loopky.data.storage.IosPendingReviewStore
 import com.github.jvsena42.loopky.data.storage.IosSecureSessionStore
 import com.github.jvsena42.loopky.data.storage.IosSignupTokenStore
 import com.github.jvsena42.loopky.data.storage.IosUnsplashKeyStore
+import com.github.jvsena42.loopky.data.storage.PendingReviewStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
@@ -95,6 +97,7 @@ private fun iosPlatformModule(
     single { HomegateClient(http = get(), baseUrl = pubkyEnvironment.homegateBaseUrl) }
     single<SecureSessionStore> { IosSecureSessionStore() }
     single<AppPreferences> { IosAppPreferences() }
+    single<PendingReviewStore> { IosPendingReviewStore() }
     single<UnsplashKeyStore> { IosUnsplashKeyStore() }
     single<SignupTokenStore> { IosSignupTokenStore() }
     single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }

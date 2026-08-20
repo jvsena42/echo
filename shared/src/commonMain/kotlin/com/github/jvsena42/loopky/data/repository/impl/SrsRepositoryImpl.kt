@@ -11,11 +11,15 @@ import com.github.jvsena42.loopky.data.pubky.putWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.requireSession
 import com.github.jvsena42.loopky.data.pubky.toDomain
 import com.github.jvsena42.loopky.data.pubky.toDto
+import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
+import com.github.jvsena42.loopky.data.storage.PendingReview
+import com.github.jvsena42.loopky.data.storage.PendingReviewStore
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.domain.model.isDue
@@ -49,13 +53,17 @@ import kotlinx.serialization.encodeToString
  * app-scoped [CoroutineScope] instead, and also flushes every [FLUSH_EVERY] reviews so a crash
  * costs a few cards rather than a whole session.
  */
-@Suppress("TooManyFunctions")
+// LongParameterList: every one is a collaborator this repo genuinely needs, and the last is the
+// injectable scope that makes the async flush testable. Grouping them into a holder would only
+// move the same list behind one more type.
+@Suppress("TooManyFunctions", "LongParameterList")
 class SrsRepositoryImpl(
     private val pubky: PubkyClient,
     private val session: SessionProvider,
     private val revalidator: SessionRevalidator,
     private val deckRepository: DeckRepository,
     private val cardRepository: CardRepository,
+    private val pendingReviews: PendingReviewStore,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob()),
 ) : SrsRepository {
 
@@ -74,6 +82,13 @@ class SrsRepositoryImpl(
     /** Which (author, deck) chunks hold unflushed reviews. */
     private val dirty = mutableSetOf<Triple<String, String, Int>>()
 
+    /**
+     * The individual states behind [dirty], which is chunk-granular. The journal has to record the
+     * reviews themselves, and a chunk is a poor proxy: it also contains states already on the
+     * homeserver, and re-writing those on restore would resurrect stale values over newer ones.
+     */
+    private val dirtyStates = mutableSetOf<StateKey>()
+
     /** deckId → the author whose deck it is, learned when the deck is read. */
     private val deckAuthors = mutableMapOf<String, String>()
     private val cacheLock = Mutex()
@@ -85,12 +100,26 @@ class SrsRepositoryImpl(
     )
     override val changes: SharedFlow<String> = _changes.asSharedFlow()
 
+    private val _flushFailures = MutableSharedFlow<ErrorReason>(
+        replay = 1,
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    // replay = 1 so a screen that subscribes after the failure still learns about it. flushAsync
+    // runs on this class's own scope precisely because the study screen may be going away as it
+    // starts, which would otherwise make the emission land on nobody.
+    override val flushFailures: SharedFlow<ErrorReason> = _flushFailures.asSharedFlow()
+
     /**
      * Followed decks count too (#33). Review state is already author-keyed and lands on your own
      * homeserver whoever wrote the deck, so a followed deck needs no storage change to be studied —
      * only to be reachable from here, which owned-decks-only made it not.
      */
-    override suspend fun dueToday(): List<Card> = studiableDecks().flatMap { dueForDeck(it.id) }
+    override suspend fun dueToday(): List<Card> {
+        restoreJournal()
+        return studiableDecks().flatMap { dueForDeck(it.id) }
+    }
 
     /** Decks you can study: the ones you own plus the ones you follow. */
     private suspend fun studiableDecks(): List<Deck> {
@@ -105,6 +134,9 @@ class SrsRepositoryImpl(
     }
 
     override suspend fun dueForDeck(deckId: String): List<Card> {
+        // Before anything reads the cache: a journal from a previous process holds reviews newer
+        // than the homeserver's, and a queue built without them would re-show cards already graded.
+        restoreJournal()
         val deck = deckRepository.sync(deckId)
             .onFailure { Log.e(TAG, "dueForDeck: sync failed for $deckId — ${it.message}", it) }
             .getOrNull() ?: deckRepository.getLocal(deckId)
@@ -167,20 +199,27 @@ class SrsRepositoryImpl(
             cache[key] = state
             stateChunks[key] = chunk
             dirty.add(Triple(author, deckId, chunk))
+            dirtyStates.add(key)
             ++sinceFlush >= FLUSH_EVERY
         }
         _changes.tryEmit(deckId)
+        // Journalled before the flush is attempted, not after it fails: the window this closes is
+        // the process dying, and a write that only happens on the failure path does not cover it.
+        writeJournal()
 
         // Bounded loss: a crash costs at most FLUSH_EVERY reviews, not the whole session.
         if (shouldFlush) flush().getOrThrow()
     }
 
     override suspend fun flush(): Result<Unit> = runSuspendCatching {
-        val pending = cacheLock.withLock {
-            val snapshot = dirty.toList()
+        restoreJournal()
+        val (pending, pendingStates) = cacheLock.withLock {
+            val chunks = dirty.toList()
+            val states = dirtyStates.toList()
             dirty.clear()
+            dirtyStates.clear()
             sinceFlush = 0
-            snapshot
+            chunks to states
         }
         if (pending.isEmpty()) return@runSuspendCatching
 
@@ -196,17 +235,82 @@ class SrsRepositoryImpl(
             }
         } catch (err: Throwable) {
             // Put them back so the next flush retries rather than silently losing progress.
-            cacheLock.withLock { dirty.addAll(pending) }
+            cacheLock.withLock {
+                dirty.addAll(pending)
+                dirtyStates.addAll(pendingStates)
+            }
             throw err
         }
+        // Only now is the journal redundant. Anything graded while the writes were in flight is
+        // still dirty and is re-journalled by this same call.
+        writeJournal()
         Unit
     }
 
     override fun flushAsync() {
         scope.launch {
-            flush().onFailure { Log.e(TAG, "flushAsync: FAILED — ${it.message}", it) }
+            flush().onFailure { err ->
+                Log.e(TAG, "flushAsync: FAILED — ${err.message}", err)
+                // Surfaced rather than only logged. The reviews are safe — they are back in the
+                // dirty set and on disk — but silence is what let a full quota eat a whole study
+                // session without the user seeing anything go wrong (#91).
+                _flushFailures.tryEmit(err.toErrorReason())
+            }
         }
     }
+
+    /**
+     * Fold a journal left by a previous process back into the buffer, once per instance.
+     *
+     * Restored into [cache] unconditionally, unlike [loadChunksFor]'s read: a journalled review is
+     * newer than whatever is on the homeserver by definition — it is the write that never landed.
+     */
+    private suspend fun restoreJournal() {
+        val alreadyRestored = cacheLock.withLock {
+            val was = journalRestored
+            journalRestored = true
+            was
+        }
+        if (alreadyRestored) return
+
+        val entries = runSuspendCatching { pendingReviews.load() }.getOrElse {
+            Log.e(TAG, "restoreJournal: unreadable — ${it.message}", it)
+            return
+        }
+        if (entries.isEmpty()) return
+
+        cacheLock.withLock {
+            for (entry in entries) {
+                val key = StateKey(entry.authorPubky, entry.deckId, entry.cardId)
+                cache[key] = entry.toDomain()
+                stateChunks[key] = entry.chunk
+                dirty.add(Triple(entry.authorPubky, entry.deckId, entry.chunk))
+                dirtyStates.add(key)
+                deckAuthors[entry.deckId] = entry.authorPubky
+            }
+        }
+        Log.d(TAG, "restoreJournal: recovered ${entries.size} unflushed review(s)")
+    }
+
+    /**
+     * Mirror the unflushed buffer to disk. Written whole rather than appended to, so it can never
+     * describe more than is actually pending — a stale entry would re-write an old state over a
+     * newer one on the next restore.
+     */
+    private suspend fun writeJournal() {
+        val entries = cacheLock.withLock {
+            dirtyStates.mapNotNull { key ->
+                val state = cache[key] ?: return@mapNotNull null
+                val chunk = stateChunks[key] ?: return@mapNotNull null
+                state.toPendingReview(key.authorPubky, key.deckId, chunk)
+            }
+        }
+        runSuspendCatching { pendingReviews.save(entries) }
+            .onFailure { Log.e(TAG, "writeJournal: FAILED — ${it.message}", it) }
+    }
+
+    /** Guarded by [cacheLock]. */
+    private var journalRestored = false
 
     private suspend fun writeChunk(owner: String, author: String, deckId: String, chunk: Int) {
         val states = cacheLock.withLock {
@@ -305,3 +409,31 @@ class SrsRepositoryImpl(
         private const val CHUNK_BUCKETS = 64
     }
 }
+
+/**
+ * Journal entry for one unflushed review. Mirrors [SrsState] plus the routing the flush needs —
+ * whose deck it is and which chunk record it belongs in — since neither is recoverable from the
+ * state alone.
+ */
+private fun SrsState.toPendingReview(authorPubky: String, deckId: String, chunk: Int) = PendingReview(
+    authorPubky = authorPubky,
+    deckId = deckId,
+    chunk = chunk,
+    cardId = cardId,
+    dueAt = dueAt,
+    intervalDays = intervalDays,
+    easeFactor = easeFactor,
+    repetitions = repetitions,
+    lastGrade = lastGrade?.ordinal,
+)
+
+private fun PendingReview.toDomain() = SrsState(
+    cardId = cardId,
+    dueAt = dueAt,
+    intervalDays = intervalDays,
+    easeFactor = easeFactor,
+    repetitions = repetitions,
+    // An out-of-range ordinal means a journal written by a build with a different grade set. The
+    // grade is a display detail; dropping it keeps the schedule, which is the part that matters.
+    lastGrade = lastGrade?.let { SrsGrade.entries.getOrNull(it) },
+)
