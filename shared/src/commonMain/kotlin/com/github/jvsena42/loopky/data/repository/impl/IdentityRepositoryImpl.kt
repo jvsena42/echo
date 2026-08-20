@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.data.pubky.MutableSessionProvider
 import com.github.jvsena42.loopky.data.pubky.ProfileDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
+import com.github.jvsena42.loopky.data.pubky.asSignupUrl
 import com.github.jvsena42.loopky.data.pubky.parseSessionPayload
 import com.github.jvsena42.loopky.data.pubky.redactAuthUrl
 import com.github.jvsena42.loopky.data.pubky.redactSessionPayload
@@ -67,6 +68,23 @@ class IdentityRepositoryImpl(
             .onSuccess { Log.d(TAG, "beginSignIn: startAuthFlow ok — authUrl=${it.redactAuthUrl()}") }
             .onFailure {
                 Log.e(TAG, "beginSignIn: startAuthFlow FAILED — ${it::class.simpleName}: ${it.message}", it)
+            }
+            .map { authUrl -> RingAuthFlowHandle(authUrl.withRingCallbacks()) }
+    }
+
+    override suspend fun beginSignUp(
+        homeserverPubky: String,
+        signupToken: String,
+        capabilities: String,
+    ): Result<AuthFlowHandle> {
+        Log.d(TAG, "beginSignUp: capabilities=$capabilities homeserver=$homeserverPubky")
+        return pubky.startAuthFlow(capabilities)
+            // `mapCatching`, not `runSuspendCatching`: `asSignupUrl` is pure and synchronous, so
+            // it cannot swallow a cancellation.
+            .mapCatching { it.asSignupUrl(homeserverPubky, signupToken) }
+            .onSuccess { Log.d(TAG, "beginSignUp: startAuthFlow ok — authUrl=${it.redactAuthUrl()}") }
+            .onFailure {
+                Log.e(TAG, "beginSignUp: FAILED — ${it::class.simpleName}: ${it.message}", it)
             }
             .map { authUrl -> RingAuthFlowHandle(authUrl.withRingCallbacks()) }
     }

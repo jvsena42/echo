@@ -35,6 +35,28 @@ interface IdentityRepository {
     suspend fun beginSignIn(capabilities: String = DEFAULT_CAPABILITIES): Result<AuthFlowHandle>
 
     /**
+     * Ring-mediated **sign-up**: the same relay handshake as [beginSignIn], but the deeplink asks
+     * Pubky Ring to mint a key and redeem [signupToken] against [homeserverPubky] before
+     * authorising back. Loopky still never sees a secret key.
+     *
+     * The returned handle behaves exactly like the sign-in one — same channel, same
+     * [AuthFlowHandle.complete] — because only the deeplink differs.
+     *
+     * @param homeserverPubky the homeserver the token was issued *for*. Pass the value stored
+     *   alongside the token, never a configured default: a token spent against the wrong
+     *   homeserver is rejected and, being single-use, is gone.
+     *
+     * Retrying with the *same* token is safe and is the intended recovery: Ring stores the pubky
+     * it minted against the token, so a repeat re-uses that key rather than creating a second
+     * identity, and skips signup entirely if the token was already redeemed.
+     */
+    suspend fun beginSignUp(
+        homeserverPubky: String,
+        signupToken: String,
+        capabilities: String = DEFAULT_CAPABILITIES,
+    ): Result<AuthFlowHandle>
+
+    /**
      * Fetch the pubky.app profile for any user (public read).
      *
      * Served from a session-scoped cache so a deck grid can resolve every author's name without

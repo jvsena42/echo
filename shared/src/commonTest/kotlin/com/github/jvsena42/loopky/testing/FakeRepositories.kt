@@ -95,6 +95,18 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
         )
     }
 
+    /** Records what [beginSignUp] was asked for, so a retry can be shown to reuse the token. */
+    val signUpCalls = mutableListOf<Pair<String, String>>()
+
+    override suspend fun beginSignUp(
+        homeserverPubky: String,
+        signupToken: String,
+        capabilities: String,
+    ): Result<AuthFlowHandle> {
+        signUpCalls += homeserverPubky to signupToken
+        return beginSignIn(capabilities)
+    }
+
     override suspend fun fetchProfile(pubky: String, forceRefresh: Boolean): Result<PubkyIdentity> {
         fetchedProfiles += pubky
         return profiles[pubky]?.let { Result.success(it) }
