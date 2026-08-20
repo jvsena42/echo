@@ -1,0 +1,32 @@
+<journey name="Unsplash API key — bring your own, and the redirect that asks for it">
+  <description>
+    Web image search runs on the user's own Unsplash access key, kept in the platform keystore.
+    A build-time key (UNSPLASH_ACCESS_KEY in local.properties) is a fallback behind it, so the
+    "no key at all" path needs that line blanked and the app rebuilt.
+
+    No key is ever displayed: the built-in one is only admitted to exist, and a saved one shows
+    as its last four characters. Settings sets FLAG_SECURE on release builds, so `adb shell
+    screencap` there returns a black frame — debug is exempt so this journey can screenshot.
+    Requires a signed-in session (run journey 01).
+  </description>
+  <actions>
+    <action>Launch the Loopky app and verify the Home screen is shown</action>
+    <action>Tap the element with resource-id "tab_profile", then the element with resource-id "profile_settings"</action>
+    <action>With UNSPLASH_ACCESS_KEY set in local.properties: verify the IMAGE SEARCH section shows "Unsplash access key" reading "Using Loopky's shared key (limited)", and verify the key itself appears nowhere in the layout dump</action>
+    <action>Tap the element with resource-id "settings_unsplash_key_edit", tap the field with resource-id "settings_unsplash_key_input", and type "not-a-real-key-1234"</action>
+    <action>Verify the field renders as bullet characters rather than the typed text, in the layout dump as well as on screen</action>
+    <action>Scroll down so the Save button is above the keyboard, then tap the element with resource-id "settings_unsplash_key_save"</action>
+    <action>Verify the element with resource-id "settings_unsplash_key_error" appears reading that Unsplash rejected the key, and that the status line still reads "Using Loopky's shared key" — the rejected key must not have been stored</action>
+    <action>Clear the field, type a valid Unsplash access key, and tap "settings_unsplash_key_save"</action>
+    <action>Verify the editor closes and the status line reads "Key set · ••••" followed by exactly four characters, and that the full key appears nowhere in the layout dump</action>
+    <action>Tap the element with resource-id "settings_unsplash_key_remove" and verify the status reverts to "Using Loopky's shared key (limited)"</action>
+    <action>Blank UNSPLASH_ACCESS_KEY in local.properties, rebuild and reinstall, then return to Settings and verify the status reads "Not set — web image search is off"</action>
+    <action>Tap "tab_decks", open any deck, tap "deck_edit", then tap the element with resource-id "deck_editor_cover"</action>
+    <action>Verify the sheet shows the element with resource-id "image_sheet_key_panel" explaining that web image search needs an Unsplash API key, with buttons "image_sheet_get_key" and "image_sheet_add_key", and that "image_pick_gallery" is still available — the gallery path works without a key</action>
+    <action>Tap "image_sheet_get_key" and verify a browser opens https://unsplash.com/oauth/applications; go back</action>
+    <action>Tap the element with resource-id "image_sheet_add_key" and verify the sheet dismisses and Settings opens scrolled to the Unsplash row, with "settings_unsplash_key_input" already expanded and focused (keyboard up)</action>
+    <action>Type a valid access key, tap "settings_unsplash_key_save", go back to the deck editor and reopen the cover sheet</action>
+    <action>Verify the panel is gone and the element with resource-id "image_grid" populates with cells</action>
+    <action>Release-build check: build and install a release APK, open Settings, run `adb shell screencap` and verify the resulting image is entirely black while `android layout` still reports the Settings content; leave Settings and verify screencap works again</action>
+  </actions>
+</journey>
