@@ -3,8 +3,10 @@ package com.github.jvsena42.loopky.platform
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import org.koin.mp.KoinPlatform
@@ -42,8 +44,16 @@ class MediaRehostWorker(
 
         var unfinished = false
         for (deck in pending) {
-            val outcome = decks.rehostPendingMedia(deck.id).getOrElse {
-                Log.e(TAG, "doWork: sweep of ${deck.id} failed — ${it.message}", it)
+            val outcome = decks.rehostPendingMedia(deck.id).getOrElse { err ->
+                // The one failure that must not become a retry. Re-hosting copies blobs *under
+                // your own pubky*, so it is itself a quota consumer — at a full disk every later
+                // attempt fails identically, and WorkManager would back off against it forever.
+                // Stop and let the next explicit enqueue (or the user freeing space) restart it.
+                if (err.toErrorReason() == ErrorReason.StorageFull) {
+                    Log.e(TAG, "doWork: out of storage sweeping ${deck.id} — giving up", err)
+                    return@runSuspendCatching Result.failure()
+                }
+                Log.e(TAG, "doWork: sweep of ${deck.id} failed — ${err.message}", err)
                 unfinished = true
                 continue
             }
@@ -56,7 +66,7 @@ class MediaRehostWorker(
         if (unfinished) Result.retry() else Result.success()
     }.getOrElse {
         Log.e(TAG, "doWork: FAILED — ${it.message}", it)
-        Result.retry()
+        if (it.toErrorReason() == ErrorReason.StorageFull) Result.failure() else Result.retry()
     }
 
     private companion object {

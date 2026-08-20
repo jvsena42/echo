@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.pubky.CardChunking
 import com.github.jvsena42.loopky.data.pubky.isNotFound
+import com.github.jvsena42.loopky.data.pubky.isQuotaExceeded
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.REHOST_MANIFEST_BATCH
@@ -56,6 +57,10 @@ internal class DeckMediaSweeper(
 
         val toScan = deck.chunks.map { it.n }.filter { it >= deck.mediaRehostCursor }.sorted()
         for ((index, chunk) in toScan.take(maxChunks).withIndex()) {
+            // Out of storage: every remaining copy would fail the same way, and re-hosting is
+            // itself what fills the quota. Checked before the chunk rather than after, so the
+            // cursor is not advanced past one this pass never swept. See #91.
+            if (state.quotaError != null) break
             sweepChunk(deck.id, chunk, state)
             state.cursor = chunk + 1
             // The chunk record is already written; the manifest only carries the cursor and the
@@ -75,6 +80,10 @@ internal class DeckMediaSweeper(
             "sweep: ${deck.id} scanned=${state.scanned} rehosted=${state.rehosted} " +
                 "missing=${state.missing} failed=${state.failed} complete=$complete",
         )
+        // Thrown rather than reported in the outcome, because the caller has to be able to tell
+        // this apart from an unfinished pass: a chunk budget wants another run later, a full disk
+        // wants the whole job to stop until the user frees space.
+        state.quotaError?.let { throw it }
         return state.outcome(complete)
     }
 
@@ -104,6 +113,9 @@ internal class DeckMediaSweeper(
 
         var cards = stored
         for (ref in pinned) {
+            // Same reason as the chunk loop, one level down: once the disk is full the rest of
+            // this chunk's blobs cannot be copied either. What was copied is still written below.
+            if (state.quotaError != null) break
             val rehosted = copyOnce(deckId, ref, state) ?: continue
             cards = cards.map { it.relocatedTo(rehosted, ref.sha256) }
         }
@@ -124,12 +136,23 @@ internal class DeckMediaSweeper(
     private suspend fun copyOnce(deckId: String, ref: MediaRef, state: SweepState): MediaRef? {
         state.copied[ref.sha256]?.let { return it }
         val rehosted = mediaRepo.rehost(deckId, ref).getOrElse { error ->
-            if (error.isNotFound()) {
-                Log.w(TAG, "sweep: origin gone for ${ref.sha256} — leaving the ref dangling")
-                state.missing++
-            } else {
-                Log.e(TAG, "sweep: ${ref.sha256} failed — ${error.message}", error)
-                state.failed++
+            when {
+                error.isNotFound() -> {
+                    Log.w(TAG, "sweep: origin gone for ${ref.sha256} — leaving the ref dangling")
+                    state.missing++
+                }
+
+                error.isQuotaExceeded() -> {
+                    Log.e(TAG, "sweep: out of storage copying ${ref.sha256} — stopping", error)
+                    // Counted as failed too, so `complete` stays false and the deck stays pending.
+                    state.failed++
+                    state.quotaError = error
+                }
+
+                else -> {
+                    Log.e(TAG, "sweep: ${ref.sha256} failed — ${error.message}", error)
+                    state.failed++
+                }
             }
             return null
         }
@@ -172,6 +195,9 @@ internal class DeckMediaSweeper(
 
         /** sha256 → where it was re-hosted to, so one blob is copied once per pass. */
         val copied = mutableMapOf<String, MediaRef>()
+
+        /** The 507 that ended the pass, rethrown once progress is committed. */
+        var quotaError: Throwable? = null
 
         fun outcome(complete: Boolean) = RehostOutcome(scanned, rehosted, missing, failed, complete)
     }
