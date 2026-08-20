@@ -95,7 +95,7 @@ val sharedModule = module {
     }
 
     viewModel { OnboardingViewModel(identityRepository = get()) }
-    viewModel { SignupStartViewModel(signupRepository = get()) }
+    viewModel { SignupStartViewModel(signupRepository = get(), ringPresence = get()) }
     viewModel { InviteCodeViewModel(signupRepository = get()) }
     viewModel { PhoneVerificationViewModel(signupRepository = get()) }
     viewModel { LightningVerificationViewModel(signupRepository = get()) }
