@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -161,6 +162,10 @@ private fun SettingsScreen(
             .fillMaxSize()
             .background(colors.surfacePrimary)
             .windowInsetsPadding(WindowInsets.systemBars)
+            // Without this the scroll container keeps its full height behind the keyboard, and
+            // the Unsplash key editor's Save button is unreachable while the user is typing into
+            // the field right above it.
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp)),
         verticalArrangement = Arrangement.spacedBy(16.dp),
