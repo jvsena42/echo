@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.testing
 
+import com.github.jvsena42.loopky.data.homegate.LnInvoice
+import com.github.jvsena42.loopky.data.homegate.MethodAvailability
 import com.github.jvsena42.loopky.data.pubky.CardChunking
 import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
 import com.github.jvsena42.loopky.data.repository.CardRepository
@@ -12,6 +14,8 @@ import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.RehostOutcome
+import com.github.jvsena42.loopky.data.repository.SignupAvailability
+import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
@@ -814,6 +818,55 @@ class FakeAppPreferences(
 
     override suspend fun setPubkyEnvironment(name: String) {
         _pubkyEnvironment.update { name }
+    }
+}
+
+/** [SignupRepository] in memory. Counts gate calls, so a test can prove a retry did not re-mint. */
+class FakeSignupRepository(pending: PendingSignup? = null) : SignupRepository {
+    private val _pending = MutableStateFlow(pending)
+    override val pending: Flow<PendingSignup?> = _pending.asStateFlow()
+
+    val stored: PendingSignup? get() = _pending.value
+
+    var clearCount: Int = 0
+        private set
+
+    /** How many times a *new* token was requested from Homegate. */
+    var mintCount: Int = 0
+        private set
+
+    var availability: SignupAvailability = SignupAvailability(
+        sms = MethodAvailability.Unknown,
+        lightning = MethodAvailability.Unknown,
+    )
+    var availabilityError: Throwable? = null
+    var redeemResult: Result<PendingSignup>? = null
+    var sendSmsResult: Result<Unit> = Result.success(Unit)
+    var invoiceResult: Result<LnInvoice> = Result.failure(IllegalStateException("no invoice set"))
+
+    override suspend fun availability(): SignupAvailability =
+        availabilityError?.let { throw it } ?: availability
+
+    override suspend fun sendSmsCode(phoneNumber: String): Result<Unit> = sendSmsResult
+
+    override suspend fun redeemSmsCode(phoneNumber: String, code: String): Result<PendingSignup> = mint()
+
+    override suspend fun createInvoice(): Result<LnInvoice> = invoiceResult
+
+    override suspend fun awaitInvoice(invoice: LnInvoice): Result<PendingSignup> = mint()
+
+    override suspend fun redeemInviteCode(code: String): Result<PendingSignup> = mint()
+
+    override suspend fun clearPending() {
+        clearCount++
+        _pending.update { null }
+    }
+
+    private fun mint(): Result<PendingSignup> {
+        mintCount++
+        val result = redeemResult ?: Result.failure(IllegalStateException("no redeem result set"))
+        result.getOrNull()?.let { granted -> _pending.update { granted } }
+        return result
     }
 }
 

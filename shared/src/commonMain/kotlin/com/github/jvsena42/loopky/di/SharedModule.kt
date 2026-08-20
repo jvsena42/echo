@@ -41,6 +41,11 @@ import com.github.jvsena42.loopky.presentation.profile.FollowListViewModel
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
+import com.github.jvsena42.loopky.presentation.signup.InviteCodeViewModel
+import com.github.jvsena42.loopky.presentation.signup.LightningVerificationViewModel
+import com.github.jvsena42.loopky.presentation.signup.PhoneVerificationViewModel
+import com.github.jvsena42.loopky.presentation.signup.SignupHandoffViewModel
+import com.github.jvsena42.loopky.presentation.signup.SignupStartViewModel
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
 import com.github.jvsena42.loopky.util.epochMillis
 import org.koin.core.module.dsl.viewModel
@@ -90,6 +95,13 @@ val sharedModule = module {
     }
 
     viewModel { OnboardingViewModel(identityRepository = get()) }
+    viewModel { SignupStartViewModel(signupRepository = get()) }
+    viewModel { InviteCodeViewModel(signupRepository = get()) }
+    viewModel { PhoneVerificationViewModel(signupRepository = get()) }
+    viewModel { LightningVerificationViewModel(signupRepository = get()) }
+    viewModel {
+        SignupHandoffViewModel(signupRepository = get(), identityRepository = get())
+    }
     viewModel { HomeViewModel(identityRepository = get(), deckRepository = get(), srsRepository = get()) }
     viewModel { DecksLibraryViewModel(deckRepository = get(), identityRepository = get()) }
     viewModel { params ->
