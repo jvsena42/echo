@@ -113,6 +113,8 @@ fun DeckEditorRoute(
     onEditCard: (deckId: String, cardId: String) -> Unit = { _, _ -> },
     onNewCard: (deckId: String) -> Unit = {},
     onSaved: (deckId: String) -> Unit = {},
+    /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
+    onOpenSettings: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<DeckEditorViewModel> { parametersOf(deckId) }
 
@@ -154,6 +156,7 @@ fun DeckEditorRoute(
         onLoadMoreCards = viewModel::onLoadMoreCards,
         onCoverWebSelected = viewModel::onCoverWebSelected,
         onCoverGallerySelected = viewModel::onCoverGallerySelected,
+        onOpenSettings = onOpenSettings,
     )
 
     // Shown over the editor rather than on the destination: saving a new deck leaves this screen,
@@ -184,6 +187,8 @@ fun DeckEditorScreen(
     onLoadMoreCards: () -> Unit,
     onCoverWebSelected: (String) -> Unit,
     onCoverGallerySelected: (ByteArray, String) -> Unit,
+    /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
+    onOpenSettings: () -> Unit = {},
 ) {
     val colors = LoopkyTheme.colors
     var showCoverSheet by rememberSaveable { mutableStateOf(false) }
@@ -192,6 +197,7 @@ fun DeckEditorScreen(
 
     if (showCoverSheet) {
         ImagePickerSheet(
+            onOpenSettings = onOpenSettings,
             title = stringResource(R.string.deck_editor_cover),
             subtitle = null,
             onDismiss = { showCoverSheet = false },

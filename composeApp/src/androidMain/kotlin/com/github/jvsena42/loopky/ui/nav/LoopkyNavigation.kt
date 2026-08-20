@@ -90,7 +90,7 @@ fun LoopkyNavHost(
                     navController.navigateTo(Routes.friendProfile(pubky))
                 },
                 onNavigateSettings = {
-                    navController.navigateTo(Routes.SETTINGS)
+                    navController.navigateTo(Routes.settings())
                 },
                 onNavigateSearch = {
                     navController.navigateTo(Routes.SEARCH)
@@ -105,7 +105,16 @@ fun LoopkyNavHost(
                 },
             )
         }
-        composable(Routes.SETTINGS) {
+        composable(
+            route = Routes.SETTINGS,
+            arguments = listOf(
+                navArgument("focus") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { entry ->
             SettingsRoute(
                 onBack = { navController.popBackStack() },
                 onSignedOut = {
@@ -113,6 +122,7 @@ fun LoopkyNavHost(
                         popUpTo(Routes.MAIN) { inclusive = true }
                     }
                 },
+                focus = entry.arguments?.getString("focus"),
             )
         }
         composable(
@@ -181,6 +191,7 @@ fun LoopkyNavHost(
                     navController.popBackStack()
                     navController.navigateTo(Routes.deckDetail(savedDeckId))
                 },
+                onOpenSettings = { navController.navigateTo(Routes.settings(Routes.SETTINGS_FOCUS_UNSPLASH)) },
             )
         }
         composable(Routes.IMPORT_PASTE) {
@@ -212,6 +223,7 @@ fun LoopkyNavHost(
             TriageEditCardRoute(
                 rowIndex = rowIndex,
                 onBack = { navController.popBackStack() },
+                onOpenSettings = { navController.navigateTo(Routes.settings(Routes.SETTINGS_FOCUS_UNSPLASH)) },
             )
         }
         composable(Routes.IMPORT_PUBLISH) {
@@ -222,6 +234,7 @@ fun LoopkyNavHost(
                     navController.popBackStack(Routes.MAIN, inclusive = false)
                     navController.navigateTo(Routes.deckDetail(deckId))
                 },
+                onOpenSettings = { navController.navigateTo(Routes.settings(Routes.SETTINGS_FOCUS_UNSPLASH)) },
             )
         }
         cardEditorDestinations(navController)
@@ -298,6 +311,7 @@ private fun NavGraphBuilder.cardEditorDestinations(navController: NavHostControl
             deckId = deckId,
             cardId = cardId,
             onBack = { navController.popBackStack() },
+            onOpenSettings = { navController.navigateTo(Routes.settings(Routes.SETTINGS_FOCUS_UNSPLASH)) },
         )
     }
     composable(
@@ -310,6 +324,7 @@ private fun NavGraphBuilder.cardEditorDestinations(navController: NavHostControl
             deckId = deckId,
             cardId = "",
             onBack = { navController.popBackStack() },
+            onOpenSettings = { navController.navigateTo(Routes.settings(Routes.SETTINGS_FOCUS_UNSPLASH)) },
         )
     }
 }

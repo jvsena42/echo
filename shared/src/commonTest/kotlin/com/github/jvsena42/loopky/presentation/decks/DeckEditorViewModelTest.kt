@@ -401,7 +401,7 @@ class DeckEditorViewModelTest {
     // ── paging (#52) ─────────────────────────────────────────────────────
 
     @Test
-    fun `opening a deck reads one chunk, not the whole deck`() = runTest(mainDispatcher) {
+    fun `opening a deck reads one chunk rather than the whole deck`() = runTest(mainDispatcher) {
         seedPagedDeck(cardCount = 250)
         val vm = viewModel()
         advanceUntilIdle()

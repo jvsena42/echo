@@ -19,7 +19,10 @@ struct iOSApp: App {
         // layer wraps it into the PubkyClient contract (IosPubkyClientAdapter).
         PlatformModule_iosKt.doInitKoin(
             rawPubkyClient: IosPubkyClient(),
-            nexusBaseUrl: NexusEnvironment.baseUrl
+            nexusBaseUrl: NexusEnvironment.baseUrl,
+            // iOS ships no build-time Unsplash key, so web image search asks the user for one.
+            // Their key is kept in the Keychain (IosUnsplashKeyStore), not here.
+            unsplashFallbackKey: ""
         )
     }
 

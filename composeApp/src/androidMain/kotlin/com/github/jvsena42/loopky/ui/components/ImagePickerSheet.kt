@@ -64,7 +64,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.data.unsplash.UNSPLASH_DEVELOPER_URL
 import com.github.jvsena42.loopky.data.unsplash.UNSPLASH_HOME_URL
+import com.github.jvsena42.loopky.data.unsplash.UnsplashError
 import com.github.jvsena42.loopky.data.unsplash.UnsplashPhoto
 import com.github.jvsena42.loopky.platform.MediaProcessor
 import com.github.jvsena42.loopky.presentation.media.ImageSheetViewModel
@@ -89,6 +91,8 @@ fun ImagePickerSheet(
     subtitle: String?,
     onDismiss: () -> Unit,
     onSelected: (ImageSelection) -> Unit,
+    /** Opens Settings on the Unsplash key row — the way out of a key-related failure. */
+    onOpenSettings: () -> Unit = {},
 ) {
     val colors = LoopkyTheme.colors
     val viewModel = koinViewModel<ImageSheetViewModel>()
@@ -214,6 +218,7 @@ fun ImagePickerSheet(
 
             // Web image grid
             Box(modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 360.dp)) {
+                val error = state.error
                 when {
                     state.isLoading && state.photos.isEmpty() ->
                         CircularProgressIndicator(
@@ -221,8 +226,16 @@ fun ImagePickerSheet(
                             modifier = Modifier.align(Alignment.Center),
                         )
 
-                    !state.isUnsplashConfigured ->
-                        CenteredHint(stringResource(R.string.image_sheet_empty))
+                    // Takes the grid's place rather than sitting under it: a failed search used to
+                    // render "No images found" *and* the raw error text, two answers to one query.
+                    error != null -> UnsplashErrorPanel(
+                        error = error,
+                        onGetKey = { context.openUrl(UNSPLASH_DEVELOPER_URL) },
+                        onAddKey = {
+                            onDismiss()
+                            onOpenSettings()
+                        },
+                    )
 
                     state.photos.isEmpty() ->
                         CenteredHint(stringResource(R.string.image_sheet_no_results))
@@ -252,8 +265,6 @@ fun ImagePickerSheet(
             if (state.photos.isNotEmpty()) {
                 UnsplashCredit(photo = selectedPhoto, onOpenUrl = context::openUrl)
             }
-
-            state.error?.let { Text(it, fontSize = 12.sp, color = colors.danger) }
         }
     }
 }
@@ -367,6 +378,82 @@ private fun UnsplashCredit(
         color = colors.foregroundMuted,
         modifier = modifier.testTag("image_credit"),
     )
+}
+
+/**
+ * What replaces the grid when a search fails. Three of the four errors are the user's key, so they
+ * get a way to fix it; [UnsplashError.Unavailable] is not, so it gets no misleading "Add key"
+ * button — only the "From gallery" row above, which works regardless.
+ */
+@Composable
+private fun UnsplashErrorPanel(
+    error: UnsplashError,
+    onGetKey: () -> Unit,
+    onAddKey: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    val isKeyProblem = error != UnsplashError.Unavailable
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 120.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surfaceCard)
+            .padding(16.dp)
+            .testTag("image_sheet_key_panel"),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = stringResource(error.sheetMessage()),
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            color = colors.foregroundSecondary,
+        )
+        if (isKeyProblem) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onGetKey,
+                    modifier = Modifier.testTag("image_sheet_get_key"),
+                    shape = RoundedCornerShape(50),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.surfaceSecondary,
+                        contentColor = colors.foregroundPrimary,
+                    ),
+                ) {
+                    Text(
+                        text = stringResource(R.string.image_sheet_get_key),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Button(
+                    onClick = onAddKey,
+                    modifier = Modifier.testTag("image_sheet_add_key"),
+                    shape = RoundedCornerShape(50),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accentPrimary,
+                        contentColor = colors.foregroundOnAccent,
+                    ),
+                ) {
+                    Text(
+                        text = stringResource(R.string.image_sheet_add_key),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun UnsplashError.sheetMessage(): Int = when (this) {
+    UnsplashError.MissingKey -> R.string.image_sheet_error_missing_key
+    UnsplashError.InvalidKey -> R.string.image_sheet_error_invalid_key
+    UnsplashError.RateLimited -> R.string.image_sheet_error_rate_limited
+    UnsplashError.Unavailable -> R.string.image_sheet_error_unavailable
 }
 
 @Composable

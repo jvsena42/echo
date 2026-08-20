@@ -14,6 +14,7 @@ import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.data.storage.AppPreferences
+import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
@@ -762,6 +763,23 @@ class FakeAppPreferences(shareOnPubky: Boolean = true) : AppPreferences {
 
     override suspend fun setShareOnPubky(enabled: Boolean) {
         _shareOnPubky.update { enabled }
+    }
+}
+
+/** [UnsplashKeyStore] in memory — no keystore, and nothing that outlives the test. */
+class FakeUnsplashKeyStore(key: String = "") : UnsplashKeyStore {
+    private val _key = MutableStateFlow(key)
+    override val key: Flow<String> = _key.asStateFlow()
+
+    /** The stored key, for a test that asserts on it without collecting. */
+    val storedKey: String get() = _key.value
+
+    override suspend fun save(key: String) {
+        _key.update { key }
+    }
+
+    override suspend fun clear() {
+        _key.update { "" }
     }
 }
 

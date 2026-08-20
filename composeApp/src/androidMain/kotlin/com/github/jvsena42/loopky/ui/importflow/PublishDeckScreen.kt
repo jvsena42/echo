@@ -88,6 +88,8 @@ import org.koin.compose.viewmodel.koinViewModel
 fun PublishDeckRoute(
     onBack: () -> Unit = {},
     onPublished: (deckId: String) -> Unit = {},
+    /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
+    onOpenSettings: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<PublishDeckViewModel>()
 
@@ -125,6 +127,7 @@ fun PublishDeckRoute(
         onShareDismiss = viewModel::onShareDismiss,
         onShareNeverAsk = viewModel::onShareNeverAsk,
         onBackClick = viewModel::onBackClick,
+        onOpenSettings = onOpenSettings,
     )
 }
 
@@ -149,6 +152,8 @@ private fun PublishDeckScreen(
     onShareDismiss: () -> Unit,
     onShareNeverAsk: () -> Unit,
     onBackClick: () -> Unit,
+    /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
+    onOpenSettings: () -> Unit = {},
 ) {
     val colors = LoopkyTheme.colors
     var showTagSheet by remember { mutableStateOf(false) }
@@ -549,6 +554,7 @@ private fun PublishDeckScreen(
 
     if (showCoverSheet) {
         ImagePickerSheet(
+            onOpenSettings = onOpenSettings,
             title = stringResource(R.string.publish_cover_sheet_title),
             subtitle = null,
             onDismiss = { showCoverSheet = false },

@@ -3,26 +3,32 @@ package com.github.jvsena42.loopky.presentation.media
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
+import com.github.jvsena42.loopky.data.unsplash.UnsplashError
+import com.github.jvsena42.loopky.data.unsplash.UnsplashException
 import com.github.jvsena42.loopky.data.unsplash.UnsplashPhoto
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
  * Backs the "from web" image grid in the cover and card-image sheets. Debounces the search query
- * and queries [UnsplashClient]. When Unsplash is unconfigured (no access key) the grid stays empty
- * and the sheet falls back to gallery-only.
+ * and queries [UnsplashClient].
+ *
+ * Failures are surfaced as a typed [UnsplashError] rather than a message string: the platform layer
+ * picks the copy (shared has no string resources), and the three key-related errors get an
+ * "add your own key" call to action instead of a bland "no results".
  */
 class ImageSheetViewModel(
     private val unsplashClient: UnsplashClient,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(
-        ImageSheetUiState(isUnsplashConfigured = unsplashClient.isConfigured),
-    )
+    private val _state = MutableStateFlow(ImageSheetUiState())
     val state: StateFlow<ImageSheetUiState> = _state.asStateFlow()
 
     private var searchJob: Job? = null
@@ -31,7 +37,16 @@ class ImageSheetViewModel(
     private val pinged = mutableSetOf<String>()
 
     init {
-        if (unsplashClient.isConfigured) loadInitial()
+        // Collected, not read once: the user can leave for Settings, set a key, and come back to a
+        // sheet that was never torn down. Reloading on that edge is the whole point.
+        //
+        // The unconfigured case still loads rather than short-circuiting here, because the request
+        // is what produces UnsplashError.MissingKey — and that error is what puts the "add a key"
+        // panel on screen. Skipping it would leave an empty grid explaining nothing.
+        unsplashClient.isConfigured
+            .distinctUntilChanged()
+            .onEach { loadInitial() }
+            .launchIn(viewModelScope)
     }
 
     private fun loadInitial() {
@@ -40,20 +55,19 @@ class ImageSheetViewModel(
             _state.update { it.copy(isLoading = true, error = null) }
             unsplashClient.random()
                 .onSuccess { photos -> _state.update { it.copy(photos = photos, isLoading = false) } }
-                .onFailure { err -> _state.update { it.copy(isLoading = false, error = err.error()) } }
+                .onFailure { err -> _state.update { it.failed(err) } }
         }
     }
 
     fun onQueryChange(query: String) {
         _state.update { it.copy(query = query) }
-        if (!unsplashClient.isConfigured) return
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             delay(DEBOUNCE_MS)
             _state.update { it.copy(isLoading = true, error = null) }
             unsplashClient.search(query)
                 .onSuccess { photos -> _state.update { it.copy(photos = photos, isLoading = false) } }
-                .onFailure { err -> _state.update { it.copy(isLoading = false, error = err.error()) } }
+                .onFailure { err -> _state.update { it.failed(err) } }
         }
     }
 
@@ -74,7 +88,17 @@ class ImageSheetViewModel(
         viewModelScope.launch { unsplashClient.trackDownload(photo) }
     }
 
-    private fun Throwable.error(): String = message ?: "Could not load images."
+    /**
+     * Clears the grid as well as flagging the error. Leaving stale results underneath an error
+     * panel reads as "here are some photos, and also something went wrong" — two contradictory
+     * answers to one search.
+     */
+    private fun ImageSheetUiState.failed(cause: Throwable): ImageSheetUiState = copy(
+        isLoading = false,
+        photos = emptyList(),
+        selectedPhoto = null,
+        error = (cause as? UnsplashException)?.error ?: UnsplashError.Unavailable,
+    )
 
     companion object {
         private const val DEBOUNCE_MS = 350L
@@ -85,7 +109,6 @@ data class ImageSheetUiState(
     val query: String = "",
     val photos: List<UnsplashPhoto> = emptyList(),
     val isLoading: Boolean = false,
-    val isUnsplashConfigured: Boolean = false,
     val selectedPhoto: UnsplashPhoto? = null,
-    val error: String? = null,
+    val error: UnsplashError? = null,
 )
