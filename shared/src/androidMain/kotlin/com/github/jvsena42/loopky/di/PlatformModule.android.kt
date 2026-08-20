@@ -18,10 +18,12 @@ import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.platform.AndroidBackgroundTasks
 import com.github.jvsena42.loopky.platform.AndroidMediaProcessor
+import com.github.jvsena42.loopky.platform.AndroidPubkyRingPresence
 import com.github.jvsena42.loopky.platform.AndroidSpeaker
 import com.github.jvsena42.loopky.platform.AndroidSpeechRecognizer
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.MediaProcessor
+import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.platform.SpeechRecognizer
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingViewModel
@@ -50,6 +52,9 @@ fun androidPlatformModule(
     single<MediaProcessor> { AndroidMediaProcessor() }
     single<SpeechRecognizer> { AndroidSpeechRecognizer(androidContext()) }
     single<BackgroundTasks> { AndroidBackgroundTasks(androidContext()) }
+    single<PubkyRingPresence> {
+        AndroidPubkyRingPresence(androidContext(), installUrl = PUBKY_RING_PLAY_STORE_URL)
+    }
     single { NexusClient(http = get(), baseUrl = nexusBaseUrl) }
     single { pubkyEnvironment }
     single { HomegateClient(http = get(), baseUrl = pubkyEnvironment.homegateBaseUrl) }

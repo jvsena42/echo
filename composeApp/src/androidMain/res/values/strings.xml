@@ -404,6 +404,11 @@
     <string name="signup_lightning_card_price">Pay ₿ %1$d once</string>
     <string name="signup_lightning_card_price_unknown">Pay once</string>
     <string name="signup_card_unavailable">Not available in your country</string>
+    <string name="signup_card_needs_ring">Needs Pubky Ring</string>
+    <string name="signup_ring_required_title">First, install Pubky Ring</string>
+    <string name="signup_ring_required_body">Pubky Ring holds your keys and creates your account — Loopky never sees them. Verifying here gives you a one-time code that only Ring can use, so get Ring first and nothing is spent before it can be.</string>
+    <string name="signup_ring_required_install">Install Pubky Ring</string>
+    <string name="signup_ring_required_return">Come back to Loopky when it\'s installed and this page will carry on.</string>
     <string name="signup_invite_link">Have an invite code?</string>
 
     <string name="signup_invite_title">Enter your invite code.</string>

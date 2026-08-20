@@ -23,6 +23,9 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>pubkyring</string>
+		<!-- The scheme the auth deeplinks actually use, and the one IosPubkyRingPresence
+		     probes. Without it canOpenURL answers false on every device. -->
+		<string>pubkyauth</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

@@ -844,8 +844,14 @@ class FakeSignupRepository(pending: PendingSignup? = null) : SignupRepository {
     var sendSmsResult: Result<Unit> = Result.success(Unit)
     var invoiceResult: Result<LnInvoice> = Result.failure(IllegalStateException("no invoice set"))
 
-    override suspend fun availability(): SignupAvailability =
-        availabilityError?.let { throw it } ?: availability
+    /** How many times Homegate was asked which methods are on offer. */
+    var availabilityCount: Int = 0
+        private set
+
+    override suspend fun availability(): SignupAvailability {
+        availabilityCount++
+        return availabilityError?.let { throw it } ?: availability
+    }
 
     override suspend fun sendSmsCode(phoneNumber: String): Result<Unit> = sendSmsResult
 

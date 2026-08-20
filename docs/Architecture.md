@@ -452,6 +452,18 @@ the FFI mints into its signup form (`asSignupUrl`), because `start_auth_flow` ha
 mints the key, redeems the token, and authorises back over the same relay, so Loopky never holds a
 secret key and the post-approval path is the one sign-in already uses.
 
+**Ring is checked before Homegate is asked anything.** Because only Ring can redeem a token, and
+because getting one costs an SMS attempt or sats, `SignupStartViewModel` consults
+`platform/PubkyRingPresence` *before* `SignupRepository.availability()` — the first Homegate call
+of the flow. With Ring missing the screen offers an install prompt and every method is disabled,
+so nothing is ever minted that the device cannot spend. The presence check is a Koin-bound
+platform interface (like `BackgroundTasks`), and it owns the install URL too, since that also
+differs per platform. It probes `pubkyauth://signin`, which makes it dependent on two pieces of
+manifest configuration that report "not installed" on *every* device when missing: the Android
+`<queries>` entry for the `pubkyauth` scheme, and `pubkyauth` in the iOS
+`LSApplicationQueriesSchemes`. `SignupHandoffViewModel` keeps its own check — Ring can be removed
+mid-flow — but it is now the backstop rather than the place users find out.
+
 Two consequences worth knowing before touching this:
 
 - **Retrying is safe and is the intended recovery.** Ring keys the pubky it minted off the token,
