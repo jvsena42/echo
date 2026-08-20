@@ -6,7 +6,13 @@ import com.github.jvsena42.loopky.presentation.profile.FollowSource
 object Routes {
     const val ONBOARDING = "onboarding"
     const val MAIN = "main"
-    const val SETTINGS = "settings"
+
+    /**
+     * Settings. `focus` names a row to open and focus on arrival — the image sheet's "Add key"
+     * button uses it so a redirect lands *on* the Unsplash field, not merely on the screen.
+     */
+    const val SETTINGS = "settings?focus={focus}"
+
     const val DECK_DETAIL = "deck/{deckId}?author={author}"
     const val DECK_EDITOR = "deck/editor/{deckId}"
     const val EDIT_CARD = "deck/{deckId}/card/{cardId}/edit"
@@ -39,6 +45,11 @@ object Routes {
 
     /** One side of someone's follow graph. `source` is a [FollowSource] name, lowercased. */
     const val FOLLOW_LIST = "follows/{pubky}/{source}"
+
+    /** [Routes.SETTINGS]'s `focus` value for the Unsplash access key row. */
+    const val SETTINGS_FOCUS_UNSPLASH = "unsplash"
+
+    fun settings(focus: String? = null) = if (focus != null) "settings?focus=$focus" else "settings"
 
     fun deckDetail(deckId: String, author: String? = null) =
         if (author != null) "deck/$deckId?author=$author" else "deck/$deckId"

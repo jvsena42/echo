@@ -62,6 +62,8 @@ fun EditCardRoute(
     deckId: String,
     cardId: String,
     onBack: () -> Unit = {},
+    /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
+    onOpenSettings: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<EditCardViewModel> { parametersOf(deckId, cardId) }
     val speaker = koinInject<Speaker>()
@@ -95,6 +97,7 @@ fun EditCardRoute(
         onBackImageGallerySelected = viewModel::onBackImageGallerySelected,
         onRemoveBackImage = viewModel::onRemoveBackImage,
         onDeleteCard = viewModel::onDeleteCard,
+        onOpenSettings = onOpenSettings,
     )
 }
 
@@ -108,6 +111,8 @@ fun EditCardScreen(
     onBackTextChanged: (String) -> Unit,
     onSpeakFront: () -> Unit,
     onSpeakBack: () -> Unit,
+    /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
+    onOpenSettings: () -> Unit,
     onFrontImageWebSelected: (String) -> Unit = {},
     onFrontImageGallerySelected: (ByteArray, String) -> Unit = { _, _ -> },
     onRemoveFrontImage: () -> Unit = {},
@@ -294,6 +299,7 @@ fun EditCardScreen(
 
     imagePickerSide?.let { isFront ->
         ImagePickerSheet(
+            onOpenSettings = onOpenSettings,
             title = stringResource(if (isFront) R.string.image_sheet_front_title else R.string.image_sheet_back_title),
             subtitle = stringResource(if (isFront) R.string.image_sheet_front_subtitle else R.string.image_sheet_back_subtitle),
             onDismiss = { imagePickerSide = null },
@@ -335,6 +341,7 @@ private fun EditCardScreenPreview() {
             onBackTextChanged = {},
             onSpeakFront = {},
             onSpeakBack = {},
+            onOpenSettings = {},
             onDeleteCard = {},
         )
     }

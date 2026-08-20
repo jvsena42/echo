@@ -44,6 +44,8 @@ import org.koin.compose.koinInject
 fun TriageEditCardRoute(
     rowIndex: Int,
     onBack: () -> Unit = {},
+    /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
+    onOpenSettings: () -> Unit = {},
 ) {
     val importRepository = koinInject<ImportRepository>()
     val currentBack by rememberUpdatedState(onBack)
@@ -78,6 +80,7 @@ fun TriageEditCardRoute(
             importRepository.updateRow(rowIndex, front, back)
             currentBack()
         },
+        onOpenSettings = onOpenSettings,
     )
 }
 
@@ -94,6 +97,8 @@ private fun TriageEditCardScreen(
     onBackImageSelected: (DraftCardImage?) -> Unit,
     onCancel: () -> Unit,
     onSave: () -> Unit,
+    /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
+    onOpenSettings: () -> Unit = {},
 ) {
     val colors = LoopkyTheme.colors
     // Which side's image picker sheet is open (true = front, false = back, null = none).
@@ -172,6 +177,7 @@ private fun TriageEditCardScreen(
 
     pickerSide?.let { isFront ->
         ImagePickerSheet(
+            onOpenSettings = onOpenSettings,
             title = stringResource(if (isFront) R.string.image_sheet_front_title else R.string.image_sheet_back_title),
             subtitle = null,
             onDismiss = { pickerSide = null },
