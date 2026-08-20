@@ -196,8 +196,34 @@ app build; the difference is something about scripted repetition (six fresh inbo
 twelve minutes, each failure opening another). Unexplained, and worth suspecting relay-side or
 emulator-NAT limits before suspecting Loopky.
 
+> **Superseded 2026-08-20 — it is the pacing, not the repetition.** See the note below.
+
 **Consequence for anyone running 01: signing out is a one-way door on the emulator whenever the
 relay is in this state.** Journey 01 now carries that warning and covers the failure branch.
+
+---
+
+## 01 — the "scripted sign-in fails" flakiness, explained — 2026-08-20, `emulator-5554`
+
+The 2026-08-17 pass above left this "unexplained" and pointed at scripted *repetition*. On a
+fresh session today, driving sign-in two ways back to back on the same network gives a cleaner
+discriminator: it is the **delay between tapping sign in and approving in Ring**.
+
+| Run | Cadence from `beginSignIn` to Authorize | Result |
+| --- | --- | --- |
+| 1 — verification between every step (layout dump, then tap) | ~15s | FAILED — "the authorisation relay isn't responding" |
+| 2 — three taps chained, `sleep 2` then `sleep 1`, nothing in between | ~3s | **PASSED first try** |
+
+That also explains the manual/scripted split the 08-17 note recorded without accounting for it:
+a human taps through in a couple of seconds, and a journey runner that verifies each step does
+not. It is consistent with the prior session's ~20 slow failures followed by a fast loop
+succeeding immediately, and it means **journey 01's happy path cannot be driven by a runner that
+dumps the layout between actions** — 01 now says so, with the chain and the coordinates.
+
+Not proven to be a relay-side timeout — two runs is a discriminator, not a mechanism, and the
+FFI's own poll (`Http relay inbox channel polling attempt 1/2/3 failed`) sits between the tap
+and the error. But the actionable half holds either way: chain the taps, verify afterwards, and
+on failure retry the whole chain rather than waiting inside it.
 
 ---
 
