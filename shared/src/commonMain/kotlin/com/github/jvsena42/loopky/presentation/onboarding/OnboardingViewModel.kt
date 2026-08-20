@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.loopky.data.pubky.redactAuthUrl
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.ErrorReason
@@ -70,7 +71,7 @@ class OnboardingViewModel(
                 _state.update { OnboardingUiState.Error(error.toErrorReason()) }
                 return@launch
             }
-            Log.d(TAG, "onSignInClick: got authUrl=${handle.authUrl}")
+            Log.d(TAG, "onSignInClick: got authUrl=${handle.authUrl.redactAuthUrl()}")
 
             _state.update { OnboardingUiState.AwaitingApproval }
             Log.d(TAG, "onSignInClick: state=AwaitingApproval, emitting OpenDeeplink")

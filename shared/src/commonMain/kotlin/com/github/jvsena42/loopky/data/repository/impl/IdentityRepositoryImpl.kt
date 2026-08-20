@@ -5,6 +5,8 @@ import com.github.jvsena42.loopky.data.pubky.ProfileDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.parseSessionPayload
+import com.github.jvsena42.loopky.data.pubky.redactAuthUrl
+import com.github.jvsena42.loopky.data.pubky.redactSessionPayload
 import com.github.jvsena42.loopky.data.pubky.toDomain
 import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
@@ -62,7 +64,7 @@ class IdentityRepositoryImpl(
     override suspend fun beginSignIn(capabilities: String): Result<AuthFlowHandle> {
         Log.d(TAG, "beginSignIn: capabilities=$capabilities")
         return pubky.startAuthFlow(capabilities)
-            .onSuccess { Log.d(TAG, "beginSignIn: startAuthFlow ok — authUrl=$it") }
+            .onSuccess { Log.d(TAG, "beginSignIn: startAuthFlow ok — authUrl=${it.redactAuthUrl()}") }
             .onFailure {
                 Log.e(TAG, "beginSignIn: startAuthFlow FAILED — ${it::class.simpleName}: ${it.message}", it)
             }
@@ -91,7 +93,7 @@ class IdentityRepositoryImpl(
         override suspend fun complete(): Result<Session> = runSuspendCatching {
             Log.d(TAG, "complete: awaiting Pubky Ring approval")
             val sessionJson = pubky.awaitAuthApproval().getOrThrow()
-            Log.d(TAG, "complete: got session payload=$sessionJson")
+            Log.d(TAG, "complete: got session payload=${sessionJson.redactSessionPayload()}")
 
             val session = parseSessionPayload(sessionJson, loopkyJson)
             Log.d(TAG, "complete: parsed session pubky=${session.identity.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
