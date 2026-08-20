@@ -270,9 +270,12 @@ tenant is `shareOnPubky` (#39).
 Global questions a single homeserver cannot answer — trending tags, prefix search, "which
 decks carry this tag", "how many people follow this deck", "who else uses Loopky" — are
 served by the Pubky Nexus REST API (`data/nexus/NexusClient`, default base
-`https://nexus.staging.pubky.app`). The HTTP layer is the one-method `HttpFetcher`
-interface with per-platform impls (HttpURLConnection / NSURLSession) so shared stays free
-of an HTTP client dependency.
+`https://nexus.staging.pubky.app`). The HTTP layer is the small `HttpFetcher` interface with
+per-platform impls (HttpURLConnection / NSURLSession) so shared stays free of an HTTP client
+dependency. It has two entry points: `get()`, where any non-2xx is a failure, and `send()`,
+where **the status is data**. The second exists for gated APIs that answer 403 for "not in
+your region", 408 for "ask again" and 429 with the retry window in the body — verdicts the
+caller has to read rather than catch (§7.8).
 
 Writes stay on the homeserver: tags are written as pubky-app-specs tag records (id derived
 via the FFI `create_tag_id`) which Nexus indexes network-wide. **Which namespace the record
@@ -420,6 +423,44 @@ first published deck. Note the label *is* discoverable by prefix search
 the index.
 
 ---
+
+### 7.8 Homegate (getting an account in the first place)
+
+A homeserver running `signup_mode = token_required` — which is what Synonym's does — will not
+create an account without a **signup token**. Loopky obtains one through **Homegate**
+(`data/homegate/HomegateClient`): SMS verification, a small Lightning payment, or a hand-issued
+invite code. All three end in a `SignupGrant`.
+
+Three things about this are load-bearing:
+
+**The token and the homeserver are one value.** A token is only redeemable on the homeserver
+whose Homegate issued it, and it is **single-use with no expiry** — so spending one on the wrong
+server does not fail temporarily, it destroys something the user paid for. `PubkyEnvironment`
+pairs the gate URL with its homeserver so the two cannot be configured apart, and `PendingSignup`
+carries the homeserver alongside the token so a mid-flow environment change cannot misdirect a
+token that already exists. The environment's `defaultHomeserver` is a fallback for the invite-code
+path only, which makes no Homegate call; whenever Homegate answers, its `homeserverPubky` wins.
+
+**The token is persisted the moment it exists.** `SignupTokenStore` writes it inside the same
+suspend call that received it — before any UI sees it — because by then the user has already spent
+an SMS attempt or paid sats. It lives in the **secrets** vault, not the session one: a token is
+spent before there is a session and must survive signing out.
+
+**Redemption is Pubky Ring's job.** `IdentityRepository.beginSignUp` rewrites the sign-in deeplink
+the FFI mints into its signup form (`asSignupUrl`), because `start_auth_flow` hardcodes
+`AuthFlowKind::SignIn` and the fork exposes no override — the same workaround pubky-app uses. Ring
+mints the key, redeems the token, and authorises back over the same relay, so Loopky never holds a
+secret key and the post-approval path is the one sign-in already uses.
+
+Two consequences worth knowing before touching this:
+
+- **Retrying is safe and is the intended recovery.** Ring keys the pubky it minted off the token,
+  so re-sending the same token reuses that key. Going back to Homegate instead would create a
+  second identity and charge the user twice.
+- **A session coming back does not prove the token was spent.** If Ring's signup fails while it
+  holds another already-signed-up pubky, it quietly authorises that one and returns a valid
+  session with the token unredeemed. So the token is cleared only when the homeserver we landed on
+  is the one the signup targeted.
 
 ## 8. Data model & persistence
 
