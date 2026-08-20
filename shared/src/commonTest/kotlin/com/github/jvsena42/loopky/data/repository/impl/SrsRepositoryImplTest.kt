@@ -22,6 +22,7 @@ import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
 import com.github.jvsena42.loopky.testing.testDeckWithCards
 import com.github.jvsena42.loopky.util.epochMillis
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -354,6 +355,39 @@ class SrsRepositoryImplTest {
         val written = loopkyJson.decodeFromString<SrsChunkDto>(pubky.store.getValue(url))
         assertEquals("c1", written.states.single().card_id)
         assertEquals(SrsGrade.Good.ordinal, written.states.single().last_grade)
+    }
+
+    @Test
+    fun recoveredReviewsAreSentWithoutWaitingForAnotherSession() = runTest {
+        publishDeck("deck1", "c1")
+        val card = repo.dueForDeck("deck1").single()
+        pubky.failAllSessionCallsWith = PubkyError("Request failed: 507 Insufficient Storage")
+        repo.review(card, SrsGrade.Good).getOrThrow()
+        assertTrue(repo.flush().isFailure)
+        pubky.failAllSessionCallsWith = null
+
+        // Opening the queue is all it takes. Nothing else would send them: a flush needs either a
+        // closing study screen or FLUSH_EVERY more grades, so a user who never studies again would
+        // keep a journal that is recoverable but never recovered.
+        //
+        // The scope is injected because flushAsync deliberately does *not* run on the caller's:
+        // the real one outlives the study screen, and the test scheduler cannot drive it.
+        val restarted = SrsRepositoryImpl(
+            pubky,
+            session,
+            revalidator,
+            deckRepo,
+            cardRepo,
+            journal,
+            CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
+        )
+        restarted.dueForDeck("deck1")
+        advanceUntilIdle()
+
+        assertTrue(
+            pubky.store.containsKey("pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/0.json"),
+            "restored review never reached the homeserver",
+        )
     }
 
     @Test

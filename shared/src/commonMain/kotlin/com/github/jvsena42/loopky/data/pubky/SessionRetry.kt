@@ -7,10 +7,18 @@ import kotlinx.coroutines.delay
  * The FFI surfaces this as a [PubkyError] with a message containing "session" plus
  * one of the common verbs. We match defensively on substrings because the FFI error
  * text is not a stable API contract.
+ *
+ * **A transport failure is never an expiry, however it is worded.** Offline, the FFI reports
+ * `"Failed to import session: Request failed: HTTP transport error: error sending request for
+ * url (…/session)"` — which contains both "session" and "import" and so matched here. The request
+ * never reached the homeserver, so nothing can be concluded about the session; treating it as an
+ * expiry told an offline user to sign in with Pubky Ring again, and `requiresReauth` would have
+ * signed them out over a dropped connection. Checked first, because the wording overlaps.
  */
 internal fun Throwable.isSessionExpired(): Boolean {
     if (this !is PubkyError) return false
     val msg = message?.lowercase() ?: return false
+    if (isNetworkFailure()) return false
     return "session" in msg &&
         ("import" in msg || "expired" in msg || "invalid" in msg)
 }

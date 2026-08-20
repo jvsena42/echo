@@ -117,7 +117,7 @@ class SrsRepositoryImpl(
      * only to be reachable from here, which owned-decks-only made it not.
      */
     override suspend fun dueToday(): List<Card> {
-        restoreJournal()
+        if (restoreJournal()) flushAsync()
         return studiableDecks().flatMap { dueForDeck(it.id) }
     }
 
@@ -136,7 +136,9 @@ class SrsRepositoryImpl(
     override suspend fun dueForDeck(deckId: String): List<Card> {
         // Before anything reads the cache: a journal from a previous process holds reviews newer
         // than the homeserver's, and a queue built without them would re-show cards already graded.
-        restoreJournal()
+        // Recovered reviews are sent straight away — nothing else would, short of the user
+        // starting another session and grading FLUSH_EVERY more cards.
+        if (restoreJournal()) flushAsync()
         val deck = deckRepository.sync(deckId)
             .onFailure { Log.e(TAG, "dueForDeck: sync failed for $deckId — ${it.message}", it) }
             .getOrNull() ?: deckRepository.getLocal(deckId)
@@ -264,20 +266,24 @@ class SrsRepositoryImpl(
      *
      * Restored into [cache] unconditionally, unlike [loadChunksFor]'s read: a journalled review is
      * newer than whatever is on the homeserver by definition — it is the write that never landed.
+     *
+     * Returns true when it actually recovered something, so the caller can send it. Safe to call
+     * from [flush], which is why it does not flush itself: the guard flag is set before the load,
+     * so the nested call returns false rather than recursing.
      */
-    private suspend fun restoreJournal() {
+    private suspend fun restoreJournal(): Boolean {
         val alreadyRestored = cacheLock.withLock {
             val was = journalRestored
             journalRestored = true
             was
         }
-        if (alreadyRestored) return
+        if (alreadyRestored) return false
 
         val entries = runSuspendCatching { pendingReviews.load() }.getOrElse {
             Log.e(TAG, "restoreJournal: unreadable — ${it.message}", it)
-            return
+            return false
         }
-        if (entries.isEmpty()) return
+        if (entries.isEmpty()) return false
 
         cacheLock.withLock {
             for (entry in entries) {
@@ -290,6 +296,7 @@ class SrsRepositoryImpl(
             }
         }
         Log.d(TAG, "restoreJournal: recovered ${entries.size} unflushed review(s)")
+        return true
     }
 
     /**

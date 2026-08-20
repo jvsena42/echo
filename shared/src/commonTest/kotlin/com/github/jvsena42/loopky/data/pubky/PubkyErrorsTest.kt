@@ -40,6 +40,19 @@ class PubkyErrorsTest {
     }
 
     @Test
+    fun anOfflineSessionImportIsOfflineNotAnExpiry() {
+        // Seen on device: offline, the FFI's own session call fails with wording that contains
+        // both "session" and "import", so it classified as an expiry and the study screen told the
+        // user to sign in with Pubky Ring again over a dropped connection.
+        val offline = PubkyError(
+            "Failed to import session: Request failed: HTTP transport error: error sending " +
+                "request for url (https://_pubky.rc3omrqq/session)",
+        )
+
+        assertEquals(ErrorReason.Offline, offline.toErrorReason())
+    }
+
+    @Test
     fun classifiesTheHomeserverQuotaBodyAsStorageFull() {
         // The body the homeserver actually returns with 507, verbatim.
         val full = PubkyError("Request failed: HTTP status 507: Disk space quota exceeded")
