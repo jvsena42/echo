@@ -144,6 +144,8 @@ val sharedModule = module {
             identityRepository = get(),
             pubkyClient = get(),
             appPreferences = get(),
+            unsplashKeyStore = get(),
+            unsplashClient = get(),
             appVersion = params.getOrNull() ?: "",
         )
     }

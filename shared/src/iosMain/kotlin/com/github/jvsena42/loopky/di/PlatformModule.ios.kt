@@ -9,7 +9,10 @@ import com.github.jvsena42.loopky.data.pubky.RawPubkyClient
 import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.IosAppPreferences
 import com.github.jvsena42.loopky.data.storage.IosSecureSessionStore
+import com.github.jvsena42.loopky.data.storage.IosUnsplashKeyStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
+import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.IosBackgroundTasks
 import com.github.jvsena42.loopky.platform.IosSpeaker
@@ -42,13 +45,17 @@ import org.koin.mp.KoinPlatform
  * the shared [PubkyClient] contract by [IosPubkyClientAdapter] on the Kotlin side, because
  * `kotlin.Result` and suspend functions cannot be implemented from Swift.
  *
+ * [unsplashFallbackKey] is the build-time Unsplash key — a fallback behind whatever the user
+ * saves in Settings, and never shown to them. Blank is fine; web image search then reports that a
+ * key is needed instead of failing silently.
+ *
  * [nexusBaseUrl] is the Pubky Nexus indexer, which differs between environments — Swift passes
  * staging under `#if DEBUG` and production otherwise. No default, so a release build cannot
  * silently fall back to staging (#42).
  */
-fun doInitKoin(rawPubkyClient: RawPubkyClient, nexusBaseUrl: String) {
+fun doInitKoin(rawPubkyClient: RawPubkyClient, nexusBaseUrl: String, unsplashFallbackKey: String) {
     startKoin {
-        modules(sharedModule, iosPlatformModule(rawPubkyClient, nexusBaseUrl))
+        modules(sharedModule, iosPlatformModule(rawPubkyClient, nexusBaseUrl, unsplashFallbackKey))
     }
     // BGTaskScheduler rejects a handler registered after the app has finished launching, so this
     // cannot be deferred to the first schedule (#53).
@@ -58,12 +65,15 @@ fun doInitKoin(rawPubkyClient: RawPubkyClient, nexusBaseUrl: String) {
 private fun iosPlatformModule(
     rawPubkyClient: RawPubkyClient,
     nexusBaseUrl: String,
+    unsplashFallbackKey: String,
 ): Module = module {
     single<PubkyClient> { IosPubkyClientAdapter(rawPubkyClient) }
     single<HttpFetcher> { IosHttpFetcher() }
     single { NexusClient(http = get(), baseUrl = nexusBaseUrl) }
     single<SecureSessionStore> { IosSecureSessionStore() }
     single<AppPreferences> { IosAppPreferences() }
+    single<UnsplashKeyStore> { IosUnsplashKeyStore() }
+    single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }
     single<Speaker> { IosSpeaker() }
     single<BackgroundTasks> { IosBackgroundTasks(identity = get(), decks = get()) }
 }

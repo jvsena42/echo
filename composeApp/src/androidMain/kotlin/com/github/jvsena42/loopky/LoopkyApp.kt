@@ -19,7 +19,9 @@ class LoopkyApp : Application() {
             initLogging()
         }
         initKoinAndroid(
-            unsplashAccessKey = BuildConfig.UNSPLASH_ACCESS_KEY,
+            // A fallback only: a key the user saves in Settings wins, and this one is never
+            // shown to them.
+            unsplashFallbackKey = BuildConfig.UNSPLASH_ACCESS_KEY,
             // Staging on debug, production on release — see composeApp/build.gradle.kts.
             nexusBaseUrl = BuildConfig.NEXUS_BASE_URL,
         ) {
