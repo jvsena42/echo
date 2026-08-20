@@ -12,6 +12,16 @@ private enum NexusEnvironment {
     #endif
 }
 
+/// Which Homegate mints signup tokens, and which homeserver those tokens are valid on. Matched to
+/// the Nexus environment above so one build never talks to two different networks.
+private enum PubkyEnv {
+    #if DEBUG
+    static let name = "Staging"
+    #else
+    static let name = "Production"
+    #endif
+}
+
 @main
 struct iOSApp: App {
     init() {
@@ -22,7 +32,8 @@ struct iOSApp: App {
             nexusBaseUrl: NexusEnvironment.baseUrl,
             // iOS ships no build-time Unsplash key, so web image search asks the user for one.
             // Their key is kept in the Keychain (IosUnsplashKeyStore), not here.
-            unsplashFallbackKey: ""
+            unsplashFallbackKey: "",
+            pubkyEnvironmentName: PubkyEnv.name
         )
     }
 

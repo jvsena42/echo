@@ -790,7 +790,10 @@ class FailingChunkCardRepository(
 }
 
 /** [AppPreferences] in memory, starting from the production defaults. */
-class FakeAppPreferences(shareOnPubky: Boolean = true) : AppPreferences {
+class FakeAppPreferences(
+    shareOnPubky: Boolean = true,
+    pubkyEnvironment: String = "",
+) : AppPreferences {
     private val _shareOnPubky = MutableStateFlow(shareOnPubky)
     override val shareOnPubky: Flow<Boolean> = _shareOnPubky.asStateFlow()
 
@@ -799,6 +802,16 @@ class FakeAppPreferences(shareOnPubky: Boolean = true) : AppPreferences {
 
     override suspend fun setShareOnPubky(enabled: Boolean) {
         _shareOnPubky.update { enabled }
+    }
+
+    private val _pubkyEnvironment = MutableStateFlow(pubkyEnvironment)
+    override val pubkyEnvironment: Flow<String> = _pubkyEnvironment.asStateFlow()
+
+    /** The current value, for a test that asserts on it without collecting. */
+    val pubkyEnvironmentValue: String get() = _pubkyEnvironment.value
+
+    override suspend fun setPubkyEnvironment(name: String) {
+        _pubkyEnvironment.update { name }
     }
 }
 
