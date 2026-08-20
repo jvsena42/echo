@@ -691,7 +691,19 @@ The trade-off is deliberate: editing one card now rewrites a ~63 KB chunk instea
 
 Drag-to-reorder is therefore offered only while the whole deck fits in one page (`DRAG_REORDER_LIMIT`, 100). Above that the row's position number opens "move to position…", which can target a position the list has never loaded.
 
-**Known gaps:** chunk compaction (deletes leave holes, nothing rebalances); a deck published before the chunk table existed has no page boundaries to walk, so the editor still reads it whole (small by construction — the layout landed before any Anki-sized import could).
+**Deletes leave holes, and a background pass folds them away (#51).** A card is assigned to a chunk by sequential append, and deleting one shrinks that chunk's `count` rather than resequencing every card after it — closing the hole in place would rewrite every following chunk, which is the write amplification the layout exists to remove. Holes never cost correctness (`card_count` is summed from the per-chunk counts, membership is the union of the chunks); they cost density, so a deck that imported 20k and deleted 15k opens with the request count of a 20k-card deck.
+
+`DeckRepository.compactDeck` reclaims that, off the critical path:
+
+- **One pair at a time.** `CardChunking.mergeTarget` finds the first two *neighbours in the sorted chunk table* whose cards fit in one record; the pair is folded into the lower-numbered one, renumbered inside its own slice of the ord line, and the other is dropped. Order survives because nothing sorts between them, and no chunk outside the pair moves.
+- **It converges.** Every merge strictly shrinks the table, and the pass stops when no two neighbours fit — which is the record count the cards actually need. Merging up to a full `CHUNK_SIZE` is what stops it thrashing: a chunk left at 99 can only pair with an almost-empty neighbour, so a delete/add cycle does not re-trigger it.
+- **Landing record, manifest, then the source record.** Every other chunk write here pairs "chunk, then manifest", but a merge *removes* a record: emptying it before the manifest drops its entry would leave a window where the manifest points at a chunk that 404s. This order only ever over-counts, and a card in both records reads as one because membership is keyed by id. A failure on the last step orphans a record the manifest cannot reach — swept by the next full publish or by `delete`.
+- **Never on the delete path.** `deleteCard` and `listOwned` only *ask* for a pass, through `BackgroundTasks.scheduleDeckCompaction` (§9.6). Compacting inline would cost a merge per card in a bulk delete and rewrite records followers have cached, in the middle of the user's edit. `updated_at` is not bumped and no `changes` is emitted — nothing user-visible changed — but the per-chunk stamps are, which is what makes a follower re-fetch the folded pair.
+- **Budgeted at `DEFAULT_COMPACTION_MERGE_BUDGET` merges per call**, and resumable with no cursor: each pass re-derives the next merge from the manifest, so an interrupted run simply picks up where the table now is.
+
+A merge leaves a gap in the chunk numbering. Nothing downstream assumes the table is contiguous — `positionAt`, `appendTarget` and study order all read it in `n` order — but a full republish has to delete stale records **by number**, not by counting the previous chunks, or the high-numbered survivor is orphaned.
+
+**Known gap:** a deck published before the chunk table existed has no page boundaries to walk, so the editor still reads it whole (small by construction — the layout landed before any Anki-sized import could).
 
 ## 9. Cross-cutting concerns
 
@@ -755,6 +767,8 @@ Reserve a `Logger` interface in `commonMain` with no-op default. Platform actual
 bound per platform via Koin, **not** `expect`/`actual` — the repo has zero `expect class` /
 `expect interface`, and both implementations wrap a stateful platform scheduler rather than a
 top-level function. The job identifier is a shared `internal const` so the two sides cannot drift.
+
+Two jobs use it: the media re-host sweep (#53) and chunk compaction (#51, §8.4). Deliberately separate rather than two stages of one job — they qualify different decks (clones vs. heavily edited decks), and folding them together would let a media-heavy sweep that keeps hitting its budget starve compaction indefinitely.
 
 | | Android | iOS |
 |---|---|---|

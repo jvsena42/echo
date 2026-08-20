@@ -26,6 +26,15 @@ internal interface DeckWriteAccess {
 
     /** Read-modify-write the manifest. Caller must hold the write lock. */
     suspend fun patchLocked(deckId: String, patch: (Deck) -> Deck): Deck
+
+    /**
+     * Fold chunk [from] into chunk [into], which is left holding [merged], and drop [from] from
+     * the manifest. Caller must hold the write lock.
+     *
+     * On this side of the seam rather than in [DeckCompactor] because the write ordering a merge
+     * needs is the one thing about it that can lose cards.
+     */
+    suspend fun mergeChunksLocked(deck: Deck, into: Int, from: Int, merged: List<Card>): Deck
 }
 
 /**

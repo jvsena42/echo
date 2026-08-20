@@ -38,7 +38,7 @@ internal object CardChunking {
      *
      * Sequential-append rather than hash-partitioning on card id. Hashing would be stable under
      * every mutation, but it produces [CHUNK_SIZE]-many near-empty records for a 50-card deck;
-     * sequential is self-describing and compacts later if it ever needs to.
+     * sequential is self-describing, and the holes it leaves are folded away by [mergeTarget].
      */
     fun appendTarget(chunks: List<ChunkMeta>): Int {
         val last = chunks.maxByOrNull { it.n } ?: return 0
@@ -48,10 +48,11 @@ internal object CardChunking {
     /**
      * Apply a single chunk's new contents to the manifest's chunk list.
      *
-     * Deleting a card leaves the chunk short rather than resequencing every later card — holes are
-     * tolerated deliberately, since closing one would mean rewriting every following chunk. A chunk
-     * emptied completely is dropped from the list so it stops being fetched; the record itself is
-     * deleted by the caller.
+     * Deleting a card leaves the chunk short rather than resequencing every later card — closing
+     * the hole in place would mean rewriting every following chunk, which is the write
+     * amplification the layout exists to remove. The holes are reclaimed off the critical path
+     * instead, by the compaction pass [mergeTarget] drives (#51). A chunk emptied completely is
+     * dropped from the list so it stops being fetched; the record itself is deleted by the caller.
      */
     fun withChunk(chunks: List<ChunkMeta>, n: Int, count: Int, updatedAt: Long): List<ChunkMeta> {
         val without = chunks.filterNot { it.n == n }
@@ -60,6 +61,48 @@ internal object CardChunking {
         } else {
             (without + ChunkMeta(n = n, count = count, updatedAt = updatedAt)).sortedBy { it.n }
         }
+    }
+
+    /**
+     * The two chunks a compaction pass should fold together, as `(into, from)`, or null when the
+     * deck has no hole worth closing.
+     *
+     * Neighbours **in the sorted chunk list**, not numerically adjacent `n`s: a merge leaves a gap
+     * in the numbering, and everything downstream — [positionAt], [appendTarget], study order —
+     * reads the list in `n` order rather than assuming it is contiguous. Folding the pair keeps
+     * study order because nothing sorts between them.
+     *
+     * The criterion is simply "the two records' cards fit in one": every such merge removes
+     * exactly one record, and the pass converges because each one strictly shrinks the table.
+     * Merging up to a full [CHUNK_SIZE] is what stops it thrashing — a chunk left at 99 cannot
+     * pair with anything but an almost-empty neighbour, so a delete/add cycle does not re-trigger.
+     */
+    fun mergeTarget(chunks: List<ChunkMeta>): Pair<Int, Int>? =
+        chunks.sortedBy { it.n }
+            .zipWithNext()
+            .firstOrNull { (into, from) -> into.count + from.count <= CHUNK_SIZE }
+            ?.let { (into, from) -> into.n to from.n }
+
+    /**
+     * Whether the chunk table is sparse enough to be worth compacting — i.e. whether
+     * [mergeTarget] has anything to do.
+     *
+     * Answered from the manifest alone, so asking costs no requests. That is the point: it is
+     * checked after every card delete and on every deck listing.
+     */
+    fun isSparse(chunks: List<ChunkMeta>): Boolean = mergeTarget(chunks) != null
+
+    /**
+     * Cards held per slot allocated, in `0f..1f`. `1f` for a deck with no chunks — nothing is
+     * being wasted — so callers do not have to special-case an empty deck.
+     *
+     * Density is what deletes cost: holes never break correctness, but a deck that imported 20k
+     * and deleted 15k reads like a 20k-card one because the request count follows the chunk table,
+     * not the card count.
+     */
+    fun density(chunks: List<ChunkMeta>): Float {
+        if (chunks.isEmpty()) return 1f
+        return cardCount(chunks).toFloat() / (chunks.size * CHUNK_SIZE)
     }
 
     /**

@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -164,7 +163,10 @@ private fun PasteScreen(
                     modifier = Modifier
                         .testTag("paste_input")
                         .fillMaxWidth()
-                        .heightIn(min = 160.dp),
+                        // Fixed, not heightIn(min = …): the field used to grow with its content,
+                        // so a paste of any real size pushed Next off the bottom of the screen and
+                        // under the keyboard. It scrolls inside these bounds instead.
+                        .height(PASTE_INPUT_HEIGHT),
                     textStyle = TextStyle(fontSize = 14.sp, color = colors.foregroundPrimary),
                     placeholder = {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -556,3 +558,6 @@ private fun PasteScreenPreview() {
         )
     }
 }
+
+/** Paste field height. Fixed so the Next button below it keeps its place whatever is pasted. */
+private val PASTE_INPUT_HEIGHT = 200.dp

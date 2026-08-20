@@ -14,14 +14,23 @@
     emulator and is the reason #59 exists: the poll used to be retried in place against an auth
     flow the FFI had already consumed, which replaced the real cause with "No auth flow in
     progress" and blamed Pubky Ring for a relay outage.
+
+    DRIVE THE HAPPY PATH FAST. The three taps — sign in, the identity row, Authorize — must be
+    chained with roughly 2s and 1s between them and NOTHING in between: no layout dump, no
+    screenshot, no verification step. Driven at a normal scripted pace (4s+ per step, or a
+    layout read between taps) the same flow fails with "the authorisation relay isn't
+    responding" on an otherwise healthy network. That is very likely what the "manual sign-ins
+    succeed where scripted ones don't" note in RESULTS.md was really observing — a human taps
+    through in a couple of seconds. Verify AFTER the chain, and on failure retry the whole
+    chain from the onboarding screen rather than waiting inside it: the FFI auth flow is
+    single-use, so there is nothing to resume.
   </description>
   <actions>
     <action>Launch the Loopky app (package com.github.jvsena42.loopky)</action>
     <action>Verify the onboarding screen is shown with the headline "Learn anything, remember everything." and a "Sign in with Pubky Ring" button (resource-id: onboarding_signin)</action>
-    <action>Tap the element with resource-id "onboarding_signin"</action>
-    <action>Verify the Pubky Ring app opens with an authorization prompt for Loopky's capabilities</action>
-    <action>Approve the authorization request in Pubky Ring (tap its confirm/authorize control)</action>
-    <action>Verify Loopky returns to the foreground and lands on the Home screen (a greeting header is shown and the bottom tab bar is visible)</action>
+    <action>Chain these three taps with no verification between them — ~2s after the first, ~1s after the second: tap "onboarding_signin"; tap the identity row in Pubky Ring's "Select Pubky" list; tap Pubky Ring's "ConfirmAuthAuthorizeButton". On a 1080x2424 emulator those land at (540, 1962), (540, 844) and (789, 2245). Anything slower fails on a healthy relay — see the description.</action>
+    <action>Verify Loopky returns to the foreground and lands on the Home screen (the bottom tab bar is visible and the onboarding screen is gone)</action>
+    <action>If the onboarding screen is still shown with "Loopky signs you in through Pubky's authorisation relay, and it isn't responding", retry the whole three-tap chain from the top — do not tap Authorize again, the flow is consumed</action>
 
     <action>THE RELAY-FAILURE BRANCH. Force it deterministically by disabling the radios before tapping sign in: adb shell svc wifi disable &amp;&amp; adb shell svc data disable</action>
     <action>Tap the element with resource-id "onboarding_signin", then return to Loopky (Pubky Ring still opens; press back or re-launch MainActivity)</action>
