@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
+import com.github.jvsena42.loopky.presentation.signup.SignupError
 import com.github.jvsena42.loopky.ui.importflow.MAX_IMPORT_FILE_BYTES
 
 /**
@@ -77,6 +78,48 @@ fun bulkImportErrorMessage(reason: BulkImportError): String = when (reason) {
 }
 
 private const val BYTES_PER_MB = 1024L * 1024
+
+/**
+ * Copy for a step of the signup flow.
+ *
+ * Separate from [ErrorReason] for the same reason [bulkImportErrorTitle] is: these only ever occur
+ * on the five screens that exist for this flow, and folding them in would make the eight unrelated
+ * screens with an exhaustive `when` over [ErrorReason] answer for "your invite code was already
+ * used".
+ */
+@Composable
+fun signupErrorTitle(error: SignupError): String = stringResource(
+    when (error) {
+        SignupError.Geoblocked -> R.string.signup_error_geoblocked_title
+        SignupError.PhoneBlocked -> R.string.signup_error_phone_blocked_title
+        SignupError.RateLimited -> R.string.signup_error_rate_limited_title
+        SignupError.RateLimitedWeekly -> R.string.signup_error_rate_limited_weekly_title
+        SignupError.RateLimitedYearly -> R.string.signup_error_rate_limited_yearly_title
+        SignupError.CodeIncorrect -> R.string.signup_error_code_incorrect_title
+        SignupError.InvoiceExpired -> R.string.signup_error_invoice_expired_title
+        SignupError.VerificationLost -> R.string.signup_error_verification_lost_title
+        SignupError.RingFailed -> R.string.signup_error_ring_failed_title
+        SignupError.RingNotInstalled -> R.string.signup_error_ring_missing_title
+        SignupError.Unavailable -> R.string.signup_error_unavailable_title
+    },
+)
+
+@Composable
+fun signupErrorMessage(error: SignupError): String = stringResource(
+    when (error) {
+        SignupError.Geoblocked -> R.string.signup_error_geoblocked_message
+        SignupError.PhoneBlocked -> R.string.signup_error_phone_blocked_message
+        SignupError.RateLimited -> R.string.signup_error_rate_limited_message
+        SignupError.RateLimitedWeekly -> R.string.signup_error_rate_limited_weekly_message
+        SignupError.RateLimitedYearly -> R.string.signup_error_rate_limited_yearly_message
+        SignupError.CodeIncorrect -> R.string.signup_error_code_incorrect_message
+        SignupError.InvoiceExpired -> R.string.signup_error_invoice_expired_message
+        SignupError.VerificationLost -> R.string.signup_error_verification_lost_message
+        SignupError.RingFailed -> R.string.signup_error_ring_failed_message
+        SignupError.RingNotInstalled -> R.string.signup_error_ring_missing_message
+        SignupError.Unavailable -> R.string.signup_error_unavailable_message
+    },
+)
 
 /** Field-level validation copy for [FormError]. */
 @Composable
