@@ -35,6 +35,9 @@ fun Throwable.requiresReauth(): Boolean = isSessionExpired()
  * partway through. The failure is transient and the request well-formed, so surfacing it to the
  * user would be wrong.
  *
+ * **Not** retried: a 507 out-of-storage. It is terminal until the user deletes something, so a
+ * retry chain against it only spends time reaching the same answer.
+ *
  * [attempt] must re-read the session secret itself; it is invoked afresh for every try.
  */
 private suspend fun withWriteRetry(
@@ -58,6 +61,10 @@ private suspend fun withWriteRetry(
                 revalidated = true
                 revalidator.revalidate().getOrElse { return Result.failure(it) }
             }
+
+            // Never retried, and asserted here rather than relied on: 507 is terminal until the
+            // user frees space, so backing off against it only delays the same failure (#91).
+            error.isQuotaExceeded() -> return result
 
             error.isRateLimited() && rateLimitRetries < MAX_RATE_LIMIT_RETRIES -> {
                 rateLimitRetries++

@@ -491,6 +491,8 @@
     <string name="error_auth_failed_message">Loopky couldn\'t confirm the authorisation with Pubky Ring. Check your connection and try again.</string>
     <string name="error_auth_relay_title">Sign-in couldn\'t reach Pubky</string>
     <string name="error_auth_relay_message">Loopky signs you in through Pubky\'s authorisation relay, and it isn\'t responding. Try again in a moment.</string>
+    <string name="error_storage_full_title">Your Pubky storage is full</string>
+    <string name="error_storage_full_message">There\'s no room left on your homeserver, so this couldn\'t be saved. Delete a deck you no longer study to free up space, or upgrade your Pubky plan for more.</string>
     <string name="error_generic_title">Something went wrong</string>
     <string name="error_generic_message">Something went wrong. Please try again.</string>
     <string name="home_caught_up_title">You\'re all caught up</string>

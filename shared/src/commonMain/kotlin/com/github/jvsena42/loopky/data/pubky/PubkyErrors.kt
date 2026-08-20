@@ -45,12 +45,43 @@ internal fun Throwable.isRateLimited(): Boolean {
 }
 
 /**
+ * The homeserver refused the write because the account is out of its storage quota: **507
+ * Insufficient Storage**, body `"Disk space quota exceeded"`.
+ *
+ * Matched on three independent substrings because the homeserver builds this answer in two
+ * places — a pre-flight check against `used_bytes` before the write, and the storage layer's own
+ * `DiskSpaceQuotaExceeded` — and the wording reaching the FFI need not be identical.
+ *
+ * Terminal, unlike every other classifier here: [isRateLimited] and [isNetworkFailure] are
+ * transient and worth retrying, this one succeeds only after the user frees space. Callers must
+ * treat it as a stop, not a backoff.
+ */
+internal fun Throwable.isQuotaExceeded(): Boolean {
+    val msg = message?.lowercase() ?: return false
+    return "insufficient storage" in msg ||
+        "quota exceeded" in msg ||
+        "disk space" in msg ||
+        STATUS_507.containsMatchIn(msg)
+}
+
+/**
+ * `507` as a status code rather than as three digits inside something else. Deliberately not a
+ * bare `"507" in msg`: every failure message carries a `pubky://` URL, and deck and card ids are
+ * random alphanumerics — one containing "507" would classify an unrelated error as a full disk.
+ */
+private val STATUS_507 = Regex("(?<![0-9a-z])507(?![0-9a-z])")
+
+/**
  * Classify a repository failure for the UI. ViewModels put the returned [ErrorReason] into
  * their state and log the original throwable, so the FFI's diagnostic text never reaches a
  * user-facing surface.
  */
 fun Throwable.toErrorReason(): ErrorReason = when {
     isSessionExpired() -> ErrorReason.SessionExpired
+    // Checked ahead of the transient classifiers on purpose. Nothing they match collides with the
+    // 507 body *today*, but "quota" is the word a future bandwidth limit will also reach for, and
+    // reading a full disk as "the server is busy" would retry against it forever.
+    isQuotaExceeded() -> ErrorReason.StorageFull
     // Retries are exhausted by the time this reaches the UI; the homeserver is simply busy.
     isRateLimited() -> ErrorReason.Offline
     isNetworkFailure() -> ErrorReason.Offline

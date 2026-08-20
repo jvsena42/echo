@@ -40,6 +40,42 @@ class PubkyErrorsTest {
     }
 
     @Test
+    fun classifiesTheHomeserverQuotaBodyAsStorageFull() {
+        // The body the homeserver actually returns with 507, verbatim.
+        val full = PubkyError("Request failed: HTTP status 507: Disk space quota exceeded")
+
+        assertEquals(ErrorReason.StorageFull, full.toErrorReason())
+    }
+
+    @Test
+    fun classifiesTheStatusLineAloneAsStorageFull() {
+        // The storage layer builds its own 507 separately from the pre-flight check, so the
+        // wording reaching the FFI need not include the body at all.
+        assertEquals(
+            ErrorReason.StorageFull,
+            PubkyError("Failed to put record: 507 Insufficient Storage").toErrorReason(),
+        )
+    }
+
+    @Test
+    fun doesNotReadAnIdContaining507AsAFullDisk() {
+        // Every failure message carries a pubky:// URL and ids are random alphanumerics; a bare
+        // "507" substring match would send this user to delete decks over a missing record.
+        val notFound = PubkyError("not found: pubky://x/pub/loopky/decks/a507bc/manifest.json")
+
+        assertEquals(ErrorReason.NotFound, notFound.toErrorReason())
+    }
+
+    @Test
+    fun quotaWinsOverTheTransientClassifiers() {
+        // A quota message that also trips isRateLimited must not be retried: the request is not
+        // going to succeed after a backoff.
+        val ambiguous = PubkyError("rate limit: storage quota exceeded")
+
+        assertEquals(ErrorReason.StorageFull, ambiguous.toErrorReason())
+    }
+
+    @Test
     fun fallsBackToUnknownForUnrecognisedText() {
         assertEquals(ErrorReason.Unknown, IllegalStateException("kaboom").toErrorReason())
     }

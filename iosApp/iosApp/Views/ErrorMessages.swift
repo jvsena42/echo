@@ -37,6 +37,11 @@ enum ErrorCopy {
                 "Sign-in couldn't reach Pubky",
                 comment: "Error title: auth relay unreachable"
             )
+        case .storageFull:
+            return NSLocalizedString(
+                "Your Pubky storage is full",
+                comment: "Error title: homeserver storage quota exceeded"
+            )
         default:
             return NSLocalizedString("Something went wrong", comment: "Error title: generic")
         }
@@ -93,6 +98,15 @@ enum ErrorCopy {
                 "Loopky signs you in through Pubky's authorisation relay, and it isn't "
                     + "responding. Try again in a moment.",
                 comment: "Error message: auth relay unreachable"
+            )
+        case .storageFull:
+            // Not "please try again" — a retry against a full quota is the one thing that cannot
+            // work, so the copy has to name the two things that can: delete something, or buy room.
+            return NSLocalizedString(
+                "There's no room left on your homeserver, so this couldn't be saved. "
+                    + "Delete a deck you no longer study to free up space, or upgrade your "
+                    + "Pubky plan for more.",
+                comment: "Error message: homeserver storage quota exceeded"
             )
         default:
             return NSLocalizedString(

@@ -50,6 +50,19 @@ enum class ErrorReason {
      */
     AuthRelayUnreachable,
 
+    /**
+     * The homeserver refused the write because the account is out of storage (507).
+     *
+     * The odd one out among these: every other reason either fixes itself (an outage), or is
+     * fixed by signing in again. This one is fixed only by the user deleting something or paying
+     * for more room, and **retrying is the one thing that cannot work** — which is precisely what
+     * the generic "please try again" copy it used to fall through to told them to do.
+     *
+     * Terminal by construction, so background work must stop on it rather than back off: a
+     * WorkManager retry chain against a full quota never converges. See #91.
+     */
+    StorageFull,
+
     /** Anything we could not classify. */
     Unknown,
 }
