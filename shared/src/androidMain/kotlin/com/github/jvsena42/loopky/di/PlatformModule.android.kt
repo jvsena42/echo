@@ -9,9 +9,11 @@ import com.github.jvsena42.loopky.data.pubky.AndroidPubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.storage.AndroidAppPreferences
 import com.github.jvsena42.loopky.data.storage.AndroidSecureSessionStore
+import com.github.jvsena42.loopky.data.storage.AndroidSignupTokenStore
 import com.github.jvsena42.loopky.data.storage.AndroidUnsplashKeyStore
 import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.platform.AndroidBackgroundTasks
@@ -43,6 +45,7 @@ fun androidPlatformModule(
     single<SecureSessionStore> { AndroidSecureSessionStore(androidContext()) }
     single<AppPreferences> { AndroidAppPreferences(androidContext()) }
     single<UnsplashKeyStore> { AndroidUnsplashKeyStore(androidContext()) }
+    single<SignupTokenStore> { AndroidSignupTokenStore(androidContext()) }
     single<Speaker> { AndroidSpeaker(androidContext()) }
     single<MediaProcessor> { AndroidMediaProcessor() }
     single<SpeechRecognizer> { AndroidSpeechRecognizer(androidContext()) }

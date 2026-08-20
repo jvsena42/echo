@@ -16,6 +16,8 @@ import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.data.storage.AppPreferences
+import com.github.jvsena42.loopky.data.storage.PendingSignup
+import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
@@ -812,6 +814,28 @@ class FakeAppPreferences(
 
     override suspend fun setPubkyEnvironment(name: String) {
         _pubkyEnvironment.update { name }
+    }
+}
+
+/** [SignupTokenStore] in memory — no keychain, and nothing that outlives the test. */
+class FakeSignupTokenStore(pending: PendingSignup? = null) : SignupTokenStore {
+    private val _pending = MutableStateFlow(pending)
+    override val pending: Flow<PendingSignup?> = _pending.asStateFlow()
+
+    /** The current value, for a test that asserts on it without collecting. */
+    val stored: PendingSignup? get() = _pending.value
+
+    /** How many times the token was cleared — clearing it wrongly loses the user's payment. */
+    var clearCount: Int = 0
+        private set
+
+    override suspend fun save(pending: PendingSignup) {
+        _pending.update { pending }
+    }
+
+    override suspend fun clear() {
+        clearCount++
+        _pending.update { null }
     }
 }
 

@@ -1,5 +1,9 @@
 package com.github.jvsena42.loopky.data.repository
 
+import com.github.jvsena42.loopky.data.homegate.LnInvoice
+import com.github.jvsena42.loopky.data.homegate.MethodAvailability
+import com.github.jvsena42.loopky.data.storage.PendingSignup
+import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
@@ -16,6 +20,7 @@ import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 
 interface IdentityRepository {
@@ -350,6 +355,74 @@ interface CardRepository {
     /** Drop a card from the in-memory cache without touching the homeserver. */
     suspend fun evict(deckId: String, cardId: String)
 }
+
+/**
+ * The approval half of onboarding: obtaining a signup token so a brand-new pubky can be given an
+ * account on a homeserver that requires one.
+ *
+ * Owns the in-flight signup the way [ImportRepository] owns the in-flight paste draft — a process
+ * singleton the flow's screens read and write as the user moves between them.
+ *
+ * It deliberately stops at the token. Redeeming it is [IdentityRepository.beginSignUp], whose
+ * completion path (parse payload, persist session, self-tag, enrich profile) is the same one
+ * sign-in already uses; duplicating it here would mean two subtly different ways to become
+ * signed in.
+ */
+interface SignupRepository {
+    /**
+     * Which approval methods this device can actually use, both queried together.
+     *
+     * Never fails: a method Homegate could not be asked about reports as
+     * [MethodAvailability.Unknown] and is offered anyway. Hiding the only route into the app
+     * because an availability probe timed out is worse than letting the method itself explain.
+     */
+    suspend fun availability(): SignupAvailability
+
+    /** Ask Homegate to text a verification code. */
+    suspend fun sendSmsCode(phoneNumber: String): Result<Unit>
+
+    /**
+     * Exchange an SMS code for a token, persisting it before returning.
+     *
+     * The persist happens inside this call, not in the caller: between "Homegate issued a token"
+     * and "the token is safely stored" the user's SMS attempt is already spent, so there must be
+     * no window where it exists only in memory. Same for [awaitInvoice] and [redeemInviteCode].
+     */
+    suspend fun redeemSmsCode(phoneNumber: String, code: String): Result<PendingSignup>
+
+    /** Create a Lightning invoice to pay for a token. */
+    suspend fun createInvoice(): Result<LnInvoice>
+
+    /** Wait for [invoice] to be paid, persisting the resulting token before returning. */
+    suspend fun awaitInvoice(invoice: LnInvoice): Result<PendingSignup>
+
+    /**
+     * Accept a hand-issued invite code.
+     *
+     * No Homegate call happens on this path, so there is nothing to learn a homeserver from and
+     * the configured environment's default is used instead. The code's shape is checked locally
+     * first, so a typo costs no round trip.
+     */
+    suspend fun redeemInviteCode(code: String): Result<PendingSignup>
+
+    /**
+     * The token waiting to be spent, or null. The single source of truth for "a signup is in
+     * flight" — a non-null value on a cold start means the user paid and then died somewhere
+     * before Ring redeemed it, and should be returned to the hand-off rather than charged twice.
+     */
+    val pending: Flow<PendingSignup?>
+
+    /**
+     * Forget the stored token. Only on proof it was redeemed — see [SignupTokenStore.clear].
+     */
+    suspend fun clearPending()
+}
+
+/** What [SignupRepository.availability] found. */
+data class SignupAvailability(
+    val sms: MethodAvailability,
+    val lightning: MethodAvailability,
+)
 
 interface ImportRepository {
     fun currentDraft(): ImportDraft?

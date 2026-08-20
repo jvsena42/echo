@@ -15,6 +15,14 @@ package com.github.jvsena42.loopky.data.homegate
  *
  * Both environments are live and distinguishable: production charges 1000 sat for the Lightning
  * route, staging 10.
+ *
+ * **These are not secrets, and hardcoding them is correct.** A homeserver pubky is a public key —
+ * it is that server's identity on the mainline DHT, republished inside the world-readable `_pubky`
+ * record of every user hosted there, and it doubles as the TLS identity. No client can reach a
+ * homeserver without resolving it. Both values are already committed in public repos: pubky-ring's
+ * `src/utils/constants.ts` and pubky-app's `src/libs/env/env.ts` (as a `NEXT_PUBLIC_` default,
+ * i.e. deliberately shipped to the browser) and its Docker build workflow. Moving them to a secret
+ * env var would protect nothing and would only make a misconfigured build harder to diagnose.
  */
 enum class PubkyEnvironment(
     val homegateBaseUrl: String,
