@@ -398,12 +398,11 @@
     <string name="signup_start_subtitle">No email needed. Verify with a text or a small payment, or use an invite code.</string>
     <string name="signup_sms_card_title">SMS verification</string>
     <string name="signup_sms_card_price">Free</string>
-    <string name="signup_sms_card_note">Less private, but easy</string>
+    <string name="signup_sms_card_note">Uses your phone number</string>
     <string name="signup_lightning_card_title">Bitcoin payment</string>
-    <string name="signup_lightning_card_note">More private</string>
+    <string name="signup_lightning_card_note">No phone number needed</string>
     <string name="signup_lightning_card_price">Pay ₿ %1$d once</string>
     <string name="signup_lightning_card_price_unknown">Pay once</string>
-    <string name="signup_card_storage">1GB storage</string>
     <string name="signup_card_unavailable">Not available in your country</string>
     <string name="signup_invite_link">Have an invite code?</string>
 

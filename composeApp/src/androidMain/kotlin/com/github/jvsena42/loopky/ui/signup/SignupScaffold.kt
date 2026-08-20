@@ -56,6 +56,7 @@ fun SignupScaffold(
         Spacer(Modifier.height(16.dp))
         Text(
             text = title,
+            modifier = Modifier.testTag("signup_title"),
             color = colors.foregroundPrimary,
             fontSize = 28.sp,
             lineHeight = 34.sp,
@@ -64,6 +65,7 @@ fun SignupScaffold(
         Spacer(Modifier.height(12.dp))
         Text(
             text = subtitle,
+            modifier = Modifier.testTag("signup_subtitle"),
             color = colors.foregroundSecondary,
             fontSize = 15.sp,
             lineHeight = 22.sp,
@@ -80,11 +82,18 @@ fun SignupScaffold(
             ) {
                 Text(
                     text = signupErrorTitle(error),
+                    modifier = Modifier.testTag("signup_error_title"),
                     color = colors.danger,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Text(text = signupErrorMessage(error), color = colors.foregroundSecondary, fontSize = 13.sp, lineHeight = 18.sp)
+                Text(
+                    text = signupErrorMessage(error),
+                    modifier = Modifier.testTag("signup_error_message"),
+                    color = colors.foregroundSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
             }
         }
         Spacer(Modifier.height(32.dp))

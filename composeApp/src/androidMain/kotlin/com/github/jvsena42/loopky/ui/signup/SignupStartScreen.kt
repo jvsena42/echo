@@ -120,13 +120,18 @@ private fun MethodCard(
         )
         Spacer(Modifier.height(6.dp))
         Text(
+            // Tagged: this is the value that shows which environment the build is talking to —
+            // staging and production quote different prices.
             text = if (enabled) price else stringResource(R.string.signup_card_unavailable),
+            modifier = Modifier.testTag("${'$'}testTag" + "_price"),
             color = if (enabled) colors.accentPrimary else colors.foregroundMuted,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
         )
         Spacer(Modifier.height(10.dp))
+        // Deliberately no storage figure. The quota is set by the signup token the homeserver
+        // issues (`storage_quota_mb`), so it varies by token and by server — printing a number
+        // here would be copy that silently goes stale.
         Text(text = note, color = colors.foregroundMuted, fontSize = 12.sp)
-        Text(text = stringResource(R.string.signup_card_storage), color = colors.foregroundMuted, fontSize = 12.sp)
     }
 }

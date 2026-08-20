@@ -106,6 +106,7 @@ private fun SignupHandoffScreen(
             // Said plainly, because "try again" after paying reads as "pay again" otherwise.
             Text(
                 text = stringResource(R.string.signup_handoff_token_safe),
+                modifier = Modifier.testTag("signup_handoff_token_safe"),
                 color = colors.foregroundMuted,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,
