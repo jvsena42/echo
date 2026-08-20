@@ -2,15 +2,25 @@ package com.github.jvsena42.loopky.data.unsplash
 
 import com.github.jvsena42.loopky.data.nexus.HttpError
 import com.github.jvsena42.loopky.testing.FakeHttpFetcher
+import com.github.jvsena42.loopky.testing.FakeUnsplashKeyStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class UnsplashClientTest {
 
     private val http = FakeHttpFetcher()
-    private val client = UnsplashClient(http, accessKey = KEY, baseUrl = BASE)
+    private val client = clientWith(fallbackKey = KEY)
+
+    private fun clientWith(userKey: String = "", fallbackKey: String = "") = UnsplashClient(
+        http = http,
+        keyStore = FakeUnsplashKeyStore(userKey),
+        fallbackKey = fallbackKey,
+        baseUrl = BASE,
+    )
 
     @Test
     fun searchParsesAttributionAndDownloadLocation() = runTest {
@@ -74,7 +84,7 @@ class UnsplashClientTest {
     fun trackDownloadIsANoOpWithoutALocationOrAKey() = runTest {
         assertTrue(client.trackDownload(photo(downloadLocation = "")).isSuccess)
 
-        val unconfigured = UnsplashClient(http, accessKey = "", baseUrl = BASE)
+        val unconfigured = clientWith()
         assertTrue(unconfigured.trackDownload(photo(downloadLocation = "$BASE/x")).isSuccess)
 
         assertEquals(emptyList(), http.requestedUrls)
@@ -87,6 +97,110 @@ class UnsplashClientTest {
 
         assertTrue(client.trackDownload(photo(downloadLocation = url)).isFailure)
     }
+
+    @Test
+    fun aUserKeyOverridesTheBuildTimeFallback() = runTest {
+        http.respond("$BASE/photos/random?count=30", "[]")
+
+        clientWith(userKey = "mine", fallbackKey = "shipped").random().getOrThrow()
+
+        assertEquals("Client-ID mine", http.requestedHeaders.single()["Authorization"])
+    }
+
+    @Test
+    fun theFallbackIsUsedOnlyWhileTheUserHasStoredNothing() = runTest {
+        http.respond("$BASE/photos/random?count=30", "[]")
+
+        clientWith(fallbackKey = "shipped").random().getOrThrow()
+
+        assertEquals("Client-ID shipped", http.requestedHeaders.single()["Authorization"])
+    }
+
+    @Test
+    fun withNoKeyAtAllTheCallFailsAsMissingKeyRatherThanReturningNothing() = runTest {
+        val client = clientWith()
+
+        assertEquals(UnsplashError.MissingKey, client.random().unsplashError())
+        assertEquals(UnsplashError.MissingKey, client.search("cats").unsplashError())
+        // An empty success would have rendered as "No images found", which is not the problem.
+        assertEquals(emptyList(), http.requestedUrls)
+        assertFalse(client.hasFallbackKey)
+    }
+
+    @Test
+    fun unauthorizedMeansTheKeyIsWrongAndForbiddenMeansTheLimitIsSpent() = runTest {
+        val url = "$BASE/photos/random?count=30"
+
+        http.fail(url, HttpError(statusCode = 401, message = "GET $url failed with HTTP 401"))
+        assertEquals(UnsplashError.InvalidKey, client.random().unsplashError())
+
+        http.fail(url, HttpError(statusCode = 403, message = "GET $url failed with HTTP 403"))
+        assertEquals(UnsplashError.RateLimited, client.random().unsplashError())
+    }
+
+    @Test
+    fun anythingElseIsUnavailableRatherThanAKeyProblem() = runTest {
+        val url = "$BASE/photos/random?count=30"
+
+        http.fail(url, IllegalStateException("offline"))
+        assertEquals(UnsplashError.Unavailable, client.random().unsplashError())
+
+        // Malformed JSON is a server problem too, not the user's key.
+        http.respond(url, "{not json")
+        assertEquals(UnsplashError.Unavailable, client.random().unsplashError())
+    }
+
+    @Test
+    fun theFailureNeverCarriesTheKeyOrTheRequestUrl() = runTest {
+        val url = "$BASE/search/photos?per_page=30&query=cats"
+        http.fail(url, HttpError(statusCode = 401, message = "GET $url failed with HTTP 401"))
+
+        // This message used to be rendered to the user verbatim, URL and all.
+        val message = client.search("cats").exceptionOrNull()?.message.orEmpty()
+
+        assertFalse(message.contains(KEY))
+        assertFalse(message.contains(BASE))
+        assertFalse(message.contains("query=cats"))
+    }
+
+    @Test
+    fun verifyChecksACandidateWithoutStoringOrUsingTheKeyInEffect() = runTest {
+        val stored = FakeUnsplashKeyStore("mine")
+        val client = UnsplashClient(http, keyStore = stored, fallbackKey = KEY, baseUrl = BASE)
+        http.respond("$BASE/photos/random?count=1", "[]")
+
+        assertTrue(client.verify("candidate").isSuccess)
+
+        assertEquals("Client-ID candidate", http.requestedHeaders.single()["Authorization"])
+        // Verifying is not saving — that is the ViewModel's call, and only if this succeeds.
+        assertEquals("mine", stored.storedKey)
+    }
+
+    @Test
+    fun verifySurfacesRejectionSoASettingsFieldCanRefuseTheKey() = runTest {
+        val url = "$BASE/photos/random?count=1"
+        http.fail(url, HttpError(statusCode = 401, message = "nope"))
+
+        assertEquals(UnsplashError.InvalidKey, clientWith(fallbackKey = KEY).verify("bad").unsplashError())
+        assertEquals(UnsplashError.MissingKey, clientWith(fallbackKey = KEY).verify("  ").unsplashError())
+    }
+
+    @Test
+    fun maskedKeySuffixNeverReturnsMoreThanFourCharacters() {
+        assertEquals("cdef", maskedKeySuffix("abcdef"))
+        assertEquals("ab", maskedKeySuffix("ab"))
+        assertEquals("", maskedKeySuffix(""))
+    }
+
+    @Test
+    fun isConfiguredFollowsEitherSourceOfAKey() = runTest {
+        assertFalse(clientWith().isConfigured.first())
+        assertTrue(clientWith(fallbackKey = "shipped").isConfigured.first())
+        assertTrue(clientWith(userKey = "mine").isConfigured.first())
+    }
+
+    private fun <T> Result<T>.unsplashError(): UnsplashError? =
+        (exceptionOrNull() as? UnsplashException)?.error
 
     private fun photo(downloadLocation: String) = UnsplashPhoto(
         id = "abc",
