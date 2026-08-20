@@ -18,6 +18,19 @@ enum class ErrorReason {
     /** The requested record does not exist (e.g. a deck that was deleted). */
     NotFound,
 
+    /**
+     * The homeserver has no account for this pubky, so nothing can be read or written under it.
+     *
+     * Deliberately distinct from [SessionExpired], because the remedies are opposite: one means
+     * "sign in again", the other means there is nothing to sign in to yet. Treating this as an
+     * expiry signs out a user who was never signed in — discarding the pubky that *is* their
+     * identity — and treating it as [NotFound] is how a blocked sign-in came to be reported as
+     * "this deck no longer exists".
+     *
+     * Not derivable from an error string alone: see the note on `toErrorReason`.
+     */
+    NoHomeserverAccount,
+
     /** No signed-in session for an operation that requires one. */
     NotSignedIn,
 

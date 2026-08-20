@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.loopky.data.pubky.redactAuthUrl
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.ErrorReason
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * KMP ViewModel for the onboarding / Pubky Ring login screen.
@@ -70,14 +72,20 @@ class OnboardingViewModel(
                 _state.update { OnboardingUiState.Error(error.toErrorReason()) }
                 return@launch
             }
-            Log.d(TAG, "onSignInClick: got authUrl=${handle.authUrl}")
+            Log.d(TAG, "onSignInClick: got authUrl=${handle.authUrl.redactAuthUrl()}")
 
             _state.update { OnboardingUiState.AwaitingApproval }
             Log.d(TAG, "onSignInClick: state=AwaitingApproval, emitting OpenDeeplink")
             _effects.emit(OnboardingEffect.OpenDeeplink(handle.authUrl))
 
             Log.d(TAG, "onSignInClick: awaiting Pubky Ring approval…")
-            val completion = handle.complete()
+            // Bounded because the relay poll is not: `await_auth_approval` blocks with no timeout
+            // of its own, and there are real cases where nothing is ever posted to the relay —
+            // notably a pubky the homeserver has no account for, which Ring rejects on its own
+            // side and never authorises. Without this the user sits on "Waiting for Pubky Ring…"
+            // forever with no error and no way back.
+            val completion = withTimeoutOrNull(APPROVAL_TIMEOUT_MS) { handle.complete() }
+                ?: Result.failure(RingApprovalTimeout())
             _state.update { OnboardingUiState.Verifying }
             Log.d(TAG, "onSignInClick: state=Verifying, completion.success=${completion.isSuccess}")
 
@@ -100,10 +108,24 @@ class OnboardingViewModel(
      * unreachable, not the user being offline. Anything we cannot classify is still an auth
      * failure from the user's point of view, not a mystery.
      */
-    private fun Throwable.toSignInReason(): ErrorReason = when (val reason = toErrorReason()) {
-        ErrorReason.Offline -> ErrorReason.AuthRelayUnreachable
-        ErrorReason.Unknown -> ErrorReason.AuthFailed
-        else -> reason
+    private fun Throwable.toSignInReason(): ErrorReason {
+        // Matched by type, not message: `toErrorReason` classifies "timed out"/"timeout" as a
+        // transport failure, which would render "the relay isn't responding". Ring going quiet
+        // is not the relay being down — the commonest cause is Ring declining on its own side
+        // and never posting anything, so this is an auth failure.
+        if (this is RingApprovalTimeout) return ErrorReason.AuthFailed
+        return when (val reason = toErrorReason()) {
+            ErrorReason.Offline -> ErrorReason.AuthRelayUnreachable
+            ErrorReason.Unknown -> ErrorReason.AuthFailed
+            // The homeserver answers 404 when it has no account for the pubky Ring just
+            // authorised (pubky-homeserver `routes/auth.rs::signin` → `get_or_http_error`).
+            // Nothing else on this path can 404 for a *record* — no deck or profile is being
+            // fetched yet — so here, and only here, a not-found is always the account. That is
+            // why the remap lives in the sign-in path rather than in `toErrorReason`, which
+            // classifies reads too and would turn "your library is empty" into "no account".
+            ErrorReason.NotFound -> ErrorReason.NoHomeserverAccount
+            else -> reason
+        }
     }
 
     fun onGetRingClick() {
@@ -126,7 +148,23 @@ class OnboardingViewModel(
         private const val TAG = "Loopky/OnboardingVM"
         private const val PUBKY_LOG_PREFIX_LEN = 8
 
+        /**
+         * How long to wait for Pubky Ring before giving up. Generous on purpose — approving can
+         * mean creating a key and writing down a recovery phrase — but finite, because the
+         * alternative is a spinner that never resolves.
+         */
+        private const val APPROVAL_TIMEOUT_MS = 3 * 60 * 1000L
+
         /** Product landing page — forwards to the correct store for the user's platform. */
         const val DEFAULT_INSTALL_URL = "https://pubkyring.app"
     }
 }
+
+/**
+ * Pubky Ring never came back within the approval window.
+ *
+ * A distinct type rather than a message string because the message-based classifier in
+ * `PubkyErrors` reads "timed out" as a transport failure, and this is not one — the relay is
+ * usually fine and simply has nothing to deliver.
+ */
+internal class RingApprovalTimeout : RuntimeException("Pubky Ring did not complete the authorisation")

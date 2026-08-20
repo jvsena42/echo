@@ -399,6 +399,8 @@
     <string name="error_session_expired_message">Sign in with Pubky Ring again to get back to your decks.</string>
     <string name="error_not_found_title">Not found</string>
     <string name="error_not_found_message">This deck no longer exists. It may have been deleted.</string>
+    <string name="error_no_account_title">Your Pubky isn\'t set up yet</string>
+    <string name="error_no_account_message">This Pubky doesn\'t have a homeserver account yet, so there\'s nowhere to keep your decks. Finish setting it up in Pubky Ring, then sign in again.</string>
     <string name="error_not_signed_in_title">Not signed in</string>
     <string name="error_not_signed_in_message">Sign in with Pubky Ring to continue.</string>
     <string name="error_ring_not_installed_title">Pubky Ring not found</string>

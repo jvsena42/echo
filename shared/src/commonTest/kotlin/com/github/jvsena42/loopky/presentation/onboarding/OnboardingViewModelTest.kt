@@ -10,8 +10,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
@@ -108,5 +110,44 @@ class OnboardingViewModelTest {
         advanceUntilIdle()
 
         assertEquals(expected = 2, actual = identityRepo.beginSignInCount)
+    }
+
+    @Test
+    fun aPubkyWithNoHomeserverAccountIsNamedInsteadOfReadingAsADeletedDeck() = runTest {
+        // The homeserver 404s an unknown pubky at signin (pubky-homeserver auth.rs::signin →
+        // get_or_http_error). That used to classify as NotFound, whose copy is "This deck no
+        // longer exists" — deck copy, on the sign-in screen, for a user who has no account.
+        identityRepo.completionResult = Result.failure(
+            PubkyError("Auth approval failed: Server responded with an error: 404 Not Found - Not Found"),
+        )
+        val vm = viewModel()
+
+        vm.onSignInClick()
+        advanceUntilIdle()
+
+        val state = assertIs<OnboardingUiState.Error>(vm.state.value)
+        assertEquals(ErrorReason.NoHomeserverAccount, state.reason)
+    }
+
+    @Test
+    fun aRingThatNeverAnswersEndsInAnErrorRatherThanASpinnerThatNeverResolves() = runTest {
+        // `await_auth_approval` blocks with no timeout of its own, and Ring posts nothing to the
+        // relay when it declines — so without a bound the user waits forever with no way back.
+        identityRepo.completionNeverReturns = true
+        val vm = viewModel()
+
+        vm.onSignInClick()
+        advanceTimeBy(2 * 60 * 1000L)
+        runCurrent()
+        assertIs<OnboardingUiState.AwaitingApproval>(
+            vm.state.value,
+            "two minutes is still within the window — approving can mean writing down a recovery phrase",
+        )
+
+        advanceUntilIdle()
+
+        val state = assertIs<OnboardingUiState.Error>(vm.state.value)
+        // Not AuthRelayUnreachable: the relay is usually fine and simply has nothing to deliver.
+        assertEquals(ErrorReason.AuthFailed, state.reason)
     }
 }

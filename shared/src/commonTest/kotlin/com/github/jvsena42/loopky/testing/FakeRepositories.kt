@@ -39,6 +39,7 @@ import com.github.jvsena42.loopky.domain.model.ordForIndex
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -56,6 +57,13 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
     var beginSignInError: Throwable? = null
     var completionResult: Result<Session> = Result.success(fakeSession())
     var beginSignInCount = 0
+
+    /**
+     * Makes the handle's `complete()` never return, modelling the real failure where Pubky Ring
+     * declines on its own side and posts nothing to the relay — the FFI's `await_auth_approval`
+     * has no timeout of its own, so it simply blocks forever.
+     */
+    var completionNeverReturns = false
 
     /** Profiles served by [fetchProfile]; a pubky that is absent fails as an unpublished one would. */
     val profiles = mutableMapOf<String, PubkyIdentity>()
@@ -79,9 +87,24 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
         return Result.success(
             object : AuthFlowHandle {
                 override val authUrl = this@FakeIdentityRepository.authUrl
-                override suspend fun complete(): Result<Session> = completionResult
+                override suspend fun complete(): Result<Session> {
+                    if (completionNeverReturns) awaitCancellation()
+                    return completionResult
+                }
             },
         )
+    }
+
+    /** Records what [beginSignUp] was asked for, so a retry can be shown to reuse the token. */
+    val signUpCalls = mutableListOf<Pair<String, String>>()
+
+    override suspend fun beginSignUp(
+        homeserverPubky: String,
+        signupToken: String,
+        capabilities: String,
+    ): Result<AuthFlowHandle> {
+        signUpCalls += homeserverPubky to signupToken
+        return beginSignIn(capabilities)
     }
 
     override suspend fun fetchProfile(pubky: String, forceRefresh: Boolean): Result<PubkyIdentity> {

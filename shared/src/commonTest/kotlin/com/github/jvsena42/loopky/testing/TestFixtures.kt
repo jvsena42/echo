@@ -1,6 +1,9 @@
 package com.github.jvsena42.loopky.testing
 
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
+import com.github.jvsena42.loopky.data.nexus.HttpMethod
+import com.github.jvsena42.loopky.data.nexus.HttpRequest
+import com.github.jvsena42.loopky.data.nexus.HttpResponse
 import com.github.jvsena42.loopky.data.pubky.MutableSessionProvider
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
@@ -51,26 +54,58 @@ class CountingRevalidator(private val pubky: String = TEST_PUBKY) : SessionReval
     }
 }
 
-/** [HttpFetcher] returning canned responses keyed by exact url. */
-class FakeHttpFetcher(
-    private val responses: MutableMap<String, Result<String>> = mutableMapOf(),
-) : HttpFetcher {
-    val requestedUrls = mutableListOf<String>()
+/**
+ * [HttpFetcher] returning canned responses keyed by (method, url).
+ *
+ * Responses are queued per key: each call pops the head and the last entry repeats forever. That
+ * is what makes a re-poll loop testable without a mocking library — a long-poll has to answer
+ * 408, 408, then 200 on the very same URL, and there is no other way to say so here.
+ */
+class FakeHttpFetcher : HttpFetcher {
+    private data class Key(val method: HttpMethod, val url: String)
 
+    private val responses = mutableMapOf<Key, ArrayDeque<Result<HttpResponse>>>()
+
+    /** Every request in order, for asserting method, body and timeout. */
+    val requests = mutableListOf<HttpRequest>()
+
+    /** Derived views, so assertions written against the GET-only fake still read the same. */
+    val requestedUrls: List<String> get() = requests.map { it.url }
+    val requestedHeaders: List<Map<String, String>> get() = requests.map { it.headers }
+
+    /**
+     * Canned 200 for a GET. **Replaces** whatever that URL previously answered, so a test can
+     * restate one URL's response between assertions without the old one lingering.
+     */
     fun respond(url: String, body: String) {
-        responses[url] = Result.success(body)
+        replace(HttpMethod.GET, url, Result.success(HttpResponse(statusCode = 200, body = body)))
     }
 
+    /** Transport failure for a GET — not a status, an unreachable server. Also replaces. */
     fun fail(url: String, error: Throwable) {
-        responses[url] = Result.failure(error)
+        replace(HttpMethod.GET, url, Result.failure(error))
     }
 
-    val requestedHeaders = mutableListOf<Map<String, String>>()
+    private fun replace(method: HttpMethod, url: String, result: Result<HttpResponse>) {
+        responses[Key(method, url)] = ArrayDeque(listOf(result))
+    }
 
-    override suspend fun get(url: String, headers: Map<String, String>): Result<String> {
-        requestedUrls.add(url)
-        requestedHeaders.add(headers)
-        return responses[url] ?: Result.failure(IllegalStateException("No canned response for $url"))
+    fun enqueue(method: HttpMethod, url: String, vararg canned: HttpResponse) {
+        val queue = responses.getOrPut(Key(method, url)) { ArrayDeque() }
+        canned.forEach { queue.addLast(Result.success(it)) }
+    }
+
+    fun enqueueFailure(method: HttpMethod, url: String, error: Throwable) {
+        responses.getOrPut(Key(method, url)) { ArrayDeque() }.addLast(Result.failure(error))
+    }
+
+    override suspend fun send(request: HttpRequest): Result<HttpResponse> {
+        requests.add(request)
+        val queue = responses[Key(request.method, request.url)]
+            ?: return Result.failure(
+                IllegalStateException("No canned response for ${request.method} ${request.url}"),
+            )
+        return if (queue.size > 1) queue.removeFirst() else queue.first()
     }
 }
 

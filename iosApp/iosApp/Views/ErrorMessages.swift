@@ -7,6 +7,10 @@ import Shared
 /// ViewModels deliberately carry no message text: the Pubky FFI's diagnostic string
 /// (`HTTP transport error: error sending request for url (https://_pubky.rc3om…)`) used to be
 /// rendered to users verbatim.
+///
+/// **Both switches end in `default:`, so adding an `ErrorReason` case compiles here without a
+/// warning and silently renders the generic copy.** Android's `when` is exhaustive and will fail
+/// the build; this file will not. Add the case here in the same change.
 enum ErrorCopy {
 
     static func title(for reason: ErrorReason) -> String {
@@ -17,6 +21,11 @@ enum ErrorCopy {
             return NSLocalizedString("Session expired", comment: "Error title: needs re-auth")
         case .notFound:
             return NSLocalizedString("Not found", comment: "Error title: missing record")
+        case .noHomeserverAccount:
+            return NSLocalizedString(
+                "Your Pubky isn't set up yet",
+                comment: "Error title: pubky has no homeserver account"
+            )
         case .notSignedIn:
             return NSLocalizedString("Not signed in", comment: "Error title: no session")
         case .ringNotInstalled:
@@ -52,6 +61,14 @@ enum ErrorCopy {
             return NSLocalizedString(
                 "This deck no longer exists. It may have been deleted.",
                 comment: "Error message: missing record"
+            )
+        case .noHomeserverAccount:
+            // Deliberately not "sign in again": there is nothing to sign in to. Saying so is the
+            // whole point of this case — it used to fall through to the deck-deleted copy.
+            return NSLocalizedString(
+                "This Pubky doesn't have a homeserver account yet, so there's nowhere to keep "
+                    + "your decks. Finish setting it up in Pubky Ring, then sign in again.",
+                comment: "Error message: pubky has no homeserver account"
             )
         case .notSignedIn:
             return NSLocalizedString(
