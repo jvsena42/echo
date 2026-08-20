@@ -42,7 +42,7 @@ class SignupHandoffViewModel(
 
     init {
         viewModelScope.launch {
-            val pending = signupRepository.pending.first()
+            val pending = signupRepository.pending.first() as? PendingSignup.Redeemable
             if (pending == null) {
                 Log.w(TAG, "init: no pending signup — nothing to hand off")
                 _state.update { it.copy(isWorking = false, error = SignupError.VerificationLost) }
@@ -59,12 +59,12 @@ class SignupHandoffViewModel(
             // keys the pubky it minted off the token, so re-sending the same one reuses that key
             // and skips an already-redeemed signup; minting a fresh token would instead create a
             // second identity and spend the user's money twice.
-            val pending = signupRepository.pending.first() ?: return@launch
+            val pending = signupRepository.pending.first() as? PendingSignup.Redeemable ?: return@launch
             start(pending)
         }
     }
 
-    private fun start(pending: PendingSignup) {
+    private fun start(pending: PendingSignup.Redeemable) {
         if (handoffJob?.isActive == true) return
         handoffJob = viewModelScope.launch {
             _state.update { it.copy(isWorking = true, error = null) }
@@ -108,7 +108,7 @@ class SignupHandoffViewModel(
      * case where they still need it, so the token is only dropped when the pubky we ended up
      * signed in as is the one this signup created.
      */
-    private suspend fun onApproved(session: Session, pending: PendingSignup) {
+    private suspend fun onApproved(session: Session, pending: PendingSignup.Redeemable) {
         val signedUpHere = session.homeserver.isBlank() ||
             session.homeserver == pending.homeserverPubky
 

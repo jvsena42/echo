@@ -388,13 +388,32 @@ interface SignupRepository {
      * and "the token is safely stored" the user's SMS attempt is already spent, so there must be
      * no window where it exists only in memory. Same for [awaitInvoice] and [redeemInviteCode].
      */
-    suspend fun redeemSmsCode(phoneNumber: String, code: String): Result<PendingSignup>
+    suspend fun redeemSmsCode(phoneNumber: String, code: String): Result<PendingSignup.Redeemable>
 
     /** Create a Lightning invoice to pay for a token. */
     suspend fun createInvoice(): Result<LnInvoice>
 
     /** Wait for [invoice] to be paid, persisting the resulting token before returning. */
-    suspend fun awaitInvoice(invoice: LnInvoice): Result<PendingSignup>
+    suspend fun awaitInvoice(invoice: LnInvoice): Result<PendingSignup.Redeemable>
+
+    /**
+     * An outstanding invoice to go back to waiting on, if there is one.
+     *
+     * Paying happens in a *different app*, so Loopky sits in the background — and may be killed —
+     * for the whole of it. On return the screen resumes this rather than issuing a second invoice,
+     * which would leave a payment already made with nothing listening for it. Returns null, and
+     * discards the record, once the invoice has expired.
+     */
+    suspend fun resumableInvoice(): LnInvoice?
+
+    /**
+     * The number a code was already texted to, if one was.
+     *
+     * Sending the text spends one of two verifications per week, and reading it happens in another
+     * app — so a return should land back on the code field with the number intact rather than at
+     * an empty one, which would invite the user to spend a second attempt on the same signup.
+     */
+    suspend fun resumableSmsPhoneNumber(): String?
 
     /**
      * Accept a hand-issued invite code.
@@ -403,7 +422,7 @@ interface SignupRepository {
      * the configured environment's default is used instead. The code's shape is checked locally
      * first, so a typo costs no round trip.
      */
-    suspend fun redeemInviteCode(code: String): Result<PendingSignup>
+    suspend fun redeemInviteCode(code: String): Result<PendingSignup.Redeemable>
 
     /**
      * The token waiting to be spent, or null. The single source of truth for "a signup is in

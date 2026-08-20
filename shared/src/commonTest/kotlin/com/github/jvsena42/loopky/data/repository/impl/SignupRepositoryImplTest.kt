@@ -135,4 +135,66 @@ class SignupRepositoryImplTest {
         amountSat = 10,
         expiresAtMillis = 0L,
     )
+
+    // --- surviving the app being killed --------------------------------------------------------
+
+    @Test
+    fun theInvoiceIsPersistedBeforeTheUserEverSeesIt() = runTest {
+        // The next thing they do is leave for a wallet app, where Loopky can be killed. Without
+        // the verification id on disk, a payment made in that window could never be claimed.
+        http.enqueue(
+            HttpMethod.POST,
+            "$base/ln_verification",
+            ok("""{"id":"v1","bolt11Invoice":"lnbc","amountSat":10,"expiresAt":9999999999999}"""),
+        )
+
+        repository.createInvoice().getOrThrow()
+
+        val awaiting = assertIs<PendingSignup.AwaitingPayment>(store.stored)
+        assertEquals("v1", awaiting.verificationId)
+    }
+
+    @Test
+    fun anOutstandingInvoiceIsResumableRatherThanReissued() = runTest {
+        store.save(
+            PendingSignup.AwaitingPayment(verificationId = "v1", amountSat = 10, expiresAtMillis = 9999999999999),
+        )
+
+        val resumed = repository.resumableInvoice()
+
+        assertEquals("v1", resumed?.id, "a second invoice would leave the paid one unwatched")
+    }
+
+    @Test
+    fun anExpiredInvoiceIsNotResumedAndIsForgotten() = runTest {
+        val expired = SignupRepositoryImpl(
+            homegate = HomegateClient(http, baseUrl = environment.homegateBaseUrl),
+            tokenStore = store,
+            environment = environment,
+            nowMillis = { 5_000L },
+        )
+        store.save(PendingSignup.AwaitingPayment(verificationId = "v1", amountSat = 10, expiresAtMillis = 1_000L))
+
+        assertNull(expired.resumableInvoice())
+        assertNull(store.stored, "nothing can be claimed against a dead invoice")
+    }
+
+    @Test
+    fun aSentSmsIsRememberedSoTheUserDoesNotSpendASecondAttempt() = runTest {
+        // Sending spends one of two verifications per week, and reading it happens in another app.
+        http.enqueue(HttpMethod.POST, "$base/sms_verification/send_code", ok("{}"))
+
+        repository.sendSmsCode("+31600000000").getOrThrow()
+
+        assertEquals("+31600000000", assertIs<PendingSignup.AwaitingSmsCode>(store.stored).phoneNumber)
+        assertEquals("+31600000000", repository.resumableSmsPhoneNumber())
+    }
+
+    @Test
+    fun aFailedSmsSendRemembersNothing() = runTest {
+        http.enqueue(HttpMethod.POST, "$base/sms_verification/send_code", HttpResponse(403, ""))
+
+        assertTrue(repository.sendSmsCode("+31").isFailure)
+        assertNull(store.stored, "no attempt was spent, so there is nothing to resume")
+    }
 }

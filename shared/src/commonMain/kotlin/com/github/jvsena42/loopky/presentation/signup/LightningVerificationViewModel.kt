@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.homegate.LnInvoice
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,22 +36,48 @@ class LightningVerificationViewModel(
     private var awaitJob: Job? = null
 
     init {
-        createInvoice()
+        start()
+    }
+
+    /**
+     * Resume an outstanding invoice if there is one, otherwise ask for a new one.
+     *
+     * Paying happens in a *different app*, so Loopky is backgrounded — and may be killed — for the
+     * whole of it. Issuing a second invoice on return would leave a payment already made with
+     * nothing listening for it.
+     */
+    private fun start() {
+        awaitJob?.cancel()
+        awaitJob = viewModelScope.launch {
+            val resumed = runSuspendCatching { signupRepository.resumableInvoice() }.getOrNull()
+            if (resumed != null) {
+                Log.d(TAG, "start: resuming an invoice that may already have been paid")
+                _state.update { it.copy(isLoading = false, invoice = resumed, isAwaitingPayment = true, isResumed = true) }
+                awaitPayment(resumed)
+            } else {
+                createInvoice()
+            }
+        }
     }
 
     fun createInvoice() {
         awaitJob?.cancel()
         awaitJob = viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null, invoice = null) }
+            _state.update { it.copy(isLoading = true, error = null, invoice = null, isResumed = false) }
             val invoice = signupRepository.createInvoice().getOrElse { err ->
                 Log.e(TAG, "createInvoice: FAILED — ${err.message}", err)
                 _state.update { it.copy(isLoading = false, error = err.toSignupError()) }
                 return@launch
             }
             _state.update { it.copy(isLoading = false, invoice = invoice, isAwaitingPayment = true) }
+            awaitPayment(invoice)
+        }
+    }
 
-            // The await is a long-lived poll living on viewModelScope, so leaving the screen
-            // cancels it at the next iteration boundary rather than leaving a socket parked.
+    /** The long-lived poll. On viewModelScope, so leaving the screen cancels it at the next
+     *  iteration boundary rather than leaving a socket parked. */
+    private suspend fun awaitPayment(invoice: LnInvoice) {
+        run {
             signupRepository.awaitInvoice(invoice)
                 .onSuccess {
                     _state.update { it.copy(isAwaitingPayment = false) }
@@ -84,6 +111,8 @@ data class LightningVerificationUiState(
     val isLoading: Boolean = true,
     val invoice: LnInvoice? = null,
     val isAwaitingPayment: Boolean = false,
+    /** True when this invoice was picked up again after the app was killed mid-payment. */
+    val isResumed: Boolean = false,
     val error: SignupError? = null,
 ) {
     /** An expired invoice is recoverable by asking for another, so the screen offers exactly that. */

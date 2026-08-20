@@ -24,7 +24,7 @@ import kotlin.test.assertNull
 @OptIn(ExperimentalCoroutinesApi::class)
 class SignupHandoffViewModelTest {
 
-    private val pending = PendingSignup(
+    private val pending = PendingSignup.Redeemable(
         token = "ABCD-1234-EFGH",
         homeserverPubky = "homeserverpk",
         source = PendingSignup.Source.Lightning,

@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.storage
 
 import com.github.jvsena42.loopky.data.homegate.SignupGrant
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -39,25 +40,71 @@ interface SignupTokenStore {
 }
 
 /**
- * A minted, unspent signup token and the homeserver it is good for.
+ * Something the user has already spent money or an SMS attempt on, and which must survive the
+ * process dying.
  *
- * [homeserverPubky] travels with the token because it is not interchangeable: the token is only
- * redeemable on the homeserver whose Homegate issued it. The Ring hand-off reads this value rather
- * than the configured environment, so switching environments mid-flow cannot misdirect a token
- * that already exists.
+ * Two states, because there are two windows where value exists and can be lost:
+ *
+ * 1. [AwaitingSmsCode] — a text has been sent, which spent one of the user's two verifications
+ *    per week. Reading it means leaving for the Messages app, so Loopky may be killed in between;
+ *    without the number on disk they would come back to an empty field and resend, burning a
+ *    second attempt for nothing.
+ * 2. [AwaitingPayment] — a Lightning invoice has been issued and may be getting paid *right now*
+ *    in another app. Loopky is in the background while that happens and can be killed at any
+ *    moment; if the verification id were only in a ViewModel, a payment made during that window
+ *    could never be claimed. The id is the claim.
+ * 3. [Redeemable] — a token exists and is waiting for Pubky Ring to spend it.
+ *
+ * A signup token is single-use and never expires, so neither state may be dropped on a whim.
  */
 @Serializable
-data class PendingSignup(
-    val token: String,
-    val homeserverPubky: String,
-    /** How it was obtained — lets the UI say "your payment is still good". */
-    val source: Source,
-) {
+sealed interface PendingSignup {
+
+    /**
+     * A verification text has been sent to [phoneNumber] and the code has not been entered yet.
+     *
+     * Carries no credential — the code arrives out of band — but the *attempt* it represents is
+     * finite and already spent, which is what makes it worth keeping.
+     */
+    @Serializable
+    @SerialName("awaiting_sms_code")
+    data class AwaitingSmsCode(val phoneNumber: String) : PendingSignup
+
+    /**
+     * An invoice is outstanding. Survives being backgrounded into a wallet app and killed, which
+     * is the whole reason this state is written to disk rather than held in memory.
+     */
+    @Serializable
+    @SerialName("awaiting_payment")
+    data class AwaitingPayment(
+        val verificationId: String,
+        val amountSat: Long,
+        /** Unix millis. Past this the invoice is dead and the record can be discarded. */
+        val expiresAtMillis: Long,
+    ) : PendingSignup
+
+    /**
+     * A token, and the homeserver it is good for.
+     *
+     * [homeserverPubky] travels with the token because it is not interchangeable: the token is
+     * only redeemable on the homeserver whose Homegate issued it. The Ring hand-off reads this
+     * value rather than the configured environment, so switching environments mid-flow cannot
+     * misdirect a token that already exists.
+     */
+    @Serializable
+    @SerialName("redeemable")
+    data class Redeemable(
+        val token: String,
+        val homeserverPubky: String,
+        /** How it was obtained — lets the UI say "your payment is still good". */
+        val source: Source,
+    ) : PendingSignup
+
     enum class Source { Sms, Lightning, Invite }
 
     companion object {
-        fun from(grant: SignupGrant, source: Source): PendingSignup =
-            PendingSignup(token = grant.token, homeserverPubky = grant.homeserverPubky, source = source)
+        fun from(grant: SignupGrant, source: Source): Redeemable =
+            Redeemable(token = grant.token, homeserverPubky = grant.homeserverPubky, source = source)
     }
 }
 

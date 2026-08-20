@@ -431,6 +431,7 @@
     <string name="signup_lightning_open_wallet">Open in wallet</string>
     <string name="signup_lightning_copy">Copy invoice</string>
     <string name="signup_lightning_copied">Invoice copied</string>
+    <string name="signup_lightning_no_wallet">No Lightning wallet found — invoice copied instead</string>
     <string name="signup_lightning_waiting">Waiting for payment…</string>
     <string name="signup_lightning_new_invoice">New invoice</string>
 

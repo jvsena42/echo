@@ -840,7 +840,7 @@ class FakeSignupRepository(pending: PendingSignup? = null) : SignupRepository {
         lightning = MethodAvailability.Unknown,
     )
     var availabilityError: Throwable? = null
-    var redeemResult: Result<PendingSignup>? = null
+    var redeemResult: Result<PendingSignup.Redeemable>? = null
     var sendSmsResult: Result<Unit> = Result.success(Unit)
     var invoiceResult: Result<LnInvoice> = Result.failure(IllegalStateException("no invoice set"))
 
@@ -849,20 +849,27 @@ class FakeSignupRepository(pending: PendingSignup? = null) : SignupRepository {
 
     override suspend fun sendSmsCode(phoneNumber: String): Result<Unit> = sendSmsResult
 
-    override suspend fun redeemSmsCode(phoneNumber: String, code: String): Result<PendingSignup> = mint()
+    override suspend fun redeemSmsCode(phoneNumber: String, code: String): Result<PendingSignup.Redeemable> = mint()
 
     override suspend fun createInvoice(): Result<LnInvoice> = invoiceResult
 
-    override suspend fun awaitInvoice(invoice: LnInvoice): Result<PendingSignup> = mint()
+    override suspend fun awaitInvoice(invoice: LnInvoice): Result<PendingSignup.Redeemable> = mint()
 
-    override suspend fun redeemInviteCode(code: String): Result<PendingSignup> = mint()
+    override suspend fun redeemInviteCode(code: String): Result<PendingSignup.Redeemable> = mint()
+
+    var resumableInvoice: LnInvoice? = null
+    var resumableSmsPhoneNumber: String? = null
+
+    override suspend fun resumableInvoice(): LnInvoice? = resumableInvoice
+
+    override suspend fun resumableSmsPhoneNumber(): String? = resumableSmsPhoneNumber
 
     override suspend fun clearPending() {
         clearCount++
         _pending.update { null }
     }
 
-    private fun mint(): Result<PendingSignup> {
+    private fun mint(): Result<PendingSignup.Redeemable> {
         mintCount++
         val result = redeemResult ?: Result.failure(IllegalStateException("no redeem result set"))
         result.getOrNull()?.let { granted -> _pending.update { granted } }

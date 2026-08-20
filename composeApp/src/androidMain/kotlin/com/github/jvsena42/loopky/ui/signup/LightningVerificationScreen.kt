@@ -1,6 +1,5 @@
 package com.github.jvsena42.loopky.ui.signup
 
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Spacer
@@ -53,11 +52,20 @@ fun LightningVerificationRoute(onBack: () -> Unit, onDone: () -> Unit) {
                 }
 
                 is LightningVerificationEffect.OpenWallet -> {
-                    // The wallet is on this device, which is why there is no QR to scan.
+                    // `lightning:` is the BOLT11 URI scheme wallets register, and the wallet is on
+                    // this device — which is why there is no QR to scan.
                     val intent = Intent(Intent.ACTION_VIEW, effect.uri.toUri())
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    runCatching { context.startActivity(intent) }
-                        .onFailure { if (it is ActivityNotFoundException) context.toast(R.string.signup_lightning_copied) }
+                    val opened = intent.resolveActivity(context.packageManager) != null &&
+                        runCatching { context.startActivity(intent) }.isSuccess
+
+                    if (!opened) {
+                        // No wallet installed. Copy the invoice rather than leaving the user with
+                        // a button that silently does nothing — and say what actually happened,
+                        // since claiming "invoice copied" without copying it is worse than useless.
+                        clipboard.setText(AnnotatedString(effect.uri.removePrefix(LIGHTNING_SCHEME)))
+                        context.toast(R.string.signup_lightning_no_wallet)
+                    }
                 }
 
                 LightningVerificationEffect.NavigateToHandoff -> currentOnDone()
@@ -134,3 +142,6 @@ private fun LightningVerificationScreen(
         }
     }
 }
+
+/** Stripped before copying, so the clipboard holds a bare BOLT11 the user can paste anywhere. */
+private const val LIGHTNING_SCHEME = "lightning:"

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,6 +31,20 @@ class PhoneVerificationViewModel(
 
     private val _effects = MutableSharedFlow<PhoneVerificationEffect>(extraBufferCapacity = 4)
     val effects: SharedFlow<PhoneVerificationEffect> = _effects.asSharedFlow()
+
+    init {
+        // Reading the text means leaving for another app, and Loopky can be killed there. Coming
+        // back to an empty field would invite a resend, spending a second of the two verifications
+        // the user gets per week — so a sent-but-unentered code resumes at the code field.
+        viewModelScope.launch {
+            val resumed = runSuspendCatching { signupRepository.resumableSmsPhoneNumber() }.getOrNull()
+            if (resumed != null) {
+                _state.update {
+                    it.copy(phase = PhoneVerificationPhase.CodeEntry, phoneNumber = resumed)
+                }
+            }
+        }
+    }
 
     private var sendJob: Job? = null
     private var verifyJob: Job? = null

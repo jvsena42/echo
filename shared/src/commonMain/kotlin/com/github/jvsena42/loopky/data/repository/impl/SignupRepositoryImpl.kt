@@ -14,6 +14,7 @@ import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * [SignupRepository] over [HomegateClient] and [SignupTokenStore].
@@ -39,24 +40,41 @@ class SignupRepositoryImpl(
         SignupAvailability(sms = sms.await(), lightning = lightning.await())
     }
 
-    override suspend fun sendSmsCode(phoneNumber: String): Result<Unit> =
-        homegate.sendSmsCode(phoneNumber)
+    override suspend fun sendSmsCode(phoneNumber: String): Result<Unit> = runSuspendCatching {
+        homegate.sendSmsCode(phoneNumber).getOrThrow()
+        // The text is sent, so an attempt is spent. Reading it means leaving for another app, and
+        // coming back to an empty field would invite the user to resend and spend a second one.
+        tokenStore.save(PendingSignup.AwaitingSmsCode(phoneNumber))
+    }
 
-    override suspend fun redeemSmsCode(phoneNumber: String, code: String): Result<PendingSignup> =
+    override suspend fun redeemSmsCode(phoneNumber: String, code: String): Result<PendingSignup.Redeemable> =
         runSuspendCatching {
             val grant = homegate.validateSmsCode(phoneNumber, code).getOrThrow()
             grant.persist(PendingSignup.Source.Sms)
         }
 
-    override suspend fun createInvoice(): Result<LnInvoice> = homegate.createLnInvoice()
+    override suspend fun createInvoice(): Result<LnInvoice> = runSuspendCatching {
+        val invoice = homegate.createLnInvoice().getOrThrow()
+        // Persisted before it is shown, because the very next thing the user does is leave for a
+        // wallet app — and Loopky can be killed while it is in the background. Without the
+        // verification id on disk, a payment made during that window could never be claimed.
+        tokenStore.save(
+            PendingSignup.AwaitingPayment(
+                verificationId = invoice.id,
+                amountSat = invoice.amountSat,
+                expiresAtMillis = invoice.expiresAtMillis,
+            ),
+        )
+        invoice
+    }
 
-    override suspend fun awaitInvoice(invoice: LnInvoice): Result<PendingSignup> =
+    override suspend fun awaitInvoice(invoice: LnInvoice): Result<PendingSignup.Redeemable> =
         runSuspendCatching {
             val grant = homegate.awaitLnPayment(invoice, nowMillis).getOrThrow()
             grant.persist(PendingSignup.Source.Lightning)
         }
 
-    override suspend fun redeemInviteCode(code: String): Result<PendingSignup> = runSuspendCatching {
+    override suspend fun redeemInviteCode(code: String): Result<PendingSignup.Redeemable> = runSuspendCatching {
         val normalised = code.normaliseInviteCode()
         // Checked locally so a typo costs no round trip — and, more usefully, so "that is not a
         // code" reads differently from "that code was already used".
@@ -71,9 +89,29 @@ class SignupRepositoryImpl(
             .persist(PendingSignup.Source.Invite)
     }
 
+    override suspend fun resumableSmsPhoneNumber(): String? =
+        (tokenStore.pending.first() as? PendingSignup.AwaitingSmsCode)?.phoneNumber
+
+    override suspend fun resumableInvoice(): LnInvoice? {
+        val awaiting = tokenStore.pending.first() as? PendingSignup.AwaitingPayment ?: return null
+        if (awaiting.expiresAtMillis in 1 until nowMillis()) {
+            // Dead invoice: nothing can be claimed against it, so stop offering to resume.
+            tokenStore.clear()
+            return null
+        }
+        return LnInvoice(
+            id = awaiting.verificationId,
+            // The BOLT11 is not kept — it is only needed to *make* a payment, and a resumed
+            // invoice is one that may already have been paid. All that matters now is the claim.
+            bolt11 = "",
+            amountSat = awaiting.amountSat,
+            expiresAtMillis = awaiting.expiresAtMillis,
+        )
+    }
+
     override suspend fun clearPending() = tokenStore.clear()
 
-    private suspend fun SignupGrant.persist(source: PendingSignup.Source): PendingSignup {
+    private suspend fun SignupGrant.persist(source: PendingSignup.Source): PendingSignup.Redeemable {
         val pending = PendingSignup.from(this, source)
         tokenStore.save(pending)
         return pending
