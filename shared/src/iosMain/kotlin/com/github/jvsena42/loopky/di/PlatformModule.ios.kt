@@ -19,7 +19,9 @@ import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.IosBackgroundTasks
+import com.github.jvsena42.loopky.platform.IosPubkyRingPresence
 import com.github.jvsena42.loopky.platform.IosSpeaker
+import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
@@ -97,6 +99,7 @@ private fun iosPlatformModule(
     single<SignupTokenStore> { IosSignupTokenStore() }
     single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }
     single<Speaker> { IosSpeaker() }
+    single<PubkyRingPresence> { IosPubkyRingPresence() }
     single<BackgroundTasks> { IosBackgroundTasks(identity = get(), decks = get()) }
 }
 
