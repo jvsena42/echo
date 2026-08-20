@@ -723,10 +723,25 @@ class FakeMediaRepository : MediaRepository {
         _pinnedFetches.tryEmit(PinnedBlob(deckId, sha256))
     }
 
+    /** When set, [putImage] fails with this from the [failPutImageFromCall]th call onwards. */
+    var failPutImageWith: Throwable? = null
+
+    /** Which upload starts failing, 1-based — so a test can let earlier blobs land first. */
+    var failPutImageFromCall: Int = 1
+
     override suspend fun putImage(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Image> {
         putImages.add(Triple(deckId, bytes, mime))
+        failPutImageWith?.takeIf { putImages.size >= failPutImageFromCall }
+            ?.let { return Result.failure(it) }
         return Result.success(
-            MediaRef.Image(path = "media/fake.jpg", mime = mime, sha256 = "fake", width = null, height = null),
+            MediaRef.Image(
+                // Distinct per upload, so a test can tell which blobs a failed publish swept.
+                path = "media/fake${putImages.size}.jpg",
+                mime = mime,
+                sha256 = "fake${putImages.size}",
+                width = null,
+                height = null,
+            ),
         )
     }
 
@@ -766,7 +781,12 @@ class FakeMediaRepository : MediaRepository {
         )
     }
 
-    override suspend fun delete(deckId: String, ref: MediaRef): Result<Unit> = Result.success(Unit)
+    val deletes = mutableListOf<Pair<String, MediaRef>>()
+
+    override suspend fun delete(deckId: String, ref: MediaRef): Result<Unit> {
+        deletes.add(deckId to ref)
+        return Result.success(Unit)
+    }
 }
 
 fun testDraft(vararg pairs: Pair<String, String>): ImportDraft = ImportDraft(

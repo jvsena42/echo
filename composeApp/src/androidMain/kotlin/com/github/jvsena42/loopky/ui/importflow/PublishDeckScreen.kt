@@ -79,6 +79,7 @@ import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.components.SharePromptBody
 import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.components.formErrorMessage
+import com.github.jvsena42.loopky.ui.components.publishErrorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.toast
 import kotlinx.coroutines.flow.collectLatest
@@ -507,8 +508,13 @@ private fun PublishDeckScreen(
                 .padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            state.error?.let { errorText ->
-                Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
+            state.error?.let { error ->
+                Text(
+                    publishErrorMessage(error),
+                    fontSize = 14.sp,
+                    color = colors.danger,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             if (busy) {
                 PublishProgress(
@@ -830,8 +836,13 @@ private fun PublishedContent(
         }
 
         // Error
-        state.error?.let { errorText ->
-            Text(errorText, fontSize = 14.sp, color = colors.danger, modifier = Modifier.fillMaxWidth())
+        state.error?.let { error ->
+            Text(
+                publishErrorMessage(error),
+                fontSize = 14.sp,
+                color = colors.danger,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }

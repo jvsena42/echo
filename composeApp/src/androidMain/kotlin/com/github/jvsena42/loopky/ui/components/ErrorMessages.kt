@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
+import com.github.jvsena42.loopky.presentation.importflow.PublishError
 import com.github.jvsena42.loopky.presentation.signup.SignupError
 import com.github.jvsena42.loopky.ui.importflow.MAX_IMPORT_FILE_BYTES
 
@@ -122,6 +123,22 @@ fun signupErrorMessage(error: SignupError): String = stringResource(
         SignupError.Unavailable -> R.string.signup_error_unavailable_message
     },
 )
+
+/**
+ * Copy for a failed publish step.
+ *
+ * Composed from [errorMessage] rather than duplicating it: the *cause* is the same vocabulary
+ * every other screen uses, and only the consequence differs — which is precisely what a failed
+ * cancel and a failed undo need to say, since one leaves a half-written deck behind and the other
+ * leaves the deck published.
+ */
+@Composable
+fun publishErrorMessage(error: PublishError): String = when (error) {
+    PublishError.NoDraft -> stringResource(R.string.publish_error_no_draft)
+    is PublishError.Publish -> stringResource(R.string.publish_error_publish, errorMessage(error.reason))
+    is PublishError.Cancel -> stringResource(R.string.publish_error_cancel, errorMessage(error.reason))
+    is PublishError.Undo -> stringResource(R.string.publish_error_undo, errorMessage(error.reason))
+}
 
 /** Field-level validation copy for [FormError]. */
 @Composable
