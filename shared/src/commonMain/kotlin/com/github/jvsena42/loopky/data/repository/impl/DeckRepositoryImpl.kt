@@ -17,6 +17,7 @@ import com.github.jvsena42.loopky.data.pubky.requireSession
 import com.github.jvsena42.loopky.data.pubky.toDomain
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.repository.CardRepository
+import com.github.jvsena42.loopky.data.repository.CompactionOutcome
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.PublishProgress
@@ -172,7 +173,10 @@ class DeckRepositoryImpl(
         // editor leaves a tag record behind. Read what the deck was before writing, since the
         // cache entry is replaced below.
         val previous = getLocal(deck.id)
-        val previousChunkCount = previous?.chunks?.size ?: 0
+        // By chunk number, not `0 until previous.chunks.size`: compaction leaves gaps in the
+        // numbering (#51), so a count would miss exactly the high-numbered records a compacted
+        // deck still has lying around.
+        val staleChunks = previous?.chunks.orEmpty().map { it.n }.filter { it >= batches.size }
 
         val manifestDeck = deck.copy(cardCount = cards.size, chunks = chunkMeta)
 
@@ -218,7 +222,7 @@ class DeckRepositoryImpl(
         // Unreachable from the manifest once it shrinks, but left behind they would be served to
         // anyone listing the deck's `cards/` directory directly. An empty write deletes the record
         // and drops the cards it held from the cache in one step.
-        (batches.size until previousChunkCount).toList().mapConcurrently { n ->
+        staleChunks.mapConcurrently { n ->
             cardRepo.writeChunk(deck.id, n, emptyList())
                 .onFailure { Log.e(TAG, "publish: stale chunk $n not removed — ${it.message}", it) }
         }
@@ -327,7 +331,12 @@ class DeckRepositoryImpl(
                 .filterNot { it.id == cardId }
 
             cardRepo.evict(deckId, cardId)
-            writeChunkAndManifestLocked(deck, chunk, remaining)
+            writeChunkAndManifestLocked(deck, chunk, remaining).also { updated ->
+                // Requested, never performed inline: compacting here would cost a merge per card
+                // in a bulk delete, and rewrite records followers have cached, in the middle of
+                // the user's edit. The job is unique work with KEEP, so asking repeatedly is free.
+                if (CardChunking.isSparse(updated.chunks)) backgroundTasks.scheduleDeckCompaction()
+            }
         }
     }
 
@@ -414,6 +423,56 @@ class DeckRepositoryImpl(
         }
     }
 
+    override suspend fun compactDeck(deckId: String, maxMerges: Int): Result<CompactionOutcome> =
+        runSuspendCatching {
+            val deck = requireOwnedDeck(deckId)
+            compactor.compact(deck.id, maxMerges)
+        }
+
+    override suspend fun decksPendingCompaction(): List<Deck> =
+        listOwned().filter { CardChunking.isSparse(it.chunks) }
+
+    /**
+     * Fold chunk [from] into chunk [into], which ends up holding [merged] (#51).
+     *
+     * **The caller must hold [Deck.id]'s write lock.** Deliberately not routed through
+     * [writeChunksAndManifestLocked]: every other chunk write pairs "chunk, then manifest", but a
+     * merge *removes* a record, and emptying it before the manifest drops its entry would leave a
+     * window where the manifest points at a chunk that 404s. Landing record, then manifest, then
+     * the source record — that order only ever over-counts, and between the first two writes the
+     * moved cards sit in both records, which reads as one card because membership is keyed by id.
+     *
+     * `updated_at` is not bumped and no change is emitted: compaction moves cards between records
+     * without changing one of them, so telling every follower the author published would be a lie.
+     * The per-chunk stamps *are* bumped, which is what makes a follower re-fetch the pair.
+     */
+    private suspend fun mergeChunksLocked(
+        deck: Deck,
+        into: Int,
+        from: Int,
+        merged: List<Card>,
+    ): Deck {
+        cardRepo.writeChunk(deck.id, into, merged).getOrThrow()
+
+        val now = epochMillis()
+        val updated = patchDeckLocked(deck.id, emitChange = false) { current ->
+            val chunks = CardChunking.withChunk(
+                CardChunking.withChunk(current.chunks, into, merged.size, now),
+                from,
+                count = 0,
+                updatedAt = now,
+            )
+            current.copy(chunks = chunks, cardCount = CardChunking.cardCount(chunks))
+        }
+
+        // Unreachable through the manifest from here on, so a failure costs storage rather than
+        // correctness — the next full publish or a deck delete sweeps it.
+        cardRepo.writeChunk(deck.id, from, emptyList()).onFailure {
+            Log.e(TAG, "compact: chunk $from of ${deck.id} orphaned — ${it.message}", it)
+        }
+        return updated
+    }
+
     /** [DeckMediaSweeper]'s window onto this class, keeping the write lock owned here. */
     private val writeAccess = object : DeckWriteAccess {
         override suspend fun localDeck(deckId: String): Deck? = getLocal(deckId)
@@ -423,9 +482,17 @@ class DeckRepositoryImpl(
 
         override suspend fun patchLocked(deckId: String, patch: (Deck) -> Deck): Deck =
             patchDeckLocked(deckId, emitChange = false, patch = patch)
+
+        override suspend fun mergeChunksLocked(
+            deck: Deck,
+            into: Int,
+            from: Int,
+            merged: List<Card>,
+        ): Deck = this@DeckRepositoryImpl.mergeChunksLocked(deck, into, from, merged)
     }
 
     private val sweeper = DeckMediaSweeper(cardRepo, mediaRepo, writeAccess)
+    private val compactor = DeckCompactor(cardRepo, writeAccess)
 
     /** Rewrite [cards]' refs to the re-hosted blob, one chunk write per chunk they live in. */
     private suspend fun writeRehostedCards(
@@ -621,6 +688,12 @@ class DeckRepositoryImpl(
         // sweep the system cancelled.
         if (owned.any { it.source?.kind == DeckSource.Kind.Clone && !it.mediaRehosted }) {
             backgroundTasks.scheduleMediaRehost()
+        }
+        // Same self-heal, and free: the density question is answered by the manifests this
+        // listing already fetched. Recovers a deck whose delete-time signal was dropped, and
+        // catches one compacted on another device down to a table this one can shrink further.
+        if (owned.any { CardChunking.isSparse(it.chunks) }) {
+            backgroundTasks.scheduleDeckCompaction()
         }
         return owned
     }

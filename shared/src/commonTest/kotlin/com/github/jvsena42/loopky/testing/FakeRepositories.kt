@@ -1,7 +1,9 @@
 package com.github.jvsena42.loopky.testing
 
+import com.github.jvsena42.loopky.data.pubky.CardChunking
 import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
 import com.github.jvsena42.loopky.data.repository.CardRepository
+import com.github.jvsena42.loopky.data.repository.CompactionOutcome
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
@@ -112,6 +114,17 @@ class FakeDeckRepository : DeckRepository {
 
     override suspend fun decksPendingRehost(): List<Deck> =
         decks.values.filter { it.source?.kind == DeckSource.Kind.Clone && !it.mediaRehosted }
+
+    val compactions = mutableListOf<String>()
+
+    override suspend fun compactDeck(deckId: String, maxMerges: Int): Result<CompactionOutcome> {
+        compactions.add(deckId)
+        val chunks = decks[deckId]?.chunks?.size ?: 0
+        return Result.success(CompactionOutcome(0, 0, chunks, chunks, complete = true))
+    }
+
+    override suspend fun decksPendingCompaction(): List<Deck> =
+        decks.values.filter { CardChunking.isSparse(it.chunks) }
 
     private val _changes = MutableSharedFlow<Unit>(
         extraBufferCapacity = 8,
@@ -787,7 +800,14 @@ class FakeBackgroundTasks : BackgroundTasks {
     var scheduled = 0
         private set
 
+    var compactionsScheduled = 0
+        private set
+
     override fun scheduleMediaRehost() {
         scheduled++
+    }
+
+    override fun scheduleDeckCompaction() {
+        compactionsScheduled++
     }
 }

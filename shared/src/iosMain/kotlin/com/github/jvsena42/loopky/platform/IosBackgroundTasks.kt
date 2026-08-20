@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.platform
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,9 +25,9 @@ import platform.Foundation.dateWithTimeIntervalSinceNow
  * iOS differs from WorkManager in two ways that shape this:
  * - The handler must be registered **before the app finishes launching**, hence [register] being
  *   called from the Koin bootstrap rather than lazily on first schedule.
- * - The system decides when — and whether — a processing task runs, so a sweep may sit for days.
- *   That is acceptable here: re-hosting is opportunistic by design, and #65 already covers the
- *   blobs the user actually looks at.
+ * - The system decides when — and whether — a processing task runs, so a pass may sit for days.
+ *   That is acceptable for both jobs: re-hosting is opportunistic by design (#65 already covers
+ *   the blobs the user actually looks at), and compaction only ever buys request count back.
  */
 @OptIn(ExperimentalForeignApi::class)
 class IosBackgroundTasks(
@@ -47,6 +48,12 @@ class IosBackgroundTasks(
             usingQueue = null,
         ) { task -> task?.let(::runSweep) }
         Log.d(TAG, "register: $MEDIA_REHOST_TASK_ID registered=$registered")
+
+        val compaction = BGTaskScheduler.sharedScheduler.registerForTaskWithIdentifier(
+            identifier = DECK_COMPACTION_TASK_ID,
+            usingQueue = null,
+        ) { task -> task?.let(::runCompaction) }
+        Log.d(TAG, "register: $DECK_COMPACTION_TASK_ID registered=$compaction")
     }
 
     override fun scheduleMediaRehost() {
@@ -64,27 +71,56 @@ class IosBackgroundTasks(
             .onFailure { Log.e(TAG, "scheduleMediaRehost: submit failed — ${it.message}", it) }
     }
 
-    private fun runSweep(task: BGTask) {
+    override fun scheduleDeckCompaction() {
+        val request = BGProcessingTaskRequest(DECK_COMPACTION_TASK_ID).apply {
+            setRequiresNetworkConnectivity(true)
+            setRequiresExternalPower(false)
+            setEarliestBeginDate(NSDate.dateWithTimeIntervalSinceNow(EARLIEST_BEGIN_SECONDS))
+        }
+        runCatching { BGTaskScheduler.sharedScheduler.submitTaskRequest(request, null) }
+            .onFailure { Log.e(TAG, "scheduleDeckCompaction: submit failed — ${it.message}", it) }
+    }
+
+    private fun runCompaction(task: BGTask) = run(task, ::scheduleDeckCompaction) {
+        decks.decksPendingCompaction().forEach { deck ->
+            decks.compactDeck(deck.id)
+                .onFailure { Log.e(TAG, "compaction of ${deck.id} failed — ${it.message}", it) }
+        }
+    }
+
+    private fun runSweep(task: BGTask) = run(task, ::scheduleMediaRehost) {
+        decks.decksPendingRehost().forEach { deck ->
+            decks.rehostPendingMedia(deck.id)
+                .onFailure { Log.e(TAG, "sweep of ${deck.id} failed — ${it.message}", it) }
+        }
+    }
+
+    /**
+     * Run [work] as a `BGTask`: signed in first, always asking for another pass through
+     * [reschedule], and cancellable from the expiration handler.
+     *
+     * iOS gives a processing task a few minutes and then pulls the plug, so cancelling is what
+     * keeps the work interruptible; the persisted cursor (re-host) and the fact that each merge
+     * commits on its own (compaction) are what make that survivable. And unlike WorkManager there
+     * is no `retry()` — a submitted request is consumed once it runs — so a pass stopped by its
+     * budget would otherwise never be picked up again.
+     */
+    private fun run(task: BGTask, reschedule: () -> Unit, work: suspend () -> Unit) {
         val job = scope.launch {
-            runCatching {
-                if (identity.loadPersistedSession() == null) return@runCatching
-                decks.decksPendingRehost().forEach { deck ->
-                    decks.rehostPendingMedia(deck.id)
-                        .onFailure { Log.e(TAG, "sweep of ${deck.id} failed — ${it.message}", it) }
-                }
-            }.onFailure { Log.e(TAG, "runSweep: FAILED — ${it.message}", it) }
-            // Always ask for another pass. Unlike WorkManager there is no `retry()`, and a
-            // submitted request is consumed once it runs, so a deck stopped by its chunk budget
-            // would otherwise never be picked up again.
-            scheduleMediaRehost()
+            // runSuspendCatching, not runCatching: the expiration handler cancels this job, and a
+            // plain runCatching would swallow that and go on to reschedule and report success —
+            // both of which the handler has already done.
+            runSuspendCatching {
+                if (identity.loadPersistedSession() == null) return@runSuspendCatching
+                work()
+            }.onFailure { Log.e(TAG, "run: FAILED — ${it.message}", it) }
+            reschedule()
             task.setTaskCompletedWithSuccess(true)
         }
-        // iOS gives a processing task a few minutes and then pulls the plug. Cancelling here is
-        // what keeps the work interruptible; the persisted cursor is what makes that survivable.
         task.expirationHandler = {
-            Log.w(TAG, "runSweep: expired, cancelling")
+            Log.w(TAG, "run: expired, cancelling")
             job.cancel()
-            scheduleMediaRehost()
+            reschedule()
             task.setTaskCompletedWithSuccess(false)
         }
     }

@@ -196,6 +196,34 @@ interface DeckRepository {
      * completed a sweep. What the background job iterates.
      */
     suspend fun decksPendingRehost(): List<Deck>
+
+    /**
+     * Reclaim the holes card deletes leave in the chunk table, at most [maxMerges] per call (#51).
+     *
+     * Deletes shrink a chunk's `count` rather than resequencing every card after it, so a deck
+     * that churned heavily — import 20k, delete 15k — ends up spread over far more records than
+     * its card count warrants. Holes never break correctness; the cost is that opening the deck
+     * costs a request per chunk, so a 5k-card deck can read like a 20k-card one.
+     *
+     * Each merge folds one pair of neighbouring chunks into a single record and drops the other,
+     * so the pass converges: every step strictly shrinks the table, and it stops when no two
+     * neighbours fit in one record. Order is preserved — the folded pair is renumbered inside the
+     * landing chunk's own `ord` range, so no other chunk moves.
+     *
+     * Deliberately **not** on the delete path. This is maintenance, not part of the user's edit:
+     * it rewrites records followers have cached, and a bulk delete would otherwise pay for a merge
+     * per card. A no-op for a deck you do not own.
+     */
+    suspend fun compactDeck(
+        deckId: String,
+        maxMerges: Int = DEFAULT_COMPACTION_MERGE_BUDGET,
+    ): Result<CompactionOutcome>
+
+    /**
+     * Decks of yours whose chunk table has holes worth closing. Answered from the manifests the
+     * listing already fetched, so asking costs no extra requests.
+     */
+    suspend fun decksPendingCompaction(): List<Deck>
     suspend fun listOwned(): List<Deck>
 
     /** Public decks for any author (their homeserver, read-only). Powers friend profiles + Discover. */
@@ -706,6 +734,28 @@ const val DEFAULT_REHOST_CHUNK_BUDGET = 25
 
 /** Chunks processed per manifest patch. The chunk record is the durable unit; see the KDoc. */
 const val REHOST_MANIFEST_BATCH = 10
+
+/** How far one [DeckRepository.compactDeck] pass got. */
+data class CompactionOutcome(
+    /** Chunk pairs folded together — also the number of records the deck no longer has. */
+    val merges: Int,
+    /** Cards rewritten into a neighbouring chunk. */
+    val cardsMoved: Int,
+    val chunksBefore: Int,
+    val chunksAfter: Int,
+    /**
+     * True when the pass ran out of merges to make rather than out of budget. False means another
+     * pass has work left — either the budget was spent or a chunk could not be read.
+     */
+    val complete: Boolean,
+)
+
+/**
+ * Merges one [DeckRepository.compactDeck] call will make before returning, so a background run
+ * that is killed partway keeps its progress. Each merge costs two chunk reads, a chunk write, a
+ * manifest write and a delete, so this sits well inside WorkManager's ~10 minute window.
+ */
+const val DEFAULT_COMPACTION_MERGE_BUDGET = 20
 
 /**
  * A blob just served from another author's homeserver, on a deck the signed-in user owns — a

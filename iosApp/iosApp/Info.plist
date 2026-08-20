@@ -18,6 +18,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.github.jvsena42.loopky.media-rehost</string>
+		<string>com.github.jvsena42.loopky.deck-compaction</string>
 	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
