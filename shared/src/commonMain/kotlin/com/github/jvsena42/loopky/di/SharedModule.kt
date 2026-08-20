@@ -85,7 +85,7 @@ val sharedModule = module {
             nowMillis = ::epochMillis,
         )
     }
-    single<SrsRepository> { SrsRepositoryImpl(get(), get(), get(), get(), get()) }
+    single<SrsRepository> { SrsRepositoryImpl(get(), get(), get(), get(), get(), get()) }
     single<DiscoveryRepository> {
         DiscoveryRepositoryImpl(get(), get(), get(), get(), get(), get(), get(), get())
     }

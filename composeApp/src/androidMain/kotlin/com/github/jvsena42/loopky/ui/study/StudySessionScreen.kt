@@ -55,7 +55,9 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -84,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.platform.Speaker
@@ -172,6 +175,7 @@ fun StudySessionRoute(
         onSpeakCancel = viewModel::onSpeakDismiss,
         onClose = viewModel::onClose,
         onDone = onClose,
+        onDismissSyncError = viewModel::onDismissSyncError,
     )
 }
 
@@ -187,6 +191,7 @@ fun StudySessionScreen(
     onSpeakContinue: () -> Unit = {},
     onSpeakRetry: () -> Unit = {},
     onSpeakCancel: () -> Unit = {},
+    onDismissSyncError: () -> Unit = {},
 ) {
     val colors = LoopkyTheme.colors
     Box(
@@ -231,6 +236,16 @@ fun StudySessionScreen(
                 onSpeak = onSpeak,
                 onSpeakTest = onSpeakTest,
                 onClose = onClose,
+            )
+        }
+
+        // Overlaid rather than replacing the card: the reviews are buffered and journalled, so the
+        // session is still worth finishing — the user just needs to know the writing has stopped.
+        state.syncError?.let { reason ->
+            SyncErrorBanner(
+                reason = reason,
+                onDismiss = onDismissSyncError,
+                modifier = Modifier.align(Alignment.TopCenter),
             )
         }
     }
@@ -760,6 +775,54 @@ private fun BoxScope.CenteredMessage(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.W700,
             )
+        }
+    }
+}
+
+/**
+ * Why buffered reviews are not reaching the homeserver, for the states that can still show it.
+ * Loading/Empty/Error have no session in progress to warn about.
+ */
+private val StudySessionUiState.syncError: ErrorReason?
+    get() = when (this) {
+        is StudySessionUiState.Reviewing -> syncError
+        is StudySessionUiState.Complete -> syncError
+        else -> null
+    }
+
+/**
+ * Warns that graded reviews are not being written, without ending the session.
+ *
+ * The failure this exists for is a full homeserver, where the copy has to say the one thing the
+ * generic error did not: retrying will not help, and the fix is to free space. The reviews
+ * themselves are safe — buffered, journalled to disk, and re-sent by the next flush that can.
+ */
+@Composable
+private fun SyncErrorBanner(
+    reason: ErrorReason,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Surface(
+        color = colors.danger,
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .testTag("study_sync_error"),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                stringResource(R.string.study_sync_error_title),
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(errorMessage(reason), color = Color.White, fontSize = 13.sp)
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.study_sync_error_dismiss), color = Color.White)
+            }
         }
     }
 }

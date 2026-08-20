@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.presentation.study
 
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeSrsRepository
@@ -10,6 +11,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
@@ -17,6 +19,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -139,5 +142,53 @@ class StudySessionViewModelTest {
 
         val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
         assertEquals(expected = 2, actual = state.total)
+    }
+
+    // ── sync failures (#91) ──────────────────────────────────────────────
+
+    @Test
+    fun aFailedBackgroundFlushWarnsWithoutEndingTheSession() = runTest {
+        seedDeck()
+        val vm = viewModel()
+        runCurrent()
+
+        srsRepo.emitFlushFailure(ErrorReason.StorageFull)
+        runCurrent()
+
+        // A warning over the card, not an Error state: the reviews are buffered and journalled, so
+        // blanking the card the user is mid-way through would cost them more than the warning.
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(ErrorReason.StorageFull, state.syncError)
+    }
+
+    @Test
+    fun theSyncWarningOutlivesTheNextCard() = runTest {
+        seedDeck()
+        val vm = viewModel()
+        runCurrent()
+        srsRepo.emitFlushFailure(ErrorReason.StorageFull)
+        runCurrent()
+
+        vm.onGrade(SrsGrade.Good)
+        runCurrent()
+
+        // emitCurrent rebuilds the state on every card, and a warning the user has not acted on
+        // must not vanish because they graded the next one.
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(ErrorReason.StorageFull, state.syncError)
+    }
+
+    @Test
+    fun dismissingTheSyncWarningClearsIt() = runTest {
+        seedDeck()
+        val vm = viewModel()
+        runCurrent()
+        srsRepo.emitFlushFailure(ErrorReason.StorageFull)
+        runCurrent()
+
+        vm.onDismissSyncError()
+        runCurrent()
+
+        assertNull(assertIs<StudySessionUiState.Reviewing>(vm.state.value).syncError)
     }
 }

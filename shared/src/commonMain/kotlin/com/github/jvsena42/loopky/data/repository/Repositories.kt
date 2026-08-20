@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ParsedRow
@@ -783,6 +784,20 @@ interface SrsRepository {
      */
     val changes: SharedFlow<String>
 
+    /**
+     * Emits when a background [flushAsync] fails, so the study screen can say so.
+     *
+     * Without it the highest-severity consequence of a full homeserver was silent by
+     * construction: [flushAsync] logged the failure and threw it away, the reviews went back into
+     * an in-memory dirty set, every retry hit the same 507, and the whole set died with the
+     * process. The user studied a full session, watched the counters move, restarted the app, and
+     * the progress was gone — with no error at any point (#91).
+     *
+     * Replayed, because the flush that fails is usually the one started as the study screen goes
+     * away; a collector that subscribes afterwards still needs to learn about it.
+     */
+    val flushFailures: SharedFlow<ErrorReason>
+
     /** All cards due for review across every owned deck (new cards count as due). */
     suspend fun dueToday(): List<Card>
 
@@ -810,6 +825,11 @@ interface SrsRepository {
     /**
      * Write buffered reviews to the homeserver. Called at the end of a study session, and
      * automatically every so often so a crash costs a few cards rather than the whole session.
+     *
+     * Buffered reviews are also mirrored to a device-local journal
+     * ([com.github.jvsena42.loopky.data.storage.PendingReviewStore]), so a set that cannot be
+     * written — a full quota, an outage — survives the process rather than dying with it. The
+     * journal is cleared by the first flush that succeeds.
      */
     suspend fun flush(): Result<Unit>
 

@@ -4,9 +4,11 @@ import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.data.pubky.CardChunkDto
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.toDto
+import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakeBackgroundTasks
@@ -217,6 +219,24 @@ class DeckRepositorySweepTest {
 
         assertEquals(1, outcome.failed)
         assertFalse(outcome.complete)
+        assertFalse(repo.fetchRemote(TEST_PUBKY, clone.id).getOrThrow().mediaRehosted)
+    }
+
+    @Test
+    fun aFullQuotaEndsTheSweepInsteadOfBeingReportedAsUnfinished() = runTest {
+        val cards = (1..3).map { cardWith("c$it", pinnedImage("sha$it")) }
+        val (repo, clone) = clonedDeck(cards)
+        media.failRehostWith = PubkyError("Request failed: 507 Insufficient Storage")
+
+        val result = repo.rehostPendingMedia(clone.id)
+
+        // A failure, not an unfinished outcome: the worker has to be able to tell "come back
+        // later" from "stop until the user frees space", and only the exception says the latter.
+        assertTrue(result.isFailure)
+        assertEquals(ErrorReason.StorageFull, result.exceptionOrNull()!!.toErrorReason())
+        // And it stops at the first blob rather than trying the other two into a full disk —
+        // re-hosting is itself what consumes the quota.
+        assertEquals(1, media.rehosts.size)
         assertFalse(repo.fetchRemote(TEST_PUBKY, clone.id).getOrThrow().mediaRehosted)
     }
 

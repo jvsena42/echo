@@ -1,6 +1,9 @@
 package com.github.jvsena42.loopky.presentation.importflow
 
+import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
+import com.github.jvsena42.loopky.domain.model.DraftCardImage
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
@@ -157,7 +160,7 @@ class PublishDeckViewModelTest {
         vm.onPublishClick()
         runCurrent()
 
-        assertEquals("No import data. Please go back and paste again.", vm.state.value.error)
+        assertEquals(PublishError.NoDraft, vm.state.value.error)
         assertTrue(deckRepo.published.isEmpty())
     }
 
@@ -257,9 +260,46 @@ class PublishDeckViewModelTest {
         vm.onPublishClick()
         runCurrent()
 
-        assertEquals("homeserver down", vm.state.value.error)
+        assertEquals(PublishError.Publish(ErrorReason.Unknown), vm.state.value.error)
         assertNull(vm.state.value.publishedDeckId)
         assertTrue(!vm.state.value.isPublishing)
+    }
+
+    @Test
+    fun aFailedCardImageUploadFailsThePublishInsteadOfDroppingTheImage() = runTest {
+        // The deck used to come out looking successfully published and quietly missing the images
+        // the user picked, because a failed upload degraded to null. A deck missing media the user
+        // chose is a failed publish (#91).
+        importRepo.setRowImage(0, isFront = true, image = DraftCardImage(bytes = byteArrayOf(1), mime = "image/jpeg"))
+        mediaRepo.failPutImageWith = PubkyError("Request failed: 507 Insufficient Storage")
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+
+        vm.onPublishClick()
+        runCurrent()
+
+        assertEquals(PublishError.Publish(ErrorReason.StorageFull), vm.state.value.error)
+        assertTrue(deckRepo.published.isEmpty(), "a deck was published without the chosen image")
+        assertFalse(vm.state.value.isPublishing)
+        assertNull(vm.state.value.publishedDeckId)
+    }
+
+    @Test
+    fun anAbortedPublishRemovesTheBlobsItAlreadyUploaded() = runTest {
+        // Media goes up before publish() writes the #49 marker manifest, so deckRepository.delete
+        // has nothing to walk — anything that landed has to be removed by hand or it is orphaned.
+        importRepo.setRowImage(0, isFront = true, image = DraftCardImage(bytes = byteArrayOf(1), mime = "image/jpeg"))
+        importRepo.setRowImage(1, isFront = true, image = DraftCardImage(bytes = byteArrayOf(2), mime = "image/jpeg"))
+        // The first upload lands; the second is what runs the disk out.
+        mediaRepo.failPutImageWith = PubkyError("Request failed: 507 Insufficient Storage")
+        mediaRepo.failPutImageFromCall = 2
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+
+        vm.onPublishClick()
+        runCurrent()
+
+        assertEquals(listOf("fake1"), mediaRepo.deletes.map { it.second.sha256 })
     }
 
     @Test

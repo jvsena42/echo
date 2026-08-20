@@ -7,10 +7,18 @@ import kotlinx.coroutines.delay
  * The FFI surfaces this as a [PubkyError] with a message containing "session" plus
  * one of the common verbs. We match defensively on substrings because the FFI error
  * text is not a stable API contract.
+ *
+ * **A transport failure is never an expiry, however it is worded.** Offline, the FFI reports
+ * `"Failed to import session: Request failed: HTTP transport error: error sending request for
+ * url (…/session)"` — which contains both "session" and "import" and so matched here. The request
+ * never reached the homeserver, so nothing can be concluded about the session; treating it as an
+ * expiry told an offline user to sign in with Pubky Ring again, and `requiresReauth` would have
+ * signed them out over a dropped connection. Checked first, because the wording overlaps.
  */
 internal fun Throwable.isSessionExpired(): Boolean {
     if (this !is PubkyError) return false
     val msg = message?.lowercase() ?: return false
+    if (isNetworkFailure()) return false
     return "session" in msg &&
         ("import" in msg || "expired" in msg || "invalid" in msg)
 }
@@ -35,6 +43,9 @@ fun Throwable.requiresReauth(): Boolean = isSessionExpired()
  * partway through. The failure is transient and the request well-formed, so surfacing it to the
  * user would be wrong.
  *
+ * **Not** retried: a 507 out-of-storage. It is terminal until the user deletes something, so a
+ * retry chain against it only spends time reaching the same answer.
+ *
  * [attempt] must re-read the session secret itself; it is invoked afresh for every try.
  */
 private suspend fun withWriteRetry(
@@ -58,6 +69,10 @@ private suspend fun withWriteRetry(
                 revalidated = true
                 revalidator.revalidate().getOrElse { return Result.failure(it) }
             }
+
+            // Never retried, and asserted here rather than relied on: 507 is terminal until the
+            // user frees space, so backing off against it only delays the same failure (#91).
+            error.isQuotaExceeded() -> return result
 
             error.isRateLimited() && rateLimitRetries < MAX_RATE_LIMIT_RETRIES -> {
                 rateLimitRetries++
