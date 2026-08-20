@@ -758,6 +758,27 @@ A merge leaves a gap in the chunk numbering. Nothing downstream assumes the tabl
 
 **Known gap:** a deck published before the chunk table existed has no page boundaries to walk, so the editor still reads it whole (small by construction — the layout landed before any Anki-sized import could).
 
+### 8.5 Storage quota (507)
+
+The homeserver enforces a **per-user storage quota** and answers **507 Insufficient Storage** on any write that would exceed it. The limit is set by the signup token at redemption, so it is a property of *how the account was approved*, falling back to the server's default; the free tier is advertised as **1 GB**. Every file also costs **256 bytes of metadata** on top of its content, which Loopky pays a lot of, since it writes many small records.
+
+The body is plain text — `"Disk space quota exceeded"` — and the server builds a 507 in **two** places (a pre-flight check against `used_bytes`, and the storage layer's own quota error), so the wording reaching the FFI is not one fixed string. `isQuotaExceeded` therefore matches three independent substrings plus the status code, and the status code is matched as a **token**, not as a substring: every failure message carries a `pubky://` URL and ids are random alphanumerics, so a bare `"507" in msg` would classify an unrelated error as a full disk.
+
+**507 is terminal, and that is what makes it different from everything else here.** A 429 and a transport error are transient and worth retrying; this one succeeds only after the user deletes something. Four consequences, all load-bearing:
+
+- **`withWriteRetry` returns on it** before the rate-limit branch can claim it, and `toErrorReason` classifies it ahead of `isRateLimited`/`isNetworkFailure`. Nothing they match collides with the 507 body today, but "quota" is the word a future *bandwidth* limit will also reach for.
+- **The background workers stop rather than back off.** `MediaRehostWorker` and `DeckCompactionWorker` return `Result.failure()`, not `Result.retry()` — WorkManager's exponential backoff against a permanent condition never converges. `DeckMediaSweeper` also ends the pass on the first 507 instead of trying every remaining blob, banking its progress first.
+- **Re-hosting is itself a quota consumer.** Cloning a media-heavy deck pins its blobs to the source author and the sweep later copies each one under your pubky, so the mechanism that fills the quota is the one that then retries against it.
+- **Compaction cannot dig you out.** A merge writes the landing chunk *before* emptying the source (above), so it temporarily *grows* usage — at a full quota the one job that would reclaim space is the one that cannot run.
+
+**There is no client-facing way to read usage or quota.** The tenant router exposes only `GET /session` and `GET|PUT|DELETE /{*path}`; `storage_used` and `storage_quota` live behind the password-gated admin API. So Loopky cannot render a storage meter or warn before the wall — 507 handling is necessarily *reactive* until upstream exposes an unprivileged `used_bytes`/`quota_bytes`, which is what would turn this from an error state into a progress bar. Worth asking for.
+
+**Still unmeasured:**
+
+1. **How close 1 GB actually is.** Images are compressed (1024px max, JPEG q80 — call it 100–200 KB each), but **audio is not compressed at all**: `putAudio` writes raw bytes and `MediaProcessor` only handles images, so an Anki deck's native audio goes up untouched. Dedupe is **per-deck**, not per-user — blobs live under `decks/{deckId}/media/`, so the same asset in two decks is stored twice and a clone re-hosts its own copy. `MediaRepositoryImpl`'s own header already says an Anki deck with audio runs to hundreds of MB, which is the same order as the entire quota. The number wants a real probe: publish a realistic Anki import with audio and images, then read `storage_used` off the admin API against a test homeserver. Until then no copy should promise a deck count.
+2. **Bandwidth quota is separate from storage quota**, enforced from the same signup token (`rate_read`/`rate_write`; the free tier's 1 MB/s is presumably it). Its rejection status is untraced, and a large publish could plausibly trip it — a *different* error wanting different handling.
+3. **Tenant routes cap request bodies at 100 MB**, which is a real upper bound on a single media blob and belongs alongside the `CHUNK_SIZE` question above.
+
 ## 9. Cross-cutting concerns
 
 ### 9.1 Dependency injection
