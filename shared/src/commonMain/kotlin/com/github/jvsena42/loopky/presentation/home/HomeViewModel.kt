@@ -45,8 +45,10 @@ class HomeViewModel(
         }
         // Same reason for reviews: studying runs on its own destination, so without this the
         // "due today" count and the per-deck badges keep the values they had before the session.
+        // A review can only move those counts, so it gets the cache-only recount rather than a
+        // full load — see [refreshDueCounts].
         viewModelScope.launch {
-            srsRepository.changes.collect { load(silent = true) }
+            srsRepository.changes.collect { refreshDueCounts() }
         }
     }
 
@@ -116,6 +118,40 @@ class HomeViewModel(
                         ) }
                     }
                 }
+        }
+    }
+
+    /**
+     * Recompute the due badges from what the SRS repository already holds in memory.
+     *
+     * This fires once per graded card, because studying runs on its own destination while Home
+     * stays composed behind it. It used to be a full [load], which re-listed every owned and
+     * followed deck, re-synced each of their manifests through `dueToday()`, and re-fetched the
+     * user's profile — per card (#102). Nothing but the counts can change under a review.
+     *
+     * Decks the cache cannot speak for keep the count they already had, rather than dropping to
+     * zero: [SrsRepository.dueCountsCached] reports only what it knows.
+     */
+    private suspend fun refreshDueCounts() {
+        val counts = runSuspendCatching { srsRepository.dueCountsCached() }
+            .onFailure { Log.e(TAG, "refreshDueCounts: FAILED — ${it.message}", it) }
+            .getOrNull() ?: return
+        if (counts.isEmpty()) return
+
+        val decks = (_state.value as? HomeUiState.Content)?.decks ?: return
+        val updated = decks.map { deck -> counts[deck.id]?.let { deck.copy(dueCount = it) } ?: deck }
+        val total = updated.sumOf { it.dueCount }
+        // Only meaningful once the queue empties, and it is the one part of this that can suspend
+        // on something other than the cache — so it is skipped while cards remain, as in [load].
+        val nextDueAt = if (total == 0) {
+            runSuspendCatching { srsRepository.nextDueAt() }.getOrNull()
+        } else {
+            null
+        }
+        _state.update { current ->
+            (current as? HomeUiState.Content)
+                ?.copy(dueToday = total, decks = updated, nextDueAtMillis = nextDueAt)
+                ?: current
         }
     }
 

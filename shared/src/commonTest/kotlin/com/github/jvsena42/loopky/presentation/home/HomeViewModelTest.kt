@@ -225,6 +225,55 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun aReviewUpdatesTheCountsWithoutRelistingTheDecks() = runTest {
+        // #102: every graded card triggered a full load here — re-listing owned and followed decks,
+        // re-syncing each manifest through dueToday(), and re-fetching the user's profile.
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 2)
+        val cards = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck1"))
+        srsRepo.due = cards
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals(expected = 2, actual = assertIs<HomeUiState.Content>(vm.state.value).dueToday)
+        val lists = deckRepo.listOwnedCount
+        val profileFetches = identityRepo.fetchedProfiles.size
+
+        srsRepo.review(cards.first(), SrsGrade.Good)
+        srsRepo.due = listOf(cards.last())
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertEquals(expected = 1, actual = state.dueToday)
+        assertEquals(expected = 1, actual = state.decks.single { it.id == "deck1" }.dueCount)
+        assertEquals(expected = lists, actual = deckRepo.listOwnedCount, "re-listed the decks")
+        assertEquals(
+            expected = profileFetches,
+            actual = identityRepo.fetchedProfiles.size,
+            "re-fetched the profile",
+        )
+    }
+
+    @Test
+    fun aReviewInADeckHomeCannotSeeLeavesTheOtherCountsAlone() = runTest {
+        // dueCountsCached() reports only decks whose state is loaded. A deck it says nothing about
+        // has to keep its badge, not silently drop to zero.
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 1)
+        deckRepo.decks["deck2"] = testDeck(id = "deck2", cardCount = 1)
+        srsRepo.due = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck2"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        // Only deck1's cards leave the queue; deck2 is untouched by this session.
+        srsRepo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good)
+        srsRepo.due = listOf(testCard("c2", deckId = "deck2"))
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertEquals(expected = 0, actual = state.decks.single { it.id == "deck1" }.dueCount)
+        assertEquals(expected = 1, actual = state.decks.single { it.id == "deck2" }.dueCount)
+        assertEquals(expected = 1, actual = state.dueToday)
+    }
+
+    @Test
     fun aBackgroundReloadDoesNotFlashTheLoadingState() = runTest {
         deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 1)
         val vm = viewModel()

@@ -44,10 +44,28 @@ class ProfileViewModel(
             deckRepository.changes.collect { load(silent = true) }
         }
         // Same for the due counter: studying runs on its own destination while this tab stays
-        // composed, so without this it keeps the value it had before the session.
+        // composed, so without this it keeps the value it had before the session. The due counter
+        // is the *only* thing a review can move, so it gets the cache-only recount — see
+        // [refreshDueCount].
         viewModelScope.launch {
-            srsRepository.changes.collect { load(silent = true) }
+            srsRepository.changes.collect { refreshDueCount() }
         }
+    }
+
+    /**
+     * Recompute the due counter from the SRS repository's in-memory state.
+     *
+     * Once per graded card, this used to be a full [load]: a `forceRefresh` profile GET, a re-list
+     * of every owned deck, a `dueToday()` that re-synced each of their manifests, and a pair of
+     * Nexus calls for the follow counts — none of which a review can change (#102).
+     */
+    private suspend fun refreshDueCount() {
+        val counts = runSuspendCatching { srsRepository.dueCountsCached() }
+            .onFailure { Log.e(TAG, "refreshDueCount: FAILED — ${it.message}", it) }
+            .getOrNull() ?: return
+        // Empty means a cold cache, not "nothing due" — leave the last real number alone.
+        if (counts.isEmpty()) return
+        _state.update { it.copy(dueCount = counts.values.sum()) }
     }
 
     fun onRefresh() = load()
