@@ -17,7 +17,8 @@ actual object ApkgReader {
 
     actual suspend fun readNotes(bytes: ByteArray): Result<ApkgImport> =
         Result.failure(
-            UnsupportedOperationException(
+            ApkgException(
+                ApkgFailure.UnsupportedFormat,
                 "Importing .apkg files isn't supported on iOS yet. In Anki, export the deck as " +
                     "\"Notes in Plain Text\" and import that instead.",
             ),

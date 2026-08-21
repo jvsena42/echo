@@ -19,44 +19,79 @@ actual object ApkgReader {
     actual suspend fun readNotes(bytes: ByteArray): Result<ApkgImport> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val collection = extractCollection(bytes)
-                    ?: error(
-                        "That .apkg has no readable collection. If it was exported by Anki 2.1.50 " +
-                            "or newer, re-export it as \"Notes in Plain Text\" instead.",
+                val candidates = extractCollections(bytes)
+                if (candidates.isEmpty()) {
+                    throw ApkgException(
+                        ApkgFailure.UnsupportedFormat,
+                        "That .apkg has no readable collection.",
                     )
+                }
                 try {
-                    readCollection(collection)
+                    readFirstUsable(candidates)
                 } finally {
-                    collection.delete()
+                    candidates.forEach { it.file.delete() }
                 }
             }
         }
 
     /**
-     * Pull the SQLite collection out of the zip onto disk.
+     * The first candidate that actually holds a deck.
      *
-     * SQLiteDatabase opens a path, not a stream, so the bytes have to land in a file. Prefers the
-     * older uncompressed formats: `collection.anki21b` is zstd-compressed, which is the one thing
-     * here that would need a real dependency, so it is skipped and reported rather than
-     * half-handled.
+     * Since Anki 2.1.50 an export ships a **legacy stub** `collection.anki2` beside the real
+     * `collection.anki21`, holding one note that reads "Please update to the latest Anki version".
+     * [COLLECTION_NAMES] prefers the newer file, but a stub can still be all there is — either
+     * because the export is odd, or because the real collection is the zstd variant this build
+     * skips. Falling through the candidates rather than committing to the first is what keeps a
+     * strange export from being reported as an empty one.
      */
-    private fun extractCollection(bytes: ByteArray): File? {
-        val candidates = mutableMapOf<String, ByteArray>()
+    private fun readFirstUsable(candidates: List<Candidate>): ApkgImport {
+        var sawStub = false
+        candidates.forEach { candidate ->
+            val import = readCollection(candidate.file)
+            if (import.noteCount > 0) {
+                Log.d(TAG, "apkg: using ${candidate.name} (${import.noteCount} notes)")
+                return import
+            }
+            if (import.isLegacyStub) sawStub = true
+            Log.d(TAG, "apkg: ${candidate.name} held nothing usable (stub=${import.isLegacyStub})")
+        }
+        if (sawStub) {
+            throw ApkgException(
+                ApkgFailure.LegacyStubOnly,
+                "That .apkg holds only Anki's legacy compatibility stub.",
+            )
+        }
+        return ApkgImport(deckName = null, text = "", noteCount = 0)
+    }
+
+    /**
+     * Pull every readable SQLite collection out of the zip onto disk, in preference order.
+     *
+     * SQLiteDatabase opens a path, not a stream, so the bytes have to land in a file.
+     * `collection.anki21b` is zstd-compressed, which is the one thing here that would need a real
+     * dependency, so it is skipped and reported rather than half-handled.
+     */
+    private fun extractCollections(bytes: ByteArray): List<Candidate> {
+        val found = mutableMapOf<String, ByteArray>()
         ZipInputStream(bytes.inputStream()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
                 if (entry.name in COLLECTION_NAMES) {
-                    candidates[entry.name] = zip.readBytes()
+                    found[entry.name] = zip.readBytes()
                 }
                 zip.closeEntry()
             }
         }
-        val name = COLLECTION_NAMES.firstOrNull { it in candidates } ?: return null
-        Log.d(TAG, "apkg: using $name")
-        return File.createTempFile("loopky-apkg", ".sqlite").apply {
-            writeBytes(candidates.getValue(name))
+        return COLLECTION_NAMES.mapNotNull { name ->
+            val content = found[name] ?: return@mapNotNull null
+            Candidate(
+                name = name,
+                file = File.createTempFile("loopky-apkg", ".sqlite").apply { writeBytes(content) },
+            )
         }
     }
+
+    private data class Candidate(val name: String, val file: File)
 
     private fun readCollection(file: File): ApkgImport {
         val db = SQLiteDatabase.openDatabase(
@@ -66,17 +101,23 @@ actual object ApkgReader {
         )
         return db.use {
             val lines = mutableListOf<String>()
+            var noteRows = 0
+            var stubOnly = true
             // `flds` holds the note's fields joined by 0x1F. One row per note, so a 20k-card deck
             // is one cursor walk rather than 20k reads.
             it.rawQuery("SELECT flds FROM notes", null).use { cursor ->
                 while (cursor.moveToNext()) {
-                    ankiNoteToLine(cursor.getString(0))?.let(lines::add)
+                    val flds = cursor.getString(0) ?: continue
+                    noteRows++
+                    if (!isLegacyStubNote(flds)) stubOnly = false
+                    ankiNoteToLine(flds)?.let(lines::add)
                 }
             }
             ApkgImport(
                 deckName = readDeckName(it),
                 text = lines.joinToString("\n"),
                 noteCount = lines.size,
+                isLegacyStub = noteRows > 0 && stubOnly,
             )
         }
     }
@@ -89,14 +130,19 @@ actual object ApkgReader {
      */
     private fun readDeckName(db: SQLiteDatabase): String? = runCatching {
         db.rawQuery("SELECT name FROM decks WHERE id != 1 ORDER BY id LIMIT 1", null).use { c ->
-            if (c.moveToFirst()) c.getString(0)?.substringAfterLast("") else null
+            if (c.moveToFirst()) c.getString(0)?.substringAfterLast(ANKI_FIELD_SEPARATOR) else null
         }
     }.getOrNull()
 
     private const val TAG = "Loopky/ApkgReader"
 
-    /** Newest-first would hit the zstd variant; these are the ones readable without a new dep. */
-    private val COLLECTION_NAMES = listOf("collection.anki2", "collection.anki21")
+    /**
+     * Newest-first, because a modern export's `collection.anki2` is a stub (see [readFirstUsable])
+     * and the real deck lives in `collection.anki21`. Oldest-first is how every current AnkiWeb
+     * deck came to import as "no cards". `collection.anki21b` is absent on purpose: it is zstd, the
+     * one variant that would need a new dependency.
+     */
+    private val COLLECTION_NAMES = listOf("collection.anki21", "collection.anki2")
 
     private val ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
 }

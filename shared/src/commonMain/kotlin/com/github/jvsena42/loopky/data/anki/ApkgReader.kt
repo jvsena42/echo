@@ -25,12 +25,55 @@ expect object ApkgReader {
     suspend fun readNotes(bytes: ByteArray): Result<ApkgImport>
 }
 
+/**
+ * Why an `.apkg` could not be read, in terms the UI can speak about.
+ *
+ * The reader used to throw plain `error(...)`s, which the ViewModel tagged with a single constant —
+ * so a zstd collection, a corrupt zip and an Anki-2.0 export all surfaced as "Loopky can't open this
+ * .apkg". They need different advice, so the reason travels with the failure.
+ */
+enum class ApkgFailure {
+    /** A real `.apkg`, but in a format this build can't unpack (zstd `collection.anki21b`). */
+    UnsupportedFormat,
+
+    /**
+     * The only collection in the file is the legacy stub a modern Anki ships for backwards
+     * compatibility — one note reading "Please update to the latest Anki version". There is no deck
+     * in here to find, and telling the user "no cards" sends them looking for one.
+     */
+    LegacyStubOnly,
+
+    /** The zip or the SQLite inside it would not open at all. */
+    Unreadable,
+}
+
+/** An `.apkg` read that failed for a reason worth reporting differently. See [ApkgFailure]. */
+class ApkgException(val reason: ApkgFailure, message: String) : Exception(message)
+
 /** What was recovered from an `.apkg`. [text] is tab-separated, one note per line. */
 data class ApkgImport(
     val deckName: String?,
     val text: String,
     val noteCount: Int,
+    /**
+     * True when the collection read held notes but every one of them was Anki's compatibility
+     * placeholder. Distinguishes "this file has no deck in it" from "this file's deck is somewhere
+     * this build didn't look".
+     */
+    val isLegacyStub: Boolean = false,
 )
+
+/**
+ * Anki's backwards-compatibility placeholder note, shipped in the legacy `collection.anki2` of
+ * every export since 2.1.50.
+ *
+ * Matched on a prefix rather than the exact string: the sentence has been reworded between Anki
+ * releases and carries a trailing field separator, but it has always opened this way.
+ */
+internal fun isLegacyStubNote(flds: String): Boolean =
+    flds.trimStart().startsWith(LEGACY_STUB_PREFIX, ignoreCase = true)
+
+private const val LEGACY_STUB_PREFIX = "Please update to the latest Anki version"
 
 /** Anki joins a note's fields with the ASCII unit separator (0x1F). */
 internal const val ANKI_FIELD_SEPARATOR = ''

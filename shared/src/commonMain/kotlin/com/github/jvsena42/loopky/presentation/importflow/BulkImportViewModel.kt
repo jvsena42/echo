@@ -2,6 +2,8 @@ package com.github.jvsena42.loopky.presentation.importflow
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.loopky.data.anki.ApkgException
+import com.github.jvsena42.loopky.data.anki.ApkgFailure
 import com.github.jvsena42.loopky.data.anki.ApkgReader
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.domain.model.ImportDraft
@@ -50,16 +52,13 @@ class BulkImportViewModel(
      * one.
      */
     fun onApkgLoaded(fileName: String, bytes: ByteArray) {
-        // UnsupportedApkg, not NoCardsFound: this is a real .apkg that this build can't unpack
-        // (zstd collection.anki21b). The two used to collapse into one message.
-        startParse(fileName, loadFailure = BulkImportError.UnsupportedApkg) {
+        startParse(fileName) {
             ApkgReader.readNotes(bytes).map { LoadedFile(it.text, it.deckName) }
         }
     }
 
     private fun startParse(
         fileName: String,
-        loadFailure: BulkImportError = BulkImportError.Unreadable,
         load: suspend () -> Result<LoadedFile>,
     ) {
         parseJob?.cancel()
@@ -70,7 +69,7 @@ class BulkImportViewModel(
             // cancellation the repository now rethrows. getOrElse does not catch, so the load's
             // own failure still gets tagged while a cancel passes straight through.
             runSuspendCatching {
-                val loaded = load().getOrElse { throw FailedToLoad(loadFailure, it) }
+                val loaded = load().getOrElse { throw FailedToLoad(readErrorFor(it), it) }
                 importRepository.parseBulk(
                     rawText = loaded.text,
                     suggestedTitle = suggestedTitleFor(loaded.deckName, fileName),
@@ -111,6 +110,20 @@ class BulkImportViewModel(
                 },
             )
         }
+    }
+
+    /**
+     * What a failed *read* should tell the user.
+     *
+     * This used to be one constant per call site, so every `.apkg` failure — a zstd collection, a
+     * corrupt zip, an export holding nothing but Anki's compatibility stub — surfaced as "Loopky
+     * can't open this .apkg" and sent the user looking for a format problem they might not have.
+     * The reader names its own reason now; anything else really is an unreadable file.
+     */
+    private fun readErrorFor(err: Throwable): BulkImportError = when ((err as? ApkgException)?.reason) {
+        ApkgFailure.UnsupportedFormat -> BulkImportError.UnsupportedApkg
+        ApkgFailure.LegacyStubOnly -> BulkImportError.LegacyStubOnly
+        ApkgFailure.Unreadable, null -> BulkImportError.Unreadable
     }
 
     /**
@@ -241,6 +254,13 @@ enum class BulkImportError {
 
     /** A real `.apkg`, but one this build can't unpack (zstd `collection.anki21b`). */
     UnsupportedApkg,
+
+    /**
+     * The `.apkg` holds only the legacy compatibility stub a modern Anki ships alongside the real
+     * collection. Distinct from [NoCardsFound]: the file is fine, the deck is just not in the part
+     * of it this build can read, and "no cards" would send the user hunting through their deck.
+     */
+    LegacyStubOnly,
 
     /** Read and parsed fine; there was simply nothing card-shaped in it. */
     NoCardsFound,

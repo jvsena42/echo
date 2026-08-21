@@ -61,6 +61,7 @@ fun bulkImportErrorTitle(reason: BulkImportError): String = stringResource(
         BulkImportError.TooLarge -> R.string.bulk_error_too_large_title
         BulkImportError.NotText -> R.string.bulk_error_not_text_title
         BulkImportError.UnsupportedApkg -> R.string.bulk_error_unsupported_apkg_title
+        BulkImportError.LegacyStubOnly -> R.string.bulk_error_legacy_stub_title
         BulkImportError.NoCardsFound -> R.string.bulk_error_no_cards_title
         BulkImportError.Unknown -> R.string.bulk_error_unknown_title
     },
@@ -76,6 +77,7 @@ fun bulkImportErrorMessage(reason: BulkImportError): String = when (reason) {
     BulkImportError.Unreadable -> stringResource(R.string.bulk_error_unreadable_message)
     BulkImportError.NotText -> stringResource(R.string.bulk_error_not_text_message)
     BulkImportError.UnsupportedApkg -> stringResource(R.string.bulk_error_unsupported_apkg_message)
+    BulkImportError.LegacyStubOnly -> stringResource(R.string.bulk_error_legacy_stub_message)
     BulkImportError.NoCardsFound -> stringResource(R.string.bulk_error_no_cards_message)
     BulkImportError.Unknown -> stringResource(R.string.bulk_error_unknown_message)
 }

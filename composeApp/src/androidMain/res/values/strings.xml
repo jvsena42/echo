@@ -570,6 +570,8 @@
     <string name="bulk_error_not_text_message">Pick an Anki .apkg, or a deck exported as plain text. Photos and PDFs can\'t become cards.</string>
     <string name="bulk_error_unsupported_apkg_title">Loopky can\'t open this .apkg</string>
     <string name="bulk_error_unsupported_apkg_message">Newer Anki decks use a format Loopky doesn\'t read yet. In Anki, export the deck as “Notes in Plain Text” instead.</string>
+    <string name="bulk_error_legacy_stub_title">This deck needs a newer Anki</string>
+    <string name="bulk_error_legacy_stub_message">The file only holds Anki\'s compatibility placeholder. Re-export the deck from Anki 2.1.50 or newer.</string>
     <string name="bulk_error_no_cards_title">No cards in that file</string>
     <string name="bulk_error_no_cards_message">Loopky read the file but found nothing card-shaped. Each line needs a front and a back.</string>
     <string name="bulk_error_unknown_title">That import didn\'t work</string>
