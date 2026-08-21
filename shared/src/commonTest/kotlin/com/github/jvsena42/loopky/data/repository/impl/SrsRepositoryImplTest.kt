@@ -23,6 +23,7 @@ import com.github.jvsena42.loopky.testing.testDeck
 import com.github.jvsena42.loopky.testing.testDeckWithCards
 import com.github.jvsena42.loopky.util.epochMillis
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -32,6 +33,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -40,7 +42,7 @@ class SrsRepositoryImplTest {
     private val pubky = FakePubkyClient()
     private val session = signedInProvider()
     private val revalidator = CountingRevalidator()
-    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
+    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator, Dispatchers.Unconfined)
     private val deckRepo = DeckRepositoryImpl(
         pubky = pubky,
         session = session,
@@ -67,6 +69,61 @@ class SrsRepositoryImplTest {
         deckRepo.publish(testDeck(id = deckId), cards).getOrThrow()
     }
 
+    // ── deck-scoped lookups (#102) ───────────────────────────────────────
+
+    @Test
+    fun stateForIsScopedToItsDeck() = runTest {
+        // The lookup used to scan the whole cross-deck cache for a bare card id, so two decks
+        // sharing one could read each other's schedule.
+        publishDeck("deck1", "shared")
+        publishDeck("deck2", "shared")
+        repo.dueForDeck("deck1")
+        repo.dueForDeck("deck2")
+
+        repo.review(testCard("shared", deckId = "deck1"), SrsGrade.Easy).getOrThrow()
+
+        assertEquals(expected = 7, actual = repo.stateFor("deck1", "shared")?.intervalDays)
+        assertNull(repo.stateFor("deck2", "shared"), "read the other deck's state")
+    }
+
+    @Test
+    fun statesForDeckReturnsOnlyThatDecksStates() = runTest {
+        publishDeck("deck1", "c1", "c2")
+        publishDeck("deck2", "c3")
+        repo.dueForDeck("deck1")
+        repo.dueForDeck("deck2")
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+        repo.review(testCard("c3", deckId = "deck2"), SrsGrade.Good).getOrThrow()
+
+        assertEquals(setOf("c1"), repo.statesForDeck("deck1").keys)
+        assertEquals(setOf("c3"), repo.statesForDeck("deck2").keys)
+    }
+
+    @Test
+    fun dueCountsCachedCostsNoHomeserverReads() = runTest {
+        // The whole point: this runs once per graded card, where dueForDeck's manifest re-sync
+        // would be a round trip each time.
+        publishDeck("deck1", "c1", "c2")
+        repo.dueForDeck("deck1")
+        assertEquals(mapOf("deck1" to 2), repo.dueCountsCached())
+
+        val getsBefore = pubky.gets.size
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+
+        // A graded card leaves the queue, and finding that out reads nothing.
+        assertEquals(mapOf("deck1" to 1), repo.dueCountsCached())
+        assertEquals(getsBefore, pubky.gets.size, "recounting hit the homeserver")
+    }
+
+    @Test
+    fun dueCountsCachedSaysNothingAboutADeckItHasNotLoaded() = runTest {
+        // Empty, not zero: a caller that read this as "nothing due" would blank every badge on a
+        // cold cache.
+        publishDeck("deck1", "c1")
+
+        assertEquals(emptyMap(), repo.dueCountsCached())
+    }
+
     // ── review / upsert ──────────────────────────────────────────────────
 
     @Test
@@ -83,7 +140,7 @@ class SrsRepositoryImplTest {
 
         // Buffered, not written yet — a review is one of many in a session.
         assertTrue(pubky.puts.none { it.first.contains("/srs/") }, "review wrote through immediately")
-        assertEquals(state, repo.stateFor("c1"))
+        assertEquals(state, repo.stateFor("deck1", "c1"))
 
         repo.flush().getOrThrow()
 
@@ -146,7 +203,7 @@ class SrsRepositoryImplTest {
             pubky.store.keys.any { it.startsWith(root) },
             "state did not reach the homeserver: ${pubky.store.keys}",
         )
-        assertEquals(state, repo.stateFor("c1"))
+        assertEquals(state, repo.stateFor("deck1", "c1"))
     }
 
     @Test
@@ -424,7 +481,7 @@ class SrsRepositoryImplTest {
 
         val url = "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/$chunk.json"
         assertTrue(pubky.store.containsKey(url), "landed elsewhere: ${pubky.store.keys}")
-        assertEquals(state, restarted.stateFor("c1"))
+        assertEquals(state, restarted.stateFor("deck1", "c1"))
     }
 
     @Test

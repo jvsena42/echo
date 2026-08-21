@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.SrsGrade
+import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeCardRepository
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
@@ -200,6 +201,56 @@ class DeckDetailViewModelTest {
         advanceUntilIdle()
 
         assertEquals(expected = 0, actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueCards)
+    }
+
+    @Test
+    fun `a review refreshes the counters without re-reading the deck`() = runTest(mainDispatcher) {
+        // #102: this fired a full load per graded card — re-syncing the manifest, rebuilding the
+        // card list, and re-fetching the author profile and the Nexus tagger counts. A review can
+        // only move the two SRS numbers.
+        deckRepo.decks["deck1"] = testDeck(cardCount = 2)
+        cardRepo.seedRemote(testCard("c1"), testCard("c2"))
+        val card = testCard("c1", deckId = "deck1")
+        srsRepo.due = listOf(card, testCard("c2", deckId = "deck1"))
+
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals(expected = 2, actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueCards)
+        val fetches = cardRepo.fetchCount
+        val profileFetches = identityRepo.fetchedProfiles.size
+        val taggerCalls = tagRepo.taggerCountsCalls
+
+        srsRepo.review(card, SrsGrade.Good)
+        srsRepo.due = listOf(testCard("c2", deckId = "deck1"))
+        advanceUntilIdle()
+
+        val state = assertIs<DeckDetailUiState.Content>(vm.state.value)
+        assertEquals(expected = 1, actual = state.dueCards, "due count did not follow the review")
+        assertEquals(expected = fetches, actual = cardRepo.fetchCount, "re-fetched the deck's cards")
+        assertEquals(
+            expected = profileFetches,
+            actual = identityRepo.fetchedProfiles.size,
+            "re-fetched the author profile",
+        )
+        assertEquals(expected = taggerCalls, actual = tagRepo.taggerCountsCalls, "re-hit the indexer")
+    }
+
+    @Test
+    fun `mastered share follows the review state`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(cardCount = 2)
+        cardRepo.seedRemote(testCard("c1"), testCard("c2"))
+        srsRepo.due = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck1"))
+
+        val vm = viewModel()
+        advanceUntilIdle()
+        // Nothing reviewed yet, so nothing is mature.
+        assertEquals(expected = "0%", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).masteredPercent)
+
+        // One of the two cards past SM-2's 21-day maturity line.
+        srsRepo.upsert("deck1", matureState("c1")).getOrThrow()
+        advanceUntilIdle()
+
+        assertEquals(expected = "50%", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).masteredPercent)
     }
 
     @Test
@@ -628,3 +679,13 @@ class DeckDetailViewModelTest {
         assertTrue(discoveryRepo.announcements.isEmpty())
     }
 }
+
+/** A card the scheduler has stretched past the 21-day maturity threshold. */
+private fun matureState(cardId: String) = SrsState(
+    cardId = cardId,
+    dueAt = 0L,
+    intervalDays = 24,
+    easeFactor = 2.5,
+    repetitions = 4,
+    lastGrade = SrsGrade.Easy,
+)

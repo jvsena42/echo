@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.testing.deckRepository
 import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,7 +27,7 @@ class DeckRepositoryTagSyncTest {
     private val session = signedInProvider()
     private val revalidator = CountingRevalidator()
     private val tagRepo = RecordingTagRepository()
-    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
+    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator, Dispatchers.Unconfined)
     private val repo = deckRepository(pubky, session, cardRepo, revalidator, tagRepo)
 
     @Test

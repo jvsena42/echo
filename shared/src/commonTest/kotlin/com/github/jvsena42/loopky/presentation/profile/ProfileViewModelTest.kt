@@ -1,11 +1,13 @@
 package com.github.jvsena42.loopky.presentation.profile
 
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.FakeSrsRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
+import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -122,5 +124,27 @@ class ProfileViewModelTest {
         assertFalse(vm.state.value.isLoading)
         assertNull(vm.state.value.followingCount)
         assertNull(vm.state.value.followerCount)
+    }
+
+    @Test
+    fun aReviewMovesTheDueCounterAndNothingElse() = runTest {
+        // #102: a graded card used to cost a forceRefresh profile GET, a re-list of every deck and
+        // a pair of indexer calls for the follow counts — none of which a review can change.
+        decks.decks["d1"] = testDeck(id = "d1", cardCount = 2)
+        val card = testCard("c1", deckId = "d1")
+        srs.due = listOf(card, testCard("c2", deckId = "d1"))
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals(2, vm.state.value.dueCount)
+        val profileFetches = identity.fetchedProfiles.size
+        val lists = decks.listOwnedCount
+
+        srs.review(card, SrsGrade.Good)
+        srs.due = listOf(testCard("c2", deckId = "d1"))
+        advanceUntilIdle()
+
+        assertEquals(1, vm.state.value.dueCount)
+        assertEquals(profileFetches, identity.fetchedProfiles.size, "re-fetched the profile")
+        assertEquals(lists, decks.listOwnedCount, "re-listed the decks")
     }
 }

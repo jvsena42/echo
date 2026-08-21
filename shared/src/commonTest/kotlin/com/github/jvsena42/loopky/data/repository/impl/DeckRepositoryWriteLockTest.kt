@@ -11,6 +11,7 @@ import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -33,7 +34,7 @@ class DeckRepositoryWriteLockTest {
     private val pubky = FakePubkyClient()
     private val session = signedInProvider()
     private val revalidator = CountingRevalidator()
-    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
+    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator, Dispatchers.Unconfined)
     private val repo = DeckRepositoryImpl(
         pubky = pubky,
         session = session,
@@ -108,7 +109,7 @@ class DeckRepositoryWriteLockTest {
 
         repo.upsertCard("deck1", withImage).getOrThrow()
 
-        val stored = CardRepositoryImpl(pubky, session, revalidator)
+        val stored = CardRepositoryImpl(pubky, session, revalidator, Dispatchers.Unconfined)
             .fetchByDeck(repo.getLocal("deck1")!!).getOrThrow().single()
         assertEquals(image, stored.back.imageRef)
     }

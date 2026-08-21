@@ -18,6 +18,7 @@ import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeckWithCards
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -43,7 +44,7 @@ class DeckRepositoryRehostTest {
     private val pubky = FakePubkyClient()
     private val session = signedInProvider()
     private val revalidator = CountingRevalidator()
-    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
+    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator, Dispatchers.Unconfined)
     private val media = FakeMediaRepository()
 
     /**
@@ -93,7 +94,7 @@ class DeckRepositoryRehostTest {
 
     /** The cards as they are actually stored, read back through a cold cache. */
     private suspend fun storedCards(deck: Deck): List<Card> =
-        CardRepositoryImpl(pubky, session, revalidator).fetchByDeck(deck).getOrThrow()
+        CardRepositoryImpl(pubky, session, revalidator, Dispatchers.Unconfined).fetchByDeck(deck).getOrThrow()
 
     // ── the write-back ───────────────────────────────────────────────────
 
