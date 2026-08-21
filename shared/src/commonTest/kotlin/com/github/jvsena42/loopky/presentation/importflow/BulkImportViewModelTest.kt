@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.presentation.importflow
 
 import com.github.jvsena42.loopky.testing.FakeImportRepository
+import com.github.jvsena42.loopky.testing.FakeMediaProcessor
 import com.github.jvsena42.loopky.testing.testDraft
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,7 +36,7 @@ class BulkImportViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel() = BulkImportViewModel(importRepository = importRepo)
+    private fun viewModel() = BulkImportViewModel(importRepository = importRepo, mediaProcessor = FakeMediaProcessor())
 
     // ── suggested title ──────────────────────────────────────────────────
 

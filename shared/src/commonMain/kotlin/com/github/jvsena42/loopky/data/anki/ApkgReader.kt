@@ -67,6 +67,27 @@ enum class ApkgFailure {
 /** An `.apkg` read that failed for a reason worth reporting differently. See [ApkgFailure]. */
 class ApkgException(val reason: ApkgFailure, message: String) : Exception(message)
 
+/** Which two of a note type's fields become the card's front and back. */
+data class ApkgFieldMapping(val frontOrd: Int, val backOrd: Int)
+
+internal data class AnkiField(
+    /** The field as readable text. May contain newlines — a card side is not one line. */
+    val text: String,
+    /**
+     * The `src` of this field's image, set only when the field is **nothing but** that image.
+     *
+     * Restricted to the sole-image case on purpose: that is the shape where dropping the picture
+     * loses the whole card, and where putting it on the side is unambiguous. A field mixing prose
+     * and figures needs a layout decision this importer has no way to make.
+     */
+    val imageSrc: String? = null,
+) {
+    val isEmpty: Boolean get() = text.isBlank() && imageSrc == null
+}
+
+/** One card produced by expanding a cloze deletion. See `expandCloze`. */
+internal data class ClozeCard(val front: String, val back: String)
+
 /** What was recovered from an `.apkg`. */
 data class ApkgImport(
     val deckName: String?,

@@ -1,8 +1,5 @@
 package com.github.jvsena42.loopky.data.anki
 
-/** Which two of a note type's fields become the card's front and back. */
-data class ApkgFieldMapping(val frontOrd: Int, val backOrd: Int)
-
 /**
  * Choosing the two fields to import, when nobody has said which.
  *

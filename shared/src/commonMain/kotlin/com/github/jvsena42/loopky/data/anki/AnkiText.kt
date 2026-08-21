@@ -11,21 +11,6 @@ package com.github.jvsena42.loopky.data.anki
  * line answer became one run-on line. Sound tags survived it untouched, so `[sound:dog.mp3]` was
  * printed on the card, while images went the other way and vanished with no trace at all (#96).
  */
-internal data class AnkiField(
-    /** The field as readable text. May contain newlines — a card side is not one line. */
-    val text: String,
-    /**
-     * The `src` of this field's image, set only when the field is **nothing but** that image.
-     *
-     * Restricted to the sole-image case on purpose: that is the shape where dropping the picture
-     * loses the whole card, and where putting it on the side is unambiguous. A field mixing prose
-     * and figures needs a layout decision this importer has no way to make.
-     */
-    val imageSrc: String? = null,
-) {
-    val isEmpty: Boolean get() = text.isBlank() && imageSrc == null
-}
-
 /** Parse one raw `flds` value into what a card side can show. */
 internal fun parseAnkiField(raw: String): AnkiField {
     val withoutHidden = raw.replace(HIDDEN_ELEMENT, " ")
@@ -107,11 +92,18 @@ private fun String.decodeEntities(): String =
  *
  * Collapsing every run of whitespace is what made the block boundaries above pointless — the
  * newlines they insert would be eaten by the very next step.
+ *
+ * Runs of newlines collapse to one, because the boundaries are markers rather than content:
+ * `</div><div>` is one line break written as two, and on a card a blank line is wasted height.
+ * Cell separators are trimmed off the ends of a line for the same reason — the `</td>` closing the
+ * last cell of a row leaves one dangling, and `Enzyme · Km ·` is not what the table said.
  */
 private fun String.collapseWhitespace(): String =
     split('\n')
-        .joinToString("\n") { it.replace(HORIZONTAL_SPACE, " ").trim() }
-        .replace(BLANK_LINES, "\n\n")
+        .joinToString("\n") { line ->
+            line.replace(HORIZONTAL_SPACE, " ").trim().trim(::isCellSeparator).trim()
+        }
+        .replace(BLANK_LINES, "\n")
         .trim()
 
 private val HIDDEN_ELEMENT =
@@ -133,9 +125,12 @@ private val CELL_BOUNDARY = Regex("</(td|th)>", RegexOption.IGNORE_CASE)
 private val ANY_TAG = Regex("<[^>]+>")
 private val NUMERIC_ENTITY = Regex("&#(?:[xX]([0-9a-fA-F]+)|([0-9]+));")
 private val HORIZONTAL_SPACE = Regex("[^\\S\\n]+")
-private val BLANK_LINES = Regex("\\n{3,}")
+private val BLANK_LINES = Regex("\\n{2,}")
 
 private const val HEX_RADIX = 16
+
+/** What [CELL_BOUNDARY] inserts, for trimming a dangling one off the end of a row. */
+private fun isCellSeparator(c: Char): Boolean = c == '\u00B7' || c == ' '
 
 private val NAMED_ENTITIES = mapOf(
     "&nbsp;" to " ",

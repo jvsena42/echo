@@ -7,6 +7,8 @@ import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 
 /**
  * What the picker recovered from a `content://` uri: the file spooled to app cache, plus enough of
@@ -71,30 +73,12 @@ internal suspend fun ContentResolver.readPickedFile(uri: Uri, cacheDir: File): R
             }
 
             val spool = File.createTempFile("loopky-import", ".bin", cacheDir)
-            val header = try {
-                openInputStream(uri)?.use { input ->
-                    spool.outputStream().use { output ->
-                        val buffer = ByteArray(COPY_BUFFER_BYTES)
-                        var total = 0L
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read < 0) break
-                            total += read
-                            // Providers are not obliged to report SIZE, so the real bound is here.
-                            if (total > MAX_IMPORT_FILE_BYTES) {
-                                throw FileReadException(BulkImportError.TooLarge)
-                            }
-                            output.write(buffer, 0, read)
-                        }
-                    }
-                } ?: throw FileReadException(BulkImportError.Unreadable)
-                spool.readHeader()
-            } catch (t: Throwable) {
-                // A half-written spool is not something the caller can clean up: it never gets a
-                // PickedFile to delete.
-                spool.delete()
-                throw t
-            }
+            // A half-written spool is not something the caller can clean up: it never gets a
+            // PickedFile to delete. runCatching rather than a catch-and-rethrow so the failure
+            // keeps its own type on the way out.
+            val header = runCatching { fillFrom(uri, spool) }
+                .onFailure { spool.delete() }
+                .getOrThrow()
 
             PickedFile(
                 name = displayName(uri) ?: uri.fallbackName(),
@@ -115,6 +99,31 @@ internal fun PickedFile.readAsText(): Result<String> = runCatching {
     val file = File(path)
     if (file.length() > MAX_IMPORT_TEXT_BYTES) throw FileReadException(BulkImportError.TooLarge)
     file.readBytes().decodeToString(throwOnInvalidSequence = true)
+}
+
+/** Streams [uri] into [spool], bounded as it goes, and returns the file's head. */
+private fun ContentResolver.fillFrom(uri: Uri, spool: File): ByteArray {
+    val input = openInputStream(uri) ?: throw FileReadException(BulkImportError.Unreadable)
+    input.use { source -> spool.outputStream().use { source.copyBounded(it) } }
+    return spool.readHeader()
+}
+
+/**
+ * Copies this stream to [output], failing past [MAX_IMPORT_FILE_BYTES].
+ *
+ * The bound is enforced here rather than only from the provider's declared SIZE, because a provider
+ * is not obliged to report one — and the file that under-reports is exactly the one worth stopping.
+ */
+private fun InputStream.copyBounded(output: OutputStream) {
+    val buffer = ByteArray(COPY_BUFFER_BYTES)
+    var total = 0L
+    while (true) {
+        val read = read(buffer)
+        if (read < 0) return
+        total += read
+        if (total > MAX_IMPORT_FILE_BYTES) throw FileReadException(BulkImportError.TooLarge)
+        output.write(buffer, 0, read)
+    }
 }
 
 private fun File.readHeader(): ByteArray = inputStream().use { input ->

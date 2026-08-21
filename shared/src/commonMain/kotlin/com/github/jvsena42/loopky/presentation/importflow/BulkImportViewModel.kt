@@ -11,8 +11,8 @@ import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.Separator
-import com.github.jvsena42.loopky.platform.MediaProcessor
 import com.github.jvsena42.loopky.domain.model.frontBackOf
+import com.github.jvsena42.loopky.platform.MediaProcessor
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
  * [PublishDeckViewModel] commit flow that paste uses; the spine every import source shares is
  * parse → preview → commit, not the queue.
  */
+@Suppress("TooManyFunctions")
 class BulkImportViewModel(
     private val importRepository: ImportRepository,
     private val mediaProcessor: MediaProcessor,

@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.testing
 
+import com.github.jvsena42.loopky.data.anki.BulkNote
 import com.github.jvsena42.loopky.data.homegate.LnInvoice
 import com.github.jvsena42.loopky.data.homegate.MethodAvailability
 import com.github.jvsena42.loopky.data.pubky.CardChunking
@@ -47,6 +48,8 @@ import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.domain.model.ordForIndex
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.platform.BackgroundTasks
+import com.github.jvsena42.loopky.platform.MediaProcessor
+import com.github.jvsena42.loopky.platform.ProcessedImage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.BufferOverflow
@@ -713,8 +716,62 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
         suggestedTitle: String?,
     ): Result<ImportDraft> =
         parse(rawText, separator).map { draft ->
-            draft.copy(suggestedTitle = suggestedTitle).also { this.draft = it }
+            draft.copy(suggestedTitle = suggestedTitle)
+                .also { this.draft = it }
+                .also(::discardIncompleteRows)
         }
+
+    /** Notes handed to [parseBulkNotes], so a test can assert on what the reader produced. */
+    var bulkNotes: List<BulkNote> = emptyList()
+        private set
+
+    override suspend fun parseBulkNotes(
+        notes: List<BulkNote>,
+        suggestedTitle: String?,
+        suggestedDescription: String?,
+        suggestedTags: List<String>,
+    ): Result<ImportDraft> {
+        bulkNotes = notes
+        val built = ImportDraft(
+            rawText = "",
+            separator = Separator.Tab,
+            rows = notes.mapIndexed { index, note ->
+                ParsedRow(
+                    index = index,
+                    fields = listOf(note.front, note.back),
+                    isValid = note.front.isNotBlank() || note.back.isNotBlank(),
+                )
+            },
+            duplicatesCollapsed = 0,
+            suggestedTitle = suggestedTitle,
+            suggestedDescription = suggestedDescription,
+            suggestedTags = suggestedTags,
+            structured = true,
+        )
+        notes.forEachIndexed { index, note ->
+            note.frontImage?.let { setRowImage(index, isFront = true, image = it) }
+            note.backImage?.let { setRowImage(index, isFront = false, image = it) }
+        }
+        draft = built
+        discardIncompleteRows(built)
+        return Result.success(built)
+    }
+
+    /**
+     * Mirrors the real repository's bulk policy.
+     *
+     * Without it this fake reports every row as kept, so a test asserting on the summary's skipped
+     * count passes against a fake that cannot produce one.
+     */
+    private fun discardIncompleteRows(draft: ImportDraft) {
+        draft.rows.forEach { row ->
+            val front = row.fields.getOrElse(0) { "" }.isBlank() &&
+                rowImage(row.index, isFront = true) == null
+            val back = row.fields.getOrElse(1) { "" }.isBlank() &&
+                rowImage(row.index, isFront = false) == null
+            if (front || back) setDecision(row.index, TriageDecision.Discard)
+        }
+    }
 
     override fun decisions(): Map<Int, TriageDecision> = triageDecisions.toMap()
 
@@ -742,7 +799,17 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
         draft = null
         triageDecisions.clear()
         rowEdits.clear()
+        rowImages.clear()
     }
+}
+
+/** Hands the bytes back untouched: what matters in a test is which blob arrived, not its size. */
+class FakeMediaProcessor : MediaProcessor {
+    override suspend fun compressImage(
+        bytes: ByteArray,
+        maxDimension: Int,
+        quality: Int,
+    ): ProcessedImage = ProcessedImage(bytes = bytes, mime = "image/jpeg", width = 1, height = 1)
 }
 
 class FakeMediaRepository : MediaRepository {

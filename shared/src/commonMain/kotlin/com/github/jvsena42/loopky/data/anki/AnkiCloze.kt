@@ -12,8 +12,6 @@ package com.github.jvsena42.loopky.data.anki
  * is what was in the hole. Anki's own back shows the whole sentence with the answer highlighted;
  * that needs a rich card this app does not have, and the deletion alone is the part being recalled.
  */
-internal data class ClozeCard(val front: String, val back: String)
-
 /** The distinct cloze indices in [text], in the order Anki would number the cards. */
 internal fun clozeIndices(text: String): List<Int> =
     CLOZE.findAll(text).mapNotNull { it.groupValues[1].toIntOrNull() }.distinct().sorted().toList()
