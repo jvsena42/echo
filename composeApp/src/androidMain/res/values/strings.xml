@@ -548,7 +548,7 @@
     <string name="bulk_formats_label">WHAT WORKS</string>
     <string name="bulk_format_apkg_ext">.apkg</string>
     <string name="bulk_format_apkg_title">Anki deck export</string>
-    <string name="bulk_format_apkg_detail">Your cards and the deck\'s name come across. Images and audio don\'t — export without media to keep the file small.</string>
+    <string name="bulk_format_apkg_detail">Your cards, the deck\'s name and its pictures come across. Audio doesn\'t — those cards import as text.</string>
     <string name="bulk_format_text_ext">.txt · .csv</string>
     <string name="bulk_format_text_title">Plain text export</string>
     <string name="bulk_format_text_detail">In Anki: File → Export → “Notes in Plain Text”. Any tab- or comma-separated list works too.</string>
@@ -557,6 +557,12 @@
     <string name="bulk_parsing">Reading %1$s…</string>
     <string name="bulk_summary_heading">Ready to import</string>
     <string name="bulk_detected_separator">Separator: %1$s</string>
+    <string name="bulk_fields">Fields: %1$s → %2$s</string>
+    <string name="bulk_fields_changeable">Fields: %1$s → %2$s · tap to change</string>
+    <string name="bulk_fields_unnamed">Field %1$d</string>
+    <string name="bulk_fields_sheet_front">Which field is the front?</string>
+    <string name="bulk_fields_sheet_back">Which field is the back?</string>
+    <string name="bulk_fields_sheet_hint">Anki decks often start with id or ranking fields. Pick the ones you want to study.</string>
     <string name="bulk_sample_label">SAMPLE</string>
     <string name="bulk_import_button">Import %1$s</string>
     <string name="bulk_pick_another">Choose a different file</string>
@@ -565,11 +571,13 @@
     <string name="bulk_error_unreadable_title">Couldn\'t open that file</string>
     <string name="bulk_error_unreadable_message">Loopky couldn\'t read it. Try picking it again, or copy it somewhere else first.</string>
     <string name="bulk_error_too_large_title">That file is too big</string>
-    <string name="bulk_error_too_large_message">Loopky can import files up to %1$d MB. In Anki, export without media — Loopky doesn\'t use it.</string>
+    <string name="bulk_error_too_large_message">Loopky can import files up to %1$d MB. That\'s larger than any deck on AnkiWeb, so this is likely not an Anki export.</string>
     <string name="bulk_error_not_text_title">That\'s not a text file</string>
     <string name="bulk_error_not_text_message">Pick an Anki .apkg, or a deck exported as plain text. Photos and PDFs can\'t become cards.</string>
     <string name="bulk_error_unsupported_apkg_title">Loopky can\'t open this .apkg</string>
     <string name="bulk_error_unsupported_apkg_message">Newer Anki decks use a format Loopky doesn\'t read yet. In Anki, export the deck as “Notes in Plain Text” instead.</string>
+    <string name="bulk_error_legacy_stub_title">This deck needs a newer Anki</string>
+    <string name="bulk_error_legacy_stub_message">The file only holds Anki\'s compatibility placeholder. Re-export the deck from Anki 2.1.50 or newer.</string>
     <string name="bulk_error_no_cards_title">No cards in that file</string>
     <string name="bulk_error_no_cards_message">Loopky read the file but found nothing card-shaped. Each line needs a front and a back.</string>
     <string name="bulk_error_unknown_title">That import didn\'t work</string>
@@ -577,6 +585,8 @@
     <string name="bulk_skipped">%1$d skipped (missing a front or back)</string>
     <string name="bulk_duplicates">%1$d duplicates merged</string>
     <string name="bulk_truncated">%1$d rows past the limit were not imported</string>
+    <string name="bulk_dropped_notes">%1$d notes had no front and back to use</string>
+    <string name="bulk_images_skipped">%1$d pictures past the limit were not imported</string>
     <plurals name="bulk_cards_parsed">
         <item quantity="one">%1$d card parsed</item>
         <item quantity="other">%1$d cards parsed</item>

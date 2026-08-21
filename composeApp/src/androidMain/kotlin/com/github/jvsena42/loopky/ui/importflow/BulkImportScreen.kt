@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.data.anki.ApkgFieldMapping
 import com.github.jvsena42.loopky.data.anki.ApkgReader
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportEffect
@@ -75,7 +77,9 @@ fun BulkImportRoute(
 ) {
     val viewModel = koinViewModel<BulkImportViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val resolver = LocalContext.current.contentResolver
+    val context = LocalContext.current
+    val resolver = context.contentResolver
+    val cacheDir = context.cacheDir
     // Cancelled if the user navigates away mid-read; the ViewModel is cleared with the
     // destination too, so nothing outlives the screen.
     val scope = rememberCoroutineScope()
@@ -94,27 +98,42 @@ fun BulkImportRoute(
         }
     }
 
+    // An .apkg is read from its spool rather than from memory, so the file has to outlive the
+    // picker callback — but only until the next pick or until the screen goes away, or a few
+    // hundred MB of someone's cache is ours forever.
+    val spool = remember { mutableStateOf<PickedFile?>(null) }
+    DisposableEffect(Unit) {
+        onDispose { spool.value?.delete() }
+    }
+
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         viewModel.onFileReadStarted()
+        spool.value?.delete()
+        spool.value = null
         // File access is a platform concern, and the shared ViewModel takes plain text so the
         // same summary works for any future source. The read itself is off the main thread —
         // it used to run right here in the callback, where a multi-MB .apkg froze the UI.
         scope.launch {
-            resolver.readPickedFile(uri)
+            resolver.readPickedFile(uri, cacheDir)
                 .onSuccess { file ->
                     // Sniffed from the content, not the extension: a picked .apkg often arrives
                     // with a content:// uri that carries no useful name at all.
-                    if (ApkgReader.canRead(file.bytes)) {
-                        viewModel.onApkgLoaded(file.name, file.bytes)
+                    if (ApkgReader.canRead(file.header)) {
+                        spool.value = file
+                        viewModel.onApkgLoaded(file.name, file.path)
                     } else {
-                        // A photo or a PDF hits an invalid sequence within a few bytes. Without
-                        // this it decoded to U+FFFD soup and "parsed" into plausible junk cards.
-                        runCatching { file.bytes.decodeToString(throwOnInvalidSequence = true) }
+                        file.readAsText()
                             .onSuccess { viewModel.onFileLoaded(file.name, it) }
-                            .onFailure { viewModel.onFileReadFailed(BulkImportError.NotText) }
+                            .onFailure { err ->
+                                viewModel.onFileReadFailed(
+                                    (err as? FileReadException)?.reason ?: BulkImportError.NotText,
+                                )
+                            }
+                        // Only the .apkg reader keeps reading from the spool; text is in hand.
+                        file.delete()
                     }
                 }
                 .onFailure { err ->
@@ -134,6 +153,7 @@ fun BulkImportRoute(
         state = state,
         onPickFile = { pickFile() },
         onSeparatorOverride = viewModel::onSeparatorOverride,
+        onFieldMappingChange = viewModel::onFieldMappingChanged,
         onConfirm = viewModel::onConfirm,
         onCancel = viewModel::onCancel,
     )
@@ -145,12 +165,14 @@ private fun BulkImportScreen(
     state: BulkImportUiState,
     onPickFile: () -> Unit,
     onSeparatorOverride: (Separator) -> Unit,
+    onFieldMappingChange: (ApkgFieldMapping) -> Unit,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
     var showSeparatorSheet by remember { mutableStateOf(false) }
+    var showFieldSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -189,10 +211,24 @@ private fun BulkImportScreen(
                     onConfirm = onConfirm,
                     onPickFile = onPickFile,
                     onSeparatorClick = { showSeparatorSheet = true },
+                    onFieldsClick = { showFieldSheet = true },
                 )
                 is BulkImportUiState.Error -> ErrorState(state.reason, onPickFile)
             }
         }
+    }
+
+    val fields = (state as? BulkImportUiState.Ready)?.fields
+    if (showFieldSheet && fields != null) {
+        FieldMappingSheet(
+            fields = fields,
+            sample = state.sample.firstOrNull(),
+            onPick = {
+                showFieldSheet = false
+                onFieldMappingChange(it)
+            },
+            onDismiss = { showFieldSheet = false },
+        )
     }
 
     if (showSeparatorSheet) {
@@ -339,6 +375,7 @@ private fun Summary(
     onConfirm: () -> Unit,
     onPickFile: () -> Unit,
     onSeparatorClick: () -> Unit,
+    onFieldsClick: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     Spacer(Modifier.height(24.dp))
@@ -356,10 +393,19 @@ private fun Summary(
     )
 
     Spacer(Modifier.height(12.dp))
-    // What the parser decided, and — as on the paste screen — a way to disagree with it.
-    SeparatorChip(separator = state.separator, onClick = onSeparatorClick)
+    // What the reader decided, and a way to disagree with it. An .apkg knows its own field names,
+    // so it offers those; a text file only ever had a separator to guess at.
+    val fields = state.fields
+    if (fields != null) {
+        FieldsChip(fields = fields, onClick = onFieldsClick)
+    } else {
+        SeparatorChip(separator = state.separator, onClick = onSeparatorClick)
+    }
 
-    // Everything the parse dropped, stated rather than silently swallowed.
+    // Everything the import dropped, stated rather than silently swallowed.
+    if (state.droppedNoteCount > 0) {
+        Caption(stringResource(R.string.bulk_dropped_notes, state.droppedNoteCount))
+    }
     if (state.skippedCount > 0) {
         Caption(stringResource(R.string.bulk_skipped, state.skippedCount))
     }
@@ -368,6 +414,9 @@ private fun Summary(
     }
     if (state.truncatedCount > 0) {
         Caption(stringResource(R.string.bulk_truncated, state.truncatedCount))
+    }
+    if (state.imagesSkippedCount > 0) {
+        Caption(stringResource(R.string.bulk_images_skipped, state.imagesSkippedCount))
     }
 
     Spacer(Modifier.height(24.dp))
@@ -463,6 +512,7 @@ private fun BulkImportIdlePreview() {
             state = BulkImportUiState.Idle,
             onPickFile = {},
             onSeparatorOverride = {},
+            onFieldMappingChange = {},
             onConfirm = {},
             onCancel = {},
         )
@@ -478,6 +528,7 @@ private fun BulkImportParsingPreview() {
             state = BulkImportUiState.Parsing("japanese_core.apkg"),
             onPickFile = {},
             onSeparatorOverride = {},
+            onFieldMappingChange = {},
             onConfirm = {},
             onCancel = {},
         )
@@ -505,6 +556,7 @@ private fun BulkImportReadyPreview() {
             ),
             onPickFile = {},
             onSeparatorOverride = {},
+            onFieldMappingChange = {},
             onConfirm = {},
             onCancel = {},
         )
@@ -520,6 +572,7 @@ private fun BulkImportErrorPreview() {
             state = BulkImportUiState.Error(BulkImportError.NotText),
             onPickFile = {},
             onSeparatorOverride = {},
+            onFieldMappingChange = {},
             onConfirm = {},
             onCancel = {},
         )

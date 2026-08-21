@@ -77,6 +77,11 @@ class PublishDeckViewModel(
                     // A file import knows a good title — the .apkg's deck name, else the file it
                     // came from — and used to throw it away. A paste has none, so this stays "".
                     title = draft.suggestedTitle.orEmpty(),
+                    // Prefilled, not decided: an Anki deck's own description and the labels its
+                    // notes were tagged with are a starting point the user edits, and the source
+                    // that proposed them is not describing the deck the way they would.
+                    description = draft.suggestedDescription.orEmpty(),
+                    tags = draft.suggestedTags.mapNotNull(::normalizeTag).distinct(),
                     cardCount = kept,
                     discardedCount = draft.rows.size - kept,
                 )
@@ -127,6 +132,15 @@ class PublishDeckViewModel(
         // by label, so a duplicate is a no-op on the homeserver but a second chip in the UI (#83).
         _state.update { s -> if (trimmed in s.tags) s else s.copy(tags = s.tags + trimmed) }
     }
+
+    /**
+     * A tag label as the publish flow will accept it, or null.
+     *
+     * Shares [onAddTag]'s rules so a suggested chip cannot arrive in a state the user could not
+     * have typed — a reserved `loopky-` label is the app's own bookkeeping, not a deck's tag.
+     */
+    private fun normalizeTag(tag: String): String? =
+        tag.trim().lowercase().takeIf { it.isNotBlank() && !ReservedTags.isReserved(it) }
 
     fun onRemoveTag(tag: String) {
         _state.update { s -> s.copy(tags = s.tags - tag) }

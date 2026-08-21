@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.data.anki
 
+import com.github.jvsena42.loopky.domain.model.DraftCardImage
+
 /**
  * iOS `.apkg` reading is not implemented.
  *
@@ -13,11 +15,16 @@ package com.github.jvsena42.loopky.data.anki
  */
 actual object ApkgReader {
 
-    actual fun canRead(bytes: ByteArray): Boolean = false
+    actual fun canRead(header: ByteArray): Boolean = false
 
-    actual suspend fun readNotes(bytes: ByteArray): Result<ApkgImport> =
+    actual suspend fun readNotes(
+        path: String,
+        mapping: ApkgFieldMapping?,
+        compressImage: suspend (ByteArray, String) -> DraftCardImage,
+    ): Result<ApkgImport> =
         Result.failure(
-            UnsupportedOperationException(
+            ApkgException(
+                ApkgFailure.UnsupportedFormat,
                 "Importing .apkg files isn't supported on iOS yet. In Anki, export the deck as " +
                     "\"Notes in Plain Text\" and import that instead.",
             ),
