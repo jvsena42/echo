@@ -4,10 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.anki.ApkgException
 import com.github.jvsena42.loopky.data.anki.ApkgFailure
+import com.github.jvsena42.loopky.data.anki.ApkgFieldMapping
+import com.github.jvsena42.loopky.data.anki.ApkgImport
 import com.github.jvsena42.loopky.data.anki.ApkgReader
 import com.github.jvsena42.loopky.data.repository.ImportRepository
+import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.Separator
+import com.github.jvsena42.loopky.platform.MediaProcessor
 import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -32,6 +36,7 @@ import kotlinx.coroutines.launch
  */
 class BulkImportViewModel(
     private val importRepository: ImportRepository,
+    private val mediaProcessor: MediaProcessor,
 ) : ViewModel() {
     private val _state = MutableStateFlow<BulkImportUiState>(BulkImportUiState.Idle)
     val state: StateFlow<BulkImportUiState> = _state.asStateFlow()
@@ -40,6 +45,15 @@ class BulkImportViewModel(
     val effects: SharedFlow<BulkImportEffect> = _effects.asSharedFlow()
 
     private var parseJob: Job? = null
+
+    /**
+     * The spooled `.apkg`, kept so a change of field mapping can re-read it.
+     *
+     * Re-reading is the whole design of the field picker: the archive is already on disk, the read
+     * takes a second, and it beats holding every note of a 9,000-card deck in the ViewModel on the
+     * chance that the user disagrees with the default.
+     */
+    private var apkgPath: String? = null
 
     /** [fileName] is shown as the default deck name; [text] is the file's contents. */
     fun onFileLoaded(fileName: String, text: String) {
@@ -52,9 +66,53 @@ class BulkImportViewModel(
      * one.
      */
     fun onApkgLoaded(fileName: String, path: String) {
-        startParse(fileName) {
-            ApkgReader.readNotes(path).map { LoadedFile(it.text, it.deckName) }
+        apkgPath = path
+        readApkg(fileName, path, mapping = null)
+    }
+
+    /**
+     * Import a different pair of fields.
+     *
+     * "The first two fields" is right for a two-field note type and wrong for most real decks, so
+     * the summary names the two it chose and lets the user disagree — the same role the separator
+     * chip plays for a paste, for the same reason. Spec §5.3 rules out a column-mapping UI for
+     * *pasted text*, where there are no field names to show; an `.apkg` knows its own.
+     */
+    fun onFieldMappingChanged(mapping: ApkgFieldMapping) {
+        val path = apkgPath ?: return
+        val fileName = (_state.value as? BulkImportUiState.Ready)?.fileName ?: return
+        readApkg(fileName, path, mapping)
+    }
+
+    private fun readApkg(fileName: String, path: String, mapping: ApkgFieldMapping?) {
+        parseJob?.cancel()
+        parseJob = viewModelScope.launch {
+            _state.update { BulkImportUiState.Parsing(fileName) }
+            runSuspendCatching {
+                val apkg = ApkgReader.readNotes(path, mapping, ::compressForCard)
+                    .getOrElse { throw FailedToLoad(readErrorFor(it), it) }
+                val draft = importRepository.parseBulkNotes(
+                    notes = apkg.notes,
+                    suggestedTitle = suggestedTitleFor(apkg.deckName, fileName),
+                    suggestedDescription = apkg.deckDescription,
+                    suggestedTags = apkg.suggestedTags,
+                ).getOrThrow()
+                apkg to draft
+            }
+                .onSuccess { (apkg, draft) -> emitReady(fileName, draft, apkg) }
+                .onFailure { reportParseFailure(it) }
         }
+    }
+
+    /**
+     * Anki's blobs are full-resolution photographs; a card shows one at 96 dp.
+     *
+     * Reuses the same compression the gallery picker applies, so an imported picture and a chosen
+     * one cost the same against the homeserver quota.
+     */
+    private suspend fun compressForCard(bytes: ByteArray, mime: String): DraftCardImage {
+        val processed = mediaProcessor.compressImage(bytes)
+        return DraftCardImage(bytes = processed.bytes, mime = processed.mime.ifBlank { mime })
     }
 
     private fun startParse(
@@ -76,24 +134,32 @@ class BulkImportViewModel(
                 ).getOrThrow()
             }
                 .onSuccess { emitReady(fileName, it) }
-                .onFailure { err ->
-                    // A re-pick cancels a parse that may run for seconds; that now kills this
-                    // coroutine outright, so only real failures reach here. Anything past the load
-                    // is the parser's: it read fine, there was just nothing card-shaped in it.
-                    val reason = (err as? FailedToLoad)?.reason ?: BulkImportError.NoCardsFound
-                    Log.e(TAG, "bulk parse: FAILED — $reason — ${err.message}", err)
-                    _state.update { BulkImportUiState.Error(reason) }
-                }
+                .onFailure { reportParseFailure(it) }
         }
     }
 
-    private fun emitReady(fileName: String, draft: ImportDraft) {
+    /**
+     * A re-pick cancels a parse that may run for seconds; that kills the coroutine outright, so
+     * only real failures reach here. Anything past the load is the parser's: it read fine, there
+     * was just nothing card-shaped in it.
+     */
+    private fun reportParseFailure(err: Throwable) {
+        val reason = (err as? FailedToLoad)?.reason ?: BulkImportError.NoCardsFound
+        Log.e(TAG, "bulk parse: FAILED — $reason — ${err.message}", err)
+        _state.update { BulkImportUiState.Error(reason) }
+    }
+
+    private fun emitReady(fileName: String, draft: ImportDraft, apkg: ApkgImport? = null) {
         // Both counts come off keptRows() so the summary and what actually publishes agree by
         // construction. Computing "skipped" independently is how they came to disagree: the screen
         // reported rows as dropped that publish still saw.
         val kept = importRepository.keptRows()
         val skipped = draft.rows.size - kept.size
-        Log.d(TAG, "bulk parse: ${draft.rows.size} rows, $skipped skipped")
+        Log.d(
+            TAG,
+            "bulk parse: ${draft.rows.size} rows, $skipped skipped, " +
+                "${apkg?.dropped?.total ?: 0} notes dropped by the reader",
+        )
         _state.update {
             BulkImportUiState.Ready(
                 fileName = fileName,
@@ -102,6 +168,12 @@ class BulkImportViewModel(
                 skippedCount = skipped,
                 duplicatesCollapsed = draft.duplicatesCollapsed,
                 truncatedCount = draft.truncated,
+                // Notes the reader never turned into rows. Computed downstream of `draft.rows`,
+                // they were invisible in every count: 1,458 notes in, 1,338 cards out, and a
+                // summary that explained the gap as "1 duplicates merged" (#96).
+                droppedNoteCount = apkg?.dropped?.total ?: 0,
+                imagesSkippedCount = apkg?.imagesSkipped ?: 0,
+                fields = apkg?.let { ApkgFields(it.fieldNames, it.mapping) },
                 // Sampled from the kept rows, not all of them: showing a card that is about to be
                 // skipped is the one sample guaranteed to mislead.
                 sample = kept.take(SAMPLE_SIZE).map { row ->
@@ -161,6 +233,7 @@ class BulkImportViewModel(
     /** Back to the picker without leaving the screen, so changing your mind isn't a restart. */
     fun onPickAnother() {
         parseJob?.cancel()
+        apkgPath = null
         _state.update { BulkImportUiState.Idle }
     }
 
@@ -226,6 +299,12 @@ sealed interface BulkImportUiState {
         val duplicatesCollapsed: Int,
         /** Rows past the parser's cap. Reported rather than dropped silently. */
         val truncatedCount: Int,
+        /** Notes the `.apkg` reader never turned into rows, with nowhere else to be reported. */
+        val droppedNoteCount: Int = 0,
+        /** Pictures left behind at the importer's per-deck ceiling. */
+        val imagesSkippedCount: Int = 0,
+        /** The `.apkg`'s field names and current mapping; null for a text file, which has none. */
+        val fields: ApkgFields? = null,
         val sample: List<SampleCard>,
     ) : BulkImportUiState {
         val canImport: Boolean get() = cardCount > 0
@@ -269,6 +348,15 @@ enum class BulkImportError {
 }
 
 data class SampleCard(val front: String, val back: String)
+
+/** What the field picker needs: the note type's field names, and which two are in use. */
+data class ApkgFields(val names: List<String>, val mapping: ApkgFieldMapping) {
+    val frontName: String get() = names.getOrNull(mapping.frontOrd).orEmpty()
+    val backName: String get() = names.getOrNull(mapping.backOrd).orEmpty()
+
+    /** Worth offering a choice only when there is more than one pair to choose between. */
+    val canChoose: Boolean get() = names.size > 2
+}
 
 /** What a picked file yielded: its text, plus the deck name if the source knew one. */
 private data class LoadedFile(val text: String, val deckName: String? = null)

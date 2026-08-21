@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.data.anki
 
+import com.github.jvsena42.loopky.domain.model.DraftCardImage
+
 /**
  * iOS `.apkg` reading is not implemented.
  *
@@ -15,7 +17,11 @@ actual object ApkgReader {
 
     actual fun canRead(header: ByteArray): Boolean = false
 
-    actual suspend fun readNotes(path: String): Result<ApkgImport> =
+    actual suspend fun readNotes(
+        path: String,
+        mapping: ApkgFieldMapping?,
+        compressImage: suspend (ByteArray, String) -> DraftCardImage,
+    ): Result<ApkgImport> =
         Result.failure(
             ApkgException(
                 ApkgFailure.UnsupportedFormat,

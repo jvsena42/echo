@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.data.anki
 
 import android.database.sqlite.SQLiteDatabase
+import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,15 +17,21 @@ actual object ApkgReader {
     actual fun canRead(header: ByteArray): Boolean =
         header.size >= ZIP_MAGIC.size && ZIP_MAGIC.indices.all { header[it] == ZIP_MAGIC[it] }
 
-    actual suspend fun readNotes(path: String): Result<ApkgImport> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                ZipFile(path).use { zip -> readArchive(zip) }
-            }
+    actual suspend fun readNotes(
+        path: String,
+        mapping: ApkgFieldMapping?,
+        compressImage: suspend (ByteArray, String) -> DraftCardImage,
+    ): Result<ApkgImport> = withContext(Dispatchers.IO) {
+        runCatching {
+            ZipFile(path).use { zip -> zip.readArchive(mapping, compressImage) }
         }
+    }
 
-    private fun readArchive(zip: ZipFile): ApkgImport {
-        val candidates = extractCollections(zip)
+    private suspend fun ZipFile.readArchive(
+        mapping: ApkgFieldMapping?,
+        compressImage: suspend (ByteArray, String) -> DraftCardImage,
+    ): ApkgImport {
+        val candidates = extractCollections()
         if (candidates.isEmpty()) {
             throw ApkgException(
                 ApkgFailure.UnsupportedFormat,
@@ -32,7 +39,7 @@ actual object ApkgReader {
             )
         }
         return try {
-            readFirstUsable(candidates)
+            readFirstUsable(candidates, mapping, compressImage)
         } finally {
             candidates.forEach { it.file.delete() }
         }
@@ -48,12 +55,21 @@ actual object ApkgReader {
      * skips. Falling through the candidates rather than committing to the first is what keeps a
      * strange export from being reported as an empty one.
      */
-    private fun readFirstUsable(candidates: List<Candidate>): ApkgImport {
+    private suspend fun ZipFile.readFirstUsable(
+        candidates: List<Candidate>,
+        mapping: ApkgFieldMapping?,
+        compressImage: suspend (ByteArray, String) -> DraftCardImage,
+    ): ApkgImport {
         var sawStub = false
         candidates.forEach { candidate ->
-            val import = readCollection(candidate.file)
+            val import = readCollection(candidate.file, mapping, compressImage)
             if (import.noteCount > 0) {
-                Log.d(TAG, "apkg: using ${candidate.name} (${import.noteCount} notes)")
+                Log.d(
+                    TAG,
+                    "apkg: using ${candidate.name} — ${import.noteCount} notes, " +
+                        "${import.notes.size} cards, ${import.imagesImported} images, " +
+                        "${import.dropped.total} dropped",
+                )
                 return import
             }
             if (import.isLegacyStub) sawStub = true
@@ -65,21 +81,22 @@ actual object ApkgReader {
                 "That .apkg holds only Anki's legacy compatibility stub.",
             )
         }
-        return ApkgImport(deckName = null, text = "", noteCount = 0)
+        return ApkgImport(deckName = null)
     }
 
     /**
      * Pull every readable SQLite collection out of the zip onto disk, in preference order.
      *
-     * SQLiteDatabase opens a path, not a stream, so the bytes have to land in a file.
+     * SQLiteDatabase opens a path, not a stream, so the collection has to land in a file — but only
+     * the collection: the media blobs stay in the archive until a card turns out to need one.
      * `collection.anki21b` is zstd-compressed, which is the one thing here that would need a real
      * dependency, so it is skipped and reported rather than half-handled.
      */
-    private fun extractCollections(zip: ZipFile): List<Candidate> =
+    private fun ZipFile.extractCollections(): List<Candidate> =
         COLLECTION_NAMES.mapNotNull { name ->
-            val entry = zip.getEntry(name) ?: return@mapNotNull null
+            val entry = getEntry(name) ?: return@mapNotNull null
             val file = File.createTempFile("loopky-apkg", ".sqlite")
-            zip.getInputStream(entry).use { input ->
+            getInputStream(entry).use { input ->
                 file.outputStream().use { output -> input.copyTo(output) }
             }
             Candidate(name = name, file = file)
@@ -87,46 +104,63 @@ actual object ApkgReader {
 
     private data class Candidate(val name: String, val file: File)
 
-    private fun readCollection(file: File): ApkgImport {
-        val db = SQLiteDatabase.openDatabase(
-            file.absolutePath,
-            null,
-            SQLiteDatabase.OPEN_READONLY,
-        )
-        return db.use {
-            val lines = mutableListOf<String>()
-            var noteRows = 0
-            var stubOnly = true
-            // `flds` holds the note's fields joined by 0x1F. One row per note, so a 20k-card deck
-            // is one cursor walk rather than 20k reads.
-            it.rawQuery("SELECT flds FROM notes", null).use { cursor ->
-                while (cursor.moveToNext()) {
-                    val flds = cursor.getString(0) ?: continue
-                    noteRows++
-                    if (!isLegacyStubNote(flds)) stubOnly = false
-                    ankiNoteToLine(flds)?.let(lines::add)
-                }
-            }
-            ApkgImport(
-                deckName = readDeckName(it),
-                text = lines.joinToString("\n"),
-                noteCount = lines.size,
-                isLegacyStub = noteRows > 0 && stubOnly,
-            )
+    private suspend fun ZipFile.readCollection(
+        file: File,
+        requested: ApkgFieldMapping?,
+        compressImage: suspend (ByteArray, String) -> DraftCardImage,
+    ): ApkgImport {
+        val db = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+        val raw = db.use { it.readRawNotes() }
+        if (raw.rows.isEmpty()) {
+            return ApkgImport(deckName = raw.deckName, isLegacyStub = raw.stubOnly)
         }
+
+        val parsed = raw.rows.map { row -> row.fields.map(::parseAnkiField) }
+        val fieldCount = parsed.maxOf { it.size }
+        val mapping = requested ?: chooseDefaultFields(parsed, fieldCount)
+
+        val media = MediaIndex(this)
+        var dropped = ApkgDropped()
+        val notes = mutableListOf<BulkNote>()
+        // Only the notes that became cards suggest tags: a tag on a note this deck dropped
+        // describes nothing the user is about to publish.
+        val noteTags = mutableListOf<String>()
+        parsed.forEachIndexed { index, fields ->
+            val images = media.resolve(fields, mapping, compressImage)
+            if (images == null) {
+                dropped = dropped.copy(missingMedia = dropped.missingMedia + 1)
+                return@forEachIndexed
+            }
+            val cards = ankiNoteToCards(fields, mapping, images)
+            if (cards.isEmpty()) {
+                dropped = dropped.tally(fields, mapping)
+                return@forEachIndexed
+            }
+            notes += cards
+            raw.rows[index].tags.takeIf { it.isNotBlank() }?.let(noteTags::add)
+        }
+
+        return ApkgImport(
+            deckName = raw.deckName,
+            deckDescription = raw.deckDescription,
+            suggestedTags = suggestDeckTags(noteTags),
+            fieldNames = raw.fieldNames(fieldCount),
+            mapping = mapping,
+            notes = notes,
+            noteCount = raw.rows.size,
+            dropped = dropped,
+            imagesImported = media.imported,
+            imagesSkipped = media.skipped,
+            isLegacyStub = raw.stubOnly,
+        )
     }
 
-    /**
-     * Best-effort deck name, used only to prefill the title field.
-     *
-     * The `decks` table exists on newer schemas; older collections keep decks as JSON in `col`.
-     * Not worth parsing that for a default the user can edit, so this gives up quietly.
-     */
-    private fun readDeckName(db: SQLiteDatabase): String? = runCatching {
-        db.rawQuery("SELECT name FROM decks WHERE id != 1 ORDER BY id LIMIT 1", null).use { c ->
-            if (c.moveToFirst()) c.getString(0)?.substringAfterLast(ANKI_FIELD_SEPARATOR) else null
-        }
-    }.getOrNull()
+    /** Which of the two "this note had nothing to show" cases this was, so the summary can say. */
+    private fun ApkgDropped.tally(fields: List<AnkiField>, mapping: ApkgFieldMapping): ApkgDropped {
+        val front = fields.getOrNull(mapping.frontOrd)?.isEmpty != false
+        val back = fields.getOrNull(mapping.backOrd)?.isEmpty != false
+        return if (front && back) copy(empty = empty + 1) else copy(halfEmpty = halfEmpty + 1)
+    }
 
     private const val TAG = "Loopky/ApkgReader"
 

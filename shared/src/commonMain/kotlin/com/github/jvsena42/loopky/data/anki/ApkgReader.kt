@@ -1,32 +1,45 @@
 package com.github.jvsena42.loopky.data.anki
 
+import com.github.jvsena42.loopky.domain.model.DraftCardImage
+
 /**
- * Reads an Anki `.apkg` export into plain text the existing import pipeline can parse.
+ * Reads an Anki `.apkg` export into the notes the existing import pipeline can commit.
  *
  * An `.apkg` is a zip holding a SQLite collection (`collection.anki2`, or `collection.anki21` /
  * `collection.anki21b` on newer Anki), a media manifest, and numbered blobs. The notes live in one
- * table with their fields joined by the ASCII unit separator, which is why this can hand back
- * tab-separated text and reuse the paste parser rather than growing a second one.
+ * table with their fields joined by the ASCII unit separator.
  *
- * **No new dependencies.** The plan for this originally assumed a KMP zip reader, a SQLite driver
- * and zstd — three dependencies for content already reachable as text. Android has `java.util.zip`
- * and `android.database.sqlite` in the platform, so the Android implementation needs none of them.
- * That leaves only `collection.anki21b`, which is zstd-compressed and is reported as unsupported
- * with a pointer at Anki's plain-text export.
+ * This used to hand back one tab-separated `String`, so that the paste parser could be reused
+ * verbatim. That reuse was worth having and is kept — the notes still go through the same dedupe,
+ * the same caps and the same commit screen — but the flattening had to go. A `.apkg` is a
+ * structured store of typed notes with named fields and media blobs, and three of the things it
+ * gets wrong (#96: junk field choices, uncounted dropped notes, discarded images) cannot be fixed
+ * downstream of a string that has already thrown all three away.
+ *
+ * **No new dependencies.** Android has `java.util.zip` and `android.database.sqlite` in the
+ * platform. That leaves only `collection.anki21b`, which is zstd-compressed and is reported as
+ * unsupported with a pointer at Anki's plain-text export.
  */
 expect object ApkgReader {
     /** True if [header] — the first handful of bytes of a file — looks like a zip. */
     fun canRead(header: ByteArray): Boolean
 
     /**
-     * Extract notes as tab-separated `front\tback` lines, ready for
-     * [com.github.jvsena42.loopky.data.repository.ImportRepository.parseBulk].
+     * Read the deck at [path].
      *
-     * Takes a **path** rather than bytes: an `.apkg`'s collection is a small fraction of the
-     * archive, the rest being media this reader does not want, so holding the whole file in memory
-     * to read part of it capped the flow far below the size of a real Anki deck (#96).
+     * [mapping] names the two fields to import; null asks for `chooseDefaultFields`. Re-reading
+     * with an explicit mapping is how the field picker works — a second pass over an already
+     * spooled file, not a second pipeline.
+     *
+     * [compressImage] is how a side's picture gets shrunk on its way through. It is a parameter
+     * rather than an injected `MediaProcessor` because this is an `object`, outside the Koin graph;
+     * passing it also means only one raw blob is ever in memory, instead of every image in the deck.
      */
-    suspend fun readNotes(path: String): Result<ApkgImport>
+    suspend fun readNotes(
+        path: String,
+        mapping: ApkgFieldMapping? = null,
+        compressImage: suspend (ByteArray, String) -> DraftCardImage,
+    ): Result<ApkgImport>
 }
 
 /**
@@ -54,17 +67,67 @@ enum class ApkgFailure {
 /** An `.apkg` read that failed for a reason worth reporting differently. See [ApkgFailure]. */
 class ApkgException(val reason: ApkgFailure, message: String) : Exception(message)
 
-/** What was recovered from an `.apkg`. [text] is tab-separated, one note per line. */
+/** What was recovered from an `.apkg`. */
 data class ApkgImport(
     val deckName: String?,
-    val text: String,
-    val noteCount: Int,
+    /** Anki's own deck description, to prefill the commit screen. Best-effort; often absent. */
+    val deckDescription: String? = null,
+    /** Labels for the commit screen's chips, derived from note tags. See `suggestDeckTags`. */
+    val suggestedTags: List<String> = emptyList(),
+    /** Field names of the deck's dominant note type, for the field picker. */
+    val fieldNames: List<String> = emptyList(),
+    /** The two fields these [notes] were built from. */
+    val mapping: ApkgFieldMapping = ApkgFieldMapping(0, 1),
+    val notes: List<BulkNote> = emptyList(),
+    /** Notes read from the collection, before any were dropped or a cloze note expanded. */
+    val noteCount: Int = 0,
+    val dropped: ApkgDropped = ApkgDropped(),
+    /** Distinct pictures pulled out of the archive and attached to a card side. */
+    val imagesImported: Int = 0,
+    /** Pictures left behind at the importer's per-deck ceiling. Reported, never silent. */
+    val imagesSkipped: Int = 0,
     /**
      * True when the collection read held notes but every one of them was Anki's compatibility
      * placeholder. Distinguishes "this file has no deck in it" from "this file's deck is somewhere
      * this build didn't look".
      */
     val isLegacyStub: Boolean = false,
+)
+
+/**
+ * Notes that never became cards.
+ *
+ * Reported rather than merely subtracted: 1,458 notes going in and 1,338 cards coming out used to
+ * be explained by "1 duplicates merged", because the other 119 were dropped inside this reader and
+ * every count downstream was computed from rows that no longer existed (#96).
+ */
+data class ApkgDropped(
+    /** Neither chosen field held anything — the note has no side to show. */
+    val empty: Int = 0,
+    /** One side was there, the other was not; a card needs both. */
+    val halfEmpty: Int = 0,
+    /** A picture this reader could not find among the archive's media blobs. */
+    val missingMedia: Int = 0,
+) {
+    val total: Int get() = empty + halfEmpty + missingMedia
+}
+
+/**
+ * One note on its way to becoming a card: two sides of text, each optionally a picture.
+ *
+ * The structured counterpart of the `front\tback` line this reader used to emit, and the shape
+ * `ImportRepository.parseBulkNotes` takes.
+ */
+data class BulkNote(
+    val front: String,
+    val back: String,
+    val frontImage: DraftCardImage? = null,
+    val backImage: DraftCardImage? = null,
+    /**
+     * Distinguishes two notes whose text matches but whose pictures do not, so dedupe collapses
+     * only genuine duplicates. Anki's media filenames, when there are any.
+     */
+    val imageKey: String? = null,
 )
 
 /**
@@ -80,43 +143,43 @@ internal fun isLegacyStubNote(flds: String): Boolean =
 private const val LEGACY_STUB_PREFIX = "Please update to the latest Anki version"
 
 /** Anki joins a note's fields with the ASCII unit separator (0x1F). */
-internal const val ANKI_FIELD_SEPARATOR = ''
+internal const val ANKI_FIELD_SEPARATOR = '\u001F'
 
 /**
- * Turn one Anki note's `flds` value into a `front\tback` line, or null if it has no usable pair.
+ * Turn one Anki note into the cards it should become.
  *
- * Anki notes can carry many fields and HTML; a Loopky card has exactly two plain-text sides, so
- * the first two fields are used and the rest dropped — the same rule the paste importer applies to
- * extra columns (spec §8). Rich text and the Note→Card split are #46, deliberately not here.
+ * A cloze note expands to one card per deletion; every other note yields at most one. Returns empty
+ * when a side is missing, which is the caller's cue to count the note as dropped and say so.
  */
-internal fun ankiNoteToLine(flds: String): String? {
-    val fields = flds.split(ANKI_FIELD_SEPARATOR).map { it.stripAnkiHtml() }
-    val front = fields.getOrNull(0)?.takeIf { it.isNotBlank() } ?: return null
-    val back = fields.getOrNull(1)?.takeIf { it.isNotBlank() } ?: return null
-    // Tabs and newlines inside a field would break the line-per-note shape the parser expects.
-    return "${front.flatten()}\t${back.flatten()}"
+internal fun ankiNoteToCards(
+    fields: List<AnkiField>,
+    mapping: ApkgFieldMapping,
+    images: Map<Int, DraftCardImage> = emptyMap(),
+): List<BulkNote> {
+    val front = fields.getOrNull(mapping.frontOrd) ?: AnkiField("")
+    val back = fields.getOrNull(mapping.backOrd) ?: AnkiField("")
+
+    // Cloze first: a cloze note's second field is Anki's Extra, not the answer, so the ordinary
+    // front/back reading of it is wrong before the markup is even considered.
+    val cloze = expandCloze(front.text, back.text)
+    if (cloze.isNotEmpty()) {
+        return cloze.map { BulkNote(front = it.front, back = it.back) }
+    }
+
+    val frontImage = images[mapping.frontOrd]
+    val backImage = images[mapping.backOrd]
+    if (front.text.isBlank() && frontImage == null) return emptyList()
+    if (back.text.isBlank() && backImage == null) return emptyList()
+
+    return listOf(
+        BulkNote(
+            front = front.text,
+            back = back.text,
+            frontImage = frontImage,
+            backImage = backImage,
+            imageKey = listOfNotNull(front.imageSrc, back.imageSrc)
+                .takeIf { it.isNotEmpty() }
+                ?.joinToString("|"),
+        ),
+    )
 }
-
-private fun String.flatten(): String =
-    replace('\t', ' ').replace('\n', ' ').replace('\r', ' ').trim()
-
-/**
- * Strip the HTML Anki stores in note fields down to readable text.
- *
- * Deliberately minimal: enough that a card reads correctly rather than showing `<div>` noise.
- * Real rich-text fidelity is #46.
- */
-internal fun String.stripAnkiHtml(): String =
-    replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), " ")
-        .replace(Regex("</?div[^>]*>", RegexOption.IGNORE_CASE), " ")
-        .replace(Regex("<[^>]+>"), "")
-        .replace("&nbsp;", " ")
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        // Adjacent tags each leave a space behind, so collapse runs rather than shipping
-        // double-spaced card text.
-        .replace(Regex("\\s+"), " ")
-        .trim()

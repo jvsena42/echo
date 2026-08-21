@@ -22,6 +22,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,6 +43,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -49,8 +52,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.data.anki.ApkgFieldMapping
 import com.github.jvsena42.loopky.data.anki.ApkgReader
 import com.github.jvsena42.loopky.domain.model.Separator
+import com.github.jvsena42.loopky.presentation.importflow.ApkgFields
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportEffect
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportUiState
@@ -152,6 +157,7 @@ fun BulkImportRoute(
         state = state,
         onPickFile = { pickFile() },
         onSeparatorOverride = viewModel::onSeparatorOverride,
+        onFieldMappingChange = viewModel::onFieldMappingChanged,
         onConfirm = viewModel::onConfirm,
         onCancel = viewModel::onCancel,
     )
@@ -163,12 +169,14 @@ private fun BulkImportScreen(
     state: BulkImportUiState,
     onPickFile: () -> Unit,
     onSeparatorOverride: (Separator) -> Unit,
+    onFieldMappingChange: (ApkgFieldMapping) -> Unit,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
     var showSeparatorSheet by remember { mutableStateOf(false) }
+    var showFieldSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier,
@@ -207,10 +215,24 @@ private fun BulkImportScreen(
                     onConfirm = onConfirm,
                     onPickFile = onPickFile,
                     onSeparatorClick = { showSeparatorSheet = true },
+                    onFieldsClick = { showFieldSheet = true },
                 )
                 is BulkImportUiState.Error -> ErrorState(state.reason, onPickFile)
             }
         }
+    }
+
+    val fields = (state as? BulkImportUiState.Ready)?.fields
+    if (showFieldSheet && fields != null) {
+        FieldMappingSheet(
+            fields = fields,
+            sample = state.sample.firstOrNull(),
+            onPick = {
+                showFieldSheet = false
+                onFieldMappingChange(it)
+            },
+            onDismiss = { showFieldSheet = false },
+        )
     }
 
     if (showSeparatorSheet) {
@@ -357,6 +379,7 @@ private fun Summary(
     onConfirm: () -> Unit,
     onPickFile: () -> Unit,
     onSeparatorClick: () -> Unit,
+    onFieldsClick: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     Spacer(Modifier.height(24.dp))
@@ -374,10 +397,19 @@ private fun Summary(
     )
 
     Spacer(Modifier.height(12.dp))
-    // What the parser decided, and — as on the paste screen — a way to disagree with it.
-    SeparatorChip(separator = state.separator, onClick = onSeparatorClick)
+    // What the reader decided, and a way to disagree with it. An .apkg knows its own field names,
+    // so it offers those; a text file only ever had a separator to guess at.
+    val fields = state.fields
+    if (fields != null) {
+        FieldsChip(fields = fields, onClick = onFieldsClick)
+    } else {
+        SeparatorChip(separator = state.separator, onClick = onSeparatorClick)
+    }
 
-    // Everything the parse dropped, stated rather than silently swallowed.
+    // Everything the import dropped, stated rather than silently swallowed.
+    if (state.droppedNoteCount > 0) {
+        Caption(stringResource(R.string.bulk_dropped_notes, state.droppedNoteCount))
+    }
     if (state.skippedCount > 0) {
         Caption(stringResource(R.string.bulk_skipped, state.skippedCount))
     }
@@ -386,6 +418,9 @@ private fun Summary(
     }
     if (state.truncatedCount > 0) {
         Caption(stringResource(R.string.bulk_truncated, state.truncatedCount))
+    }
+    if (state.imagesSkippedCount > 0) {
+        Caption(stringResource(R.string.bulk_images_skipped, state.imagesSkippedCount))
     }
 
     Spacer(Modifier.height(24.dp))
@@ -416,6 +451,111 @@ private fun Summary(
             .fillMaxWidth(),
     )
     Spacer(Modifier.height(24.dp))
+}
+
+/** Which two Anki fields became the card, and an invitation to pick differently. */
+@Composable
+private fun FieldsChip(fields: ApkgFields, onClick: () -> Unit) {
+    val colors = LoopkyTheme.colors
+    Text(
+        text = if (fields.canChoose) {
+            stringResource(R.string.bulk_fields_changeable, fields.frontName, fields.backName)
+        } else {
+            stringResource(R.string.bulk_fields, fields.frontName, fields.backName)
+        },
+        fontSize = 13.sp,
+        fontWeight = FontWeight.W600,
+        color = if (fields.canChoose) colors.accentPrimary else colors.foregroundSecondary,
+        modifier = Modifier
+            .testTag("bulk_fields_chip")
+            .clip(RoundedCornerShape(999.dp))
+            .clickable(enabled = fields.canChoose, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
+/**
+ * Pick which two Anki fields become the card.
+ *
+ * Front first, then back, because that is the order the answer matters in and it keeps the sheet to
+ * one list rather than two side by side. Each row shows the field's name and what the deck actually
+ * has in it — a name like `Ranking` or `Picture` is only half the story, and the sample is what
+ * makes an id column obvious at a glance.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FieldMappingSheet(
+    fields: ApkgFields,
+    sample: SampleCard?,
+    onPick: (ApkgFieldMapping) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = LoopkyTheme.colors
+    var front by remember(fields) { mutableStateOf<Int?>(null) }
+    val choosingFront = front == null
+
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfacePrimary) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+                .semantics { testTagsAsResourceId = true },
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(
+                    if (choosingFront) R.string.bulk_fields_sheet_front else R.string.bulk_fields_sheet_back,
+                ),
+                color = colors.foregroundPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            fields.names.forEachIndexed { ord, name ->
+                // The front cannot also be the back; hiding it beats offering a choice that makes
+                // a card with the same text twice.
+                if (!choosingFront && ord == front) return@forEachIndexed
+                val selected = if (choosingFront) {
+                    ord == fields.mapping.frontOrd
+                } else {
+                    ord == fields.mapping.backOrd
+                }
+                FieldOption(
+                    name = name.ifBlank { stringResource(R.string.bulk_fields_unnamed, ord + 1) },
+                    selected = selected,
+                    onClick = {
+                        val chosen = front
+                        if (chosen == null) front = ord else onPick(ApkgFieldMapping(chosen, ord))
+                    },
+                )
+            }
+            sample?.let {
+                Text(
+                    text = stringResource(R.string.bulk_fields_sheet_hint),
+                    color = colors.foregroundSecondary,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FieldOption(name: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = LoopkyTheme.colors
+    Text(
+        text = name,
+        color = if (selected) colors.accentPrimary else colors.foregroundPrimary,
+        fontSize = 15.sp,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .testTag("bulk_field_option")
+            .padding(vertical = 12.dp),
+    )
 }
 
 @Composable
@@ -481,6 +621,7 @@ private fun BulkImportIdlePreview() {
             state = BulkImportUiState.Idle,
             onPickFile = {},
             onSeparatorOverride = {},
+            onFieldMappingChange = {},
             onConfirm = {},
             onCancel = {},
         )
@@ -496,6 +637,7 @@ private fun BulkImportParsingPreview() {
             state = BulkImportUiState.Parsing("japanese_core.apkg"),
             onPickFile = {},
             onSeparatorOverride = {},
+            onFieldMappingChange = {},
             onConfirm = {},
             onCancel = {},
         )
@@ -523,6 +665,7 @@ private fun BulkImportReadyPreview() {
             ),
             onPickFile = {},
             onSeparatorOverride = {},
+            onFieldMappingChange = {},
             onConfirm = {},
             onCancel = {},
         )
@@ -538,6 +681,7 @@ private fun BulkImportErrorPreview() {
             state = BulkImportUiState.Error(BulkImportError.NotText),
             onPickFile = {},
             onSeparatorOverride = {},
+            onFieldMappingChange = {},
             onConfirm = {},
             onCancel = {},
         )

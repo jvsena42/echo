@@ -16,6 +16,23 @@ data class ImportDraft(
      * worse than an empty field the user knows to fill in.
      */
     val suggestedTitle: String? = null,
+    /**
+     * The source deck's own description, to prefill the commit screen beside [suggestedTitle].
+     * Null for a paste, which has nothing to guess from.
+     */
+    val suggestedDescription: String? = null,
+    /**
+     * Tags to offer as chips on the commit screen. A suggestion, not a decision: they arrive
+     * editable and removable, because the source that proposed them (Anki's per-note tags) is not
+     * describing the deck the way the user would.
+     */
+    val suggestedTags: List<String> = emptyList(),
+    /**
+     * True when this draft came from a source that knew its own fields, so the text was never
+     * split by a separator. The summary offers a field picker instead of a separator override —
+     * a separator is not a thing an `.apkg` has.
+     */
+    val structured: Boolean = false,
 )
 
 data class ParsedRow(

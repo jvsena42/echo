@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.anki.BulkNote
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.domain.model.BACK_FIELD
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
@@ -83,6 +84,65 @@ class ImportRepositoryImpl : ImportRepository {
             ),
         )
 
+    override suspend fun parseBulkNotes(
+        notes: List<BulkNote>,
+        suggestedTitle: String?,
+        suggestedDescription: String?,
+        suggestedTags: List<String>,
+    ): Result<ImportDraft> = withContext(Dispatchers.Default) {
+        parseLock.withLock {
+            runSuspendCatching {
+                require(notes.isNotEmpty()) { "Nothing to import." }
+                resetDraftState()
+
+                val truncated = (notes.size - MAX_BULK_CARDS).coerceAtLeast(0)
+                // Dedupe on the pictures as well as the text. Two notes reading "Which bone?" with
+                // different x-rays are two cards; collapsing them on text alone would lose one.
+                val seen = mutableSetOf<List<String?>>()
+                var duplicatesCollapsed = 0
+                val kept = notes.take(MAX_BULK_CARDS).filter { note ->
+                    if (seen.add(listOf(note.front, note.back, note.imageKey))) {
+                        true
+                    } else {
+                        duplicatesCollapsed++
+                        false
+                    }
+                }
+
+                currentCoroutineContext().ensureActive()
+
+                val rows = kept.mapIndexed { index, note ->
+                    // Images are attached here, under the lock and after the reset above, because
+                    // this index is the post-dedupe one the publish flow will ask with.
+                    note.frontImage?.let { rowFrontImages[index] = it }
+                    note.backImage?.let { rowBackImages[index] = it }
+                    ParsedRow(
+                        index = index,
+                        fields = listOf(note.front, note.back),
+                        isValid = note.front.isNotBlank() || note.back.isNotBlank(),
+                    )
+                }
+
+                ImportDraft(
+                    // A structured source has no raw text to re-split, and nothing re-parses this
+                    // draft from it — the reader re-reads the file instead.
+                    rawText = "",
+                    separator = Separator.Tab,
+                    rows = rows,
+                    duplicatesCollapsed = duplicatesCollapsed,
+                    truncated = truncated,
+                    suggestedTitle = suggestedTitle,
+                    suggestedDescription = suggestedDescription,
+                    suggestedTags = suggestedTags,
+                    structured = true,
+                ).also {
+                    draft = it
+                    discardIncompleteRows(it)
+                }
+            }
+        }
+    }
+
     /**
      * Bulk import has no triage step, so a row missing a front or a back has nowhere to be fixed —
      * and [keptRows] only filters explicit [TriageDecision.Discard]s. Without this the summary
@@ -97,7 +157,11 @@ class ImportRepositoryImpl : ImportRepository {
     private fun discardIncompleteRows(draft: ImportDraft) {
         draft.rows.forEach { row ->
             val (front, back) = draft.frontBackOf(row)
-            if (front.isBlank() || back.isBlank()) {
+            // A side can be a picture instead of words. Judging emptiness on text alone is what
+            // would drop every image-only Anki answer before it ever reached publish (#96).
+            val frontEmpty = front.isBlank() && rowImage(row.index, isFront = true) == null
+            val backEmpty = back.isBlank() && rowImage(row.index, isFront = false) == null
+            if (frontEmpty || backEmpty) {
                 setDecision(row.index, TriageDecision.Discard)
             }
         }
@@ -141,11 +205,7 @@ class ImportRepositoryImpl : ImportRepository {
     ): Result<ImportDraft> = runSuspendCatching {
         val maxChars = options.maxChars
         val maxCards = options.maxCards
-        // A fresh parse invalidates any prior triage decisions/edits.
-        triageDecisions.clear()
-        rowEdits.clear()
-        rowFrontImages.clear()
-        rowBackImages.clear()
+        resetDraftState()
         val text = rawText.replace("\r\n", "\n").replace("\r", "\n").trim()
         require(text.isNotEmpty()) { "Nothing to import." }
         require(text.length <= maxChars) { "Text is too long (max $maxChars characters)." }
@@ -193,6 +253,11 @@ class ImportRepositoryImpl : ImportRepository {
 
     override fun clear() {
         draft = null
+        resetDraftState()
+    }
+
+    /** A fresh parse invalidates any prior triage decisions, edits and row pictures. */
+    private fun resetDraftState() {
         triageDecisions.clear()
         rowEdits.clear()
         rowFrontImages.clear()

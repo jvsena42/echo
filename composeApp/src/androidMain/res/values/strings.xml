@@ -557,6 +557,12 @@
     <string name="bulk_parsing">Reading %1$s…</string>
     <string name="bulk_summary_heading">Ready to import</string>
     <string name="bulk_detected_separator">Separator: %1$s</string>
+    <string name="bulk_fields">Fields: %1$s → %2$s</string>
+    <string name="bulk_fields_changeable">Fields: %1$s → %2$s · tap to change</string>
+    <string name="bulk_fields_unnamed">Field %1$d</string>
+    <string name="bulk_fields_sheet_front">Which field is the front?</string>
+    <string name="bulk_fields_sheet_back">Which field is the back?</string>
+    <string name="bulk_fields_sheet_hint">Anki decks often start with id or ranking fields. Pick the ones you want to study.</string>
     <string name="bulk_sample_label">SAMPLE</string>
     <string name="bulk_import_button">Import %1$s</string>
     <string name="bulk_pick_another">Choose a different file</string>
@@ -579,6 +585,8 @@
     <string name="bulk_skipped">%1$d skipped (missing a front or back)</string>
     <string name="bulk_duplicates">%1$d duplicates merged</string>
     <string name="bulk_truncated">%1$d rows past the limit were not imported</string>
+    <string name="bulk_dropped_notes">%1$d notes had no front and back to use</string>
+    <string name="bulk_images_skipped">%1$d pictures past the limit were not imported</string>
     <plurals name="bulk_cards_parsed">
         <item quantity="one">%1$d card parsed</item>
         <item quantity="other">%1$d cards parsed</item>

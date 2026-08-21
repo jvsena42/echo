@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository
 
+import com.github.jvsena42.loopky.data.anki.BulkNote
 import com.github.jvsena42.loopky.data.homegate.LnInvoice
 import com.github.jvsena42.loopky.data.homegate.MethodAvailability
 import com.github.jvsena42.loopky.data.storage.PendingSignup
@@ -473,6 +474,25 @@ interface ImportRepository {
         rawText: String,
         separator: Separator? = null,
         suggestedTitle: String? = null,
+    ): Result<ImportDraft>
+
+    /**
+     * [parseBulk] for a source that already knows its own structure, rather than a blob of text.
+     *
+     * An `.apkg` is typed notes with named fields and media blobs. Rendering those to tab-separated
+     * text so the paste parser could split them again threw away exactly what the file knew: which
+     * field is which, which notes were dropped and why, and every picture (#96). Splitting is the
+     * only step this skips — dedupe, the caps, truncation reporting and the drop-incomplete policy
+     * are the same body [parseBulk] runs, so both sources reach the commit screen identically.
+     *
+     * Row images are attached here rather than by the caller because dedupe renumbers rows: the
+     * index a picture was read at is not the [ParsedRow.index] it belongs to.
+     */
+    suspend fun parseBulkNotes(
+        notes: List<BulkNote>,
+        suggestedTitle: String? = null,
+        suggestedDescription: String? = null,
+        suggestedTags: List<String> = emptyList(),
     ): Result<ImportDraft>
 
     /** Per-row keep/discard decisions made during triage (default [TriageDecision.Keep]). */

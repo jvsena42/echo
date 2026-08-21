@@ -141,7 +141,7 @@ val sharedModule = module {
         )
     }
     viewModel { PasteImportViewModel(importRepository = get()) }
-    viewModel { BulkImportViewModel(importRepository = get()) }
+    viewModel { BulkImportViewModel(importRepository = get(), mediaProcessor = get()) }
     viewModel { TriageViewModel(importRepository = get()) }
     viewModel { ImageSheetViewModel(unsplashClient = get()) }
     viewModel {
