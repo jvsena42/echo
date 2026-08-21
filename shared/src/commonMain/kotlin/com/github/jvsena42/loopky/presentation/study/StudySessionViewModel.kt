@@ -246,6 +246,7 @@ class StudySessionViewModel(
                 deckId = card.deckId,
                 authorPubky = deck?.authorPubky.orEmpty(),
                 frontImageRef = card.front.imageRef,
+                backImageRef = card.back.imageRef,
                 syncError = syncError,
             ) }
         }
@@ -296,6 +297,14 @@ sealed interface StudySessionUiState {
         val authorPubky: String = "",
         /** Front-side image, shown as a circular avatar on the card back (design `aLoMj`). */
         val frontImageRef: MediaRef.Image? = null,
+        /**
+         * Back-side image — the answer itself, when the answer is a picture.
+         *
+         * Stored, published and editable since cards gained media, but never surfaced here, so a
+         * card whose answer is a diagram revealed a blank face. An Anki import puts pictures
+         * exactly there (#96), which is what made the gap worth closing.
+         */
+        val backImageRef: MediaRef.Image? = null,
         /**
          * Set when graded reviews are not reaching the homeserver. Not an [Error]: the session
          * carries on and the reviews are buffered and journalled, so blanking the card the user is

@@ -40,18 +40,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -80,7 +76,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -96,7 +91,6 @@ import com.github.jvsena42.loopky.presentation.study.SpeakPhase
 import com.github.jvsena42.loopky.presentation.study.StudySessionEffect
 import com.github.jvsena42.loopky.presentation.study.StudySessionUiState
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
-import com.github.jvsena42.loopky.ui.components.CardMediaImage
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.PermissionBlockedDialog
 import com.github.jvsena42.loopky.ui.components.PermissionRationaleDialog
@@ -360,6 +354,7 @@ private fun ReviewingContent(
                     backText = state.backText,
                     backLabel = state.backLabel,
                     frontImageRef = state.frontImageRef,
+                    backImageRef = state.backImageRef,
                     revealed = state.revealed,
                 ),
                 // Keyed on the card, so revealing swaps content in place (the flip) and only a
@@ -428,6 +423,7 @@ private data class CardSnapshot(
     val backText: String,
     val backLabel: String?,
     val frontImageRef: MediaRef.Image?,
+    val backImageRef: MediaRef.Image?,
     val revealed: Boolean,
 )
 
@@ -497,99 +493,11 @@ private fun AnimatedContentScope.FlippableCard(
                 showListen = interactive && listenEnabled,
                 onSpeakTest = if (interactive && speakEnabled) onSpeakTest else null,
                 imageRef = card.frontImageRef,
+                answerImageRef = card.backImageRef,
                 deckId = deckId,
                 authorPubky = authorPubky,
                 modifier = Modifier.graphicsLayer { rotationY = 180f },
             )
-        }
-    }
-}
-
-@Composable
-private fun CardFace(
-    label: String?,
-    text: String,
-    textSize: TextUnit,
-    onSpeak: () -> Unit,
-    showListen: Boolean,
-    onSpeakTest: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-    imageRef: MediaRef.Image? = null,
-    deckId: String = "",
-    authorPubky: String = "",
-) {
-    val colors = LoopkyTheme.colors
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        label?.takeIf { it.isNotBlank() }?.let {
-            Text(
-                text = it,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.W700,
-                letterSpacing = 1.5.sp,
-                color = colors.accentPrimary,
-            )
-        }
-        // Front-side image shown as a circular avatar on the card back (design `aLoMj`).
-        imageRef?.let { image ->
-            CardMediaImage(
-                image = image,
-                deckId = deckId,
-                authorPubky = authorPubky,
-                modifier = Modifier
-                    .size(96.dp)
-                    .clip(CircleShape)
-                    .background(colors.accentPrimarySoft),
-            )
-        }
-        Text(
-            text = text,
-            fontSize = textSize,
-            fontWeight = FontWeight.W800,
-            color = colors.foregroundPrimary,
-            textAlign = TextAlign.Center,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (showListen) {
-                FilledTonalButton(
-                    onClick = onSpeak,
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = colors.accentPrimarySoft,
-                        contentColor = colors.accentPrimary,
-                    ),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                        contentDescription = stringResource(R.string.study_listen),
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.size(8.dp))
-                    Text(text = stringResource(R.string.study_listen), fontSize = 14.sp, fontWeight = FontWeight.W700)
-                }
-            }
-            if (onSpeakTest != null) {
-                FilledTonalButton(
-                    onClick = onSpeakTest,
-                    modifier = Modifier.testTag("study_speak"),
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = colors.accentSecondarySoft,
-                        contentColor = colors.accentSecondary,
-                    ),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Mic,
-                        contentDescription = stringResource(R.string.study_speak),
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(modifier = Modifier.size(8.dp))
-                    Text(text = stringResource(R.string.study_speak), fontSize = 14.sp, fontWeight = FontWeight.W700)
-                }
-            }
         }
     }
 }
