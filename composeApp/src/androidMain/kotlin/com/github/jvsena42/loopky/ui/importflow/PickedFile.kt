@@ -57,6 +57,27 @@ private const val HEADER_BYTES = 16
 
 private const val COPY_BUFFER_BYTES = 64 * 1024
 
+/** Shared by [readPickedFile] and [sweepImportSpools], so the sweep cannot miss a name. */
+private const val SPOOL_PREFIX = "loopky-import"
+
+private const val SPOOL_SUFFIX = ".bin"
+
+/**
+ * Deletes every import spool left behind by a previous process.
+ *
+ * A spool is deleted by whoever holds it, but nothing gets to run when the process is killed —
+ * so a deck opened from *Open with* and then swiped away leaves up to [MAX_IMPORT_FILE_BYTES]
+ * of someone's cache to us indefinitely. Call this at process start and only there: every spool
+ * is created and deleted within one process, so at that moment none of these can be live.
+ */
+internal fun File.sweepImportSpools() {
+    runCatching {
+        listFiles { file ->
+            file.name.startsWith(SPOOL_PREFIX) && file.name.endsWith(SPOOL_SUFFIX)
+        }?.forEach { it.delete() }
+    }
+}
+
 /**
  * Copies [uri] into app cache, off the main thread.
  *
@@ -72,7 +93,7 @@ internal suspend fun ContentResolver.readPickedFile(uri: Uri, cacheDir: File): R
                 throw FileReadException(BulkImportError.TooLarge)
             }
 
-            val spool = File.createTempFile("loopky-import", ".bin", cacheDir)
+            val spool = File.createTempFile(SPOOL_PREFIX, SPOOL_SUFFIX, cacheDir)
             // A half-written spool is not something the caller can clean up: it never gets a
             // PickedFile to delete. runCatching rather than a catch-and-rethrow so the failure
             // keeps its own type on the way out.
