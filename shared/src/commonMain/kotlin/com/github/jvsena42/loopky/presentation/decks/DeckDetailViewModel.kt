@@ -19,7 +19,7 @@ import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
-import com.github.jvsena42.loopky.domain.model.inStudyOrder
+import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.presentation.share.DeckSharePrompt
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -75,7 +75,7 @@ class DeckDetailViewModel(
         viewModelScope.launch {
             srsRepository.changes
                 .filter { it == deckId }
-                .collect { load(silent = true) }
+                .collect { refreshSrsCounters() }
         }
     }
 
@@ -108,11 +108,15 @@ class DeckDetailViewModel(
 
             // Must be a fetch, not a cache read: nothing has loaded this deck's cards yet on a
             // cold launch, and for a deck you don't own nothing ever will.
-            runSuspendCatching { cardRepository.fetchByDeck(deck).getOrThrow().inStudyOrder() }
+            // fetchByDeck already returns study order; sorting it again here cost a second pass
+            // over every card in the deck, on the main thread.
+            runSuspendCatching { cardRepository.fetchByDeck(deck).getOrThrow() }
                 .onSuccess { cards ->
                     val dueCount = runSuspendCatching { srsRepository.dueForDeck(deckId).size }
                         .getOrDefault(0)
-                    val mastered = masteredPercent(cards)
+                    val states = runSuspendCatching { srsRepository.statesForDeck(deckId) }
+                        .getOrDefault(emptyMap())
+                    val mastered = masteredPercent(cards.map { it.id }, states)
                     val isFollowing = runSuspendCatching { deckRepository.isFollowingDeck(deckId) }
                         .getOrDefault(false)
                     _state.update {
@@ -404,17 +408,46 @@ class DeckDetailViewModel(
     }
 
     /**
-     * Share of cards whose review interval has reached SM-2's "mature" threshold.
-     * `dueForDeck` has already warmed the per-session SRS cache, so [SrsRepository.stateFor]
-     * is a cheap lookup here. "—" until the deck has cards.
+     * Share of cards whose review interval has reached SM-2's "mature" threshold. "—" until the
+     * deck has cards.
+     *
+     * [states] is passed in rather than looked up per card: one [SrsRepository.statesForDeck] call
+     * takes the repository's lock once, where a [SrsRepository.stateFor] per card took it `n` times
+     * for a deck that can hold twenty thousand of them.
      */
-    private suspend fun masteredPercent(cards: List<Card>): String {
-        if (cards.isEmpty()) return "—"
-        val mastered = cards.count { card ->
-            val state = runSuspendCatching { srsRepository.stateFor(card.id) }.getOrNull()
-            state != null && state.intervalDays >= MATURE_INTERVAL_DAYS
+    private fun masteredPercent(cardIds: List<String>, states: Map<String, SrsState>): String {
+        if (cardIds.isEmpty()) return "—"
+        val mastered = cardIds.count { id ->
+            (states[id]?.intervalDays ?: 0) >= MATURE_INTERVAL_DAYS
         }
-        return "${mastered * PERCENT / cards.size}%"
+        return "${mastered * PERCENT / cardIds.size}%"
+    }
+
+    /**
+     * Recompute just the two numbers a review can move — due count and mastered share — without
+     * touching the network.
+     *
+     * This runs once per graded card, because studying happens on its own destination while this
+     * screen stays composed behind it. It used to be a full [load], which meant every single grade
+     * re-synced the deck manifest, rebuilt the whole card list, and re-fetched the author's profile,
+     * the cover blob and the Nexus tagger counts — none of which a review can change (#102).
+     */
+    private suspend fun refreshSrsCounters() {
+        val current = _state.value as? DeckDetailUiState.Content ?: return
+        val states = runSuspendCatching { srsRepository.statesForDeck(deckId) }
+            .onFailure { Log.e(TAG, "refreshSrsCounters: FAILED — ${it.message}", it) }
+            .getOrNull() ?: return
+        // Deliberately not recounted from [states] here: the due rule is the repository's, and a
+        // second copy of it in the presentation layer is a second thing to keep in step.
+        val due = runSuspendCatching { srsRepository.dueCountsCached()[deckId] }.getOrNull()
+        val mastered = masteredPercent(current.cardPreviews.map { it.id }, states)
+        _state.update { s ->
+            (s as? DeckDetailUiState.Content)?.copy(
+                // Null means the cache cannot speak for this deck — keep the last real number.
+                dueCards = due ?: s.dueCards,
+                masteredPercent = mastered,
+            ) ?: s
+        }
     }
 
     /**

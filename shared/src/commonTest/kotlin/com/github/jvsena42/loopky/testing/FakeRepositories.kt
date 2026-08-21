@@ -222,7 +222,12 @@ class FakeDeckRepository : DeckRepository {
         return Result.success(Unit)
     }
 
+    /** How often the deck list was re-read — a review must not cost one (#102). */
+    var listOwnedCount = 0
+        private set
+
     override suspend fun listOwned(): List<Deck> {
+        listOwnedCount++
         listOwnedError?.let { throw it }
         return decks.values.toList()
     }
@@ -473,11 +478,37 @@ class FakeSrsRepository : SrsRepository {
         _flushFailures.tryEmit(reason)
     }
 
-    override suspend fun dueToday(): List<Card> = due
-    override suspend fun dueForDeck(deckId: String): List<Card> = due.filter { it.deckId == deckId }
+    /**
+     * Deck ids this fake's "cache" has been asked about, mirroring `SrsRepositoryImpl.deckAuthors`.
+     * [dueCountsCached] reports a real zero for these and says nothing at all about the rest, which
+     * is the distinction its callers depend on.
+     */
+    private val knownDecks = mutableSetOf<String>()
+
+    /** cardId → deckId, learned the same way the real repo learns it: from the write. */
+    private val stateDecks = mutableMapOf<String, String>()
+
+    override suspend fun dueToday(): List<Card> {
+        knownDecks += due.map { it.deckId }
+        return due
+    }
+
+    override suspend fun dueForDeck(deckId: String): List<Card> {
+        knownDecks += deckId
+        return due.filter { it.deckId == deckId }
+    }
+
     var nextDue: Long? = null
     override suspend fun nextDueAt(): Long? = nextDue
-    override suspend fun stateFor(cardId: String): SrsState? = states[cardId]
+    override suspend fun stateFor(deckId: String, cardId: String): SrsState? = states[cardId]
+
+    override suspend fun statesForDeck(deckId: String): Map<String, SrsState> =
+        states.filterKeys { stateDecks[it] == deckId }
+
+    override suspend fun dueCountsCached(): Map<String, Int> {
+        val byDeck = due.groupingBy { it.deckId }.eachCount()
+        return (knownDecks + byDeck.keys).associateWith { byDeck[it] ?: 0 }
+    }
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> {
         reviews.add(card to grade)
@@ -500,6 +531,8 @@ class FakeSrsRepository : SrsRepository {
 
     override suspend fun upsert(deckId: String, state: SrsState): Result<Unit> {
         states[state.cardId] = state
+        stateDecks[state.cardId] = deckId
+        knownDecks += deckId
         _changes.tryEmit(deckId)
         return Result.success(Unit)
     }
@@ -696,8 +729,14 @@ class RecordingTagRepository : TagRepository {
         return pubky in selfTaggers
     }
 
-    override suspend fun taggerCounts(subjectUri: PubkyUri): Map<Tag, Int> =
-        counts[subjectUri].orEmpty()
+    /** How often the indexer was asked — a review must not cost a round trip (#102). */
+    var taggerCountsCalls = 0
+        private set
+
+    override suspend fun taggerCounts(subjectUri: PubkyUri): Map<Tag, Int> {
+        taggerCountsCalls++
+        return counts[subjectUri].orEmpty()
+    }
 }
 
 class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {

@@ -831,7 +831,29 @@ interface SrsRepository {
     suspend fun nextDueAt(): Long?
 
     /** Cached review state for a card, if it has been loaded this session. */
-    suspend fun stateFor(cardId: String): SrsState?
+    suspend fun stateFor(deckId: String, cardId: String): SrsState?
+
+    /**
+     * Every cached review state in [deckId], keyed by card id.
+     *
+     * The bulk form of [stateFor], for callers that need a whole deck's states at once — counting
+     * how many cards are due or mature means asking about every card, and doing that one
+     * [stateFor] call at a time costs one lock acquisition per card.
+     */
+    suspend fun statesForDeck(deckId: String): Map<String, SrsState>
+
+    /**
+     * Due counts per deck id, recomputed from what is already in memory — **no homeserver read**.
+     *
+     * The counterpart to [dueForDeck] for the case where a count is all that is wanted and the
+     * caller is reacting to a review it just made. [dueForDeck] re-syncs the deck's manifest,
+     * which is the right thing when opening a screen and badly wrong once per graded card.
+     *
+     * Only covers decks whose cards and review state are already cached, so it is accurate after
+     * any [dueToday]/[dueForDeck] has run and empty on a cold cache. Callers must treat a missing
+     * deck as "unknown", never as zero.
+     */
+    suspend fun dueCountsCached(): Map<String, Int>
 
     /** Grade a card: compute the next state via the scheduler, persist it, and return it. */
     suspend fun review(card: Card, grade: SrsGrade): Result<SrsState>

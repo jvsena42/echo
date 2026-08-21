@@ -227,7 +227,7 @@ class StudySessionViewModel(
         }
         viewModelScope.launch {
             // Cache is warmed by the queue build; a null state means a new (never-reviewed) card.
-            val srsState = srsRepository.stateFor(card.id)
+            val srsState = srsRepository.stateFor(card.deckId, card.id)
             val labels = srsState.previewIntervals(card.id, epochMillis())
             val title = deckTitle.ifBlank { resolveDeckTitle(card.deckId) }.ifBlank { card.deckId }
             val deck = deckRepository.getLocal(card.deckId)

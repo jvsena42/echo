@@ -163,8 +163,33 @@ class SrsRepositoryImpl(
             .minOrNull()
     }
 
-    override suspend fun stateFor(cardId: String): SrsState? =
-        cacheLock.withLock { cache.entries.firstOrNull { it.key.cardId == cardId }?.value }
+    override suspend fun stateFor(deckId: String, cardId: String): SrsState? {
+        val author = authorFor(deckId)
+        return cacheLock.withLock { cache[StateKey(author, deckId, cardId)] }
+    }
+
+    override suspend fun statesForDeck(deckId: String): Map<String, SrsState> {
+        val author = authorFor(deckId)
+        return cacheLock.withLock {
+            cache.entries
+                .filter { it.key.authorPubky == author && it.key.deckId == deckId }
+                .associate { it.key.cardId to it.value }
+        }
+    }
+
+    /**
+     * Cache-only, so this must not call [dueForDeck] — that syncs the manifest, which is the whole
+     * cost this exists to avoid. [deckAuthors] is the record of which decks have been loaded, so
+     * iterating it is what bounds the answer to decks the cache can actually speak for.
+     */
+    override suspend fun dueCountsCached(): Map<String, Int> {
+        val now = epochMillis()
+        val decks = cacheLock.withLock { deckAuthors.toMap() }
+        return decks.mapValues { (deckId, _) ->
+            val states = statesForDeck(deckId)
+            cardRepository.listByDeck(deckId).count { states[it.id].isDue(now) }
+        }
+    }
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> = runSuspendCatching {
         require(isStudiable(card.deckId)) {
