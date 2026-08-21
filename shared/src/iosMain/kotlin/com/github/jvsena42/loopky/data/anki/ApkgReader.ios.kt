@@ -13,9 +13,9 @@ package com.github.jvsena42.loopky.data.anki
  */
 actual object ApkgReader {
 
-    actual fun canRead(bytes: ByteArray): Boolean = false
+    actual fun canRead(header: ByteArray): Boolean = false
 
-    actual suspend fun readNotes(bytes: ByteArray): Result<ApkgImport> =
+    actual suspend fun readNotes(path: String): Result<ApkgImport> =
         Result.failure(
             ApkgException(
                 ApkgFailure.UnsupportedFormat,

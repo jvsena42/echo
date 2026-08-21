@@ -51,9 +51,9 @@ class BulkImportViewModel(
      * a "Notes in Plain Text" export produces, so it feeds the same parser rather than a second
      * one.
      */
-    fun onApkgLoaded(fileName: String, bytes: ByteArray) {
+    fun onApkgLoaded(fileName: String, path: String) {
         startParse(fileName) {
-            ApkgReader.readNotes(bytes).map { LoadedFile(it.text, it.deckName) }
+            ApkgReader.readNotes(path).map { LoadedFile(it.text, it.deckName) }
         }
     }
 

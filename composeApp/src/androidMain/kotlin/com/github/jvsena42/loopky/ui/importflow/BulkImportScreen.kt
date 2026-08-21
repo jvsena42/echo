@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,7 +76,9 @@ fun BulkImportRoute(
 ) {
     val viewModel = koinViewModel<BulkImportViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val resolver = LocalContext.current.contentResolver
+    val context = LocalContext.current
+    val resolver = context.contentResolver
+    val cacheDir = context.cacheDir
     // Cancelled if the user navigates away mid-read; the ViewModel is cleared with the
     // destination too, so nothing outlives the screen.
     val scope = rememberCoroutineScope()
@@ -94,27 +97,42 @@ fun BulkImportRoute(
         }
     }
 
+    // An .apkg is read from its spool rather than from memory, so the file has to outlive the
+    // picker callback — but only until the next pick or until the screen goes away, or a few
+    // hundred MB of someone's cache is ours forever.
+    val spool = remember { mutableStateOf<PickedFile?>(null) }
+    DisposableEffect(Unit) {
+        onDispose { spool.value?.delete() }
+    }
+
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         viewModel.onFileReadStarted()
+        spool.value?.delete()
+        spool.value = null
         // File access is a platform concern, and the shared ViewModel takes plain text so the
         // same summary works for any future source. The read itself is off the main thread —
         // it used to run right here in the callback, where a multi-MB .apkg froze the UI.
         scope.launch {
-            resolver.readPickedFile(uri)
+            resolver.readPickedFile(uri, cacheDir)
                 .onSuccess { file ->
                     // Sniffed from the content, not the extension: a picked .apkg often arrives
                     // with a content:// uri that carries no useful name at all.
-                    if (ApkgReader.canRead(file.bytes)) {
-                        viewModel.onApkgLoaded(file.name, file.bytes)
+                    if (ApkgReader.canRead(file.header)) {
+                        spool.value = file
+                        viewModel.onApkgLoaded(file.name, file.path)
                     } else {
-                        // A photo or a PDF hits an invalid sequence within a few bytes. Without
-                        // this it decoded to U+FFFD soup and "parsed" into plausible junk cards.
-                        runCatching { file.bytes.decodeToString(throwOnInvalidSequence = true) }
+                        file.readAsText()
                             .onSuccess { viewModel.onFileLoaded(file.name, it) }
-                            .onFailure { viewModel.onFileReadFailed(BulkImportError.NotText) }
+                            .onFailure { err ->
+                                viewModel.onFileReadFailed(
+                                    (err as? FileReadException)?.reason ?: BulkImportError.NotText,
+                                )
+                            }
+                        // Only the .apkg reader keeps reading from the spool; text is in hand.
+                        file.delete()
                     }
                 }
                 .onFailure { err ->

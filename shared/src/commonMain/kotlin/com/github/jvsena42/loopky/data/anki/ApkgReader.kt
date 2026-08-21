@@ -15,14 +15,18 @@ package com.github.jvsena42.loopky.data.anki
  * with a pointer at Anki's plain-text export.
  */
 expect object ApkgReader {
-    /** True if [bytes] looks like a zip, i.e. plausibly an `.apkg`. */
-    fun canRead(bytes: ByteArray): Boolean
+    /** True if [header] — the first handful of bytes of a file — looks like a zip. */
+    fun canRead(header: ByteArray): Boolean
 
     /**
      * Extract notes as tab-separated `front\tback` lines, ready for
      * [com.github.jvsena42.loopky.data.repository.ImportRepository.parseBulk].
+     *
+     * Takes a **path** rather than bytes: an `.apkg`'s collection is a small fraction of the
+     * archive, the rest being media this reader does not want, so holding the whole file in memory
+     * to read part of it capped the flow far below the size of a real Anki deck (#96).
      */
-    suspend fun readNotes(bytes: ByteArray): Result<ApkgImport>
+    suspend fun readNotes(path: String): Result<ApkgImport>
 }
 
 /**

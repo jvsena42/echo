@@ -5,7 +5,7 @@ import com.github.jvsena42.loopky.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.zip.ZipInputStream
+import java.util.zip.ZipFile
 
 /**
  * Android `.apkg` reader built entirely on platform APIs — `java.util.zip` and
@@ -13,26 +13,30 @@ import java.util.zip.ZipInputStream
  */
 actual object ApkgReader {
 
-    actual fun canRead(bytes: ByteArray): Boolean =
-        bytes.size >= ZIP_MAGIC.size && ZIP_MAGIC.indices.all { bytes[it] == ZIP_MAGIC[it] }
+    actual fun canRead(header: ByteArray): Boolean =
+        header.size >= ZIP_MAGIC.size && ZIP_MAGIC.indices.all { header[it] == ZIP_MAGIC[it] }
 
-    actual suspend fun readNotes(bytes: ByteArray): Result<ApkgImport> =
+    actual suspend fun readNotes(path: String): Result<ApkgImport> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val candidates = extractCollections(bytes)
-                if (candidates.isEmpty()) {
-                    throw ApkgException(
-                        ApkgFailure.UnsupportedFormat,
-                        "That .apkg has no readable collection.",
-                    )
-                }
-                try {
-                    readFirstUsable(candidates)
-                } finally {
-                    candidates.forEach { it.file.delete() }
-                }
+                ZipFile(path).use { zip -> readArchive(zip) }
             }
         }
+
+    private fun readArchive(zip: ZipFile): ApkgImport {
+        val candidates = extractCollections(zip)
+        if (candidates.isEmpty()) {
+            throw ApkgException(
+                ApkgFailure.UnsupportedFormat,
+                "That .apkg has no readable collection.",
+            )
+        }
+        return try {
+            readFirstUsable(candidates)
+        } finally {
+            candidates.forEach { it.file.delete() }
+        }
+    }
 
     /**
      * The first candidate that actually holds a deck.
@@ -71,25 +75,15 @@ actual object ApkgReader {
      * `collection.anki21b` is zstd-compressed, which is the one thing here that would need a real
      * dependency, so it is skipped and reported rather than half-handled.
      */
-    private fun extractCollections(bytes: ByteArray): List<Candidate> {
-        val found = mutableMapOf<String, ByteArray>()
-        ZipInputStream(bytes.inputStream()).use { zip ->
-            while (true) {
-                val entry = zip.nextEntry ?: break
-                if (entry.name in COLLECTION_NAMES) {
-                    found[entry.name] = zip.readBytes()
-                }
-                zip.closeEntry()
+    private fun extractCollections(zip: ZipFile): List<Candidate> =
+        COLLECTION_NAMES.mapNotNull { name ->
+            val entry = zip.getEntry(name) ?: return@mapNotNull null
+            val file = File.createTempFile("loopky-apkg", ".sqlite")
+            zip.getInputStream(entry).use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
             }
+            Candidate(name = name, file = file)
         }
-        return COLLECTION_NAMES.mapNotNull { name ->
-            val content = found[name] ?: return@mapNotNull null
-            Candidate(
-                name = name,
-                file = File.createTempFile("loopky-apkg", ".sqlite").apply { writeBytes(content) },
-            )
-        }
-    }
 
     private data class Candidate(val name: String, val file: File)
 

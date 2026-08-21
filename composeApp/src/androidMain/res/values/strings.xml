@@ -548,7 +548,7 @@
     <string name="bulk_formats_label">WHAT WORKS</string>
     <string name="bulk_format_apkg_ext">.apkg</string>
     <string name="bulk_format_apkg_title">Anki deck export</string>
-    <string name="bulk_format_apkg_detail">Your cards and the deck\'s name come across. Images and audio don\'t — export without media to keep the file small.</string>
+    <string name="bulk_format_apkg_detail">Your cards, the deck\'s name and its pictures come across. Audio doesn\'t — those cards import as text.</string>
     <string name="bulk_format_text_ext">.txt · .csv</string>
     <string name="bulk_format_text_title">Plain text export</string>
     <string name="bulk_format_text_detail">In Anki: File → Export → “Notes in Plain Text”. Any tab- or comma-separated list works too.</string>
@@ -565,7 +565,7 @@
     <string name="bulk_error_unreadable_title">Couldn\'t open that file</string>
     <string name="bulk_error_unreadable_message">Loopky couldn\'t read it. Try picking it again, or copy it somewhere else first.</string>
     <string name="bulk_error_too_large_title">That file is too big</string>
-    <string name="bulk_error_too_large_message">Loopky can import files up to %1$d MB. In Anki, export without media — Loopky doesn\'t use it.</string>
+    <string name="bulk_error_too_large_message">Loopky can import files up to %1$d MB. That\'s larger than any deck on AnkiWeb, so this is likely not an Anki export.</string>
     <string name="bulk_error_not_text_title">That\'s not a text file</string>
     <string name="bulk_error_not_text_message">Pick an Anki .apkg, or a deck exported as plain text. Photos and PDFs can\'t become cards.</string>
     <string name="bulk_error_unsupported_apkg_title">Loopky can\'t open this .apkg</string>
