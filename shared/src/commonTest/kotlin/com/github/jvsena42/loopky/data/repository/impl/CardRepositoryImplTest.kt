@@ -11,6 +11,7 @@ import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
 import com.github.jvsena42.loopky.testing.testDeckWithCards
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
@@ -25,7 +26,7 @@ class CardRepositoryImplTest {
     private val pubky = FakePubkyClient()
     private val session = signedInProvider()
     private val revalidator = CountingRevalidator()
-    private val repo = CardRepositoryImpl(pubky, session, revalidator)
+    private val repo = CardRepositoryImpl(pubky, session, revalidator, Dispatchers.Unconfined)
 
     @Test
     fun writeChunkStoresTheBatchAsOneRecord() = runTest {
@@ -66,7 +67,7 @@ class CardRepositoryImplTest {
     @Test
     fun getFallsBackToTheHomeserverOnColdCache() = runTest {
         val deck = seedRemoteDeck(TEST_PUBKY, testCard("c1", ord = 0))
-        val coldRepo = CardRepositoryImpl(pubky, session, revalidator)
+        val coldRepo = CardRepositoryImpl(pubky, session, revalidator, Dispatchers.Unconfined)
 
         assertEquals("c1", coldRepo.get(deck.id, "c1")?.id)
     }

@@ -17,8 +17,11 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 
 /**
@@ -36,6 +39,12 @@ class CardRepositoryImpl(
     private val pubky: PubkyClient,
     private val session: SessionProvider,
     private val revalidator: SessionRevalidator,
+    /**
+     * Where chunk parsing and study-order sorting run. Injectable so tests can pin it to the
+     * caller's thread — every real caller reaches this from `viewModelScope`, i.e. the main
+     * thread, and a 20k-card deck is not something to decode there (#102).
+     */
+    private val cpuDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : CardRepository {
 
     private val cache = mutableMapOf<String, MutableMap<String, Card>>()
@@ -47,9 +56,12 @@ class CardRepositoryImpl(
     private val cardChunks = mutableMapOf<String, MutableMap<String, Int>>()
     private val cacheLock = Mutex()
 
-    override suspend fun listByDeck(deckId: String): List<Card> = cacheLock.withLock {
-        cache[deckId]?.values?.toList()
-    }.orEmpty().inStudyOrder()
+    // A 20k-card deck is a 20k-element sort, and every caller of this is on viewModelScope —
+    // i.e. Dispatchers.Main. The lock is taken outside so the sort does not hold it.
+    override suspend fun listByDeck(deckId: String): List<Card> {
+        val cards = cacheLock.withLock { cache[deckId]?.values?.toList() }.orEmpty()
+        return withContext(cpuDispatcher) { cards.inStudyOrder() }
+    }
 
     override suspend fun fetchByDeck(deck: Deck): Result<List<Card>> = runSuspendCatching {
         val fresh = mutableMapOf<String, Card>()
@@ -95,7 +107,7 @@ class CardRepositoryImpl(
             cache[deck.id] = fresh.toMutableMap()
             cardChunks[deck.id]?.keys?.retainAll(fresh.keys)
         }
-        fresh.values.toList().inStudyOrder()
+        withContext(cpuDispatcher) { fresh.values.toList().inStudyOrder() }
     }
 
     override suspend fun get(deckId: String, cardId: String): Card? {
@@ -154,11 +166,14 @@ class CardRepositoryImpl(
         authorPubky: String,
         deckId: String,
         chunk: Int,
-    ): Result<List<Card>> =
-        pubky.get(PubkyPaths.cardChunk(authorPubky, deckId, chunk))
-            .mapCatching { json ->
-                loopkyJson.decodeFromString<CardChunkDto>(json).cards.map { it.toDomain() }
-            }
+    ): Result<List<Card>> = runSuspendCatching {
+        val json = pubky.get(PubkyPaths.cardChunk(authorPubky, deckId, chunk)).getOrThrow()
+        // Parsing a full chunk (~100 cards) is real work, and `pubky.get` resumes its caller on
+        // whichever dispatcher it was called from — Main, for anything driven by a ViewModel.
+        withContext(cpuDispatcher) {
+            loopkyJson.decodeFromString<CardChunkDto>(json).cards.map { it.toDomain() }
+        }
+    }
 
     private suspend fun putInCache(card: Card, chunk: Int) = cacheLock.withLock {
         cache.getOrPut(card.deckId) { mutableMapOf() }[card.id] = card

@@ -21,6 +21,7 @@ import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
 import com.github.jvsena42.loopky.testing.testDeckWithCards
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -41,7 +42,7 @@ class DeckRepositorySweepTest {
     private val pubky = FakePubkyClient()
     private val session = signedInProvider()
     private val revalidator = CountingRevalidator()
-    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator)
+    private val cardRepo = CardRepositoryImpl(pubky, session, revalidator, Dispatchers.Unconfined)
     private val media = FakeMediaRepository()
     private val backgroundTasks = FakeBackgroundTasks()
 
@@ -95,7 +96,7 @@ class DeckRepositorySweepTest {
     }
 
     private suspend fun storedCards(deck: Deck): List<Card> =
-        CardRepositoryImpl(pubky, session, revalidator).fetchByDeck(deck).getOrThrow()
+        CardRepositoryImpl(pubky, session, revalidator, Dispatchers.Unconfined).fetchByDeck(deck).getOrThrow()
 
     // ── a whole clone ────────────────────────────────────────────────────
 
