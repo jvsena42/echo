@@ -36,31 +36,40 @@ import com.github.jvsena42.loopky.ui.study.StudySessionRoute
 import com.github.jvsena42.loopky.ui.tagbrowse.TagBrowseRoute
 
 /**
- * [deepLink] is the `pubky://` address the app was opened with, if any. It is held rather than
- * navigated to immediately: a cold start lands on onboarding while the session is restored, and
- * pushing a profile on top of that would put a screen the user cannot use behind the sign-in
- * flow. [onDeepLinkHandled] fires once it has been consumed, so a second tap on the same link
- * still opens it.
+ * [pendingOpen] is what the app was opened with — a `pubky://` address or a deck file, if any. It
+ * is held rather than navigated to immediately: a cold start lands on onboarding while the
+ * session is restored, and pushing a profile on top of that would put a screen the user cannot
+ * use behind the sign-in flow. [onPendingOpenHandled] fires once it has been consumed, so a
+ * second tap on the same link still opens it.
  */
 @Composable
-fun LoopkyNavHost(
-    deepLink: PubkyLink? = null,
-    onDeepLinkHandled: () -> Unit = {},
+internal fun LoopkyNavHost(
+    pendingOpen: PendingOpen? = null,
+    onPendingOpenHandled: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-    val currentDeepLinkHandled by rememberUpdatedState(onDeepLinkHandled)
+    val currentPendingHandled by rememberUpdatedState(onPendingOpenHandled)
 
-    LaunchedEffect(deepLink, currentRoute) {
-        if (deepLink == null || currentRoute == null || currentRoute == Routes.ONBOARDING) {
+    LaunchedEffect(pendingOpen, currentRoute) {
+        if (pendingOpen == null || currentRoute == null || currentRoute == Routes.ONBOARDING) {
             return@LaunchedEffect
         }
-        when (deepLink) {
-            is PubkyLink.Profile -> navController.navigateTo(Routes.friendProfile(deepLink.pubky))
-            is PubkyLink.Deck ->
-                navController.navigateTo(Routes.deckDetail(deepLink.deckId, deepLink.pubky))
+        when (pendingOpen) {
+            is PendingOpen.Link -> {
+                when (val link = pendingOpen.link) {
+                    is PubkyLink.Profile -> navController.navigateTo(Routes.friendProfile(link.pubky))
+                    is PubkyLink.Deck ->
+                        navController.navigateTo(Routes.deckDetail(link.deckId, link.pubky))
+                }
+                currentPendingHandled()
+            }
+            // Not cleared here: navigating is only half of it, and the file still has to reach
+            // the screen. BulkImportRoute clears it once the ViewModel has taken it. navigateTo
+            // dedups the current destination, so the re-run this effect gets when the route
+            // changes is a no-op.
+            is PendingOpen.File -> navController.navigateTo(Routes.IMPORT_BULK)
         }
-        currentDeepLinkHandled()
     }
 
     NavHost(navController = navController, startDestination = Routes.ONBOARDING) {
@@ -210,6 +219,8 @@ fun LoopkyNavHost(
             // Straight to the shared commit screen: a file import is confirmed once on the
             // summary, not card-by-card through triage.
             BulkImportRoute(
+                incoming = (pendingOpen as? PendingOpen.File)?.state,
+                onIncomingHandled = currentPendingHandled,
                 onBack = { navController.popBackStack() },
                 onContinue = { navController.navigateTo(Routes.IMPORT_PUBLISH) },
             )

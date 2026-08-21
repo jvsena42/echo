@@ -58,11 +58,87 @@
                 <data android:scheme="pubky" />
             </intent-filter>
             <!-- Most chat clients do not linkify an unknown scheme, so a shared link usually
-                 arrives as plain text. Sharing that text into Loopky opens what it points at. -->
+                 arrives as plain text. Sharing that text into Loopky opens what it points at.
+                 The same filter also catches a shared `.txt` export, which arrives as this type
+                 with the file in EXTRA_STREAM — MainActivity checks the stream first. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
+                <data android:mimeType="text/csv" />
+                <data android:mimeType="text/comma-separated-values" />
+                <data android:mimeType="text/tab-separated-values" />
+                <!-- `.apkg` has no registered MIME type: providers report it as a zip, as an
+                     opaque blob, or not at all. ApkgReader.canRead sniffs the bytes on arrival,
+                     so these only decide whether to *offer* Loopky, never how to parse. -->
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <!-- A deck tapped in a file manager, a browser download, or a mail attachment:
+                 by declared type here, by file name below.
+
+                 Split rather than combined because the <data> attributes inside a single filter
+                 are cross-multiplied — naming a MIME type and a path pattern together demands
+                 *both*, and neither kind of uri has both. A content:// uri from DocumentsUI
+                 carries a real type and an opaque path ("msf:1000000123"); a file:// uri carries
+                 a real path and frequently no type at all.
+
+                 What this set costs: Loopky joins *Open with* for any zip or unrecognised blob.
+                 That is the price of `.apkg` having no registered type, and it is bounded — no
+                 photo, PDF, video or audio file resolves here. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/csv" />
+                <data android:mimeType="text/comma-separated-values" />
+                <data android:mimeType="text/tab-separated-values" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <!-- The by-name half, for the `.apkg` a provider declares as something else again.
+                 Deliberately not `*/*` on its own: that would put Loopky in *Open with* for every
+                 photo and PDF on the device. The extension is what narrows it, so the type is
+                 left open.
+
+                 Only `.apkg` is spelled out here. `.txt`/`.csv`/`.tsv` have registered types that
+                 the filter above already matches — an extension pattern would add nothing but a
+                 second way to be wrong.
+
+                 Twice over, because Android matches a filter that names a MIME type only against
+                 an intent that *has* one, and a filter that names none only against one that has
+                 none. A file manager sends a type; a `file://` uri from an older app often does
+                 not.
+
+                 Four patterns per filter, because `pathPattern` is PatternMatcher's simple glob,
+                 which does not backtrack: `.*\.apkg` fails on `japanese.core.apkg` once the
+                 earlier dot has eaten the `.*`. One pattern per leading dot is the workaround. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.apkg" />
+                <data android:pathPattern=".*\\..*\\.apkg" />
+                <data android:pathPattern=".*\\..*\\..*\\.apkg" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.apkg" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.apkg" />
+                <data android:pathPattern=".*\\..*\\.apkg" />
+                <data android:pathPattern=".*\\..*\\..*\\.apkg" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.apkg" />
             </intent-filter>
         </activity>
     </application>

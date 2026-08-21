@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.data.anki.ApkgFieldMapping
-import com.github.jvsena42.loopky.data.anki.ApkgReader
 import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportEffect
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
@@ -71,9 +70,11 @@ import org.koin.compose.viewmodel.koinViewModel
  * reviews a 20,000-card Anki export one card at a time (spec §5.4).
  */
 @Composable
-fun BulkImportRoute(
+internal fun BulkImportRoute(
     onBack: () -> Unit,
     onContinue: () -> Unit,
+    incoming: IncomingFile? = null,
+    onIncomingHandled: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<BulkImportViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -88,6 +89,7 @@ fun BulkImportRoute(
     // through rememberUpdatedState rather than closing over the originals.
     val currentBack by rememberUpdatedState(onBack)
     val currentContinue by rememberUpdatedState(onContinue)
+    val currentIncomingHandled by rememberUpdatedState(onIncomingHandled)
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
@@ -117,36 +119,32 @@ fun BulkImportRoute(
         // same summary works for any future source. The read itself is off the main thread —
         // it used to run right here in the callback, where a multi-MB .apkg froze the UI.
         scope.launch {
-            resolver.readPickedFile(uri, cacheDir)
-                .onSuccess { file ->
-                    // Sniffed from the content, not the extension: a picked .apkg often arrives
-                    // with a content:// uri that carries no useful name at all.
-                    if (ApkgReader.canRead(file.header)) {
-                        spool.value = file
-                        viewModel.onApkgLoaded(file.name, file.path)
-                    } else {
-                        file.readAsText()
-                            .onSuccess { viewModel.onFileLoaded(file.name, it) }
-                            .onFailure { err ->
-                                viewModel.onFileReadFailed(
-                                    (err as? FileReadException)?.reason ?: BulkImportError.NotText,
-                                )
-                            }
-                        // Only the .apkg reader keeps reading from the spool; text is in hand.
-                        file.delete()
-                    }
-                }
-                .onFailure { err ->
-                    viewModel.onFileReadFailed(
-                        (err as? FileReadException)?.reason ?: BulkImportError.Unreadable,
-                    )
-                }
+            spool.value = viewModel.acceptPickedFile(resolver.readPickedFile(uri, cacheDir))
+        }
+    }
+
+    // A file the system handed to Loopky (*Open with*, or the share sheet). Already spooled by
+    // MainActivity, because the uri's grant would not have survived the wait for onboarding —
+    // so it joins the picker's path at [acceptPickedFile] rather than at the read.
+    LaunchedEffect(incoming) {
+        when (incoming) {
+            null -> Unit
+            IncomingFile.Reading -> viewModel.onFileReadStarted()
+            is IncomingFile.Failed -> {
+                viewModel.onFileReadFailed(incoming.reason)
+                currentIncomingHandled()
+            }
+            is IncomingFile.Ready -> {
+                spool.value?.delete()
+                spool.value = viewModel.acceptPickedFile(Result.success(incoming.file))
+                currentIncomingHandled()
+            }
         }
     }
 
     // Anything is selectable because .apkg has no registered MIME type — SAF providers variously
     // report application/octet-stream, application/zip, or nothing, so a narrowed filter greys
-    // out legitimate Anki decks. Content sniffing above does the type check instead.
+    // out legitimate Anki decks. acceptPickedFile sniffs the bytes and does the type check.
     val pickFile = { picker.launch(arrayOf("*/*")) }
 
     BulkImportScreen(

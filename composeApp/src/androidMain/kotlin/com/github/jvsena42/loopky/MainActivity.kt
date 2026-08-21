@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -15,21 +16,27 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.github.jvsena42.loopky.data.pubky.PubkyLink
+import androidx.lifecycle.lifecycleScope
+import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
+import com.github.jvsena42.loopky.ui.importflow.FileReadException
+import com.github.jvsena42.loopky.ui.importflow.IncomingFile
+import com.github.jvsena42.loopky.ui.importflow.readPickedFile
 import com.github.jvsena42.loopky.ui.nav.LoopkyNavHost
+import com.github.jvsena42.loopky.ui.nav.PendingOpen
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.importFileUri
 import com.github.jvsena42.loopky.ui.util.pubkyLink
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
     /**
-     * The `pubky://` address the app was opened with, held until the nav host is past onboarding
-     * and can act on it. State rather than a one-shot channel because a cold start delivers the
-     * link before there is anything on screen to receive it.
+     * The address or the deck file the app was opened with, held until the nav host can act on
+     * it. See [PendingOpen].
      */
-    private val deepLink = MutableStateFlow<PubkyLink?>(null)
+    private val pendingOpen = MutableStateFlow<PendingOpen?>(null)
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,9 +46,12 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        intent?.let(::consume)
+        // Only on a fresh launch. A recreated activity carries the same intent, so re-consuming
+        // it would re-open a link the user has already navigated away from, or re-spool a file
+        // whose one-shot uri grant may no longer be good.
+        if (savedInstanceState == null) intent?.let(::consume)
         setContent {
-            val pendingLink by deepLink.asStateFlow().collectAsStateWithLifecycle()
+            val pending by pendingOpen.asStateFlow().collectAsStateWithLifecycle()
             LoopkyTheme {
                 // Surface every Modifier.testTag(...) as a UiAutomator/adb resource-id so the
                 // android-cli journeys can target elements by id instead of pixel position.
@@ -51,8 +61,8 @@ class MainActivity : ComponentActivity() {
                         .semantics { testTagsAsResourceId = true },
                 ) {
                     LoopkyNavHost(
-                        deepLink = pendingLink,
-                        onDeepLinkHandled = { deepLink.value = null },
+                        pendingOpen = pending,
+                        onPendingOpenHandled = { pendingOpen.value = null },
                     )
                 }
             }
@@ -60,8 +70,8 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * The activity is `singleTask`, so a link tapped while Loopky is already running is delivered
-     * here rather than through a fresh [onCreate].
+     * The activity is `singleTask`, so a link or a file opened while Loopky is already running is
+     * delivered here rather than through a fresh [onCreate].
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -70,16 +80,48 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Text shared into Loopky that carries no address is the one case worth saying something
-     * about: the user picked Loopky out of a share sheet and would otherwise just watch the app
-     * open on whatever screen it was already on.
+     * A file wins over a link, because the two overlap: sharing a `.txt` export arrives as
+     * `ACTION_SEND` of `text/plain` — the same action and type as sharing a message with a
+     * `pubky://` address in it — distinguished only by the stream extra. Checking the link first
+     * would drop every shared text export into the "no link in that text" toast below.
      */
     private fun consume(intent: Intent) {
+        val fileUri = intent.importFileUri()
+        if (fileUri != null) {
+            spool(fileUri)
+            return
+        }
         val link = intent.pubkyLink()
         if (link != null) {
-            deepLink.value = link
+            pendingOpen.value = PendingOpen.Link(link)
         } else if (intent.action == Intent.ACTION_SEND) {
+            // The one case worth saying something about: the user picked Loopky out of a share
+            // sheet and would otherwise just watch the app open on whatever screen it was on.
             Toast.makeText(this, R.string.deeplink_no_link_in_shared_text, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /**
+     * Copies [uri] into our cache immediately, while the grant that came with it is still good,
+     * and publishes the result for the import screen to pick up. See [IncomingFile].
+     *
+     * [IncomingFile.Reading] is published first rather than after the copy: a 137 MB deck takes a
+     * moment, and a share into a running Loopky should not look like nothing happened.
+     */
+    private fun spool(uri: Uri) {
+        pendingOpen.value = PendingOpen.File(IncomingFile.Reading)
+        lifecycleScope.launch {
+            val read = contentResolver.readPickedFile(uri, cacheDir)
+            pendingOpen.value = PendingOpen.File(
+                read.fold(
+                    onSuccess = { IncomingFile.Ready(it) },
+                    onFailure = { err ->
+                        IncomingFile.Failed(
+                            (err as? FileReadException)?.reason ?: BulkImportError.Unreadable,
+                        )
+                    },
+                ),
+            )
         }
     }
 }
