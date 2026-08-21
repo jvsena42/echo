@@ -75,13 +75,23 @@ private fun SQLiteDatabase.readLegacyDeck(): AnkiDeck? =
     rawQuery("SELECT decks FROM col LIMIT 1", null).use { c ->
         if (!c.moveToFirst()) return null
         val decks = JSONObject(c.getString(0) ?: return null)
-        val id = decks.keys().asSequence().firstOrNull { it != DEFAULT_DECK_ID } ?: return null
-        val deck = decks.getJSONObject(id)
+        // The *shallowest* deck, not the first one listed. A deck with subdecks stores one JSON
+        // object per subdeck, in no useful order, and only the root carries the description —
+        // taking whichever came first landed on "Biochemistry::First Year::Mechanistic::Random"
+        // with an empty `desc` while the real one sat on "Biochemistry".
+        val deck = decks.keys().asSequence()
+            .filter { it != DEFAULT_DECK_ID }
+            .mapNotNull { decks.optJSONObject(it) }
+            .filter { it.optString("name").isNotBlank() }
+            .minByOrNull { it.optString("name").depth() }
+            ?: return null
         AnkiDeck(
-            name = deck.optString("name").takeIf { it.isNotBlank() }?.rootDeckName(LEGACY_NESTING),
+            name = deck.optString("name").rootDeckName(LEGACY_NESTING),
             description = deck.optString("desc").takeIf { it.isNotBlank() },
         )
     }
+
+private fun String.depth(): Int = split(LEGACY_NESTING).size
 
 /**
  * The `description` string out of a serialized `NormalDeck`, without a protobuf dependency.
