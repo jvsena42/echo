@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -50,6 +51,7 @@ import com.github.jvsena42.loopky.presentation.decks.EditCardViewModel
 import com.github.jvsena42.loopky.ui.components.CardSideEditor
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
+import com.github.jvsena42.loopky.ui.components.formErrorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -175,6 +177,9 @@ fun EditCardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                // Without this the scroll container keeps its full height behind the keyboard,
+                // so the field being typed into stays hidden and there is nothing left to scroll.
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -225,7 +230,7 @@ fun EditCardScreen(
                 onRemoveImage = onRemoveFrontImage,
                 imageTag = "editcard_front_image",
                 fieldTag = "editcard_front",
-                error = state.frontError,
+                error = state.frontError?.let { formErrorMessage(it) },
             )
 
             // 3. Back section
@@ -243,7 +248,7 @@ fun EditCardScreen(
                 onRemoveImage = onRemoveBackImage,
                 imageTag = "editcard_back_image",
                 fieldTag = "editcard_back",
-                error = state.backError,
+                error = state.backError?.let { formErrorMessage(it) },
             )
 
             // Audio recording is not built yet (no AudioRecorder expect/actual, nothing calls

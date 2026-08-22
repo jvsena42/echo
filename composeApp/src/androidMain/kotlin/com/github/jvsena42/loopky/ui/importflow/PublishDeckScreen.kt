@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -191,6 +192,9 @@ private fun PublishDeckScreen(
         Column(
             modifier = Modifier
                 .weight(1f)
+                // Without this the scroll container keeps its full height behind the keyboard,
+                // so the field being typed into stays hidden and there is nothing left to scroll.
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
             verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -291,7 +295,16 @@ private fun PublishDeckScreen(
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
-                        Text(text = state.coverEmoji.ifBlank { "📚" }, fontSize = 32.sp)
+                        // The deck's own initial, not a books emoji: `coverEmoji` is written as
+                        // null when it is blank, and every list and detail screen falls back to
+                        // the initial. Showing 📚 here promised a cover the deck never got.
+                        Text(
+                            text = state.coverEmoji.ifBlank {
+                                state.title.firstOrNull()?.uppercaseChar()?.toString() ?: "•"
+                            },
+                            fontSize = 32.sp,
+                            lineHeight = 38.sp,
+                        )
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -698,7 +711,12 @@ private fun PublishProgress(
             text = if (isCancelling) {
                 stringResource(R.string.publish_cancelling)
             } else {
-                stringResource(R.string.publish_progress_count, publishedCardCount, totalCardCount)
+                pluralStringResource(
+                    R.plurals.publish_progress_count,
+                    totalCardCount,
+                    publishedCardCount,
+                    totalCardCount,
+                )
             },
             fontSize = 13.sp,
             color = colors.foregroundSecondary,

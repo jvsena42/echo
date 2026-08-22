@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -73,6 +74,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -331,6 +333,9 @@ fun DeckEditorScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                // Without this the scroll container keeps its full height behind the keyboard,
+                // so the field being typed into stays hidden and there is nothing left to scroll.
+                .imePadding()
                 .padding(innerPadding),
             // Extra bottom room so the FAB never covers the last card.
             contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 96.dp),
@@ -862,12 +867,14 @@ private fun CardRow(
                 fontWeight = FontWeight.W700,
                 color = if (card.frontText.isEmpty()) colors.foregroundMuted else colors.foregroundPrimary,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = card.backText.ifEmpty { stringResource(R.string.deck_editor_card_back_placeholder) },
                 fontSize = 13.sp,
                 color = colors.foregroundMuted,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
 
