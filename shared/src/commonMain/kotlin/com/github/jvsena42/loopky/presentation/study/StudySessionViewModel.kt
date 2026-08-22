@@ -178,9 +178,7 @@ class StudySessionViewModel(
     fun onSpeakTest() {
         val s = _state.value
         if (s !is StudySessionUiState.Reviewing || !s.revealed || !s.speakEnabled) return
-        val expected = queue.getOrNull(index)?.back?.text?.takeIf { it.isNotBlank() } ?: return
-        setSpeakPhase(SpeakPhase.Listening)
-        viewModelScope.launch { _effects.emit(StudySessionEffect.StartSpeechRecognition(expected)) }
+        startRecognition(s)
     }
 
     fun onSpeechResult(text: String) {
@@ -201,9 +199,23 @@ class StudySessionViewModel(
     }
 
     fun onSpeakRetry() {
+        val s = _state.value
+        if (s !is StudySessionUiState.Reviewing || !s.speakEnabled) return
+        startRecognition(s)
+    }
+
+    /**
+     * The target is always the card back, so the recognizer listens in the *back* language. Given
+     * none it would transcribe with the reader's own locale's model, which is why a deck with no
+     * declared pair does not offer this at all (`speakEnabled` folds in `speechReady`).
+     */
+    private fun startRecognition(s: StudySessionUiState.Reviewing) {
         val expected = queue.getOrNull(index)?.back?.text?.takeIf { it.isNotBlank() } ?: return
+        val languageTag = s.backLang ?: return
         setSpeakPhase(SpeakPhase.Listening)
-        viewModelScope.launch { _effects.emit(StudySessionEffect.StartSpeechRecognition(expected)) }
+        viewModelScope.launch {
+            _effects.emit(StudySessionEffect.StartSpeechRecognition(expected, languageTag))
+        }
     }
 
     fun onSpeakDismiss() {
@@ -218,11 +230,21 @@ class StudySessionViewModel(
         }
     }
 
+    /**
+     * Read the side currently facing the user, in *that side's* language — the front and back of a
+     * vocabulary card are routinely different ones.
+     *
+     * Gated here and not only in the UI: like the announce gate, the check belongs on the action,
+     * so a deck that never declared its languages cannot be read aloud in the reader's accent.
+     */
     fun onSpeak() {
+        val s = _state.value
+        if (s !is StudySessionUiState.Reviewing || !s.listenEnabled) return
         val card = queue.getOrNull(index) ?: return
         val text = (if (revealed) card.back.text else card.front.text)?.takeIf { it.isNotBlank() }
             ?: return
-        viewModelScope.launch { _effects.emit(StudySessionEffect.Speak(text)) }
+        val languageTag = (if (revealed) s.backLang else s.frontLang) ?: return
+        viewModelScope.launch { _effects.emit(StudySessionEffect.Speak(text, languageTag)) }
     }
 
     fun onClose() {
@@ -307,9 +329,11 @@ class StudySessionViewModel(
                 backLabel = card.front.text?.uppercase(),
                 revealed = revealed,
                 intervals = labels,
-                listenEnabled = deck?.listenEnabled ?: true,
-                speakEnabled = deck?.speakEnabled ?: true,
+                listenEnabled = deck?.listenEnabled == true && deck.speechReady,
+                speakEnabled = deck?.speakEnabled == true && deck.speechReady,
                 speakPhase = speakPhase,
+                frontLang = deck?.frontLang,
+                backLang = deck?.backLang,
                 deckId = card.deckId,
                 authorPubky = deck?.authorPubky.orEmpty(),
                 frontImageRef = card.front.imageRef,
@@ -364,9 +388,16 @@ sealed interface StudySessionUiState {
         val backLabel: String?,
         val revealed: Boolean,
         val intervals: Map<SrsGrade, String>,
-        val listenEnabled: Boolean = true,
-        val speakEnabled: Boolean = true,
+        /**
+         * Both already fold in the deck's `speechReady`: with no declared language pair the OS
+         * engines fall back to the reader's locale, so the features are not offered at all.
+         */
+        val listenEnabled: Boolean = false,
+        val speakEnabled: Boolean = false,
         val speakPhase: SpeakPhase = SpeakPhase.Idle,
+        /** BCP-47 tags for the two sides, non-null whenever [listenEnabled]/[speakEnabled] are. */
+        val frontLang: String? = null,
+        val backLang: String? = null,
         val deckId: String = "",
         /** The deck's author — media on a followed deck lives on their homeserver, not yours. */
         val authorPubky: String = "",
@@ -416,7 +447,11 @@ sealed interface SpeakPhase {
 }
 
 sealed interface StudySessionEffect {
-    data class Speak(val text: String) : StudySessionEffect
-    data class StartSpeechRecognition(val expected: String) : StudySessionEffect
+    /** [languageTag] is BCP-47; without it the engine reads the card in the reader's own locale. */
+    data class Speak(val text: String, val languageTag: String) : StudySessionEffect
+    data class StartSpeechRecognition(
+        val expected: String,
+        val languageTag: String,
+    ) : StudySessionEffect
     data object Close : StudySessionEffect
 }

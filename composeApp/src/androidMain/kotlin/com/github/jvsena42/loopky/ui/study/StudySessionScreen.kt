@@ -84,6 +84,7 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.SrsGrade
+import com.github.jvsena42.loopky.platform.SpeakOutcome
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.platform.SpeechEvent
 import com.github.jvsena42.loopky.platform.SpeechRecognizer
@@ -130,7 +131,14 @@ fun StudySessionRoute(
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
-                is StudySessionEffect.Speak -> speaker.speak(effect.text)
+                is StudySessionEffect.Speak -> {
+                    // A missing voice leaves the engine on whatever it loaded last, so silence
+                    // beats reading a Spanish card in an English accent — say why.
+                    if (speaker.speak(effect.text, effect.languageTag) != SpeakOutcome.Spoken) {
+                        Toast.makeText(context, R.string.listen_voice_unavailable, Toast.LENGTH_LONG)
+                            .show()
+                    }
+                }
                 is StudySessionEffect.StartSpeechRecognition -> {
                     recognitionJob.value?.cancel()
                     recognitionJob.value = scope.launch {
@@ -139,7 +147,7 @@ fun StudySessionRoute(
                             viewModel.onSpeechError()
                             return@launch
                         }
-                        speechRecognizer.listen().collect { event ->
+                        speechRecognizer.listen(effect.languageTag).collect { event ->
                             when (event) {
                                 is SpeechEvent.Result -> viewModel.onSpeechResult(event.text)
                                 is SpeechEvent.Error -> viewModel.onSpeechError()

@@ -269,6 +269,7 @@
     <string name="speak_try_again">Try again</string>
     <string name="speak_permission_denied">Microphone permission is needed to practice speaking.</string>
     <string name="speak_unavailable">Speech recognition is unavailable on this device.</string>
+    <string name="listen_voice_unavailable">No voice installed for this deck’s language. Add it in your device’s text-to-speech settings.</string>
 
     <!-- Onboarding -->
     <!-- The Loopky slogan. Shown on the splash and as the onboarding hero. -->
