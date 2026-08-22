@@ -104,8 +104,9 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 | `ImportRepository` | `parse(rawText, separator)` per spec §6/§7 (col 1 → front, col 2 → back, extras dropped — spec §8), `setDecision()` / `keptRows()` triage, in-memory drafts, dedupe | In-memory |
 | `TagRepository` | Read/write Pubky tags on any subject (deck or profile — brief §9.3); the reserved `loopky-*` index labels via `putReservedTag`; deck-topic (`trendingDeckTags`), tagged-subject and tagger-count reads via Nexus (§7.7) | Pubky FFI + Nexus REST |
 | `DiscoveryRepository` | Decks by followed **users**, `followUser()` / `unfollowUser()` (brief §9.4) — deck-level following is on `DeckRepository`, plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
-| `SrsRepository` | Per-card SRS state, today's due queue, `reviewCard(cardId, grade)` | In-memory (v1) |
+| `SrsRepository` | Per-card SRS state; the study queue (**due reviews then never-seen cards** — `isNew` is not `isDue`, §8.6), per-deck `DeckCounts`, `mastery()`, `review(card, grade)`, and today's `dailyProgress` | Pubky FFI + in-memory cache |
 | `MediaRepository` | Image + audio blob storage for cards | Pubky FFI (blobs) + platform file I/O |
+| `SettingsRepository` | The user's own study settings (`/pub/loopky/settings.json`) — the new-cards-per-day goal and the Hard/Good/Easy first intervals (§8.6) | Pubky FFI + `AppPreferences` mirror |
 
 All repositories are interfaces in `commonMain` with implementations in `commonMain` (`data/repository/impl/`); only the FFI- and file-touching parts drop into `androidMain`/`iosMain` actuals.
 
@@ -261,9 +262,20 @@ Non-secret user preferences go through a *separate* interface in the same packag
 `AppPreferences` — `AndroidAppPreferences` over `SharedPreferences`, `IosAppPreferences` over
 `NSUserDefaults`. Deliberately not the same door: `SecureSessionStore` pays keystore/keychain
 costs for the session, and a boolean the user flipped in Settings has no business sharing it.
-Device-local for v1; a preference that has to survive a reinstall belongs in a
-`/pub/loopky/settings.json` record, and this interface is the seam that would move. First
-tenant is `shareOnPubky` (#39).
+Device-local for v1 where that is the right answer: `shareOnPubky` (#39) and the debug-only
+`pubkyEnvironment` are properties of *this install*.
+
+**Study settings took the other route.** The new-cards-per-day goal and the Hard/Good/Easy first
+intervals live in a `/pub/loopky/settings.json` record instead (`SettingsRepository`, §8.6), because
+they decide `dueAt` values — and the review state those produce already syncs, so two devices
+holding different intervals would write state computed from different rules. `AppPreferences` keeps
+a **mirror** of the last-known-good copy (`cachedStudySettings`) so an offline session still
+schedules with the user's own numbers; that copy is a read cache and never authorizes a write.
+
+Today's study tally is device-local again, through `StudyProgressStore` alongside
+`PendingReviewStore` — it is a motivational counter, and reconciling "cards introduced today"
+across devices would cost a round trip to answer a question nobody would notice getting slightly
+wrong.
 
 ### 7.6 Nexus indexer (global reads)
 
@@ -490,6 +502,7 @@ Cards are batched rather than stored one record per card, and the manifest carri
 /pub/loopky/decks/{deckId}/media/{sha256}.{ext}
 /pub/loopky/srs/{authorPubky}/{deckId}/{cardId}.json   — your review state (see §8.3)
 /pub/loopky/subscriptions/{authorPubky}/{deckId}.json  — a deck you follow (see below)
+/pub/loopky/settings.json                              — your study settings (see §8.6)
 ```
 
 - `{deckId}` and `{cardId}` are UUIDv4, generated client-side.
@@ -690,10 +703,15 @@ Session(
 
 ### 8.2 Preferences & secrets
 
-multiplatform-settings is **not** wired in v1. Secrets — the signed-in `Session` — persist only
-through `SecureSessionStore` (Liftric KVault → Android Keystore-backed EncryptedSharedPreferences /
-iOS Keychain; see §7.5). Non-secret prefs (theme override, TTS voice, onboarding progress) are not
-yet persisted; add multiplatform-settings only if/when one is needed, and never for secrets.
+multiplatform-settings is **not** wired, and no longer needs to be. Secrets — the signed-in
+`Session` — persist only through `SecureSessionStore` (Liftric KVault → Android Keystore-backed
+EncryptedSharedPreferences / iOS Keychain; see §7.5). Non-secret device-local state goes through
+`AppPreferences` (SharedPreferences / NSUserDefaults) for flat values and through the small
+structured stores beside it — `PendingReviewStore` for the unflushed-review journal,
+`StudyProgressStore` for today's tally. Never a secret through either.
+
+A preference that has to reach a second device does **not** belong in any of them; see
+`/pub/loopky/settings.json` in §7.5 and §8.6.
 
 ### 8.3 Source of truth
 
@@ -778,6 +796,52 @@ The body is plain text — `"Disk space quota exceeded"` — and the server buil
 1. **How close 1 GB actually is.** Images are compressed (1024px max, JPEG q80 — call it 100–200 KB each), but **audio is not compressed at all**: `putAudio` writes raw bytes and `MediaProcessor` only handles images, so an Anki deck's native audio goes up untouched. Dedupe is **per-deck**, not per-user — blobs live under `decks/{deckId}/media/`, so the same asset in two decks is stored twice and a clone re-hosts its own copy. `MediaRepositoryImpl`'s own header already says an Anki deck with audio runs to hundreds of MB, which is the same order as the entire quota. The number wants a real probe: publish a realistic Anki import with audio and images, then read `storage_used` off the admin API against a test homeserver. Until then no copy should promise a deck count.
 2. **Bandwidth quota is separate from storage quota**, enforced from the same signup token (`rate_read`/`rate_write`; the free tier's 1 MB/s is presumably it). Its rejection status is untraced, and a large publish could plausibly trip it — a *different* error wanting different handling.
 3. **Tenant routes cap request bodies at 100 MB**, which is a real upper bound on a single media blob and belongs alongside the `CHUNK_SIZE` question above.
+
+### 8.6 Study settings, and what counts as "due"
+
+Two decisions from #101 that anything touching the scheduler has to know.
+
+**A never-seen card is not overdue.** `SrsState?.isDue` used to return `true` for a card with no
+state, so every counter in the app read a freshly imported deck as entirely overdue: a 1669-card
+Anki import opened on `Start studying · 1669 due`. `isNew()` is now the separate question, and
+counts come back as a `DeckCounts(due, new)` pair. Consequences worth keeping straight:
+
+- The queue holds both and is **uncapped**. It serves due reviews first (soonest first), then
+  never-seen cards in study order. Nothing in the queue-building path may consult the daily goal.
+- "All caught up" requires `due == 0 && new == 0`. Due alone would congratulate someone who has
+  never opened the deck.
+- Home headlines `due + min(new, goal − newCardsToday)` — the day's intent, not the backlog. That is
+  presentation only; the queue behind it is still everything.
+
+**Study settings are a synced record, not a preference.** `/pub/loopky/settings.json` holds the
+new-cards-per-day goal (default 20) and the Hard/Good/Easy first intervals (1/3/7). They are on the
+homeserver because they decide `dueAt` values, and review state already syncs. `SettingsRepository`
+guards three things:
+
+- `studySettings` is a `StateFlow` carrying a `SettingsOrigin` — `Defaults`, `Cached` (the
+  `AppPreferences` mirror) or `Remote`. `update()` **refuses unless the origin is `Remote`**, at the
+  repository rather than only in the UI. The failure that gate prevents is silent: a read fails, the
+  flow holds defaults, one tap in Settings overwrites the user's real intervals.
+- A **404 is a successful read** — every new account has no record. Treating absent as unread would
+  leave Settings permanently disabled on first run.
+- The record is written **whole**, and `update()` patches its JSON rather than re-encoding a decoded
+  DTO, so a section added by a newer client is not dropped by `ignoreUnknownKeys` on the way in and
+  gone for good on the way out.
+
+`SrsRepositoryImpl.review()` calls `ensureLoaded()` itself rather than trusting that a queue was
+built first. It is single-flight, so after the first load it costs a field read, and it turns an
+ordering that merely happens to hold into an invariant — a grade scheduled from stale defaults would
+not be noticed by anyone.
+
+**The goal is a goal.** Reaching it raises a dismissible banner and nothing else; no method
+withholds cards. Copy that calls it a limit describes a feature Loopky does not have.
+
+**Mastered % is partial credit against a moving line.** Each card contributes
+`min(intervalDays / threshold, 1)`, where the threshold is `StudySettings.maturityThresholdDays` —
+SM-2's 21 days, or past the user's longest first interval, whichever is further out. Without the
+second half, setting Easy to 30 days would mark a brand-new card fully mastered with one grade,
+i.e. a progress bar you move by editing a preference. "Fully mastered" is the exact
+every-card-is-mature test, never `share == 1f`: summing thirds of 21 lands on 0.99999994.
 
 ## 9. Cross-cutting concerns
 
