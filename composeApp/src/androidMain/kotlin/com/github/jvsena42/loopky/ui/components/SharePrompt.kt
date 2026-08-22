@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.loopky.R
@@ -110,12 +112,22 @@ fun SharePromptBody(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         )
         if (onNeverAsk != null) {
+            // Underlined and in the accent, not flat muted text: this sets a preference that
+            // stops Loopky ever asking again, and drawn as grey body copy it read as a disabled
+            // label rather than as something to press.
             TextButton(
                 onClick = onNeverAsk,
                 enabled = !prompt.isPosting,
                 modifier = Modifier.testTag("share_prompt_never"),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                Text(stringResource(R.string.share_prompt_never), color = colors.foregroundMuted)
+                Text(
+                    text = stringResource(R.string.share_prompt_never),
+                    color = colors.accentPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.W600,
+                    textDecoration = TextDecoration.Underline,
+                )
             }
         }
     }
