@@ -95,7 +95,7 @@ class BulkImportViewModel(
                 val draft = importRepository.parseBulkNotes(
                     notes = apkg.notes,
                     suggestedTitle = suggestedTitleFor(apkg.deckName, fileName),
-                    suggestedDescription = apkg.deckDescription,
+                    suggestedDescription = suggestedDescriptionFor(apkg.deckDescription),
                     suggestedTags = apkg.suggestedTags,
                 ).getOrThrow()
                 apkg to draft
@@ -218,6 +218,24 @@ class BulkImportViewModel(
                 .takeIf { it.isNotBlank() }
                 ?.take(PublishDeckViewModel.TITLE_MAX_LENGTH)
 
+    /**
+     * The deck description to prefill the commit screen with, or null.
+     *
+     * Anki fills the field in for you: every deck exported from AnkiWeb carries the same
+     * "Please see the shared deck page for more info." — which is true of the AnkiWeb page and
+     * meaningless once the deck is a Loopky deck. Importing it verbatim gives every deck the
+     * same description and buries the fact that the field is the user's to write. An empty field
+     * says "write something here"; boilerplate says "this is already filled in".
+     *
+     * Matched on the normalised text rather than exactly, since the field arrives as HTML and
+     * different Anki versions punctuate it differently.
+     */
+    internal fun suggestedDescriptionFor(description: String?): String? =
+        description?.takeIf { raw ->
+            val normalised = raw.trim().lowercase().trimEnd('.', '!', ' ')
+            normalised.isNotEmpty() && ANKI_BOILERPLATE_DESCRIPTIONS.none { it == normalised }
+        }
+
     /** The platform layer could not turn the picked uri into text. */
     fun onFileReadFailed(reason: BulkImportError) {
         parseJob?.cancel()
@@ -277,6 +295,16 @@ class BulkImportViewModel(
 
         /** Enough to see the parse worked without pretending the user reviews them all. */
         private const val SAMPLE_SIZE = 3
+
+        /**
+         * Descriptions Anki writes for you, normalised (lowercased, trailing punctuation
+         * stripped). These describe the AnkiWeb listing, not the deck, so they import as nothing.
+         */
+        private val ANKI_BOILERPLATE_DESCRIPTIONS = setOf(
+            "please see the shared deck page for more info",
+            "please see the shared deck page for more information",
+            "see the shared deck page for more info",
+        )
     }
 }
 
