@@ -103,10 +103,8 @@
     <string name="edit_card_save">Save</string>
     <string name="edit_card_context">Card %1$d of %2$d · %3$s</string>
     <string name="edit_card_label_front">FRONT</string>
-    <string name="edit_card_speak_front">Speak front</string>
     <string name="edit_card_front_placeholder">Enter front text...</string>
     <string name="edit_card_label_back">BACK</string>
-    <string name="edit_card_speak_back">Speak back</string>
     <string name="edit_card_back_placeholder">Enter back text...</string>
     <string name="edit_card_add_image">Add image</string>
     <string name="edit_card_image">Image</string>
@@ -377,8 +375,8 @@
     <string name="share_prompt_posted">Shared on Pubky</string>
 
     <!-- Identity — one presentation of a pubky user, shared by every screen -->
-    <string name="identity_pubky_short">pk:%1$s</string>
-    <string name="identity_pubky_truncated">pk:%1$s…%2$s</string>
+    <string name="identity_pubky_short">%1$s</string>
+    <string name="identity_pubky_truncated">%1$s…%2$s</string>
     <string name="identity_you_badge">You</string>
     <string name="identity_unknown_person">there</string>
 

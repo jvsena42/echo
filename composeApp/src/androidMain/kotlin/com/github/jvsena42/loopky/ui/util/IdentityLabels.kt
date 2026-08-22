@@ -28,12 +28,12 @@ fun PubkyIdentity?.labelOrFallback(): String {
     return this?.label(context) ?: stringResource(R.string.identity_unknown_person)
 }
 
-/** `pk:abc123` — enough to tell two strangers apart in a feed. */
+/** `abc123` — enough to tell two strangers apart in a feed. */
 @Composable
 fun shortPubky(pubky: String): String =
     stringResource(R.string.identity_pubky_short, pubky.take(PUBKY_AFFIX_LEN))
 
-/** `pk:abc123…xyz789` — for profile and settings rows, where the key itself is the subject. */
+/** `abc123…xyz789` — for profile and settings rows, where the key itself is the subject. */
 @Composable
 fun truncatedPubky(pubky: String): String = stringResource(
     R.string.identity_pubky_truncated,

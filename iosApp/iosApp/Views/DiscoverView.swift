@@ -259,7 +259,7 @@ struct DiscoverView: View {
         state: DiscoverViewState(
             topics: ["spanish", "biology"],
             people: DiscoverSection(items: [
-                DiscoverPersonData(id: "ada", label: "Ada Lovelace", shortPubky: "pk:ada…xyz", initial: "A"),
+                DiscoverPersonData(id: "ada", label: "Ada Lovelace", shortPubky: "ada…xyz", initial: "A"),
             ]),
             browse: DiscoverSection(items: [
                 DiscoverDeckData(

@@ -217,7 +217,7 @@ Design the screens for: pre-handoff (the Loopky "signing in…" loading screen),
 ### 9.2 Identity display
 - Users have a **public key (pubky)**, not a username/email
 - Display name, avatar, and bio come from the user's **profile on their homeserver** (editable by them)
-- Show the pubky as a **truncated, copyable string** (e.g., `pk:abc123…xyz789`) on profile screens and in settings — never as the primary identifier in feeds
+- Show the pubky as a **truncated, copyable string** (e.g., `abc123…xyz789`) on profile screens and in settings — never as the primary identifier in feeds. No `pk:` prefix: it is a legacy form, and the key is already labelled by the row it sits in
 - Avatars, when set, are the primary visual identifier
 
 ### 9.3 Tags as a first-class primitive
