@@ -33,6 +33,14 @@ data class DailyStudyProgress(
     val dayIndex: Int = 0,
     val newCards: Int = 0,
     val reviews: Int = 0,
+    /**
+     * Whether the goal celebration has already been shown today.
+     *
+     * Persisted alongside the counters rather than held on the study ViewModel, because a VM flag
+     * lasts one session: leaving the screen and coming back would congratulate the user again for
+     * a goal they met an hour ago. Resets with the day, like everything else here.
+     */
+    val goalCelebrated: Boolean = false,
 ) {
     /**
      * This progress if the day is still [todayIndex], a zeroed day otherwise.
@@ -42,6 +50,15 @@ data class DailyStudyProgress(
      */
     fun forToday(todayIndex: Int): DailyStudyProgress =
         if (dayIndex == todayIndex) this else DailyStudyProgress(dayIndex = todayIndex)
+
+    /**
+     * Whether the celebration is owed right now: the goal is met and today has not seen it yet.
+     *
+     * Deliberately a threshold test rather than "did this grade cross the line". The crossing can
+     * happen in a session that is killed before it renders, and lowering the goal below what you
+     * have already done should count as meeting it — both of which a delta check would miss.
+     */
+    fun owesGoalCelebration(goal: Int): Boolean = !goalCelebrated && newCards >= goal
 }
 
 /**

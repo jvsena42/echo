@@ -557,9 +557,18 @@ class FakeSrsRepository : SrsRepository {
 
     override suspend fun refreshDailyProgress() = Unit
 
+    override suspend fun markGoalCelebrated() {
+        _dailyProgress.update { it.copy(goalCelebrated = true) }
+    }
+
     /** Put today's tally where a test needs it, e.g. one card short of the goal. */
-    fun setDailyProgress(newCards: Int = 0, reviews: Int = 0) {
-        _dailyProgress.value = DailyStudyProgress(dayIndex = 0, newCards = newCards, reviews = reviews)
+    fun setDailyProgress(newCards: Int = 0, reviews: Int = 0, goalCelebrated: Boolean = false) {
+        _dailyProgress.value = DailyStudyProgress(
+            dayIndex = 0,
+            newCards = newCards,
+            reviews = reviews,
+            goalCelebrated = goalCelebrated,
+        )
     }
 
     /**

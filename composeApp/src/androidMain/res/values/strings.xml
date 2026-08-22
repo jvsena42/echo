@@ -506,9 +506,10 @@
     <string name="error_auth_relay_message">Loopky signs you in through Pubky\'s authorisation relay, and it isn\'t responding. Try again in a moment.</string>
     <string name="study_sync_error_title">Your reviews aren\'t saving</string>
     <string name="study_sync_error_dismiss">Got it</string>
-    <string name="study_goal_reached_title">Daily goal reached 🎉</string>
-    <string name="study_goal_reached_body">You\'ve met today\'s new-card goal. Keep going if you\'re on a roll.</string>
-    <string name="study_goal_reached_dismiss">Nice</string>
+    <string name="study_goal_reached_title">Daily goal reached!</string>
+    <string name="study_goal_reached_body">That\'s your target for today. Nothing is locked, so keep going if you\'re on a roll.</string>
+    <string name="study_goal_keep_studying">Keep studying</string>
+    <string name="study_goal_done">Back to home</string>
     <string name="publish_error_no_draft">No import data. Go back and paste again.</string>
     <string name="publish_error_publish">Couldn\'t publish this deck. %1$s</string>
     <string name="publish_error_cancel">The partial deck is still on your homeserver. %1$s</string>

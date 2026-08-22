@@ -295,6 +295,20 @@ class SrsRepositoryImpl(
         progressLock.withLock { restoreProgressLocked() }
     }
 
+    override suspend fun markGoalCelebrated() {
+        val updated = progressLock.withLock {
+            restoreProgressLocked()
+            if (_dailyProgress.value.goalCelebrated) return
+            val next = _dailyProgress.value.copy(goalCelebrated = true)
+            _dailyProgress.value = next
+            next
+        }
+        // Persisted immediately rather than with the next review: the celebration is shown once a
+        // day, and a process killed between showing it and the next grade would show it again.
+        runSuspendCatching { studyProgress.save(updated) }
+            .onFailure { Log.w(TAG, "markGoalCelebrated: could not persist — ${it.message}") }
+    }
+
     /**
      * Count one graded card against today.
      *

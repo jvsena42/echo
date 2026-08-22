@@ -32,6 +32,10 @@
         <item quantity="one">%1$d card is now public on your Pubky.</item>
         <item quantity="other">%1$d cards are now public on your Pubky.</item>
     </plurals>
+    <plurals name="study_goal_reached_count">
+        <item quantity="one">%1$d new card today</item>
+        <item quantity="other">%1$d new cards today</item>
+    </plurals>
     <plurals name="cards_reviewed">
         <item quantity="one">You reviewed %1$d card.</item>
         <item quantity="other">You reviewed %1$d cards.</item>

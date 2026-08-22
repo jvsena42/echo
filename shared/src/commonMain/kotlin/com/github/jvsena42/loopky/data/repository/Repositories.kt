@@ -918,6 +918,14 @@ interface SrsRepository {
      */
     suspend fun refreshDailyProgress()
 
+    /**
+     * Record that today's goal celebration has been shown, so it is not shown again until tomorrow.
+     *
+     * On the repository rather than the ViewModel because it has to outlive the study session: a
+     * flag held in memory would congratulate the user again every time they reopened the screen.
+     */
+    suspend fun markGoalCelebrated()
+
     /** Grade a card: compute the next state via the scheduler, persist it, and return it. */
     suspend fun review(card: Card, grade: SrsGrade): Result<SrsState>
 

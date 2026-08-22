@@ -37,6 +37,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -150,6 +151,40 @@ class SrsRepositoryImplTest {
         restarted.refreshDailyProgress()
 
         assertEquals(1, restarted.dailyProgress.value.newCards)
+    }
+
+    @Test
+    fun theGoalCelebrationIsRememberedAcrossARestart() = runTest {
+        publishDeck("deck1", "c1")
+        repo.dueForDeck("deck1")
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+        repo.markGoalCelebrated()
+
+        val restarted =
+            SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal, settings, progressStore)
+        restarted.refreshDailyProgress()
+
+        assertTrue(restarted.dailyProgress.value.goalCelebrated, "today's celebration came back")
+        assertFalse(restarted.dailyProgress.value.owesGoalCelebration(goal = 1))
+    }
+
+    @Test
+    fun theGoalCanBeCelebratedAgainTomorrow() = runTest {
+        publishDeck("deck1", "c1")
+        var today = 100
+        val repo = SrsRepositoryImpl(
+            pubky, session, revalidator, deckRepo, cardRepo, journal, settings, progressStore,
+            dayIndex = { today },
+        )
+        repo.dueForDeck("deck1")
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+        repo.markGoalCelebrated()
+        assertFalse(repo.dailyProgress.value.owesGoalCelebration(goal = 1))
+
+        today = 101
+        repo.refreshDailyProgress()
+
+        assertFalse(repo.dailyProgress.value.goalCelebrated, "yesterday's celebration carried over")
     }
 
     @Test

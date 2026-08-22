@@ -87,10 +87,12 @@ import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.platform.SpeechEvent
 import com.github.jvsena42.loopky.platform.SpeechRecognizer
+import com.github.jvsena42.loopky.presentation.study.GoalCelebration
 import com.github.jvsena42.loopky.presentation.study.SpeakPhase
 import com.github.jvsena42.loopky.presentation.study.StudySessionEffect
 import com.github.jvsena42.loopky.presentation.study.StudySessionUiState
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
+import com.github.jvsena42.loopky.ui.components.Confetti
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.PermissionBlockedDialog
 import com.github.jvsena42.loopky.ui.components.PermissionRationaleDialog
@@ -171,7 +173,7 @@ fun StudySessionRoute(
         onClose = viewModel::onClose,
         onDone = onClose,
         onDismissSyncError = viewModel::onDismissSyncError,
-        onDismissGoalReached = viewModel::onDismissGoalReached,
+        onContinueAfterGoal = viewModel::onContinueAfterGoal,
     )
 }
 
@@ -188,7 +190,7 @@ fun StudySessionScreen(
     onSpeakRetry: () -> Unit = {},
     onSpeakCancel: () -> Unit = {},
     onDismissSyncError: () -> Unit = {},
-    onDismissGoalReached: () -> Unit = {},
+    onContinueAfterGoal: () -> Unit = {},
 ) {
     val colors = LoopkyTheme.colors
     Box(
@@ -258,18 +260,14 @@ fun StudySessionScreen(
             )
         }
 
-        // Overlaid, never blocking: the card underneath is already the next one. The goal is a
-        // goal — it says you have done what you set out to do, not that you have to stop.
-        //
-        // Offset clear of the header, unlike the sync banner above. That one is a warning and may
-        // fairly cover the deck name; this one is a congratulation, and hiding "3 of 4" behind it
-        // would cost the user the thing they are actually tracking.
-        if (state is StudySessionUiState.Reviewing && state.goalReached) {
-            GoalReachedBanner(
-                onDismiss = onDismissGoalReached,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = GOAL_BANNER_TOP_INSET),
+        // A full-screen moment rather than a banner, and the only modal thing in the session.
+        // It is shown once a day, so the interruption is cheap; and "Keep studying" is right there
+        // because meeting a goal must never be the thing that ends a session.
+        (state as? StudySessionUiState.Reviewing)?.goalCelebration?.let { celebration ->
+            GoalCelebrationScreen(
+                celebration = celebration,
+                onKeepStudying = onContinueAfterGoal,
+                onDone = onClose,
             )
         }
     }
@@ -781,40 +779,106 @@ private fun SyncErrorBanner(
 }
 
 /**
- * "You have hit today's new-card goal." Dismissible, and deliberately not a dialog: an interruption
- * you have to acknowledge before continuing would make a soft goal feel like a hard stop.
+ * The daily goal, met. Covers the session because it happens once a day and is worth stopping for.
+ *
+ * Both ways out are offered as equals in weight but not in emphasis: "Keep studying" is the filled
+ * button, because the card behind this is already loaded and the goal withholds nothing. "Back to
+ * home" exists so the moment can also be a natural place to stop.
  */
 @Composable
-private fun GoalReachedBanner(
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier,
+private fun BoxScope.GoalCelebrationScreen(
+    celebration: GoalCelebration,
+    onKeepStudying: () -> Unit,
+    onDone: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
-    Surface(
-        color = colors.srsGood,
-        shape = RoundedCornerShape(16.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
+    val reduceMotion = rememberReduceMotion()
+
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .background(colors.surfacePrimary)
+            // Swallows taps so a stray press does not reach the card underneath.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            )
             .testTag("study_goal_reached"),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Confetti(
+            colors = listOf(colors.srsGood, colors.accentPrimary, colors.srsEasy, colors.srsHard),
+            reduceMotion = reduceMotion,
+            modifier = Modifier.matchParentSize(),
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(text = "🎉", fontSize = 64.sp)
             Text(
-                stringResource(R.string.study_goal_reached_title),
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
+                text = stringResource(R.string.study_goal_reached_title),
+                fontSize = 26.sp,
+                fontWeight = FontWeight.W800,
+                color = colors.foregroundPrimary,
+                textAlign = TextAlign.Center,
             )
-            Text(stringResource(R.string.study_goal_reached_body), color = Color.White, fontSize = 13.sp)
-            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                Text(stringResource(R.string.study_goal_reached_dismiss), color = Color.White)
+            Text(
+                text = pluralStringResource(
+                    R.plurals.study_goal_reached_count,
+                    celebration.newCardsToday,
+                    celebration.newCardsToday,
+                ),
+                fontSize = 16.sp,
+                color = colors.foregroundPrimary,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = stringResource(R.string.study_goal_reached_body),
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                color = colors.foregroundMuted,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onKeepStudying,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("study_goal_keep_studying"),
+                shape = RoundedCornerShape(50),
+                contentPadding = PaddingValues(vertical = 16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.accentPrimary,
+                    contentColor = colors.foregroundOnAccent,
+                ),
+            ) {
+                Text(
+                    text = stringResource(R.string.study_goal_keep_studying),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.W700,
+                )
+            }
+            TextButton(
+                onClick = onDone,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("study_goal_done"),
+            ) {
+                Text(
+                    text = stringResource(R.string.study_goal_done),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.W600,
+                    color = colors.foregroundMuted,
+                )
             }
         }
     }
 }
-
-/** Clears the deck title and the "n of m" counter above it. */
-private val GOAL_BANNER_TOP_INSET = 96.dp
 
 private val previewReviewing = StudySessionUiState.Reviewing(
     deckTitle = "Spanish basics",

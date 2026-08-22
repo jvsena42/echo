@@ -31,6 +31,7 @@ internal data class StoredStudyProgress(
     val dayIndex: Int,
     val newCards: Int,
     val reviews: Int,
+    val goalCelebrated: Boolean = false,
 )
 
 /** Shared by both platform implementations so the on-disk shape cannot drift between them. */
@@ -41,6 +42,7 @@ internal fun encodeStudyProgress(progress: DailyStudyProgress): String = progres
         dayIndex = progress.dayIndex,
         newCards = progress.newCards,
         reviews = progress.reviews,
+        goalCelebrated = progress.goalCelebrated,
     ),
 )
 
@@ -49,5 +51,12 @@ internal fun decodeStudyProgress(payload: String?): DailyStudyProgress? {
     if (payload.isNullOrBlank()) return null
     return runCatching { progressJson.decodeFromString<StoredStudyProgress>(payload) }
         .getOrNull()
-        ?.let { DailyStudyProgress(dayIndex = it.dayIndex, newCards = it.newCards, reviews = it.reviews) }
+        ?.let {
+            DailyStudyProgress(
+                dayIndex = it.dayIndex,
+                newCards = it.newCards,
+                reviews = it.reviews,
+                goalCelebrated = it.goalCelebrated,
+            )
+        }
 }

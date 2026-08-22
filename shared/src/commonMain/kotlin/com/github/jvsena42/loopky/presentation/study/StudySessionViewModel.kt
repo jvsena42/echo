@@ -63,15 +63,14 @@ class StudySessionViewModel(
     private var gradeJob: Job? = null
 
     /**
-     * The daily goal has been reached and the user has not waved it away yet.
+     * The goal celebration is on screen.
      *
      * Held on the VM as well as in the state because [emitCurrent] rebuilds the state for every
-     * card — the same reason [syncError] is. Announced once per crossing and never again, since a
-     * banner that reappeared on every subsequent card would read as nagging for carrying on, which
-     * is the exact opposite of what a soft goal is for.
+     * card — the same reason [syncError] is. Whether it may be shown *at all* is not this flag's
+     * business: that lives in [com.github.jvsena42.loopky.domain.model.DailyStudyProgress], so it
+     * survives leaving the screen and resets with the day.
      */
     private var goalReached = false
-    private var goalAnnounced = false
 
     init {
         load()
@@ -118,7 +117,6 @@ class StudySessionViewModel(
     fun onGrade(grade: SrsGrade) {
         if (gradeJob?.isActive == true) return
         val card = queue.getOrNull(index) ?: return
-        val newCardsBefore = srsRepository.dailyProgress.value.newCards
         gradeJob = viewModelScope.launch {
             srsRepository.review(card, grade)
                 .onFailure { err ->
@@ -133,32 +131,46 @@ class StudySessionViewModel(
             index++
             revealed = false
             speakPhase = SpeakPhase.Idle
-            noteGoalCrossing(newCardsBefore)
+            celebrateGoalIfOwed()
             emitCurrent()
         }
     }
 
     /**
-     * Raise the banner on the grade that *crosses* the goal, and only that one.
+     * Show the celebration if today has earned one and not seen it yet.
      *
-     * The queue is untouched either way — the next card loads exactly as it would have. This says
-     * "you have done what you set out to do today"; it does not stop anyone doing more.
+     * The queue is untouched — the card behind the celebration is already the next one, and
+     * "Keep studying" simply dismisses it. This says "you have done what you set out to do today";
+     * it does not stop anyone doing more.
+     *
+     * Marked as shown the moment it goes up, not when it is dismissed: the point of persisting it
+     * is that the user sees it once a day, and a process killed while it is on screen has still
+     * shown it.
      */
-    private fun noteGoalCrossing(newCardsBefore: Int) {
-        if (goalAnnounced) return
+    private suspend fun celebrateGoalIfOwed() {
         val goal = settingsRepository.studySettings.value.settings.newCardsPerDayGoal
-        val after = srsRepository.dailyProgress.value.newCards
-        if (newCardsBefore < goal && after >= goal) {
-            goalReached = true
-            goalAnnounced = true
-        }
+        if (!srsRepository.dailyProgress.value.owesGoalCelebration(goal)) return
+        // The celebration renders over a card, so there has to be one. Grading the last card of a
+        // session straight past the goal goes to the "All done!" screen instead, which says the
+        // same thing in its own line — and marking it shown here would spend the day's one
+        // celebration on a screen that never appeared.
+        if (queue.getOrNull(index) == null) return
+        goalReached = true
+        goalCelebration = GoalCelebration(
+            newCardsToday = srsRepository.dailyProgress.value.newCards,
+            goal = goal,
+        )
+        runSuspendCatching { srsRepository.markGoalCelebrated() }
+            .onFailure { Log.e(TAG, "markGoalCelebrated: FAILED — ${it.message}", it) }
     }
 
-    /** The user has read the goal banner. */
-    fun onDismissGoalReached() {
+    private var goalCelebration: GoalCelebration? = null
+
+    /** "Keep studying" — dismiss the celebration and carry on with the card already underneath. */
+    fun onContinueAfterGoal() {
         goalReached = false
         _state.update { current ->
-            (current as? StudySessionUiState.Reviewing)?.copy(goalReached = false) ?: current
+            (current as? StudySessionUiState.Reviewing)?.copy(goalCelebration = null) ?: current
         }
     }
 
@@ -287,7 +299,7 @@ class StudySessionViewModel(
             val deck = deckRepository.getLocal(card.deckId)
             _state.update { StudySessionUiState.Reviewing(
                 deckTitle = title,
-                goalReached = goalReached,
+                goalCelebration = goalCelebration.takeIf { goalReached },
                 position = index + 1,
                 total = queue.size,
                 frontText = card.front.text.orEmpty(),
@@ -337,10 +349,13 @@ sealed interface StudySessionUiState {
     data class Reviewing(
         val deckTitle: String,
         /**
-         * Today's new-card goal has just been met. A congratulation, not a stop sign — the queue
-         * behind it is unchanged and the next card is already loaded.
+         * Today's new-card goal has just been met, so the celebration is on screen.
+         *
+         * A congratulation, not a stop sign: the queue behind it is unchanged and the next card is
+         * already loaded, so "Keep studying" costs nothing but a dismissal. Null the rest of the
+         * time, which is almost always — it is shown once a day.
          */
-        val goalReached: Boolean = false,
+        val goalCelebration: GoalCelebration? = null,
         val position: Int,
         val total: Int,
         val frontText: String,
@@ -388,6 +403,9 @@ sealed interface StudySessionUiState {
 
     data class Error(val reason: ErrorReason) : StudySessionUiState
 }
+
+/** What the goal celebration says. Its own type so the screen needs no arithmetic. */
+data class GoalCelebration(val newCardsToday: Int, val goal: Int)
 
 /** Pronunciation-practice sheet state for the current card back. */
 sealed interface SpeakPhase {
