@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
 import com.github.jvsena42.loopky.data.pubky.deleteWithSessionRetry
+import com.github.jvsena42.loopky.data.pubky.isNotFound
 import com.github.jvsena42.loopky.data.pubky.mapConcurrently
 import com.github.jvsena42.loopky.data.pubky.putWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.requireSession
@@ -65,7 +66,9 @@ class CardRepositoryImpl(
 
     override suspend fun fetchByDeck(deck: Deck): Result<List<Card>> = runSuspendCatching {
         val fresh = mutableMapOf<String, Card>()
-        var firstFailure: Throwable? = null
+        // Only a failure that leaves the chunk's contents *unknown* counts. A 404 does not: the
+        // homeserver answered, and it answered that the record is not there.
+        var firstHardFailure: Throwable? = null
 
         // Split first so only the chunks that actually moved cost a request.
         val (stale, unchanged) = deck.chunks.partition { meta ->
@@ -90,7 +93,7 @@ class CardRepositoryImpl(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "fetchByDeck: chunk ${meta.n} unreadable — ${err.message}", err)
-                    if (firstFailure == null) firstFailure = err
+                    if (firstHardFailure == null && !err.isNotFound()) firstHardFailure = err
                     // Keep whatever this chunk contributed last time rather than dropping cards.
                     cachedCardsIn(deck.id, meta.n).forEach { fresh[it.id] = it }
                 }
@@ -99,7 +102,14 @@ class CardRepositoryImpl(
         // One corrupt chunk shouldn't hide the rest of the deck, but a deck whose chunks are *all*
         // unreadable is an unreachable homeserver — reporting that as an empty deck would read to
         // the user as "the cards are gone".
-        if (fresh.isEmpty() && firstFailure != null) throw requireNotNull(firstFailure)
+        //
+        // A 404 is the exception, and deliberately not a hard failure: an import that died before
+        // writing any chunk leaves a manifest whose every chunk 404s, and throwing there put the
+        // deck detail screen into "this deck no longer exists" — over a deck that was listed, was
+        // real, and was the one the user was trying to get rid of. The delete button lives on that
+        // screen, so the deck became impossible to remove from the UI. An empty list lets it open
+        // with its "didn't finish uploading" warning, and delete from there.
+        if (fresh.isEmpty()) firstHardFailure?.let { throw it }
 
         // Replace rather than merge: a card the author removed is simply absent from every chunk,
         // so rebuilding the deck's entry from what we just read is what drops it locally.

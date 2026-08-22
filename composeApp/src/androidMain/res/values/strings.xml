@@ -497,6 +497,8 @@
     <string name="publish_error_publish">Couldn\'t publish this deck. %1$s</string>
     <string name="publish_error_cancel">The partial deck is still on your homeserver. %1$s</string>
     <string name="publish_error_undo">The deck is still published. %1$s</string>
+    <string name="error_server_busy_title">Your homeserver is busy</string>
+    <string name="error_server_busy_message">Your homeserver is rate-limiting Loopky, so this couldn\'t be finished. Nothing is wrong with your connection — wait a moment and try again.</string>
     <string name="error_storage_full_title">Your Pubky storage is full</string>
     <string name="error_storage_full_message">There\'s no room left on your homeserver, so this couldn\'t be saved. Delete a deck you no longer study to free up space, or upgrade your Pubky plan for more.</string>
     <string name="error_generic_title">Something went wrong</string>

@@ -51,6 +51,18 @@ enum class ErrorReason {
     AuthRelayUnreachable,
 
     /**
+     * The homeserver answered 429: the request was well-formed, and it is rate-limiting us.
+     *
+     * Distinct from [Offline] for the same reason [AuthRelayUnreachable] is: the homeserver
+     * answered, so the device's connection is fine, and "you're offline — check your connection"
+     * sends the user to fix something that is not broken. Seen deleting a large deck, which is
+     * ~90 records and trips the limiter even after the retries back off.
+     *
+     * Unlike [StorageFull] this does fix itself, so "try again in a moment" is honest advice.
+     */
+    ServerBusy,
+
+    /**
      * The homeserver refused the write because the account is out of storage (507).
      *
      * The odd one out among these: every other reason either fixes itself (an outage), or is

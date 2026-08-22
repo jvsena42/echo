@@ -127,6 +127,20 @@ class CardRepositoryImplTest {
     }
 
     @Test
+    fun fetchByDeckSucceedsEmptyWhenEveryChunkIsMissing() = runTest {
+        // What an import that died before writing a single chunk leaves behind. The homeserver is
+        // answering — it is answering 404 — so this is a real, empty, broken deck, not an
+        // unreachable one. Failing here put the deck detail screen into "this deck no longer
+        // exists", and since the delete button lives on that screen, the deck could not be removed.
+        val deck = seedRemoteDeck(TEST_PUBKY, testCard("c1"), testCard("c2"))
+        deck.chunks.forEach {
+            pubky.store.remove("pubky://$TEST_PUBKY/pub/loopky/decks/deck1/cards/${it.n}.json")
+        }
+
+        assertEquals(emptyList(), repo.fetchByDeck(deck).getOrThrow())
+    }
+
+    @Test
     fun fetchByDeckOnADeckWithNoCardsSucceedsEmpty() = runTest {
         assertEquals(emptyList(), repo.fetchByDeck(testDeck()).getOrThrow())
     }

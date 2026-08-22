@@ -93,10 +93,15 @@ class FakePubkyClient : PubkyClient {
         return Result.success("ok")
     }
 
+    /**
+     * Deleting a path that is not there is a 404, as on a real homeserver. This used to succeed
+     * silently, which is how a deck whose manifest listed chunk records that were never written —
+     * a half-finished import — could be undeletable on device while every delete test passed.
+     */
     override suspend fun deleteWithSession(url: String, sessionSecret: String): Result<String> {
         consumeInjectedFailure()?.let { return Result.failure(it) }
-        store.remove(url)
         deletes.add(url)
+        if (store.remove(url) == null) return Result.failure(PubkyError("not found: $url"))
         return Result.success("ok")
     }
 

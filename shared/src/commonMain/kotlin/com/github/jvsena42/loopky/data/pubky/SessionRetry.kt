@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.data.pubky
 
 import kotlinx.coroutines.delay
+import kotlin.random.Random
 
 /**
  * Returns true if this failure looks like a session-expired error from the homeserver.
@@ -14,11 +15,20 @@ import kotlinx.coroutines.delay
  * never reached the homeserver, so nothing can be concluded about the session; treating it as an
  * expiry told an offline user to sign in with Pubky Ring again, and `requiresReauth` would have
  * signed them out over a dropped connection. Checked first, because the wording overlaps.
+ *
+ * **A homeserver that answered with a status is never an expiry either**, for the same reason and
+ * with the same wording problem: the FFI wraps *whatever* went wrong while importing the session
+ * as `"Failed to import session: …"`, so a 429 arrived here reading as an expiry. That was worse
+ * than a bad label. [withWriteRetry] routes an expiry into [SessionRevalidator.revalidate], which
+ * is itself a homeserver call — so it hit the same rate limit, failed, and returned terminally,
+ * never reaching the backoff branch that exists precisely for a 429. Deleting a deck, which fires
+ * one session-authenticated delete per record, tripped this every time and reported "session
+ * expired" for a session that was fine.
  */
 internal fun Throwable.isSessionExpired(): Boolean {
     if (this !is PubkyError) return false
     val msg = message?.lowercase() ?: return false
-    if (isNetworkFailure()) return false
+    if (isNetworkFailure() || isRateLimited() || isQuotaExceeded()) return false
     return "session" in msg &&
         ("import" in msg || "expired" in msg || "invalid" in msg)
 }
@@ -76,7 +86,12 @@ private suspend fun withWriteRetry(
 
             error.isRateLimited() && rateLimitRetries < MAX_RATE_LIMIT_RETRIES -> {
                 rateLimitRetries++
-                delay(backoff)
+                // Jittered, because the callers that trip a 429 are the concurrent ones. Without
+                // it the in-flight requests are limited at the same moment, sleep the same
+                // duration, and retry in lockstep — reproducing the burst that got them limited,
+                // so the whole group exhausts its budget together. Spreading the wake-ups lets
+                // them drain past the limiter instead.
+                delay(backoff / 2 + Random.nextLong(backoff / 2 + 1))
                 backoff *= 2
             }
 
@@ -114,7 +129,15 @@ internal suspend fun PubkyClient.deleteWithSessionRetry(
     deleteWithSession(url, secret)
 }
 
-/** Enough to ride out a burst without leaving the user staring at a stalled progress bar. */
-private const val MAX_RATE_LIMIT_RETRIES = 5
+/**
+ * Enough to ride out a burst without leaving the user staring at a stalled progress bar.
+ *
+ * 8 rather than 5 because a *sweep* is not a publish. Deleting a 9,000-card deck is ~90 records,
+ * and the FFI re-imports and revalidates the session on every authenticated call, so the sweep
+ * costs the homeserver several times its own length in requests. Measured on device: the 5-retry
+ * budget (~8s) ran out mid-sweep and the delete failed; the deck stayed, and retrying only
+ * repeated it. With jitter, the doubling chain now spans ~64s in the worst case.
+ */
+private const val MAX_RATE_LIMIT_RETRIES = 8
 
 private const val INITIAL_BACKOFF_MS = 250L

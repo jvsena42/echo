@@ -82,8 +82,10 @@ fun Throwable.toErrorReason(): ErrorReason = when {
     // 507 body *today*, but "quota" is the word a future bandwidth limit will also reach for, and
     // reading a full disk as "the server is busy" would retry against it forever.
     isQuotaExceeded() -> ErrorReason.StorageFull
-    // Retries are exhausted by the time this reaches the UI; the homeserver is simply busy.
-    isRateLimited() -> ErrorReason.Offline
+    // Retries are exhausted by the time this reaches the UI; the homeserver is simply busy. Not
+    // Offline — it answered, so the device's connection is fine and saying otherwise sends the
+    // user to check something that is not broken.
+    isRateLimited() -> ErrorReason.ServerBusy
     isNetworkFailure() -> ErrorReason.Offline
     isNotFound() -> ErrorReason.NotFound
     else -> ErrorReason.Unknown
