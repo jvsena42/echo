@@ -71,6 +71,7 @@ import com.github.jvsena42.loopky.presentation.decks.DeckDetailUiState
 import com.github.jvsena42.loopky.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.loopky.ui.components.AuthorRow
 import com.github.jvsena42.loopky.ui.components.CardPreviewRow
+import com.github.jvsena42.loopky.ui.components.ExpandableLinkedText
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.SharePromptDialog
@@ -778,11 +779,12 @@ private fun TitleSection(title: String, description: String?) {
             fontWeight = FontWeight.W800,
         )
         if (!description.isNullOrBlank()) {
-            Text(
+            ExpandableLinkedText(
                 text = description,
                 color = colors.foregroundSecondary,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
+                modifier = Modifier.testTag("deck_detail_description"),
             )
         }
     }
