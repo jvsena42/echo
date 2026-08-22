@@ -8,6 +8,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -48,7 +49,7 @@ internal fun SocialCountsRow(followerCount: Int, clonedCount: Int) {
         }
         if (clonedCount > 0) {
             Text(
-                text = stringResource(R.string.deck_detail_clones, clonedCount),
+                text = pluralStringResource(R.plurals.deck_detail_clones, clonedCount, clonedCount),
                 color = colors.foregroundMuted,
                 fontSize = 13.sp,
                 modifier = Modifier.testTag("deck_clone_count"),
@@ -95,8 +96,9 @@ internal fun CloneDeckDialog(
             // Names the card count: a clone is one write per chunk plus the manifest, and the user
             // should know whether they are copying 20 cards or 20,000 before they wait for it.
             Text(
-                text = stringResource(
-                    R.string.deck_detail_clone_dialog_message,
+                text = pluralStringResource(
+                    R.plurals.deck_detail_clone_dialog_message,
+                    cardCount,
                     deckTitle,
                     cardCount,
                 ),

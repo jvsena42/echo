@@ -44,4 +44,45 @@
         <item quantity="one">Public deck · %1$d</item>
         <item quantity="other">Public decks · %1$d</item>
     </plurals>
+    <plurals name="bulk_cards_parsed">
+        <item quantity="one">%1$d card parsed</item>
+        <item quantity="other">%1$d cards parsed</item>
+    </plurals>
+    <plurals name="bulk_import_cards">
+        <item quantity="one">Import %1$d card</item>
+        <item quantity="other">Import %1$d cards</item>
+    </plurals>
+    <plurals name="bulk_duplicates">
+        <item quantity="one">%1$d duplicate merged</item>
+        <item quantity="other">%1$d duplicates merged</item>
+    </plurals>
+    <plurals name="bulk_truncated">
+        <item quantity="one">%1$d row past the limit was not imported</item>
+        <item quantity="other">%1$d rows past the limit were not imported</item>
+    </plurals>
+    <plurals name="bulk_dropped_notes">
+        <item quantity="one">%1$d note had no front and back to use</item>
+        <item quantity="other">%1$d notes had no front and back to use</item>
+    </plurals>
+    <plurals name="bulk_images_skipped">
+        <item quantity="one">%1$d picture past the limit was not imported</item>
+        <item quantity="other">%1$d pictures past the limit were not imported</item>
+    </plurals>
+    <plurals name="deck_detail_clones">
+        <item quantity="one">%1$d clone</item>
+        <item quantity="other">%1$d clones</item>
+    </plurals>
+    <!-- The plural agrees with the *card* count, so the quantity argument is %2$d. -->
+    <plurals name="home_deck_due_cards">
+        <item quantity="one">%1$d due · %2$d card</item>
+        <item quantity="other">%1$d due · %2$d cards</item>
+    </plurals>
+    <plurals name="deck_detail_clone_dialog_message">
+        <item quantity="one">“%1$s” and its %2$d card will be copied to your homeserver as a deck you own and can edit. It won\'t receive the author\'s later changes.</item>
+        <item quantity="other">“%1$s” and its %2$d cards will be copied to your homeserver as a deck you own and can edit. It won\'t receive the author\'s later changes.</item>
+    </plurals>
+    <plurals name="publish_progress_count">
+        <item quantity="one">Publishing %1$d of %2$d card…</item>
+        <item quantity="other">Publishing %1$d of %2$d cards…</item>
+    </plurals>
 </resources>

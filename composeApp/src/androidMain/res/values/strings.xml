@@ -19,7 +19,6 @@
     <string name="home_start_studying">Start studying</string>
     <string name="home_todays_decks">Today\'s decks</string>
     <string name="home_see_all">See all</string>
-    <string name="home_deck_due_cards">%1$d due · %2$d cards</string>
     <string name="home_empty_title">Nothing to study yet</string>
     <string name="home_empty_subtitle">Create or import a deck to start your first study session. Cards will appear here when they\'re ready for review.</string>
     <string name="home_create_first_deck">Create a deck</string>
@@ -66,12 +65,10 @@
     <string name="deck_detail_clone">Clone deck</string>
     <string name="deck_detail_cloning">Cloning deck…</string>
     <string name="deck_detail_clone_dialog_title">Clone deck</string>
-    <string name="deck_detail_clone_dialog_message">“%1$s” and its %2$d cards will be copied to your homeserver as a deck you own and can edit. It won\'t receive the author\'s later changes.</string>
     <string name="deck_detail_clone_confirm">Clone</string>
     <string name="deck_detail_clone_cancel">Cancel</string>
     <string name="deck_detail_cloned_from">Cloned from %1$s</string>
     <string name="deck_detail_followers">%1$d following</string>
-    <string name="deck_detail_clones">%1$d clones</string>
     <string name="deck_detail_dismiss_error">Dismiss</string>
     <string name="deck_detail_cards_heading">Cards</string>
     <string name="deck_detail_cards_empty_owned">No cards yet. Tap Edit to add your first one.</string>
@@ -205,7 +202,6 @@
     <string name="publish_public_title">Public on your profile</string>
     <string name="publish_public_subtitle">Anyone can find this deck on Discover.</string>
     <string name="publish_button">Publish deck</string>
-    <string name="publish_progress_count">Publishing %1$d of %2$d cards…</string>
     <string name="publish_cancel">Cancel import</string>
     <string name="publish_cancelling">Cleaning up…</string>
     <string name="publish_cancel_title">Cancel this import?</string>
@@ -533,6 +529,8 @@
     <string name="form_title_required">Give your deck a title to publish it.</string>
     <string name="form_title_too_long">Title must be 120 characters or fewer.</string>
     <string name="form_description_too_long">Description must be 500 characters or fewer.</string>
+    <string name="form_card_side_required">Add some text or a picture to this side.</string>
+    <string name="form_card_text_too_long">Card text must be 2000 characters or fewer.</string>
     <string name="paste_validation_empty">Paste or type your list first.</string>
     <string name="paste_validation_no_cards">No cards found yet — check the separator or add a front and back.</string>
     <string name="permission_mic_title">Practise your pronunciation</string>
@@ -590,18 +588,6 @@
     <string name="bulk_error_unknown_title">That import didn\'t work</string>
     <string name="bulk_error_unknown_message">Something went wrong reading that file. Try another one.</string>
     <string name="bulk_skipped">%1$d skipped (missing a front or back)</string>
-    <string name="bulk_duplicates">%1$d duplicates merged</string>
-    <string name="bulk_truncated">%1$d rows past the limit were not imported</string>
-    <string name="bulk_dropped_notes">%1$d notes had no front and back to use</string>
-    <string name="bulk_images_skipped">%1$d pictures past the limit were not imported</string>
-    <plurals name="bulk_cards_parsed">
-        <item quantity="one">%1$d card parsed</item>
-        <item quantity="other">%1$d cards parsed</item>
-    </plurals>
-    <plurals name="bulk_import_cards">
-        <item quantity="one">Import %1$d card</item>
-        <item quantity="other">Import %1$d cards</item>
-    </plurals>
     <string name="deck_incomplete_warning">This deck didn\'t finish uploading — some cards are missing. Import it again to complete it, or delete it.</string>
     <!-- Add-tag sheet, shared by the publish flow and the deck editor -->
     <string name="tag_sheet_title">Add Tag</string>

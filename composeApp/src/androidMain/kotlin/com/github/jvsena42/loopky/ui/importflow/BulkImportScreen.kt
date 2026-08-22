@@ -414,6 +414,7 @@ private fun Summary(
     Text(
         text = stringResource(R.string.bulk_summary_heading),
         fontSize = 24.sp,
+        lineHeight = 29.sp,
         fontWeight = FontWeight.W700,
         color = colors.foregroundPrimary,
     )
@@ -436,19 +437,19 @@ private fun Summary(
 
     // Everything the import dropped, stated rather than silently swallowed.
     if (state.droppedNoteCount > 0) {
-        Caption(stringResource(R.string.bulk_dropped_notes, state.droppedNoteCount))
+        Caption(pluralStringResource(R.plurals.bulk_dropped_notes, state.droppedNoteCount, state.droppedNoteCount))
     }
     if (state.skippedCount > 0) {
         Caption(stringResource(R.string.bulk_skipped, state.skippedCount))
     }
     if (state.duplicatesCollapsed > 0) {
-        Caption(stringResource(R.string.bulk_duplicates, state.duplicatesCollapsed))
+        Caption(pluralStringResource(R.plurals.bulk_duplicates, state.duplicatesCollapsed, state.duplicatesCollapsed))
     }
     if (state.truncatedCount > 0) {
-        Caption(stringResource(R.string.bulk_truncated, state.truncatedCount))
+        Caption(pluralStringResource(R.plurals.bulk_truncated, state.truncatedCount, state.truncatedCount))
     }
     if (state.imagesSkippedCount > 0) {
-        Caption(stringResource(R.string.bulk_images_skipped, state.imagesSkippedCount))
+        Caption(pluralStringResource(R.plurals.bulk_images_skipped, state.imagesSkippedCount, state.imagesSkippedCount))
     }
 
     Spacer(Modifier.height(24.dp))
