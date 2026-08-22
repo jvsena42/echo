@@ -145,6 +145,7 @@ actual object ApkgReader {
             deckDescription = raw.deckDescription,
             suggestedTags = suggestDeckTags(noteTags),
             fieldNames = raw.fieldNames(fieldCount),
+            fieldSamples = raw.fieldSamples(fieldCount),
             mapping = mapping,
             notes = notes,
             noteCount = raw.rows.size,

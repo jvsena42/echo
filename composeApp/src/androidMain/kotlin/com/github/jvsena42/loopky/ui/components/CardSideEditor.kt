@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Icon
@@ -44,7 +43,7 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
  * pill is replaced by a thumbnail preview (tap to change) plus a circular remove button.
  *
  * Shared by the post-publish editor ([com.github.jvsena42.loopky.ui.decks.EditCardScreen]) and the
- * paste/triage editor so both match the design. [onSpeak] adds a TTS icon when non-null.
+ * paste/triage editor so both match the design.
  *
  * Two ways in for the thumbnail, because the two callers hold an image at different stages.
  * [imageModel] is anything Coil can decode on its own — a web URL, or raw bytes just picked from
@@ -71,8 +70,6 @@ fun CardSideEditor(
     /** The *deck's* author, not the signed-in user — see [CardMediaImage]. */
     authorPubky: String = "",
     error: String? = null,
-    onSpeak: (() -> Unit)? = null,
-    speakDescription: String? = null,
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -101,18 +98,6 @@ fun CardSideEditor(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (onSpeak != null) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                        contentDescription = speakDescription,
-                        tint = colors.accentPrimary,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable(onClick = onSpeak)
-                            .padding(4.dp)
-                            .size(18.dp),
-                    )
-                }
                 when {
                     imageRef != null -> ImagePreview(onPickImage, onRemoveImage, imageTag) { thumb ->
                         CardMediaImage(

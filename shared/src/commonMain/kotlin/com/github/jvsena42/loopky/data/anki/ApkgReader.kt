@@ -97,6 +97,12 @@ data class ApkgImport(
     val suggestedTags: List<String> = emptyList(),
     /** Field names of the deck's dominant note type, for the field picker. */
     val fieldNames: List<String> = emptyList(),
+    /**
+     * One real value per field, parallel to [fieldNames], for the field picker to show beside
+     * each name. Anki decks routinely carry fields called "Field 3" or nothing at all, and a name
+     * alone makes choosing between them guesswork.
+     */
+    val fieldSamples: List<String> = emptyList(),
     /** The two fields these [notes] were built from. */
     val mapping: ApkgFieldMapping = ApkgFieldMapping(0, 1),
     val notes: List<BulkNote> = emptyList(),

@@ -223,8 +223,15 @@ class DeckEditorViewModel(
         }
     }
 
+    /**
+     * Stopped at the cap rather than accepted and rejected on save: the title field is one line
+     * that scrolls horizontally, so an over-long title hides its own beginning while being typed
+     * and the error names a number the user cannot see themselves approaching. The counter beside
+     * the field does that job, the way the description below it already works.
+     */
     fun onTitleChanged(text: String) {
-        _state.update { it.copy(title = text, titleError = titleErrorFor(text)) }
+        val capped = text.take(DeckLimits.TITLE_MAX_LENGTH)
+        _state.update { it.copy(title = capped, titleError = titleErrorFor(capped)) }
     }
 
     fun onDescriptionChanged(text: String) {

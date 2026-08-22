@@ -1888,7 +1888,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "pk:%1$@"
+            "value": "%1$@"
           }
         }
       }
@@ -1899,7 +1899,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "pk:%1$@…%2$@"
+            "value": "%1$@…%2$@"
           }
         }
       }
@@ -2064,7 +2064,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "pk:%1$@…%2$@"
+            "value": "%1$@…%2$@"
           }
         }
       }
@@ -2152,7 +2152,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "pk:%1$@…%2$@"
+            "value": "%1$@…%2$@"
           }
         }
       }

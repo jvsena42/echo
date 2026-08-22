@@ -498,7 +498,7 @@ class DeckDetailViewModel(
             deckId = id,
             title = title,
             description = description,
-            coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
+            coverEmoji = coverEmoji ?: title.firstOrNull()?.uppercaseChar()?.toString() ?: "📚",
             coverImageUrl = coverImageRef?.url,
             // Your own decks can name you straight away from the session; for anyone else the
             // pubky stands in until loadAuthorProfile lands.

@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,8 +74,12 @@ fun ProfileHero(
             Text(
                 text = identity.label(),
                 fontSize = 24.sp,
+                lineHeight = 30.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
             )
             if (isOwned) {
                 Spacer(modifier = Modifier.width(8.dp))
@@ -119,6 +124,10 @@ fun ProfileHero(
                 color = colors.foregroundSecondary,
                 textAlign = TextAlign.Center,
                 lineHeight = 19.sp,
+                // Bounded in both directions: the width alone let a long bio wrap forever and
+                // push the stats and the follow button off the screen.
+                maxLines = BIO_MAX_LINES,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.width(BIO_WIDTH),
             )
         }
@@ -155,3 +164,6 @@ private fun ProfileHeroPreview() {
 private val AVATAR_SIZE = 96.dp
 private val AVATAR_GLOW_ELEVATION = 24.dp
 private val BIO_WIDTH = 280.dp
+
+/** Enough for a sentence or two; past that the hero stops being a header. */
+private const val BIO_MAX_LINES = 4

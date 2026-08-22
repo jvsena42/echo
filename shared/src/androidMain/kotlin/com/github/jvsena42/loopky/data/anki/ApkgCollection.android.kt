@@ -18,6 +18,20 @@ internal data class RawCollection(
     /** Field names padded to [count], so the picker can always label every column it offers. */
     fun fieldNames(count: Int): List<String> =
         (0 until count).map { fieldNamesByOrd.getOrNull(it) ?: "Field ${it + 1}" }
+
+    /**
+     * The first value each field actually holds, padded to [count].
+     *
+     * Scans a bounded prefix rather than the first row alone: a field is often empty on the
+     * opening notes and filled in later, and an empty sample teaches the picker nothing.
+     */
+    fun fieldSamples(count: Int): List<String> = (0 until count).map { ord ->
+        rows.asSequence()
+            .take(SAMPLE_SCAN_LIMIT)
+            .mapNotNull { it.fields.getOrNull(ord)?.let(::parseAnkiField)?.text?.trim() }
+            .firstOrNull { it.isNotEmpty() }
+            .orEmpty()
+    }
 }
 
 internal fun SQLiteDatabase.readRawNotes(): RawCollection {
@@ -193,6 +207,9 @@ private const val DEFAULT_DECK_ID = "1"
 
 /** Mirrors `PublishDeckViewModel`'s own ceiling, so the prefill never opens already invalid. */
 private const val MAX_DESCRIPTION_CHARS = 500
+
+/** Rows to look through for a non-empty sample of each field. */
+private const val SAMPLE_SCAN_LIMIT = 50
 
 /** `NormalDeck.description` in Anki's `deck_config.proto`. */
 private const val DESCRIPTION_FIELD = 4

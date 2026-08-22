@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -76,6 +77,7 @@ import com.github.jvsena42.loopky.ui.components.AddTagSheet
 import com.github.jvsena42.loopky.ui.components.CharacterCounter
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
+import com.github.jvsena42.loopky.ui.components.LoopkyOutlinedButton
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.components.SharePromptBody
@@ -190,6 +192,9 @@ private fun PublishDeckScreen(
         Column(
             modifier = Modifier
                 .weight(1f)
+                // Without this the scroll container keeps its full height behind the keyboard,
+                // so the field being typed into stays hidden and there is nothing left to scroll.
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
             verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -290,7 +295,16 @@ private fun PublishDeckScreen(
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
-                        Text(text = state.coverEmoji.ifBlank { "📚" }, fontSize = 32.sp)
+                        // The deck's own initial, not a books emoji: `coverEmoji` is written as
+                        // null when it is blank, and every list and detail screen falls back to
+                        // the initial. Showing 📚 here promised a cover the deck never got.
+                        Text(
+                            text = state.coverEmoji.ifBlank {
+                                state.title.firstOrNull()?.uppercaseChar()?.toString() ?: "•"
+                            },
+                            fontSize = 32.sp,
+                            lineHeight = 38.sp,
+                        )
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -361,12 +375,27 @@ private fun PublishDeckScreen(
                         }
                     },
                 )
-                state.titleError?.let { error ->
-                    Text(
-                        text = formErrorMessage(error),
-                        fontSize = 12.sp,
-                        color = colors.danger,
-                        modifier = Modifier.testTag("publish_title_error"),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    val error = state.titleError
+                    if (error != null) {
+                        Text(
+                            text = formErrorMessage(error),
+                            fontSize = 12.sp,
+                            color = colors.danger,
+                            modifier = Modifier
+                                .testTag("publish_title_error")
+                                .weight(1f),
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    CharacterCounter(
+                        current = state.title.length,
+                        max = DeckLimits.TITLE_MAX_LENGTH,
                     )
                 }
             }
@@ -682,7 +711,12 @@ private fun PublishProgress(
             text = if (isCancelling) {
                 stringResource(R.string.publish_cancelling)
             } else {
-                stringResource(R.string.publish_progress_count, publishedCardCount, totalCardCount)
+                pluralStringResource(
+                    R.plurals.publish_progress_count,
+                    totalCardCount,
+                    publishedCardCount,
+                    totalCardCount,
+                )
             },
             fontSize = 13.sp,
             color = colors.foregroundSecondary,
@@ -808,24 +842,12 @@ private fun PublishedContent(
                     .testTag("share_prompt_confirm")
                     .fillMaxWidth(),
             )
-            Row(
-                modifier = Modifier
-                    .testTag("share_prompt_dismiss")
-                    .fillMaxWidth()
-                    .clip(CircleShape)
-                    .border(1.5.dp, colors.borderSubtle, CircleShape)
-                    .clickable(enabled = !prompt.isPosting, onClick = onShareDismiss)
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.share_prompt_dismiss),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.foregroundPrimary,
-                )
-            }
+            LoopkyOutlinedButton(
+                label = stringResource(R.string.share_prompt_dismiss),
+                onClick = onShareDismiss,
+                enabled = !prompt.isPosting,
+                modifier = Modifier.testTag("share_prompt_dismiss"),
+            )
         } else {
             // Done button
             LoopkyPrimaryButton(
@@ -837,24 +859,11 @@ private fun PublishedContent(
             )
 
             // Undo button with countdown
-            Row(
-                modifier = Modifier
-                    .testTag("publish_undo")
-                    .fillMaxWidth()
-                    .clip(CircleShape)
-                    .border(1.5.dp, colors.borderSubtle, CircleShape)
-                    .clickable(onClick = onUndoPublish)
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.publish_undo, state.undoSecondsRemaining),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.foregroundPrimary,
-                )
-            }
+            LoopkyOutlinedButton(
+                label = stringResource(R.string.publish_undo, state.undoSecondsRemaining),
+                onClick = onUndoPublish,
+                modifier = Modifier.testTag("publish_undo"),
+            )
         }
 
         // Error

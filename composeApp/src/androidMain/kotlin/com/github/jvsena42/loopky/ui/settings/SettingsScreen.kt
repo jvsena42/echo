@@ -116,6 +116,7 @@ fun SettingsRoute(
         focusUnsplashKey = focus == Routes.SETTINGS_FOCUS_UNSPLASH,
         onBack = onBack,
         onCopyPubkyClick = viewModel::onCopyPubkyClick,
+        onCopyHomeserverClick = viewModel::onCopyHomeserverClick,
         onShareOnPubkyChange = viewModel::onShareOnPubkyChange,
         onSaveUnsplashKey = viewModel::onSaveUnsplashKey,
         onRemoveUnsplashKey = viewModel::onRemoveUnsplashKey,
@@ -132,6 +133,7 @@ private fun SettingsScreen(
     focusUnsplashKey: Boolean,
     onBack: () -> Unit,
     onCopyPubkyClick: () -> Unit,
+    onCopyHomeserverClick: () -> Unit,
     onShareOnPubkyChange: (Boolean) -> Unit,
     onSaveUnsplashKey: (String) -> Unit,
     onRemoveUnsplashKey: () -> Unit,
@@ -194,6 +196,7 @@ private fun SettingsScreen(
             Text(
                 text = stringResource(R.string.settings_title),
                 fontSize = 28.sp,
+                lineHeight = 34.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
             )
@@ -236,9 +239,35 @@ private fun SettingsScreen(
                 },
             )
             SettingsDivider()
+            // Truncated and copyable, like the pubky directly above it. Shown whole it was a
+            // 52-character key wrapped over two lines that nobody can read and nobody could copy.
             SettingsValueRow(
                 label = stringResource(R.string.settings_homeserver_label),
-                value = state.homeserver.ifBlank { stringResource(R.string.settings_homeserver_unknown) },
+                value = if (state.homeserver.isNotBlank()) {
+                    truncatedPubky(state.homeserver)
+                } else {
+                    stringResource(R.string.settings_homeserver_unknown)
+                },
+                trailing = {
+                    if (state.homeserver.isNotBlank()) {
+                        FilledTonalButton(
+                            onClick = onCopyHomeserverClick,
+                            modifier = Modifier.testTag("settings_copy_homeserver"),
+                            shape = RoundedCornerShape(50),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = colors.surfaceCard,
+                                contentColor = colors.foregroundMuted,
+                            ),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_copy),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                },
             )
         }
 
@@ -697,6 +726,7 @@ private fun SettingsScreenPreview() {
             focusUnsplashKey = false,
             onBack = {},
             onCopyPubkyClick = {},
+            onCopyHomeserverClick = {},
             onShareOnPubkyChange = {},
             onSaveUnsplashKey = {},
             onRemoveUnsplashKey = {},

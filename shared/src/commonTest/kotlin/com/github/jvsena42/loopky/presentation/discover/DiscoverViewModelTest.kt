@@ -67,6 +67,66 @@ class DiscoverViewModelTest {
         )
     }
 
+    // ── the two strips (a deck must not be drawn, or denied, twice) ──────
+
+    @Test
+    fun aDeckYouFollowIsNotAlsoDrawnUnderGlobalBrowse() = runTest {
+        // Global browse returns every public deck, including the ones whose authors you follow,
+        // so the same deck was rendered once in each strip on one screen.
+        val shared = testDeck(id = "anatomy", authorPubky = "friend1", tags = listOf(Tag("osteology")))
+        discovery.feed = listOf(shared)
+        discovery.globalDecks = listOf(shared)
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = vm.state.value
+        assertEquals(listOf("anatomy"), state.following.items.map { it.id })
+        assertTrue(state.browseExcludingFollowed.items.isEmpty())
+    }
+
+    @Test
+    fun browseIsNotCalledEmptyWhenTheFollowStripIsShowingItsDecks() = runTest {
+        // The regression: with one deck matching a tag, and that deck followed, browse deduped to
+        // nothing and the screen rendered "No decks tagged X yet" directly above the deck it was
+        // denying. Empty and covered-by-followed are different states and must stay distinguishable.
+        val shared = testDeck(id = "anatomy", authorPubky = "friend1", tags = listOf(Tag("osteology")))
+        discovery.feed = listOf(shared)
+        discovery.globalDecks = listOf(shared)
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.browseFullyCoveredByFollowed)
+    }
+
+    @Test
+    fun browseIsGenuinelyEmptyWhenNothingMatchedAtAll() = runTest {
+        discovery.feed = emptyList()
+        discovery.globalDecks = emptyList()
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        // Nothing to cover, so the empty state is an honest claim and must still be reachable.
+        assertFalse(vm.state.value.browseFullyCoveredByFollowed)
+        assertTrue(vm.state.value.browseExcludingFollowed.isEmpty)
+    }
+
+    @Test
+    fun aStrangersDeckSurvivesTheDedupe() = runTest {
+        val followed = testDeck(id = "anatomy", authorPubky = "friend1")
+        val stranger = testDeck(id = "chess", authorPubky = "stranger1")
+        discovery.feed = listOf(followed)
+        discovery.globalDecks = listOf(followed, stranger)
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        assertEquals(listOf("chess"), vm.state.value.browseExcludingFollowed.items.map { it.id })
+        assertFalse(vm.state.value.browseFullyCoveredByFollowed)
+    }
+
     // ── the dead end (#26) ───────────────────────────────────────────────
 
     @Test

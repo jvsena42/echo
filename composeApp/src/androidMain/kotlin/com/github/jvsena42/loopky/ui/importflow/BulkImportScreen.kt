@@ -225,7 +225,6 @@ private fun BulkImportScreen(
     if (showFieldSheet && fields != null) {
         FieldMappingSheet(
             fields = fields,
-            sample = state.sample.firstOrNull(),
             onPick = {
                 showFieldSheet = false
                 onFieldMappingChange(it)
@@ -414,6 +413,7 @@ private fun Summary(
     Text(
         text = stringResource(R.string.bulk_summary_heading),
         fontSize = 24.sp,
+        lineHeight = 29.sp,
         fontWeight = FontWeight.W700,
         color = colors.foregroundPrimary,
     )
@@ -436,19 +436,19 @@ private fun Summary(
 
     // Everything the import dropped, stated rather than silently swallowed.
     if (state.droppedNoteCount > 0) {
-        Caption(stringResource(R.string.bulk_dropped_notes, state.droppedNoteCount))
+        Caption(pluralStringResource(R.plurals.bulk_dropped_notes, state.droppedNoteCount, state.droppedNoteCount))
     }
     if (state.skippedCount > 0) {
         Caption(stringResource(R.string.bulk_skipped, state.skippedCount))
     }
     if (state.duplicatesCollapsed > 0) {
-        Caption(stringResource(R.string.bulk_duplicates, state.duplicatesCollapsed))
+        Caption(pluralStringResource(R.plurals.bulk_duplicates, state.duplicatesCollapsed, state.duplicatesCollapsed))
     }
     if (state.truncatedCount > 0) {
-        Caption(stringResource(R.string.bulk_truncated, state.truncatedCount))
+        Caption(pluralStringResource(R.plurals.bulk_truncated, state.truncatedCount, state.truncatedCount))
     }
     if (state.imagesSkippedCount > 0) {
-        Caption(stringResource(R.string.bulk_images_skipped, state.imagesSkippedCount))
+        Caption(pluralStringResource(R.plurals.bulk_images_skipped, state.imagesSkippedCount, state.imagesSkippedCount))
     }
 
     Spacer(Modifier.height(24.dp))
@@ -495,22 +495,6 @@ private fun SeparatorChip(separator: Separator, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     )
-}
-
-@Composable
-private fun SampleRow(card: SampleCard) {
-    val colors = LoopkyTheme.colors
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .background(colors.surfaceSecondary, RoundedCornerShape(12.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(card.front, fontSize = 15.sp, fontWeight = FontWeight.W600, color = colors.foregroundPrimary)
-        Text(card.back, fontSize = 14.sp, color = colors.foregroundSecondary)
-    }
 }
 
 @Composable

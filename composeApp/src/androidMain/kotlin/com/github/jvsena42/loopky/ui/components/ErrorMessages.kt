@@ -151,5 +151,7 @@ fun formErrorMessage(error: FormError): String = stringResource(
         FormError.TitleRequired -> R.string.form_title_required
         FormError.TitleTooLong -> R.string.form_title_too_long
         FormError.DescriptionTooLong -> R.string.form_description_too_long
+        FormError.CardSideRequired -> R.string.form_card_side_required
+        FormError.CardTextTooLong -> R.string.form_card_text_too_long
     },
 )

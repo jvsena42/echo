@@ -216,6 +216,16 @@ private fun LazyListScope.browseSection(
     onOpenAuthor: (String) -> Unit,
     onSearch: () -> Unit,
 ) {
+    // Everything browse found is already in the follow strip below, so this section has nothing
+    // left to show — and "No decks tagged X yet" is a claim about the world that is false while
+    // the deck it denies sits right underneath it.
+    //
+    // With a tag selected the header stays regardless: it names the query and carries Clear, so
+    // it is worth a section of its own even with no rows under it. Unfiltered it is a bare label
+    // over nothing, so the section goes entirely.
+    val coveredByFollowed = state.browseFullyCoveredByFollowed
+    if (coveredByFollowed && state.selectedTag == null) return
+
     item(key = "browse_header") {
         SectionHeader(
             text = state.selectedTag
@@ -224,16 +234,17 @@ private fun LazyListScope.browseSection(
             trailing = state.selectedTag?.let { { ClearTagButton(onClick = { onTagSelected(null) }) } },
         )
     }
-    if (state.browse.isLoading) {
+    val browse = state.browseExcludingFollowed
+    if (browse.isLoading) {
         item(key = "browse_loading") { SectionSpinner(modifier = Modifier.testTag("discover_browse_loading")) }
     }
-    if (state.browse.isEmpty) {
+    if (browse.isEmpty && !coveredByFollowed) {
         item(key = "browse_empty") {
             BrowseEmptyBlock(selectedTag = state.selectedTag, onSearch = onSearch)
         }
     }
     deckRows(
-        section = state.browse,
+        section = browse,
         keyPrefix = "browse",
         tileTestTag = "discover_deck_tile",
         onOpenDeck = onOpenDeck,
@@ -321,6 +332,7 @@ private fun DiscoverHeader(onSearch: () -> Unit) {
             text = stringResource(R.string.discover_title),
             color = colors.foregroundPrimary,
             fontSize = 28.sp,
+            lineHeight = 34.sp,
             fontWeight = FontWeight.ExtraBold,
         )
         // A magnifier alone, and the platform's own button: what the icon means needs no label,

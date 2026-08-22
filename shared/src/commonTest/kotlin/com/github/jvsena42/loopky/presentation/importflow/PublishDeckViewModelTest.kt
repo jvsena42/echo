@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.importflow
 
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
+import com.github.jvsena42.loopky.domain.model.DeckLimits
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.FormError
@@ -112,16 +113,17 @@ class PublishDeckViewModelTest {
     }
 
     @Test
-    fun overlongTitleBlocksPublish() = runTest {
+    fun anOverlongTitleIsStoppedAtTheCapRatherThanRejectedOnPublish() = runTest {
+        // The field is one line that scrolls horizontally, so a title long enough to fail
+        // validation had already scrolled its own beginning out of view — and the error named a
+        // number the user could not watch themselves approach. The counter does that instead.
         val vm = viewModel()
-        vm.onTitleChanged("x".repeat(121))
-        assertNotNull(vm.state.value.titleError)
-        assertTrue(!vm.state.value.canPublish)
 
-        vm.onPublishClick()
-        runCurrent()
+        vm.onTitleChanged("x".repeat(200))
 
-        assertTrue(deckRepo.published.isEmpty())
+        assertEquals(expected = DeckLimits.TITLE_MAX_LENGTH, actual = vm.state.value.title.length)
+        assertNull(vm.state.value.titleError)
+        assertTrue(vm.state.value.canPublish)
     }
 
     @Test

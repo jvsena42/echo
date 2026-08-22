@@ -31,6 +31,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -303,9 +304,18 @@ private fun DeckRow(deck: DeckSummary, onClick: () -> Unit) {
                 color = colors.foregroundPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
+                // Clamped so today's rows are the same height whatever the deck is called; an
+                // imported Anki title can run to a sentence.
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(R.string.home_deck_due_cards, deck.dueCount, deck.cardCount),
+                text = pluralStringResource(
+                    R.plurals.home_deck_due_cards,
+                    deck.cardCount,
+                    deck.dueCount,
+                    deck.cardCount,
+                ),
                 color = colors.foregroundMuted,
                 fontSize = 13.sp,
             )

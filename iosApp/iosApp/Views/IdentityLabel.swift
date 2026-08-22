@@ -39,10 +39,10 @@ struct IdentityData {
         return source.first.map { String($0).uppercased() } ?? "?"
     }
 
-    var shortPubky: String { "pk:\(pubky.prefix(Self.affixLength))" }
+    var shortPubky: String { String(pubky.prefix(Self.affixLength)) }
 
     var truncatedPubky: String {
-        "pk:\(pubky.prefix(Self.affixLength))…\(pubky.suffix(Self.affixLength))"
+        "\(pubky.prefix(Self.affixLength))…\(pubky.suffix(Self.affixLength))"
     }
 
     private static let affixLength = 6

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -73,6 +74,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -331,6 +333,9 @@ fun DeckEditorScreen(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                // Without this the scroll container keeps its full height behind the keyboard,
+                // so the field being typed into stays hidden and there is nothing left to scroll.
+                .imePadding()
                 .padding(innerPadding),
             // Extra bottom room so the FAB never covers the last card.
             contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 96.dp),
@@ -628,8 +633,26 @@ private fun DeckMetadataCard(
                     colors = textFieldColors(),
                 )
 
-                state.titleError?.let { errorText ->
-                    Text(text = errorText, fontSize = 12.sp, color = colors.danger)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    val errorText = state.titleError
+                    if (errorText != null) {
+                        Text(
+                            text = errorText,
+                            fontSize = 12.sp,
+                            color = colors.danger,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    CharacterCounter(
+                        current = state.title.length,
+                        max = DeckLimits.TITLE_MAX_LENGTH,
+                    )
                 }
             }
         }
@@ -806,17 +829,22 @@ private fun CardRow(
                     modifier = Modifier.size(18.dp),
                 )
             }
+            // A chip, not bare text: this opens "move to position", which is the only practical
+            // way to move a card any distance in a 442-card imported deck — and drawn as a plain
+            // number between two arrows it read as a label, so nobody would find it.
             Text(
                 text = position.toString(),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.W700,
                 color = colors.accentSecondary,
                 modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.accentSecondarySoft)
                     .clickable(
                         onClick = onMoveToClick,
                         onClickLabel = stringResource(R.string.deck_editor_move_to),
                     )
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
                     .testTag("card_position"),
             )
             IconButton(
@@ -844,12 +872,14 @@ private fun CardRow(
                 fontWeight = FontWeight.W700,
                 color = if (card.frontText.isEmpty()) colors.foregroundMuted else colors.foregroundPrimary,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = card.backText.ifEmpty { stringResource(R.string.deck_editor_card_back_placeholder) },
                 fontSize = 13.sp,
                 color = colors.foregroundMuted,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
 

@@ -90,8 +90,10 @@ class PublishDeckViewModel(
         }
     }
 
+    /** Stopped at the cap, for the reason on `DeckEditorViewModel.onTitleChanged`. */
     fun onTitleChanged(text: String) {
-        _state.update { it.copy(title = text, titleError = titleErrorFor(text)) }
+        val capped = text.take(DeckLimits.TITLE_MAX_LENGTH)
+        _state.update { it.copy(title = capped, titleError = titleErrorFor(capped)) }
     }
 
     fun onDescriptionChanged(text: String) {

@@ -240,6 +240,7 @@ private fun HeaderRow(searchOpen: Boolean, onToggleSearch: () -> Unit) {
             text = stringResource(R.string.decks_title),
             color = colors.foregroundPrimary,
             fontSize = 28.sp,
+            lineHeight = 34.sp,
             fontWeight = FontWeight.ExtraBold,
         )
         // Was a decorative Icon with no click handler at all.
@@ -440,6 +441,7 @@ private fun EmptyBlock(onCreateDeckClick: () -> Unit) {
         Text(
             text = "\uD83D\uDCDA",
             fontSize = 48.sp,
+            lineHeight = 58.sp,
         )
         Text(
             text = stringResource(R.string.decks_empty_title),

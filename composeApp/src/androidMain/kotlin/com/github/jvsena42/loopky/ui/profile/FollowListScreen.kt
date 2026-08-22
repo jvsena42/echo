@@ -107,6 +107,7 @@ private fun FollowListScreen(
                 },
             ),
             fontSize = 28.sp,
+            lineHeight = 34.sp,
             fontWeight = FontWeight.ExtraBold,
             color = colors.foregroundPrimary,
         )

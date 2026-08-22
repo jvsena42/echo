@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.ui.discover
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -20,6 +21,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -94,7 +102,12 @@ fun SectionHint(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Horizontally scrolling topic chips. */
+/**
+ * Horizontally scrolling topic chips, faded at whichever edge has more behind it.
+ *
+ * Without the fade the row simply cut its trailing chip mid-word at the screen inset, which reads
+ * as a clipping bug rather than as an invitation to scroll.
+ */
 @Composable
 fun TopicRow(
     tags: List<Tag>,
@@ -102,11 +115,14 @@ fun TopicRow(
     onTagSelected: (Tag?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scrollState = rememberScrollState()
+    val surface = LoopkyTheme.colors.surfacePrimary
     Row(
         modifier = modifier
             .fillMaxWidth()
             .testTag("discover_topic_row")
-            .horizontalScroll(rememberScrollState()),
+            .scrollEdgeFade(scrollState, surface)
+            .horizontalScroll(scrollState),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         tags.forEach { tag ->
@@ -250,6 +266,7 @@ fun BrowseEmptyBlock(
                 },
             ),
             fontSize = 36.sp,
+            lineHeight = 43.sp,
         )
         Text(
             text = selectedTag
@@ -286,3 +303,39 @@ fun BrowseEmptyBlock(
 
 /** Dims the pill while a follow request is in flight, matching AuthorRow. */
 private const val PENDING_ALPHA = 0.5f
+
+/**
+ * Fades the row out over whichever edge still has content behind it.
+ *
+ * Drawn rather than laid out, so it costs no space and never shifts the chips; and driven by the
+ * live scroll position, so the leading fade only appears once there is something to scroll back to.
+ */
+private fun Modifier.scrollEdgeFade(scrollState: ScrollState, surface: Color): Modifier =
+    this
+        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            val width = EDGE_FADE_WIDTH.toPx()
+            if (scrollState.value > 0) {
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        listOf(surface, Color.Transparent),
+                        endX = width,
+                    ),
+                    size = Size(width, size.height),
+                )
+            }
+            if (scrollState.value < scrollState.maxValue) {
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        listOf(Color.Transparent, surface),
+                        startX = size.width - width,
+                        endX = size.width,
+                    ),
+                    topLeft = Offset(size.width - width, 0f),
+                    size = Size(width, size.height),
+                )
+            }
+        }
+
+private val EDGE_FADE_WIDTH = 24.dp

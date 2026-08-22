@@ -95,7 +95,7 @@ class BulkImportViewModel(
                 val draft = importRepository.parseBulkNotes(
                     notes = apkg.notes,
                     suggestedTitle = suggestedTitleFor(apkg.deckName, fileName),
-                    suggestedDescription = apkg.deckDescription,
+                    suggestedDescription = suggestedDescriptionFor(apkg.deckDescription),
                     suggestedTags = apkg.suggestedTags,
                 ).getOrThrow()
                 apkg to draft
@@ -174,12 +174,21 @@ class BulkImportViewModel(
                 // summary that explained the gap as "1 duplicates merged" (#96).
                 droppedNoteCount = apkg?.dropped?.total ?: 0,
                 imagesSkippedCount = apkg?.imagesSkipped ?: 0,
-                fields = apkg?.let { ApkgFields(it.fieldNames, it.mapping) },
+                fields = apkg?.let { ApkgFields(it.fieldNames, it.mapping, it.fieldSamples) },
                 // Sampled from the kept rows, not all of them: showing a card that is about to be
                 // skipped is the one sample guaranteed to mislead.
                 sample = kept.take(SAMPLE_SIZE).map { row ->
                     val (front, back) = draft.frontBackOf(row)
-                    SampleCard(front = front, back = back)
+                    SampleCard(
+                        front = front,
+                        back = back,
+                        // An Anki `Basic` note routinely puts nothing but an `<img>` in a field.
+                        // Without this the sample drew a wordless side as an empty box, so the
+                        // one thing the preview is for — did my deck come across? — went unanswered
+                        // precisely on the decks where the answer was least obvious.
+                        hasFrontImage = importRepository.rowImage(row.index, isFront = true) != null,
+                        hasBackImage = importRepository.rowImage(row.index, isFront = false) != null,
+                    )
                 },
             )
         }
@@ -217,6 +226,24 @@ class BulkImportViewModel(
                 .joinToString(" ")
                 .takeIf { it.isNotBlank() }
                 ?.take(PublishDeckViewModel.TITLE_MAX_LENGTH)
+
+    /**
+     * The deck description to prefill the commit screen with, or null.
+     *
+     * Anki fills the field in for you: every deck exported from AnkiWeb carries the same
+     * "Please see the shared deck page for more info." — which is true of the AnkiWeb page and
+     * meaningless once the deck is a Loopky deck. Importing it verbatim gives every deck the
+     * same description and buries the fact that the field is the user's to write. An empty field
+     * says "write something here"; boilerplate says "this is already filled in".
+     *
+     * Matched on the normalised text rather than exactly, since the field arrives as HTML and
+     * different Anki versions punctuate it differently.
+     */
+    internal fun suggestedDescriptionFor(description: String?): String? =
+        description?.takeIf { raw ->
+            val normalised = raw.trim().lowercase().trimEnd('.', '!', ' ')
+            normalised.isNotEmpty() && ANKI_BOILERPLATE_DESCRIPTIONS.none { it == normalised }
+        }
 
     /** The platform layer could not turn the picked uri into text. */
     fun onFileReadFailed(reason: BulkImportError) {
@@ -277,6 +304,16 @@ class BulkImportViewModel(
 
         /** Enough to see the parse worked without pretending the user reviews them all. */
         private const val SAMPLE_SIZE = 3
+
+        /**
+         * Descriptions Anki writes for you, normalised (lowercased, trailing punctuation
+         * stripped). These describe the AnkiWeb listing, not the deck, so they import as nothing.
+         */
+        private val ANKI_BOILERPLATE_DESCRIPTIONS = setOf(
+            "please see the shared deck page for more info",
+            "please see the shared deck page for more information",
+            "see the shared deck page for more info",
+        )
     }
 }
 
@@ -348,12 +385,25 @@ enum class BulkImportError {
     Unknown,
 }
 
-data class SampleCard(val front: String, val back: String)
+data class SampleCard(
+    val front: String,
+    val back: String,
+    val hasFrontImage: Boolean = false,
+    val hasBackImage: Boolean = false,
+)
 
 /** What the field picker needs: the note type's field names, and which two are in use. */
-data class ApkgFields(val names: List<String>, val mapping: ApkgFieldMapping) {
+data class ApkgFields(
+    val names: List<String>,
+    val mapping: ApkgFieldMapping,
+    /** One real value per field, parallel to [names]. Empty when the source had none to give. */
+    val samples: List<String> = emptyList(),
+) {
     val frontName: String get() = names.getOrNull(mapping.frontOrd).orEmpty()
     val backName: String get() = names.getOrNull(mapping.backOrd).orEmpty()
+
+    /** What field [ord] actually holds, for the picker to show under its name. */
+    fun sampleAt(ord: Int): String? = samples.getOrNull(ord)?.takeIf { it.isNotBlank() }
 
     /** Worth offering a choice only when there is more than one pair to choose between. */
     val canChoose: Boolean get() = names.size > 2

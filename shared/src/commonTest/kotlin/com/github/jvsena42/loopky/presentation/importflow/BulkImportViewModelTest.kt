@@ -80,6 +80,37 @@ class BulkImportViewModelTest {
         assertNull(viewModel().suggestedTitleFor(deckName = null, fileName = ""))
     }
 
+    // ── suggested description ────────────────────────────────────────────
+
+    @Test
+    fun ankisBoilerplateDescriptionImportsAsNothing() {
+        // Every deck exported from AnkiWeb carries this, so importing it verbatim gave every
+        // deck the same description and hid that the field is the user's to write.
+        assertNull(
+            viewModel().suggestedDescriptionFor("Please see the shared deck page for more info."),
+        )
+    }
+
+    @Test
+    fun theBoilerplateIsRecognisedHoweverItIsPunctuated() {
+        // The field arrives as HTML and different Anki versions end it differently.
+        assertNull(viewModel().suggestedDescriptionFor("  PLEASE SEE THE SHARED DECK PAGE FOR MORE INFO  "))
+        assertNull(viewModel().suggestedDescriptionFor("Please see the shared deck page for more information"))
+    }
+
+    @Test
+    fun aDescriptionTheAuthorActuallyWroteSurvives() {
+        val description = viewModel().suggestedDescriptionFor("Back and thorax gross anatomy flashcards")
+
+        assertEquals(expected = "Back and thorax gross anatomy flashcards", actual = description)
+    }
+
+    @Test
+    fun anEmptyDescriptionSuggestsNothingRatherThanEmptyText() {
+        assertNull(viewModel().suggestedDescriptionFor("   "))
+        assertNull(viewModel().suggestedDescriptionFor(null))
+    }
+
     // ── parse ────────────────────────────────────────────────────────────
 
     // ── error modes ──────────────────────────────────────────────────────
