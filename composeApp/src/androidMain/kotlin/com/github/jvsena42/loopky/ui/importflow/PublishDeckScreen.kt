@@ -76,6 +76,7 @@ import com.github.jvsena42.loopky.ui.components.AddTagSheet
 import com.github.jvsena42.loopky.ui.components.CharacterCounter
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
+import com.github.jvsena42.loopky.ui.components.LoopkyOutlinedButton
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.components.SharePromptBody
@@ -361,12 +362,27 @@ private fun PublishDeckScreen(
                         }
                     },
                 )
-                state.titleError?.let { error ->
-                    Text(
-                        text = formErrorMessage(error),
-                        fontSize = 12.sp,
-                        color = colors.danger,
-                        modifier = Modifier.testTag("publish_title_error"),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    val error = state.titleError
+                    if (error != null) {
+                        Text(
+                            text = formErrorMessage(error),
+                            fontSize = 12.sp,
+                            color = colors.danger,
+                            modifier = Modifier
+                                .testTag("publish_title_error")
+                                .weight(1f),
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    CharacterCounter(
+                        current = state.title.length,
+                        max = DeckLimits.TITLE_MAX_LENGTH,
                     )
                 }
             }
@@ -808,24 +824,12 @@ private fun PublishedContent(
                     .testTag("share_prompt_confirm")
                     .fillMaxWidth(),
             )
-            Row(
-                modifier = Modifier
-                    .testTag("share_prompt_dismiss")
-                    .fillMaxWidth()
-                    .clip(CircleShape)
-                    .border(1.5.dp, colors.borderSubtle, CircleShape)
-                    .clickable(enabled = !prompt.isPosting, onClick = onShareDismiss)
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.share_prompt_dismiss),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.foregroundPrimary,
-                )
-            }
+            LoopkyOutlinedButton(
+                label = stringResource(R.string.share_prompt_dismiss),
+                onClick = onShareDismiss,
+                enabled = !prompt.isPosting,
+                modifier = Modifier.testTag("share_prompt_dismiss"),
+            )
         } else {
             // Done button
             LoopkyPrimaryButton(
@@ -837,24 +841,11 @@ private fun PublishedContent(
             )
 
             // Undo button with countdown
-            Row(
-                modifier = Modifier
-                    .testTag("publish_undo")
-                    .fillMaxWidth()
-                    .clip(CircleShape)
-                    .border(1.5.dp, colors.borderSubtle, CircleShape)
-                    .clickable(onClick = onUndoPublish)
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.publish_undo, state.undoSecondsRemaining),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.foregroundPrimary,
-                )
-            }
+            LoopkyOutlinedButton(
+                label = stringResource(R.string.publish_undo, state.undoSecondsRemaining),
+                onClick = onUndoPublish,
+                modifier = Modifier.testTag("publish_undo"),
+            )
         }
 
         // Error
