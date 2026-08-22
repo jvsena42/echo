@@ -31,6 +31,10 @@ data class Deck(
     val listenEnabled: Boolean = true,
     /** Opt-in: pronunciation practice (speech recognition) on the card back during study. */
     val speakEnabled: Boolean = true,
+    /** BCP-47 tag for the card front's language, e.g. `"en-US"`. See [speechReady]. */
+    val frontLang: String? = null,
+    /** BCP-47 tag for the card back's language, e.g. `"es-ES"`. See [speechReady]. */
+    val backLang: String? = null,
     /**
      * Chunk the media re-host sweep should resume at (#53). Only meaningful for a clone, whose
      * card media starts out pinned to the original author's blobs.
@@ -39,6 +43,28 @@ data class Deck(
     /** True once a full sweep found nothing left pinned to another author. */
     val mediaRehosted: Boolean = false,
 ) {
+    /**
+     * Whether the deck has declared what language each side is in.
+     *
+     * Listen and Speak hand text straight to the OS engines, which fall back to the *reader's*
+     * device locale when given no language — reading a Spanish card with an English voice and
+     * transcribing the reply with an English model. A deck that has not declared its pair
+     * therefore offers neither feature, whatever [listenEnabled] and [speakEnabled] say; decks
+     * published before the pair existed decode to nulls and land here.
+     */
+    val speechReady: Boolean get() = frontLang != null && backLang != null
+
+    /**
+     * Distinct base language subtags of the pair, lowercased — `"es-ES"` and `"es-MX"` both yield
+     * `"es"`. The region matters for picking a voice, so the manifest keeps the full tag, but the
+     * index is per language: splitting it by region would fragment a search for Spanish decks.
+     */
+    val languageCodes: List<String>
+        get() = listOfNotNull(frontLang, backLang)
+            .map { it.substringBefore('-').lowercase() }
+            .filter { it.isNotBlank() }
+            .distinct()
+
     // Built literally rather than via PubkyPaths: that lives in `data/pubky`, and domain models
     // must not depend on the data layer (Architecture §4.1).
     val pubkyUri: PubkyUri get() = PubkyUri("pubky://$authorPubky/pub/loopky/decks/$id/manifest.json")

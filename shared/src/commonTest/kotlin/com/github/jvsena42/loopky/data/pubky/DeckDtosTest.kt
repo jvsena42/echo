@@ -20,6 +20,8 @@ class DeckDtosTest {
     private fun deck(
         listenEnabled: Boolean = true,
         speakEnabled: Boolean = true,
+        frontLang: String? = null,
+        backLang: String? = null,
         cover: MediaRef.Image? = null,
     ) = Deck(
         id = "deck1",
@@ -35,6 +37,8 @@ class DeckDtosTest {
         chunks = listOf(ChunkMeta(n = 0, count = 1, updatedAt = 1L)),
         listenEnabled = listenEnabled,
         speakEnabled = speakEnabled,
+        frontLang = frontLang,
+        backLang = backLang,
     )
 
     @Test
@@ -107,6 +111,38 @@ class DeckDtosTest {
         val back = loopkyJson.decodeFromString<ManifestDto>(legacy).toDomain()
         assertTrue(back.listenEnabled)
         assertTrue(back.speakEnabled)
+    }
+
+    @Test
+    fun manifestRoundTripPreservesTheLanguagePair() {
+        val deck = deck(frontLang = "en-US", backLang = "es-ES")
+        val json = loopkyJson.encodeToString(deck.toDto())
+        assertTrue(json.contains("\"front_lang\":\"en-US\""), "front_lang missing from \$json")
+        val back = loopkyJson.decodeFromString<ManifestDto>(json).toDomain()
+        assertEquals("en-US", back.frontLang)
+        assertEquals("es-ES", back.backLang)
+        assertTrue(back.speechReady)
+    }
+
+    @Test
+    fun legacyManifestWithoutLanguagesIsNotSpeechReady() {
+        // Opt-ins default true, but with no declared pair listen/speak stay inert rather than
+        // falling back to the reader's device locale.
+        val legacy = """
+            {"schema_version":1,"deck_id":"d","author_pubky":"pk","title":"T",
+             "created_at":1,"updated_at":2}
+        """.trimIndent()
+        val back = loopkyJson.decodeFromString<ManifestDto>(legacy).toDomain()
+        assertNull(back.frontLang)
+        assertNull(back.backLang)
+        assertFalse(back.speechReady)
+    }
+
+    @Test
+    fun languageCodesDropTheRegionAndDeduplicate() {
+        assertEquals(listOf("en", "es"), deck(frontLang = "en-US", backLang = "es-ES").languageCodes)
+        assertEquals(listOf("es"), deck(frontLang = "es-ES", backLang = "es-MX").languageCodes)
+        assertEquals(emptyList(), deck().languageCodes)
     }
 
     @Test
