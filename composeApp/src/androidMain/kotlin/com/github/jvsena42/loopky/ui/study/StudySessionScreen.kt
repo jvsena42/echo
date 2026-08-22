@@ -224,10 +224,18 @@ fun StudySessionScreen(
                 subtitle = pluralStringResource(R.plurals.cards_reviewed, state.reviewed, state.reviewed),
                 actionLabel = stringResource(R.string.study_back),
                 onAction = onDone,
-                // Saying when the next review lands is what makes an empty queue read as earned
-                // rather than as a dead end (#101 §5).
-                detail = state.nextDueAtMillis
-                    ?.let { stringResource(R.string.home_caught_up_next_due, relativeFromNow(it)) },
+                details = listOfNotNull(
+                    // Saying when the next review lands is what makes an empty queue read as
+                    // earned rather than as a dead end (#101 §5).
+                    state.nextDueAtMillis
+                        ?.let { stringResource(R.string.home_caught_up_next_due, relativeFromNow(it)) },
+                    // The day's tally, which is the number that actually accumulates.
+                    if (state.newCardsToday >= state.newCardsGoal) {
+                        stringResource(R.string.home_new_cards_goal_reached, state.newCardsGoal)
+                    } else {
+                        stringResource(R.string.home_new_cards_goal, state.newCardsToday, state.newCardsGoal)
+                    },
+                ),
             )
 
             is StudySessionUiState.Reviewing -> ReviewingContent(
@@ -252,10 +260,16 @@ fun StudySessionScreen(
 
         // Overlaid, never blocking: the card underneath is already the next one. The goal is a
         // goal — it says you have done what you set out to do, not that you have to stop.
+        //
+        // Offset clear of the header, unlike the sync banner above. That one is a warning and may
+        // fairly cover the deck name; this one is a congratulation, and hiding "3 of 4" behind it
+        // would cost the user the thing they are actually tracking.
         if (state is StudySessionUiState.Reviewing && state.goalReached) {
             GoalReachedBanner(
                 onDismiss = onDismissGoalReached,
-                modifier = Modifier.align(Alignment.TopCenter),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = GOAL_BANNER_TOP_INSET),
             )
         }
     }
@@ -667,8 +681,8 @@ private fun BoxScope.CenteredMessage(
     subtitle: String,
     actionLabel: String,
     onAction: () -> Unit,
-    /** A second, quieter line. Its own Text rather than appended prose, so it can wrap sanely. */
-    detail: String? = null,
+    /** Quieter lines below the subtitle. Their own Texts rather than appended prose, so each wraps. */
+    details: List<String> = emptyList(),
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -691,9 +705,9 @@ private fun BoxScope.CenteredMessage(
             color = colors.foregroundMuted,
             textAlign = TextAlign.Center,
         )
-        detail?.let {
+        details.forEach { line ->
             Text(
-                text = it,
+                text = line,
                 fontSize = 14.sp,
                 color = colors.foregroundMuted,
                 textAlign = TextAlign.Center,
@@ -798,6 +812,9 @@ private fun GoalReachedBanner(
         }
     }
 }
+
+/** Clears the deck title and the "n of m" counter above it. */
+private val GOAL_BANNER_TOP_INSET = 96.dp
 
 private val previewReviewing = StudySessionUiState.Reviewing(
     deckTitle = "Spanish basics",

@@ -281,9 +281,18 @@ sealed interface HomeUiState {
          * This is what stops a 1669-card import shouting "1669". The queue behind it is still
          * uncapped — studying past the goal works — but the number offered up front is the day's
          * intent rather than the whole backlog.
+         *
+         * Once the goal is met the number stops being a target and becomes simply what is left.
+         * Clamping it to zero while cards remain would put "0 cards to review" above a Start
+         * studying button and a deck row reading "2 new" — telling the user to stop, which is the
+         * one thing a goal that never withholds cards must not do.
          */
         val studyTarget: Int
-            get() = dueToday + minOf(newToday, (newCardsGoal - newCardsToday).coerceAtLeast(0))
+            get() {
+                val goalRoom = (newCardsGoal - newCardsToday).coerceAtLeast(0)
+                val planned = dueToday + minOf(newToday, goalRoom)
+                return if (planned == 0) dueToday + newToday else planned
+            }
     }
     data class Error(val identity: PubkyIdentity?, val reason: ErrorReason) : HomeUiState
 }

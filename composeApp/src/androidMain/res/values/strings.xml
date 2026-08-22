@@ -344,7 +344,7 @@
     <string name="settings_first_interval_good_label">Good interval (days)</string>
     <string name="settings_first_interval_easy_label">Easy interval (days)</string>
     <string name="settings_first_interval_description">How long until a brand-new card comes back. Cards already in rotation keep their own schedule.</string>
-    <string name="settings_first_interval_mastery_note">Mastered %% is measured against your longest interval, so raising this raises the bar.</string>
+    <string name="settings_first_interval_mastery_note">Mastered % is measured against your longest interval, so raising this raises the bar.</string>
     <string name="settings_study_unavailable">Couldn\'t reach your settings on Pubky. Editing is off until they load, so nothing overwrites them.</string>
     <string name="settings_study_save_failed">Couldn\'t save your study settings.</string>
     <string name="settings_section_image_search">IMAGE SEARCH</string>

@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.SrsGrade
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.FakeSettingsRepository
@@ -124,6 +125,24 @@ class HomeViewModelTest {
         assertEquals(expected = 3, actual = state.dueToday)
         assertEquals(expected = 97, actual = state.newToday)
         assertEquals(expected = 3 + state.newCardsGoal, actual = state.studyTarget)
+    }
+
+    @Test
+    fun pastTheGoalTheHeadlineShowsWhatIsActuallyLeft() = runTest {
+        // Clamping to the goal's remaining room would render "0 cards to review" above a Start
+        // studying button and a deck row reading "2 new" — a soft goal telling the user to stop.
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 2)
+        srsRepo.due = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck1"))
+        settingsRepo.setStudySettings(StudySettings(newCardsPerDayGoal = 7))
+        srsRepo.setDailyProgress(newCards = 10, reviews = 10)
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertEquals(expected = 2, actual = state.newToday)
+        assertEquals(expected = 2, actual = state.studyTarget, "the headline hid the remaining cards")
+        assertFalse(state.isCaughtUp)
     }
 
     @Test
