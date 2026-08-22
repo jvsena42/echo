@@ -158,6 +158,7 @@ internal fun LoopkyNavHost(
                 authorPubky = author,
                 onBack = { navController.popBackStack() },
                 onEditDeck = { id -> navController.navigateTo(Routes.deckEditor(id)) },
+                onEditCard = { dId, cId -> navController.navigateTo(Routes.editCard(dId, cId)) },
                 onStudy = { id -> navController.navigateTo(Routes.study(id)) },
                 onOpenTag = { tag -> navController.navigateTo(Routes.tagBrowse(tag)) },
                 onOpenProfile = { pubky -> navController.navigateTo(Routes.friendProfile(pubky)) },

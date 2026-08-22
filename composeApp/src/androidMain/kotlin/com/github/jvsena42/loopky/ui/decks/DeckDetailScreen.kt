@@ -95,6 +95,7 @@ fun DeckDetailRoute(
     authorPubky: String? = null,
     onBack: () -> Unit = {},
     onEditDeck: (String) -> Unit = {},
+    onEditCard: (String, String) -> Unit = { _, _ -> },
     onStudy: (String) -> Unit = {},
     onOpenTag: (String) -> Unit = {},
     onOpenProfile: (String) -> Unit = {},
@@ -105,6 +106,7 @@ fun DeckDetailRoute(
     val context = LocalContext.current
     val currentBack by rememberUpdatedState(onBack)
     val currentEditDeck by rememberUpdatedState(onEditDeck)
+    val currentEditCard by rememberUpdatedState(onEditCard)
     val currentStudy by rememberUpdatedState(onStudy)
     val currentOpenTag by rememberUpdatedState(onOpenTag)
     val currentOpenProfile by rememberUpdatedState(onOpenProfile)
@@ -136,6 +138,7 @@ fun DeckDetailRoute(
         onBackClick = viewModel::onBackClick,
         onShareClick = viewModel::onShareClick,
         onStudyClick = viewModel::onStudyClick,
+        onCardClick = { cardId -> currentEditCard(deckId, cardId) },
         onEditClick = viewModel::onEditClick,
         onDeleteClick = viewModel::onDeleteDeck,
         onConfirmDelete = viewModel::onConfirmDelete,
@@ -168,6 +171,8 @@ fun DeckDetailScreen(
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onStudyClick: () -> Unit,
+    /** Null for a deck you do not own — a followed deck's cards are not yours to edit. */
+    onCardClick: (String) -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onConfirmDelete: () -> Unit,
@@ -254,6 +259,7 @@ fun DeckDetailScreen(
                 onBackClick = onBackClick,
                 onShareClick = onShareClick,
                 onStudyClick = onStudyClick,
+                onCardClick = onCardClick,
                 onEditClick = onEditClick,
                 onDeleteClick = onDeleteClick,
                 onToggleFollow = onToggleFollow,
@@ -309,6 +315,7 @@ private fun DeckDetailContent(
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onStudyClick: () -> Unit,
+    onCardClick: (String) -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onToggleFollow: () -> Unit,
@@ -498,6 +505,13 @@ private fun DeckDetailContent(
                         // The deck's author, not the reader — a followed deck's blobs live on
                         // their pubky.
                         authorPubky = state.author.pubky,
+                        // Only on a deck you own: these rows look like cards and did nothing at
+                        // all, while the only way to reach a card was Edit deck → the same row.
+                        onClick = if (state.isOwned) {
+                            { onCardClick(card.id) }
+                        } else {
+                            null
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 8.dp)
@@ -817,6 +831,7 @@ private fun DeckDetailScreenPreview() {
             onBackClick = {},
             onShareClick = {},
             onStudyClick = {},
+            onCardClick = {},
             onEditClick = {},
             onDeleteClick = {},
             onConfirmDelete = {},
@@ -857,6 +872,7 @@ private fun DeckDetailEmptyCardsPreview() {
             onBackClick = {},
             onShareClick = {},
             onStudyClick = {},
+            onCardClick = {},
             onEditClick = {},
             onDeleteClick = {},
             onConfirmDelete = {},
