@@ -13,6 +13,7 @@ import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
+import com.github.jvsena42.loopky.domain.model.DeckLimits
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
@@ -550,10 +551,10 @@ class PublishDeckViewModel(
     }
 
     private fun titleErrorFor(text: String): FormError? =
-        if (text.length > TITLE_MAX_LENGTH) FormError.TitleTooLong else null
+        if (text.length > DeckLimits.TITLE_MAX_LENGTH) FormError.TitleTooLong else null
 
     private fun descriptionErrorFor(text: String): FormError? =
-        if (text.length > DESCRIPTION_MAX_LENGTH) FormError.DescriptionTooLong else null
+        if (text.length > DeckLimits.DESCRIPTION_MAX_LENGTH) FormError.DescriptionTooLong else null
 
     companion object {
         private const val TAG = "Loopky/PublishVM"
@@ -561,9 +562,7 @@ class PublishDeckViewModel(
         private const val COUNTDOWN_TICK_MS = 1_000L
 
         /** Internal so a prefilled title can be capped to it rather than duplicating the number. */
-        internal const val TITLE_MAX_LENGTH = 120
-
-        private const val DESCRIPTION_MAX_LENGTH = 500
+        internal const val TITLE_MAX_LENGTH = DeckLimits.TITLE_MAX_LENGTH
     }
 }
 
