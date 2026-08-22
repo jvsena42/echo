@@ -7,14 +7,18 @@ import com.github.jvsena42.loopky.data.pubky.SrsChunkDto
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckCounts
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakeBackgroundTasks
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePendingReviewStore
 import com.github.jvsena42.loopky.testing.FakePubkyClient
+import com.github.jvsena42.loopky.testing.FakeSettingsRepository
+import com.github.jvsena42.loopky.testing.FakeStudyProgressStore
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.signedInProvider
@@ -33,6 +37,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -53,6 +58,8 @@ class SrsRepositoryImplTest {
         backgroundTasks = FakeBackgroundTasks(),
     )
     private val journal = FakePendingReviewStore()
+    private val settings = FakeSettingsRepository()
+    private val progressStore = FakeStudyProgressStore()
     private val repo = SrsRepositoryImpl(
         pubky = pubky,
         session = session,
@@ -60,6 +67,8 @@ class SrsRepositoryImplTest {
         deckRepository = deckRepo,
         cardRepository = cardRepo,
         pendingReviews = journal,
+        settingsRepository = settings,
+        studyProgress = progressStore,
     )
 
     private val dayMs = 86_400_000L
@@ -105,14 +114,136 @@ class SrsRepositoryImplTest {
         // would be a round trip each time.
         publishDeck("deck1", "c1", "c2")
         repo.dueForDeck("deck1")
-        assertEquals(mapOf("deck1" to 2), repo.dueCountsCached())
+        // Never graded, so both are new rather than overdue.
+        assertEquals(mapOf("deck1" to DeckCounts(due = 0, new = 2)), repo.dueCountsCached())
 
         val getsBefore = pubky.gets.size
         repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
 
-        // A graded card leaves the queue, and finding that out reads nothing.
-        assertEquals(mapOf("deck1" to 1), repo.dueCountsCached())
+        // The graded card is no longer new, and finding that out reads nothing.
+        assertEquals(mapOf("deck1" to DeckCounts(due = 0, new = 1)), repo.dueCountsCached())
         assertEquals(getsBefore, pubky.gets.size, "recounting hit the homeserver")
+    }
+
+    @Test
+    fun gradingCountsNewCardsAndReviewsSeparately() = runTest {
+        publishDeck("deck1", "c1", "c2")
+        repo.dueForDeck("deck1")
+
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+        repo.review(testCard("c2", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+        // c1 again — it is no longer new, so only the review tally moves.
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+
+        assertEquals(2, repo.dailyProgress.value.newCards)
+        assertEquals(3, repo.dailyProgress.value.reviews)
+    }
+
+    @Test
+    fun todaysProgressSurvivesARestart() = runTest {
+        publishDeck("deck1", "c1")
+        repo.dueForDeck("deck1")
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+
+        val restarted = SrsRepositoryImpl(
+            pubky, session, revalidator, deckRepo, cardRepo, journal, settings, progressStore,
+        )
+        restarted.refreshDailyProgress()
+
+        assertEquals(1, restarted.dailyProgress.value.newCards)
+    }
+
+    @Test
+    fun theGoalCelebrationIsRememberedAcrossARestart() = runTest {
+        publishDeck("deck1", "c1")
+        repo.dueForDeck("deck1")
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+        repo.markGoalCelebrated()
+
+        val restarted =
+            SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal, settings, progressStore)
+        restarted.refreshDailyProgress()
+
+        assertTrue(restarted.dailyProgress.value.goalCelebrated, "today's celebration came back")
+        assertFalse(restarted.dailyProgress.value.owesGoalCelebration(goal = 1))
+    }
+
+    @Test
+    fun theGoalCanBeCelebratedAgainTomorrow() = runTest {
+        publishDeck("deck1", "c1")
+        var today = 100
+        val repo = SrsRepositoryImpl(
+            pubky, session, revalidator, deckRepo, cardRepo, journal, settings, progressStore,
+            dayIndex = { today },
+        )
+        repo.dueForDeck("deck1")
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+        repo.markGoalCelebrated()
+        assertFalse(repo.dailyProgress.value.owesGoalCelebration(goal = 1))
+
+        today = 101
+        repo.refreshDailyProgress()
+
+        assertFalse(repo.dailyProgress.value.goalCelebrated, "yesterday's celebration carried over")
+    }
+
+    @Test
+    fun theCountersResetWhenTheDayTurns() = runTest {
+        publishDeck("deck1", "c1")
+        var today = 100
+        val repo = SrsRepositoryImpl(
+            pubky, session, revalidator, deckRepo, cardRepo, journal, settings, progressStore,
+            dayIndex = { today },
+        )
+        repo.dueForDeck("deck1")
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+        assertEquals(1, repo.dailyProgress.value.reviews)
+
+        // Midnight, with the session still open — the tally must not carry over.
+        today = 101
+        repo.refreshDailyProgress()
+
+        assertEquals(0, repo.dailyProgress.value.reviews)
+        assertEquals(0, repo.dailyProgress.value.newCards)
+    }
+
+    @Test
+    fun theNewCardsGoalNeverWithholdsCards() = runTest {
+        // The goal is a goal. Nothing in the queue-building path may consult it, or "you can keep
+        // going" becomes a lie told by a screen the repository has already overruled.
+        settings.setStudySettings(StudySettings(newCardsPerDayGoal = 1))
+        publishDeck("deck1", "c1", "c2", "c3")
+
+        assertEquals(3, repo.dueForDeck("deck1").size)
+        repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+        assertEquals(1, repo.dailyProgress.value.newCards)
+
+        // Past the goal, and the remaining new cards are still offered.
+        assertEquals(2, repo.dueForDeck("deck1").size)
+    }
+
+    @Test
+    fun reviewsAreServedBeforeNeverSeenCards() = runTest {
+        publishDeck("deck1", "c1", "c2", "c3")
+        repo.dueForDeck("deck1")
+        // c3 has been graded before and has come back up; c1 and c2 have never been seen.
+        repo.upsert(
+            "deck1",
+            SrsState("c3", dueAt = 0L, intervalDays = 1, easeFactor = 2.5, repetitions = 1, lastGrade = SrsGrade.Good),
+        ).getOrThrow()
+
+        assertEquals(listOf("c3", "c1", "c2"), repo.dueForDeck("deck1").map { it.id })
+    }
+
+    @Test
+    fun aFirstReviewUsesTheUsersOwnInterval() = runTest {
+        settings.setStudySettings(StudySettings(firstGoodDays = 9))
+        publishDeck("deck1", "c1")
+        repo.dueForDeck("deck1")
+
+        val next = repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+
+        assertEquals(9, next.intervalDays)
     }
 
     @Test
@@ -252,7 +383,8 @@ class SrsRepositoryImplTest {
 
         // A fresh repo has a cold cache; building the due queue must load the persisted state
         // from the homeserver (repetitions grows from 3, not from a zeroed new-card baseline).
-        val coldRepo = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal)
+        val coldRepo =
+            SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal, settings, progressStore)
         coldRepo.dueForDeck("deck1")
         val next = coldRepo.review(testCard("c1"), SrsGrade.Good).getOrThrow()
         assertEquals(4, next.repetitions)
@@ -405,7 +537,8 @@ class SrsRepositoryImplTest {
 
         // A new instance over the same journal stands in for a restarted process.
         pubky.failAllSessionCallsWith = null
-        val restarted = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal)
+        val restarted =
+            SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal, settings, progressStore)
         restarted.flush().getOrThrow()
 
         val url = "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/0.json"
@@ -436,6 +569,8 @@ class SrsRepositoryImplTest {
             deckRepo,
             cardRepo,
             journal,
+            settings,
+            progressStore,
             CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
         )
         restarted.dueForDeck("deck1")
@@ -476,7 +611,8 @@ class SrsRepositoryImplTest {
         repo.upsert("deck1", state).getOrThrow()
         val chunk = journal.entries.single().chunk
 
-        val restarted = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal)
+        val restarted =
+            SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal, settings, progressStore)
         restarted.flush().getOrThrow()
 
         val url = "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/$chunk.json"

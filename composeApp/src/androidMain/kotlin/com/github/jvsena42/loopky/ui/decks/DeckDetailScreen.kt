@@ -333,12 +333,11 @@ private fun DeckDetailContent(
             // the stats they act on, and the bottom bar stays a single unambiguous action.
             if (state.isOwned || state.isFollowing) {
                 LoopkyPrimaryButton(
-                    label = if (state.isOwned) {
-                        stringResource(R.string.deck_detail_start_studying, state.dueCards)
-                    } else {
-                        stringResource(R.string.deck_detail_study_this_deck)
-                    },
+                    label = studyCtaLabel(state),
                     onClick = onStudyClick,
+                    // Nothing due and nothing unseen means this button leads straight to
+                    // "All done!" — a primary CTA whose only outcome is a dead end (#101 §8).
+                    enabled = state.canStudy,
                     modifier = Modifier
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(horizontal = 20.dp, vertical = 16.dp)
@@ -440,7 +439,8 @@ private fun DeckDetailContent(
                     // Stats
                     StatsBar(
                         totalCards = state.totalCards,
-                        dueCards = state.dueCards,
+                        dueLabel = state.dueLabel,
+                        newCards = state.newCards,
                         masteredPercent = state.masteredPercent,
                         // Only Total means anything on a deck that is not yours yet: the actions
                         // below are Follow and Clone, and there is nothing to be due.
@@ -823,7 +823,8 @@ private fun DeckDetailScreenPreview() {
                 isOwned = true,
                 tags = listOf("language", "spanish", "beginner"),
                 totalCards = 42,
-                dueCards = 8,
+                dueLabel = "8",
+                newCards = 12,
                 masteredPercent = "65%",
                 cardPreviews = listOf(
                     CardPreviewModel(id = "c1", frontText = "Hola", backText = "Hello"),
@@ -868,7 +869,9 @@ private fun DeckDetailEmptyCardsPreview() {
                 clonedCount = 3,
                 tags = listOf("japanese"),
                 totalCards = 0,
-                dueCards = 0,
+                dueLabel = "0",
+                newCards = 0,
+                canStudy = false,
                 masteredPercent = "—",
                 cardPreviews = emptyList(),
             ),

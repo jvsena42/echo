@@ -22,8 +22,16 @@ class SrsSchedulerTest {
         )
 
     @Test
-    fun newCardIsDue() {
-        assertTrue((null as SrsState?).isDue(now))
+    fun newCardIsNewAndNotDue() {
+        // Nothing about a card you have never met is late. Counting it as due is what made a fresh
+        // import open on "1669 due" (#101 §7).
+        assertTrue((null as SrsState?).isNew())
+        assertFalse((null as SrsState?).isDue(now))
+    }
+
+    @Test
+    fun aGradedCardIsNoLongerNew() {
+        assertFalse(state(intervalDays = 1, repetitions = 1).isNew())
     }
 
     @Test
@@ -39,6 +47,23 @@ class SrsSchedulerTest {
         assertEquals(1, (null as SrsState?).review("c", SrsGrade.Hard, now).intervalDays)
         assertEquals(3, (null as SrsState?).review("c", SrsGrade.Good, now).intervalDays)
         assertEquals(7, (null as SrsState?).review("c", SrsGrade.Easy, now).intervalDays)
+    }
+
+    @Test
+    fun firstReviewUsesTheUsersOwnIntervals() {
+        val settings = StudySettings(firstHardDays = 2, firstGoodDays = 5, firstEasyDays = 30)
+        assertEquals(2, (null as SrsState?).review("c", SrsGrade.Hard, now, settings).intervalDays)
+        assertEquals(5, (null as SrsState?).review("c", SrsGrade.Good, now, settings).intervalDays)
+        assertEquals(30, (null as SrsState?).review("c", SrsGrade.Easy, now, settings).intervalDays)
+        assertEquals(now + 30 * day, (null as SrsState?).review("c", SrsGrade.Easy, now, settings).dueAt)
+    }
+
+    @Test
+    fun customIntervalsDoNotReachAlreadyScheduledCards() {
+        // Only the reps == 0 branches read the settings, so nothing already scheduled moves.
+        val settings = StudySettings(firstGoodDays = 90)
+        val next = state(intervalDays = 10, repetitions = 3).review("c", SrsGrade.Good, now, settings)
+        assertEquals(25, next.intervalDays)
     }
 
     @Test
@@ -72,5 +97,123 @@ class SrsSchedulerTest {
         assertEquals("1d", labels[SrsGrade.Hard])
         assertEquals("3d", labels[SrsGrade.Good])
         assertEquals("7d", labels[SrsGrade.Easy])
+    }
+
+    @Test
+    fun previewLabelsFollowTheUsersIntervals() {
+        val labels = (null as SrsState?).previewIntervals("c", now, StudySettings(firstEasyDays = 21))
+        assertEquals("21d", labels[SrsGrade.Easy])
+    }
+
+    @Test
+    fun intervalLabelsStayInDaysAcrossTheMaturityLine() {
+        // 21d used to render "3w", hiding the number the mastery threshold is built on (#101 §6).
+        assertEquals("21d", (null as SrsState?).previewIntervals("c", now, StudySettings(firstGoodDays = 21))[SrsGrade.Good])
+        assertEquals("29d", (null as SrsState?).previewIntervals("c", now, StudySettings(firstGoodDays = 29))[SrsGrade.Good])
+        assertEquals("4w", (null as SrsState?).previewIntervals("c", now, StudySettings(firstGoodDays = 30))[SrsGrade.Good])
+    }
+
+    // --- mastery ---------------------------------------------------------------------------
+
+    private fun states(vararg intervals: Pair<String, Int>): Map<String, SrsState> =
+        intervals.associate { (id, days) -> id to state(intervalDays = days, repetitions = 1).copy(cardId = id) }
+
+    @Test
+    fun masteryMovesOnTheFirstSession() {
+        // The exact case from #101's table, row 4: four cards graded Easy, previously 0%.
+        val ids = listOf("a", "b", "c", "d")
+        val share = masteryShare(ids, states("a" to 7, "b" to 7, "c" to 7, "d" to 7), MATURE_INTERVAL_DAYS)
+        assertEquals(expected = 7f / 21f, actual = share, absoluteTolerance = 0.0001f)
+    }
+
+    @Test
+    fun unseenAndLapsedCardsContributeNothing() {
+        val ids = listOf("a", "b")
+        assertEquals(0f, masteryShare(ids, emptyMap(), MATURE_INTERVAL_DAYS))
+        assertEquals(0f, masteryShare(ids, states("a" to 0, "b" to 0), MATURE_INTERVAL_DAYS))
+    }
+
+    @Test
+    fun aCardPastTheThresholdIsCappedAtItsOwnShare() {
+        val ids = listOf("a", "b")
+        // 'a' at 100 days must not carry 'b' past the pair's fair half.
+        assertEquals(0.5f, masteryShare(ids, states("a" to 100, "b" to 0), MATURE_INTERVAL_DAYS))
+    }
+
+    @Test
+    fun masteryEmptyDeckIsZero() {
+        assertEquals(0f, masteryShare(emptyList(), emptyMap(), MATURE_INTERVAL_DAYS))
+    }
+
+    @Test
+    fun fullMasteryIsAnExactTestNotAFloatComparison() {
+        val ids = listOf("a", "b", "c")
+        val mature = states("a" to 21, "b" to 21, "c" to 21)
+        // Summing thirds lands just under 1f, which is why isFullyMastered exists.
+        assertTrue(masteryShare(ids, mature, MATURE_INTERVAL_DAYS) <= 1f)
+        assertTrue(isFullyMastered(ids, mature, MATURE_INTERVAL_DAYS))
+        assertFalse(isFullyMastered(ids, states("a" to 21, "b" to 21, "c" to 20), MATURE_INTERVAL_DAYS))
+    }
+
+    @Test
+    fun anEmptyDeckIsNeverFullyMastered() {
+        assertFalse(isFullyMastered(emptyList(), emptyMap(), MATURE_INTERVAL_DAYS))
+    }
+
+    @Test
+    fun aLongerFirstIntervalRaisesTheBarInsteadOfGamingIt() {
+        // Easy = 30 would otherwise mark a brand-new card mastered with one grade.
+        val settings = StudySettings(firstEasyDays = 30)
+        assertEquals(31, settings.maturityThresholdDays)
+        val graded = states("a" to 30)
+        assertFalse(isFullyMastered(listOf("a"), graded, settings.maturityThresholdDays))
+        assertTrue(masteryShare(listOf("a"), graded, settings.maturityThresholdDays) < 1f)
+    }
+
+    @Test
+    fun theThresholdNeverDropsBelowSmTwosTwentyOneDays() {
+        assertEquals(MATURE_INTERVAL_DAYS, StudySettings.Default.maturityThresholdDays)
+        assertEquals(MATURE_INTERVAL_DAYS, StudySettings(firstEasyDays = 2).maturityThresholdDays)
+    }
+
+    @Test
+    fun theThresholdFollowsWhicheverFirstIntervalIsLongest() {
+        // Ordering is not enforced, so Hard may legitimately be the longest of the three.
+        assertEquals(41, StudySettings(firstHardDays = 40, firstGoodDays = 3, firstEasyDays = 7).maturityThresholdDays)
+    }
+
+    // --- settings --------------------------------------------------------------------------
+
+    @Test
+    fun sanitizedClampsOutOfRangeValues() {
+        val clamped = StudySettings(newCardsPerDayGoal = 0, firstHardDays = 0, firstGoodDays = 9_999).sanitized()
+        assertEquals(1, clamped.newCardsPerDayGoal)
+        assertEquals(1, clamped.firstHardDays)
+        assertEquals(365, clamped.firstGoodDays)
+    }
+
+    @Test
+    fun sanitizedLeavesAValidSettingAlone() {
+        val settings = StudySettings(newCardsPerDayGoal = 50, firstHardDays = 2, firstGoodDays = 4, firstEasyDays = 10)
+        assertEquals(settings, settings.sanitized())
+    }
+
+    @Test
+    fun theDefaultGoalIsTwenty() {
+        assertEquals(20, StudySettings.Default.newCardsPerDayGoal)
+    }
+
+    // --- daily progress --------------------------------------------------------------------
+
+    @Test
+    fun progressSurvivesWithinTheSameDay() {
+        val p = DailyStudyProgress(dayIndex = 100, newCards = 3, reviews = 12)
+        assertEquals(p, p.forToday(100))
+    }
+
+    @Test
+    fun progressZeroesWhenTheDayTurns() {
+        val p = DailyStudyProgress(dayIndex = 100, newCards = 3, reviews = 12)
+        assertEquals(DailyStudyProgress(dayIndex = 101), p.forToday(101))
     }
 }

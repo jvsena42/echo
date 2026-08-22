@@ -4,12 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.data.unsplash.UnsplashError
 import com.github.jvsena42.loopky.data.unsplash.UnsplashException
 import com.github.jvsena42.loopky.data.unsplash.maskedKeySuffix
+import com.github.jvsena42.loopky.domain.model.SrsGrade
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -24,12 +27,16 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+// LongParameterList: Settings is a screen of unrelated concerns by nature — identity, sharing,
+// studying, an API key — and each one needs its own collaborator.
+@Suppress("LongParameterList")
 class SettingsViewModel(
     private val identityRepository: IdentityRepository,
     private val pubkyClient: PubkyClient,
     private val appPreferences: AppPreferences,
     private val unsplashKeyStore: UnsplashKeyStore,
     private val unsplashClient: UnsplashClient,
+    private val settingsRepository: SettingsRepository,
     appVersion: String = "",
 ) : ViewModel() {
     private val _state = MutableStateFlow(SettingsUiState(appVersion = appVersion))
@@ -41,6 +48,7 @@ class SettingsViewModel(
     private var loadJob: Job? = null
     private var signOutJob: Job? = null
     private var unsplashKeyJob: Job? = null
+    private var studySettingsJob: Job? = null
 
     init {
         load()
@@ -55,6 +63,16 @@ class SettingsViewModel(
         unsplashKeyStore.key
             .onEach { key -> _state.update { it.copy(unsplashKeyStatus = statusFor(key)) } }
             .launchIn(viewModelScope)
+        // Collected, not read once: the record loads asynchronously, and the rows stay disabled
+        // until it has — writing before then would put defaults over the user's real settings.
+        settingsRepository.studySettings
+            .onEach { snapshot ->
+                _state.update {
+                    it.copy(studySettings = snapshot.settings, canEditStudySettings = snapshot.isEditable)
+                }
+            }
+            .launchIn(viewModelScope)
+        viewModelScope.launch { settingsRepository.ensureLoaded() }
     }
 
     /**
@@ -117,6 +135,42 @@ class SettingsViewModel(
      */
     fun onShareOnPubkyChange(enabled: Boolean) {
         viewModelScope.launch { appPreferences.setShareOnPubky(enabled) }
+    }
+
+    fun onNewCardsGoalChange(goal: Int) =
+        updateStudySettings { it.copy(newCardsPerDayGoal = goal) }
+
+    fun onFirstIntervalChange(grade: SrsGrade, days: Int) = updateStudySettings {
+        when (grade) {
+            SrsGrade.Hard -> it.copy(firstHardDays = days)
+            SrsGrade.Good -> it.copy(firstGoodDays = days)
+            SrsGrade.Easy -> it.copy(firstEasyDays = days)
+            // Again is a fixed ten-minute relearn step, not an interval the user picks.
+            SrsGrade.Again -> it
+        }
+    }
+
+    /**
+     * Writes the whole settings object, since the record is written whole anyway.
+     *
+     * Optimistic on the UI, authoritative on the repository: the row shows the new number at once,
+     * and a rejected write (the record was never read) rolls it back to whatever the repository
+     * still holds rather than leaving a value on screen that was never saved.
+     */
+    private fun updateStudySettings(edit: (StudySettings) -> StudySettings) {
+        studySettingsJob?.cancel()
+        studySettingsJob = viewModelScope.launch {
+            val next = edit(_state.value.studySettings).sanitized()
+            _state.update { it.copy(studySettings = next) }
+            settingsRepository.update(next)
+                .onFailure { err ->
+                    Log.e(TAG, "updateStudySettings: FAILED — ${err.message}", err)
+                    _state.update {
+                        it.copy(studySettings = settingsRepository.studySettings.value.settings)
+                    }
+                    _effects.emit(SettingsEffect.ShowError(SettingsErrorMessage.StudySettingsNotSaved))
+                }
+        }
     }
 
     /**
@@ -189,6 +243,16 @@ data class SettingsUiState(
     val unsplashKeyStatus: UnsplashKeyStatus = UnsplashKeyStatus.NotSet,
     val isVerifyingUnsplashKey: Boolean = false,
     val unsplashKeyError: UnsplashError? = null,
+    /** The user's own scheduling settings. Defaults until the record has been read. */
+    val studySettings: StudySettings = StudySettings.Default,
+    /**
+     * Whether the study rows accept input.
+     *
+     * False until the record has actually been read, because a write from that state would put
+     * defaults over whatever the user really had. The repository refuses it too — this is the half
+     * that explains the refusal rather than letting a tap silently do nothing.
+     */
+    val canEditStudySettings: Boolean = false,
 )
 
 /**
@@ -209,4 +273,9 @@ sealed interface UnsplashKeyStatus {
 sealed interface SettingsEffect {
     data object SignedOut : SettingsEffect
     data class CopyToClipboard(val text: String) : SettingsEffect
+
+    /** Carries a case, not a sentence — the words belong to the platform layer. */
+    data class ShowError(val message: SettingsErrorMessage) : SettingsEffect
 }
+
+enum class SettingsErrorMessage { StudySettingsNotSaved }

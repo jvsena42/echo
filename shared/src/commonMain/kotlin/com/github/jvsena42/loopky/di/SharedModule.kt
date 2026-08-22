@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
+import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
@@ -19,6 +20,7 @@ import com.github.jvsena42.loopky.data.repository.impl.IdentityRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.ImportRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.MediaRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.SessionRevalidatorImpl
+import com.github.jvsena42.loopky.data.repository.impl.SettingsRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.SignupRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.SrsRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.TagRepositoryImpl
@@ -85,7 +87,26 @@ val sharedModule = module {
             nowMillis = ::epochMillis,
         )
     }
-    single<SrsRepository> { SrsRepositoryImpl(get(), get(), get(), get(), get(), get()) }
+    single<SettingsRepository> {
+        SettingsRepositoryImpl(
+            pubky = get(),
+            session = get(),
+            revalidator = get(),
+            preferences = get(),
+        )
+    }
+    single<SrsRepository> {
+        SrsRepositoryImpl(
+            pubky = get(),
+            session = get(),
+            revalidator = get(),
+            deckRepository = get(),
+            cardRepository = get(),
+            pendingReviews = get(),
+            settingsRepository = get(),
+            studyProgress = get(),
+        )
+    }
     single<DiscoveryRepository> {
         DiscoveryRepositoryImpl(get(), get(), get(), get(), get(), get(), get(), get())
     }
@@ -102,7 +123,14 @@ val sharedModule = module {
     viewModel {
         SignupHandoffViewModel(signupRepository = get(), identityRepository = get())
     }
-    viewModel { HomeViewModel(identityRepository = get(), deckRepository = get(), srsRepository = get()) }
+    viewModel {
+        HomeViewModel(
+            identityRepository = get(),
+            deckRepository = get(),
+            srsRepository = get(),
+            settingsRepository = get(),
+        )
+    }
     viewModel { DecksLibraryViewModel(deckRepository = get(), identityRepository = get()) }
     viewModel { params ->
         DeckDetailViewModel(
@@ -118,7 +146,14 @@ val sharedModule = module {
             appPreferences = get(),
         )
     }
-    viewModel { params -> StudySessionViewModel(deckId = params.getOrNull(), srsRepository = get(), deckRepository = get()) }
+    viewModel { params ->
+        StudySessionViewModel(
+            deckId = params.getOrNull(),
+            srsRepository = get(),
+            deckRepository = get(),
+            settingsRepository = get(),
+        )
+    }
     viewModel { params ->
         DeckEditorViewModel(
             deckId = params.getOrNull(),
@@ -169,6 +204,7 @@ val sharedModule = module {
             appPreferences = get(),
             unsplashKeyStore = get(),
             unsplashClient = get(),
+            settingsRepository = get(),
             appVersion = params.getOrNull() ?: "",
         )
     }

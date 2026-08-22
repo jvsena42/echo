@@ -87,10 +87,12 @@ import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.platform.SpeechEvent
 import com.github.jvsena42.loopky.platform.SpeechRecognizer
+import com.github.jvsena42.loopky.presentation.study.GoalCelebration
 import com.github.jvsena42.loopky.presentation.study.SpeakPhase
 import com.github.jvsena42.loopky.presentation.study.StudySessionEffect
 import com.github.jvsena42.loopky.presentation.study.StudySessionUiState
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
+import com.github.jvsena42.loopky.ui.components.Confetti
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.PermissionBlockedDialog
 import com.github.jvsena42.loopky.ui.components.PermissionRationaleDialog
@@ -98,6 +100,7 @@ import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.components.rememberReduceMotion
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.relativeFromNow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -170,6 +173,7 @@ fun StudySessionRoute(
         onClose = viewModel::onClose,
         onDone = onClose,
         onDismissSyncError = viewModel::onDismissSyncError,
+        onContinueAfterGoal = viewModel::onContinueAfterGoal,
     )
 }
 
@@ -186,6 +190,7 @@ fun StudySessionScreen(
     onSpeakRetry: () -> Unit = {},
     onSpeakCancel: () -> Unit = {},
     onDismissSyncError: () -> Unit = {},
+    onContinueAfterGoal: () -> Unit = {},
 ) {
     val colors = LoopkyTheme.colors
     Box(
@@ -221,6 +226,18 @@ fun StudySessionScreen(
                 subtitle = pluralStringResource(R.plurals.cards_reviewed, state.reviewed, state.reviewed),
                 actionLabel = stringResource(R.string.study_back),
                 onAction = onDone,
+                details = listOfNotNull(
+                    // Saying when the next review lands is what makes an empty queue read as
+                    // earned rather than as a dead end (#101 §5).
+                    state.nextDueAtMillis
+                        ?.let { stringResource(R.string.home_caught_up_next_due, relativeFromNow(it)) },
+                    // The day's tally, which is the number that actually accumulates.
+                    if (state.newCardsToday >= state.newCardsGoal) {
+                        stringResource(R.string.home_new_cards_goal_reached, state.newCardsGoal)
+                    } else {
+                        stringResource(R.string.home_new_cards_goal, state.newCardsToday, state.newCardsGoal)
+                    },
+                ),
             )
 
             is StudySessionUiState.Reviewing -> ReviewingContent(
@@ -240,6 +257,17 @@ fun StudySessionScreen(
                 reason = reason,
                 onDismiss = onDismissSyncError,
                 modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
+
+        // A full-screen moment rather than a banner, and the only modal thing in the session.
+        // It is shown once a day, so the interruption is cheap; and "Keep studying" is right there
+        // because meeting a goal must never be the thing that ends a session.
+        (state as? StudySessionUiState.Reviewing)?.goalCelebration?.let { celebration ->
+            GoalCelebrationScreen(
+                celebration = celebration,
+                onKeepStudying = onContinueAfterGoal,
+                onDone = onClose,
             )
         }
     }
@@ -651,6 +679,8 @@ private fun BoxScope.CenteredMessage(
     subtitle: String,
     actionLabel: String,
     onAction: () -> Unit,
+    /** Quieter lines below the subtitle. Their own Texts rather than appended prose, so each wraps. */
+    details: List<String> = emptyList(),
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -673,6 +703,14 @@ private fun BoxScope.CenteredMessage(
             color = colors.foregroundMuted,
             textAlign = TextAlign.Center,
         )
+        details.forEach { line ->
+            Text(
+                text = line,
+                fontSize = 14.sp,
+                color = colors.foregroundMuted,
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = onAction,
@@ -735,6 +773,108 @@ private fun SyncErrorBanner(
             Text(errorMessage(reason), color = Color.White, fontSize = 13.sp)
             TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
                 Text(stringResource(R.string.study_sync_error_dismiss), color = Color.White)
+            }
+        }
+    }
+}
+
+/**
+ * The daily goal, met. Covers the session because it happens once a day and is worth stopping for.
+ *
+ * Both ways out are offered as equals in weight but not in emphasis: "Keep studying" is the filled
+ * button, because the card behind this is already loaded and the goal withholds nothing. "Back to
+ * home" exists so the moment can also be a natural place to stop.
+ */
+@Composable
+private fun BoxScope.GoalCelebrationScreen(
+    celebration: GoalCelebration,
+    onKeepStudying: () -> Unit,
+    onDone: () -> Unit,
+) {
+    val colors = LoopkyTheme.colors
+    val reduceMotion = rememberReduceMotion()
+
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .background(colors.surfacePrimary)
+            // Swallows taps so a stray press does not reach the card underneath.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {},
+            )
+            .testTag("study_goal_reached"),
+    ) {
+        Confetti(
+            colors = listOf(colors.srsGood, colors.accentPrimary, colors.srsEasy, colors.srsHard),
+            reduceMotion = reduceMotion,
+            modifier = Modifier.matchParentSize(),
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(text = "🎉", fontSize = 64.sp)
+            Text(
+                text = stringResource(R.string.study_goal_reached_title),
+                fontSize = 26.sp,
+                fontWeight = FontWeight.W800,
+                color = colors.foregroundPrimary,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = pluralStringResource(
+                    R.plurals.study_goal_reached_count,
+                    celebration.newCardsToday,
+                    celebration.newCardsToday,
+                ),
+                fontSize = 16.sp,
+                color = colors.foregroundPrimary,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = stringResource(R.string.study_goal_reached_body),
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                color = colors.foregroundMuted,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onKeepStudying,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("study_goal_keep_studying"),
+                shape = RoundedCornerShape(50),
+                contentPadding = PaddingValues(vertical = 16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.accentPrimary,
+                    contentColor = colors.foregroundOnAccent,
+                ),
+            ) {
+                Text(
+                    text = stringResource(R.string.study_goal_keep_studying),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.W700,
+                )
+            }
+            TextButton(
+                onClick = onDone,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("study_goal_done"),
+            ) {
+                Text(
+                    text = stringResource(R.string.study_goal_done),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.W600,
+                    color = colors.foregroundMuted,
+                )
             }
         }
     }

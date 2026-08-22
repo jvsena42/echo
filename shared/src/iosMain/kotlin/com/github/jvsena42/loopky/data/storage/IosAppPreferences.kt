@@ -37,4 +37,15 @@ class IosAppPreferences : AppPreferences {
         defaults.setObject(name, KEY_PUBKY_ENVIRONMENT)
         _pubkyEnvironment.update { name }
     }
+
+    // Empty default again, so `stringForKey`'s null-for-absent needs no probe.
+    private val _cachedStudySettings = MutableStateFlow(
+        defaults.stringForKey(KEY_CACHED_STUDY_SETTINGS) ?: DEFAULT_CACHED_STUDY_SETTINGS,
+    )
+    override val cachedStudySettings: Flow<String> = _cachedStudySettings.asStateFlow()
+
+    override suspend fun setCachedStudySettings(json: String) {
+        defaults.setObject(json, KEY_CACHED_STUDY_SETTINGS)
+        _cachedStudySettings.update { json }
+    }
 }

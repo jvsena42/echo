@@ -6,8 +6,11 @@ import com.github.jvsena42.loopky.data.homegate.MethodAvailability
 import com.github.jvsena42.loopky.data.storage.PendingSignup
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
+import com.github.jvsena42.loopky.domain.model.DeckCounts
+import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.ImportDraft
@@ -20,10 +23,12 @@ import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 
 interface IdentityRepository {
     suspend fun currentSession(): Session?
@@ -795,6 +800,9 @@ interface DiscoveryRepository {
  * `/pub/loopky/decks/{deckId}/srs/{cardId}.json`. The repo owns SRS grading (the SM-2-lite scheduler in
  * [com.github.jvsena42.loopky.domain.model] is invoked here, not in ViewModels).
  */
+// TooManyFunctions: the queue, the counters, the buffer and the flush are one subject with one
+// lifecycle, and splitting them would only make callers hold two handles to the same cache.
+@Suppress("TooManyFunctions")
 interface SrsRepository {
     /**
      * Emits the deck id of every review state write ([review], [upsert]) so screens showing due
@@ -818,11 +826,50 @@ interface SrsRepository {
      */
     val flushFailures: SharedFlow<ErrorReason>
 
-    /** All cards due for review across every owned deck (new cards count as due). */
+    /**
+     * The whole study queue across every studiable deck: cards actually due for review first,
+     * soonest first, then cards never seen before.
+     *
+     * New cards are included but are **not** "due" — see
+     * [com.github.jvsena42.loopky.domain.model.isNew]. Nothing here is capped by the user's
+     * new-cards-per-day goal; that is a goal, not a limit, and withholding cards is what it must
+     * not do.
+     */
     suspend fun dueToday(): List<Card>
 
-    /** Cards due for review within a single deck. */
+    /** One deck's study queue, ordered the same way [dueToday] orders the whole of it. */
     suspend fun dueForDeck(deckId: String): List<Card>
+
+    /**
+     * Due and new counts for one deck, read through to the homeserver like [dueForDeck].
+     *
+     * The two halves are separate because one number could not tell "you are behind on 1669
+     * reviews" from "this deck has 1669 cards you have never met" — and it reported the second as
+     * the first, which is what made a fresh import unopenable (#101 §7).
+     */
+    suspend fun countsForDeck(deckId: String): DeckCounts
+
+    /**
+     * [countsForDeck] for every studiable deck at once, keyed by deck id.
+     *
+     * What Home and Profile want: the same read [dueToday] performs, without materialising a queue
+     * of every card in every deck just to take its size.
+     */
+    suspend fun countsToday(): Map<String, DeckCounts>
+
+    /**
+     * How far [cardIds] in [deckId] have been carried toward maturity, or null if the review state
+     * could not be read.
+     *
+     * Lives here rather than in the ViewModel because the maturity threshold is a *setting* — a
+     * user who lengthens their first intervals moves the line (see
+     * [com.github.jvsena42.loopky.domain.model.maturityThresholdDays]) — and this repository is the
+     * one place holding both the states and the settings.
+     *
+     * Null means "the read failed", which callers must render as unknown rather than as zero: a
+     * fully-mature deck shown as 0% is worse than showing nothing.
+     */
+    suspend fun mastery(deckId: String, cardIds: List<String>): DeckMastery?
 
     /**
      * When the soonest not-yet-due card comes up for review, or null if nothing is scheduled.
@@ -853,10 +900,43 @@ interface SrsRepository {
      * any [dueToday]/[dueForDeck] has run and empty on a cold cache. Callers must treat a missing
      * deck as "unknown", never as zero.
      */
-    suspend fun dueCountsCached(): Map<String, Int>
+    suspend fun dueCountsCached(): Map<String, DeckCounts>
+
+    /**
+     * Today's study, on this device: reviews graded and never-seen cards met, reset at local
+     * midnight.
+     *
+     * The counterpart to [com.github.jvsena42.loopky.domain.model.StudySettings.newCardsPerDayGoal]
+     * — and note that nothing in this interface consults the goal. It is a goal: reaching it is
+     * announced, never enforced, and no queue-building method may take it into account.
+     */
+    val dailyProgress: StateFlow<DailyStudyProgress>
+
+    /**
+     * Load today's counters, or roll them over if the day has turned. Idempotent; screens that show
+     * the goal call it on load, and grading applies it anyway.
+     */
+    suspend fun refreshDailyProgress()
+
+    /**
+     * Record that today's goal celebration has been shown, so it is not shown again until tomorrow.
+     *
+     * On the repository rather than the ViewModel because it has to outlive the study session: a
+     * flag held in memory would congratulate the user again every time they reopened the screen.
+     */
+    suspend fun markGoalCelebrated()
 
     /** Grade a card: compute the next state via the scheduler, persist it, and return it. */
     suspend fun review(card: Card, grade: SrsGrade): Result<SrsState>
+
+    /**
+     * The interval each grade would produce for [card], already formatted for the grade buttons.
+     *
+     * Here rather than in the study ViewModel because the first-review intervals are the user's own
+     * setting: the VM would otherwise need a [SettingsRepository] of its own purely to label four
+     * buttons, and the labels could drift from what [review] actually writes.
+     */
+    suspend fun previewIntervals(card: Card): Map<SrsGrade, String>
 
     /**
      * Persist a review state. Buffered in memory rather than written immediately — grading 100
@@ -983,4 +1063,64 @@ interface MediaRepository {
     suspend fun rehost(deckId: String, ref: MediaRef): Result<MediaRef>
 
     suspend fun delete(deckId: String, ref: MediaRef): Result<Unit>
+}
+
+/**
+ * The user's own app settings, held on their homeserver at `/pub/loopky/settings.json`.
+ *
+ * Synced rather than device-local because study settings change *scheduling*: the review state
+ * they produce already syncs, so two devices holding different intervals would write `dueAt`s
+ * computed from different rules. Architecture.md §7.5 named this record as where a preference that
+ * has to reach a second device belongs.
+ *
+ * Reads are non-suspending by design — [SrsRepository.review] consults the settings on every grade
+ * and must never pay for a network call to do it. [ensureLoaded] warms the flow; the queue-building
+ * entry points and `review` itself call it, so a grade always sees the real values.
+ */
+interface SettingsRepository {
+    /**
+     * The current study settings and, crucially, **where they came from**.
+     *
+     * Emits immediately with [SettingsOrigin.Defaults] or the offline mirror, then the record once
+     * it has been read. The origin is not a display concern: it is what [update] is gated on.
+     */
+    val studySettings: StateFlow<StudySettingsSnapshot>
+
+    /**
+     * Read the record once per session, if it has not been read already. Single-flight, and it
+     * **never throws** — it sits on the cold-start study path, and a settings read failing must not
+     * be able to take a study session down with it.
+     */
+    suspend fun ensureLoaded()
+
+    /**
+     * Write new settings, both to the homeserver and to the offline mirror.
+     *
+     * **Refuses unless the record has actually been read this session.** Without that gate, one
+     * transient failure followed by one tap in Settings would write the built-in defaults over the
+     * user's real record, silently resetting their intervals. Gating this in the ViewModel alone
+     * would repeat the mistake CLAUDE.md calls out for announcing a deck: the gate belongs on the
+     * write.
+     */
+    suspend fun update(settings: StudySettings): Result<Unit>
+}
+
+/** Where the settings currently in hand came from. Decides whether a write is allowed. */
+enum class SettingsOrigin {
+    /** Built-in values. Nothing has been read; a write now would be guesswork. */
+    Defaults,
+
+    /** The device's copy of a record read on some earlier run. Good enough to schedule with. */
+    Cached,
+
+    /** The record itself, read this session. The only state in which [SettingsRepository.update] works. */
+    Remote,
+}
+
+data class StudySettingsSnapshot(
+    val settings: StudySettings = StudySettings.Default,
+    val origin: SettingsOrigin = SettingsOrigin.Defaults,
+) {
+    /** Whether the record is known well enough to be safely overwritten. */
+    val isEditable: Boolean get() = origin == SettingsOrigin.Remote
 }

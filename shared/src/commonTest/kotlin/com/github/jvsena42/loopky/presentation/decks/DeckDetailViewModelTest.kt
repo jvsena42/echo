@@ -190,17 +190,62 @@ class DeckDetailViewModelTest {
         cardRepo.seedRemote(testCard("c1"))
         val card = testCard("c1", deckId = "deck1")
         srsRepo.due = listOf(card)
+        // Graded before, so it counts as due rather than new.
+        srsRepo.upsert("deck1", dueState("c1"))
 
         val vm = viewModel()
         advanceUntilIdle()
-        assertEquals(expected = 1, actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueCards)
+        assertEquals(expected = "1", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueLabel)
 
         // Grading empties the queue the way a finished study session does.
         srsRepo.review(card, SrsGrade.Good)
         srsRepo.due = emptyList()
         advanceUntilIdle()
 
-        assertEquals(expected = 0, actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueCards)
+        assertEquals(expected = "0", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueLabel)
+    }
+
+    @Test
+    fun `a freshly imported deck reads as new, not overdue`() = runTest(mainDispatcher) {
+        // #101 §7: every card counted as due, so an import opened on "1669 due" and Mastered 0% —
+        // indistinguishable from a deck you are hopelessly behind on.
+        deckRepo.decks["deck1"] = testDeck(cardCount = 2)
+        cardRepo.seedRemote(testCard("c1"), testCard("c2"))
+        srsRepo.due = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck1"))
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val state = assertIs<DeckDetailUiState.Content>(vm.state.value)
+        assertEquals(expected = "0", actual = state.dueLabel)
+        assertEquals(expected = 2, actual = state.newCards)
+        assertTrue(state.canStudy, "an untouched deck must still be studiable")
+    }
+
+    @Test
+    fun `a deck with nothing due and nothing new cannot be studied`() = runTest(mainDispatcher) {
+        // The CTA used to stay an enabled primary action that landed straight on "All done!".
+        deckRepo.decks["deck1"] = testDeck(cardCount = 1)
+        cardRepo.seedRemote(testCard("c1"))
+        srsRepo.due = emptyList()
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertFalse(assertIs<DeckDetailUiState.Content>(vm.state.value).canStudy)
+    }
+
+    @Test
+    fun `unreadable review state shows a dash rather than a confident zero`() = runTest(mainDispatcher) {
+        // Due 0 / Mastered 0% presented a fully-mature deck as untouched and caught up.
+        deckRepo.decks["deck1"] = testDeck(cardCount = 1)
+        cardRepo.seedRemote(testCard("c1"))
+        srsRepo.masteryUnavailable = true
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(expected = "—", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).masteredPercent)
     }
 
     @Test
@@ -213,9 +258,12 @@ class DeckDetailViewModelTest {
         val card = testCard("c1", deckId = "deck1")
         srsRepo.due = listOf(card, testCard("c2", deckId = "deck1"))
 
+        srsRepo.upsert("deck1", dueState("c1"))
+        srsRepo.upsert("deck1", dueState("c2"))
+
         val vm = viewModel()
         advanceUntilIdle()
-        assertEquals(expected = 2, actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueCards)
+        assertEquals(expected = "2", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueLabel)
         val fetches = cardRepo.fetchCount
         val profileFetches = identityRepo.fetchedProfiles.size
         val taggerCalls = tagRepo.taggerCountsCalls
@@ -225,7 +273,7 @@ class DeckDetailViewModelTest {
         advanceUntilIdle()
 
         val state = assertIs<DeckDetailUiState.Content>(vm.state.value)
-        assertEquals(expected = 1, actual = state.dueCards, "due count did not follow the review")
+        assertEquals(expected = "1", actual = state.dueLabel, "due count did not follow the review")
         assertEquals(expected = fetches, actual = cardRepo.fetchCount, "re-fetched the deck's cards")
         assertEquals(
             expected = profileFetches,
@@ -254,10 +302,59 @@ class DeckDetailViewModelTest {
     }
 
     @Test
+    fun `mastered moves within the first session`() = runTest(mainDispatcher) {
+        // #101's table, row 4: a deck studied end to end read 0%, identical to one never opened.
+        // Partial credit puts a 7-day card a third of the way to the 21-day line.
+        deckRepo.decks["deck1"] = testDeck(cardCount = 1)
+        cardRepo.seedRemote(testCard("c1"))
+        srsRepo.due = listOf(testCard("c1", deckId = "deck1"))
+
+        val vm = viewModel()
+        advanceUntilIdle()
+        srsRepo.upsert("deck1", dueState("c1").copy(intervalDays = 7)).getOrThrow()
+        advanceUntilIdle()
+
+        assertEquals(expected = "33%", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).masteredPercent)
+    }
+
+    @Test
+    fun `real but tiny progress says less than one percent instead of zero`() = runTest(mainDispatcher) {
+        // 16 mature cards in 1669 rendered "0%" under integer division (#101 §2).
+        val cards = (1..200).map { testCard("c$it") }
+        deckRepo.decks["deck1"] = testDeck(cardCount = cards.size)
+        cardRepo.seedRemote(*cards.toTypedArray())
+        srsRepo.due = cards.map { testCard(it.id, deckId = "deck1") }
+
+        val vm = viewModel()
+        advanceUntilIdle()
+        srsRepo.upsert("deck1", dueState("c1").copy(intervalDays = 1)).getOrThrow()
+        advanceUntilIdle()
+
+        assertEquals(expected = "<1%", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).masteredPercent)
+    }
+
+    @Test
+    fun `a longer first interval moves the mastery line instead of gaming it`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(cardCount = 1)
+        cardRepo.seedRemote(testCard("c1"))
+        srsRepo.due = listOf(testCard("c1", deckId = "deck1"))
+        srsRepo.studySettings = com.github.jvsena42.loopky.domain.model.StudySettings(firstEasyDays = 30)
+
+        val vm = viewModel()
+        advanceUntilIdle()
+        // One Easy grade at the user's own 30-day interval must not read as fully mastered.
+        srsRepo.upsert("deck1", dueState("c1").copy(intervalDays = 30)).getOrThrow()
+        advanceUntilIdle()
+
+        assertEquals(expected = "97%", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).masteredPercent)
+    }
+
+    @Test
     fun `studying another deck leaves this one alone`() = runTest(mainDispatcher) {
         deckRepo.decks["deck1"] = testDeck(cardCount = 1)
         cardRepo.seedRemote(testCard("c1"))
         srsRepo.due = listOf(testCard("c1", deckId = "deck1"))
+        srsRepo.upsert("deck1", dueState("c1"))
 
         val vm = viewModel()
         advanceUntilIdle()
@@ -268,7 +365,7 @@ class DeckDetailViewModelTest {
 
         // A review in an unrelated deck must not cost this screen another round of fetches.
         assertEquals(expected = fetchesAfterFirstLoad, actual = cardRepo.fetchCount)
-        assertEquals(expected = 1, actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueCards)
+        assertEquals(expected = "1", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).dueLabel)
     }
 
     @Test
@@ -681,6 +778,16 @@ class DeckDetailViewModelTest {
 }
 
 /** A card the scheduler has stretched past the 21-day maturity threshold. */
+/** Previously graded and back up for review — "due" in the sense the counters now mean. */
+private fun dueState(cardId: String) = SrsState(
+    cardId = cardId,
+    dueAt = 0L,
+    intervalDays = 3,
+    easeFactor = 2.5,
+    repetitions = 1,
+    lastGrade = SrsGrade.Good,
+)
+
 private fun matureState(cardId: String) = SrsState(
     cardId = cardId,
     dueAt = 0L,

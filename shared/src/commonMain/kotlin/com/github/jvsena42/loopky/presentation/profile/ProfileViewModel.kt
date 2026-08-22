@@ -65,7 +65,7 @@ class ProfileViewModel(
             .getOrNull() ?: return
         // Empty means a cold cache, not "nothing due" — leave the last real number alone.
         if (counts.isEmpty()) return
-        _state.update { it.copy(dueCount = counts.values.sum()) }
+        _state.update { it.copy(dueCount = counts.values.sumOf { c -> c.due }) }
     }
 
     fun onRefresh() = load()
@@ -104,7 +104,10 @@ class ProfileViewModel(
             val deckCount = decks.size
             val cardCount = decks.sumOf { it.cardCount }
             // Degrade to 0 rather than failing the whole profile load if the SRS read fails.
-            val dueCount = runSuspendCatching { srsRepository.dueToday().size }.getOrDefault(0)
+            // The due half only, consistent with Deck Detail: cards you have never met are not
+            // something you are behind on (#101 §7).
+            val dueCount = runSuspendCatching { srsRepository.countsToday().values.sumOf { it.due } }
+                .getOrDefault(0)
 
             // Fall back field by field rather than whole-identity: a published profile that only
             // sets a picture must not blank the name the session already knows.

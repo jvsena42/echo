@@ -47,6 +47,17 @@ internal object PubkyPaths {
     fun srsRoot(ownerPubky: String, authorPubky: String, deckId: String): String =
         "pubky://$ownerPubky/$APP_NAMESPACE/srs/$authorPubky/$deckId/"
 
+    /**
+     * The user's own app settings, on their own homeserver.
+     *
+     * A synced record rather than a device preference because these change *scheduling* — the
+     * review state they produce already syncs, so leaving the intervals device-local would have
+     * two of your devices writing `dueAt`s computed from different rules. Architecture.md §7.5
+     * named this path as where such a preference belongs.
+     */
+    fun settings(ownerPubky: String): String =
+        "pubky://$ownerPubky/$APP_NAMESPACE/settings.json"
+
     fun decksList(authorPubky: String): String =
         "pubky://$authorPubky/$APP_NAMESPACE/decks/"
 

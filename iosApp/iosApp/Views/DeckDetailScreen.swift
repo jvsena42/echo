@@ -51,7 +51,9 @@ struct DeckDetailScreen: View {
                 isOwned: content.isOwned,
                 tags: content.tags,
                 totalCards: Int(content.totalCards),
-                dueCards: Int(content.dueCards),
+                dueLabel: content.dueLabel,
+                newCards: Int(content.newCards),
+                canStudy: content.canStudy,
                 masteredPercent: content.masteredPercent,
                 cards: content.cardPreviews.map {
                     CardPreviewData(id: $0.id, front: $0.frontText, back: $0.backText)

@@ -6,8 +6,11 @@ import com.github.jvsena42.loopky.data.pubky.requiresReauth
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
+import com.github.jvsena42.loopky.domain.model.DEFAULT_NEW_CARDS_PER_DAY
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckCounts
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
@@ -27,6 +30,7 @@ class HomeViewModel(
     private val identityRepository: IdentityRepository,
     private val deckRepository: DeckRepository,
     private val srsRepository: SrsRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
@@ -49,6 +53,27 @@ class HomeViewModel(
         // full load — see [refreshDueCounts].
         viewModelScope.launch {
             srsRepository.changes.collect { refreshDueCounts() }
+        }
+        // Today's tally and the goal it is measured against are both live: the counter moves as
+        // cards are graded on another destination, and the goal moves when Settings writes it.
+        viewModelScope.launch {
+            srsRepository.dailyProgress.collect { progress ->
+                _state.update { current ->
+                    (current as? HomeUiState.Content)?.copy(
+                        doneToday = progress.reviews,
+                        newCardsToday = progress.newCards,
+                    ) ?: current
+                }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.studySettings.collect { snapshot ->
+                _state.update { current ->
+                    (current as? HomeUiState.Content)
+                        ?.copy(newCardsGoal = snapshot.settings.newCardsPerDayGoal)
+                        ?: current
+                }
+            }
         }
     }
 
@@ -75,29 +100,8 @@ class HomeViewModel(
                         .getOrDefault(emptyList())
                     val decks = (owned + followed).distinctBy { it.id }
 
-                    _state.update { if (decks.isEmpty()) {
-                        HomeUiState.Empty(identity)
-                    } else {
-                        val dueByDeck = runSuspendCatching { srsRepository.dueToday() }
-                            .getOrDefault(emptyList())
-                            .groupingBy { it.deckId }
-                            .eachCount()
-                        val dueCount = dueByDeck.values.sum()
-                        HomeUiState.Content(
-                            identity = identity,
-                            dueToday = dueCount,
-                            // No persisted session history in v1; "done today" is tracked
-                            // within the study session screen, not here.
-                            doneToday = 0,
-                            decks = decks.map { it.toSummary(dueByDeck[it.id] ?: 0) },
-                            // Only meaningful when the queue is empty; skip the lookup otherwise.
-                            nextDueAtMillis = if (dueCount == 0) {
-                                runSuspendCatching { srsRepository.nextDueAt() }.getOrNull()
-                            } else {
-                                null
-                            },
-                        )
-                    } }
+                    val next = if (decks.isEmpty()) HomeUiState.Empty(identity) else content(identity, decks)
+                    _state.update { next }
                     Log.d(TAG, "load: owned=${owned.size} followed=${followed.size}")
                     refreshIdentity(identity)
                 }
@@ -121,6 +125,30 @@ class HomeViewModel(
         }
     }
 
+    /** Today's numbers, for a user who has decks. Split out of [load] purely for its length. */
+    private suspend fun content(identity: PubkyIdentity?, decks: List<Deck>): HomeUiState.Content {
+        runSuspendCatching { srsRepository.refreshDailyProgress() }
+        val progress = srsRepository.dailyProgress.value
+        val counts = runSuspendCatching { srsRepository.countsToday() }.getOrDefault(emptyMap())
+        val dueCount = counts.values.sumOf { it.due }
+        val newCount = counts.values.sumOf { it.new }
+        return HomeUiState.Content(
+            identity = identity,
+            dueToday = dueCount,
+            newToday = newCount,
+            doneToday = progress.reviews,
+            newCardsToday = progress.newCards,
+            newCardsGoal = settingsRepository.studySettings.value.settings.newCardsPerDayGoal,
+            decks = decks.map { it.toSummary(counts[it.id] ?: DeckCounts()) },
+            // Only meaningful when there is nothing at all left to study; skip the lookup otherwise.
+            nextDueAtMillis = if (dueCount + newCount == 0) {
+                runSuspendCatching { srsRepository.nextDueAt() }.getOrNull()
+            } else {
+                null
+            },
+        )
+    }
+
     /**
      * Recompute the due badges from what the SRS repository already holds in memory.
      *
@@ -139,18 +167,21 @@ class HomeViewModel(
         if (counts.isEmpty()) return
 
         val decks = (_state.value as? HomeUiState.Content)?.decks ?: return
-        val updated = decks.map { deck -> counts[deck.id]?.let { deck.copy(dueCount = it) } ?: deck }
-        val total = updated.sumOf { it.dueCount }
-        // Only meaningful once the queue empties, and it is the one part of this that can suspend
-        // on something other than the cache — so it is skipped while cards remain, as in [load].
-        val nextDueAt = if (total == 0) {
+        val updated = decks.map { deck ->
+            counts[deck.id]?.let { deck.copy(dueCount = it.due, newCount = it.new) } ?: deck
+        }
+        val due = updated.sumOf { it.dueCount }
+        val fresh = updated.sumOf { it.newCount }
+        // Only meaningful once there is nothing left to study, and it is the one part of this that
+        // can suspend on something other than the cache — so it is skipped otherwise, as in [load].
+        val nextDueAt = if (due + fresh == 0) {
             runSuspendCatching { srsRepository.nextDueAt() }.getOrNull()
         } else {
             null
         }
         _state.update { current ->
             (current as? HomeUiState.Content)
-                ?.copy(dueToday = total, decks = updated, nextDueAtMillis = nextDueAt)
+                ?.copy(dueToday = due, newToday = fresh, decks = updated, nextDueAtMillis = nextDueAt)
                 ?: current
         }
     }
@@ -197,12 +228,13 @@ class HomeViewModel(
         viewModelScope.launch { _effects.emit(HomeEffect.NavigateDeck(deckId, author)) }
     }
 
-    private fun Deck.toSummary(dueCount: Int): DeckSummary = DeckSummary(
+    private fun Deck.toSummary(counts: DeckCounts): DeckSummary = DeckSummary(
         id = id,
         title = title,
         authorPubky = authorPubky,
         cardCount = cardCount,
-        dueCount = dueCount,
+        dueCount = counts.due,
+        newCount = counts.new,
         coverInitial = title.firstOrNull()?.uppercaseChar() ?: '•',
         coverImage = coverImageRef,
     )
@@ -219,17 +251,48 @@ sealed interface HomeUiState {
     data class Empty(val identity: PubkyIdentity?) : HomeUiState
     data class Content(
         val identity: PubkyIdentity?,
+        /** Cards previously graded whose review has come up. Never-seen cards are [newToday]. */
         val dueToday: Int,
-        val doneToday: Int,
+        /** Cards never graded, across every studiable deck. Not "late" — just not met yet. */
+        val newToday: Int = 0,
+        val doneToday: Int = 0,
+        val newCardsToday: Int = 0,
+        val newCardsGoal: Int = DEFAULT_NEW_CARDS_PER_DAY,
         val decks: List<DeckSummary>,
         /**
-         * When the next card becomes reviewable, if [dueToday] is 0. Lets the UI say "you're
-         * caught up, next review in 4h" instead of reusing the no-decks empty state, which told
-         * users who owned decks to "create or import a deck".
+         * When the next card becomes reviewable, if there is nothing at all to study. Lets the UI
+         * say "you're caught up, next review in 4h" instead of reusing the no-decks empty state,
+         * which told users who owned decks to "create or import a deck".
          */
         val nextDueAtMillis: Long? = null,
     ) : HomeUiState {
-        val isCaughtUp: Boolean get() = dueToday == 0
+        /**
+         * Nothing left to study at all — reviews *and* new cards.
+         *
+         * New cards have to count: a freshly imported deck has zero due, and treating that as
+         * "all caught up" would greet a 1669-card import with a congratulation (#101 §7).
+         */
+        val isCaughtUp: Boolean get() = dueToday == 0 && newToday == 0
+
+        /**
+         * The headline number: everything overdue, plus as many new cards as today's goal still
+         * has room for.
+         *
+         * This is what stops a 1669-card import shouting "1669". The queue behind it is still
+         * uncapped — studying past the goal works — but the number offered up front is the day's
+         * intent rather than the whole backlog.
+         *
+         * Once the goal is met the number stops being a target and becomes simply what is left.
+         * Clamping it to zero while cards remain would put "0 cards to review" above a Start
+         * studying button and a deck row reading "2 new" — telling the user to stop, which is the
+         * one thing a goal that never withholds cards must not do.
+         */
+        val studyTarget: Int
+            get() {
+                val goalRoom = (newCardsGoal - newCardsToday).coerceAtLeast(0)
+                val planned = dueToday + minOf(newToday, goalRoom)
+                return if (planned == 0) dueToday + newToday else planned
+            }
     }
     data class Error(val identity: PubkyIdentity?, val reason: ErrorReason) : HomeUiState
 }
@@ -241,6 +304,8 @@ data class DeckSummary(
     val authorPubky: String,
     val cardCount: Int,
     val dueCount: Int,
+    /** Cards in this deck never graded. Shown when the deck has no reviews waiting. */
+    val newCount: Int = 0,
     val coverInitial: Char,
     /** The deck's cover art, when it has one. Renders over [coverInitial]; null falls back to it. */
     val coverImage: MediaRef.Image? = null,

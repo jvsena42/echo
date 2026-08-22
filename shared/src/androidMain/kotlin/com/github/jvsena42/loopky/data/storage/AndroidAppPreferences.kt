@@ -41,6 +41,18 @@ class AndroidAppPreferences(context: Context) : AppPreferences {
         }
         _pubkyEnvironment.update { name }
     }
+
+    private val _cachedStudySettings = MutableStateFlow(
+        prefs.getString(KEY_CACHED_STUDY_SETTINGS, DEFAULT_CACHED_STUDY_SETTINGS).orEmpty(),
+    )
+    override val cachedStudySettings: Flow<String> = _cachedStudySettings.asStateFlow()
+
+    override suspend fun setCachedStudySettings(json: String) {
+        withContext(Dispatchers.IO) {
+            prefs.edit().putString(KEY_CACHED_STUDY_SETTINGS, json).apply()
+        }
+        _cachedStudySettings.update { json }
+    }
 }
 
 /**

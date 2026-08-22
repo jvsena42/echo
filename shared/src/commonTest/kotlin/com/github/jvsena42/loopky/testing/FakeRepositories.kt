@@ -15,9 +15,12 @@ import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.RehostOutcome
+import com.github.jvsena42.loopky.data.repository.SettingsOrigin
+import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SignupAvailability
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
+import com.github.jvsena42.loopky.data.repository.StudySettingsSnapshot
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.data.storage.AppPreferences
@@ -25,10 +28,14 @@ import com.github.jvsena42.loopky.data.storage.PendingReview
 import com.github.jvsena42.loopky.data.storage.PendingReviewStore
 import com.github.jvsena42.loopky.data.storage.PendingSignup
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
+import com.github.jvsena42.loopky.data.storage.StudyProgressStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
+import com.github.jvsena42.loopky.domain.model.DeckCounts
+import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
@@ -42,10 +49,15 @@ import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
+import com.github.jvsena42.loopky.domain.model.isFullyMastered
+import com.github.jvsena42.loopky.domain.model.masteryShare
+import com.github.jvsena42.loopky.domain.model.maturityThresholdDays
 import com.github.jvsena42.loopky.domain.model.ordForIndex
+import com.github.jvsena42.loopky.domain.model.previewIntervals
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.MediaProcessor
@@ -57,6 +69,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -505,17 +518,105 @@ class FakeSrsRepository : SrsRepository {
     override suspend fun statesForDeck(deckId: String): Map<String, SrsState> =
         states.filterKeys { stateDecks[it] == deckId }
 
-    override suspend fun dueCountsCached(): Map<String, Int> {
+    /**
+     * Same rule the real repository uses: a queued card with review state is due, one without has
+     * never been seen. Tests that want a *due* card therefore have to seed [states] for it — which
+     * is the distinction the production code now turns on.
+     */
+    private fun countsFor(cards: List<Card>) = DeckCounts(
+        due = cards.count { states[it.id] != null },
+        new = cards.count { states[it.id] == null },
+    )
+
+    override suspend fun countsForDeck(deckId: String): DeckCounts {
+        knownDecks += deckId
+        return countsFor(due.filter { it.deckId == deckId })
+    }
+
+    override suspend fun countsToday(): Map<String, DeckCounts> {
+        knownDecks += due.map { it.deckId }
+        return knownDecks.associateWith { deckId -> countsFor(due.filter { it.deckId == deckId }) }
+    }
+
+    override suspend fun mastery(deckId: String, cardIds: List<String>): DeckMastery? {
+        if (masteryUnavailable) return null
+        if (cardIds.isEmpty()) return null
+        val threshold = studySettings.maturityThresholdDays
+        val forDeck = statesForDeck(deckId)
+        return DeckMastery(
+            share = masteryShare(cardIds, forDeck, threshold),
+            isComplete = isFullyMastered(cardIds, forDeck, threshold),
+        )
+    }
+
+    /** Drives the "the review state could not be read" branch, which must render "—", not 0%. */
+    var masteryUnavailable = false
+
+    private val _dailyProgress = MutableStateFlow(DailyStudyProgress())
+    override val dailyProgress: StateFlow<DailyStudyProgress> = _dailyProgress.asStateFlow()
+
+    override suspend fun refreshDailyProgress() = Unit
+
+    override suspend fun markGoalCelebrated() {
+        _dailyProgress.update { it.copy(goalCelebrated = true) }
+    }
+
+    /** Put today's tally where a test needs it, e.g. one card short of the goal. */
+    fun setDailyProgress(newCards: Int = 0, reviews: Int = 0, goalCelebrated: Boolean = false) {
+        _dailyProgress.value = DailyStudyProgress(
+            dayIndex = 0,
+            newCards = newCards,
+            reviews = reviews,
+            goalCelebrated = goalCelebrated,
+        )
+    }
+
+    /**
+     * Mark [cardIds] as already graded in [deckId], so the counters read them as **due** rather
+     * than new.
+     *
+     * Seeding a card into [due] alone now makes it a *new* card, which is the whole point of the
+     * split — a test that means "overdue" has to say so.
+     */
+    suspend fun seedDue(deckId: String, vararg cardIds: String) {
+        cardIds.forEach { id ->
+            upsert(
+                deckId,
+                SrsState(
+                    cardId = id,
+                    dueAt = 0L,
+                    intervalDays = 3,
+                    easeFactor = 2.5,
+                    repetitions = 1,
+                    lastGrade = SrsGrade.Good,
+                ),
+            )
+        }
+    }
+
+    /** Lets a test move the maturity line the way a user changing their intervals would. */
+    var studySettings: StudySettings = StudySettings.Default
+
+    override suspend fun dueCountsCached(): Map<String, DeckCounts> {
         val byDeck = due.groupingBy { it.deckId }.eachCount()
-        return (knownDecks + byDeck.keys).associateWith { byDeck[it] ?: 0 }
+        return (knownDecks + byDeck.keys).associateWith { deckId ->
+            countsFor(due.filter { it.deckId == deckId })
+        }
     }
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> {
         reviews.add(card to grade)
-        val next = states[card.id].review(card.id, grade, now = 0L)
+        val wasNew = states[card.id] == null
+        _dailyProgress.update {
+            it.copy(newCards = it.newCards + if (wasNew) 1 else 0, reviews = it.reviews + 1)
+        }
+        val next = states[card.id].review(card.id, grade, now = 0L, settings = studySettings)
         upsert(card.deckId, next)
         return Result.success(next)
     }
+
+    override suspend fun previewIntervals(card: Card): Map<SrsGrade, String> =
+        states[card.id].previewIntervals(card.id, now = 0L, settings = studySettings)
 
     var flushes = 0
         private set
@@ -958,6 +1059,7 @@ class FailingChunkCardRepository(
 class FakeAppPreferences(
     shareOnPubky: Boolean = true,
     pubkyEnvironment: String = "",
+    cachedStudySettings: String = "",
 ) : AppPreferences {
     private val _shareOnPubky = MutableStateFlow(shareOnPubky)
     override val shareOnPubky: Flow<Boolean> = _shareOnPubky.asStateFlow()
@@ -977,6 +1079,16 @@ class FakeAppPreferences(
 
     override suspend fun setPubkyEnvironment(name: String) {
         _pubkyEnvironment.update { name }
+    }
+
+    private val _cachedStudySettings = MutableStateFlow(cachedStudySettings)
+    override val cachedStudySettings: Flow<String> = _cachedStudySettings.asStateFlow()
+
+    /** The current value, for a test that asserts on it without collecting. */
+    val cachedStudySettingsValue: String get() = _cachedStudySettings.value
+
+    override suspend fun setCachedStudySettings(json: String) {
+        _cachedStudySettings.update { json }
     }
 }
 
@@ -1094,5 +1206,54 @@ class FakeBackgroundTasks : BackgroundTasks {
 
     override fun scheduleDeckCompaction() {
         compactionsScheduled++
+    }
+}
+
+/**
+ * In-memory [SettingsRepository]. [origin] is the interesting knob: it is what decides whether
+ * [update] is allowed, so a test can reproduce "the record never loaded" without a failing client.
+ */
+class FakeSettingsRepository(
+    settings: StudySettings = StudySettings.Default,
+    origin: SettingsOrigin = SettingsOrigin.Remote,
+) : SettingsRepository {
+    private val _studySettings = MutableStateFlow(StudySettingsSnapshot(settings, origin))
+    override val studySettings: StateFlow<StudySettingsSnapshot> = _studySettings.asStateFlow()
+
+    var loads = 0
+        private set
+
+    /** When set, [ensureLoaded] leaves the snapshot alone — the offline / unreadable case. */
+    var loadFails = false
+
+    override suspend fun ensureLoaded() {
+        loads++
+        if (loadFails) return
+        _studySettings.update { it.copy(origin = SettingsOrigin.Remote) }
+    }
+
+    /** Set the settings directly, as a homeserver record already holding them would. */
+    fun setStudySettings(settings: StudySettings) {
+        _studySettings.update { it.copy(settings = settings.sanitized()) }
+    }
+
+    override suspend fun update(settings: StudySettings): Result<Unit> {
+        if (_studySettings.value.origin != SettingsOrigin.Remote) {
+            return Result.failure(IllegalStateException("Study settings have not been read yet"))
+        }
+        _studySettings.update { StudySettingsSnapshot(settings.sanitized(), SettingsOrigin.Remote) }
+        return Result.success(Unit)
+    }
+}
+
+/** In-memory [StudyProgressStore]. */
+class FakeStudyProgressStore(private var stored: DailyStudyProgress? = null) : StudyProgressStore {
+    val saved = mutableListOf<DailyStudyProgress>()
+
+    override suspend fun load(): DailyStudyProgress? = stored
+
+    override suspend fun save(progress: DailyStudyProgress) {
+        stored = progress
+        saved.add(progress)
     }
 }

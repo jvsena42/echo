@@ -4,15 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.DEFAULT_NEW_CARDS_PER_DAY
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.SpeakMatcher
 import com.github.jvsena42.loopky.domain.model.SrsGrade
-import com.github.jvsena42.loopky.domain.model.previewIntervals
 import com.github.jvsena42.loopky.util.Log
-import com.github.jvsena42.loopky.util.epochMillis
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -36,6 +36,7 @@ class StudySessionViewModel(
     private val deckId: String?,
     private val srsRepository: SrsRepository,
     private val deckRepository: DeckRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow<StudySessionUiState>(StudySessionUiState.Loading)
     val state: StateFlow<StudySessionUiState> = _state.asStateFlow()
@@ -60,6 +61,16 @@ class StudySessionViewModel(
     /** id → title, warmed lazily from [DeckRepository.listOwned] so multi-deck sessions can label each card. */
     private var deckTitles: Map<String, String> = emptyMap()
     private var gradeJob: Job? = null
+
+    /**
+     * The goal celebration is on screen.
+     *
+     * Held on the VM as well as in the state because [emitCurrent] rebuilds the state for every
+     * card — the same reason [syncError] is. Whether it may be shown *at all* is not this flag's
+     * business: that lives in [com.github.jvsena42.loopky.domain.model.DailyStudyProgress], so it
+     * survives leaving the screen and resets with the day.
+     */
+    private var goalReached = false
 
     init {
         load()
@@ -120,7 +131,46 @@ class StudySessionViewModel(
             index++
             revealed = false
             speakPhase = SpeakPhase.Idle
+            celebrateGoalIfOwed()
             emitCurrent()
+        }
+    }
+
+    /**
+     * Show the celebration if today has earned one and not seen it yet.
+     *
+     * The queue is untouched — the card behind the celebration is already the next one, and
+     * "Keep studying" simply dismisses it. This says "you have done what you set out to do today";
+     * it does not stop anyone doing more.
+     *
+     * Marked as shown the moment it goes up, not when it is dismissed: the point of persisting it
+     * is that the user sees it once a day, and a process killed while it is on screen has still
+     * shown it.
+     */
+    private suspend fun celebrateGoalIfOwed() {
+        val goal = settingsRepository.studySettings.value.settings.newCardsPerDayGoal
+        if (!srsRepository.dailyProgress.value.owesGoalCelebration(goal)) return
+        // The celebration renders over a card, so there has to be one. Grading the last card of a
+        // session straight past the goal goes to the "All done!" screen instead, which says the
+        // same thing in its own line — and marking it shown here would spend the day's one
+        // celebration on a screen that never appeared.
+        if (queue.getOrNull(index) == null) return
+        goalReached = true
+        goalCelebration = GoalCelebration(
+            newCardsToday = srsRepository.dailyProgress.value.newCards,
+            goal = goal,
+        )
+        runSuspendCatching { srsRepository.markGoalCelebrated() }
+            .onFailure { Log.e(TAG, "markGoalCelebrated: FAILED — ${it.message}", it) }
+    }
+
+    private var goalCelebration: GoalCelebration? = null
+
+    /** "Keep studying" — dismiss the celebration and carry on with the card already underneath. */
+    fun onContinueAfterGoal() {
+        goalReached = false
+        _state.update { current ->
+            (current as? StudySessionUiState.Reviewing)?.copy(goalCelebration = null) ?: current
         }
     }
 
@@ -223,16 +273,33 @@ class StudySessionViewModel(
             // Queue exhausted — persist the session's reviews.
             srsRepository.flushAsync()
             _state.update { StudySessionUiState.Complete(reviewedCount, syncError) }
+            // After the state, not before: the congrats screen must not wait on a lookup, and
+            // nextDueAt is cache-only but still suspending.
+            viewModelScope.launch {
+                val nextDue = runSuspendCatching { srsRepository.nextDueAt() }
+                    .onFailure { Log.e(TAG, "nextDueAt: FAILED — ${it.message}", it) }
+                    .getOrNull()
+                val progress = srsRepository.dailyProgress.value
+                _state.update { current ->
+                    (current as? StudySessionUiState.Complete)?.copy(
+                        nextDueAtMillis = nextDue,
+                        newCardsToday = progress.newCards,
+                        newCardsGoal = settingsRepository.studySettings.value.settings.newCardsPerDayGoal,
+                    ) ?: current
+                }
+            }
             return
         }
         viewModelScope.launch {
-            // Cache is warmed by the queue build; a null state means a new (never-reviewed) card.
-            val srsState = srsRepository.stateFor(card.deckId, card.id)
-            val labels = srsState.previewIntervals(card.id, epochMillis())
+            // The repository owns this: the first-review intervals are a user setting, so labels
+            // computed here would need a SettingsRepository of their own and could drift from what
+            // grading actually writes.
+            val labels = srsRepository.previewIntervals(card)
             val title = deckTitle.ifBlank { resolveDeckTitle(card.deckId) }.ifBlank { card.deckId }
             val deck = deckRepository.getLocal(card.deckId)
             _state.update { StudySessionUiState.Reviewing(
                 deckTitle = title,
+                goalCelebration = goalCelebration.takeIf { goalReached },
                 position = index + 1,
                 total = queue.size,
                 frontText = card.front.text.orEmpty(),
@@ -281,6 +348,14 @@ sealed interface StudySessionUiState {
 
     data class Reviewing(
         val deckTitle: String,
+        /**
+         * Today's new-card goal has just been met, so the celebration is on screen.
+         *
+         * A congratulation, not a stop sign: the queue behind it is unchanged and the next card is
+         * already loaded, so "Keep studying" costs nothing but a dismissal. Null the rest of the
+         * time, which is almost always — it is shown once a day.
+         */
+        val goalCelebration: GoalCelebration? = null,
         val position: Int,
         val total: Int,
         val frontText: String,
@@ -313,10 +388,24 @@ sealed interface StudySessionUiState {
         val syncError: ErrorReason? = null,
     ) : StudySessionUiState
 
-    data class Complete(val reviewed: Int, val syncError: ErrorReason? = null) : StudySessionUiState
+    data class Complete(
+        val reviewed: Int,
+        val syncError: ErrorReason? = null,
+        /**
+         * When the next card comes up. "All done! 🎊 / You reviewed 4 cards." said nothing about
+         * what happens next, which made an empty queue read as a dead end rather than as earned
+         * (#101 §5). Null when nothing is scheduled at all.
+         */
+        val nextDueAtMillis: Long? = null,
+        val newCardsToday: Int = 0,
+        val newCardsGoal: Int = DEFAULT_NEW_CARDS_PER_DAY,
+    ) : StudySessionUiState
 
     data class Error(val reason: ErrorReason) : StudySessionUiState
 }
+
+/** What the goal celebration says. Its own type so the screen needs no arithmetic. */
+data class GoalCelebration(val newCardsToday: Int, val goal: Int)
 
 /** Pronunciation-practice sheet state for the current card back. */
 sealed interface SpeakPhase {

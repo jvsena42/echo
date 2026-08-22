@@ -14,25 +14,40 @@ import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.storage.PendingReview
 import com.github.jvsena42.loopky.data.storage.PendingReviewStore
+import com.github.jvsena42.loopky.data.storage.StudyProgressStore
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckCounts
+import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.domain.model.isDue
+import com.github.jvsena42.loopky.domain.model.isFullyMastered
+import com.github.jvsena42.loopky.domain.model.isNew
+import com.github.jvsena42.loopky.domain.model.masteryShare
+import com.github.jvsena42.loopky.domain.model.maturityThresholdDays
+import com.github.jvsena42.loopky.domain.model.previewIntervals
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.localDayIndex
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -64,7 +79,11 @@ class SrsRepositoryImpl(
     private val deckRepository: DeckRepository,
     private val cardRepository: CardRepository,
     private val pendingReviews: PendingReviewStore,
+    private val settingsRepository: SettingsRepository,
+    private val studyProgress: StudyProgressStore,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob()),
+    /** Injected so a test can cross midnight without touching the device clock. */
+    private val dayIndex: (Long) -> Int = ::localDayIndex,
 ) : SrsRepository {
 
     /** (authorPubky, deckId, cardId) — deck-and-author scoped, so ids cannot collide across decks. */
@@ -117,8 +136,41 @@ class SrsRepositoryImpl(
      * only to be reachable from here, which owned-decks-only made it not.
      */
     override suspend fun dueToday(): List<Card> {
+        settingsRepository.ensureLoaded()
         if (restoreJournal()) flushAsync()
-        return studiableDecks().flatMap { dueForDeck(it.id) }
+        // Reviews from every deck before new cards from any of them, not deck-by-deck: a session
+        // that opens on material you already know earns the right to introduce new material, and
+        // interleaving by deck would put deck one's unseen cards ahead of deck two's overdue ones.
+        val queues = studiableDecks().map { queueForDeck(it.id) }
+        return queues.flatMap { it.due } + queues.flatMap { it.new }
+    }
+
+    override suspend fun countsForDeck(deckId: String): DeckCounts =
+        queueForDeck(deckId).let { DeckCounts(due = it.due.size, new = it.new.size) }
+
+    override suspend fun mastery(deckId: String, cardIds: List<String>): DeckMastery? {
+        if (cardIds.isEmpty()) return null
+        val states = statesForDeck(deckId)
+        // A cold cache would report a mature deck as 0%, which is the exact lie this replaced.
+        if (states.isEmpty() && cardIds.isNotEmpty() && !isLoadedFor(deckId)) return null
+        val threshold = currentSettings().maturityThresholdDays
+        return DeckMastery(
+            share = masteryShare(cardIds, states, threshold),
+            isComplete = isFullyMastered(cardIds, states, threshold),
+        )
+    }
+
+    /** Whether this deck's review state has actually been read this session. */
+    private suspend fun isLoadedFor(deckId: String): Boolean {
+        val author = cacheLock.withLock { deckAuthors[deckId] } ?: return false
+        return cacheLock.withLock { loadedDecks.contains(author to deckId) }
+    }
+
+    override suspend fun countsToday(): Map<String, DeckCounts> {
+        if (restoreJournal()) flushAsync()
+        return studiableDecks().associate { deck ->
+            deck.id to queueForDeck(deck.id).let { DeckCounts(due = it.due.size, new = it.new.size) }
+        }
     }
 
     /** Decks you can study: the ones you own plus the ones you follow. */
@@ -133,27 +185,48 @@ class SrsRepositoryImpl(
         return (owned + followed).distinctBy { it.id }
     }
 
-    override suspend fun dueForDeck(deckId: String): List<Card> {
+    override suspend fun dueForDeck(deckId: String): List<Card> =
+        queueForDeck(deckId).let { it.due + it.new }
+
+    /** A deck's study queue, kept split so callers can count the two halves separately. */
+    private data class DeckQueue(val due: List<Card>, val new: List<Card>)
+
+    /**
+     * Builds one deck's queue: cards actually due for review, soonest first, then cards never seen,
+     * in the deck's own study order.
+     *
+     * The order is the point. A 1669-card import used to present every card as due and hand the
+     * user an unclimbable wall (#101 §7); reviews-then-new means a big deck opens on what you
+     * already know. Nothing is capped — [com.github.jvsena42.loopky.domain.model.StudySettings]'s
+     * new-cards goal is a goal, and withholding cards is exactly what it must not do.
+     */
+    private suspend fun queueForDeck(deckId: String): DeckQueue {
+        settingsRepository.ensureLoaded()
         // Before anything reads the cache: a journal from a previous process holds reviews newer
         // than the homeserver's, and a queue built without them would re-show cards already graded.
         // Recovered reviews are sent straight away — nothing else would, short of the user
         // starting another session and grading FLUSH_EVERY more cards.
         if (restoreJournal()) flushAsync()
         val deck = deckRepository.sync(deckId)
-            .onFailure { Log.e(TAG, "dueForDeck: sync failed for $deckId — ${it.message}", it) }
+            .onFailure { Log.e(TAG, "queueForDeck: sync failed for $deckId — ${it.message}", it) }
             .getOrNull() ?: deckRepository.getLocal(deckId)
-        val author = deck?.authorPubky ?: session.current()?.identity?.pubky ?: return emptyList()
+        val author = deck?.authorPubky ?: session.current()?.identity?.pubky
+            ?: return DeckQueue(emptyList(), emptyList())
         cacheLock.withLock { deckAuthors[deckId] = author }
 
         val cards = cardRepository.listByDeck(deckId)
         loadChunksFor(author, deckId)
 
         val now = epochMillis()
-        return cards
-            .map { card -> card to stateOf(author, deckId, card.id) }
-            .filter { (_, state) -> state.isDue(now) }
-            .sortedWith(compareBy({ (_, state) -> state?.dueAt ?: 0L }, { (card, _) -> card.id }))
-            .map { it.first }
+        val paired = cards.map { card -> card to stateOf(author, deckId, card.id) }
+        return DeckQueue(
+            due = paired
+                .filter { (_, state) -> state.isDue(now) }
+                .sortedWith(compareBy({ (_, state) -> state?.dueAt ?: 0L }, { (card, _) -> card.id }))
+                .map { it.first },
+            // listByDeck already returns study order, so unseen cards keep the author's sequence.
+            new = paired.filter { (_, state) -> state.isNew() }.map { it.first },
+        )
     }
 
     override suspend fun nextDueAt(): Long? {
@@ -182,12 +255,16 @@ class SrsRepositoryImpl(
      * cost this exists to avoid. [deckAuthors] is the record of which decks have been loaded, so
      * iterating it is what bounds the answer to decks the cache can actually speak for.
      */
-    override suspend fun dueCountsCached(): Map<String, Int> {
+    override suspend fun dueCountsCached(): Map<String, DeckCounts> {
         val now = epochMillis()
         val decks = cacheLock.withLock { deckAuthors.toMap() }
         return decks.mapValues { (deckId, _) ->
             val states = statesForDeck(deckId)
-            cardRepository.listByDeck(deckId).count { states[it.id].isDue(now) }
+            val cards = cardRepository.listByDeck(deckId)
+            DeckCounts(
+                due = cards.count { states[it.id].isDue(now) },
+                new = cards.count { states[it.id].isNew() },
+            )
         }
     }
 
@@ -195,12 +272,92 @@ class SrsRepositoryImpl(
         require(isStudiable(card.deckId)) {
             "Deck ${card.deckId} is neither owned nor followed — follow or clone it to study it"
         }
+        val wasNew = stateOf(authorFor(card.deckId), card.deckId, card.id).isNew()
+        // Idempotent and single-flight, so after the first load this is a field read. Called here
+        // rather than relying on the queue having been built first: that ordering happens to hold
+        // today, and a grade scheduled from stale defaults is not a failure anyone would notice.
+        settingsRepository.ensureLoaded()
         val author = authorFor(card.deckId)
         val current = stateOf(author, card.deckId, card.id)
-        val next = current.review(card.id, grade, epochMillis())
+        val next = current.review(card.id, grade, epochMillis(), currentSettings())
         upsert(card.deckId, next).getOrThrow()
+        recordStudied(isNewCard = wasNew)
         next
     }
+
+    private val _dailyProgress = MutableStateFlow(DailyStudyProgress())
+    override val dailyProgress: StateFlow<DailyStudyProgress> = _dailyProgress.asStateFlow()
+
+    private val progressLock = Mutex()
+    private var progressRestored = false
+
+    override suspend fun refreshDailyProgress() {
+        progressLock.withLock { restoreProgressLocked() }
+    }
+
+    override suspend fun markGoalCelebrated() {
+        val updated = progressLock.withLock {
+            restoreProgressLocked()
+            if (_dailyProgress.value.goalCelebrated) return
+            val next = _dailyProgress.value.copy(goalCelebrated = true)
+            _dailyProgress.value = next
+            next
+        }
+        // Persisted immediately rather than with the next review: the celebration is shown once a
+        // day, and a process killed between showing it and the next grade would show it again.
+        runSuspendCatching { studyProgress.save(updated) }
+            .onFailure { Log.w(TAG, "markGoalCelebrated: could not persist — ${it.message}") }
+    }
+
+    /**
+     * Count one graded card against today.
+     *
+     * [isNewCard] is measured *before* grading, since grading is what stops it being new. It can
+     * over-count if a chunk read failed silently and an already-seen card looked unseen — an
+     * inflated goal is the cheap failure here, and the alternative (a network read per grade to be
+     * certain) is not worth it for a motivational number.
+     */
+    private suspend fun recordStudied(isNewCard: Boolean) {
+        val today = dayIndex(epochMillis())
+        val updated = progressLock.withLock {
+            restoreProgressLocked()
+            val current = _dailyProgress.value.forToday(today)
+            val next = current.copy(
+                newCards = current.newCards + if (isNewCard) 1 else 0,
+                reviews = current.reviews + 1,
+            )
+            _dailyProgress.value = next
+            next
+        }
+        runSuspendCatching { studyProgress.save(updated) }
+            .onFailure { Log.w(TAG, "recordStudied: could not persist today's progress — ${it.message}") }
+    }
+
+    /** Caller holds [progressLock]. Reads the stored counters once, then keeps them in memory. */
+    private suspend fun restoreProgressLocked() {
+        val today = dayIndex(epochMillis())
+        if (!progressRestored) {
+            progressRestored = true
+            val stored = runSuspendCatching { studyProgress.load() }
+                .onFailure { Log.w(TAG, "restoreProgress: FAILED — ${it.message}") }
+                .getOrNull()
+            _dailyProgress.value = (stored ?: DailyStudyProgress(dayIndex = today)).forToday(today)
+            return
+        }
+        // Re-applied on every read, not only at restore: a session left open across midnight
+        // would otherwise carry yesterday's count all through the new day.
+        _dailyProgress.value = _dailyProgress.value.forToday(today)
+    }
+
+    override suspend fun previewIntervals(card: Card): Map<SrsGrade, String> {
+        settingsRepository.ensureLoaded()
+        val author = authorFor(card.deckId)
+        return stateOf(author, card.deckId, card.id)
+            .previewIntervals(card.id, epochMillis(), currentSettings())
+    }
+
+    /** No suspension, no network: [SettingsRepository.studySettings] is warmed, then simply read. */
+    private fun currentSettings(): StudySettings = settingsRepository.studySettings.value.settings
 
     /**
      * Whether review state may be written for [deckId] at all: it has to be a deck you own or one

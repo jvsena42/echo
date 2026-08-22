@@ -2,7 +2,9 @@ package com.github.jvsena42.loopky.presentation.study
 
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
+import com.github.jvsena42.loopky.testing.FakeSettingsRepository
 import com.github.jvsena42.loopky.testing.FakeSrsRepository
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
@@ -18,7 +20,9 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -40,10 +44,13 @@ class StudySessionViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private val settingsRepo = FakeSettingsRepository()
+
     private fun viewModel(deckId: String? = "deck1") = StudySessionViewModel(
         deckId = deckId,
         srsRepository = srsRepo,
         deckRepository = deckRepo,
+        settingsRepository = settingsRepo,
     )
 
     private suspend fun seedDeck() {
@@ -190,5 +197,116 @@ class StudySessionViewModelTest {
         runCurrent()
 
         assertNull(assertIs<StudySessionUiState.Reviewing>(vm.state.value).syncError)
+    }
+
+    @Test
+    fun reachingTheDailyGoalCelebratesAndStopsNothing() = runTest(mainDispatcher) {
+        // The whole point of a soft goal: you are told, and the next card is already there.
+        settingsRepo.setStudySettings(StudySettings(newCardsPerDayGoal = 2))
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Spanish")
+        // More cards than the goal, so "keep studying" is something the queue can actually offer.
+        srsRepo.due = (1..6).map { testCard("c$it", front = "front $it", back = "back $it") }
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onGrade(SrsGrade.Good)
+        advanceUntilIdle()
+        assertNull(
+            assertIs<StudySessionUiState.Reviewing>(vm.state.value).goalCelebration,
+            "celebrated before the goal was reached",
+        )
+
+        vm.onGrade(SrsGrade.Good)
+        advanceUntilIdle()
+        val reached = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        val celebration = assertNotNull(reached.goalCelebration, "the goal was not celebrated")
+        assertEquals(expected = 2, actual = celebration.newCardsToday)
+        assertEquals(expected = 2, actual = celebration.goal)
+        assertTrue(reached.total > reached.position - 1, "the queue was cut short at the goal")
+
+        // Keep studying dismisses it and the session carries on.
+        vm.onContinueAfterGoal()
+        vm.onGrade(SrsGrade.Good)
+        advanceUntilIdle()
+        assertNull(assertIs<StudySessionUiState.Reviewing>(vm.state.value).goalCelebration)
+    }
+
+    @Test
+    fun aGoalMetOnTheLastCardIsNotSpentOnAScreenNobodySees() = runTest(mainDispatcher) {
+        // The celebration renders over a card. Hitting the goal on the final grade goes straight
+        // to "All done!", which carries the same news — but marking it shown there would use up
+        // the day's one celebration invisibly.
+        settingsRepo.setStudySettings(StudySettings(newCardsPerDayGoal = 1))
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Spanish")
+        srsRepo.due = listOf(testCard("c1", front = "hola", back = "hello"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onGrade(SrsGrade.Good)
+        advanceUntilIdle()
+
+        assertIs<StudySessionUiState.Complete>(vm.state.value)
+        assertFalse(
+            srsRepo.dailyProgress.value.goalCelebrated,
+            "the day's celebration was consumed without being shown",
+        )
+    }
+
+    @Test
+    fun theGoalIsCelebratedOncePerDayNotOncePerSession() = runTest(mainDispatcher) {
+        // A flag on the ViewModel would congratulate the user again every time they reopened the
+        // study screen, for a goal they met an hour ago.
+        settingsRepo.setStudySettings(StudySettings(newCardsPerDayGoal = 1))
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Spanish")
+        srsRepo.due = (1..4).map { testCard("c$it", front = "front $it", back = "back $it") }
+
+        val first = viewModel()
+        advanceUntilIdle()
+        first.onGrade(SrsGrade.Good)
+        advanceUntilIdle()
+        assertNotNull(assertIs<StudySessionUiState.Reviewing>(first.state.value).goalCelebration)
+
+        // A second session on the same day, well past the goal.
+        val second = viewModel()
+        advanceUntilIdle()
+        second.onGrade(SrsGrade.Good)
+        advanceUntilIdle()
+
+        assertNull(
+            assertIs<StudySessionUiState.Reviewing>(second.state.value).goalCelebration,
+            "the celebration came back in a later session on the same day",
+        )
+    }
+
+    @Test
+    fun aGoalAlreadyMetEarlierInTheDayIsStillCelebratedOnce() = runTest(mainDispatcher) {
+        // Threshold, not delta: the crossing can happen in a session killed before it renders, and
+        // lowering the goal below what you have already done counts as meeting it.
+        settingsRepo.setStudySettings(StudySettings(newCardsPerDayGoal = 3))
+        srsRepo.setDailyProgress(newCards = 9, reviews = 9)
+        seedDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onGrade(SrsGrade.Good)
+        advanceUntilIdle()
+
+        assertNotNull(assertIs<StudySessionUiState.Reviewing>(vm.state.value).goalCelebration)
+    }
+
+    @Test
+    fun theCongratsScreenSaysWhenTheNextReviewLands() = runTest(mainDispatcher) {
+        // "All done! 🎊 / You reviewed 4 cards." said nothing about what happens next (#101 §5).
+        srsRepo.nextDue = 1_234L
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Spanish")
+        srsRepo.due = listOf(testCard("c1", front = "hola", back = "hello"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onGrade(SrsGrade.Good)
+        advanceUntilIdle()
+
+        val complete = assertIs<StudySessionUiState.Complete>(vm.state.value)
+        assertEquals(expected = 1_234L, actual = complete.nextDueAtMillis)
     }
 }
