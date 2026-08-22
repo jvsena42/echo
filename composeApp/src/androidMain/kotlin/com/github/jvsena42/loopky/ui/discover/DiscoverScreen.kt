@@ -216,6 +216,16 @@ private fun LazyListScope.browseSection(
     onOpenAuthor: (String) -> Unit,
     onSearch: () -> Unit,
 ) {
+    // Everything browse found is already in the follow strip below, so this section has nothing
+    // left to show — and "No decks tagged X yet" is a claim about the world that is false while
+    // the deck it denies sits right underneath it.
+    //
+    // With a tag selected the header stays regardless: it names the query and carries Clear, so
+    // it is worth a section of its own even with no rows under it. Unfiltered it is a bare label
+    // over nothing, so the section goes entirely.
+    val coveredByFollowed = state.browseFullyCoveredByFollowed
+    if (coveredByFollowed && state.selectedTag == null) return
+
     item(key = "browse_header") {
         SectionHeader(
             text = state.selectedTag
@@ -228,7 +238,7 @@ private fun LazyListScope.browseSection(
     if (browse.isLoading) {
         item(key = "browse_loading") { SectionSpinner(modifier = Modifier.testTag("discover_browse_loading")) }
     }
-    if (browse.isEmpty) {
+    if (browse.isEmpty && !coveredByFollowed) {
         item(key = "browse_empty") {
             BrowseEmptyBlock(selectedTag = state.selectedTag, onSearch = onSearch)
         }

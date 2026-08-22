@@ -334,6 +334,18 @@ data class DiscoverUiState(
             val shown = following.items.mapTo(mutableSetOf()) { it.authorPubky to it.id }
             return browse.copy(items = browse.items.filterNot { (it.authorPubky to it.id) in shown })
         }
+
+    /**
+     * True when browse found matches and the follow strip is already showing every one of them.
+     *
+     * The distinction the empty state turns on. "No decks tagged X yet" is a claim about the
+     * world, and it is false whenever the only matches happen to be decks you follow — selecting
+     * a tag with one such deck rendered that sentence directly above the deck it denied. So the
+     * browse section is dropped whole in this case rather than drawn empty: there is nothing to
+     * say, and the deck is on screen already.
+     */
+    val browseFullyCoveredByFollowed: Boolean
+        get() = browse.items.isNotEmpty() && browseExcludingFollowed.items.isEmpty()
 }
 
 /** Someone worth following, with the state of the follow pill beside them. */
