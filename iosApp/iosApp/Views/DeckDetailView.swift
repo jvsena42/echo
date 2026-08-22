@@ -16,7 +16,11 @@ struct DeckDetailContent {
     let isOwned: Bool
     let tags: [String]
     let totalCards: Int
-    let dueCards: Int
+    /// Pre-formatted by the shared ViewModel — "—" when the review state could not be read.
+    let dueLabel: String
+    /// Cards never studied. Apart from `dueLabel` because nothing about an unseen card is late.
+    let newCards: Int
+    let canStudy: Bool
     let masteredPercent: String
     let cards: [CardPreviewData]
 }
@@ -152,7 +156,8 @@ struct DeckDetailView: View {
                 // Stats
                 StatsBarView(
                     totalCards: content.totalCards,
-                    dueCards: content.dueCards,
+                    dueLabel: content.dueLabel,
+                    newCards: content.newCards,
                     masteredPercent: content.masteredPercent
                 )
 
@@ -202,6 +207,7 @@ struct DeckDetailView: View {
             }
         }
         .buttonStyle(.loopkyFilled)
+        .disabled(!canStudy)
         .shadow(color: LoopkyColor.shadowAccent, radius: 24, x: 0, y: 8)
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
@@ -258,11 +264,22 @@ struct DeckDetailView: View {
         return "📚"
     }
 
+    /// Reviews take precedence; with none, the count that matters is the unseen one, so a freshly
+    /// imported deck says how much is waiting instead of reading "0 due".
     private var studyLabel: String {
-        if case .content(let content) = state, content.isOwned {
-            return String(format: NSLocalizedString("deck_detail_start_studying", comment: ""), content.dueCards)
+        guard case .content(let content) = state, content.isOwned else {
+            return NSLocalizedString("deck_detail_study_this_deck", comment: "")
         }
-        return NSLocalizedString("deck_detail_study_this_deck", comment: "")
+        if content.dueLabel == "0" && content.newCards > 0 {
+            return String(format: NSLocalizedString("deck_detail_start_studying_new", comment: ""), content.newCards)
+        }
+        return String(format: NSLocalizedString("deck_detail_start_studying", comment: ""), content.dueLabel)
+    }
+
+    /// False when there is neither a review nor an unseen card — Study would land on "All done!".
+    private var canStudy: Bool {
+        if case .content(let content) = state { return content.canStudy }
+        return true
     }
 
     private var isOwnedContent: Bool {
@@ -307,14 +324,17 @@ struct DeckDetailView: View {
 
 private struct StatsBarView: View {
     let totalCards: Int
-    let dueCards: Int
+    let dueLabel: String
+    let newCards: Int
     let masteredPercent: String
 
     var body: some View {
         HStack {
             StatColumn(value: "\(totalCards)", label: "component_stats_bar_cards", valueColor: LoopkyColor.foregroundPrimary)
             Divider().frame(height: 32).overlay(LoopkyColor.borderSubtle)
-            StatColumn(value: "\(dueCards)", label: "component_stats_bar_due", valueColor: LoopkyColor.accentPrimary)
+            StatColumn(value: dueLabel, label: "component_stats_bar_due", valueColor: LoopkyColor.accentPrimary)
+            Divider().frame(height: 32).overlay(LoopkyColor.borderSubtle)
+            StatColumn(value: "\(newCards)", label: "component_stats_bar_new", valueColor: LoopkyColor.foregroundPrimary)
             Divider().frame(height: 32).overlay(LoopkyColor.borderSubtle)
             StatColumn(value: masteredPercent, label: "component_stats_bar_mastered", valueColor: LoopkyColor.srsGood)
         }
@@ -357,7 +377,9 @@ private struct StatColumn: View {
             isOwned: true,
             tags: ["spanish", "language", "beginner"],
             totalCards: 42,
-            dueCards: 12,
+            dueLabel: "12",
+            newCards: 8,
+            canStudy: true,
             masteredPercent: "68%",
             cards: [
                 CardPreviewData(id: "1", front: "el zorro", back: "the fox"),
@@ -379,7 +401,9 @@ private struct StatColumn: View {
             isOwned: false,
             tags: ["spanish", "language", "beginner"],
             totalCards: 42,
-            dueCards: 12,
+            dueLabel: "12",
+            newCards: 8,
+            canStudy: true,
             masteredPercent: "68%",
             cards: [
                 CardPreviewData(id: "1", front: "el zorro", back: "the fox"),

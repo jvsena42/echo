@@ -337,7 +337,18 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Start studying · %1$lld due"
+            "value": "Start studying · %1$@ due"
+          }
+        }
+      }
+    },
+    "deck_detail_start_studying_new": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start studying · %1$lld new"
           }
         }
       }
@@ -2329,6 +2340,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Due"
+          }
+        }
+      }
+    },
+    "component_stats_bar_new": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New"
           }
         }
       }
