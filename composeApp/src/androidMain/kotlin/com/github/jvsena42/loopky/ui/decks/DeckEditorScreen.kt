@@ -829,17 +829,22 @@ private fun CardRow(
                     modifier = Modifier.size(18.dp),
                 )
             }
+            // A chip, not bare text: this opens "move to position", which is the only practical
+            // way to move a card any distance in a 442-card imported deck — and drawn as a plain
+            // number between two arrows it read as a label, so nobody would find it.
             Text(
                 text = position.toString(),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.W700,
                 color = colors.accentSecondary,
                 modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.accentSecondarySoft)
                     .clickable(
                         onClick = onMoveToClick,
                         onClickLabel = stringResource(R.string.deck_editor_move_to),
                     )
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
                     .testTag("card_position"),
             )
             IconButton(

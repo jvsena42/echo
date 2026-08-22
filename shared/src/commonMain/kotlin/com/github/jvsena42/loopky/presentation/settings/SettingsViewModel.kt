@@ -103,6 +103,14 @@ class SettingsViewModel(
         }
     }
 
+    /** The homeserver is a key too, and it is the one thing support will ask for. */
+    fun onCopyHomeserverClick() {
+        val homeserver = _state.value.homeserver
+        if (homeserver.isNotBlank()) {
+            viewModelScope.launch { _effects.emit(SettingsEffect.CopyToClipboard(homeserver)) }
+        }
+    }
+
     /**
      * Announcing, not visibility. The deck is public either way — see
      * [com.github.jvsena42.loopky.domain.model.DeckAnnouncement].

@@ -442,6 +442,9 @@ private fun DeckDetailContent(
                         totalCards = state.totalCards,
                         dueCards = state.dueCards,
                         masteredPercent = state.masteredPercent,
+                        // Only Total means anything on a deck that is not yours yet: the actions
+                        // below are Follow and Clone, and there is nothing to be due.
+                        showProgress = state.isOwned || state.isFollowing,
                     )
 
                     // The two ways of keeping someone else's deck, side by side and equally

@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -29,6 +30,12 @@ fun StatsBar(
     dueCards: Int,
     masteredPercent: String,
     modifier: Modifier = Modifier,
+    /**
+     * False for a deck you have neither published, followed nor cloned. Due and Mastered are
+     * facts about *your* study of a deck, and on a stranger's deck they are necessarily zero and
+     * necessarily meaningless — "442 Due" beside a Follow button promises study you cannot start.
+     */
+    showProgress: Boolean = true,
 ) {
     val colors = LoopkyTheme.colors
 
@@ -50,48 +57,48 @@ fun StatsBar(
             modifier = Modifier.weight(1f),
         )
 
-        // Divider
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .height(32.dp)
-                .background(colors.borderSubtle),
-        )
+        if (showProgress) {
+            StatDivider(colors.borderSubtle)
 
-        // Due
-        StatColumn(
-            value = dueCards.toString(),
-            label = stringResource(R.string.component_stats_bar_due),
-            valueColor = colors.accentPrimary,
-            mutedColor = colors.foregroundMuted,
-            modifier = Modifier.weight(1f),
-        )
+            // Due
+            StatColumn(
+                value = dueCards.toString(),
+                label = stringResource(R.string.component_stats_bar_due),
+                valueColor = colors.accentPrimary,
+                mutedColor = colors.foregroundMuted,
+                modifier = Modifier.weight(1f),
+            )
 
-        // Divider
-        Box(
-            modifier = Modifier
-                .width(1.dp)
-                .height(32.dp)
-                .background(colors.borderSubtle),
-        )
+            StatDivider(colors.borderSubtle)
 
-        // Mastered
-        StatColumn(
-            value = masteredPercent,
-            label = stringResource(R.string.component_stats_bar_mastered),
-            valueColor = colors.srsGood,
-            mutedColor = colors.foregroundMuted,
-            modifier = Modifier.weight(1f),
-        )
+            // Mastered
+            StatColumn(
+                value = masteredPercent,
+                label = stringResource(R.string.component_stats_bar_mastered),
+                valueColor = colors.srsGood,
+                mutedColor = colors.foregroundMuted,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
+}
+
+@Composable
+private fun StatDivider(color: Color) {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .height(32.dp)
+            .background(color),
+    )
 }
 
 @Composable
 private fun StatColumn(
     value: String,
     label: String,
-    valueColor: androidx.compose.ui.graphics.Color,
-    mutedColor: androidx.compose.ui.graphics.Color,
+    valueColor: Color,
+    mutedColor: Color,
     modifier: Modifier = Modifier,
 ) {
     Column(
