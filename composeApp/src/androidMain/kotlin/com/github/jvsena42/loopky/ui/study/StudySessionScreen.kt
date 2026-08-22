@@ -98,6 +98,7 @@ import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.components.rememberReduceMotion
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.relativeFromNow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -170,6 +171,7 @@ fun StudySessionRoute(
         onClose = viewModel::onClose,
         onDone = onClose,
         onDismissSyncError = viewModel::onDismissSyncError,
+        onDismissGoalReached = viewModel::onDismissGoalReached,
     )
 }
 
@@ -186,6 +188,7 @@ fun StudySessionScreen(
     onSpeakRetry: () -> Unit = {},
     onSpeakCancel: () -> Unit = {},
     onDismissSyncError: () -> Unit = {},
+    onDismissGoalReached: () -> Unit = {},
 ) {
     val colors = LoopkyTheme.colors
     Box(
@@ -221,6 +224,10 @@ fun StudySessionScreen(
                 subtitle = pluralStringResource(R.plurals.cards_reviewed, state.reviewed, state.reviewed),
                 actionLabel = stringResource(R.string.study_back),
                 onAction = onDone,
+                // Saying when the next review lands is what makes an empty queue read as earned
+                // rather than as a dead end (#101 §5).
+                detail = state.nextDueAtMillis
+                    ?.let { stringResource(R.string.home_caught_up_next_due, relativeFromNow(it)) },
             )
 
             is StudySessionUiState.Reviewing -> ReviewingContent(
@@ -239,6 +246,15 @@ fun StudySessionScreen(
             SyncErrorBanner(
                 reason = reason,
                 onDismiss = onDismissSyncError,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
+
+        // Overlaid, never blocking: the card underneath is already the next one. The goal is a
+        // goal — it says you have done what you set out to do, not that you have to stop.
+        if (state is StudySessionUiState.Reviewing && state.goalReached) {
+            GoalReachedBanner(
+                onDismiss = onDismissGoalReached,
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
@@ -651,6 +667,8 @@ private fun BoxScope.CenteredMessage(
     subtitle: String,
     actionLabel: String,
     onAction: () -> Unit,
+    /** A second, quieter line. Its own Text rather than appended prose, so it can wrap sanely. */
+    detail: String? = null,
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -673,6 +691,14 @@ private fun BoxScope.CenteredMessage(
             color = colors.foregroundMuted,
             textAlign = TextAlign.Center,
         )
+        detail?.let {
+            Text(
+                text = it,
+                fontSize = 14.sp,
+                color = colors.foregroundMuted,
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = onAction,
@@ -735,6 +761,39 @@ private fun SyncErrorBanner(
             Text(errorMessage(reason), color = Color.White, fontSize = 13.sp)
             TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
                 Text(stringResource(R.string.study_sync_error_dismiss), color = Color.White)
+            }
+        }
+    }
+}
+
+/**
+ * "You have hit today's new-card goal." Dismissible, and deliberately not a dialog: an interruption
+ * you have to acknowledge before continuing would make a soft goal feel like a hard stop.
+ */
+@Composable
+private fun GoalReachedBanner(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Surface(
+        color = colors.srsGood,
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .testTag("study_goal_reached"),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                stringResource(R.string.study_goal_reached_title),
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(stringResource(R.string.study_goal_reached_body), color = Color.White, fontSize = 13.sp)
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.study_goal_reached_dismiss), color = Color.White)
             }
         }
     }

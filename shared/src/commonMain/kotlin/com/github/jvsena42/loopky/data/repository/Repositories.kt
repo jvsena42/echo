@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.data.homegate.MethodAvailability
 import com.github.jvsena42.loopky.data.storage.PendingSignup
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckCounts
@@ -799,6 +800,9 @@ interface DiscoveryRepository {
  * `/pub/loopky/decks/{deckId}/srs/{cardId}.json`. The repo owns SRS grading (the SM-2-lite scheduler in
  * [com.github.jvsena42.loopky.domain.model] is invoked here, not in ViewModels).
  */
+// TooManyFunctions: the queue, the counters, the buffer and the flush are one subject with one
+// lifecycle, and splitting them would only make callers hold two handles to the same cache.
+@Suppress("TooManyFunctions")
 interface SrsRepository {
     /**
      * Emits the deck id of every review state write ([review], [upsert]) so screens showing due
@@ -897,6 +901,22 @@ interface SrsRepository {
      * deck as "unknown", never as zero.
      */
     suspend fun dueCountsCached(): Map<String, DeckCounts>
+
+    /**
+     * Today's study, on this device: reviews graded and never-seen cards met, reset at local
+     * midnight.
+     *
+     * The counterpart to [com.github.jvsena42.loopky.domain.model.StudySettings.newCardsPerDayGoal]
+     * — and note that nothing in this interface consults the goal. It is a goal: reaching it is
+     * announced, never enforced, and no queue-building method may take it into account.
+     */
+    val dailyProgress: StateFlow<DailyStudyProgress>
+
+    /**
+     * Load today's counters, or roll them over if the day has turned. Idempotent; screens that show
+     * the goal call it on load, and grading applies it anyway.
+     */
+    suspend fun refreshDailyProgress()
 
     /** Grade a card: compute the next state via the scheduler, persist it, and return it. */
     suspend fun review(card: Card, grade: SrsGrade): Result<SrsState>

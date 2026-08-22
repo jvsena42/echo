@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.data.pubky.requiresReauth
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.DEFAULT_NEW_CARDS_PER_DAY
 import com.github.jvsena42.loopky.domain.model.Deck
@@ -29,6 +30,7 @@ class HomeViewModel(
     private val identityRepository: IdentityRepository,
     private val deckRepository: DeckRepository,
     private val srsRepository: SrsRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
@@ -51,6 +53,27 @@ class HomeViewModel(
         // full load — see [refreshDueCounts].
         viewModelScope.launch {
             srsRepository.changes.collect { refreshDueCounts() }
+        }
+        // Today's tally and the goal it is measured against are both live: the counter moves as
+        // cards are graded on another destination, and the goal moves when Settings writes it.
+        viewModelScope.launch {
+            srsRepository.dailyProgress.collect { progress ->
+                _state.update { current ->
+                    (current as? HomeUiState.Content)?.copy(
+                        doneToday = progress.reviews,
+                        newCardsToday = progress.newCards,
+                    ) ?: current
+                }
+            }
+        }
+        viewModelScope.launch {
+            settingsRepository.studySettings.collect { snapshot ->
+                _state.update { current ->
+                    (current as? HomeUiState.Content)
+                        ?.copy(newCardsGoal = snapshot.settings.newCardsPerDayGoal)
+                        ?: current
+                }
+            }
         }
     }
 
@@ -77,26 +100,8 @@ class HomeViewModel(
                         .getOrDefault(emptyList())
                     val decks = (owned + followed).distinctBy { it.id }
 
-                    _state.update { if (decks.isEmpty()) {
-                        HomeUiState.Empty(identity)
-                    } else {
-                        val countsByDeck = runSuspendCatching { srsRepository.countsToday() }
-                            .getOrDefault(emptyMap())
-                        val dueCount = countsByDeck.values.sumOf { it.due }
-                        val newCount = countsByDeck.values.sumOf { it.new }
-                        HomeUiState.Content(
-                            identity = identity,
-                            dueToday = dueCount,
-                            newToday = newCount,
-                            decks = decks.map { it.toSummary(countsByDeck[it.id] ?: DeckCounts()) },
-                            // Only meaningful when there is nothing at all to study; skip otherwise.
-                            nextDueAtMillis = if (dueCount + newCount == 0) {
-                                runSuspendCatching { srsRepository.nextDueAt() }.getOrNull()
-                            } else {
-                                null
-                            },
-                        )
-                    } }
+                    val next = if (decks.isEmpty()) HomeUiState.Empty(identity) else content(identity, decks)
+                    _state.update { next }
                     Log.d(TAG, "load: owned=${owned.size} followed=${followed.size}")
                     refreshIdentity(identity)
                 }
@@ -118,6 +123,30 @@ class HomeViewModel(
                     }
                 }
         }
+    }
+
+    /** Today's numbers, for a user who has decks. Split out of [load] purely for its length. */
+    private suspend fun content(identity: PubkyIdentity?, decks: List<Deck>): HomeUiState.Content {
+        runSuspendCatching { srsRepository.refreshDailyProgress() }
+        val progress = srsRepository.dailyProgress.value
+        val counts = runSuspendCatching { srsRepository.countsToday() }.getOrDefault(emptyMap())
+        val dueCount = counts.values.sumOf { it.due }
+        val newCount = counts.values.sumOf { it.new }
+        return HomeUiState.Content(
+            identity = identity,
+            dueToday = dueCount,
+            newToday = newCount,
+            doneToday = progress.reviews,
+            newCardsToday = progress.newCards,
+            newCardsGoal = settingsRepository.studySettings.value.settings.newCardsPerDayGoal,
+            decks = decks.map { it.toSummary(counts[it.id] ?: DeckCounts()) },
+            // Only meaningful when there is nothing at all left to study; skip the lookup otherwise.
+            nextDueAtMillis = if (dueCount + newCount == 0) {
+                runSuspendCatching { srsRepository.nextDueAt() }.getOrNull()
+            } else {
+                null
+            },
+        )
     }
 
     /**

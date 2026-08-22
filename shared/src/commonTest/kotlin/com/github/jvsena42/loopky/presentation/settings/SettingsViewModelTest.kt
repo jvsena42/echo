@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeHttpFetcher
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
+import com.github.jvsena42.loopky.testing.FakeSettingsRepository
 import com.github.jvsena42.loopky.testing.FakeUnsplashKeyStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -37,6 +38,8 @@ class SettingsViewModelTest {
     @AfterTest
     fun tearDown() = Dispatchers.resetMain()
 
+    private val settingsRepo = FakeSettingsRepository()
+
     private fun viewModel(fallbackKey: String = "") = SettingsViewModel(
         identityRepository = identityRepo,
         pubkyClient = FakePubkyClient(),
@@ -48,6 +51,7 @@ class SettingsViewModelTest {
             fallbackKey = fallbackKey,
             baseUrl = UNSPLASH_BASE,
         ),
+        settingsRepository = settingsRepo,
     )
 
     @Test

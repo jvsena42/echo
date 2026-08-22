@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
+import com.github.jvsena42.loopky.testing.FakeSettingsRepository
 import com.github.jvsena42.loopky.testing.FakeSrsRepository
 import com.github.jvsena42.loopky.testing.fakeSession
 import com.github.jvsena42.loopky.testing.testCard
@@ -49,10 +50,13 @@ class HomeViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private val settingsRepo = FakeSettingsRepository()
+
     private fun viewModel() = HomeViewModel(
         identityRepository = identityRepo,
         deckRepository = deckRepo,
         srsRepository = srsRepo,
+        settingsRepository = settingsRepo,
     )
 
     /** Subscribes eagerly so effects emitted by the init-launched load are not dropped. */

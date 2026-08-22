@@ -104,6 +104,7 @@ val sharedModule = module {
             cardRepository = get(),
             pendingReviews = get(),
             settingsRepository = get(),
+            studyProgress = get(),
         )
     }
     single<DiscoveryRepository> {
@@ -122,7 +123,14 @@ val sharedModule = module {
     viewModel {
         SignupHandoffViewModel(signupRepository = get(), identityRepository = get())
     }
-    viewModel { HomeViewModel(identityRepository = get(), deckRepository = get(), srsRepository = get()) }
+    viewModel {
+        HomeViewModel(
+            identityRepository = get(),
+            deckRepository = get(),
+            srsRepository = get(),
+            settingsRepository = get(),
+        )
+    }
     viewModel { DecksLibraryViewModel(deckRepository = get(), identityRepository = get()) }
     viewModel { params ->
         DeckDetailViewModel(
@@ -138,7 +146,14 @@ val sharedModule = module {
             appPreferences = get(),
         )
     }
-    viewModel { params -> StudySessionViewModel(deckId = params.getOrNull(), srsRepository = get(), deckRepository = get()) }
+    viewModel { params ->
+        StudySessionViewModel(
+            deckId = params.getOrNull(),
+            srsRepository = get(),
+            deckRepository = get(),
+            settingsRepository = get(),
+        )
+    }
     viewModel { params ->
         DeckEditorViewModel(
             deckId = params.getOrNull(),
@@ -189,6 +204,7 @@ val sharedModule = module {
             appPreferences = get(),
             unsplashKeyStore = get(),
             unsplashClient = get(),
+            settingsRepository = get(),
             appVersion = params.getOrNull() ?: "",
         )
     }

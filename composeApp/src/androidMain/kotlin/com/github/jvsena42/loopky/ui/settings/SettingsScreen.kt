@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.ui.settings
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,7 +70,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.data.unsplash.UNSPLASH_DEVELOPER_URL
 import com.github.jvsena42.loopky.data.unsplash.UnsplashError
+import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.presentation.settings.SettingsEffect
+import com.github.jvsena42.loopky.presentation.settings.SettingsErrorMessage
 import com.github.jvsena42.loopky.presentation.settings.SettingsUiState
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
 import com.github.jvsena42.loopky.presentation.settings.UnsplashKeyStatus
@@ -106,6 +109,13 @@ fun SettingsRoute(
             when (effect) {
                 SettingsEffect.SignedOut -> currentSignedOut()
                 is SettingsEffect.CopyToClipboard -> clipboard.setText(AnnotatedString(effect.text))
+                is SettingsEffect.ShowError -> Toast.makeText(
+                    context,
+                    when (effect.message) {
+                        SettingsErrorMessage.StudySettingsNotSaved -> R.string.settings_study_save_failed
+                    },
+                    Toast.LENGTH_LONG,
+                ).show()
             }
         }
     }
@@ -118,6 +128,8 @@ fun SettingsRoute(
         onCopyPubkyClick = viewModel::onCopyPubkyClick,
         onCopyHomeserverClick = viewModel::onCopyHomeserverClick,
         onShareOnPubkyChange = viewModel::onShareOnPubkyChange,
+        onNewCardsGoalChange = viewModel::onNewCardsGoalChange,
+        onFirstIntervalChange = viewModel::onFirstIntervalChange,
         onSaveUnsplashKey = viewModel::onSaveUnsplashKey,
         onRemoveUnsplashKey = viewModel::onRemoveUnsplashKey,
         onUnsplashKeyErrorDismissed = viewModel::onUnsplashKeyErrorDismissed,
@@ -135,6 +147,8 @@ private fun SettingsScreen(
     onCopyPubkyClick: () -> Unit,
     onCopyHomeserverClick: () -> Unit,
     onShareOnPubkyChange: (Boolean) -> Unit,
+    onNewCardsGoalChange: (Int) -> Unit,
+    onFirstIntervalChange: (SrsGrade, Int) -> Unit,
     onSaveUnsplashKey: (String) -> Unit,
     onRemoveUnsplashKey: () -> Unit,
     onUnsplashKeyErrorDismissed: () -> Unit,
@@ -284,8 +298,18 @@ private fun SettingsScreen(
                 description = stringResource(R.string.settings_share_on_pubky_description),
                 checked = state.shareOnPubky,
                 onCheckedChange = onShareOnPubkyChange,
+                testTag = "settings_share_on_pubky",
             )
         }
+
+        // --- Studying section ---
+        SettingsSectionLabel(text = stringResource(R.string.settings_section_studying))
+        StudySettingsSection(
+            settings = state.studySettings,
+            enabled = state.canEditStudySettings,
+            onGoalChange = onNewCardsGoalChange,
+            onIntervalChange = onFirstIntervalChange,
+        )
 
         // --- Image search section ---
         SettingsSectionLabel(text = stringResource(R.string.settings_section_image_search))
@@ -665,6 +689,7 @@ private fun SettingsSwitchRow(
     description: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    testTag: String,
 ) {
     val colors = LoopkyTheme.colors
     Row(
@@ -694,7 +719,7 @@ private fun SettingsSwitchRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            modifier = Modifier.testTag("settings_share_on_pubky"),
+            modifier = Modifier.testTag(testTag),
             colors = SwitchDefaults.colors(
                 checkedThumbColor = colors.surfacePrimary,
                 checkedTrackColor = colors.accentPrimary,
@@ -728,6 +753,8 @@ private fun SettingsScreenPreview() {
             onCopyPubkyClick = {},
             onCopyHomeserverClick = {},
             onShareOnPubkyChange = {},
+            onNewCardsGoalChange = {},
+            onFirstIntervalChange = { _, _ -> },
             onSaveUnsplashKey = {},
             onRemoveUnsplashKey = {},
             onUnsplashKeyErrorDismissed = {},

@@ -28,8 +28,10 @@ import com.github.jvsena42.loopky.data.storage.PendingReview
 import com.github.jvsena42.loopky.data.storage.PendingReviewStore
 import com.github.jvsena42.loopky.data.storage.PendingSignup
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
+import com.github.jvsena42.loopky.data.storage.StudyProgressStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckCounts
@@ -550,6 +552,16 @@ class FakeSrsRepository : SrsRepository {
     /** Drives the "the review state could not be read" branch, which must render "—", not 0%. */
     var masteryUnavailable = false
 
+    private val _dailyProgress = MutableStateFlow(DailyStudyProgress())
+    override val dailyProgress: StateFlow<DailyStudyProgress> = _dailyProgress.asStateFlow()
+
+    override suspend fun refreshDailyProgress() = Unit
+
+    /** Put today's tally where a test needs it, e.g. one card short of the goal. */
+    fun setDailyProgress(newCards: Int = 0, reviews: Int = 0) {
+        _dailyProgress.value = DailyStudyProgress(dayIndex = 0, newCards = newCards, reviews = reviews)
+    }
+
     /**
      * Mark [cardIds] as already graded in [deckId], so the counters read them as **due** rather
      * than new.
@@ -585,6 +597,10 @@ class FakeSrsRepository : SrsRepository {
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> {
         reviews.add(card to grade)
+        val wasNew = states[card.id] == null
+        _dailyProgress.update {
+            it.copy(newCards = it.newCards + if (wasNew) 1 else 0, reviews = it.reviews + 1)
+        }
         val next = states[card.id].review(card.id, grade, now = 0L, settings = studySettings)
         upsert(card.deckId, next)
         return Result.success(next)
@@ -1207,11 +1223,28 @@ class FakeSettingsRepository(
         _studySettings.update { it.copy(origin = SettingsOrigin.Remote) }
     }
 
+    /** Set the settings directly, as a homeserver record already holding them would. */
+    fun setStudySettings(settings: StudySettings) {
+        _studySettings.update { it.copy(settings = settings.sanitized()) }
+    }
+
     override suspend fun update(settings: StudySettings): Result<Unit> {
         if (_studySettings.value.origin != SettingsOrigin.Remote) {
             return Result.failure(IllegalStateException("Study settings have not been read yet"))
         }
         _studySettings.update { StudySettingsSnapshot(settings.sanitized(), SettingsOrigin.Remote) }
         return Result.success(Unit)
+    }
+}
+
+/** In-memory [StudyProgressStore]. */
+class FakeStudyProgressStore(private var stored: DailyStudyProgress? = null) : StudyProgressStore {
+    val saved = mutableListOf<DailyStudyProgress>()
+
+    override suspend fun load(): DailyStudyProgress? = stored
+
+    override suspend fun save(progress: DailyStudyProgress) {
+        stored = progress
+        saved.add(progress)
     }
 }

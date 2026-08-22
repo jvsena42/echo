@@ -18,7 +18,9 @@ import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.storage.PendingReview
 import com.github.jvsena42.loopky.data.storage.PendingReviewStore
+import com.github.jvsena42.loopky.data.storage.StudyProgressStore
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckCounts
 import com.github.jvsena42.loopky.domain.model.DeckMastery
@@ -35,13 +37,17 @@ import com.github.jvsena42.loopky.domain.model.previewIntervals
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
+import com.github.jvsena42.loopky.util.localDayIndex
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -74,7 +80,10 @@ class SrsRepositoryImpl(
     private val cardRepository: CardRepository,
     private val pendingReviews: PendingReviewStore,
     private val settingsRepository: SettingsRepository,
+    private val studyProgress: StudyProgressStore,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob()),
+    /** Injected so a test can cross midnight without touching the device clock. */
+    private val dayIndex: (Long) -> Int = ::localDayIndex,
 ) : SrsRepository {
 
     /** (authorPubky, deckId, cardId) — deck-and-author scoped, so ids cannot collide across decks. */
@@ -263,6 +272,7 @@ class SrsRepositoryImpl(
         require(isStudiable(card.deckId)) {
             "Deck ${card.deckId} is neither owned nor followed — follow or clone it to study it"
         }
+        val wasNew = stateOf(authorFor(card.deckId), card.deckId, card.id).isNew()
         // Idempotent and single-flight, so after the first load this is a field read. Called here
         // rather than relying on the queue having been built first: that ordering happens to hold
         // today, and a grade scheduled from stale defaults is not a failure anyone would notice.
@@ -271,7 +281,58 @@ class SrsRepositoryImpl(
         val current = stateOf(author, card.deckId, card.id)
         val next = current.review(card.id, grade, epochMillis(), currentSettings())
         upsert(card.deckId, next).getOrThrow()
+        recordStudied(isNewCard = wasNew)
         next
+    }
+
+    private val _dailyProgress = MutableStateFlow(DailyStudyProgress())
+    override val dailyProgress: StateFlow<DailyStudyProgress> = _dailyProgress.asStateFlow()
+
+    private val progressLock = Mutex()
+    private var progressRestored = false
+
+    override suspend fun refreshDailyProgress() {
+        progressLock.withLock { restoreProgressLocked() }
+    }
+
+    /**
+     * Count one graded card against today.
+     *
+     * [isNewCard] is measured *before* grading, since grading is what stops it being new. It can
+     * over-count if a chunk read failed silently and an already-seen card looked unseen — an
+     * inflated goal is the cheap failure here, and the alternative (a network read per grade to be
+     * certain) is not worth it for a motivational number.
+     */
+    private suspend fun recordStudied(isNewCard: Boolean) {
+        val today = dayIndex(epochMillis())
+        val updated = progressLock.withLock {
+            restoreProgressLocked()
+            val current = _dailyProgress.value.forToday(today)
+            val next = current.copy(
+                newCards = current.newCards + if (isNewCard) 1 else 0,
+                reviews = current.reviews + 1,
+            )
+            _dailyProgress.value = next
+            next
+        }
+        runSuspendCatching { studyProgress.save(updated) }
+            .onFailure { Log.w(TAG, "recordStudied: could not persist today's progress — ${it.message}") }
+    }
+
+    /** Caller holds [progressLock]. Reads the stored counters once, then keeps them in memory. */
+    private suspend fun restoreProgressLocked() {
+        val today = dayIndex(epochMillis())
+        if (!progressRestored) {
+            progressRestored = true
+            val stored = runSuspendCatching { studyProgress.load() }
+                .onFailure { Log.w(TAG, "restoreProgress: FAILED — ${it.message}") }
+                .getOrNull()
+            _dailyProgress.value = (stored ?: DailyStudyProgress(dayIndex = today)).forToday(today)
+            return
+        }
+        // Re-applied on every read, not only at restore: a session left open across midnight
+        // would otherwise carry yesterday's count all through the new day.
+        _dailyProgress.value = _dailyProgress.value.forToday(today)
     }
 
     override suspend fun previewIntervals(card: Card): Map<SrsGrade, String> {

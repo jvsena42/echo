@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.DEFAULT_NEW_CARDS_PER_DAY
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.SpeakMatcher
@@ -34,6 +36,7 @@ class StudySessionViewModel(
     private val deckId: String?,
     private val srsRepository: SrsRepository,
     private val deckRepository: DeckRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow<StudySessionUiState>(StudySessionUiState.Loading)
     val state: StateFlow<StudySessionUiState> = _state.asStateFlow()
@@ -58,6 +61,17 @@ class StudySessionViewModel(
     /** id → title, warmed lazily from [DeckRepository.listOwned] so multi-deck sessions can label each card. */
     private var deckTitles: Map<String, String> = emptyMap()
     private var gradeJob: Job? = null
+
+    /**
+     * The daily goal has been reached and the user has not waved it away yet.
+     *
+     * Held on the VM as well as in the state because [emitCurrent] rebuilds the state for every
+     * card — the same reason [syncError] is. Announced once per crossing and never again, since a
+     * banner that reappeared on every subsequent card would read as nagging for carrying on, which
+     * is the exact opposite of what a soft goal is for.
+     */
+    private var goalReached = false
+    private var goalAnnounced = false
 
     init {
         load()
@@ -104,6 +118,7 @@ class StudySessionViewModel(
     fun onGrade(grade: SrsGrade) {
         if (gradeJob?.isActive == true) return
         val card = queue.getOrNull(index) ?: return
+        val newCardsBefore = srsRepository.dailyProgress.value.newCards
         gradeJob = viewModelScope.launch {
             srsRepository.review(card, grade)
                 .onFailure { err ->
@@ -118,7 +133,32 @@ class StudySessionViewModel(
             index++
             revealed = false
             speakPhase = SpeakPhase.Idle
+            noteGoalCrossing(newCardsBefore)
             emitCurrent()
+        }
+    }
+
+    /**
+     * Raise the banner on the grade that *crosses* the goal, and only that one.
+     *
+     * The queue is untouched either way — the next card loads exactly as it would have. This says
+     * "you have done what you set out to do today"; it does not stop anyone doing more.
+     */
+    private fun noteGoalCrossing(newCardsBefore: Int) {
+        if (goalAnnounced) return
+        val goal = settingsRepository.studySettings.value.settings.newCardsPerDayGoal
+        val after = srsRepository.dailyProgress.value.newCards
+        if (newCardsBefore < goal && after >= goal) {
+            goalReached = true
+            goalAnnounced = true
+        }
+    }
+
+    /** The user has read the goal banner. */
+    fun onDismissGoalReached() {
+        goalReached = false
+        _state.update { current ->
+            (current as? StudySessionUiState.Reviewing)?.copy(goalReached = false) ?: current
         }
     }
 
@@ -221,6 +261,21 @@ class StudySessionViewModel(
             // Queue exhausted — persist the session's reviews.
             srsRepository.flushAsync()
             _state.update { StudySessionUiState.Complete(reviewedCount, syncError) }
+            // After the state, not before: the congrats screen must not wait on a lookup, and
+            // nextDueAt is cache-only but still suspending.
+            viewModelScope.launch {
+                val nextDue = runSuspendCatching { srsRepository.nextDueAt() }
+                    .onFailure { Log.e(TAG, "nextDueAt: FAILED — ${it.message}", it) }
+                    .getOrNull()
+                val progress = srsRepository.dailyProgress.value
+                _state.update { current ->
+                    (current as? StudySessionUiState.Complete)?.copy(
+                        nextDueAtMillis = nextDue,
+                        newCardsToday = progress.newCards,
+                        newCardsGoal = settingsRepository.studySettings.value.settings.newCardsPerDayGoal,
+                    ) ?: current
+                }
+            }
             return
         }
         viewModelScope.launch {
@@ -232,6 +287,7 @@ class StudySessionViewModel(
             val deck = deckRepository.getLocal(card.deckId)
             _state.update { StudySessionUiState.Reviewing(
                 deckTitle = title,
+                goalReached = goalReached,
                 position = index + 1,
                 total = queue.size,
                 frontText = card.front.text.orEmpty(),
@@ -280,6 +336,11 @@ sealed interface StudySessionUiState {
 
     data class Reviewing(
         val deckTitle: String,
+        /**
+         * Today's new-card goal has just been met. A congratulation, not a stop sign — the queue
+         * behind it is unchanged and the next card is already loaded.
+         */
+        val goalReached: Boolean = false,
         val position: Int,
         val total: Int,
         val frontText: String,
@@ -312,7 +373,18 @@ sealed interface StudySessionUiState {
         val syncError: ErrorReason? = null,
     ) : StudySessionUiState
 
-    data class Complete(val reviewed: Int, val syncError: ErrorReason? = null) : StudySessionUiState
+    data class Complete(
+        val reviewed: Int,
+        val syncError: ErrorReason? = null,
+        /**
+         * When the next card comes up. "All done! 🎊 / You reviewed 4 cards." said nothing about
+         * what happens next, which made an empty queue read as a dead end rather than as earned
+         * (#101 §5). Null when nothing is scheduled at all.
+         */
+        val nextDueAtMillis: Long? = null,
+        val newCardsToday: Int = 0,
+        val newCardsGoal: Int = DEFAULT_NEW_CARDS_PER_DAY,
+    ) : StudySessionUiState
 
     data class Error(val reason: ErrorReason) : StudySessionUiState
 }

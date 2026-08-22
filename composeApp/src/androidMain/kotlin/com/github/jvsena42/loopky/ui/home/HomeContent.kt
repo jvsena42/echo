@@ -41,6 +41,7 @@ import com.github.jvsena42.loopky.presentation.home.DeckSummary
 import com.github.jvsena42.loopky.presentation.home.HomeUiState
 import com.github.jvsena42.loopky.ui.components.DeckCover
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.relativeFromNow
 
 /**
  * Mirrors Pencil node `xaQR5` — daily study state with hero card + deck list.
@@ -103,20 +104,6 @@ private fun CaughtUpHeroCard(nextDueAtMillis: Long?) {
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
         )
-    }
-}
-
-/** Coarse "in 4h" / "in 2d" phrasing — an exact timestamp would be noise here. */
-@Composable
-private fun relativeFromNow(millis: Long): String {
-    val delta = (millis - System.currentTimeMillis()).coerceAtLeast(0L)
-    val minutes = delta / 60_000L
-    val hours = minutes / 60L
-    val days = hours / 24L
-    return when {
-        days > 0 -> pluralStringResource(R.plurals.duration_days, days.toInt(), days.toInt())
-        hours > 0 -> pluralStringResource(R.plurals.duration_hours, hours.toInt(), hours.toInt())
-        else -> pluralStringResource(R.plurals.duration_minutes, minutes.toInt(), minutes.toInt())
     }
 }
 
