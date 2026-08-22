@@ -474,7 +474,9 @@ private fun AnimatedContentScope.FlippableCard(
     ) {
         if (rotation < 90f) {
             // Front shows only the prompt (design `w1CAm`); the reveal cue lives in the
-            // hint row below, and Listen/Speak appear only on the back.
+            // hint row below, and Listen/Speak appear only on the back. The prompt's picture
+            // belongs here too — an Anki front is often nothing else, and passing it only to
+            // the back left those cards asking the question with a blank card (#96).
             CardFace(
                 label = null,
                 text = card.frontText,
@@ -482,6 +484,9 @@ private fun AnimatedContentScope.FlippableCard(
                 onSpeak = onSpeak,
                 showListen = false,
                 onSpeakTest = null,
+                featureImageRef = card.frontImageRef,
+                deckId = deckId,
+                authorPubky = authorPubky,
             )
         } else {
             // Counter-rotate so the back content is not mirrored.
@@ -492,8 +497,8 @@ private fun AnimatedContentScope.FlippableCard(
                 onSpeak = onSpeak,
                 showListen = interactive && listenEnabled,
                 onSpeakTest = if (interactive && speakEnabled) onSpeakTest else null,
-                imageRef = card.frontImageRef,
-                answerImageRef = card.backImageRef,
+                recallImageRef = card.frontImageRef,
+                featureImageRef = card.backImageRef,
                 deckId = deckId,
                 authorPubky = authorPubky,
                 modifier = Modifier.graphicsLayer { rotationY = 180f },
