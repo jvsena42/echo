@@ -647,7 +647,7 @@ class DeckRepositoryImpl(
         // so nothing orphans on the homeserver. The listing itself is the fallback source of
         // paths when the cache is cold.
         val deckRoot = "${PubkyPaths.deckRoot(author, deckId)}/"
-        val listedPaths = listAllPaths(deckRoot)
+        val listedPaths = pubky.listAllEntriesOrEmpty(deckRoot)
         val fallbackPaths = buildList {
             cached.chunks.forEach { add(PubkyPaths.cardChunk(author, deckId, it.n)) }
             add(PubkyPaths.manifest(author, deckId))
@@ -729,9 +729,14 @@ class DeckRepositoryImpl(
      * A genuinely absent path (nothing published yet) is still an empty list.
      */
     override suspend fun listByAuthor(authorPubky: String): List<Deck> {
-        val listJson = pubky.list(PubkyPaths.decksList(authorPubky))
+        // `shallow` asks for one entry per deck directory rather than every record beneath it.
+        // Paged regardless: the homeserver's default page is 100 records, which a single
+        // 3,700-card deck overruns on its own, and a truncated listing renders as "my decks are
+        // gone". If the flag is ignored, the loop still collects the whole deep listing.
+        val entries = pubky.listAllEntries(PubkyPaths.decksList(authorPubky), shallow = true)
             .getOrElse { if (it.isNotFound()) return emptyList() else throw it }
-        val deckIds = parseDeckIdsFromList(listJson)
+        val deckIds = parseDeckIdsFrom(entries)
+        Log.d(TAG, "listByAuthor: $authorPubky entries=${entries.size} decks=${deckIds.size}")
         // Concurrent: this was one manifest GET per deck, serially, so a library of ten decks
         // paid ten round trips end to end before anything could render.
         val results = deckIds.mapConcurrently { deckId ->
@@ -962,7 +967,9 @@ class DeckRepositoryImpl(
         val owner = session.current()?.identity?.pubky ?: return emptyMap()
 
         val loaded = mutableMapOf<String, SubscriptionDto>()
-        for (path in listAllPaths(PubkyPaths.subscriptionsRoot(owner))) {
+        // Deep, and it must stay deep: subscriptions nest as `subscriptions/{author}/{deckId}.json`,
+        // so a shallow listing here would return author directories rather than records.
+        for (path in pubky.listAllEntriesOrEmpty(PubkyPaths.subscriptionsRoot(owner))) {
             val json = pubky.get(path).getOrElse {
                 Log.e(TAG, "loadSubscriptions: $path unreadable — ${it.message}", it)
                 continue
@@ -976,49 +983,22 @@ class DeckRepositoryImpl(
     }
 
     /**
-     * Every path under [prefix], following the cursor until the homeserver stops returning new
-     * entries.
+     * Deck ids out of a `decks/` listing, from either shape the homeserver can return:
+     * `…/decks/{id}/` when it honours `shallow`, or `…/decks/{id}/manifest.json` and
+     * `…/decks/{id}/cards/3.json` when it does not.
      *
-     * `list()` has always accepted `cursor`/`limit`, and no call site used them — so anything past
-     * the server's default page was simply invisible. That is survivable for a deck listing and
-     * not survivable for [delete], which relies on this sweep to avoid orphaning records.
+     * Decoded per entry rather than scanned across the raw payload, for the reason spelled out on
+     * [DiscoveryRepositoryImpl]'s sibling parser: a substring scan of a JSON array cannot tell
+     * where one URL ends, so a marker hit with no following `/` runs on into the *next* entry and
+     * yields debris. A deep listing never produces that; a shallow one can.
      */
-    private suspend fun listAllPaths(prefix: String): List<String> {
-        val seen = linkedSetOf<String>()
-        var cursor: String? = null
-        var more = true
-        while (more) {
-            val payload = pubky.list(prefix, cursor = cursor, limit = LIST_PAGE_SIZE).getOrNull()
-            val page = payload?.let(::parsePubkyUrlsFromList).orEmpty()
-            // `seen.addAll` returning false means the page added nothing new: the server is
-            // repeating itself, so stop rather than loop forever against a homeserver that
-            // ignores the cursor. A short page means we reached the end.
-            val addedSomething = page.isNotEmpty() && seen.addAll(page)
-            more = addedSomething && page.size >= LIST_PAGE_SIZE.toInt()
-            cursor = page.lastOrNull()
-        }
-        return seen.toList()
-    }
-
-    /** The FFI `list` payload is a JSON array of `pubky://…` URL strings. */
-    private fun parsePubkyUrlsFromList(payload: String): List<String> =
-        runCatching { loopkyJson.decodeFromString<List<String>>(payload) }
-            .getOrDefault(emptyList())
-            .filter { it.startsWith("pubky://") }
-
-    private fun parseDeckIdsFromList(payload: String): List<String> {
+    private fun parseDeckIdsFrom(entries: List<String>): List<String> {
         val marker = "/${PubkyPaths.APP_NAMESPACE}/decks/"
-        val ids = linkedSetOf<String>()
-        var index = 0
-        while (true) {
-            val hit = payload.indexOf(marker, index)
-            if (hit == -1) break
-            val start = hit + marker.length
-            val end = payload.indexOf('/', start).let { if (it == -1) payload.length else it }
-            if (end > start) ids.add(payload.substring(start, end))
-            index = end
-        }
-        return ids.toList()
+        return entries.mapNotNullTo(linkedSetOf()) { entry ->
+            entry.substringAfter(marker, missingDelimiterValue = "")
+                .substringBefore('/')
+                .takeIf { it.isNotEmpty() }
+        }.toList()
     }
 
     private companion object {
@@ -1026,9 +1006,6 @@ class DeckRepositoryImpl(
 
         /** Room for a burst of mutations while a collector is mid-reload; oldest is dropped. */
         const val CHANGE_BUFFER = 8
-
-        /** Entries per `list()` page. Paging behaviour on large directories is unverified (§8.4). */
-        const val LIST_PAGE_SIZE: UShort = 200u
 
         /**
          * In-flight deletes during a deck sweep. Half [MAX_IN_FLIGHT], because a sweep is a far

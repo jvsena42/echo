@@ -44,10 +44,33 @@ class FakePubkyClient : PubkyClient {
     var failListWith: Throwable? = null
 
     /**
-     * Entries returned per [list] call, so tests can force the caller to page. Real homeservers
-     * cap this; nothing in the app paged until the delete sweep needed to.
+     * Hard cap on entries per [list] call, overriding what the caller asked for. For tests that
+     * need to force paging with a handful of records rather than hundreds.
      */
     var listPageSize: Int? = null
+
+    /**
+     * What the homeserver returns when the caller sends no `limit` — its `DEFAULT_LIST_LIMIT`.
+     *
+     * Modelling this is the point: the fake used to answer an unpaged call with *everything*,
+     * which let a listing that never paged pass every test and then lose whole decks on device.
+     */
+    var defaultListLimit: Int = 100
+
+    /** The homeserver's `DEFAULT_MAX_LIST_LIMIT`: a larger `limit` is clamped to it. */
+    var maxListLimit: Int = 1000
+
+    /**
+     * Whether [list] honours `shallow` by collapsing to one entry per first-level child. Set false
+     * to model a homeserver that ignores the flag, which the paging fallback has to survive.
+     */
+    var honoursShallow: Boolean = true
+
+    /** When set, [list] succeeds this many times and fails afterwards, as a mid-listing drop would. */
+    var failListAfterPages: Int? = null
+
+    /** Every [list] call, with the arguments it was made with. */
+    val listCalls = mutableListOf<ListCall>()
 
     /** When set, every [get] call fails with this error (simulates an unreachable homeserver). */
     var failGetWith: Throwable? = null
@@ -122,13 +145,40 @@ class FakePubkyClient : PubkyClient {
         shallow: Boolean?,
     ): Result<String> {
         listedPrefixes.add(url)
+        listCalls.add(ListCall(url, cursor, limit, shallow))
         failListWith?.let { return Result.failure(it) }
-        var matches = store.keys.filter { it.startsWith(url) }.sorted()
+        failListAfterPages?.let { allowed ->
+            if (listCalls.size > allowed) return Result.failure(PubkyError("HTTP transport error: list page failed"))
+        }
+        // Mirrors the homeserver's own order: collapse first, then cursor, then limit.
+        var matches = store.keys.filter { it.startsWith(url) }
+        matches = if (shallow == true && honoursShallow) collapseToChildren(url, matches) else matches
+        matches = matches.distinct().sorted()
         if (cursor != null) matches = matches.filter { it > cursor }
-        val cap = listOfNotNull(listPageSize, limit?.toInt()).minOrNull()
-        if (cap != null) matches = matches.take(cap)
+        // `limit.unwrap_or(DEFAULT_LIST_LIMIT).min(DEFAULT_MAX_LIST_LIMIT)`, as the server does.
+        val cap = listPageSize ?: (limit?.toInt() ?: defaultListLimit).coerceAtMost(maxListLimit)
+        matches = matches.take(cap)
         return Result.success(matches.joinToString(",", "[", "]") { "\"$it\"" })
     }
+
+    /**
+     * One entry per first-level child of [prefix], as the homeserver's `list_shallow` does: a
+     * directory keeps its trailing slash, a file directly under the prefix is returned as-is.
+     */
+    private fun collapseToChildren(prefix: String, paths: List<String>): List<String> =
+        paths.map { path ->
+            val rest = path.removePrefix(prefix)
+            val slash = rest.indexOf('/')
+            if (slash == -1) path else prefix + rest.substring(0, slash + 1)
+        }
+
+    /** One [list] call, so a test can assert what was asked for and not only which prefix. */
+    data class ListCall(
+        val url: String,
+        val cursor: String?,
+        val limit: UShort?,
+        val shallow: Boolean?,
+    )
 
     override fun createTagId(uri: String, label: String): Result<String> =
         Result.success("TAGID-" + (uri + label).hashCode().toUInt().toString(16))
