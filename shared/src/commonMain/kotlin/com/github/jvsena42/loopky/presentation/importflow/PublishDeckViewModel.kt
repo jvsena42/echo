@@ -21,6 +21,7 @@ import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ReservedTags
+import com.github.jvsena42.loopky.domain.model.SpeechLanguages
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.presentation.share.DeckSharePrompt
@@ -105,11 +106,19 @@ class PublishDeckViewModel(
     }
 
     fun onToggleListen() {
-        _state.update { it.copy(listenEnabled = !it.listenEnabled) }
+        _state.update { it.copy(listenEnabled = !it.listenEnabled, languagesError = null) }
     }
 
     fun onToggleSpeak() {
-        _state.update { it.copy(speakEnabled = !it.speakEnabled) }
+        _state.update { it.copy(speakEnabled = !it.speakEnabled, languagesError = null) }
+    }
+
+    fun onFrontLangSelected(tag: String) {
+        _state.update { it.copy(frontLang = tag, languagesError = null) }
+    }
+
+    fun onBackLangSelected(tag: String) {
+        _state.update { it.copy(backLang = tag, languagesError = null) }
     }
 
     /** A web (Unsplash) cover image was chosen — saved by URL, no upload. */
@@ -274,6 +283,8 @@ class PublishDeckViewModel(
         source = DeckSource(kind = DeckSource.Kind.Import, importedAt = now),
         listenEnabled = listenEnabled,
         speakEnabled = speakEnabled,
+        frontLang = frontLang,
+        backLang = backLang,
     )
 
     /**
@@ -545,12 +556,24 @@ class PublishDeckViewModel(
             else -> titleErrorFor(s.title)
         }
         val descriptionError = descriptionErrorFor(s.description)
-        if (titleError != null || descriptionError != null) {
-            _state.update { it.copy(titleError = titleError, descriptionError = descriptionError) }
+        // Publishing listen/speak without the pair ships a deck whose audio is wrong on every
+        // device but this one, so it is refused rather than defaulted from the device locale.
+        val languagesError = languagesErrorFor(s)
+        if (titleError != null || descriptionError != null || languagesError != null) {
+            _state.update {
+                it.copy(
+                    titleError = titleError,
+                    descriptionError = descriptionError,
+                    languagesError = languagesError,
+                )
+            }
             return false
         }
         return true
     }
+
+    private fun languagesErrorFor(s: PublishDeckUiState): FormError? =
+        if (s.speechLanguagesMissing) FormError.LanguagesRequired else null
 
     private fun titleErrorFor(text: String): FormError? =
         if (text.length > DeckLimits.TITLE_MAX_LENGTH) FormError.TitleTooLong else null
@@ -589,8 +612,18 @@ data class PublishDeckUiState(
     val undoSecondsRemaining: Int = 0,
     /** Set once the undo window resolves, when the user has not opted out of being asked (#39). */
     val sharePrompt: DeckSharePrompt? = null,
-    val listenEnabled: Boolean = true,
-    val speakEnabled: Boolean = true,
+    /**
+     * Off until asked for, because turning either on now obliges the author to say what language
+     * each side is in. Defaulting them on would put that choice in front of everyone importing a
+     * deck, and the old default only looked free because the features quietly used the author's
+     * own locale.
+     */
+    val listenEnabled: Boolean = false,
+    val speakEnabled: Boolean = false,
+    /** BCP-47 tags for the two card sides; required once either opt-in above is on. */
+    val frontLang: String? = null,
+    val backLang: String? = null,
+    val languagesError: FormError? = null,
     val coverImageUrl: String? = null,
     val coverPendingBytes: ByteArray? = null,
     val coverPendingMime: String? = null,
@@ -598,9 +631,13 @@ data class PublishDeckUiState(
     val descriptionError: FormError? = null,
     val error: PublishError? = null,
 ) {
+    /** Listen or Speak is on, but the deck cannot yet say what language to use. */
+    val speechLanguagesMissing: Boolean
+        get() = SpeechLanguages.isPairMissing(listenEnabled, speakEnabled, frontLang, backLang)
+
     val canPublish: Boolean
         get() = title.isNotBlank() && titleError == null && descriptionError == null &&
-            !isPublishing && !isCancelling
+            !isPublishing && !isCancelling && !speechLanguagesMissing
 }
 
 /**

@@ -21,4 +21,18 @@ object SpeechLanguages {
         "nb-NO", "nl-NL", "pl-PL", "pt-BR", "pt-PT", "ro-RO", "ru-RU", "sk-SK", "sv-SE", "th-TH",
         "tr-TR", "uk-UA", "vi-VN", "zh-CN", "zh-TW",
     )
+
+    /**
+     * Whether a deck being authored has an audio opt-in on but has not said what language each
+     * side is in — the one rule the publish flow and the deck editor both validate before writing.
+     *
+     * Kept here rather than duplicated in the two ViewModels so the two screens cannot drift into
+     * disagreeing about when a deck may declare Listen or Speak.
+     */
+    fun isPairMissing(
+        listenEnabled: Boolean,
+        speakEnabled: Boolean,
+        frontLang: String?,
+        backLang: String?,
+    ): Boolean = (listenEnabled || speakEnabled) && (frontLang == null || backLang == null)
 }

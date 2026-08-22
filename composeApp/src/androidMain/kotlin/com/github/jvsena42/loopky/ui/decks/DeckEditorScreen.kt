@@ -85,22 +85,28 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.DeckLimits
+import com.github.jvsena42.loopky.domain.model.SpeechLanguages
+import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorEffect
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorUiState
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditableCardModel
 import com.github.jvsena42.loopky.ui.components.AddTagSheet
 import com.github.jvsena42.loopky.ui.components.CharacterCounter
+import com.github.jvsena42.loopky.ui.components.DeckSpeechOptions
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.ReorderableListState
 import com.github.jvsena42.loopky.ui.components.SharePromptDialog
 import com.github.jvsena42.loopky.ui.components.TagChip
+import com.github.jvsena42.loopky.ui.components.formErrorMessage
 import com.github.jvsena42.loopky.ui.components.rememberReorderableListState
 import com.github.jvsena42.loopky.ui.components.reorderableHandle
+import com.github.jvsena42.loopky.ui.components.speechLanguageOptions
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.toast
 import kotlinx.coroutines.flow.collectLatest
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -121,6 +127,9 @@ fun DeckEditorRoute(
     onOpenSettings: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<DeckEditorViewModel> { parametersOf(deckId) }
+    // Offer the languages this device can actually voice, so the author is not choosing
+    // one their own Listen button cannot honour.
+    val speaker = koinInject<Speaker>()
 
     val currentBack by rememberUpdatedState(onBack)
     val currentEditCard by rememberUpdatedState(onEditCard)
@@ -154,6 +163,11 @@ fun DeckEditorRoute(
         onDescriptionChanged = viewModel::onDescriptionChanged,
         onRemoveTag = viewModel::onRemoveTag,
         onAddTag = viewModel::onAddTag,
+        onToggleListen = viewModel::onToggleListen,
+        onToggleSpeak = viewModel::onToggleSpeak,
+        onFrontLangSelected = viewModel::onFrontLangSelected,
+        onBackLangSelected = viewModel::onBackLangSelected,
+        availableLanguages = speechLanguageOptions(speaker.availableLanguages()),
         onCardClick = viewModel::onCardClick,
         onAddCard = viewModel::onAddCard,
         onMoveCard = viewModel::onMoveCard,
@@ -185,6 +199,11 @@ fun DeckEditorScreen(
     onDescriptionChanged: (String) -> Unit,
     onRemoveTag: (String) -> Unit,
     onAddTag: (String) -> Unit,
+    onToggleListen: () -> Unit,
+    onToggleSpeak: () -> Unit,
+    onFrontLangSelected: (String) -> Unit,
+    onBackLangSelected: (String) -> Unit,
+    availableLanguages: List<String>,
     onCardClick: (String) -> Unit,
     onAddCard: () -> Unit,
     onMoveCard: (Int, Int) -> Unit,
@@ -353,7 +372,20 @@ fun DeckEditorScreen(
                 )
             }
 
-            // 2. Cards section header — the deck's count, not the loaded page's.
+            // 2. Listen/Speak and the languages they need. Editable here and not only at publish:
+            // a deck published before the pair existed offers neither until it is set.
+            item(key = "speech_options") {
+                DeckSpeechSection(
+                    state = state,
+                    availableLanguages = availableLanguages,
+                    onToggleListen = onToggleListen,
+                    onToggleSpeak = onToggleSpeak,
+                    onFrontLangSelected = onFrontLangSelected,
+                    onBackLangSelected = onBackLangSelected,
+                )
+            }
+
+            // 3. Cards section header — the deck's count, not the loaded page's.
             item(key = "cards_header") {
                 Text(
                     text = stringResource(R.string.deck_editor_cards_count, state.totalCards),
@@ -531,6 +563,34 @@ private fun MoveCardDialog(
         },
         containerColor = colors.surfaceCard,
     )
+}
+
+@Composable
+private fun DeckSpeechSection(
+    state: DeckEditorUiState,
+    availableLanguages: List<String>,
+    onToggleListen: () -> Unit,
+    onToggleSpeak: () -> Unit,
+    onFrontLangSelected: (String) -> Unit,
+    onBackLangSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
+        DeckSpeechOptions(
+            listenEnabled = state.listenEnabled,
+            speakEnabled = state.speakEnabled,
+            frontLang = state.frontLang,
+            backLang = state.backLang,
+            availableLanguages = availableLanguages,
+            onToggleListen = onToggleListen,
+            onToggleSpeak = onToggleSpeak,
+            onFrontLangSelected = onFrontLangSelected,
+            onBackLangSelected = onBackLangSelected,
+        )
+        state.languagesError?.let {
+            Text(formErrorMessage(it), fontSize = 12.sp, color = LoopkyTheme.colors.danger)
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -942,6 +1002,11 @@ private fun DeckEditorScreenPreview() {
             onDescriptionChanged = {},
             onRemoveTag = {},
             onAddTag = {},
+            onToggleListen = {},
+            onToggleSpeak = {},
+            onFrontLangSelected = {},
+            onBackLangSelected = {},
+            availableLanguages = SpeechLanguages.COMMON,
             onCardClick = {},
             onMoveCard = { _, _ -> },
             onLoadMoreCards = {},

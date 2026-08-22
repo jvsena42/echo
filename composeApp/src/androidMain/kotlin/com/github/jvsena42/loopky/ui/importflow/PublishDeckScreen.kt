@@ -28,17 +28,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,9 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -70,11 +64,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.DeckLimits
+import com.github.jvsena42.loopky.domain.model.SpeechLanguages
+import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckEffect
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckUiState
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.loopky.ui.components.AddTagSheet
 import com.github.jvsena42.loopky.ui.components.CharacterCounter
+import com.github.jvsena42.loopky.ui.components.DeckSpeechOptions
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.LoopkyOutlinedButton
@@ -84,9 +81,11 @@ import com.github.jvsena42.loopky.ui.components.SharePromptBody
 import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.components.formErrorMessage
 import com.github.jvsena42.loopky.ui.components.publishErrorMessage
+import com.github.jvsena42.loopky.ui.components.speechLanguageOptions
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.toast
 import kotlinx.coroutines.flow.collectLatest
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -97,6 +96,9 @@ fun PublishDeckRoute(
     onOpenSettings: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<PublishDeckViewModel>()
+    // Offer the languages this device can actually voice, so the author is not choosing
+    // one their own Listen button cannot honour.
+    val speaker = koinInject<Speaker>()
 
     val currentBack by rememberUpdatedState(onBack)
     val currentPublished by rememberUpdatedState(onPublished)
@@ -122,6 +124,9 @@ fun PublishDeckRoute(
         onRemoveTag = viewModel::onRemoveTag,
         onToggleListen = viewModel::onToggleListen,
         onToggleSpeak = viewModel::onToggleSpeak,
+        onFrontLangSelected = viewModel::onFrontLangSelected,
+        onBackLangSelected = viewModel::onBackLangSelected,
+        availableLanguages = speechLanguageOptions(speaker.availableLanguages()),
         onCoverWebSelected = viewModel::onCoverWebSelected,
         onCoverGallerySelected = viewModel::onCoverGallerySelected,
         onPublishClick = viewModel::onPublishClick,
@@ -147,6 +152,9 @@ private fun PublishDeckScreen(
     onRemoveTag: (String) -> Unit,
     onToggleListen: () -> Unit,
     onToggleSpeak: () -> Unit,
+    onFrontLangSelected: (String) -> Unit,
+    onBackLangSelected: (String) -> Unit,
+    availableLanguages: List<String>,
     onCoverWebSelected: (String) -> Unit,
     onCoverGallerySelected: (ByteArray, String) -> Unit,
     onPublishClick: () -> Unit,
@@ -496,35 +504,20 @@ private fun PublishDeckScreen(
                 }
             }
 
-            // Card options (Listen / Speak)
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    stringResource(R.string.publish_card_options_label),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp,
-                    color = colors.foregroundMuted,
-                )
-                OptionToggleRow(
-                    title = stringResource(R.string.publish_listen_title),
-                    subtitle = stringResource(R.string.publish_listen_subtitle),
-                    checked = state.listenEnabled,
-                    onToggle = onToggleListen,
-                    testTag = "publish_listen_toggle",
-                    icon = Icons.AutoMirrored.Filled.VolumeUp,
-                    iconColor = colors.accentPrimary,
-                    iconBackground = colors.accentPrimarySoft,
-                )
-                OptionToggleRow(
-                    title = stringResource(R.string.publish_speak_title),
-                    subtitle = stringResource(R.string.publish_speak_subtitle),
-                    checked = state.speakEnabled,
-                    onToggle = onToggleSpeak,
-                    testTag = "publish_speak_toggle",
-                    icon = Icons.Default.Mic,
-                    iconColor = colors.accentSecondary,
-                    iconBackground = colors.accentSecondarySoft,
-                )
+            // Card options (Listen / Speak, and the languages they need)
+            DeckSpeechOptions(
+                listenEnabled = state.listenEnabled,
+                speakEnabled = state.speakEnabled,
+                frontLang = state.frontLang,
+                backLang = state.backLang,
+                availableLanguages = availableLanguages,
+                onToggleListen = onToggleListen,
+                onToggleSpeak = onToggleSpeak,
+                onFrontLangSelected = onFrontLangSelected,
+                onBackLangSelected = onBackLangSelected,
+            )
+            state.languagesError?.let {
+                Text(formErrorMessage(it), fontSize = 12.sp, color = colors.danger)
             }
 
             // Public on Pubky notice
@@ -622,54 +615,6 @@ private fun PublishDeckScreen(
                 }
                 showCoverSheet = false
             },
-        )
-    }
-}
-
-@Composable
-private fun OptionToggleRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onToggle: () -> Unit,
-    testTag: String,
-    icon: ImageVector,
-    iconColor: Color,
-    iconBackground: Color,
-) {
-    val colors = LoopkyTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
-            .background(colors.surfaceCard)
-            .padding(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(iconBackground),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, null, tint = iconColor, modifier = Modifier.size(18.dp))
-        }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.foregroundPrimary)
-            Text(subtitle, fontSize = 12.sp, color = colors.foregroundSecondary)
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = { onToggle() },
-            modifier = Modifier.testTag(testTag),
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = colors.foregroundOnAccent,
-                checkedTrackColor = colors.accentPrimary,
-                uncheckedTrackColor = colors.borderSubtle,
-            ),
         )
     }
 }
@@ -907,6 +852,9 @@ private fun PublishDeckScreenPreview() {
             onShareDismiss = {},
             onShareNeverAsk = {},
             onBackClick = {},
+            onFrontLangSelected = {},
+            onBackLangSelected = {},
+            availableLanguages = SpeechLanguages.COMMON,
         )
     }
 }
@@ -940,6 +888,9 @@ private fun PublishDeckPublishingPreview() {
             onShareDismiss = {},
             onShareNeverAsk = {},
             onBackClick = {},
+            onFrontLangSelected = {},
+            onBackLangSelected = {},
+            availableLanguages = SpeechLanguages.COMMON,
         )
     }
 }

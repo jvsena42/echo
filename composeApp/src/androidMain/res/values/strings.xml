@@ -220,6 +220,11 @@
     <string name="publish_listen_subtitle">Play audio pronunciation on card back</string>
     <string name="publish_speak_title">Speak</string>
     <string name="publish_speak_subtitle">Test your pronunciation</string>
+    <string name="deck_languages_hint">Listen and Speak need to know what language each side is in, or the phone reads the card in your own accent.</string>
+    <string name="deck_front_language_label">Front language</string>
+    <string name="deck_back_language_label">Back language</string>
+    <string name="deck_language_unset">Choose a language</string>
+    <string name="deck_languages_required">Pick a front and back language to use Listen or Speak.</string>
     <string name="publish_cover_sheet_title">Cover image</string>
 
     <!-- Triage / Review cards -->

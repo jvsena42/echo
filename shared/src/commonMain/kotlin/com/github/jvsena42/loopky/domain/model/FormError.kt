@@ -16,4 +16,11 @@ enum class FormError {
      */
     CardSideRequired,
     CardTextTooLong,
+
+    /**
+     * Listen or Speak is on but the deck has not said what language each side is in. Required
+     * rather than defaulted: the OS engines fall back to the *reader's* locale, so a guess here
+     * mispronounces the card on every device but the author's. See [Deck.speechReady].
+     */
+    LanguagesRequired,
 }

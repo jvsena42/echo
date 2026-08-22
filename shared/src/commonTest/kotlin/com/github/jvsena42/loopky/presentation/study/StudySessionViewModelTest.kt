@@ -10,6 +10,8 @@ import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -58,6 +60,17 @@ class StudySessionViewModelTest {
         srsRepo.due = listOf(
             testCard("c1", front = "hola", back = "hello"),
             testCard("c2", front = "gracias", back = "thank you"),
+        )
+    }
+
+    /** A deck that has declared its pair, so Listen and Speak are actually on offer. */
+    private suspend fun seedSpeechDeck() {
+        seedDeck()
+        deckRepo.decks["deck1"] = testDeck(
+            id = "deck1",
+            title = "Spanish",
+            frontLang = "es-ES",
+            backLang = "en-US",
         )
     }
 
@@ -308,5 +321,105 @@ class StudySessionViewModelTest {
 
         val complete = assertIs<StudySessionUiState.Complete>(vm.state.value)
         assertEquals(expected = 1_234L, actual = complete.nextDueAtMillis)
+    }
+
+    // ── listen / speak ───────────────────────────────────────────────────
+
+    @Test
+    fun listenReadsTheFacingSideInThatSidesLanguage() = runTest {
+        // The two sides of a vocabulary card are routinely different languages, so the tag has to
+        // follow the flip rather than being fixed per deck.
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<StudySessionEffect>()
+        val job = launch { vm.effects.toList(effects) }
+
+        vm.onSpeak()
+        advanceUntilIdle()
+        assertEquals(StudySessionEffect.Speak("hola", "es-ES"), effects.single())
+
+        vm.onReveal()
+        vm.onSpeak()
+        advanceUntilIdle()
+        assertEquals(StudySessionEffect.Speak("hello", "en-US"), effects.last())
+
+        job.cancel()
+    }
+
+    @Test
+    fun speakPracticeListensInTheBackLanguage() = runTest {
+        // The target is always the card back, so an en-US model would be grading Spanish speech.
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<StudySessionEffect>()
+        val job = launch { vm.effects.toList(effects) }
+
+        vm.onReveal()
+        advanceUntilIdle()
+        vm.onSpeakTest()
+        advanceUntilIdle()
+
+        assertEquals(
+            StudySessionEffect.StartSpeechRecognition("hello", "en-US"),
+            effects.single(),
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun aDeckWithNoDeclaredPairOffersNeitherFeature() = runTest {
+        // testDeck leaves the languages unset, which is what every deck published before they
+        // existed looks like. The opt-ins default true, so only speechReady stops them.
+        seedDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertFalse(state.listenEnabled, "Listen was offered with no language to read in")
+        assertFalse(state.speakEnabled, "Speak was offered with no language to listen for")
+    }
+
+    @Test
+    fun withoutALanguageNeitherActionEmitsAnything() = runTest {
+        // Gated on the action, not only in the UI: otherwise the engine falls back to the
+        // reader's own locale and mispronounces the card.
+        seedDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<StudySessionEffect>()
+        val job = launch { vm.effects.toList(effects) }
+
+        vm.onSpeak()
+        vm.onReveal()
+        advanceUntilIdle()
+        vm.onSpeak()
+        vm.onSpeakTest()
+        vm.onSpeakRetry()
+        advanceUntilIdle()
+
+        assertEquals(emptyList(), effects)
+        job.cancel()
+    }
+
+    @Test
+    fun anOptedOutDeckStaysOptedOutEvenWithLanguages() = runTest {
+        seedDeck()
+        deckRepo.decks["deck1"] = testDeck(
+            id = "deck1",
+            title = "Spanish",
+            frontLang = "es-ES",
+            backLang = "en-US",
+        ).copy(listenEnabled = false, speakEnabled = false)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertFalse(state.listenEnabled)
+        assertFalse(state.speakEnabled)
     }
 }

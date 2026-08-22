@@ -54,12 +54,14 @@ class AndroidSpeaker(context: Context) : Speaker {
         }
     }
 
-    override fun availableLanguages(): List<String> =
-        if (!ready) emptyList() else runCatching { tts.availableLanguages }
+    override fun availableLanguages(): List<String> {
+        if (!ready) return emptyList()
+        return runCatching { tts.availableLanguages }
             .getOrNull()
             .orEmpty()
             .map { it.toLanguageTag() }
             .sorted()
+    }
 
     private data class Utterance(val text: String, val languageTag: String)
 

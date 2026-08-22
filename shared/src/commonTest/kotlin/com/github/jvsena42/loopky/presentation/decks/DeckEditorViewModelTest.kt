@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.ChunkMeta
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
+import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ordForIndex
 import com.github.jvsena42.loopky.testing.CardMove
@@ -572,5 +573,72 @@ class DeckEditorViewModelTest {
 
         assertNull(vm.state.value.sharePrompt)
         assertIs<DeckEditorEffect.SaveSuccess>(effects.single())
+    }
+
+    // ── listen / speak languages ─────────────────────────────────────────
+
+    @Test
+    fun `a legacy deck's opt-ins read as off until it declares its languages`() =
+        runTest(mainDispatcher) {
+            // Every deck published before the pair existed looks like this: the opt-ins say on,
+            // but with nothing to read in, study offers neither. Showing them on would misreport
+            // what the deck does today.
+            deckRepo.decks["deck1"] = testDeck(id = "deck1", authorPubky = TEST_PUBKY)
+            val vm = viewModel()
+            advanceUntilIdle()
+
+            assertFalse(vm.state.value.listenEnabled)
+            assertFalse(vm.state.value.speakEnabled)
+        }
+
+    @Test
+    fun `an existing deck's languages load into the editor`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(
+            id = "deck1",
+            authorPubky = TEST_PUBKY,
+            frontLang = "en-US",
+            backLang = "es-ES",
+        )
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals("en-US", vm.state.value.frontLang)
+        assertEquals("es-ES", vm.state.value.backLang)
+        assertTrue(vm.state.value.listenEnabled)
+    }
+
+    @Test
+    fun `turning on listen without languages blocks the save`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", authorPubky = TEST_PUBKY)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onTitleChanged("Renamed")
+        vm.onToggleListen()
+        vm.onSaveClick()
+        advanceUntilIdle()
+
+        assertEquals(FormError.LanguagesRequired, vm.state.value.languagesError)
+        assertEquals("Deck deck1", deckRepo.decks.getValue("deck1").title, "the save went through")
+    }
+
+    @Test
+    fun `the editor is where a legacy deck gets its languages`() = runTest(mainDispatcher) {
+        // The whole point of putting these controls here: a published deck could not change its
+        // opt-ins at all before, so without this there is no way to fix one.
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", authorPubky = TEST_PUBKY)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onToggleListen()
+        vm.onFrontLangSelected("en-US")
+        vm.onBackLangSelected("es-ES")
+        vm.onSaveClick()
+        advanceUntilIdle()
+
+        val deck = deckRepo.decks.getValue("deck1")
+        assertTrue(deck.listenEnabled)
+        assertTrue(deck.speechReady)
+        assertEquals("es-ES", deck.backLang)
     }
 }
