@@ -144,6 +144,8 @@ fun testDeck(
     createdAt: Long = 1_000L,
     updatedAt: Long = 2_000L,
     coverImageRef: MediaRef.Image? = null,
+    frontLang: String? = null,
+    backLang: String? = null,
 ): Deck = Deck(
     id = id,
     authorPubky = authorPubky,
@@ -156,6 +158,8 @@ fun testDeck(
     updatedAt = updatedAt,
     cardCount = cardCount,
     chunks = chunks,
+    frontLang = frontLang,
+    backLang = backLang,
 )
 
 /**

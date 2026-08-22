@@ -78,6 +78,63 @@ class DeckRepositoryTagSyncTest {
     }
 
     @Test
+    fun publishIndexesTheDeckUnderEachDeclaredLanguage() = runTest {
+        // The pair is what makes a deck findable by strangers learning that language (#40).
+        val deck = testDeck(id = "deck1", frontLang = "en-US", backLang = "es-ES")
+
+        repo.publish(deck, listOf(testCard("c1"))).getOrThrow()
+
+        assertTrue(deck.pubkyUri to ReservedTags.language("en") in tagRepo.putReservedTags)
+        assertTrue(deck.pubkyUri to ReservedTags.language("es") in tagRepo.putReservedTags)
+    }
+
+    @Test
+    fun aSingleLanguageDeckIsIndexedOnce() = runTest {
+        // Region varies the voice, never the index — es-ES and es-MX are both just Spanish.
+        val deck = testDeck(id = "deck1", frontLang = "es-ES", backLang = "es-MX")
+
+        repo.publish(deck, listOf(testCard("c1"))).getOrThrow()
+
+        assertEquals(
+            listOf(ReservedTags.language("es")),
+            tagRepo.putReservedTags.map { it.second }.filter(ReservedTags::isLanguage).distinct(),
+        )
+    }
+
+    @Test
+    fun aDeckWithNoDeclaredPairIsNotIndexedByLanguage() = runTest {
+        repo.publish(testDeck(id = "deck1"), listOf(testCard("c1"))).getOrThrow()
+
+        assertEquals(emptyList(), tagRepo.putReservedTags.filter { ReservedTags.isLanguage(it.second) })
+    }
+
+    @Test
+    fun retypingADeckDropsTheLanguageItNoLongerIs() = runTest {
+        val deck = testDeck(id = "deck1", frontLang = "en-US", backLang = "es-ES")
+        repo.publish(deck, listOf(testCard("c1"))).getOrThrow()
+
+        repo.updateMetadata(deck.copy(backLang = "fr-FR")).getOrThrow()
+
+        // Left behind, the stale label keeps the deck listed as Spanish forever.
+        assertEquals(
+            listOf(deck.pubkyUri to ReservedTags.language("es")),
+            tagRepo.removedReservedTags,
+        )
+        assertTrue(deck.pubkyUri to ReservedTags.language("fr") in tagRepo.putReservedTags)
+    }
+
+    @Test
+    fun aFailedLanguageTagWriteStillSavesTheDeck() = runTest {
+        val deck = repo.publish(
+            testDeck(id = "deck1", frontLang = "en-US", backLang = "es-ES"),
+            listOf(testCard("c1")),
+        ).getOrThrow()
+        tagRepo.failWith = IllegalStateException("homeserver refused the tag")
+
+        assertTrue(repo.updateMetadata(deck.copy(title = "Renamed")).isSuccess)
+    }
+
+    @Test
     fun republishingDropsTheTagRecordsThatFellAway() = runTest {
         val deck = testDeck(id = "deck1", tags = listOf(Tag("spanish"), Tag("language")))
         repo.publish(deck, listOf(testCard("c1"))).getOrThrow()

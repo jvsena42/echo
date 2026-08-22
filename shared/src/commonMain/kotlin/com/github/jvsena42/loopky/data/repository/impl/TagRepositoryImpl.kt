@@ -196,7 +196,8 @@ private fun rejectReserved(tag: Tag): Result<Unit> =
     }
 
 private fun requireReserved(tag: Tag): Result<Unit> =
-    if (tag in ReservedTags.ALL) {
+    // The language family is open-ended (one label per language), so it cannot live in ALL.
+    if (tag in ReservedTags.ALL || ReservedTags.isLanguage(tag)) {
         Result.success(Unit)
     } else {
         Result.failure(
