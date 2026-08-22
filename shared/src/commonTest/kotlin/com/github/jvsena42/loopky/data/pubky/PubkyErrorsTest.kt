@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.data.pubky
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 class PubkyErrorsTest {
 
@@ -50,6 +51,35 @@ class PubkyErrorsTest {
         )
 
         assertEquals(ErrorReason.Offline, offline.toErrorReason())
+    }
+
+    @Test
+    fun aRateLimitedSessionImportIsServerBusyNotAnExpiry() {
+        // Seen on device deleting a deck: it fires one session-authenticated delete per record,
+        // the homeserver 429s the session import, and the FFI wraps it in wording carrying both
+        // "session" and "import". Reading that as an expiry did more than mislabel it — the retry
+        // loop answers an expiry by revalidating, which is itself a homeserver call, so it hit the
+        // same rate limit and gave up instead of backing off. The deck stayed put and the user was
+        // told their session had expired.
+        val limited = PubkyError(
+            "Failed to import session: Request failed: Server responded with an error: " +
+                "429 Too Many Requests - Rate limit exceeded",
+        )
+
+        assertFalse(limited.isSessionExpired())
+        // ServerBusy, not Offline: the homeserver answered, so telling the user to check their
+        // connection points them at the one thing that is definitely working.
+        assertEquals(ErrorReason.ServerBusy, limited.toErrorReason())
+    }
+
+    @Test
+    fun aQuotaFailureDuringSessionImportIsStorageFullNotAnExpiry() {
+        // Same wording trap as the 429, but terminal: routing it through revalidate() would spend
+        // a round trip to reach the same answer, and "sign in again" does not free any disk.
+        val full = PubkyError("Failed to import session: 507 Insufficient Storage")
+
+        assertFalse(full.isSessionExpired())
+        assertEquals(ErrorReason.StorageFull, full.toErrorReason())
     }
 
     @Test

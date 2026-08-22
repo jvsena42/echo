@@ -25,6 +25,7 @@ fun errorTitle(reason: ErrorReason): String = stringResource(
         ErrorReason.RingNotInstalled -> R.string.error_ring_not_installed_title
         ErrorReason.AuthFailed -> R.string.error_auth_failed_title
         ErrorReason.AuthRelayUnreachable -> R.string.error_auth_relay_title
+        ErrorReason.ServerBusy -> R.string.error_server_busy_title
         ErrorReason.StorageFull -> R.string.error_storage_full_title
         ErrorReason.Unknown -> R.string.error_generic_title
     },
@@ -41,6 +42,7 @@ fun errorMessage(reason: ErrorReason): String = stringResource(
         ErrorReason.RingNotInstalled -> R.string.error_ring_not_installed_message
         ErrorReason.AuthFailed -> R.string.error_auth_failed_message
         ErrorReason.AuthRelayUnreachable -> R.string.error_auth_relay_message
+        ErrorReason.ServerBusy -> R.string.error_server_busy_message
         ErrorReason.StorageFull -> R.string.error_storage_full_message
         ErrorReason.Unknown -> R.string.error_generic_message
     },

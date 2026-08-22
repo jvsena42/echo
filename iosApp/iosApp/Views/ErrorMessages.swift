@@ -37,6 +37,11 @@ enum ErrorCopy {
                 "Sign-in couldn't reach Pubky",
                 comment: "Error title: auth relay unreachable"
             )
+        case .serverBusy:
+            return NSLocalizedString(
+                "Your homeserver is busy",
+                comment: "Error title: homeserver rate-limiting"
+            )
         case .storageFull:
             return NSLocalizedString(
                 "Your Pubky storage is full",
@@ -98,6 +103,14 @@ enum ErrorCopy {
                 "Loopky signs you in through Pubky's authorisation relay, and it isn't "
                     + "responding. Try again in a moment.",
                 comment: "Error message: auth relay unreachable"
+            )
+        case .serverBusy:
+            // Not "you're offline": the homeserver answered, so the connection is fine and
+            // sending the user to check it points them at something that is not broken.
+            return NSLocalizedString(
+                "Your homeserver is rate-limiting Loopky, so this couldn't be finished. "
+                    + "Nothing is wrong with your connection — wait a moment and try again.",
+                comment: "Error message: homeserver rate-limiting"
             )
         case .storageFull:
             // Not "please try again" — a retry against a full quota is the one thing that cannot
