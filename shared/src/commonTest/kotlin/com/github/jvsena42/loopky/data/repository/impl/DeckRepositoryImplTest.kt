@@ -264,6 +264,25 @@ class DeckRepositoryImplTest {
         assertNull(repo.getLocal("deck1"))
     }
 
+    @Test
+    fun deleteFinishesWhenTheManifestNamesChunksThatWereNeverWritten() = runTest {
+        // The state an import that dies part-way leaves behind, and the one the user hit: the
+        // manifest advertises chunks whose records never landed. The sweep derives paths from that
+        // manifest, so it asks the homeserver to delete records that are not there and gets a 404.
+        // Treating that as a failure abandoned the sweep before the manifest — deleted last, on
+        // purpose — so the deck kept listing, the next attempt hit the same missing record, and the
+        // deck could never be deleted.
+        val deck = testDeck(id = "deck1")
+        repo.publish(deck, listOf(testCard("c1"))).getOrThrow()
+        pubky.store.remove("$deckRoot/cards/0.json")
+
+        repo.delete("deck1").getOrThrow()
+
+        assertTrue(pubky.store.keys.none { it.startsWith(deckRoot) })
+        assertEquals("$deckRoot/manifest.json", pubky.deletes.last())
+        assertNull(repo.getLocal("deck1"))
+    }
+
     // ── listByAuthor / fetchRemote / cache ───────────────────────────────
 
     @Test

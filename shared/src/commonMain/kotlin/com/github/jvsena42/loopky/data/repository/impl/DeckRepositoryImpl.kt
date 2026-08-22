@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.data.pubky.CardChunking
+import com.github.jvsena42.loopky.data.pubky.MAX_IN_FLIGHT
 import com.github.jvsena42.loopky.data.pubky.ManifestDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
@@ -656,11 +657,13 @@ class DeckRepositoryImpl(
         // Manifest last, and on its own: a half-deleted deck without a manifest disappears from
         // listings instead of resurfacing as corrupt, so it must not be racing the rest.
         val (manifests, contents) = all.partition { it.endsWith("/manifest.json") }
-        contents.mapConcurrently { path ->
-            pubky.deleteWithSessionRetry(path, session, revalidator).getOrThrow()
-        }
+        // Narrower than the default: a sweep is longer than any publish — deleting a 9,000-card
+        // deck is ~90 records back to back — and the FFI re-imports and revalidates the session on
+        // every authenticated call, so each delete costs the homeserver several requests. At the
+        // publish width this reliably 429'd right through the retry budget and the deck survived.
+        contents.mapConcurrently(limit = SWEEP_IN_FLIGHT) { path -> deleteRecordLocked(path) }
         for (path in manifests) {
-            pubky.deleteWithSessionRetry(path, session, revalidator).getOrThrow()
+            deleteRecordLocked(path)
         }
 
         // Remove the tag records pointing at the deleted deck (best-effort). The loopky-deck
@@ -676,6 +679,27 @@ class DeckRepositoryImpl(
 
         cacheLock.withLock { cache.remove(deckId) }
         _changes.tryEmit(Unit)
+    }
+
+    /**
+     * Delete one record on the sweep, treating a 404 as done. **The caller must hold the lock.**
+     *
+     * The paths come from the cached manifest as much as from the listing, so the sweep routinely
+     * names a record that is not there: an import that died mid-upload leaves chunk entries whose
+     * records were never written, and a delete that failed part-way already removed some of them.
+     * Gone is the outcome being asked for. Throwing instead abandoned the sweep before the
+     * manifest — deleted last, deliberately — so the deck kept listing and the next attempt hit
+     * the same missing record, which is how a half-uploaded deck became undeletable. It surfaced
+     * as "this deck no longer exists" on top of a deck that very much did.
+     */
+    private suspend fun deleteRecordLocked(path: String) {
+        pubky.deleteWithSessionRetry(path, session, revalidator).getOrElse { err ->
+            if (err.isNotFound()) {
+                Log.d(TAG, "delete: $path already gone")
+            } else {
+                throw err
+            }
+        }
     }
 
     override suspend fun listOwned(): List<Deck> {
@@ -1005,5 +1029,12 @@ class DeckRepositoryImpl(
 
         /** Entries per `list()` page. Paging behaviour on large directories is unverified (§8.4). */
         const val LIST_PAGE_SIZE: UShort = 200u
+
+        /**
+         * In-flight deletes during a deck sweep. Half [MAX_IN_FLIGHT], because a sweep is a far
+         * longer run of writes than the publish that value was measured against — see the note at
+         * the call site in `deleteLocked`.
+         */
+        const val SWEEP_IN_FLIGHT = 2
     }
 }

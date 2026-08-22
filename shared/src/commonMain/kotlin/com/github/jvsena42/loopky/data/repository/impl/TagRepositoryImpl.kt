@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
 import com.github.jvsena42.loopky.data.pubky.TagDto
 import com.github.jvsena42.loopky.data.pubky.deleteWithSessionRetry
+import com.github.jvsena42.loopky.data.pubky.isNotFound
 import com.github.jvsena42.loopky.data.pubky.putWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.requireSession
 import com.github.jvsena42.loopky.data.repository.TagRepository
@@ -91,7 +92,12 @@ class TagRepositoryImpl(
         val owner = session.requireSession().identity.pubky
         val tagId = pubky.createTagId(subjectUri.value, label).getOrThrow()
         val path = recordPath(owner, subjectUri, tagId)
-        pubky.deleteWithSessionRetry(path, session, revalidator).getOrThrow()
+        // A record that is not there is the outcome being asked for, so a 404 is success — the
+        // same rule the legacy delete below has always followed. A tag written before #40 lives
+        // only at the legacy path, and failing here would report removing it as an error.
+        pubky.deleteWithSessionRetry(path, session, revalidator).getOrElse { err ->
+            if (err.isNotFound()) Log.d(TAG, "removeTag: no record at $path") else throw err
+        }
 
         // Decks were tagged in the pubky.app namespace before #40. Those records were never
         // indexed, but they are still sitting on the homeserver — clear them out as we go.
