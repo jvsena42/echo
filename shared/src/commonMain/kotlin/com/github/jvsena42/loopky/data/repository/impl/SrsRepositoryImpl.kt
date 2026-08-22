@@ -19,10 +19,17 @@ import com.github.jvsena42.loopky.data.storage.PendingReview
 import com.github.jvsena42.loopky.data.storage.PendingReviewStore
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckCounts
+import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.domain.model.isDue
+import com.github.jvsena42.loopky.domain.model.isFullyMastered
+import com.github.jvsena42.loopky.domain.model.isNew
+import com.github.jvsena42.loopky.domain.model.masteryShare
+import com.github.jvsena42.loopky.domain.model.maturityThresholdDays
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
@@ -118,7 +125,39 @@ class SrsRepositoryImpl(
      */
     override suspend fun dueToday(): List<Card> {
         if (restoreJournal()) flushAsync()
-        return studiableDecks().flatMap { dueForDeck(it.id) }
+        // Reviews from every deck before new cards from any of them, not deck-by-deck: a session
+        // that opens on material you already know earns the right to introduce new material, and
+        // interleaving by deck would put deck one's unseen cards ahead of deck two's overdue ones.
+        val queues = studiableDecks().map { queueForDeck(it.id) }
+        return queues.flatMap { it.due } + queues.flatMap { it.new }
+    }
+
+    override suspend fun countsForDeck(deckId: String): DeckCounts =
+        queueForDeck(deckId).let { DeckCounts(due = it.due.size, new = it.new.size) }
+
+    override suspend fun mastery(deckId: String, cardIds: List<String>): DeckMastery? {
+        if (cardIds.isEmpty()) return null
+        val states = statesForDeck(deckId)
+        // A cold cache would report a mature deck as 0%, which is the exact lie this replaced.
+        if (states.isEmpty() && cardIds.isNotEmpty() && !isLoadedFor(deckId)) return null
+        val threshold = StudySettings.Default.maturityThresholdDays
+        return DeckMastery(
+            share = masteryShare(cardIds, states, threshold),
+            isComplete = isFullyMastered(cardIds, states, threshold),
+        )
+    }
+
+    /** Whether this deck's review state has actually been read this session. */
+    private suspend fun isLoadedFor(deckId: String): Boolean {
+        val author = cacheLock.withLock { deckAuthors[deckId] } ?: return false
+        return cacheLock.withLock { loadedDecks.contains(author to deckId) }
+    }
+
+    override suspend fun countsToday(): Map<String, DeckCounts> {
+        if (restoreJournal()) flushAsync()
+        return studiableDecks().associate { deck ->
+            deck.id to queueForDeck(deck.id).let { DeckCounts(due = it.due.size, new = it.new.size) }
+        }
     }
 
     /** Decks you can study: the ones you own plus the ones you follow. */
@@ -133,27 +172,47 @@ class SrsRepositoryImpl(
         return (owned + followed).distinctBy { it.id }
     }
 
-    override suspend fun dueForDeck(deckId: String): List<Card> {
+    override suspend fun dueForDeck(deckId: String): List<Card> =
+        queueForDeck(deckId).let { it.due + it.new }
+
+    /** A deck's study queue, kept split so callers can count the two halves separately. */
+    private data class DeckQueue(val due: List<Card>, val new: List<Card>)
+
+    /**
+     * Builds one deck's queue: cards actually due for review, soonest first, then cards never seen,
+     * in the deck's own study order.
+     *
+     * The order is the point. A 1669-card import used to present every card as due and hand the
+     * user an unclimbable wall (#101 §7); reviews-then-new means a big deck opens on what you
+     * already know. Nothing is capped — [com.github.jvsena42.loopky.domain.model.StudySettings]'s
+     * new-cards goal is a goal, and withholding cards is exactly what it must not do.
+     */
+    private suspend fun queueForDeck(deckId: String): DeckQueue {
         // Before anything reads the cache: a journal from a previous process holds reviews newer
         // than the homeserver's, and a queue built without them would re-show cards already graded.
         // Recovered reviews are sent straight away — nothing else would, short of the user
         // starting another session and grading FLUSH_EVERY more cards.
         if (restoreJournal()) flushAsync()
         val deck = deckRepository.sync(deckId)
-            .onFailure { Log.e(TAG, "dueForDeck: sync failed for $deckId — ${it.message}", it) }
+            .onFailure { Log.e(TAG, "queueForDeck: sync failed for $deckId — ${it.message}", it) }
             .getOrNull() ?: deckRepository.getLocal(deckId)
-        val author = deck?.authorPubky ?: session.current()?.identity?.pubky ?: return emptyList()
+        val author = deck?.authorPubky ?: session.current()?.identity?.pubky
+            ?: return DeckQueue(emptyList(), emptyList())
         cacheLock.withLock { deckAuthors[deckId] = author }
 
         val cards = cardRepository.listByDeck(deckId)
         loadChunksFor(author, deckId)
 
         val now = epochMillis()
-        return cards
-            .map { card -> card to stateOf(author, deckId, card.id) }
-            .filter { (_, state) -> state.isDue(now) }
-            .sortedWith(compareBy({ (_, state) -> state?.dueAt ?: 0L }, { (card, _) -> card.id }))
-            .map { it.first }
+        val paired = cards.map { card -> card to stateOf(author, deckId, card.id) }
+        return DeckQueue(
+            due = paired
+                .filter { (_, state) -> state.isDue(now) }
+                .sortedWith(compareBy({ (_, state) -> state?.dueAt ?: 0L }, { (card, _) -> card.id }))
+                .map { it.first },
+            // listByDeck already returns study order, so unseen cards keep the author's sequence.
+            new = paired.filter { (_, state) -> state.isNew() }.map { it.first },
+        )
     }
 
     override suspend fun nextDueAt(): Long? {
@@ -182,12 +241,16 @@ class SrsRepositoryImpl(
      * cost this exists to avoid. [deckAuthors] is the record of which decks have been loaded, so
      * iterating it is what bounds the answer to decks the cache can actually speak for.
      */
-    override suspend fun dueCountsCached(): Map<String, Int> {
+    override suspend fun dueCountsCached(): Map<String, DeckCounts> {
         val now = epochMillis()
         val decks = cacheLock.withLock { deckAuthors.toMap() }
         return decks.mapValues { (deckId, _) ->
             val states = statesForDeck(deckId)
-            cardRepository.listByDeck(deckId).count { states[it.id].isDue(now) }
+            val cards = cardRepository.listByDeck(deckId)
+            DeckCounts(
+                due = cards.count { states[it.id].isDue(now) },
+                new = cards.count { states[it.id].isNew() },
+            )
         }
     }
 

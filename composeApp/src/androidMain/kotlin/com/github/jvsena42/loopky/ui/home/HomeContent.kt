@@ -56,8 +56,10 @@ fun HomeContent(
         CaughtUpHeroCard(nextDueAtMillis = state.nextDueAtMillis)
     } else {
         DueTodayHeroCard(
-            dueToday = state.dueToday,
+            studyTarget = state.studyTarget,
             doneToday = state.doneToday,
+            newCardsToday = state.newCardsToday,
+            newCardsGoal = state.newCardsGoal,
             onStartStudyClick = onStartStudyClick,
         )
     }
@@ -118,14 +120,24 @@ private fun relativeFromNow(millis: Long): String {
     }
 }
 
+/**
+ * [studyTarget] is today's intent — everything overdue plus whatever room the new-cards goal has
+ * left — not the size of the backlog. A 1669-card import headlines 20, and studying past it still
+ * works, because nothing caps the queue behind this number (#101 §7).
+ */
 @Composable
 private fun DueTodayHeroCard(
-    dueToday: Int,
+    studyTarget: Int,
     doneToday: Int,
+    newCardsToday: Int,
+    newCardsGoal: Int,
     onStartStudyClick: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
-    val progress = if (dueToday == 0) 0f else (doneToday.toFloat() / dueToday).coerceIn(0f, 1f)
+    // Against work done *plus* work left, not against what remains: dividing by the remaining
+    // count alone climbed past 1 as the session went on and rendered "9 of 3 done".
+    val plannedTotal = doneToday + studyTarget
+    val progress = if (plannedTotal == 0) 0f else (doneToday.toFloat() / plannedTotal).coerceIn(0f, 1f)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -153,7 +165,7 @@ private fun DueTodayHeroCard(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = dueToday.toString(),
+                text = studyTarget.toString(),
                 color = colors.foregroundOnAccent,
                 fontSize = 72.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -179,7 +191,17 @@ private fun DueTodayHeroCard(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             ProgressBar(progress = progress)
             Text(
-                text = stringResource(R.string.home_progress_done, doneToday, dueToday),
+                text = stringResource(R.string.home_progress_done, doneToday, plannedTotal),
+                color = colors.accentPrimarySoft,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = if (newCardsToday >= newCardsGoal) {
+                    stringResource(R.string.home_new_cards_goal_reached, newCardsGoal)
+                } else {
+                    stringResource(R.string.home_new_cards_goal, newCardsToday, newCardsGoal)
+                },
                 color = colors.accentPrimarySoft,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
@@ -310,12 +332,23 @@ private fun DeckRow(deck: DeckSummary, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = pluralStringResource(
-                    R.plurals.home_deck_due_cards,
-                    deck.cardCount,
-                    deck.dueCount,
-                    deck.cardCount,
-                ),
+                text = if (deck.dueCount == 0 && deck.newCount > 0) {
+                    // A freshly imported deck has nothing due and everything unseen. Saying
+                    // "0 due" there described it as finished.
+                    pluralStringResource(
+                        R.plurals.home_deck_new_cards,
+                        deck.cardCount,
+                        deck.newCount,
+                        deck.cardCount,
+                    )
+                } else {
+                    pluralStringResource(
+                        R.plurals.home_deck_due_cards,
+                        deck.cardCount,
+                        deck.dueCount,
+                        deck.cardCount,
+                    )
+                },
                 color = colors.foregroundMuted,
                 fontSize = 13.sp,
             )
@@ -327,7 +360,7 @@ private fun DeckRow(deck: DeckSummary, onClick: () -> Unit) {
                 .padding(horizontal = 12.dp, vertical = 6.dp),
         ) {
             Text(
-                text = deck.dueCount.toString(),
+                text = (if (deck.dueCount == 0) deck.newCount else deck.dueCount).toString(),
                 color = colors.foregroundOnAccent,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
@@ -359,6 +392,7 @@ private fun HomeContentPreview() {
                             authorPubky = "alex1xqz9",
                             cardCount = 60,
                             dueCount = 12,
+                            newCount = 0,
                             coverInitial = 'S',
                         ),
                         DeckSummary(
@@ -366,7 +400,8 @@ private fun HomeContentPreview() {
                             title = "Kanji N5",
                             authorPubky = "friend1xqz9",
                             cardCount = 103,
-                            dueCount = 8,
+                            dueCount = 0,
+                            newCount = 40,
                             coverInitial = 'K',
                         ),
                     ),

@@ -27,7 +27,8 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 @Composable
 fun StatsBar(
     totalCards: Int,
-    dueCards: Int,
+    dueLabel: String,
+    newCards: Int,
     masteredPercent: String,
     modifier: Modifier = Modifier,
     /**
@@ -62,9 +63,21 @@ fun StatsBar(
 
             // Due
             StatColumn(
-                value = dueCards.toString(),
+                value = dueLabel,
                 label = stringResource(R.string.component_stats_bar_due),
                 valueColor = colors.accentPrimary,
+                mutedColor = colors.foregroundMuted,
+                modifier = Modifier.weight(1f),
+            )
+
+            StatDivider(colors.borderSubtle)
+
+            // New — cards never studied. Kept apart from Due because a fresh import has hundreds
+            // of these and none of them is late; showing them as Due was the wall in #101 §7.
+            StatColumn(
+                value = newCards.toString(),
+                label = stringResource(R.string.component_stats_bar_new),
+                valueColor = colors.foregroundPrimary,
                 mutedColor = colors.foregroundMuted,
                 modifier = Modifier.weight(1f),
             )
@@ -131,7 +144,8 @@ private fun StatsBarPreview() {
         ) {
             StatsBar(
                 totalCards = 42,
-                dueCards = 8,
+                dueLabel = "8",
+                newCards = 12,
                 masteredPercent = "65%",
             )
         }

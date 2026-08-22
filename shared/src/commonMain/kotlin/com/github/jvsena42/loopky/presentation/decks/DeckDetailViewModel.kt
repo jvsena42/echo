@@ -14,12 +14,13 @@ import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
+import com.github.jvsena42.loopky.domain.model.DeckCounts
+import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
-import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.presentation.share.DeckSharePrompt
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalEncodingApi::class)
 @Suppress("LongParameterList", "TooManyFunctions")
@@ -112,17 +114,22 @@ class DeckDetailViewModel(
             // over every card in the deck, on the main thread.
             runSuspendCatching { cardRepository.fetchByDeck(deck).getOrThrow() }
                 .onSuccess { cards ->
-                    val dueCount = runSuspendCatching { srsRepository.dueForDeck(deckId).size }
-                        .getOrDefault(0)
-                    val states = runSuspendCatching { srsRepository.statesForDeck(deckId) }
-                        .getOrDefault(emptyMap())
-                    val mastered = masteredPercent(cards.map { it.id }, states)
+                    // Null, not zero, when the read fails: rendering "Due 0 · Mastered 0%" showed a
+                    // fully-mature deck as untouched and caught up, with no error anywhere (#101).
+                    val counts = runSuspendCatching { srsRepository.countsForDeck(deckId) }
+                        .onFailure { Log.e(TAG, "load: counts FAILED — ${it.message}", it) }
+                        .getOrNull()
+                    val mastered = masteredLabel(
+                        runSuspendCatching { srsRepository.mastery(deckId, cards.map { it.id }) }
+                            .onFailure { Log.e(TAG, "load: mastery FAILED — ${it.message}", it) }
+                            .getOrNull(),
+                    )
                     val isFollowing = runSuspendCatching { deckRepository.isFollowingDeck(deckId) }
                         .getOrDefault(false)
                     _state.update {
-                        deck.toContent(cards, session?.identity, dueCount, mastered, isFollowing)
+                        deck.toContent(cards, session?.identity, counts, mastered, isFollowing)
                     }
-                    Log.d(TAG, "load: cards=${cards.size} due=$dueCount mastered=$mastered")
+                    Log.d(TAG, "load: cards=${cards.size} counts=$counts mastered=$mastered")
                     loadCoverBlob(deck.coverImageRef, deck.authorPubky)
                     loadAuthorProfile(deck.authorPubky)
                     loadClonedFrom(deck)
@@ -408,19 +415,30 @@ class DeckDetailViewModel(
     }
 
     /**
-     * Share of cards whose review interval has reached SM-2's "mature" threshold. "—" until the
-     * deck has cards.
+     * How mature the deck is, as a label.
      *
-     * [states] is passed in rather than looked up per card: one [SrsRepository.statesForDeck] call
-     * takes the repository's lock once, where a [SrsRepository.stateFor] per card took it `n` times
-     * for a deck that can hold twenty thousand of them.
+     * The share itself is the repository's ([SrsRepository.masteryShare]) — it is the only thing
+     * holding both the review states and the user's own maturity threshold. This turns it into
+     * words, and the edges are the point:
+     *
+     * - `"—"` for an empty deck, and for a share of `null`, which means the read failed. Zero would
+     *   claim a fully-mature deck was untouched.
+     * - `"<1%"` for any real progress that rounds away. On a 1669-card deck five cards at 7 days is
+     *   0.1%, and "started" has to look different from "nothing" (#101 §2).
+     * - capped at 99% until every card is genuinely mature, so rounding cannot promise a finished
+     *   deck.
      */
-    private fun masteredPercent(cardIds: List<String>, states: Map<String, SrsState>): String {
-        if (cardIds.isEmpty()) return "—"
-        val mastered = cardIds.count { id ->
-            (states[id]?.intervalDays ?: 0) >= MATURE_INTERVAL_DAYS
+    private fun masteredLabel(mastery: DeckMastery?): String {
+        if (mastery == null) return "—"
+        if (mastery.isComplete) return "$PERCENT%"
+        val percent = (mastery.share * PERCENT).roundToInt()
+        return when {
+            mastery.share <= 0f -> "0%"
+            mastery.share < MIN_VISIBLE_SHARE -> "<1%"
+            // Rounding must never promise a finished deck that isComplete just denied.
+            percent >= PERCENT -> "${PERCENT - 1}%"
+            else -> "$percent%"
         }
-        return "${mastered * PERCENT / cardIds.size}%"
     }
 
     /**
@@ -434,18 +452,23 @@ class DeckDetailViewModel(
      */
     private suspend fun refreshSrsCounters() {
         val current = _state.value as? DeckDetailUiState.Content ?: return
-        val states = runSuspendCatching { srsRepository.statesForDeck(deckId) }
-            .onFailure { Log.e(TAG, "refreshSrsCounters: FAILED — ${it.message}", it) }
-            .getOrNull() ?: return
-        // Deliberately not recounted from [states] here: the due rule is the repository's, and a
-        // second copy of it in the presentation layer is a second thing to keep in step.
-        val due = runSuspendCatching { srsRepository.dueCountsCached()[deckId] }.getOrNull()
-        val mastered = masteredPercent(current.cardPreviews.map { it.id }, states)
+        val cardIds = current.cardPreviews.map { it.id }
+        // Deliberately not recounted here: the due rule is the repository's, and a second copy of
+        // it in the presentation layer is a second thing to keep in step.
+        val counts = runSuspendCatching { srsRepository.dueCountsCached()[deckId] }
+            .onFailure { Log.e(TAG, "refreshSrsCounters: counts FAILED — ${it.message}", it) }
+            .getOrNull()
+        val mastered = runSuspendCatching { srsRepository.mastery(deckId, cardIds) }
+            .onFailure { Log.e(TAG, "refreshSrsCounters: mastery FAILED — ${it.message}", it) }
+            .getOrNull()
         _state.update { s ->
             (s as? DeckDetailUiState.Content)?.copy(
-                // Null means the cache cannot speak for this deck — keep the last real number.
-                dueCards = due ?: s.dueCards,
-                masteredPercent = mastered,
+                // A missing entry means the cache cannot speak for this deck — which is not the
+                // same as the load-time failure that renders "—". Keep the last real numbers.
+                dueLabel = counts?.due?.toString() ?: s.dueLabel,
+                newCards = counts?.new ?: s.newCards,
+                canStudy = counts?.let { it.total > 0 } ?: s.canStudy,
+                masteredPercent = mastered?.let { masteredLabel(it) } ?: s.masteredPercent,
             ) ?: s
         }
     }
@@ -488,7 +511,7 @@ class DeckDetailViewModel(
     private fun Deck.toContent(
         cards: List<Card>,
         myIdentity: PubkyIdentity?,
-        dueCount: Int,
+        counts: DeckCounts?,
         mastered: String,
         isFollowing: Boolean,
     ): DeckDetailUiState.Content {
@@ -508,7 +531,11 @@ class DeckDetailViewModel(
             isIncomplete = incomplete,
             tags = tags.map { it.value },
             totalCards = cardCount,
-            dueCards = dueCount,
+            dueLabel = counts?.due?.toString() ?: UNKNOWN_STAT,
+            newCards = counts?.new ?: 0,
+            // Unknown counts must not disable Study — the queue is the repository's to build, and
+            // refusing to open it because a count failed strands the user with no way in.
+            canStudy = counts == null || counts.total > 0,
             masteredPercent = mastered,
             cardPreviews = cards.map { it.toPreview() },
         )
@@ -524,9 +551,13 @@ class DeckDetailViewModel(
     companion object {
         private const val TAG = "Loopky/DeckDetailVM"
 
-        /** SM-2 convention: a card with a ≥21-day interval counts as mature/mastered. */
-        private const val MATURE_INTERVAL_DAYS = 21
         private const val PERCENT = 100
+
+        /** Below this, a real share rounds to zero and has to say "<1%" instead. */
+        private const val MIN_VISIBLE_SHARE = 0.01f
+
+        /** What a stat reads when it could not be read at all — never "0". */
+        private const val UNKNOWN_STAT = "—"
         private const val PUBKY_SCHEME = "pubky://"
     }
 }
@@ -568,7 +599,18 @@ sealed interface DeckDetailUiState {
         val followerCount: Int = 0,
         val clonedCount: Int = 0,
         val totalCards: Int,
-        val dueCards: Int,
+        /**
+         * Cards waiting for review, already formatted — "—" when the read failed.
+         *
+         * A String rather than an `Int?` for the same reason [masteredPercent] is one: the stats
+         * row shows three pre-formatted values, and a nullable Int would push a `KotlinInt?` across
+         * the Swift bridge for a number that is only ever displayed.
+         */
+        val dueLabel: String,
+        /** Cards never graded. Separate from due — nothing about an unseen card is late (#101 §7). */
+        val newCards: Int = 0,
+        /** Whether Study can do anything. False for a deck with no reviews *and* no unseen cards. */
+        val canStudy: Boolean = true,
         val masteredPercent: String,
         val cardPreviews: List<CardPreviewModel>,
         val showDeleteConfirm: Boolean = false,

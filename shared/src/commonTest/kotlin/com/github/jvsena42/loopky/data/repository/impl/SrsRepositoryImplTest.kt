@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.data.pubky.SrsChunkDto
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.DeckCounts
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
@@ -105,13 +106,14 @@ class SrsRepositoryImplTest {
         // would be a round trip each time.
         publishDeck("deck1", "c1", "c2")
         repo.dueForDeck("deck1")
-        assertEquals(mapOf("deck1" to 2), repo.dueCountsCached())
+        // Never graded, so both are new rather than overdue.
+        assertEquals(mapOf("deck1" to DeckCounts(due = 0, new = 2)), repo.dueCountsCached())
 
         val getsBefore = pubky.gets.size
         repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
 
-        // A graded card leaves the queue, and finding that out reads nothing.
-        assertEquals(mapOf("deck1" to 1), repo.dueCountsCached())
+        // The graded card is no longer new, and finding that out reads nothing.
+        assertEquals(mapOf("deck1" to DeckCounts(due = 0, new = 1)), repo.dueCountsCached())
         assertEquals(getsBefore, pubky.gets.size, "recounting hit the homeserver")
     }
 

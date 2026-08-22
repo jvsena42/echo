@@ -25,6 +25,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -72,6 +73,7 @@ class HomeViewModelTest {
         )
         deckRepo.decks["deck2"] = testDeck(id = "deck2", title = "Biology")
         srsRepo.due = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck1"))
+        srsRepo.seedDue("deck1", "c1", "c2")
         val vm = viewModel()
 
         advanceUntilIdle()
@@ -86,6 +88,38 @@ class HomeViewModelTest {
         assertEquals(expected = 2, actual = spanish.cardCount)
         assertEquals('S', spanish.coverInitial)
         assertEquals(expected = 0, actual = state.decks.first { it.id == "deck2" }.dueCount)
+    }
+
+    @Test
+    fun aFreshImportIsNotCaughtUpAndDoesNotHeadlineTheWholeDeck() = runTest {
+        // #101 §7: 1669 never-seen cards read as "1669 due" and offered an unclimbable wall.
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Biochemistry", cardCount = 200)
+        srsRepo.due = (1..200).map { testCard("c$it", deckId = "deck1") }
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertEquals(expected = 0, actual = state.dueToday, "unseen cards are not overdue")
+        assertEquals(expected = 200, actual = state.newToday)
+        assertFalse(state.isCaughtUp, "a deck you have never opened is not 'all caught up'")
+        // The headline is the day's intent, not the backlog.
+        assertEquals(expected = state.newCardsGoal, actual = state.studyTarget)
+    }
+
+    @Test
+    fun theHeadlineCountsRealReviewsOnTopOfTheGoal() = runTest {
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 100)
+        srsRepo.due = (1..100).map { testCard("c$it", deckId = "deck1") }
+        srsRepo.seedDue("deck1", "c1", "c2", "c3")
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val state = assertIs<HomeUiState.Content>(vm.state.value)
+        assertEquals(expected = 3, actual = state.dueToday)
+        assertEquals(expected = 97, actual = state.newToday)
+        assertEquals(expected = 3 + state.newCardsGoal, actual = state.studyTarget)
     }
 
     @Test
@@ -207,6 +241,7 @@ class HomeViewModelTest {
         )
         val cards = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck1"))
         srsRepo.due = cards
+        srsRepo.seedDue("deck1", "c1", "c2")
         val vm = viewModel()
         advanceUntilIdle()
         assertEquals(expected = 2, actual = assertIs<HomeUiState.Content>(vm.state.value).dueToday)
@@ -231,6 +266,7 @@ class HomeViewModelTest {
         deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 2)
         val cards = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck1"))
         srsRepo.due = cards
+        srsRepo.seedDue("deck1", "c1", "c2")
         val vm = viewModel()
         advanceUntilIdle()
         assertEquals(expected = 2, actual = assertIs<HomeUiState.Content>(vm.state.value).dueToday)
@@ -259,6 +295,8 @@ class HomeViewModelTest {
         deckRepo.decks["deck1"] = testDeck(id = "deck1", cardCount = 1)
         deckRepo.decks["deck2"] = testDeck(id = "deck2", cardCount = 1)
         srsRepo.due = listOf(testCard("c1", deckId = "deck1"), testCard("c2", deckId = "deck2"))
+        srsRepo.seedDue("deck1", "c1")
+        srsRepo.seedDue("deck2", "c2")
         val vm = viewModel()
         advanceUntilIdle()
 
@@ -300,6 +338,7 @@ class HomeViewModelTest {
             title = "Kanji",
         )
         srsRepo.due = listOf(testCard("t1", deckId = "theirs"))
+        srsRepo.seedDue("theirs", "t1")
         val vm = viewModel()
 
         advanceUntilIdle()

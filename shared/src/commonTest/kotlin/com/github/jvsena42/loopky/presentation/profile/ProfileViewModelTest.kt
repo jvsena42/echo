@@ -133,6 +133,7 @@ class ProfileViewModelTest {
         decks.decks["d1"] = testDeck(id = "d1", cardCount = 2)
         val card = testCard("c1", deckId = "d1")
         srs.due = listOf(card, testCard("c2", deckId = "d1"))
+        srs.seedDue("d1", "c1", "c2")
         val vm = viewModel()
         advanceUntilIdle()
         assertEquals(2, vm.state.value.dueCount)

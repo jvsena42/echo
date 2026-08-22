@@ -77,6 +77,10 @@
         <item quantity="one">%1$d due · %2$d card</item>
         <item quantity="other">%1$d due · %2$d cards</item>
     </plurals>
+    <plurals name="home_deck_new_cards">
+        <item quantity="one">%1$d new · %2$d card</item>
+        <item quantity="other">%1$d new · %2$d cards</item>
+    </plurals>
     <plurals name="deck_detail_clone_dialog_message">
         <item quantity="one">“%1$s” and its %2$d card will be copied to your homeserver as a deck you own and can edit. It won\'t receive the author\'s later changes.</item>
         <item quantity="other">“%1$s” and its %2$d cards will be copied to your homeserver as a deck you own and can edit. It won\'t receive the author\'s later changes.</item>

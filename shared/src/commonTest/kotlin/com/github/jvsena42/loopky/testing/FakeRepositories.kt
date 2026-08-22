@@ -29,6 +29,8 @@ import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
+import com.github.jvsena42.loopky.domain.model.DeckCounts
+import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
@@ -42,9 +44,13 @@ import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
+import com.github.jvsena42.loopky.domain.model.isFullyMastered
+import com.github.jvsena42.loopky.domain.model.masteryShare
+import com.github.jvsena42.loopky.domain.model.maturityThresholdDays
 import com.github.jvsena42.loopky.domain.model.ordForIndex
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.platform.BackgroundTasks
@@ -505,9 +511,71 @@ class FakeSrsRepository : SrsRepository {
     override suspend fun statesForDeck(deckId: String): Map<String, SrsState> =
         states.filterKeys { stateDecks[it] == deckId }
 
-    override suspend fun dueCountsCached(): Map<String, Int> {
+    /**
+     * Same rule the real repository uses: a queued card with review state is due, one without has
+     * never been seen. Tests that want a *due* card therefore have to seed [states] for it — which
+     * is the distinction the production code now turns on.
+     */
+    private fun countsFor(cards: List<Card>) = DeckCounts(
+        due = cards.count { states[it.id] != null },
+        new = cards.count { states[it.id] == null },
+    )
+
+    override suspend fun countsForDeck(deckId: String): DeckCounts {
+        knownDecks += deckId
+        return countsFor(due.filter { it.deckId == deckId })
+    }
+
+    override suspend fun countsToday(): Map<String, DeckCounts> {
+        knownDecks += due.map { it.deckId }
+        return knownDecks.associateWith { deckId -> countsFor(due.filter { it.deckId == deckId }) }
+    }
+
+    override suspend fun mastery(deckId: String, cardIds: List<String>): DeckMastery? {
+        if (masteryUnavailable) return null
+        if (cardIds.isEmpty()) return null
+        val threshold = studySettings.maturityThresholdDays
+        val forDeck = statesForDeck(deckId)
+        return DeckMastery(
+            share = masteryShare(cardIds, forDeck, threshold),
+            isComplete = isFullyMastered(cardIds, forDeck, threshold),
+        )
+    }
+
+    /** Drives the "the review state could not be read" branch, which must render "—", not 0%. */
+    var masteryUnavailable = false
+
+    /**
+     * Mark [cardIds] as already graded in [deckId], so the counters read them as **due** rather
+     * than new.
+     *
+     * Seeding a card into [due] alone now makes it a *new* card, which is the whole point of the
+     * split — a test that means "overdue" has to say so.
+     */
+    suspend fun seedDue(deckId: String, vararg cardIds: String) {
+        cardIds.forEach { id ->
+            upsert(
+                deckId,
+                SrsState(
+                    cardId = id,
+                    dueAt = 0L,
+                    intervalDays = 3,
+                    easeFactor = 2.5,
+                    repetitions = 1,
+                    lastGrade = SrsGrade.Good,
+                ),
+            )
+        }
+    }
+
+    /** Lets a test move the maturity line the way a user changing their intervals would. */
+    var studySettings: StudySettings = StudySettings.Default
+
+    override suspend fun dueCountsCached(): Map<String, DeckCounts> {
         val byDeck = due.groupingBy { it.deckId }.eachCount()
-        return (knownDecks + byDeck.keys).associateWith { byDeck[it] ?: 0 }
+        return (knownDecks + byDeck.keys).associateWith { deckId ->
+            countsFor(due.filter { it.deckId == deckId })
+        }
     }
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> {

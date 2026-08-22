@@ -8,6 +8,8 @@ import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
+import com.github.jvsena42.loopky.domain.model.DeckCounts
+import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.ImportDraft
@@ -818,11 +820,50 @@ interface SrsRepository {
      */
     val flushFailures: SharedFlow<ErrorReason>
 
-    /** All cards due for review across every owned deck (new cards count as due). */
+    /**
+     * The whole study queue across every studiable deck: cards actually due for review first,
+     * soonest first, then cards never seen before.
+     *
+     * New cards are included but are **not** "due" — see
+     * [com.github.jvsena42.loopky.domain.model.isNew]. Nothing here is capped by the user's
+     * new-cards-per-day goal; that is a goal, not a limit, and withholding cards is what it must
+     * not do.
+     */
     suspend fun dueToday(): List<Card>
 
-    /** Cards due for review within a single deck. */
+    /** One deck's study queue, ordered the same way [dueToday] orders the whole of it. */
     suspend fun dueForDeck(deckId: String): List<Card>
+
+    /**
+     * Due and new counts for one deck, read through to the homeserver like [dueForDeck].
+     *
+     * The two halves are separate because one number could not tell "you are behind on 1669
+     * reviews" from "this deck has 1669 cards you have never met" — and it reported the second as
+     * the first, which is what made a fresh import unopenable (#101 §7).
+     */
+    suspend fun countsForDeck(deckId: String): DeckCounts
+
+    /**
+     * [countsForDeck] for every studiable deck at once, keyed by deck id.
+     *
+     * What Home and Profile want: the same read [dueToday] performs, without materialising a queue
+     * of every card in every deck just to take its size.
+     */
+    suspend fun countsToday(): Map<String, DeckCounts>
+
+    /**
+     * How far [cardIds] in [deckId] have been carried toward maturity, or null if the review state
+     * could not be read.
+     *
+     * Lives here rather than in the ViewModel because the maturity threshold is a *setting* — a
+     * user who lengthens their first intervals moves the line (see
+     * [com.github.jvsena42.loopky.domain.model.maturityThresholdDays]) — and this repository is the
+     * one place holding both the states and the settings.
+     *
+     * Null means "the read failed", which callers must render as unknown rather than as zero: a
+     * fully-mature deck shown as 0% is worse than showing nothing.
+     */
+    suspend fun mastery(deckId: String, cardIds: List<String>): DeckMastery?
 
     /**
      * When the soonest not-yet-due card comes up for review, or null if nothing is scheduled.
@@ -853,7 +894,7 @@ interface SrsRepository {
      * any [dueToday]/[dueForDeck] has run and empty on a cold cache. Callers must treat a missing
      * deck as "unknown", never as zero.
      */
-    suspend fun dueCountsCached(): Map<String, Int>
+    suspend fun dueCountsCached(): Map<String, DeckCounts>
 
     /** Grade a card: compute the next state via the scheduler, persist it, and return it. */
     suspend fun review(card: Card, grade: SrsGrade): Result<SrsState>
