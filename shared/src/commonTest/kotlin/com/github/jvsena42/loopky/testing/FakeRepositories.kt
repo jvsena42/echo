@@ -15,9 +15,12 @@ import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.RehostOutcome
+import com.github.jvsena42.loopky.data.repository.SettingsOrigin
+import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SignupAvailability
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
+import com.github.jvsena42.loopky.data.repository.StudySettingsSnapshot
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.data.storage.AppPreferences
@@ -52,6 +55,7 @@ import com.github.jvsena42.loopky.domain.model.isFullyMastered
 import com.github.jvsena42.loopky.domain.model.masteryShare
 import com.github.jvsena42.loopky.domain.model.maturityThresholdDays
 import com.github.jvsena42.loopky.domain.model.ordForIndex
+import com.github.jvsena42.loopky.domain.model.previewIntervals
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.MediaProcessor
@@ -63,6 +67,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -580,10 +585,13 @@ class FakeSrsRepository : SrsRepository {
 
     override suspend fun review(card: Card, grade: SrsGrade): Result<SrsState> {
         reviews.add(card to grade)
-        val next = states[card.id].review(card.id, grade, now = 0L)
+        val next = states[card.id].review(card.id, grade, now = 0L, settings = studySettings)
         upsert(card.deckId, next)
         return Result.success(next)
     }
+
+    override suspend fun previewIntervals(card: Card): Map<SrsGrade, String> =
+        states[card.id].previewIntervals(card.id, now = 0L, settings = studySettings)
 
     var flushes = 0
         private set
@@ -1026,6 +1034,7 @@ class FailingChunkCardRepository(
 class FakeAppPreferences(
     shareOnPubky: Boolean = true,
     pubkyEnvironment: String = "",
+    cachedStudySettings: String = "",
 ) : AppPreferences {
     private val _shareOnPubky = MutableStateFlow(shareOnPubky)
     override val shareOnPubky: Flow<Boolean> = _shareOnPubky.asStateFlow()
@@ -1045,6 +1054,16 @@ class FakeAppPreferences(
 
     override suspend fun setPubkyEnvironment(name: String) {
         _pubkyEnvironment.update { name }
+    }
+
+    private val _cachedStudySettings = MutableStateFlow(cachedStudySettings)
+    override val cachedStudySettings: Flow<String> = _cachedStudySettings.asStateFlow()
+
+    /** The current value, for a test that asserts on it without collecting. */
+    val cachedStudySettingsValue: String get() = _cachedStudySettings.value
+
+    override suspend fun setCachedStudySettings(json: String) {
+        _cachedStudySettings.update { json }
     }
 }
 
@@ -1162,5 +1181,37 @@ class FakeBackgroundTasks : BackgroundTasks {
 
     override fun scheduleDeckCompaction() {
         compactionsScheduled++
+    }
+}
+
+/**
+ * In-memory [SettingsRepository]. [origin] is the interesting knob: it is what decides whether
+ * [update] is allowed, so a test can reproduce "the record never loaded" without a failing client.
+ */
+class FakeSettingsRepository(
+    settings: StudySettings = StudySettings.Default,
+    origin: SettingsOrigin = SettingsOrigin.Remote,
+) : SettingsRepository {
+    private val _studySettings = MutableStateFlow(StudySettingsSnapshot(settings, origin))
+    override val studySettings: StateFlow<StudySettingsSnapshot> = _studySettings.asStateFlow()
+
+    var loads = 0
+        private set
+
+    /** When set, [ensureLoaded] leaves the snapshot alone — the offline / unreadable case. */
+    var loadFails = false
+
+    override suspend fun ensureLoaded() {
+        loads++
+        if (loadFails) return
+        _studySettings.update { it.copy(origin = SettingsOrigin.Remote) }
+    }
+
+    override suspend fun update(settings: StudySettings): Result<Unit> {
+        if (_studySettings.value.origin != SettingsOrigin.Remote) {
+            return Result.failure(IllegalStateException("Study settings have not been read yet"))
+        }
+        _studySettings.update { StudySettingsSnapshot(settings.sanitized(), SettingsOrigin.Remote) }
+        return Result.success(Unit)
     }
 }

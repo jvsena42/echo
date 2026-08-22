@@ -48,6 +48,22 @@ interface AppPreferences {
     val pubkyEnvironment: Flow<String>
 
     suspend fun setPubkyEnvironment(name: String)
+
+    /**
+     * The last study settings successfully read from or written to the homeserver, as the JSON of
+     * the record's `study` section — or blank if none has been.
+     *
+     * A **cache, not the setting**. The real record lives at `/pub/loopky/settings.json` (see
+     * `SettingsRepository`), because scheduling preferences produce review state that already
+     * syncs. This copy exists so a session that starts offline still schedules with the user's own
+     * intervals instead of silently reverting to the built-in defaults — and it is never allowed
+     * to authorize a *write*, which would let one bad read overwrite the real record.
+     *
+     * Emits the current value immediately and again on every change.
+     */
+    val cachedStudySettings: Flow<String>
+
+    suspend fun setCachedStudySettings(json: String)
 }
 
 internal const val PREFERENCES_NAME = "loopky.preferences"
@@ -55,3 +71,5 @@ internal const val KEY_SHARE_ON_PUBKY = "share_on_pubky"
 internal const val DEFAULT_SHARE_ON_PUBKY = true
 internal const val KEY_PUBKY_ENVIRONMENT = "pubky_environment"
 internal const val DEFAULT_PUBKY_ENVIRONMENT = ""
+internal const val KEY_CACHED_STUDY_SETTINGS = "cached_study_settings"
+internal const val DEFAULT_CACHED_STUDY_SETTINGS = ""

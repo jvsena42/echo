@@ -10,9 +10,7 @@ import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.SpeakMatcher
 import com.github.jvsena42.loopky.domain.model.SrsGrade
-import com.github.jvsena42.loopky.domain.model.previewIntervals
 import com.github.jvsena42.loopky.util.Log
-import com.github.jvsena42.loopky.util.epochMillis
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -226,9 +224,10 @@ class StudySessionViewModel(
             return
         }
         viewModelScope.launch {
-            // Cache is warmed by the queue build; a null state means a new (never-reviewed) card.
-            val srsState = srsRepository.stateFor(card.deckId, card.id)
-            val labels = srsState.previewIntervals(card.id, epochMillis())
+            // The repository owns this: the first-review intervals are a user setting, so labels
+            // computed here would need a SettingsRepository of their own and could drift from what
+            // grading actually writes.
+            val labels = srsRepository.previewIntervals(card)
             val title = deckTitle.ifBlank { resolveDeckTitle(card.deckId) }.ifBlank { card.deckId }
             val deck = deckRepository.getLocal(card.deckId)
             _state.update { StudySessionUiState.Reviewing(

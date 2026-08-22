@@ -14,6 +14,7 @@ import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.storage.PendingReview
 import com.github.jvsena42.loopky.data.storage.PendingReviewStore
@@ -30,6 +31,7 @@ import com.github.jvsena42.loopky.domain.model.isFullyMastered
 import com.github.jvsena42.loopky.domain.model.isNew
 import com.github.jvsena42.loopky.domain.model.masteryShare
 import com.github.jvsena42.loopky.domain.model.maturityThresholdDays
+import com.github.jvsena42.loopky.domain.model.previewIntervals
 import com.github.jvsena42.loopky.domain.model.review
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
@@ -71,6 +73,7 @@ class SrsRepositoryImpl(
     private val deckRepository: DeckRepository,
     private val cardRepository: CardRepository,
     private val pendingReviews: PendingReviewStore,
+    private val settingsRepository: SettingsRepository,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob()),
 ) : SrsRepository {
 
@@ -124,6 +127,7 @@ class SrsRepositoryImpl(
      * only to be reachable from here, which owned-decks-only made it not.
      */
     override suspend fun dueToday(): List<Card> {
+        settingsRepository.ensureLoaded()
         if (restoreJournal()) flushAsync()
         // Reviews from every deck before new cards from any of them, not deck-by-deck: a session
         // that opens on material you already know earns the right to introduce new material, and
@@ -140,7 +144,7 @@ class SrsRepositoryImpl(
         val states = statesForDeck(deckId)
         // A cold cache would report a mature deck as 0%, which is the exact lie this replaced.
         if (states.isEmpty() && cardIds.isNotEmpty() && !isLoadedFor(deckId)) return null
-        val threshold = StudySettings.Default.maturityThresholdDays
+        val threshold = currentSettings().maturityThresholdDays
         return DeckMastery(
             share = masteryShare(cardIds, states, threshold),
             isComplete = isFullyMastered(cardIds, states, threshold),
@@ -188,6 +192,7 @@ class SrsRepositoryImpl(
      * new-cards goal is a goal, and withholding cards is exactly what it must not do.
      */
     private suspend fun queueForDeck(deckId: String): DeckQueue {
+        settingsRepository.ensureLoaded()
         // Before anything reads the cache: a journal from a previous process holds reviews newer
         // than the homeserver's, and a queue built without them would re-show cards already graded.
         // Recovered reviews are sent straight away — nothing else would, short of the user
@@ -258,12 +263,26 @@ class SrsRepositoryImpl(
         require(isStudiable(card.deckId)) {
             "Deck ${card.deckId} is neither owned nor followed — follow or clone it to study it"
         }
+        // Idempotent and single-flight, so after the first load this is a field read. Called here
+        // rather than relying on the queue having been built first: that ordering happens to hold
+        // today, and a grade scheduled from stale defaults is not a failure anyone would notice.
+        settingsRepository.ensureLoaded()
         val author = authorFor(card.deckId)
         val current = stateOf(author, card.deckId, card.id)
-        val next = current.review(card.id, grade, epochMillis())
+        val next = current.review(card.id, grade, epochMillis(), currentSettings())
         upsert(card.deckId, next).getOrThrow()
         next
     }
+
+    override suspend fun previewIntervals(card: Card): Map<SrsGrade, String> {
+        settingsRepository.ensureLoaded()
+        val author = authorFor(card.deckId)
+        return stateOf(author, card.deckId, card.id)
+            .previewIntervals(card.id, epochMillis(), currentSettings())
+    }
+
+    /** No suspension, no network: [SettingsRepository.studySettings] is warmed, then simply read. */
+    private fun currentSettings(): StudySettings = settingsRepository.studySettings.value.settings
 
     /**
      * Whether review state may be written for [deckId] at all: it has to be a deck you own or one

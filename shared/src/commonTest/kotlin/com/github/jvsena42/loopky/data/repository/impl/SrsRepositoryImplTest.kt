@@ -16,6 +16,7 @@ import com.github.jvsena42.loopky.testing.FakeBackgroundTasks
 import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePendingReviewStore
 import com.github.jvsena42.loopky.testing.FakePubkyClient
+import com.github.jvsena42.loopky.testing.FakeSettingsRepository
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.signedInProvider
@@ -54,6 +55,7 @@ class SrsRepositoryImplTest {
         backgroundTasks = FakeBackgroundTasks(),
     )
     private val journal = FakePendingReviewStore()
+    private val settings = FakeSettingsRepository()
     private val repo = SrsRepositoryImpl(
         pubky = pubky,
         session = session,
@@ -61,6 +63,7 @@ class SrsRepositoryImplTest {
         deckRepository = deckRepo,
         cardRepository = cardRepo,
         pendingReviews = journal,
+        settingsRepository = settings,
     )
 
     private val dayMs = 86_400_000L
@@ -254,7 +257,7 @@ class SrsRepositoryImplTest {
 
         // A fresh repo has a cold cache; building the due queue must load the persisted state
         // from the homeserver (repetitions grows from 3, not from a zeroed new-card baseline).
-        val coldRepo = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal)
+        val coldRepo = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal, settings)
         coldRepo.dueForDeck("deck1")
         val next = coldRepo.review(testCard("c1"), SrsGrade.Good).getOrThrow()
         assertEquals(4, next.repetitions)
@@ -407,7 +410,7 @@ class SrsRepositoryImplTest {
 
         // A new instance over the same journal stands in for a restarted process.
         pubky.failAllSessionCallsWith = null
-        val restarted = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal)
+        val restarted = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal, settings)
         restarted.flush().getOrThrow()
 
         val url = "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/0.json"
@@ -438,6 +441,7 @@ class SrsRepositoryImplTest {
             deckRepo,
             cardRepo,
             journal,
+            settings,
             CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
         )
         restarted.dueForDeck("deck1")
@@ -478,7 +482,7 @@ class SrsRepositoryImplTest {
         repo.upsert("deck1", state).getOrThrow()
         val chunk = journal.entries.single().chunk
 
-        val restarted = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal)
+        val restarted = SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal, settings)
         restarted.flush().getOrThrow()
 
         val url = "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/$chunk.json"

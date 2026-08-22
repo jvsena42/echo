@@ -22,10 +22,12 @@ import com.github.jvsena42.loopky.domain.model.Separator
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.TriageDecision
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 
 interface IdentityRepository {
     suspend fun currentSession(): Session?
@@ -900,6 +902,15 @@ interface SrsRepository {
     suspend fun review(card: Card, grade: SrsGrade): Result<SrsState>
 
     /**
+     * The interval each grade would produce for [card], already formatted for the grade buttons.
+     *
+     * Here rather than in the study ViewModel because the first-review intervals are the user's own
+     * setting: the VM would otherwise need a [SettingsRepository] of its own purely to label four
+     * buttons, and the labels could drift from what [review] actually writes.
+     */
+    suspend fun previewIntervals(card: Card): Map<SrsGrade, String>
+
+    /**
      * Persist a review state. Buffered in memory rather than written immediately — grading 100
      * cards costs a handful of chunk writes instead of 100 record writes. See [flush].
      */
@@ -1024,4 +1035,64 @@ interface MediaRepository {
     suspend fun rehost(deckId: String, ref: MediaRef): Result<MediaRef>
 
     suspend fun delete(deckId: String, ref: MediaRef): Result<Unit>
+}
+
+/**
+ * The user's own app settings, held on their homeserver at `/pub/loopky/settings.json`.
+ *
+ * Synced rather than device-local because study settings change *scheduling*: the review state
+ * they produce already syncs, so two devices holding different intervals would write `dueAt`s
+ * computed from different rules. Architecture.md §7.5 named this record as where a preference that
+ * has to reach a second device belongs.
+ *
+ * Reads are non-suspending by design — [SrsRepository.review] consults the settings on every grade
+ * and must never pay for a network call to do it. [ensureLoaded] warms the flow; the queue-building
+ * entry points and `review` itself call it, so a grade always sees the real values.
+ */
+interface SettingsRepository {
+    /**
+     * The current study settings and, crucially, **where they came from**.
+     *
+     * Emits immediately with [SettingsOrigin.Defaults] or the offline mirror, then the record once
+     * it has been read. The origin is not a display concern: it is what [update] is gated on.
+     */
+    val studySettings: StateFlow<StudySettingsSnapshot>
+
+    /**
+     * Read the record once per session, if it has not been read already. Single-flight, and it
+     * **never throws** — it sits on the cold-start study path, and a settings read failing must not
+     * be able to take a study session down with it.
+     */
+    suspend fun ensureLoaded()
+
+    /**
+     * Write new settings, both to the homeserver and to the offline mirror.
+     *
+     * **Refuses unless the record has actually been read this session.** Without that gate, one
+     * transient failure followed by one tap in Settings would write the built-in defaults over the
+     * user's real record, silently resetting their intervals. Gating this in the ViewModel alone
+     * would repeat the mistake CLAUDE.md calls out for announcing a deck: the gate belongs on the
+     * write.
+     */
+    suspend fun update(settings: StudySettings): Result<Unit>
+}
+
+/** Where the settings currently in hand came from. Decides whether a write is allowed. */
+enum class SettingsOrigin {
+    /** Built-in values. Nothing has been read; a write now would be guesswork. */
+    Defaults,
+
+    /** The device's copy of a record read on some earlier run. Good enough to schedule with. */
+    Cached,
+
+    /** The record itself, read this session. The only state in which [SettingsRepository.update] works. */
+    Remote,
+}
+
+data class StudySettingsSnapshot(
+    val settings: StudySettings = StudySettings.Default,
+    val origin: SettingsOrigin = SettingsOrigin.Defaults,
+) {
+    /** Whether the record is known well enough to be safely overwritten. */
+    val isEditable: Boolean get() = origin == SettingsOrigin.Remote
 }
