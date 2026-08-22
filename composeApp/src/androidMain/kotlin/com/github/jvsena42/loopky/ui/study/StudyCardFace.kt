@@ -51,8 +51,17 @@ internal fun CardFace(
     showListen: Boolean,
     onSpeakTest: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    imageRef: MediaRef.Image? = null,
-    answerImageRef: MediaRef.Image? = null,
+    /**
+     * The prompt's picture recalled on the back as a small circular cue, so the answer is read
+     * against the question it belongs to. Never the content of the side it is drawn on.
+     */
+    recallImageRef: MediaRef.Image? = null,
+    /**
+     * The picture that **is** this side — an image-only Anki front, or a picture answer — drawn
+     * large enough to read. Anki's `Basic` note type routinely puts nothing but an `<img>` in a
+     * field, so a side whose picture is only ever a 96 dp avatar renders as a blank card (#96).
+     */
+    featureImageRef: MediaRef.Image? = null,
     deckId: String = "",
     authorPubky: String = "",
 ) {
@@ -72,7 +81,7 @@ internal fun CardFace(
             )
         }
         // Front-side image shown as a circular avatar on the card back (design `aLoMj`).
-        imageRef?.let { image ->
+        recallImageRef?.let { image ->
             CardMediaImage(
                 image = image,
                 deckId = deckId,
@@ -84,8 +93,8 @@ internal fun CardFace(
             )
         }
         Spacer(modifier = Modifier.size(16.dp))
-        // The answer itself, when the answer is a picture rather than words.
-        answerImageRef?.let { image ->
+        // The side itself, when it is a picture rather than words.
+        featureImageRef?.let { image ->
             CardMediaImage(
                 image = image,
                 deckId = deckId,
@@ -101,9 +110,9 @@ internal fun CardFace(
             CardText(
                 text = text,
                 maxTextSize = textSize,
-                // An image-only answer has no text to give room to, and weight(1f) twice would
+                // An image-only side has no text to give room to, and weight(1f) twice would
                 // halve the picture for the sake of an empty line.
-                modifier = if (answerImageRef == null) Modifier.weight(1f) else Modifier,
+                modifier = if (featureImageRef == null) Modifier.weight(1f) else Modifier,
             )
         }
         Spacer(modifier = Modifier.size(16.dp))
