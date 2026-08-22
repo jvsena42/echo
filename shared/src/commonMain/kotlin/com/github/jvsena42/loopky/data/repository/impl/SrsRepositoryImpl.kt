@@ -375,13 +375,11 @@ class SrsRepositoryImpl(
         if (loaded) return
 
         val root = PubkyPaths.srsRoot(owner, author, deckId)
-        val urls = pubky.list(root).getOrNull()
-            ?.let { payload ->
-                runCatching { loopkyJson.decodeFromString<List<String>>(payload) }
-                    .getOrDefault(emptyList())
-                    .filter { it.startsWith("pubky://") }
-            }
-            .orEmpty()
+        // Paged: one chunk record per ~100 cards, and the homeserver's default page is 100
+        // records, so a 10,000-card deck would have its later chunks silently omitted — which
+        // the discovery contract above forbids, since an unread chunk both hides review state
+        // and lets a later write clobber it.
+        val urls = pubky.listAllEntriesOrEmpty(root)
 
         urls.mapConcurrently { url ->
             pubky.get(url)

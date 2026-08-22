@@ -76,9 +76,12 @@ class DiscoveryRepositoryImpl(
         val owner = session.current()?.identity?.pubky ?: return emptyList()
         // Propagate transport failures for the same reason as DeckRepositoryImpl.listByAuthor:
         // "couldn't reach the homeserver" must not render as "you follow nobody".
-        val listJson = pubky.list(PubkyPaths.followsRoot(owner))
+        // Paged: `follows/` is one flat record per followee and it is shared with pubky.app
+        // proper, so an account active there passes the homeserver's 100-record default page
+        // easily — and a truncated set makes `isFollowing` deny someone you do follow.
+        val entries = pubky.listAllEntries(PubkyPaths.followsRoot(owner))
             .getOrElse { if (it.isNotFound()) null else throw it }
-        val followees = listJson?.let(::parseFolloweesFromList) ?: emptyList()
+        val followees = entries?.let(::parseFollowees) ?: emptyList()
         cacheLock.withLock { cache = followees.toMutableSet() }
         return followees
     }
@@ -167,9 +170,9 @@ class DiscoveryRepositoryImpl(
             // that no indexer has seen yet.
             following()
         } else {
-            val listJson = this.pubky.list(PubkyPaths.followsRoot(pubky))
+            val entries = this.pubky.listAllEntries(PubkyPaths.followsRoot(pubky))
                 .getOrElse { if (it.isNotFound()) null else throw it }
-            listJson?.let(::parseFolloweesFromList) ?: emptyList()
+            entries?.let(::parseFollowees) ?: emptyList()
         }
         return loopkyAccountsAmong(followees, exclude = pubky)
     }
@@ -416,25 +419,21 @@ class DiscoveryRepositoryImpl(
     private val selfTagLock = Mutex()
 
     /**
-     * Followee pubkys out of the FFI `list` payload, which is a JSON array of `pubky://…` urls —
-     * the followee is the last path segment of each.
+     * Followee pubkys out of an already-decoded listing of `pubky://…` urls — the followee is
+     * the last path segment of each.
      *
-     * Decoded as JSON rather than scanned for `/pub/pubky.app/follows/`: a substring scan has no
+     * Decoded per entry rather than scanned for `/pub/pubky.app/follows/`: a substring scan has no
      * way to tell where one url ends and the next begins, so it cut every id at the following
      * entry's `pubky://` and yielded debris like `friend1","pubky:`. `followUser` seeds the cache
      * optimistically, so that only surfaced on a cold cache — i.e. after a restart, when the whole
-     * follow feed silently emptied. Same decode as [DeckRepositoryImpl]'s `parsePubkyUrlsFromList`.
+     * follow feed silently emptied. Decoding is [parsePubkyUrlsFromList]'s job, one layer down.
      */
-    private fun parseFolloweesFromList(payload: String): List<String> =
-        runCatching { loopkyJson.decodeFromString<List<String>>(payload) }
-            .getOrDefault(emptyList())
-            .mapNotNull { url ->
-                url.takeIf { it.startsWith("pubky://") }
-                    ?.substringAfter(FOLLOWS_MARKER, missingDelimiterValue = "")
-                    ?.substringBefore('/')
-                    ?.takeIf { it.isNotEmpty() }
-            }
-            .distinct()
+    private fun parseFollowees(entries: List<String>): List<String> =
+        entries.mapNotNull { url ->
+            url.substringAfter(FOLLOWS_MARKER, missingDelimiterValue = "")
+                .substringBefore('/')
+                .takeIf { it.isNotEmpty() }
+        }.distinct()
 
     companion object {
         private const val TAG = "Loopky/DiscoveryRepo"
