@@ -555,6 +555,8 @@
     <string name="bulk_format_text_title">Plain text export</string>
     <string name="bulk_format_text_detail">In Anki: File → Export → “Notes in Plain Text”. Any tab- or comma-separated list works too.</string>
     <string name="bulk_idle_limit">Files up to %1$d MB</string>
+    <string name="bulk_idle_no_deck">Don\'t have a deck yet?</string>
+    <string name="bulk_idle_browse_ankiweb">Browse shared decks on AnkiWeb</string>
     <string name="bulk_reading">Reading your file…</string>
     <string name="bulk_parsing">Reading %1$s…</string>
     <string name="bulk_summary_heading">Ready to import</string>
