@@ -134,20 +134,6 @@ class EditCardViewModel(
         _state.update { it.copy(backText = text, backError = cardTextErrorFor(text)) }
     }
 
-    fun onSpeakFront() {
-        val text = _state.value.frontText
-        if (text.isNotBlank()) {
-            viewModelScope.launch { _effects.emit(EditCardEffect.Speak(text)) }
-        }
-    }
-
-    fun onSpeakBack() {
-        val text = _state.value.backText
-        if (text.isNotBlank()) {
-            viewModelScope.launch { _effects.emit(EditCardEffect.Speak(text)) }
-        }
-    }
-
     fun onSaveClick() {
         if (saveJob?.isActive == true) return
         val s = _state.value
@@ -277,5 +263,4 @@ sealed interface EditCardEffect {
     data object NavigateBack : EditCardEffect
     data object SaveSuccess : EditCardEffect
     data object Deleted : EditCardEffect
-    data class Speak(val text: String) : EditCardEffect
 }

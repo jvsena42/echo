@@ -628,8 +628,26 @@ private fun DeckMetadataCard(
                     colors = textFieldColors(),
                 )
 
-                state.titleError?.let { errorText ->
-                    Text(text = errorText, fontSize = 12.sp, color = colors.danger)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    val errorText = state.titleError
+                    if (errorText != null) {
+                        Text(
+                            text = errorText,
+                            fontSize = 12.sp,
+                            color = colors.danger,
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    CharacterCounter(
+                        current = state.title.length,
+                        max = DeckLimits.TITLE_MAX_LENGTH,
+                    )
                 }
             }
         }

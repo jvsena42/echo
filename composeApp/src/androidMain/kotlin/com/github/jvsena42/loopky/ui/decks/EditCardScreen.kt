@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
-import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.presentation.decks.EditCardEffect
 import com.github.jvsena42.loopky.presentation.decks.EditCardUiState
 import com.github.jvsena42.loopky.presentation.decks.EditCardViewModel
@@ -53,7 +52,6 @@ import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
-import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -66,7 +64,6 @@ fun EditCardRoute(
     onOpenSettings: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<EditCardViewModel> { parametersOf(deckId, cardId) }
-    val speaker = koinInject<Speaker>()
 
     val currentBack by rememberUpdatedState(onBack)
 
@@ -76,7 +73,6 @@ fun EditCardRoute(
                 EditCardEffect.NavigateBack -> currentBack()
                 EditCardEffect.SaveSuccess -> currentBack()
                 EditCardEffect.Deleted -> currentBack()
-                is EditCardEffect.Speak -> speaker.speak(effect.text)
             }
         }
     }
@@ -88,8 +84,6 @@ fun EditCardRoute(
         onSaveClick = viewModel::onSaveClick,
         onFrontTextChanged = viewModel::onFrontTextChanged,
         onBackTextChanged = viewModel::onBackTextChanged,
-        onSpeakFront = viewModel::onSpeakFront,
-        onSpeakBack = viewModel::onSpeakBack,
         onFrontImageWebSelected = viewModel::onFrontImageWebSelected,
         onFrontImageGallerySelected = viewModel::onFrontImageGallerySelected,
         onRemoveFrontImage = viewModel::onRemoveFrontImage,
@@ -109,8 +103,6 @@ fun EditCardScreen(
     onSaveClick: () -> Unit,
     onFrontTextChanged: (String) -> Unit,
     onBackTextChanged: (String) -> Unit,
-    onSpeakFront: () -> Unit,
-    onSpeakBack: () -> Unit,
     /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
     onOpenSettings: () -> Unit,
     onFrontImageWebSelected: (String) -> Unit = {},
@@ -234,8 +226,6 @@ fun EditCardScreen(
                 imageTag = "editcard_front_image",
                 fieldTag = "editcard_front",
                 error = state.frontError,
-                onSpeak = onSpeakFront,
-                speakDescription = stringResource(R.string.edit_card_speak_front),
             )
 
             // 3. Back section
@@ -254,8 +244,6 @@ fun EditCardScreen(
                 imageTag = "editcard_back_image",
                 fieldTag = "editcard_back",
                 error = state.backError,
-                onSpeak = onSpeakBack,
-                speakDescription = stringResource(R.string.edit_card_speak_back),
             )
 
             // Audio recording is not built yet (no AudioRecorder expect/actual, nothing calls
@@ -339,8 +327,6 @@ private fun EditCardScreenPreview() {
             onSaveClick = {},
             onFrontTextChanged = {},
             onBackTextChanged = {},
-            onSpeakFront = {},
-            onSpeakBack = {},
             onOpenSettings = {},
             onDeleteCard = {},
         )
