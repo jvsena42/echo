@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -44,6 +45,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,6 +64,7 @@ import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.components.bulkImportErrorMessage
 import com.github.jvsena42.loopky.ui.components.bulkImportErrorTitle
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.openUrl
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -150,6 +153,7 @@ internal fun BulkImportRoute(
     BulkImportScreen(
         state = state,
         onPickFile = { pickFile() },
+        onBrowseSharedDecks = { context.openUrl(ANKIWEB_SHARED_DECKS_URL) },
         onSeparatorOverride = viewModel::onSeparatorOverride,
         onFieldMappingChange = viewModel::onFieldMappingChanged,
         onConfirm = viewModel::onConfirm,
@@ -162,6 +166,7 @@ internal fun BulkImportRoute(
 private fun BulkImportScreen(
     state: BulkImportUiState,
     onPickFile: () -> Unit,
+    onBrowseSharedDecks: () -> Unit,
     onSeparatorOverride: (Separator) -> Unit,
     onFieldMappingChange: (ApkgFieldMapping) -> Unit,
     onConfirm: () -> Unit,
@@ -200,7 +205,7 @@ private fun BulkImportScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             when (state) {
-                BulkImportUiState.Idle -> PickFilePrompt(onPickFile)
+                BulkImportUiState.Idle -> PickFilePrompt(onPickFile, onBrowseSharedDecks)
                 BulkImportUiState.Reading -> BusyIndicator(stringResource(R.string.bulk_reading))
                 is BulkImportUiState.Parsing ->
                     BusyIndicator(stringResource(R.string.bulk_parsing, state.fileName))
@@ -251,7 +256,7 @@ private fun BulkImportScreen(
  * refugees (§1) — spell out the export that produces them.
  */
 @Composable
-private fun PickFilePrompt(onPickFile: () -> Unit) {
+private fun PickFilePrompt(onPickFile: () -> Unit, onBrowseSharedDecks: () -> Unit) {
     val colors = LoopkyTheme.colors
     Spacer(Modifier.height(28.dp))
     Text(text = "📦", fontSize = 44.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
@@ -309,6 +314,32 @@ private fun PickFilePrompt(onPickFile: () -> Unit) {
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
     )
+
+    // The screen assumes you already have a file, which an Anki refugee does and a new user
+    // doesn't. AnkiWeb's shared decks are the shortest route from empty to something to import.
+    Spacer(Modifier.height(20.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.bulk_idle_no_deck),
+            fontSize = 13.sp,
+            color = colors.foregroundMuted,
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = stringResource(R.string.bulk_idle_browse_ankiweb),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.accentPrimary,
+            textDecoration = TextDecoration.Underline,
+            modifier = Modifier
+                .clickable(onClick = onBrowseSharedDecks)
+                .testTag("bulk_browse_ankiweb"),
+        )
+    }
     Spacer(Modifier.height(24.dp))
 }
 
@@ -347,6 +378,9 @@ private fun FormatCard(extension: String, title: String, detail: String) {
 }
 
 private const val BYTES_PER_MB = 1024L * 1024
+
+/** AnkiWeb's public library of shared decks — the .apkg source this screen imports. */
+private const val ANKIWEB_SHARED_DECKS_URL = "https://ankiweb.net/shared/decks"
 
 @Composable
 private fun BusyIndicator(message: String) {
@@ -509,6 +543,7 @@ private fun BulkImportIdlePreview() {
         BulkImportScreen(
             state = BulkImportUiState.Idle,
             onPickFile = {},
+            onBrowseSharedDecks = {},
             onSeparatorOverride = {},
             onFieldMappingChange = {},
             onConfirm = {},
@@ -525,6 +560,7 @@ private fun BulkImportParsingPreview() {
         BulkImportScreen(
             state = BulkImportUiState.Parsing("japanese_core.apkg"),
             onPickFile = {},
+            onBrowseSharedDecks = {},
             onSeparatorOverride = {},
             onFieldMappingChange = {},
             onConfirm = {},
@@ -553,6 +589,7 @@ private fun BulkImportReadyPreview() {
                 ),
             ),
             onPickFile = {},
+            onBrowseSharedDecks = {},
             onSeparatorOverride = {},
             onFieldMappingChange = {},
             onConfirm = {},
@@ -569,6 +606,7 @@ private fun BulkImportErrorPreview() {
         BulkImportScreen(
             state = BulkImportUiState.Error(BulkImportError.NotText),
             onPickFile = {},
+            onBrowseSharedDecks = {},
             onSeparatorOverride = {},
             onFieldMappingChange = {},
             onConfirm = {},
