@@ -492,6 +492,11 @@ private fun DeckDetailContent(
                     CardPreviewRow(
                         frontText = card.frontText,
                         backText = card.backText,
+                        frontImageRef = card.frontImageRef,
+                        deckId = state.deckId,
+                        // The deck's author, not the reader — a followed deck's blobs live on
+                        // their pubky.
+                        authorPubky = state.author.pubky,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 8.dp)

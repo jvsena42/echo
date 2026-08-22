@@ -518,6 +518,7 @@ class DeckDetailViewModel(
         id = id,
         frontText = front.text ?: "",
         backText = back.text ?: "",
+        frontImageRef = front.imageRef,
     )
 
     companion object {
@@ -588,6 +589,12 @@ data class CardPreviewModel(
     val id: String,
     val frontText: String,
     val backText: String,
+    /**
+     * The front's picture, for the rows whose front is a picture and nothing else. An Anki `Basic`
+     * note routinely holds only an `<img>` in its first field, and a text-only row then names the
+     * card by its answer alone (#96).
+     */
+    val frontImageRef: MediaRef.Image? = null,
 )
 
 sealed interface DeckDetailEffect {
