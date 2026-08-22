@@ -120,6 +120,7 @@ internal fun CardFace(
             if (showListen) {
                 FilledTonalButton(
                     onClick = onSpeak,
+                    modifier = Modifier.testTag("study_listen"),
                     shape = RoundedCornerShape(50),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = colors.accentPrimarySoft,

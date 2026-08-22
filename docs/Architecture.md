@@ -20,7 +20,7 @@ The v1 product is defined by [`docs/specs.md`](./specs.md) (Paste-to-Import prim
 3. **Offline-first parse and triage.** Paste-to-Import (spec §5) works with no network. Only commit/publish touches the homeserver.
 4. **Pubky is the source of truth for published data.** The local store is a cache and an offline buffer — not a parallel database. There is no private-deck local-only path in v1 (spec §11).
 5. **One ViewModel per screen, one StateFlow per ViewModel.** Screens are thin; state transitions live in shared code and are unit-testable.
-6. **Expect/actual only at the edges.** Platform glue (Pubky FFI, TTS, haptics, clipboard, file I/O) is the only code with `expect`/`actual`. Everything else is pure `commonMain`.
+6. **Platform glue only at the edges.** Pubky FFI, TTS, speech recognition, haptics, clipboard and file I/O are the only code with a platform half. Everything else is pure `commonMain`. Some of that glue is `expect`/`actual` and some is a plain interface bound per-platform in Koin (`Speaker`, `SpeechRecognizer`, `BackgroundTasks`, `PubkyRingPresence`) — the Koin form is preferred where the implementation needs platform context or lifecycle.
 
 ---
 
@@ -32,9 +32,9 @@ loopky/
 │   └── src/
 │       ├── commonMain/            ← domain + data + presentation (VMs)
 │       ├── commonTest/
-│       ├── androidMain/           ← actuals: Pubky FFI (android), TTS, haptics
+│       ├── androidMain/           ← platform halves: Pubky FFI (android), TTS, speech, haptics
 │       ├── androidUnitTest/
-│       ├── iosMain/               ← actuals: Pubky FFI (ios), TTS, haptics
+│       ├── iosMain/               ← platform halves: Pubky FFI (ios), TTS, speech, haptics
 │       └── iosTest/
 │
 ├── composeApp/                    ← Android app
@@ -300,7 +300,7 @@ Reads in use today:
 | `searchTagsByPrefix` | `/v0/search/tags/by_prefix/{prefix}` | tag autocomplete (no caller yet — but it *does* reach deck labels, unlike the hot list) |
 | `resourcesByTag` | `/v0/stream/resources?app=loopky&tags=…&sorting=taggers_count` | global deck browse **and** client-side deck-tag topics |
 | `resourceByUri` | `/v0/resource/by-uri` | per-deck tagger counts ("N followers") |
-| `taggersOfLabel` | `/v0/tags/taggers/{label}` | the `loopky-user` directory — **empty in practice, see §7.7 point 8** |
+| `taggersOfLabel` | `/v0/tags/taggers/{label}` | the `loopky-user` directory — **empty in practice, see §7.7 point 9** |
 | `userTaggers` | `/v0/user/{id}/taggers/{label}` | verifying a self-tag |
 | `searchUsersByName` | `/v0/search/users/by_name/{prefix}` | the people half of search — a name *prefix*, lexicographic, not a substring |
 | `searchUsersById` | `/v0/search/users/by_id/{prefix}` | the same, by pubky prefix (Nexus rejects fewer than 3 chars) |
@@ -358,7 +358,23 @@ client-side from `/v0/stream/resources?app=loopky&sorting=taggers_count` — whi
 distinct decks carry them. The stream returns each resource's *whole* label list with per-label
 tagger counts, which is what makes this possible from a single call.
 
-**4. Announcement posts (#39) are how deck topics reach the global index.** A post is a `Post`
+**4. A deck is also indexed under each language it declares.** `syncTags` asserts a reserved
+`loopky-lang-{code}` label per entry in `Deck.languageCodes`, so `/v0/stream/resources?app=loopky`
+can answer "Spanish decks" for someone with no follow relationship to the author. Three details:
+
+- **Derived from the manifest, never stored in `Deck.tags`** — the same shape as `loopky-deck`.
+  `front_lang`/`back_lang` stay the single source of truth; materialising the labels into the
+  user's tag list would create a second one that can drift, and `putTag` rejects the family so a
+  hand-typed label cannot claim a language the deck has not declared.
+- **Base subtag only.** `es-ES` and `es-MX` both index as `loopky-lang-es`. Region picks a voice;
+  splitting the index by it would halve a search for Spanish decks.
+- **They are diffed, unlike `loopky-deck`.** A language label is variable — retyping a deck from
+  Spanish to French has to drop `loopky-lang-es`, or the deck stays listed as Spanish forever. The
+  user-tag diff excludes reserved labels and these are not in `Deck.tags` at all, so `syncTags`
+  takes the *previous* `Deck` and reconciles the pair itself. Per point 3 these never trend, which
+  is correct: a language is a facet, not a topic.
+
+**5. Announcement posts (#39) are how deck topics reach the global index.** A post is a `Post`
 target where a manifest can only be a resource, so `DiscoveryRepository.announceDeck` writes the
 deck's topics **and `loopky-deck` onto the post**, on top of the manifest tags. A deck is
 therefore labelled in both graphs, each for what it can do: the post tags reach
@@ -411,19 +427,19 @@ Two things the post record has to get right, both silent when wrong:
   in pure Kotlin. That is safe here in a way hand-rolling a tag id would not be: a tag id has to
   match a blake3 derivation byte for byte.
 
-**5. The universal path does not validate or sanitize.** Unlike the pubky.app path it checks
+**6. The universal path does not validate or sanitize.** Unlike the pubky.app path it checks
 neither the tag id against the body nor the label's casing
 (`nexus-watcher/src/events/handlers/universal_tag.rs:62`). `TagRepositoryImpl.sanitizeLabel`
 is therefore load-bearing for deck tags — drop it and labels fragment by case.
 
-**6. Before #40, deck tags were written to `/pub/pubky.app/tags/` and silently dropped.** If
+**7. Before #40, deck tags were written to `/pub/pubky.app/tags/` and silently dropped.** If
 old decks are missing from the indexer, that is why, not indexer lag.
 
-**7. Two similar hashes, different encodings.** Tag id =
+**8. Two similar hashes, different encodings.** Tag id =
 Crockford-base32(blake3(`"{uri}:{label}"`)[..16]), 26 chars, from the FFI. Nexus
 `resource_id` = lowercase-hex(blake3(normalized_uri)[..16]), 32 chars. Easy to confuse.
 
-**8. `/v0/tags/taggers/{label}` only surfaces labels with real traction.** Probed against staging
+**9. `/v0/tags/taggers/{label}` only surfaces labels with real traction.** Probed against staging
 while building #26: a `loopky-user` self-tag was written, ingested, and visible two days later on
 both `/v0/user/{id}` and `/v0/user/{id}/taggers/loopky-user` — yet `/v0/tags/taggers/loopky-user`
 returned `[]`, while busy labels (`synonym`, `bitcoin`, `test`) returned their taggers. So the
@@ -527,6 +543,8 @@ Cards are batched rather than stored one record per card, and the manifest carri
   "updated_at": 1739000500000,
   "listen_enabled": true,
   "speak_enabled": true,
+  "front_lang": "en-US",
+  "back_lang": "es-ES",
   "card_count": 20000,
   "chunks": [
     { "n": 0, "count": 100, "updated_at": 1739000100000 },
@@ -549,6 +567,7 @@ Cards are batched rather than stored one record per card, and the manifest carri
 - Manifest `updated_at` bumps on any deck-metadata change or any card add/remove/reorder.
 - `media_rehost_cursor` / `media_rehosted` track the deferred media re-host (#53) and are meaningless unless `source.kind` is `clone`. Additive — schema stays `1`, and a manifest written before they existed decodes to `0` / `false`, so an older clone is simply swept once. See §8.0's clone paragraph for why the cursor is load-bearing.
 - `listen_enabled` / `speak_enabled` are deck-level study opt-ins (TTS playback of the back / pronunciation practice). Both default `true`; manifests written before these fields existed decode to `true`. Additive — schema stays `1`.
+- **`front_lang` / `back_lang` are what make those two opt-ins mean anything, and a deck without them offers neither feature.** BCP-47 tags for the language of each card side. The OS speech engines — Android `TextToSpeech` / `SpeechRecognizer`, iOS `AVSpeechSynthesizer` — fall back to the **reader's** device locale when handed no language, so an undeclared Spanish deck is read aloud with English phonetics on an English phone and the spoken reply is transcribed by an English model. That is a wrong answer dressed as a working feature, which is why `Deck.speechReady` gates the buttons rather than any locale being guessed. Absent on manifests written before the pair existed, and additive — schema stays `1` — so those decks simply go quiet until their author sets a pair in the deck editor. Both sides are required, because Listen reads whichever side is facing the user and the two are routinely different languages.
 - A media ref (`cover_image_ref`, `image_ref`, `audio_ref`) may instead carry a `"url"` field for a **web image** (e.g. an Unsplash photo). When `url` is set, `path`/`sha256` are empty (`""`) and no blob is stored on the homeserver; the client loads the remote URL directly.
 - **Unsplash licensing.** Their API guidelines are licensing terms, and breaching them costs API access. Loading the remote `url` rather than re-hosting the bytes satisfies the hotlinking rule; the image picker credits the photographer on every grid cell and links both them and unsplash.com with `?utm_source=loopky&utm_medium=referral`; and `UnsplashClient.trackDownload` pings `links.download_location` when a pick is committed. **Known gap:** a media ref carries no attribution fields, so a published deck cover or card face displays its Unsplash photo uncredited. Closing that means adding `author_name` / `author_url` to `MediaRefDto` (additive, schema stays `1` — `ignoreUnknownKeys` keeps older manifests readable) and rendering a credit wherever a remote image is shown.
 - **The Unsplash access key is the user's, not the build's.** `UnsplashKeyStore` (`data/storage/`, KVault → Android Keystore / iOS Keychain, under its own `loopky.secrets` service so signing out cannot clear it) holds a key the user enters in Settings; `BuildConfig.UNSPLASH_ACCESS_KEY` is only a fallback behind it. `UnsplashClient` resolves the key per call rather than capturing it at construction, and `isConfigured` is a `Flow` so a key saved in Settings reaches an image sheet that is already open.

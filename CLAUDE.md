@@ -32,7 +32,7 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   - `data/storage/` — `SecureSessionStore` interface for persisting the signed-in `Session`, backed by the platform keystore via Liftric KVault (`AndroidSecureSessionStore` wraps EncryptedSharedPreferences; `IosSecureSessionStore` wraps Keychain). This resolves the secret-storage open question — see "Non-obvious rules" below. Non-secret preferences use the separate `AppPreferences` (SharedPreferences / NSUserDefaults) in the same package — don't put a plain setting through the keystore, or a secret through `AppPreferences`.
   - `di/SharedModule.kt` — Koin graph binding repos, ViewModels, and `SessionProvider`; platforms override `PubkyClient` + `SecureSessionStore` via `PlatformModule.{android,ios}.kt`.
   - `presentation/` — KMP ViewModels, one per screen, each extending the multiplatform `androidx.lifecycle.ViewModel` (`viewModelScope`) and exposing `StateFlow<UiState>` + `SharedFlow<UiEffect>` (see "Coding conventions" below). **Implemented** across `onboarding/` (`OnboardingViewModel` + UiState/Effect), `home/` (`HomeViewModel`), `decks/` (`DecksLibraryViewModel`, `DeckDetailViewModel`, `DeckEditorViewModel`, `EditCardViewModel`), `import/` (`PasteImportViewModel`, `PublishDeckViewModel`), and `profile/` (`ProfileViewModel`). Coroutines + Koin are wired (no longer blocked).
-- `shared/src/{android,ios}Main/` — `expect`/`actual` platform glue only (Pubky FFI, TTS, haptics, file I/O). Nothing else lives here.
+- `shared/src/{android,ios}Main/` — platform glue only (Pubky FFI, TTS, speech recognition, haptics, file I/O). Nothing else lives here. Some is `expect`/`actual`; some is a plain interface bound per-platform in Koin (`Speaker`, `SpeechRecognizer`, `BackgroundTasks`, `PubkyRingPresence`), which is the right form when the implementation needs platform context or lifecycle.
 - `composeApp/src/androidMain/` — Android app. Compose screens in `ui/`, Koin in `di/`, `MainActivity` as entry point. Uses Jetpack Navigation Compose.
 - `iosApp/iosApp/` — iOS app. SwiftUI screens in `Views/`, `NavigationStack` in `Navigation/`, Koin bootstrap in `DI/`. Compose Multiplatform UI is **not** used for iOS screens.
 
@@ -60,6 +60,17 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   not an `AppPreferences` value, because they decide `dueAt`s and review state already syncs;
   `SettingsRepository.update` refuses unless the record has actually been read this session, at the
   repository rather than only in the UI. Read Architecture.md §8.6 before touching any of it.
+- **Listen and Speak are inert without a declared language pair, and that is deliberate.** A deck
+  carries `frontLang`/`backLang` (BCP-47) beside the `listenEnabled`/`speakEnabled` opt-ins, and
+  `Deck.speechReady` gates both features on having them. The OS engines fall back to the
+  **reader's** device locale when given no language, so an undeclared Spanish deck is read aloud
+  in an English accent and the spoken reply is graded by an English model — a wrong answer that
+  looks like a working feature. Never reintroduce a locale default anywhere in this path: the
+  author declares the pair, or the buttons do not appear. Consequences to know: the opt-ins
+  default **off** when authoring, since turning one on obliges the author to pick languages; the
+  deck editor carries the whole block, because a deck published before the pair existed has no
+  other way to gain one; and the pair is also published as reserved `loopky-lang-*` tag records
+  (derived, base subtag only, diffed on change — Architecture.md §7.7 point 4).
 - **Paste-to-Import is the v1 primary import flow.** The implemented spine is `PasteImportViewModel` (parse + live preview) → `PublishDeckViewModel` (commit to Pubky). Every other import source (AI, OCR, URL) listed in spec §14 must reuse this same spine. Don't build parallel commit flows.
 - **Parser rules are prescriptive.** The paste parser (on `ImportRepository`) must follow the exact rule order in spec §6 and the edge-case table in spec §9. Use them as the test matrix.
 - **No use-case layer.** Don't introduce `*UseCase` interfaces or a `domain/usecase/` package. If a piece of logic doesn't fit any existing repo, extend the most relevant repo or add a new one — keep the surface area flat.

@@ -3,13 +3,15 @@
     The Speak study feature (design aLoMj / sIqOr / n3bMb7 / BlcXn): on a speak-enabled deck,
     reveal a card back and start pronunciation practice. Actual speech cannot be synthesized in
     automation, so this journey verifies the permission prompt and the Listening sheet appear and
-    that cancel/retry work; the Correct/Wrong outcome is a manual check. Requires a signed-in
+    that cancel/retry work; the Correct/Wrong outcome is a manual check. Which *language* each
+    engine uses is likewise ear-only — see the Listen step at the end. Requires a signed-in
     session with at least one due card in a speak-enabled deck (run journeys 01–02 first).
   </description>
   <actions>
     <action>Launch the Loopky app and verify the Home screen is shown</action>
     <action>Tap the element with resource-id "tab_decks" in the bottom tab bar</action>
-    <action>Open a deck that was published with the Speak option enabled and start studying it</action>
+    <action>Open a deck that was published with the Speak option enabled AND a front/back language pair, and start studying it</action>
+    <action>Manual check: open a deck published before the language pair existed (or one whose pair is unset) and verify the card back shows neither the Listen nor the Speak button — an undeclared deck must not fall back to the phone's locale</action>
     <action>Verify the study card (resource-id: study_card) is shown front-side</action>
     <action>Tap the card to reveal the back</action>
     <action>Verify a "Speak" practice button (resource-id: study_speak) is shown on the card back</action>
@@ -18,7 +20,10 @@
     <action>Tap the element with resource-id "permission_continue" and verify the Android RECORD_AUDIO permission dialog then appears; grant it</action>
     <action>Manual check: deny twice so Android stops asking, tap Speak again, and verify a "Microphone is off" dialog offers "Open settings" (resource-id: permission_open_settings) instead of doing nothing</action>
     <action>Verify the Listening sheet appears with a microphone indicator (resource-id: speak_mic) and the target word</action>
+    <action>Manual check: the recognizer listens in the deck's BACK language, not the phone's — on an English-locale device, say the Spanish answer to a Spanish-back deck and verify it is transcribed as Spanish</action>
     <action>Manual check (speech not automatable): say the word and verify either the "Perfect!" sheet with Continue (resource-id: speak_continue) or the "Not quite right" sheet with your transcript (resource-id: speak_heard) and Try again (resource-id: speak_retry)</action>
     <action>Dismiss the Listening sheet and verify the study card is shown again</action>
+    <action>Tap the Listen button (resource-id: study_listen) on the card back and verify — by ear — that the answer is spoken by a voice for the deck's back language, and the front (before reveal) by the front language's voice. This is the acceptance test; a green build says nothing about which voice was used.</action>
+    <action>Manual check: set the deck to a language with no installed voice and verify a toast says so rather than the card being read in the wrong accent</action>
   </actions>
 </journey>

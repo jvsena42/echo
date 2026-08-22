@@ -12,7 +12,7 @@ A mobile flashcards app that fuses Duolingo TinyCards' playfulness, Anki's space
 
 Loopky is a Kotlin Multiplatform project with **shared business logic** and **native UIs per platform**:
 
-- `shared/` — KMP module holding domain models, repositories (which own the business logic), and ViewModels. Platform glue (Pubky FFI, TTS, haptics) via `expect`/`actual`.
+- `shared/` — KMP module holding domain models, repositories (which own the business logic), and ViewModels. Platform glue (Pubky FFI, TTS, speech recognition, haptics) via `expect`/`actual` or a Koin-bound interface.
 - `composeApp/` — Android app. Jetpack Compose screens, Jetpack Navigation, Koin DI.
 - `iosApp/` — iOS app. SwiftUI screens, `NavigationStack`, Koin bootstrap.
 
@@ -28,8 +28,8 @@ loopky/
 │       │   ├── domain/        # models (pure Kotlin)
 │       │   ├── data/          # repositories (own business logic) + PubkyClient
 │       │   └── presentation/  # ViewModels (StateFlow-based)
-│       ├── androidMain/       # actuals: Pubky FFI, TTS, haptics
-│       └── iosMain/           # actuals: Pubky FFI, TTS, haptics
+│       ├── androidMain/       # platform halves: Pubky FFI, TTS, speech, haptics
+│       └── iosMain/           # platform halves: Pubky FFI, TTS, speech, haptics
 │
 ├── composeApp/src/androidMain/kotlin/com/github/jvsena42/loopky/
 │   ├── ui/                    # Compose screens + navigation
