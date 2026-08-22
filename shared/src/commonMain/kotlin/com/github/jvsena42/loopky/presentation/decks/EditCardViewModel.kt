@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
+import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
@@ -137,14 +138,14 @@ class EditCardViewModel(
     fun onSaveClick() {
         if (saveJob?.isActive == true) return
         val s = _state.value
-        if (s.frontText.isBlank() && s.backText.isBlank()) {
-            _state.update { it.copy(error = "Card must have content.") }
-            return
-        }
-        val frontError = cardTextErrorFor(s.frontText)
-        val backError = cardTextErrorFor(s.backText)
+        // Both sides, each on its own. `DeckRepository.upsertCard` refuses a card with an empty
+        // side outright, so a front cleared while the back still had text used to reach the
+        // repository's `require` and surface its message — which names the card by its internal
+        // id — straight to the user.
+        val frontError = cardTextErrorFor(s.frontText) ?: sideRequiredErrorFor(s.frontText, s.hasFrontImage)
+        val backError = cardTextErrorFor(s.backText) ?: sideRequiredErrorFor(s.backText, s.hasBackImage)
         if (frontError != null || backError != null) {
-            _state.update { it.copy(frontError = frontError, backError = backError) }
+            _state.update { it.copy(frontError = frontError, backError = backError, error = null) }
             return
         }
         saveJob = viewModelScope.launch {
@@ -226,8 +227,12 @@ class EditCardViewModel(
         else -> s.backImageRef
     }
 
-    private fun cardTextErrorFor(text: String): String? =
-        if (text.length > CARD_TEXT_MAX_LENGTH) "Card text must be $CARD_TEXT_MAX_LENGTH characters or fewer." else null
+    private fun cardTextErrorFor(text: String): FormError? =
+        if (text.length > CARD_TEXT_MAX_LENGTH) FormError.CardTextTooLong else null
+
+    /** A side is what the user can see: its own words, or its own picture. One of the two. */
+    private fun sideRequiredErrorFor(text: String, hasImage: Boolean): FormError? =
+        if (text.isBlank() && !hasImage) FormError.CardSideRequired else null
 
     companion object {
         private const val TAG = "Loopky/EditCardVM"
@@ -254,10 +259,15 @@ data class EditCardUiState(
     val hasImage: Boolean = false,
     val hasAudio: Boolean = false,
     val isSaving: Boolean = false,
-    val frontError: String? = null,
-    val backError: String? = null,
+    val frontError: FormError? = null,
+    val backError: FormError? = null,
+    /** A failure from the homeserver, not from the form. Field problems are [FormError]s. */
     val error: String? = null,
-)
+) {
+    /** A picture already on this side, or one picked and not yet uploaded — both count as content. */
+    val hasFrontImage: Boolean get() = frontImageRef != null || frontPendingBytes != null
+    val hasBackImage: Boolean get() = backImageRef != null || backPendingBytes != null
+}
 
 sealed interface EditCardEffect {
     data object NavigateBack : EditCardEffect
