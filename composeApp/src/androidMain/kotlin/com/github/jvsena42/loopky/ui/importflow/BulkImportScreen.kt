@@ -225,7 +225,6 @@ private fun BulkImportScreen(
     if (showFieldSheet && fields != null) {
         FieldMappingSheet(
             fields = fields,
-            sample = state.sample.firstOrNull(),
             onPick = {
                 showFieldSheet = false
                 onFieldMappingChange(it)
@@ -496,22 +495,6 @@ private fun SeparatorChip(separator: Separator, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     )
-}
-
-@Composable
-private fun SampleRow(card: SampleCard) {
-    val colors = LoopkyTheme.colors
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .background(colors.surfaceSecondary, RoundedCornerShape(12.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(card.front, fontSize = 15.sp, fontWeight = FontWeight.W600, color = colors.foregroundPrimary)
-        Text(card.back, fontSize = 14.sp, color = colors.foregroundSecondary)
-    }
 }
 
 @Composable

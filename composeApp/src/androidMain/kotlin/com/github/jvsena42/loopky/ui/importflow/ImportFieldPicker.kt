@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,12 +22,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.data.anki.ApkgFieldMapping
 import com.github.jvsena42.loopky.presentation.importflow.ApkgFields
-import com.github.jvsena42.loopky.presentation.importflow.SampleCard
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /** Which two Anki fields became the card, and an invitation to pick differently. */
@@ -62,7 +63,6 @@ internal fun FieldsChip(fields: ApkgFields, onClick: () -> Unit) {
 @Composable
 internal fun FieldMappingSheet(
     fields: ApkgFields,
-    sample: SampleCard?,
     onPick: (ApkgFieldMapping) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -79,12 +79,22 @@ internal fun FieldMappingSheet(
                 .semantics { testTagsAsResourceId = true },
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // Two questions in a row, so the sheet says which one this is; without it, picking
+            // the front looked like the whole job and the second question came as a surprise.
+            Text(
+                text = stringResource(R.string.bulk_fields_sheet_step, if (choosingFront) 1 else 2),
+                color = colors.foregroundMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.W700,
+                letterSpacing = 0.8.sp,
+            )
             Text(
                 text = stringResource(
                     if (choosingFront) R.string.bulk_fields_sheet_front else R.string.bulk_fields_sheet_back,
                 ),
                 color = colors.foregroundPrimary,
                 fontSize = 18.sp,
+                lineHeight = 22.sp,
                 fontWeight = FontWeight.ExtraBold,
                 modifier = Modifier.padding(bottom = 8.dp),
             )
@@ -99,6 +109,7 @@ internal fun FieldMappingSheet(
                 }
                 FieldOption(
                     name = name.ifBlank { stringResource(R.string.bulk_fields_unnamed, ord + 1) },
+                    sample = fields.sampleAt(ord),
                     selected = selected,
                     onClick = {
                         val chosen = front
@@ -106,30 +117,62 @@ internal fun FieldMappingSheet(
                     },
                 )
             }
-            sample?.let {
+            Text(
+                text = stringResource(R.string.bulk_fields_sheet_hint),
+                color = colors.foregroundSecondary,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            // A way out that is not a swipe: the sheet asks two questions and had no control
+            // saying you could leave the mapping as it was.
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.padding(top = 4.dp),
+            ) {
                 Text(
-                    text = stringResource(R.string.bulk_fields_sheet_hint),
-                    color = colors.foregroundSecondary,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 12.dp),
+                    text = stringResource(R.string.bulk_fields_sheet_cancel),
+                    color = colors.accentPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.W600,
                 )
             }
         }
     }
 }
 
+/**
+ * One field to choose from: its name, and what it actually holds.
+ *
+ * The sample is the whole point. Anki names fields "Field 3" — or nothing — often enough that a
+ * list of names alone made this a guess, and getting it wrong builds every card in the deck
+ * backwards.
+ */
 @Composable
-private fun FieldOption(name: String, selected: Boolean, onClick: () -> Unit) {
+private fun FieldOption(name: String, sample: String?, selected: Boolean, onClick: () -> Unit) {
     val colors = LoopkyTheme.colors
-    Text(
-        text = name,
-        color = if (selected) colors.accentPrimary else colors.foregroundPrimary,
-        fontSize = 15.sp,
-        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .testTag("bulk_field_option")
             .padding(vertical = 12.dp),
-    )
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = name,
+            color = if (selected) colors.accentPrimary else colors.foregroundPrimary,
+            fontSize = 15.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        )
+        sample?.let {
+            Text(
+                text = it,
+                color = colors.foregroundMuted,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }
