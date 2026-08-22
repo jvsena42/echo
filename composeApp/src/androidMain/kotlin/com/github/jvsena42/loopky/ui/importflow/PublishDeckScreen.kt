@@ -68,10 +68,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.domain.model.DeckLimits
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckEffect
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckUiState
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.loopky.ui.components.AddTagSheet
+import com.github.jvsena42.loopky.ui.components.CharacterCounter
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
@@ -402,8 +404,28 @@ private fun PublishDeckScreen(
                         }
                     },
                 )
-                state.descriptionError?.let { error ->
-                    Text(formErrorMessage(error), fontSize = 12.sp, color = colors.danger)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    val error = state.descriptionError
+                    if (error != null) {
+                        Text(
+                            formErrorMessage(error),
+                            fontSize = 12.sp,
+                            color = colors.danger,
+                            modifier = Modifier
+                                .testTag("publish_description_error")
+                                .weight(1f),
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    CharacterCounter(
+                        current = state.description.length,
+                        max = DeckLimits.DESCRIPTION_MAX_LENGTH,
+                    )
                 }
             }
 

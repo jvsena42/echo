@@ -82,11 +82,13 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.domain.model.DeckLimits
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorEffect
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorUiState
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditableCardModel
 import com.github.jvsena42.loopky.ui.components.AddTagSheet
+import com.github.jvsena42.loopky.ui.components.CharacterCounter
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.ReorderableListState
@@ -659,8 +661,26 @@ private fun DeckMetadataCard(
                 colors = textFieldColors(),
             )
 
-            state.descriptionError?.let { errorText ->
-                Text(text = errorText, fontSize = 12.sp, color = colors.danger)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                val errorText = state.descriptionError
+                if (errorText != null) {
+                    Text(
+                        text = errorText,
+                        fontSize = 12.sp,
+                        color = colors.danger,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                CharacterCounter(
+                    current = state.description.length,
+                    max = DeckLimits.DESCRIPTION_MAX_LENGTH,
+                )
             }
         }
 

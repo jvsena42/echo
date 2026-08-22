@@ -12,6 +12,7 @@ import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
+import com.github.jvsena42.loopky.domain.model.DeckLimits
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
@@ -483,16 +484,18 @@ private const val CARDS_LOAD_FAILED =
 
 private const val MOVE_FAILED = "Couldn't move that card. Check your connection and try again."
 
-private const val TITLE_MAX_LENGTH = 120
-private const val DESCRIPTION_MAX_LENGTH = 500
 private const val DEFAULT_IMAGE_MIME = "image/jpeg"
 
 private fun titleErrorFor(text: String): String? =
-    if (text.length > TITLE_MAX_LENGTH) "Title must be $TITLE_MAX_LENGTH characters or fewer." else null
+    if (text.length > DeckLimits.TITLE_MAX_LENGTH) {
+        "Title must be ${DeckLimits.TITLE_MAX_LENGTH} characters or fewer."
+    } else {
+        null
+    }
 
 private fun descriptionErrorFor(text: String): String? =
-    if (text.length > DESCRIPTION_MAX_LENGTH) {
-        "Description must be $DESCRIPTION_MAX_LENGTH characters or fewer."
+    if (text.length > DeckLimits.DESCRIPTION_MAX_LENGTH) {
+        "Description must be ${DeckLimits.DESCRIPTION_MAX_LENGTH} characters or fewer."
     } else {
         null
     }
