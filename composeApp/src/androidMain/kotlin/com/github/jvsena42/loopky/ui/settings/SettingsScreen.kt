@@ -194,6 +194,7 @@ private fun SettingsScreen(
             Text(
                 text = stringResource(R.string.settings_title),
                 fontSize = 28.sp,
+                lineHeight = 34.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
             )

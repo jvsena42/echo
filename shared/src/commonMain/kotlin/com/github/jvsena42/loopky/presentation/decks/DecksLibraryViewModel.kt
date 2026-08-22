@@ -167,7 +167,7 @@ class DecksLibraryViewModel(
             id = id,
             title = title,
             cardCount = cardCount,
-            coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
+            coverEmoji = coverEmoji ?: title.firstOrNull()?.uppercaseChar()?.toString() ?: "📚",
             coverImage = coverImageRef,
             author = myIdentity?.takeIf { isOwned }
                 ?: authors[authorPubky]

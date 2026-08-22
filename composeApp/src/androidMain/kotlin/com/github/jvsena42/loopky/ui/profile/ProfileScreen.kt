@@ -207,6 +207,7 @@ private fun ProfileScreen(
             Text(
                 text = stringResource(R.string.profile_title),
                 fontSize = 28.sp,
+                lineHeight = 34.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = colors.foregroundPrimary,
             )

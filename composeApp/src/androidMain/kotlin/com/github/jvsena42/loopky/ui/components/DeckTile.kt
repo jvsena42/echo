@@ -85,6 +85,7 @@ fun DeckTile(
             Text(
                 text = coverEmoji,
                 fontSize = 48.sp,
+                lineHeight = 58.sp,
             )
         }
 

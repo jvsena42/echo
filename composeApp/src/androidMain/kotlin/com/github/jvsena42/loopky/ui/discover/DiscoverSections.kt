@@ -250,6 +250,7 @@ fun BrowseEmptyBlock(
                 },
             ),
             fontSize = 36.sp,
+            lineHeight = 43.sp,
         )
         Text(
             text = selectedTag
