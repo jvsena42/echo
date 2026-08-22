@@ -224,16 +224,17 @@ private fun LazyListScope.browseSection(
             trailing = state.selectedTag?.let { { ClearTagButton(onClick = { onTagSelected(null) }) } },
         )
     }
-    if (state.browse.isLoading) {
+    val browse = state.browseExcludingFollowed
+    if (browse.isLoading) {
         item(key = "browse_loading") { SectionSpinner(modifier = Modifier.testTag("discover_browse_loading")) }
     }
-    if (state.browse.isEmpty) {
+    if (browse.isEmpty) {
         item(key = "browse_empty") {
             BrowseEmptyBlock(selectedTag = state.selectedTag, onSearch = onSearch)
         }
     }
     deckRows(
-        section = state.browse,
+        section = browse,
         keyPrefix = "browse",
         tileTestTag = "discover_deck_tile",
         onOpenDeck = onOpenDeck,
@@ -321,6 +322,7 @@ private fun DiscoverHeader(onSearch: () -> Unit) {
             text = stringResource(R.string.discover_title),
             color = colors.foregroundPrimary,
             fontSize = 28.sp,
+            lineHeight = 34.sp,
             fontWeight = FontWeight.ExtraBold,
         )
         // A magnifier alone, and the platform's own button: what the icon means needs no label,

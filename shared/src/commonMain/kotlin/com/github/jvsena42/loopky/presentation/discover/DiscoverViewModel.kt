@@ -298,7 +298,7 @@ internal fun List<Deck>.toCards(authors: Map<String, PubkyIdentity>): List<Disco
         authorPubky = deck.authorPubky,
         title = deck.title,
         cardCount = deck.cardCount,
-        coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.toString() ?: FALLBACK_EMOJI,
+        coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.uppercaseChar()?.toString() ?: FALLBACK_EMOJI,
         coverImage = deck.coverImageRef,
         author = authors[deck.authorPubky] ?: bareIdentity(deck.authorPubky),
         tags = deck.tags.map { it.value },
@@ -317,7 +317,24 @@ data class DiscoverUiState(
     val following: SectionState<DiscoverDeck> = SectionState(),
     val selectedTag: Tag? = null,
     val isRefreshing: Boolean = false,
-)
+) {
+    /**
+     * Global browse minus whatever the follow strip is already showing.
+     *
+     * The two strips load independently and neither knew about the other, so a followed author's
+     * deck was drawn twice on the same screen — once under "From people you follow" and again
+     * under "Discover decks". The follow strip wins because it is the more specific claim.
+     *
+     * Derived rather than filtered at write time: the strips settle in either order, so the
+     * exclusion has to be recomputed on every emission rather than applied once.
+     */
+    val browseExcludingFollowed: SectionState<DiscoverDeck>
+        get() {
+            if (following.items.isEmpty()) return browse
+            val shown = following.items.mapTo(mutableSetOf()) { it.authorPubky to it.id }
+            return browse.copy(items = browse.items.filterNot { (it.authorPubky to it.id) in shown })
+        }
+}
 
 /** Someone worth following, with the state of the follow pill beside them. */
 data class DiscoverPerson(
