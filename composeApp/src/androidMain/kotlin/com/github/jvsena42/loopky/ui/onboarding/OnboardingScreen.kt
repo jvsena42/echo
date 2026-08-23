@@ -140,6 +140,13 @@ private fun OnboardingContent(
         state is OnboardingUiState.AwaitingApproval ||
         state is OnboardingUiState.Verifying
 
+    // Local rather than in the ViewModel on purpose. OnboardingUiState is a sealed interface over
+    // modes (Restoring/Starting/AwaitingApproval/…), so a cross-cutting flag would have to be
+    // carried on every one of them to say something none of them is about. Nothing is persisted
+    // across launches either: this screen is only reachable while signed out, so the question is
+    // asked once per account, which is when consent is actually meant to be given.
+    var policyAccepted by rememberSaveable { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -186,13 +193,23 @@ private fun OnboardingContent(
         CtaBlock(
             state = state,
             isWorking = isWorking,
+            policyAccepted = policyAccepted,
             onSignInClick = onSignInClick,
             onGetRingClick = onGetRingClick,
             onCreatePubky = onCreatePubky,
         )
 
-        // Before sign-in, because a bug report from someone who cannot get past this screen is
-        // exactly the one where knowing the build matters.
+        // Foot of the screen, under the calls to action: the gate has to be visible before the
+        // buttons are usable, but it is fine print rather than a step, and putting it between the
+        // hero and the primary button pushed the thing people came here to tap down the page.
+        PolicyConsentRow(
+            accepted = policyAccepted,
+            enabled = !isWorking,
+            onAcceptedChange = { policyAccepted = it },
+        )
+
+        // Last, because a bug report from someone who cannot get past this screen is exactly the
+        // one where knowing the build matters.
         Text(
             text = stringResource(R.string.onboarding_app_version, rememberAppVersion()),
             modifier = Modifier.testTag("onboarding_app_version"),
@@ -224,30 +241,17 @@ private fun BrandRow() {
 private fun CtaBlock(
     state: OnboardingUiState,
     isWorking: Boolean,
+    policyAccepted: Boolean,
     onSignInClick: () -> Unit,
     onGetRingClick: () -> Unit,
     onCreatePubky: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
-
-    // Local rather than in the ViewModel on purpose. OnboardingUiState is a sealed interface over
-    // modes (Restoring/Starting/AwaitingApproval/…), so a cross-cutting flag would have to be
-    // carried on every one of them to say something none of them is about. Nothing is persisted
-    // across launches either: this screen is only reachable while signed out, so the question is
-    // asked once per account, which is when consent is actually meant to be given.
-    var policyAccepted by rememberSaveable { mutableStateOf(false) }
-
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        PolicyConsentRow(
-            accepted = policyAccepted,
-            enabled = !isWorking,
-            onAcceptedChange = { policyAccepted = it },
-        )
-
         LoopkyPrimaryButton(
             label = when (state) {
                 OnboardingUiState.Starting,
