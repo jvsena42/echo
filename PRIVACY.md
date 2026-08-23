@@ -5,9 +5,14 @@
 Loopky is a flashcards app built on [Pubky](https://pubky.org). This policy describes what happens
 to your information when you use it.
 
-The short version: **Loopky has no servers.** There is no Loopky account, no Loopky database, and no
-analytics. Your data is written to a homeserver that you control, using an identity that lives in a
-separate app.
+The short version: **the Loopky project runs no servers of its own.** There is no Loopky account,
+no Loopky database, and no analytics.
+
+That does not mean nothing receives your data. Your decks and study progress are written to a
+**Pubky homeserver**, and unless you run one yourself that server is operated by someone else — by
+default Synonym, who run the homeserver that Loopky's sign-up flow issues accounts on. You hold the
+key to that data and can delete it, but the server that stores it is not yours and not ours. See
+sections 4 and 5.
 
 ---
 
@@ -16,18 +21,21 @@ separate app.
 Loopky is an open-source project by João Victor Sena. The source is at
 [github.com/jvsena42/loopky](https://github.com/jvsena42/loopky).
 
-Questions about this policy: **jvsena16@gmail.com**
+Questions about this policy: open an issue at
+[github.com/jvsena42/loopky/issues](https://github.com/jvsena42/loopky/issues).
 
 ---
 
 ## 2. What Loopky does not do
 
-- **No backend.** The project operates no server that receives your data.
+- **No Loopky backend.** The project runs no server, and none of your data is sent to us. It goes
+  to your Pubky homeserver instead, which is a different party — see sections 4 and 5.
 - **No analytics or telemetry.** No usage tracking, no event logging, no advertising identifiers,
   no third-party SDKs for measurement or attribution.
 - **No crash reporting.** Nothing is transmitted when the app fails.
 - **No advertising**, and no sale or sharing of personal information for advertising.
-- **No account with Loopky.** There is no email address, password, or profile held by us.
+- **No account with Loopky.** There is no email address, password, or profile held by us. Your
+  account is a Pubky account, held by Pubky Ring and hosted on a homeserver.
 
 ---
 
@@ -37,8 +45,9 @@ Your identity is a Pubky keypair held by **[Pubky Ring](https://pubky.app)**, a 
 never sees your private key or your recovery phrase.
 
 When you sign in, Ring grants Loopky a **session secret** scoped to Loopky's own storage area. That
-secret is stored on your device in the Android Keystore (`EncryptedSharedPreferences`) and is sent
-only to your homeserver, to authorise your own reads and writes. Signing out deletes it.
+secret is kept in your device's own secure storage — the Android Keystore on Android, the Keychain
+on iOS — and is sent only to your homeserver, to authorise your own reads and writes. Signing out
+deletes it.
 
 Deleting your Loopky data does not delete your Pubky identity. That is managed in Pubky Ring.
 
@@ -46,8 +55,15 @@ Deleting your Loopky data does not delete your Pubky identity. That is managed i
 
 ## 4. Where your content is stored
 
-Your decks, cards, images, tags, follows and study progress are written to **your own Pubky
-homeserver** under `/pub/loopky/`. They are not stored by Loopky.
+Your decks, cards, images, tags, follows and study progress are written to **your Pubky
+homeserver** under `/pub/loopky/`. They are not stored by the Loopky project.
+
+"Your homeserver" means the one your Pubky account is hosted on, which is a real server run by a
+real operator. If you signed up through Loopky, that is the homeserver Synonym operate for
+[pubky.app](https://pubky.app), and their terms and privacy practices apply to what is stored
+there. You can host your own instead, and then the operator is you. Either way the data is written
+under your key, so you can read, change and delete it — but it does leave your device, and someone
+runs the machine it lands on.
 
 **Published decks are public.** Loopky has no private or local-only decks. Anything you publish can
 be read by anyone who knows your public key, and is indexed so that it can be discovered by search
@@ -136,8 +152,9 @@ cannot be recalled. This is a property of publishing to a public network.
 ## 10. Children
 
 Loopky is not directed at children under 13, and we do not knowingly collect information from them.
-Because Loopky holds no user data at all, there is nothing for us to delete on request. An account
-is created in Pubky Ring, whose own terms apply.
+The Loopky project holds no user data, so there is nothing for us to delete on request. Data on a
+homeserver is removed with **Delete account** in Settings, or by contacting that homeserver's
+operator. The account itself is created in Pubky Ring, whose own terms apply.
 
 ---
 
@@ -150,6 +167,9 @@ document is public in the repository, so every change is inspectable.
 
 ## 12. Your rights
 
-Because Loopky holds no personal data, requests to access, correct, export or delete data cannot be
-served by us. Your content is already in your possession, on a homeserver you control, and Delete
-account removes it. If you have a question about any of this, write to **jvsena16@gmail.com**.
+The Loopky project holds no personal data, so requests to access, correct, export or delete data
+cannot be served by us — we have nothing to serve them from. Your content is written under your own
+key and **Delete account** in Settings removes it from your homeserver. For anything held by your
+homeserver's operator, including backups and server logs, address that operator. If you have a
+question about any of this, open an issue at
+[github.com/jvsena42/loopky/issues](https://github.com/jvsena42/loopky/issues).
