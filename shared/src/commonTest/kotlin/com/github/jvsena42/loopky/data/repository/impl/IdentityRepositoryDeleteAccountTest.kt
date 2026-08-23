@@ -77,6 +77,33 @@ class IdentityRepositoryDeleteAccountTest {
     }
 
     @Test
+    fun aSubscriptionNestedTwoLevelsDeepIsRemoved() = runTest {
+        // Found on device: a followed deck survived two sweeps that both reported success. One
+        // listing of `pub/loopky/` did not return `subscriptions/{author}/{deckId}.json`, so the
+        // record was never even attempted — and because nothing re-checked, "deleted" was reported
+        // over data that was still there. Each sub-root is listed in its own right now.
+        val subscription = PubkyPaths.subscription(TEST_PUBKY, "otherpk", "deck9")
+        pubky.store[subscription] = "{}"
+
+        repo.deleteAccount().getOrThrow()
+
+        assertFalse(subscription in pubky.store)
+    }
+
+    @Test
+    fun aSweepThatLeavesSomethingBehindReportsFailure() = runTest {
+        // The counters cannot prove completeness: deleteRecord scores a 404 as success, so a record
+        // the listing never returned looks identical to one already gone. Only re-listing can tell.
+        pubky.store["$loopkyRoot/settings.json"] = "{}"
+        pubky.undeletablePaths += "$loopkyRoot/settings.json"
+
+        val result = repo.deleteAccount()
+
+        assertTrue(result.isFailure, "a sweep must not claim success over surviving records")
+        assertEquals(TEST_PUBKY, session.current()?.identity?.pubky, "and must leave the user signed in")
+    }
+
+    @Test
     fun theProfileAndSocialFollowsAreLeftAlone() = runTest {
         seedHomeserver()
 

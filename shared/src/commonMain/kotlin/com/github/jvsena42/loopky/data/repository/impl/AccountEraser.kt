@@ -103,14 +103,50 @@ class AccountEraser(
         // and a user with a busy feed should not be blocked by one unreadable record.
         deleteAnnouncementPosts(owner)
 
-        check(failures == 0) { "$failures record(s) could not be deleted" }
+        // Re-list rather than trust the counters. `deleteRecord` scores a 404 as success, which is
+        // right for a record a previous sweep already removed and wrong as a completeness proof —
+        // it is exactly how a sweep that never saw a record could report having deleted it. The
+        // only honest check is asking the homeserver what is left.
+        val leftovers = namespaceRecords(owner)
+        check(failures == 0 && leftovers.isEmpty()) {
+            "$failures record(s) could not be deleted, ${leftovers.size} still present"
+        }
 
         wipeLocalState()
     }
 
-    /** Every record Loopky owns for [owner], best-effort. */
-    private suspend fun namespaceRecords(owner: String): List<String> =
-        pubky.listAllEntriesOrEmpty("pubky://$owner/${PubkyPaths.APP_NAMESPACE}/")
+    /**
+     * Every record Loopky owns for [owner], best-effort.
+     *
+     * **Each sub-root is listed in its own right, not just the namespace root.** One listing of
+     * `pub/loopky/` was the obvious implementation and it silently missed records: a followed
+     * deck's subscription survived two full sweeps that both reported success, because
+     * `subscriptions/{author}/{deckId}.json` never appeared in the namespace-root listing while
+     * `DeckRepository.loadSubscriptions`, which lists `subscriptions/` directly, found it every
+     * time. Whatever the homeserver's rule is for how deep a prefix listing reaches, relying on it
+     * meant reporting an account deleted while its data was still there.
+     *
+     * The root listing stays as the catch-all for anything a future version writes that this list
+     * does not name.
+     *
+     * Directory entries are dropped: a homeserver that answers with `…/srs/` rather than the
+     * records beneath it hands back something no delete can remove, and a 404 on that would be
+     * scored as a successful deletion.
+     */
+    private suspend fun namespaceRecords(owner: String): List<String> {
+        val root = "pubky://$owner/${PubkyPaths.APP_NAMESPACE}/"
+        val roots = listOf(
+            root,
+            PubkyPaths.subscriptionsRoot(owner),
+            PubkyPaths.decksList(owner),
+            "${root}srs/",
+            "${root}tags/",
+        )
+        return roots
+            .flatMap { pubky.listAllEntriesOrEmpty(it) }
+            .filterNot { it.endsWith("/") }
+            .distinct()
+    }
 
     /**
      * Delete [path], treating "already gone" as success.
