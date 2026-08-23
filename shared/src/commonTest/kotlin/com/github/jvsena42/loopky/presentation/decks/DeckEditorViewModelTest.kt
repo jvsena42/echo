@@ -609,6 +609,23 @@ class DeckEditorViewModelTest {
     }
 
     @Test
+    fun `the type opt-in loads and saves without a language pair`() = runTest(mainDispatcher) {
+        // The deck listen/speak cannot help: no declared pair, so typing is its only assisted mode.
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", authorPubky = TEST_PUBKY, typeEnabled = true)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.typeEnabled, "the opt-in was folded through speechReady")
+
+        vm.onToggleType()
+        vm.onSaveClick()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.languagesError)
+        assertFalse(deckRepo.decks.getValue("deck1").typeEnabled)
+    }
+
+    @Test
     fun `turning on listen without languages blocks the save`() = runTest(mainDispatcher) {
         deckRepo.decks["deck1"] = testDeck(id = "deck1", authorPubky = TEST_PUBKY)
         val vm = viewModel()

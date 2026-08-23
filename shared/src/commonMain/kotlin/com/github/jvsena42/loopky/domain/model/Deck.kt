@@ -31,6 +31,15 @@ data class Deck(
     val listenEnabled: Boolean = true,
     /** Opt-in: pronunciation practice (speech recognition) on the card back during study. */
     val speakEnabled: Boolean = true,
+    /**
+     * Opt-in: type the answer during study instead of reading it off the flipped card.
+     *
+     * Defaults **off**, unlike the two above, and a manifest written before the field decodes
+     * that way too: silently turning a deck's cards into an exercise its author never chose is
+     * a bigger surprise than a missing button. Deliberately not folded through [speechReady] —
+     * see that property.
+     */
+    val typeEnabled: Boolean = false,
     /** BCP-47 tag for the card front's language, e.g. `"en-US"`. See [speechReady]. */
     val frontLang: String? = null,
     /** BCP-47 tag for the card back's language, e.g. `"es-ES"`. See [speechReady]. */
@@ -51,6 +60,10 @@ data class Deck(
      * transcribing the reply with an English model. A deck that has not declared its pair
      * therefore offers neither feature, whatever [listenEnabled] and [speakEnabled] say; decks
      * published before the pair existed decode to nulls and land here.
+     *
+     * Covers Listen and Speak **only**. Typing compares two strings and has no engine to
+     * substitute a locale into, so gating [typeEnabled] on this would withhold the one assisted
+     * mode from exactly the decks — every import predating the pair — that have no other.
      */
     val speechReady: Boolean get() = frontLang != null && backLang != null
 

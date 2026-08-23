@@ -522,6 +522,34 @@ class PublishDeckViewModelTest {
     }
 
     @Test
+    fun typingIsOffUntilAskedForAndNeedsNoLanguagePair() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        runCurrent()
+
+        assertFalse(vm.state.value.typeEnabled)
+
+        vm.onToggleType()
+        runCurrent()
+
+        assertTrue(vm.state.value.typeEnabled)
+        // The point of the mode: it compares two strings, so nothing about it needs a language.
+        assertNull(vm.state.value.frontLang)
+        assertTrue(vm.state.value.canPublish, "typing demanded a language pair it does not use")
+    }
+
+    @Test
+    fun theTypeOptInReachesThePublishedManifest() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onToggleType()
+        vm.onPublishClick()
+        runCurrent()
+
+        assertTrue(deckRepo.published.single().first.typeEnabled)
+    }
+
+    @Test
     fun turningOnListenWithoutLanguagesBlocksThePublish() = runTest {
         val vm = viewModel()
         vm.onTitleChanged("Spanish")

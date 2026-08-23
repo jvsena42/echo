@@ -123,6 +123,9 @@ class DeckEditorViewModel(
                     // showing them on would misreport what the deck actually does today.
                     listenEnabled = deck.listenEnabled && deck.speechReady,
                     speakEnabled = deck.speakEnabled && deck.speechReady,
+                    // Not folded through speechReady: typing works without a declared pair, so
+                    // what the deck says is what the deck does.
+                    typeEnabled = deck.typeEnabled,
                     frontLang = deck.frontLang,
                     backLang = deck.backLang,
                 )
@@ -368,6 +371,11 @@ class DeckEditorViewModel(
 
     fun onToggleSpeak() {
         _state.update { it.copy(speakEnabled = !it.speakEnabled, languagesError = null) }
+    }
+
+    /** No `languagesError` to clear: typing needs no language pair. See `Deck.speechReady`. */
+    fun onToggleType() {
+        _state.update { it.copy(typeEnabled = !it.typeEnabled) }
     }
 
     /**
@@ -644,6 +652,7 @@ private fun buildDeck(
     source = existing?.source,
     listenEnabled = s.listenEnabled,
     speakEnabled = s.speakEnabled,
+    typeEnabled = s.typeEnabled,
     frontLang = s.frontLang,
     backLang = s.backLang,
     mediaRehostCursor = existing?.mediaRehostCursor ?: 0,
@@ -671,7 +680,9 @@ data class DeckEditorUiState(
     /** Off until asked for — see the same field on `PublishDeckUiState`. */
     val listenEnabled: Boolean = false,
     val speakEnabled: Boolean = false,
-    /** BCP-47 tags for the two card sides; required once either opt-in above is on. */
+    /** Off until asked for as well, though for its own reason — see `Deck.typeEnabled`. */
+    val typeEnabled: Boolean = false,
+    /** BCP-47 tags for the two card sides; required once either speech opt-in above is on. */
     val frontLang: String? = null,
     val backLang: String? = null,
     /**

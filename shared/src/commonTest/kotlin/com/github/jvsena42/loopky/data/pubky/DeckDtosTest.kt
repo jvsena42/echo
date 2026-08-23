@@ -20,6 +20,7 @@ class DeckDtosTest {
     private fun deck(
         listenEnabled: Boolean = true,
         speakEnabled: Boolean = true,
+        typeEnabled: Boolean = false,
         frontLang: String? = null,
         backLang: String? = null,
         cover: MediaRef.Image? = null,
@@ -37,6 +38,7 @@ class DeckDtosTest {
         chunks = listOf(ChunkMeta(n = 0, count = 1, updatedAt = 1L)),
         listenEnabled = listenEnabled,
         speakEnabled = speakEnabled,
+        typeEnabled = typeEnabled,
         frontLang = frontLang,
         backLang = backLang,
     )
@@ -111,6 +113,29 @@ class DeckDtosTest {
         val back = loopkyJson.decodeFromString<ManifestDto>(legacy).toDomain()
         assertTrue(back.listenEnabled)
         assertTrue(back.speakEnabled)
+    }
+
+    @Test
+    fun manifestRoundTripPreservesTypeEnabled() {
+        val deck = deck(typeEnabled = true)
+        val json = loopkyJson.encodeToString(deck.toDto())
+        assertTrue(json.contains("\"type_enabled\":true"), "type_enabled missing from \$json")
+        val back = loopkyJson.decodeFromString<ManifestDto>(json).toDomain()
+        assertTrue(back.typeEnabled)
+        // Additive, so the schema does not move.
+        assertEquals(1, loopkyJson.decodeFromString<ManifestDto>(json).schema_version)
+    }
+
+    @Test
+    fun legacyManifestWithoutTypeEnabledDecodesAsOff() {
+        // Unlike listen/speak: a manifest written before typing existed says nothing about
+        // whether its author wanted the mode, and off is the reading that surprises nobody.
+        val legacy = """
+            {"schema_version":1,"deck_id":"d","author_pubky":"pk","title":"T",
+             "created_at":1,"updated_at":2}
+        """.trimIndent()
+        val back = loopkyJson.decodeFromString<ManifestDto>(legacy).toDomain()
+        assertFalse(back.typeEnabled)
     }
 
     @Test
