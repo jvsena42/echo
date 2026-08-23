@@ -426,7 +426,7 @@ class StudySessionViewModel(
                 total = queue.size,
                 frontText = card.front.text.orEmpty(),
                 backText = card.back.text.orEmpty(),
-                backLabel = card.front.text?.uppercase(),
+                backLabel = card.front.text,
                 revealed = revealed,
                 intervals = labels,
                 listenEnabled = deck?.listenEnabled == true && deck.speechReady,
@@ -513,7 +513,11 @@ sealed interface StudySessionUiState {
         val total: Int,
         val frontText: String,
         val backText: String,
-        /** Small uppercase hint shown above the answer on the card back (the front prompt). */
+        /**
+         * The prompt, shown small above the answer on the card back — as the author wrote it.
+         * Not uppercased: a deck whose two sides differ only in case would have the back's label
+         * spell out its own answer.
+         */
         val backLabel: String?,
         val revealed: Boolean,
         val intervals: Map<SrsGrade, String>,
