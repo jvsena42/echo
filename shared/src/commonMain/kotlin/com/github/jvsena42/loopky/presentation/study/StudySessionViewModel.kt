@@ -219,7 +219,8 @@ class StudySessionViewModel(
         // A check landing after the queue advanced would otherwise grade the next card's text.
         if (gradeJob?.isActive == true) return
         if (typePhase !is TypePhase.Answering) return
-        val expected = queue.getOrNull(index)?.back?.text?.takeIf { it.isNotBlank() } ?: return
+        val expected = queue.getOrNull(index)?.back?.text
+            ?.takeIf { AnswerMatcher.isTypable(it) } ?: return
         val typed = typedAnswer.trim()
         if (typed.isEmpty()) return
         val outcome = AnswerMatcher.judge(typed, expected)
@@ -447,15 +448,22 @@ class StudySessionViewModel(
     /**
      * Where [card] should sit in the typing flow, given what the deck opted into.
      *
-     * A card with no back text has nothing to type against, and one with no prompt at all has
-     * nothing to type *from*. Either way it silently falls back to the ordinary tap-to-reveal —
-     * an image-only answer, which Anki imports produce, must never put up an input with nothing
-     * to match. Otherwise the phase already in progress is kept; [TypePhase.Off] doubles as the
-     * fresh-card state, so that is where a new card starts answering.
+     * A card with nothing typable on the back has nothing to type against, and one with no prompt
+     * at all has nothing to type *from*. Either way it silently falls back to the ordinary
+     * tap-to-reveal — an image-only answer, which Anki imports produce, must never put up an
+     * input with nothing to match.
+     *
+     * The back test is [AnswerMatcher.isTypable], deliberately not `isNotBlank()`. A back of
+     * `"—"`, `"..."` or a lone emoji is not blank but normalizes to nothing, so no answer can
+     * ever match it — and since a wrong Check no longer reveals, such a card would be a dead end
+     * with Give up as its only exit.
+     *
+     * Otherwise the phase already in progress is kept; [TypePhase.Off] doubles as the fresh-card
+     * state, so that is where a new card starts answering.
      */
     private fun typePhaseFor(card: Card, deck: Deck?): TypePhase {
         val eligible = deck?.typeEnabled == true &&
-            !card.back.text.isNullOrBlank() &&
+            AnswerMatcher.isTypable(card.back.text.orEmpty()) &&
             (!card.front.text.isNullOrBlank() || card.front.imageRef != null)
         return when {
             !eligible -> TypePhase.Off

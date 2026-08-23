@@ -62,6 +62,23 @@ class AnswerMatcherTest {
     }
 
     @Test
+    fun isTypableRejectsEverythingNoAnswerCouldMatch() {
+        // Each of these has text in it and is not blank, but normalizes to nothing — so
+        // `matches` refuses it as an empty target and no typed string can ever get past it.
+        for (untypable in listOf("", "   ", "—", "...", "?!", "→", "🇪🇸")) {
+            assertFalse(AnswerMatcher.isTypable(untypable), "$untypable was called typable")
+            assertFalse(AnswerMatcher.matches(untypable, untypable, Strict))
+        }
+    }
+
+    @Test
+    fun isTypableAcceptsAnythingWithALetterOrDigitInIt() {
+        for (typable in listOf("hello", "buenos días", "H2O", "¿qué?", "42")) {
+            assertTrue(AnswerMatcher.isTypable(typable), "$typable was called untypable")
+        }
+    }
+
+    @Test
     fun normalizeCollapsesRunsOfWhitespace() {
         assertEquals("el zorro corre", AnswerMatcher.normalize("  el\t zorro\n\ncorre ", Strict))
     }

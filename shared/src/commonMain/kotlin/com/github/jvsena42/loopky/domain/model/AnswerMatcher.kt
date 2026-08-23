@@ -29,6 +29,17 @@ enum class TypedAnswerOutcome { Correct, NearMiss, Wrong }
  */
 object AnswerMatcher {
 
+    /**
+     * Whether [expected] is something a reader could ever type their way past.
+     *
+     * Not the same as "not blank". A back of `"—"`, `"..."`, `"→"` or a lone emoji has text in it
+     * but normalizes to nothing, and [matches] refuses an empty target — so no string on earth
+     * matches such a card. Callers gating the typing mode must ask **this**, not `isNotBlank()`:
+     * a card that cannot be answered correctly is a card the mode would trap you on.
+     */
+    fun isTypable(expected: String): Boolean =
+        normalize(expected, AnswerStrictness.Strict).isNotEmpty()
+
     fun matches(given: String, expected: String, strictness: AnswerStrictness): Boolean {
         val target = normalize(expected, strictness)
         return target.isNotEmpty() && normalize(given, strictness) == target
