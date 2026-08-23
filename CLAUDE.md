@@ -69,8 +69,9 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   author declares the pair, or the buttons do not appear. Consequences to know: the opt-ins
   default **off** when authoring, since turning one on obliges the author to pick languages; the
   deck editor carries the whole block, because a deck published before the pair existed has no
-  other way to gain one; and the pair is also published as reserved `loopky-lang-*` tag records
-  (derived, base subtag only, diffed on change — Architecture.md §7.7 point 4).
+  other way to gain one; and picking a language also puts an **ordinary** tag on the deck
+  (`"spanish"` for `es-ES` — `LanguageTags`, base subtag, swapped when the pair changes), because
+  a reserved label cannot trend or be browsed — Architecture.md §7.7 point 4.
 - **Paste-to-Import is the v1 primary import flow.** The implemented spine is `PasteImportViewModel` (parse + live preview) → `PublishDeckViewModel` (commit to Pubky). Every other import source (AI, OCR, URL) listed in spec §14 must reuse this same spine. Don't build parallel commit flows.
 - **Parser rules are prescriptive.** The paste parser (on `ImportRepository`) must follow the exact rule order in spec §6 and the edge-case table in spec §9. Use them as the test matrix.
 - **No use-case layer.** Don't introduce `*UseCase` interfaces or a `domain/usecase/` package. If a piece of logic doesn't fit any existing repo, extend the most relevant repo or add a new one — keep the surface area flat.
