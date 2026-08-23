@@ -506,4 +506,79 @@ class PublishDeckViewModelTest {
         assertNull(vm.state.value.sharePrompt)
         assertTrue(discoveryRepo.announcements.isEmpty())
     }
+
+    // ── listen / speak languages ─────────────────────────────────────────
+
+    @Test
+    fun listenAndSpeakAreOffUntilAskedFor() = runTest {
+        // On by default they would demand a language pair from everyone importing a deck.
+        val vm = viewModel()
+        runCurrent()
+
+        assertFalse(vm.state.value.listenEnabled)
+        assertFalse(vm.state.value.speakEnabled)
+        assertTrue(vm.state.value.canPublish || vm.state.value.title.isBlank())
+    }
+
+    @Test
+    fun turningOnListenWithoutLanguagesBlocksThePublish() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onToggleListen()
+        runCurrent()
+
+        assertFalse(vm.state.value.canPublish, "publishable with audio but no language to read in")
+
+        vm.onPublishClick()
+        runCurrent()
+
+        assertEquals(FormError.LanguagesRequired, vm.state.value.languagesError)
+        assertTrue(deckRepo.published.isEmpty(), "a deck went up with unusable audio metadata")
+    }
+
+    @Test
+    fun aHalfSetPairIsStillIncomplete() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onToggleSpeak()
+        vm.onFrontLangSelected("en-US")
+        runCurrent()
+
+        assertFalse(vm.state.value.canPublish)
+    }
+
+    @Test
+    fun aCompletePairPublishesTheLanguagesOntoTheDeck() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onToggleListen()
+        vm.onFrontLangSelected("en-US")
+        vm.onBackLangSelected("es-ES")
+        runCurrent()
+
+        assertTrue(vm.state.value.canPublish)
+        vm.onPublishClick()
+        runCurrent()
+
+        val deck = deckRepo.published.single().first
+        assertEquals("en-US", deck.frontLang)
+        assertEquals("es-ES", deck.backLang)
+        assertTrue(deck.speechReady)
+    }
+
+    @Test
+    fun turningTheOptInBackOffClearsTheComplaint() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onToggleListen()
+        vm.onPublishClick()
+        runCurrent()
+        assertEquals(FormError.LanguagesRequired, vm.state.value.languagesError)
+
+        vm.onToggleListen()
+        runCurrent()
+
+        assertNull(vm.state.value.languagesError)
+        assertTrue(vm.state.value.canPublish)
+    }
 }

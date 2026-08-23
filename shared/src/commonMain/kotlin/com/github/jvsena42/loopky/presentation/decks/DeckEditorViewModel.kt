@@ -13,8 +13,10 @@ import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckLimits
+import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ReservedTags
+import com.github.jvsena42.loopky.domain.model.SpeechLanguages
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.presentation.share.DeckSharePrompt
@@ -115,6 +117,13 @@ class DeckEditorViewModel(
                     tags = deck.tags.map { tag -> tag.value },
                     totalCards = deck.cardCount,
                     isLoadingCards = true,
+                    // Folded through speechReady like the study screen does: a deck published
+                    // before the pair existed carries the opt-ins but offers neither feature, so
+                    // showing them on would misreport what the deck actually does today.
+                    listenEnabled = deck.listenEnabled && deck.speechReady,
+                    speakEnabled = deck.speakEnabled && deck.speechReady,
+                    frontLang = deck.frontLang,
+                    backLang = deck.backLang,
                 )
             }
             pageOrder = deck.chunks.sortedBy { it.n }.map { it.n }
@@ -352,19 +361,54 @@ class DeckEditorViewModel(
         viewModelScope.launch { _effects.emit(DeckEditorEffect.NavigateBack) }
     }
 
-    fun onSaveClick() {
-        if (saveJob?.isActive == true) return
-        val s = _state.value
+    fun onToggleListen() {
+        _state.update { it.copy(listenEnabled = !it.listenEnabled, languagesError = null) }
+    }
+
+    fun onToggleSpeak() {
+        _state.update { it.copy(speakEnabled = !it.speakEnabled, languagesError = null) }
+    }
+
+    fun onFrontLangSelected(tag: String) {
+        _state.update { it.copy(frontLang = tag, languagesError = null) }
+    }
+
+    fun onBackLangSelected(tag: String) {
+        _state.update { it.copy(backLang = tag, languagesError = null) }
+    }
+
+    /**
+     * Field checks that must pass before anything is written. Extracted from [onSaveClick] so the
+     * save body stays about saving.
+     */
+    private fun validateForSave(s: DeckEditorUiState): Boolean {
         if (s.title.isBlank()) {
             _state.update { it.copy(error = "Title is required.") }
-            return
+            return false
         }
         val titleError = titleErrorFor(s.title)
         val descriptionError = descriptionErrorFor(s.description)
-        if (titleError != null || descriptionError != null) {
-            _state.update { it.copy(titleError = titleError, descriptionError = descriptionError) }
-            return
+        // Saving listen/speak without the pair leaves the deck's audio wrong on every device but
+        // this one, so it is refused rather than defaulted from the device locale.
+        val languagesError =
+            if (s.speechLanguagesMissing) FormError.LanguagesRequired else null
+        if (titleError != null || descriptionError != null || languagesError != null) {
+            _state.update {
+                it.copy(
+                    titleError = titleError,
+                    descriptionError = descriptionError,
+                    languagesError = languagesError,
+                )
+            }
+            return false
         }
+        return true
+    }
+
+    fun onSaveClick() {
+        if (saveJob?.isActive == true) return
+        val s = _state.value
+        if (!validateForSave(s)) return
         saveJob = viewModelScope.launch {
             _state.update { it.copy(isSaving = true, error = null) }
             Log.d(TAG, "save: title=${s.title}, cards=${s.cards.size}")
@@ -580,8 +624,10 @@ private fun buildDeck(
     cardCount = existing?.cardCount ?: cards.size,
     chunks = existing?.chunks.orEmpty(),
     source = existing?.source,
-    listenEnabled = existing?.listenEnabled ?: true,
-    speakEnabled = existing?.speakEnabled ?: true,
+    listenEnabled = s.listenEnabled,
+    speakEnabled = s.speakEnabled,
+    frontLang = s.frontLang,
+    backLang = s.backLang,
     mediaRehostCursor = existing?.mediaRehostCursor ?: 0,
     mediaRehosted = existing?.mediaRehosted ?: false,
 )
@@ -604,6 +650,17 @@ data class DeckEditorUiState(
     val coverPendingBytes: ByteArray? = null,
     val coverPendingMime: String? = null,
     val isSaving: Boolean = false,
+    /** Off until asked for — see the same field on `PublishDeckUiState`. */
+    val listenEnabled: Boolean = false,
+    val speakEnabled: Boolean = false,
+    /** BCP-47 tags for the two card sides; required once either opt-in above is on. */
+    val frontLang: String? = null,
+    val backLang: String? = null,
+    /**
+     * Typed rather than a message like the two errors below it: those predate [FormError], and a
+     * new hardcoded English string in `commonMain` is the thing [FormError] exists to avoid.
+     */
+    val languagesError: FormError? = null,
     val titleError: String? = null,
     val descriptionError: String? = null,
     val error: String? = null,
@@ -616,6 +673,10 @@ data class DeckEditorUiState(
      */
     val canDragReorder: Boolean
         get() = !hasMoreCards && totalCards <= DeckEditorViewModel.DRAG_REORDER_LIMIT
+
+    /** Listen or Speak is on, but the deck cannot yet say what language to use. */
+    val speechLanguagesMissing: Boolean
+        get() = SpeechLanguages.isPairMissing(listenEnabled, speakEnabled, frontLang, backLang)
 }
 
 data class EditableCardModel(

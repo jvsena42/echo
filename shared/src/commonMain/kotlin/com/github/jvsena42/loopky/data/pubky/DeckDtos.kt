@@ -46,6 +46,13 @@ internal data class ManifestDto(
     val listen_enabled: Boolean = true,
     val speak_enabled: Boolean = true,
     /**
+     * BCP-47 tag for the language of the card front / back, e.g. `"en-US"`, `"es-ES"`. Absent on
+     * manifests written before the pair existed, which is why listen/speak go inert without them
+     * rather than falling back to the reader's device locale — see `Deck.speechReady`.
+     */
+    val front_lang: String? = null,
+    val back_lang: String? = null,
+    /**
      * Chunk to resume the media re-host scan at (#53). Meaningless unless `source.kind == "clone"`.
      *
      * A cursor rather than deriving progress from the refs themselves: a chunk with nothing pinned
@@ -133,6 +140,8 @@ internal fun Deck.toDto() = ManifestDto(
     incomplete = incomplete,
     listen_enabled = listenEnabled,
     speak_enabled = speakEnabled,
+    front_lang = frontLang,
+    back_lang = backLang,
     media_rehost_cursor = mediaRehostCursor,
     media_rehosted = mediaRehosted,
 )
@@ -153,6 +162,8 @@ internal fun ManifestDto.toDomain() = Deck(
     incomplete = incomplete,
     listenEnabled = listen_enabled,
     speakEnabled = speak_enabled,
+    frontLang = front_lang,
+    backLang = back_lang,
     mediaRehostCursor = media_rehost_cursor,
     mediaRehosted = media_rehosted,
 )

@@ -84,6 +84,7 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.SrsGrade
+import com.github.jvsena42.loopky.platform.SpeakOutcome
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.platform.SpeechEvent
 import com.github.jvsena42.loopky.platform.SpeechRecognizer
@@ -130,7 +131,14 @@ fun StudySessionRoute(
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
-                is StudySessionEffect.Speak -> speaker.speak(effect.text)
+                is StudySessionEffect.Speak -> {
+                    // A missing voice leaves the engine on whatever it loaded last, so silence
+                    // beats reading a Spanish card in an English accent — say why.
+                    if (speaker.speak(effect.text, effect.languageTag) != SpeakOutcome.Spoken) {
+                        Toast.makeText(context, R.string.listen_voice_unavailable, Toast.LENGTH_LONG)
+                            .show()
+                    }
+                }
                 is StudySessionEffect.StartSpeechRecognition -> {
                     recognitionJob.value?.cancel()
                     recognitionJob.value = scope.launch {
@@ -139,7 +147,7 @@ fun StudySessionRoute(
                             viewModel.onSpeechError()
                             return@launch
                         }
-                        speechRecognizer.listen().collect { event ->
+                        speechRecognizer.listen(effect.languageTag).collect { event ->
                             when (event) {
                                 is SpeechEvent.Result -> viewModel.onSpeechResult(event.text)
                                 is SpeechEvent.Error -> viewModel.onSpeechError()
@@ -419,8 +427,9 @@ private fun ReviewingContent(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // SRS grade row — reserve its space always so the card above stays the same
-        // size; only show the buttons (only on the back) once revealed.
+        // SRS grade row — reserve its space always so the card above stays the same size; the
+        // grade buttons themselves appear only once revealed. (Listen/Speak, by contrast, are on
+        // both faces — they live inside the card, not here.)
         Box(modifier = Modifier.height(72.dp)) {
             if (state.revealed) {
                 SrsRow(intervals = state.intervals, onGrade = onGrade, reduceMotion = reduceMotion)
@@ -501,17 +510,20 @@ private fun AnimatedContentScope.FlippableCard(
         contentAlignment = Alignment.Center,
     ) {
         if (rotation < 90f) {
-            // Front shows only the prompt (design `w1CAm`); the reveal cue lives in the
-            // hint row below, and Listen/Speak appear only on the back. The prompt's picture
-            // belongs here too — an Anki front is often nothing else, and passing it only to
-            // the back left those cards asking the question with a blank card (#96).
+            // Listen/Speak on the front as well as the back, per DESIGN_GUIDELINE §8 ("Both
+            // sides include a Speak button"). They act on the side facing the user, so on the
+            // front they practise the prompt in the *front* language — which is the side a
+            // foreign word usually sits on, and hearing it before answering is the point.
+            // The reveal cue lives in the hint row below. The prompt's picture belongs here too
+            // — an Anki front is often nothing else, and passing it only to the back left those
+            // cards asking the question with a blank card (#96).
             CardFace(
                 label = null,
                 text = card.frontText,
                 textSize = 48.sp,
                 onSpeak = onSpeak,
-                showListen = false,
-                onSpeakTest = null,
+                showListen = interactive && listenEnabled,
+                onSpeakTest = if (interactive && speakEnabled) onSpeakTest else null,
                 featureImageRef = card.frontImageRef,
                 deckId = deckId,
                 authorPubky = authorPubky,

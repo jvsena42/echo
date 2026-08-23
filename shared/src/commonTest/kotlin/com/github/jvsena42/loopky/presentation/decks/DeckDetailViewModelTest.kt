@@ -206,7 +206,7 @@ class DeckDetailViewModelTest {
     }
 
     @Test
-    fun `a freshly imported deck reads as new, not overdue`() = runTest(mainDispatcher) {
+    fun `a freshly imported deck reads as new rather than overdue`() = runTest(mainDispatcher) {
         // #101 §7: every card counted as due, so an import opened on "1669 due" and Mastered 0% —
         // indistinguishable from a deck you are hopelessly behind on.
         deckRepo.decks["deck1"] = testDeck(cardCount = 2)

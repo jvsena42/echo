@@ -32,7 +32,6 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
-import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.util.Log
@@ -236,7 +235,7 @@ class DeckRepositoryImpl(
             PublishProgress(batches.size, batches.size, cards.size, cards.size, done = true),
         )
 
-        syncTags(previous?.tags.orEmpty(), manifestDeck)
+        syncTags(previous, manifestDeck)
 
         cacheLock.withLock { cache[manifestDeck.id] = manifestDeck }
         _changes.tryEmit(Unit)
@@ -253,15 +252,20 @@ class DeckRepositoryImpl(
      * sees: a label dropped in the editor would stay indexed forever, and one added after the
      * initial publish would never appear.
      *
-     * [previousTags] is what the manifest carried before this write — anything it has that [deck]
-     * no longer does gets its record removed. Reserved labels are Loopky's own index, never
-     * user-authored, so they are excluded from both ends of the diff and only the deck marker is
-     * (idempotently) re-asserted.
+     * [previous] is the deck as the manifest carried it before this write — any label it has that
+     * [deck] no longer does gets its record removed. Reserved labels are Loopky's own index, never
+     * user-authored, so they are excluded from both ends of the user diff and only the deck marker
+     * is (idempotently) re-asserted.
+     *
+     * The language labels are the exception that needs its own diff. Unlike `loopky-deck` they are
+     * *variable* — retyping a deck from Spanish to French has to drop `loopky-lang-es` — and they
+     * are derived from the manifest's language pair rather than stored in [Deck.tags], so the
+     * user-tag diff above cannot see them.
      *
      * Best-effort throughout: discoverability is a bonus on top of a save, not a precondition, so
      * a failed tag write must not fail the write that triggered it.
      */
-    private suspend fun syncTags(previousTags: List<Tag>, deck: Deck) {
+    private suspend fun syncTags(previous: Deck?, deck: Deck) {
         tagRepo.putReservedTag(deck.pubkyUri, ReservedTags.DECK).onFailure {
             Log.e(TAG, "syncTags: ${ReservedTags.DECK.value} write failed — ${it.message}", it)
         }
@@ -273,10 +277,33 @@ class DeckRepositoryImpl(
             }
         }
 
-        val dropped = previousTags.filterNot { ReservedTags.isReserved(it) } - current.toSet()
+        val dropped = previous?.tags.orEmpty().filterNot { ReservedTags.isReserved(it) } -
+            current.toSet()
         for (tag in dropped) {
             tagRepo.removeTag(deck.pubkyUri, tag).onFailure {
                 Log.e(TAG, "syncTags: tag '${tag.value}' removal failed — ${it.message}", it)
+            }
+        }
+
+        syncLanguageTags(previous, deck)
+    }
+
+    /**
+     * Assert a `loopky-lang-{code}` record per language the deck declares, and remove the ones it
+     * used to. See [syncTags] for why these are diffed apart from the user's labels.
+     */
+    private suspend fun syncLanguageTags(previous: Deck?, deck: Deck) {
+        val current = deck.languageCodes.map(ReservedTags::language)
+        for (tag in current) {
+            tagRepo.putReservedTag(deck.pubkyUri, tag).onFailure {
+                Log.e(TAG, "syncTags: '${tag.value}' write failed — ${it.message}", it)
+            }
+        }
+
+        val dropped = previous?.languageCodes.orEmpty().map(ReservedTags::language) - current.toSet()
+        for (tag in dropped) {
+            tagRepo.removeReservedTag(deck.pubkyUri, tag).onFailure {
+                Log.e(TAG, "syncTags: '${tag.value}' removal failed — ${it.message}", it)
             }
         }
     }
@@ -293,11 +320,11 @@ class DeckRepositoryImpl(
         withDeckWrite(deck.id) {
             // Read inside the lock and before the patch: patchDeckLocked replaces the cache entry,
             // so afterwards there is nothing left to diff the tag records against.
-            val previousTags = getLocal(deck.id)?.tags.orEmpty()
+            val previous = getLocal(deck.id)
             val updated = patchDeckLocked(deck.id) { current ->
                 deck.copy(chunks = current.chunks, cardCount = current.cardCount)
             }
-            syncTags(previousTags, updated)
+            syncTags(previous, updated)
             updated
         }
     }

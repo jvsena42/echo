@@ -82,7 +82,7 @@ grant path):
 
 | Step | Result |
 | --- | --- |
-| Study front card (`w1CAm`) | PASSED — word + "Tap card to reveal answer" only; **no Listen/Speak on the front** |
+| Study front card (`w1CAm`) | PASSED — word + "Tap card to reveal answer" only; **no Listen/Speak on the front** (superseded — see journey 12) |
 | Reveal back (`aLoMj`) | PASSED — **"Listen"** pill (peach) + **"Speak"** pill (purple); names + colors now match the design (previously both read "Speak") |
 | Tap **Speak** → mic permission | PASSED — "Allow Loopky to record audio?" dialog appears (the user-reported "permission not requested" bug is fixed) |
 | Grant → recognition unavailable | PASSED — Toast "Speech recognition is unavailable on this device" shows instead of silently doing nothing |
@@ -92,6 +92,52 @@ grant path):
 
 Speech recognition itself still needs a device/emulator with Google speech for the
 Correct/Wrong outcome.
+
+## 11 — Listen/Speak use the deck's language — ✅ PASS (2026-08-22, emulator-5554)
+
+The point of the change is which *language* the engines get, and the emulator's device locale is
+`en-US`, so a Spanish deck is exactly the case that used to be wrong.
+
+| Step | Result |
+| --- | --- |
+| Study a deck published before the language pair existed | PASSED — card back shows **neither** Listen nor Speak, though its manifest carries `listen_enabled: true`. No fallback to the phone's locale |
+| Open that deck in the editor | PASSED — the **Card Options** block is present (it did not exist on this screen before); both toggles read **off**, matching what the deck actually does |
+| Toggle Listen on | PASSED — the two language rows appear with the hint "Listen and Speak need to know what language each side is in, or the phone reads the card in your own accent." |
+| Tap **Save** with no languages picked | PASSED — save refused, stays on the editor, "Pick a front and back language to use Listen or Speak." shown under the pickers |
+| Open the Front language picker | PASSED — populated from the **engine's installed voices** (`tts.availableLanguages`), not the fallback list: Arabic → Bodo → … → Spanish (Spain) |
+| Pick front `en-US`, back `es-ES`, Save | PASSED — returns to deck detail; reopening the editor shows both languages persisted, so they round-tripped through the manifest |
+| Study the deck again, reveal the back | PASSED — **Listen** appears. Speak stayed absent, correctly: the editor had loaded `speak_enabled` folded through `speechReady`, so only Listen was turned on |
+| Tap **Listen** | **PASSED — the acceptance test.** logcat: `GoogleTTSServiceImpl: Synthesis request for locale spa-ESP and name es-ES-language`, on a device whose locale is `en-US`. Before this change `setLanguage(Locale.getDefault())` made that `eng-USA` |
+| Enable Speak too, save, restudy | PASSED — card back shows both **Listen** and **Speak** |
+
+Two things this run did **not** prove:
+
+- **The recognizer's language.** This emulator image still has no speech recognition service
+  (journey 09), so `EXTRA_LANGUAGE` reaching the recognizer is covered by unit tests and the
+  ViewModel effect assertions, not observed on the wire.
+- **The `loopky-lang-*` tag records.** The saves logged no `syncTags` failures, which is the only
+  positive signal the client emits, but the records were not read back off the homeserver. The
+  write/diff behaviour is covered by `DeckRepositoryTagSyncTest`.
+
+Unrelated pre-existing noise seen during the run: `listFollowed: 3uyducpmnylw unreadable — 404`.
+
+## 12 — Listen/Speak on both card sides — ✅ PASS (2026-08-22, emulator-5554)
+
+Restores what `DESIGN_GUIDELINE §8` specifies ("Both sides include a Speak button"), which the
+`w1CAm` Pencil screen had overridden — so the journey 10 row above no longer holds.
+
+| Step | Result |
+| --- | --- |
+| Study front card | PASSED — **Listen** (peach) and **Speak** (purple) both present, with "Tap card to reveal answer" still below the card |
+| Tap **Listen** on the front | PASSED — logcat `Synthesis request for locale eng-USA`, the deck's **front** language |
+| Reveal the back | PASSED — both buttons still present |
+| Tap **Listen** on the back | PASSED — logcat `Synthesis request for locale spa-ESP`, the deck's **back** language |
+
+So each side is read in its own language rather than one tag being fixed per deck.
+
+Pronunciation practice on the front targets the front text (unit-tested: grading it against the
+back would mark every front attempt wrong), but as with journeys 09/11 the recognizer itself is
+unexercised on this emulator image.
 
 ---
 

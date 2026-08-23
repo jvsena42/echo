@@ -18,8 +18,10 @@ internal actual fun epochMillis(): Long =
  */
 internal actual fun localDayIndex(millis: Long): Int {
     val date = NSDate.dateWithTimeIntervalSince1970(millis.toDouble() / MILLIS_PER_SECOND)
+    // `smaller`, not `unit`: that is what the generated binding calls the first parameter of
+    // `ordinalityOfUnit:inUnit:forDate:`. Wrong, this does not compile for any iOS target.
     return NSCalendar.currentCalendar.ordinalityOfUnit(
-        unit = NSCalendarUnitDay,
+        smaller = NSCalendarUnitDay,
         inUnit = NSCalendarUnitEra,
         forDate = date,
     ).toInt()
