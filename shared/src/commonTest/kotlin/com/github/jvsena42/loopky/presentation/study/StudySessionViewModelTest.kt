@@ -392,6 +392,29 @@ class StudySessionViewModelTest {
     }
 
     @Test
+    fun theListeningPromptShowsTheSideBeingGraded() = runTest {
+        // The sheet used to prompt with the back text whichever side was facing, so practising the
+        // front asked for the answer and then failed it against the prompt.
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onSpeakTest()
+        advanceUntilIdle()
+
+        val front = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(SpeakPhase.Listening("hola"), front.speakPhase)
+
+        vm.onSpeakDismiss()
+        vm.onReveal()
+        vm.onSpeakTest()
+        advanceUntilIdle()
+
+        val back = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(SpeakPhase.Listening("hello"), back.speakPhase)
+    }
+
+    @Test
     fun flippingTheCardMidListenDoesNotChangeWhatIsGraded() = runTest {
         // The transcript arrives asynchronously. Re-deriving the target on arrival would grade a
         // correctly spoken prompt against the answer the user flipped to while talking.
