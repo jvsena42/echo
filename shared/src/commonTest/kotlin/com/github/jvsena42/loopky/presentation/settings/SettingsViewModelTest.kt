@@ -11,7 +11,10 @@ import com.github.jvsena42.loopky.testing.FakeSettingsRepository
 import com.github.jvsena42.loopky.testing.FakeUnsplashKeyStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -192,5 +195,119 @@ class SettingsViewModelTest {
         const val UNSPLASH_BASE = "https://unsplash.test"
         const val VERIFY_URL = "$UNSPLASH_BASE/photos/random?count=1"
         const val SHIPPED_KEY = "shipped-secret-key"
+    }
+
+    // --- Delete account -----------------------------------------------------------------------
+
+    @Test
+    fun theConfirmButtonIsDeadForTenSecondsAndCountsDownToIt() = runTest {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onDeleteAccountClick()
+        val opened = vm.state.value.deletion as DeletionState.Confirming
+        assertEquals(SettingsViewModel.COUNTDOWN_SECONDS, opened.secondsRemaining)
+        assertFalse(opened.isConfirmable, "the whole point of the delay is that it starts dead")
+
+        advanceTimeBy(9_100)
+        assertFalse((vm.state.value.deletion as DeletionState.Confirming).isConfirmable)
+
+        advanceTimeBy(1_000)
+        val ready = vm.state.value.deletion as DeletionState.Confirming
+        assertEquals(0, ready.secondsRemaining)
+        assertTrue(ready.isConfirmable)
+    }
+
+    @Test
+    fun confirmingBeforeTheCountdownEndsDoesNothing() = runTest {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onDeleteAccountClick()
+
+        advanceTimeBy(3_000)
+        vm.onConfirmDeleteAccount()
+        advanceUntilIdle()
+
+        assertEquals(0, identityRepo.deleteAccountCount, "an early tap must not delete an account")
+    }
+
+    @Test
+    fun dismissingStopsTheCountdownAndClosesTheDialog() = runTest {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onDeleteAccountClick()
+
+        vm.onDeleteAccountDismissed()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.deletion)
+        // A live timer against a closed dialog would re-arm it the moment it reopened.
+        advanceTimeBy(11_000)
+        assertNull(vm.state.value.deletion)
+    }
+
+    @Test
+    fun aConfirmedDeleteSweepsAndSignsOut() = runTest {
+        identityRepo.deleteAccountProgress = listOf(1 to 3, 2 to 3, 3 to 3)
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onDeleteAccountClick()
+        advanceTimeBy(10_500)
+
+        val effects = mutableListOf<SettingsEffect>()
+        val job = launch { vm.effects.toList(effects) }
+
+        vm.onConfirmDeleteAccount()
+        advanceUntilIdle()
+
+        assertEquals(1, identityRepo.deleteAccountCount)
+        assertNull(vm.state.value.deletion)
+        assertTrue(SettingsEffect.SignedOut in effects)
+        job.cancel()
+    }
+
+    @Test
+    fun aFailedSweepLeavesTheUserSignedInAndImmediatelyRetryable() = runTest {
+        // The state that matters: half-deleted and signed out is unrecoverable, because signing
+        // back in is what a retry needs.
+        identityRepo.deleteAccountResult = Result.failure(IllegalStateException("homeserver down"))
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onDeleteAccountClick()
+        advanceTimeBy(10_500)
+
+        val effects = mutableListOf<SettingsEffect>()
+        val job = launch { vm.effects.toList(effects) }
+
+        vm.onConfirmDeleteAccount()
+        advanceUntilIdle()
+
+        val back = vm.state.value.deletion as DeletionState.Confirming
+        assertTrue(back.isConfirmable, "a second ten-second wait would only punish a flaky network")
+        assertFalse(SettingsEffect.SignedOut in effects, "a failed sweep must not sign anyone out")
+        assertTrue(effects.any { it == SettingsEffect.ShowError(SettingsErrorMessage.AccountNotDeleted) })
+        job.cancel()
+    }
+
+    @Test
+    fun progressFromTheSweepReachesTheDialog() = runTest {
+        identityRepo.deleteAccountProgress = listOf(1 to 4, 2 to 4)
+        // Held open so the in-flight state can be read. Without it the sweep reports and returns
+        // inside one dispatch, and StateFlow conflates every intermediate away.
+        identityRepo.deleteAccountDelayMs = 5_000
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onDeleteAccountClick()
+        advanceTimeBy(10_500)
+
+        vm.onConfirmDeleteAccount()
+        advanceTimeBy(1)
+
+        val inFlight = vm.state.value.deletion as DeletionState.Deleting
+        assertEquals(2, inFlight.done)
+        assertEquals(4, inFlight.total)
+
+        advanceUntilIdle()
+        assertNull(vm.state.value.deletion, "the dialog closes once the sweep finishes")
     }
 }

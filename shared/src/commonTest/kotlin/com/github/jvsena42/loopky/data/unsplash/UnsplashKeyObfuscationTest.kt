@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.data.unsplash
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 
 /**
@@ -44,7 +45,7 @@ class UnsplashKeyObfuscationTest {
         val key = "AbCdEf0123456789-_ghIjKlMnOpQrStUvWxYz01234"
 
         assertNotEquals(key, obfuscateLikeGradle(key))
-        assert(!obfuscateLikeGradle(key).contains(key))
+        assertFalse(key in obfuscateLikeGradle(key))
     }
 
     @Test

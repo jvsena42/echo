@@ -9,9 +9,17 @@ import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
 import com.github.jvsena42.loopky.data.repository.CardRepository
+import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
+import com.github.jvsena42.loopky.data.repository.impl.AccountEraser
 import com.github.jvsena42.loopky.data.repository.impl.DeckRepositoryImpl
+import com.github.jvsena42.loopky.data.repository.impl.IdentityRepositoryImpl
+import com.github.jvsena42.loopky.data.storage.AppPreferences
+import com.github.jvsena42.loopky.data.storage.PendingReviewStore
+import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.data.storage.StudyProgressStore
+import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.domain.model.Capability
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
@@ -205,3 +213,47 @@ fun deckRepository(
     backgroundTasks = backgroundTasks,
     scope = scope,
 )
+
+/**
+ * Build a real [IdentityRepositoryImpl] over fakes, with everything [IdentityRepository.deleteAccount]
+ * needs defaulted.
+ *
+ * A factory rather than ten arguments at each call site: most tests care about two or three of
+ * these, and a constructor that grows again should cost one edit here instead of one per test.
+ */
+@Suppress("LongParameterList")
+fun identityRepository(
+    pubky: PubkyClient = FakePubkyClient(),
+    sessionStore: SecureSessionStore = NoopSessionStore(),
+    sessionProvider: MutableSessionProvider = signedInProvider(),
+    tagRepository: TagRepository = RecordingTagRepository(),
+    deckRepository: DeckRepository = FakeDeckRepository(),
+    revalidator: SessionRevalidator = CountingRevalidator(),
+    pendingReviews: PendingReviewStore = FakePendingReviewStore(),
+    studyProgress: StudyProgressStore = FakeStudyProgressStore(),
+    preferences: AppPreferences = FakeAppPreferences(),
+    unsplashKeyStore: UnsplashKeyStore = FakeUnsplashKeyStore(),
+): IdentityRepositoryImpl = IdentityRepositoryImpl(
+    pubky = pubky,
+    sessionStore = sessionStore,
+    sessionProvider = sessionProvider,
+    tagRepository = tagRepository,
+    eraser = AccountEraser(
+        pubky = pubky,
+        session = sessionProvider,
+        revalidator = revalidator,
+        decks = deckRepository,
+        tags = tagRepository,
+        pendingReviews = pendingReviews,
+        studyProgress = studyProgress,
+        preferences = preferences,
+        unsplashKeyStore = unsplashKeyStore,
+    ),
+)
+
+/** A [SecureSessionStore] that remembers nothing, for tests that never read the session back. */
+class NoopSessionStore : SecureSessionStore {
+    override suspend fun save(session: Session) = Unit
+    override suspend fun load(): Session? = null
+    override suspend fun clear() = Unit
+}

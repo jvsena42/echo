@@ -13,6 +13,7 @@ import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
+import com.github.jvsena42.loopky.data.repository.impl.AccountEraser
 import com.github.jvsena42.loopky.data.repository.impl.CardRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.DeckRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.DiscoveryRepositoryImpl
@@ -64,12 +65,27 @@ val sharedModule = module {
     single { MutableSessionProvider() }
     single<SessionProvider> { get<MutableSessionProvider>() }
 
+    single {
+        AccountEraser(
+            pubky = get(),
+            session = get(),
+            revalidator = get(),
+            decks = get(),
+            tags = get(),
+            pendingReviews = get(),
+            studyProgress = get(),
+            preferences = get(),
+            unsplashKeyStore = get(),
+        )
+    }
+
     single<IdentityRepository> {
         IdentityRepositoryImpl(
             pubky = get(),
             sessionStore = get(),
             sessionProvider = get(),
             tagRepository = get(),
+            eraser = get(),
         )
     }
 

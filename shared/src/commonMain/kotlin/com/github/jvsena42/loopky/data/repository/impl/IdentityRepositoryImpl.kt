@@ -35,6 +35,13 @@ class IdentityRepositoryImpl(
     private val sessionStore: SecureSessionStore,
     private val sessionProvider: MutableSessionProvider,
     private val tagRepository: TagRepository,
+    /**
+     * The homeserver sweep behind [deleteAccount], which needs half a dozen collaborators nothing
+     * else here touches. Injecting it is safe in both directions: it reaches `DeckRepository`,
+     * which depends on the session *provider* rather than on this repository, so there is no Koin
+     * cycle to create.
+     */
+    private val eraser: AccountEraser,
 ) : IdentityRepository {
 
     override suspend fun currentSession(): Session? = sessionProvider.current()
@@ -235,6 +242,23 @@ class IdentityRepositoryImpl(
         updatedIdentity
     }.onFailure {
         Log.e(TAG, "updateProfile: FAILED — ${it::class.simpleName}: ${it.message}", it)
+    }
+
+    override suspend fun deleteAccount(onProgress: (Int, Int) -> Unit): Result<Unit> = runSuspendCatching {
+        val pubky = requireNotNull(sessionProvider.current()) { "Not signed in" }.identity.pubky
+        Log.d(TAG, "deleteAccount: starting for ${pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+
+        // Throws unless every record Loopky owns is gone, which is what keeps the sign-out below
+        // from stranding a half-deleted account: signing back in is what a retry needs.
+        eraser.erase(pubky, onProgress)
+
+        // So a later sign-in on this same process announces the account again rather than
+        // believing it already did.
+        selfTaggedThisProcess = false
+        signOut().getOrThrow()
+        Log.d(TAG, "deleteAccount: done")
+    }.onFailure {
+        Log.e(TAG, "deleteAccount: FAILED — ${it::class.simpleName}: ${it.message}", it)
     }
 
     companion object {

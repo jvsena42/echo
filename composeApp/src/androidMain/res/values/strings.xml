@@ -381,6 +381,22 @@
     <string name="settings_app_version_unknown">—</string>
     <string name="settings_privacy_policy">Privacy policy</string>
     <string name="settings_license">License</string>
+
+    <!-- Delete account. Plain punctuation and one idea per line: this is the only copy in Loopky
+         that precedes an irreversible action, so it has to be read rather than skimmed. The
+         identity line is load-bearing, not a footnote — Loopky cannot delete the Pubky account and
+         must not imply that it has. -->
+    <string name="settings_delete_account">Delete account</string>
+    <string name="settings_delete_account_dialog_title">Delete account?</string>
+    <string name="settings_delete_account_dialog_body">Your decks, cards, images and study progress will be permanently deleted from your homeserver, and your profile will be removed from Loopky.</string>
+    <string name="settings_delete_account_dialog_irreversible">This cannot be undone.</string>
+    <string name="settings_delete_account_dialog_identity">Your Pubky identity stays in Pubky Ring.</string>
+    <string name="settings_delete_account_confirm">Delete account</string>
+    <string name="settings_delete_account_confirm_countdown">Delete account (%1$d)</string>
+    <string name="settings_delete_account_progress_title">Deleting</string>
+    <string name="settings_delete_account_progress_starting">Starting</string>
+    <string name="settings_delete_account_progress_count">%1$d of %2$d removed</string>
+    <string name="settings_delete_account_failed">Could not delete everything. You are still signed in, so you can try again.</string>
     <string name="settings_sign_out">Sign out</string>
     <string name="settings_sign_out_dialog_title">Sign out?</string>
     <string name="settings_sign_out_dialog_message">Your decks stay on your homeserver. Signing back in restores everything.</string>
