@@ -54,17 +54,6 @@ data class Deck(
      */
     val speechReady: Boolean get() = frontLang != null && backLang != null
 
-    /**
-     * Distinct base language subtags of the pair, lowercased — `"es-ES"` and `"es-MX"` both yield
-     * `"es"`. The region matters for picking a voice, so the manifest keeps the full tag, but the
-     * index is per language: splitting it by region would fragment a search for Spanish decks.
-     */
-    val languageCodes: List<String>
-        get() = listOfNotNull(frontLang, backLang)
-            .map { it.substringBefore('-').lowercase() }
-            .filter { it.isNotBlank() }
-            .distinct()
-
     // Built literally rather than via PubkyPaths: that lives in `data/pubky`, and domain models
     // must not depend on the data layer (Architecture §4.1).
     val pubkyUri: PubkyUri get() = PubkyUri("pubky://$authorPubky/pub/loopky/decks/$id/manifest.json")

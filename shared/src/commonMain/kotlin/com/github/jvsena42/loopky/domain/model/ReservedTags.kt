@@ -41,21 +41,6 @@ object ReservedTags {
 
     val ALL: Set<Tag> = setOf(USER, DECK, FOLLOWED, CLONED)
 
-    private const val LANGUAGE_PREFIX = "${PREFIX}lang-"
-
-    /**
-     * On a published deck's manifest, one per language the deck declares — the global list of
-     * decks in that language, so a Spanish learner can find Spanish decks by strangers.
-     *
-     * Open-ended rather than a fixed label, which is why [ALL] cannot hold these and
-     * `requireReserved` has to admit them separately. Takes a base subtag (see
-     * [Deck.languageCodes]), not a full BCP-47 tag: indexing `es-ES` apart from `es-MX` would
-     * split a search for Spanish decks in two.
-     */
-    fun language(code: String): Tag = Tag("$LANGUAGE_PREFIX${code.trim().lowercase()}")
-
-    fun isLanguage(tag: Tag): Boolean = tag.value.trim().lowercase().startsWith(LANGUAGE_PREFIX)
-
     /**
      * True for anything in the reserved namespace, not just [ALL] — a label a future version
      * writes must not become authorable today by virtue of not existing yet.

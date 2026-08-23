@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.domain.model.DeckLimits
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.FormError
+import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
@@ -564,6 +565,59 @@ class PublishDeckViewModelTest {
         assertEquals("en-US", deck.frontLang)
         assertEquals("es-ES", deck.backLang)
         assertTrue(deck.speechReady)
+    }
+
+    @Test
+    fun pickingALanguageLabelsTheDeckWithIt() = runTest {
+        // The label is what makes the deck findable by someone learning that language, and asking
+        // the author to also type "spanish" by hand is a step nobody would remember.
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onToggleListen()
+        vm.onFrontLangSelected("en-US")
+        vm.onBackLangSelected("es-MX")
+        runCurrent()
+
+        assertEquals(listOf("language", "english", "spanish"), vm.state.value.tags)
+
+        vm.onPublishClick()
+        runCurrent()
+
+        assertEquals(
+            listOf(Tag("language"), Tag("english"), Tag("spanish")),
+            deckRepo.published.single().first.tags,
+        )
+    }
+
+    @Test
+    fun changingALanguageTakesTheOldLabelWithIt() = runTest {
+        val vm = viewModel()
+        vm.onToggleListen()
+        vm.onFrontLangSelected("en-US")
+        vm.onBackLangSelected("es-ES")
+        vm.onAddTag("verbs")
+        runCurrent()
+
+        vm.onBackLangSelected("fr-FR")
+        runCurrent()
+
+        // Left behind, "spanish" lists the deck under a language it no longer teaches.
+        assertEquals(listOf("language", "english", "verbs", "french"), vm.state.value.tags)
+    }
+
+    @Test
+    fun anAuthorCanDropALanguageLabelLikeAnyOther() = runTest {
+        // Ordinary tags, not a reserved family the author is stuck with.
+        val vm = viewModel()
+        vm.onToggleListen()
+        vm.onFrontLangSelected("en-US")
+        vm.onBackLangSelected("es-ES")
+        runCurrent()
+
+        vm.onRemoveTag("english")
+        runCurrent()
+
+        assertEquals(listOf("language", "spanish"), vm.state.value.tags)
     }
 
     @Test

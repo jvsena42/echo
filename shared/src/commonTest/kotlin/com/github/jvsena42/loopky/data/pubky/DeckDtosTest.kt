@@ -139,13 +139,6 @@ class DeckDtosTest {
     }
 
     @Test
-    fun languageCodesDropTheRegionAndDeduplicate() {
-        assertEquals(listOf("en", "es"), deck(frontLang = "en-US", backLang = "es-ES").languageCodes)
-        assertEquals(listOf("es"), deck(frontLang = "es-ES", backLang = "es-MX").languageCodes)
-        assertEquals(emptyList(), deck().languageCodes)
-    }
-
-    @Test
     fun webCoverImageRoundTripsWithUrlAndNoBlob() {
         val cover = MediaRef.Image(
             path = "",

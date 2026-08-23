@@ -358,21 +358,25 @@ client-side from `/v0/stream/resources?app=loopky&sorting=taggers_count` — whi
 distinct decks carry them. The stream returns each resource's *whole* label list with per-label
 tagger counts, which is what makes this possible from a single call.
 
-**4. A deck is also indexed under each language it declares.** `syncTags` asserts a reserved
-`loopky-lang-{code}` label per entry in `Deck.languageCodes`, so `/v0/stream/resources?app=loopky`
-can answer "Spanish decks" for someone with no follow relationship to the author. Three details:
+**4. A deck is also labelled with each language it declares.** Picking a language in the
+publish flow or the deck editor adds an ordinary tag — `"spanish"` for `es-ES` — to the deck's
+tag list, so `/v0/stream/resources?app=loopky` can answer "Spanish decks" for someone with no
+follow relationship to the author. Three details:
 
-- **Derived from the manifest, never stored in `Deck.tags`** — the same shape as `loopky-deck`.
-  `front_lang`/`back_lang` stay the single source of truth; materialising the labels into the
-  user's tag list would create a second one that can drift, and `putTag` rejects the family so a
-  hand-typed label cannot claim a language the deck has not declared.
-- **Base subtag only.** `es-ES` and `es-MX` both index as `loopky-lang-es`. Region picks a voice;
-  splitting the index by it would halve a search for Spanish decks.
-- **They are diffed, unlike `loopky-deck`.** A language label is variable — retyping a deck from
-  Spanish to French has to drop `loopky-lang-es`, or the deck stays listed as Spanish forever. The
-  user-tag diff excludes reserved labels and these are not in `Deck.tags` at all, so `syncTags`
-  takes the *previous* `Deck` and reconciles the pair itself. Per point 3 these never trend, which
-  is correct: a language is a facet, not a topic.
+- **An ordinary label, not a reserved one.** It lives in `Deck.tags` and goes out through the same
+  `syncTags` diff as any topic, which is what puts it in `trendingDeckTags` and tag browse — both
+  filter the `loopky-` namespace out, on purpose. The author can drop it like any other tag; the
+  manifest's `front_lang`/`back_lang` stay the source of truth for *speech*, so a dropped label
+  costs discoverability, never Listen or Speak.
+- **Base subtag, named not coded, plus the umbrella.** `es-ES` and `es-MX` are both `"spanish"` —
+  the region picks a voice, and splitting the label by it would halve a search for Spanish decks.
+  `LanguageTags` holds the subtag → English name table (an unknown subtag labels under itself
+  rather than going untagged) and adds `"language"` alongside, so a browser who wants language
+  decks at all does not have to guess which of seventy language labels to open first. A deck that
+  has declared nothing gets neither.
+- **Retyping swaps the label.** `LanguageTags.retag` drops what the previous pair contributed as
+  it adds the new pair's, or a deck retyped from Spanish to French stays listed as Spanish
+  forever. It runs in the ViewModel, on the pick, so the tag chips show what will be published.
 
 **5. Announcement posts (#39) are how deck topics reach the global index.** A post is a `Post`
 target where a manifest can only be a resource, so `DiscoveryRepository.announceDeck` writes the

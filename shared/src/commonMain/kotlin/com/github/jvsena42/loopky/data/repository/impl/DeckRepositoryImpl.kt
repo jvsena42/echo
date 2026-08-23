@@ -257,10 +257,9 @@ class DeckRepositoryImpl(
      * user-authored, so they are excluded from both ends of the user diff and only the deck marker
      * is (idempotently) re-asserted.
      *
-     * The language labels are the exception that needs its own diff. Unlike `loopky-deck` they are
-     * *variable* — retyping a deck from Spanish to French has to drop `loopky-lang-es` — and they
-     * are derived from the manifest's language pair rather than stored in [Deck.tags], so the
-     * user-tag diff above cannot see them.
+     * The labels a deck's declared languages contribute (`LanguageTags`) need nothing special
+     * here: they are ordinary labels in [Deck.tags], put there when the author picks a language,
+     * so the diff above adds and drops them like any other.
      *
      * Best-effort throughout: discoverability is a bonus on top of a save, not a precondition, so
      * a failed tag write must not fail the write that triggered it.
@@ -282,28 +281,6 @@ class DeckRepositoryImpl(
         for (tag in dropped) {
             tagRepo.removeTag(deck.pubkyUri, tag).onFailure {
                 Log.e(TAG, "syncTags: tag '${tag.value}' removal failed — ${it.message}", it)
-            }
-        }
-
-        syncLanguageTags(previous, deck)
-    }
-
-    /**
-     * Assert a `loopky-lang-{code}` record per language the deck declares, and remove the ones it
-     * used to. See [syncTags] for why these are diffed apart from the user's labels.
-     */
-    private suspend fun syncLanguageTags(previous: Deck?, deck: Deck) {
-        val current = deck.languageCodes.map(ReservedTags::language)
-        for (tag in current) {
-            tagRepo.putReservedTag(deck.pubkyUri, tag).onFailure {
-                Log.e(TAG, "syncTags: '${tag.value}' write failed — ${it.message}", it)
-            }
-        }
-
-        val dropped = previous?.languageCodes.orEmpty().map(ReservedTags::language) - current.toSet()
-        for (tag in dropped) {
-            tagRepo.removeReservedTag(deck.pubkyUri, tag).onFailure {
-                Log.e(TAG, "syncTags: '${tag.value}' removal failed — ${it.message}", it)
             }
         }
     }
