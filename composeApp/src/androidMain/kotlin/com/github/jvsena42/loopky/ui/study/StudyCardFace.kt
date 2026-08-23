@@ -92,7 +92,7 @@ internal fun CardFace(
                 color = colors.accentPrimary,
             )
         }
-        // Front-side image shown as a circular avatar on the card back (design `aLoMj`).
+        // Front-side image shown as a circular avatar on the card back.
         recallImageRef?.let { image ->
             CardMediaImage(
                 image = image,

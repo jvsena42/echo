@@ -1,15 +1,17 @@
 # Loopky — Architecture
 
-> **Status:** Draft v1 · **Scope:** Technical architecture for the Loopky KMP app.
-> **Reads alongside:** [`docs/specs.md`](./specs.md) · [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md)
+> **Scope:** Technical architecture for the Loopky KMP app. Describes what is built, not what was planned; sections that describe a possible future say so.
+> **Reads alongside:** [`docs/specs.md`](./specs.md)
 
 ---
 
 ## 1. Overview
 
-Loopky is a **Kotlin Multiplatform** flashcards app targeting iOS and Android. Business logic — domain models, repositories, and ViewModels — lives in a single `shared` module (`commonMain`). Repositories own the business logic; there is no separate use-case layer. Each platform renders its own native UI: **Jetpack Compose** on Android (`composeApp/androidMain`) and **SwiftUI** on iOS (`iosApp/`). Identity, social graph, tags, and published decks are backed by **Pubky**, accessed through a native binding layer built on top of `pubky-core-ffi-fork`.
+Loopky is a **Kotlin Multiplatform** flashcards app targeting iOS and Android. Business logic — domain models, repositories, and ViewModels — lives in a single `shared` module (`commonMain`). Repositories own the business logic; there is no separate use-case layer. Each platform renders its own native UI: **Jetpack Compose** on Android (`composeApp/androidMain`) and **SwiftUI** on iOS (`iosApp/`). Identity, social graph, tags, and published decks are backed by **Pubky**, accessed through the UniFFI bindings that `pubky-core-ffi-fork` generates (§7).
 
-The v1 product is defined by [`docs/specs.md`](./specs.md) (Paste-to-Import primary flow) and [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md) (screens, components, design system).
+**Android is feature-built end to end; iOS is wired but unproven.** Every surface described here runs on Android. The iOS app has its SwiftUI screens, a live Koin bootstrap and the Flow bridge, but has never been driven against a real homeserver — treat its behaviour as unverified rather than blocked.
+
+Deck import — the flow the rest of the product hangs off — is specified in [`docs/specs.md`](./specs.md).
 
 ---
 
@@ -17,8 +19,8 @@ The v1 product is defined by [`docs/specs.md`](./specs.md) (Paste-to-Import prim
 
 1. **Share logic, not pixels.** Everything above the UI layer is shared Kotlin. Rendering, navigation, and platform ergonomics are native.
 2. **Platform-native feel.** iOS gets HIG sheets, SF Pro, and `UIImpactFeedback`; Android gets Material 3, Roboto, and `HapticFeedbackConstants`. Same state, different skins.
-3. **Offline-first parse and triage.** Paste-to-Import (spec §5) works with no network. Only commit/publish touches the homeserver.
-4. **Pubky is the source of truth for published data.** The local store is a cache and an offline buffer — not a parallel database. There is no private-deck local-only path in v1 (spec §11).
+3. **Parse and triage work offline.** Paste-to-Import (spec §5) needs no network; only publish touches the homeserver. The app as a whole is *not* offline-first — everything else reads through Pubky.
+4. **Pubky is the source of truth for published data.** The cache is in-memory and per-session — not a parallel database, and not persisted (§8.1). There is no private-deck local-only path in v1 (spec §11).
 5. **One ViewModel per screen, one StateFlow per ViewModel.** Screens are thin; state transitions live in shared code and are unit-testable.
 6. **Platform glue only at the edges.** Pubky FFI, TTS, speech recognition, haptics, clipboard and file I/O are the only code with a platform half. Everything else is pure `commonMain`. Some of that glue is `expect`/`actual` and some is a plain interface bound per-platform in Koin (`Speaker`, `SpeechRecognizer`, `BackgroundTasks`, `PubkyRingPresence`) — the Koin form is preferred where the implementation needs platform context or lifecycle.
 
@@ -31,24 +33,24 @@ loopky/
 ├── shared/                        ← KMP business logic
 │   └── src/
 │       ├── commonMain/            ← domain + data + presentation (VMs)
-│       ├── commonTest/
-│       ├── androidMain/           ← platform halves: Pubky FFI (android), TTS, speech, haptics
-│       ├── androidUnitTest/
-│       ├── iosMain/               ← platform halves: Pubky FFI (ios), TTS, speech, haptics
-│       └── iosTest/
+│       ├── commonTest/            ← the whole test suite
+│       ├── androidMain/           ← Pubky FFI, TTS, speech, WorkManager, Koin platform module
+│       └── iosMain/               ← Pubky FFI adapter, TTS, speech, BGTaskScheduler, Koin
 │
 ├── composeApp/                    ← Android app
-│   └── src/androidMain/
-│       ├── kotlin/.../ui/         ← Compose screens + navigation
-│       ├── kotlin/.../di/         ← Koin Android module
-│       └── kotlin/.../MainActivity.kt
+│   └── src/androidMain/kotlin/.../
+│       ├── ui/                    ← Compose screens + navigation
+│       ├── LoopkyApp.kt           ← Application; starts Koin
+│       └── MainActivity.kt        ← single activity, deeplink entry
 │
 └── iosApp/                        ← iOS app
     └── iosApp/
         ├── Views/                 ← SwiftUI screens
         ├── Navigation/            ← NavigationStack
-        ├── DI/                    ← Koin bootstrap
-        └── iosAppApp.swift        ← @main
+        ├── DI/                    ← Koin bootstrap + the Flow→SwiftUI bridge
+        ├── Pubky/                 ← IosPubkyClient.swift + generated pubkycore.swift
+        ├── Frameworks/            ← PubkyCore.xcframework
+        └── iOSApp.swift           ← @main
 ```
 
 **Dependency direction:**
@@ -76,9 +78,9 @@ loopky/
 
 Platform UI modules depend on `shared`. `shared` depends only on Kotlin stdlib, Coroutines, kotlinx-serialization, Koin (+ the Koin ViewModel DSL), the multiplatform `androidx.lifecycle` ViewModel, Liftric KVault, and (via expect/actual) the Pubky FFI. SQLDelight and multiplatform-settings are **not** dependencies in v1 — see §8.
 
-> **Note (v1 reality vs. earlier design).** This doc originally sketched a SQLDelight cache, multiplatform-settings, and SKIE. None are wired today: repositories are Pubky-only with an in-memory per-session cache, secrets persist via `SecureSessionStore` (KVault), and the Swift↔Flow bridge is still an open question. Sections below are annotated where they describe a *possible future* rather than the current build.
+> **Note (v1 reality vs. earlier design).** This doc originally sketched a SQLDelight cache, multiplatform-settings, and SKIE. None were ever added: repositories are Pubky-only with an in-memory per-session cache, secrets persist via `SecureSessionStore` (KVault), and the Swift↔Flow bridge is hand-rolled (§9.2). Sections below are annotated where they describe a *possible future* rather than the current build.
 
-> **Open question — UI strategy.** The working assumption is fully native UI per platform. Compose Multiplatform UI is **not** used for screens. This is not yet final; revisit before the first screen ships. See §12.
+> **UI strategy — settled.** Fully native UI per platform: Compose on Android, SwiftUI on iOS. Compose Multiplatform UI is **not** used for screens, and `composeApp` is Android-only despite the name.
 
 ---
 
@@ -88,7 +90,7 @@ Platform UI modules depend on `shared`. `shared` depends only on Kotlin stdlib, 
 
 Pure Kotlin. No framework imports.
 
-- **Models:** `Deck`, `Card`, `CardContent` (text / image / audio variants — brief §8), `Tag`, `PubkyIdentity`, `ImportDraft`, `ParsedRow`, `SrsGrade` (Again/Hard/Good/Easy), `SrsState`, `StudyQueueItem`, `AppError`.
+- **Models:** `Deck`, `Card` (+ `CardSide`, `MediaRef`), `Tag`, `PubkyIdentity`, `ImportDraft`, `ParsedRow`, `SrsGrade` (Again/Hard/Good/Easy), `SrsState`, `StudySettings`, `AppError` (+ `ErrorReason`).
 
 Business logic (parse, triage, publish, review, follow, sign-in/out) lives on repositories — see §4.2. There is no separate use-case layer.
 
@@ -98,12 +100,12 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 
 | Repository | Responsibilities | Backing |
 |---|---|---|
-| `IdentityRepository` | Current session, pubky, capabilities, `signInWithRing()` / `signOut()` (brief §9.1) | Pubky FFI + `SecureSessionStore` (KVault) |
-| `DeckRepository` | CRUD + `publishDeck(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule. Also owns **deck** following — `followDeck()` / `unfollowDeck()` / `listFollowed()` — and `clone()` (§8.0). Deck follows live here rather than on `DiscoveryRepository` because `listFollowed()` merges with `listOwned()` behind one `changes` flow, `sync()` resolves a followed deck's author from the subscription, and `DiscoveryRepositoryImpl` already depends on this repo | Pubky FFI + in-memory cache |
+| `IdentityRepository` | Current session, pubky, capabilities, `signInWithRing()` / `signOut()` (§7.8) | Pubky FFI + `SecureSessionStore` (KVault) |
+| `DeckRepository` | CRUD + `publish(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule. Also owns **deck** following — `followDeck()` / `unfollowDeck()` / `listFollowed()` — and `clone()` (§8.0). Deck follows live here rather than on `DiscoveryRepository` because `listFollowed()` merges with `listOwned()` behind one `changes` flow, `sync()` resolves a followed deck's author from the subscription, and `DiscoveryRepositoryImpl` already depends on this repo | Pubky FFI + in-memory cache |
 | `CardRepository` | CRUD cards within a deck | Pubky FFI + in-memory cache |
 | `ImportRepository` | `parse(rawText, separator)` per spec §6/§7 (col 1 → front, col 2 → back, extras dropped — spec §8), `setDecision()` / `keptRows()` triage, in-memory drafts, dedupe | In-memory |
-| `TagRepository` | Read/write Pubky tags on any subject (deck or profile — brief §9.3); the reserved `loopky-*` index labels via `putReservedTag`; deck-topic (`trendingDeckTags`), tagged-subject and tagger-count reads via Nexus (§7.7) | Pubky FFI + Nexus REST |
-| `DiscoveryRepository` | Decks by followed **users**, `followUser()` / `unfollowUser()` (brief §9.4) — deck-level following is on `DeckRepository`, plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
+| `TagRepository` | Read/write Pubky tags on any subject (deck or profile); the reserved `loopky-*` index labels via `putReservedTag`; deck-topic (`trendingDeckTags`), tagged-subject and tagger-count reads via Nexus (§7.7) | Pubky FFI + Nexus REST |
+| `DiscoveryRepository` | Decks by followed **users**, `followUser()` / `unfollowUser()` — deck-level following is on `DeckRepository`, plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
 | `SrsRepository` | Per-card SRS state; the study queue (**due reviews then never-seen cards** — `isNew` is not `isDue`, §8.6), per-deck `DeckCounts`, `mastery()`, `review(card, grade)`, and today's `dailyProgress` | Pubky FFI + in-memory cache |
 | `MediaRepository` | Image + audio blob storage for cards | Pubky FFI (blobs) + platform file I/O |
 | `SettingsRepository` | The user's own study settings (`/pub/loopky/settings.json`) — the new-cards-per-day goal and the Hard/Good/Easy first intervals (§8.6) | Pubky FFI + `AppPreferences` mirror |
@@ -113,7 +115,7 @@ All repositories are interfaces in `commonMain` with implementations in `commonM
 ### 4.3 Presentation (ViewModels)
 
 KMP ViewModels extend the multiplatform `androidx.lifecycle.ViewModel` and launch work in
-`viewModelScope`. One per screen / sheet in brief §6 and spec §5.
+`viewModelScope`. One per screen or sheet.
 
 ```kotlin
 class PasteImportViewModel(
@@ -140,7 +142,20 @@ Rules:
 
 See the **Coding conventions** section in `CLAUDE.md` for the full prescriptive ruleset (this doc points there to avoid re-drift).
 
-ViewModels that back brief §6 screens: `OnboardingVM`, `StudyQueueVM`, `StudySessionVM`, `DeckDetailVM`, `DeckEditorVM`, `DiscoverVM`, `ProfileVM`, `SettingsVM`. ViewModels that back spec §5 flows: `PasteImportVM`, `TriageVM`, `CommitDeckVM`.
+The shipped set, one package per surface under `presentation/`:
+
+| Package | ViewModels |
+|---|---|
+| `onboarding/` | `OnboardingViewModel` |
+| `signup/` | `SignupStartViewModel`, `PhoneVerificationViewModel`, `LightningVerificationViewModel`, `InviteCodeViewModel`, `SignupHandoffViewModel` |
+| `home/` | `HomeViewModel` |
+| `decks/` | `DecksLibraryViewModel`, `DeckDetailViewModel`, `DeckEditorViewModel`, `EditCardViewModel` |
+| `importflow/` | `PasteImportViewModel`, `TriageViewModel`, `PublishDeckViewModel`, `BulkImportViewModel` |
+| `study/` | `StudySessionViewModel` |
+| `discover/` | `DiscoverViewModel`, `SearchViewModel`, `TagBrowseViewModel` |
+| `profile/` | `ProfileViewModel`, `FriendProfileViewModel`, `FollowListViewModel` |
+| `settings/` | `SettingsViewModel` |
+| `media/` | `ImageSheetViewModel` |
 
 ---
 
@@ -152,24 +167,28 @@ Both platforms consume the same VMs. Only rendering, navigation, and platform gl
 
 - **UI:** Jetpack Compose, Material 3 components styled by Loopky design tokens.
 - **State:** `val ui by vm.state.collectAsStateWithLifecycle()` in each screen composable.
-- **Navigation:** Jetpack Navigation Compose. One `NavHost` per top-level tab (Study / Decks / Discover / Profile), plus sheets for Paste-to-Import flows.
-- **DI:** Koin Android, bootstrapped in `MainActivity`. Screens resolve their VM via `koinViewModel()` (or equivalent KMP helper).
+- **Navigation:** Jetpack Navigation Compose, through `NavController.navigateTo()` (`ui/nav/NavExt.kt`), which dedups the current destination. Four top-level tabs (Study / Decks / Discover / Profile) on a Material 3 Expressive `ShortNavigationBar`.
+- **DI:** Koin Android, started in `LoopkyApp.onCreate` (the `Application`, not the activity — WorkManager can start the process without one). Screens resolve their VM via `koinViewModel()`, which scopes it to the nav backstack entry.
 - **Platform glue:** `AVSpeechSynthesizer`'s Android counterpart is `android.speech.tts.TextToSpeech`; haptics via `HapticFeedbackConstants`; image picker via Activity Result APIs.
 
 ### 5.2 iOS (`iosApp/`)
 
 - **UI:** SwiftUI, styled by Loopky design tokens mirrored in Swift.
-- **State:** shared VMs exposed as ObservableObject wrappers. The Kotlin→Swift Flow bridge is TBD (see §12) — working assumption is **SKIE**.
+- **State:** shared VMs exposed as `ObservableObject` wrappers over the hand-rolled Flow bridge — `IosFlowWatcher` on the Kotlin side, `FlowObserver` / `FlowEffectSink` on the Swift side. See §9.2.
 - **Navigation:** `NavigationStack` per tab, `.sheet`/`.fullScreenCover` for Paste-to-Import and triage.
-- **DI:** Koin started from the Swift `@main` entry; VMs handed to views via initializers.
+- **DI:** Koin started from `iOSApp.swift` via `doInitKoin(rawPubkyClient:)`, which hands in the Swift `IosPubkyClient`; VMs are handed to views via initializers.
 - **Platform glue:** `AVSpeechSynthesizer` for TTS, `UIImpactFeedbackGenerator` for haptics, `PHPickerViewController` for images, `AVAudioRecorder` for audio cards.
 
 ### 5.3 Theming
 
-Design tokens (brief §11 deliverable) are authored as JSON and consumed both sides:
-- Android: tokens generated into a Kotlin `LoopkyColors`/`LoopkyType` in `composeApp`.
-- iOS: tokens generated into a Swift `LoopkyColors`/`LoopkyType` in `iosApp`.
+Brand tokens are **hand-maintained in two places** and mirror each other — there is no token file
+and no codegen:
+- Android: `composeApp/.../ui/theme/LoopkyColors.kt`, applied through `LoopkyTheme`.
+- iOS: `iosApp/iosApp/Views/LoopkyColor.swift`.
 - The shared module does **not** hold a Compose theme.
+
+A palette change therefore has to be made twice. That is the cost of native-per-platform UI; it is
+small enough (one data class, one enum) that a generator has not earned its keep.
 
 ---
 
@@ -179,7 +198,7 @@ Ties spec §5 (UX flow) to code. Each arrow is an actual function call.
 
 ```
 ┌─ User action ────────────┐   ┌─ Platform UI ────────────┐   ┌─ shared VMs/repos ─────────────┐   ┌─ Pubky / local ─┐
-│ Taps "+" → Paste screen  │ → │ PasteImportScreen        │ → │ PasteImportVM.state = Empty    │   │                 │
+│ Taps "+" → Paste screen  │ → │ PasteScreen              │ → │ PasteImportViewModel: Empty    │   │                 │
 │                          │   │                          │   │                                │   │                 │
 │ Pastes text              │ → │ onTextChanged(text)      │ → │ ImportRepository.parse()       │   │                 │
 │                          │   │                          │   │ _state = Preview(draft)        │   │                 │
@@ -189,11 +208,11 @@ Ties spec §5 (UX flow) to code. Each arrow is an actual function call.
 │                          │   │                          │   │                                │   │                 │
 │ Overrides separator      │ → │ onSeparatorOverride(…)   │ → │ re-parse → Preview(draft')     │   │                 │
 │                          │   │                          │   │                                │   │                 │
-│ Taps Next                │ → │ nav → TriageScreen       │ → │ TriageVM(draft)                │   │                 │
+│ Taps Next                │ → │ nav → TriageScreen       │ → │ TriageViewModel(draft)         │   │                 │
 │ Swipes keep/discard      │ → │ onSwipe(id, decision)    │ → │ ImportRepository.setDecision() │   │                 │
 │                          │   │                          │   │                                │   │                 │
-│ Completes triage         │ → │ nav → CommitDeckScreen   │ → │ CommitDeckVM                   │   │                 │
-│ Fills metadata, Publish  │ → │ onPublish(meta)          │ → │ DeckRepository.publishDeck()   │ → │ Pubky homeserver│
+│ Completes triage         │ → │ nav → PublishDeckScreen  │ → │ PublishDeckViewModel           │   │                 │
+│ Fills metadata, Publish  │ → │ onPublish(meta)          │ → │ DeckRepository.publish()       │ → │ Pubky homeserver│
 │                          │   │                          │   │   → in-memory session cache    │   │                 │
 │                          │   │ success screen + haptic  │ ← │ _state = Success(deck)         │   │                 │
 │                          │   │                          │   │                                │   │                 │
@@ -202,7 +221,9 @@ Ties spec §5 (UX flow) to code. Each arrow is an actual function call.
 └──────────────────────────┘   └──────────────────────────┘   └────────────────────────────────┘   └─────────────────┘
 ```
 
-Every state listed in spec §10 maps to a single `PasteImportUiState` / `TriageUiState` / `CommitUiState` variant. The spec §10 state list is the acceptance checklist for these three VMs.
+Every state listed in spec §10 maps to a single `PasteImportUiState` / `TriageUiState` / `PublishDeckUiState` variant. The spec §10 state list is the acceptance checklist for these three VMs.
+
+Bulk file import (`BulkImportViewModel`) rejoins this flow at the publish step, skipping triage for a summary screen — spec §5.4.
 
 ---
 
@@ -227,8 +248,10 @@ Every state listed in spec §10 maps to a single `PasteImportUiState` / `TriageU
 
 - `PubkyCore.xcframework` lives at `iosApp/iosApp/Frameworks/PubkyCore.xcframework`.
 - UniFFI-generated `pubkycore.swift` lives at `iosApp/iosApp/Pubky/pubkycore.swift`.
-- `iosApp/iosApp/Pubky/IosPubkyClient.swift` is the Swift implementation that will conform to the Kotlin `PubkyClient` protocol (KMP exposes Kotlin interfaces as Swift protocols).
-- **Xcode wiring the user must do once:** add `PubkyCore.xcframework` to the iosApp target ("Frameworks, Libraries, and Embedded Content" → "Embed & Sign"), add `pubkycore.swift` and `IosPubkyClient.swift` to the target, then enable the commented `import Shared` + protocol conformance in `IosPubkyClient.swift` once the shared framework has been built once.
+- `iosApp/iosApp/Pubky/IosPubkyClient.swift` conforms to **`RawPubkyClient`**, not `PubkyClient` — a dumb pass-through returning the FFI's native `[status, payload]` arrays, because `kotlin.Result` and suspend functions cannot be implemented from Swift. `IosPubkyClientAdapter` (`shared/iosMain/.../data/pubky/`) wraps it into the shared `PubkyClient` contract on the Kotlin side and does the threading. Binary payloads cross the boundary Base64-encoded and are decoded in the Swift layer so blobs land raw on the homeserver.
+- The Xcode target already embeds `PubkyCore.xcframework` and compiles `pubkycore.swift` + `IosPubkyClient.swift`; `iOSApp.swift` hands the client to Koin via `doInitKoin(rawPubkyClient:)`.
+
+**Unproven, not unwired.** Nobody has driven the iOS app against a real homeserver, so treat its behaviour as unverified rather than blocked.
 
 ### 7.4 Regenerating bindings
 
@@ -510,7 +533,7 @@ Two consequences worth knowing before touching this:
 
 ### 8.0 Homeserver layout (canonical)
 
-Published decks live under the author's pubky as a manifest, a set of **card chunk** records, and media blobs. The homeserver is the source of truth; an in-memory per-session cache fronts it (see §8.3). A persistent SQLDelight cache is a possible future addition (§8.1).
+Published decks live under the author's pubky as a manifest, a set of **card chunk** records, and media blobs. The homeserver is the source of truth; an in-memory per-session cache fronts it (see §8.3). There is no persistent cache (§8.1).
 
 Cards are batched rather than stored one record per card, and the manifest carries no card index. See §8.4 for why, and for the numbers that forced it.
 
@@ -520,14 +543,14 @@ Cards are batched rather than stored one record per card, and the manifest carri
 /pub/loopky/decks/{deckId}/manifest.json      — deck metadata + chunk table
 /pub/loopky/decks/{deckId}/cards/{n}.json     — up to CHUNK_SIZE cards per record
 /pub/loopky/decks/{deckId}/media/{sha256}.{ext}
-/pub/loopky/srs/{authorPubky}/{deckId}/{cardId}.json   — your review state (see §8.3)
+/pub/loopky/srs/{authorPubky}/{deckId}/{n}.json        — your review state, chunked (see §8.3)
 /pub/loopky/subscriptions/{authorPubky}/{deckId}.json  — a deck you follow (see below)
 /pub/loopky/settings.json                              — your study settings (see §8.6)
 ```
 
 - `{deckId}` and `{cardId}` are UUIDv4, generated client-side.
-- `{n}` is the chunk ordinal, `0`-based and sequential.
-- SRS records live **outside** `/decks/` and are keyed by the deck's author: your review state for someone else's deck was never the owner's data. Author-scoping also stops two authors whose decks share a `deckId` colliding in your `srs/` tree. *(The move to author-scoped, chunked SRS is #43 §2; the path above is the target, and `PubkyPaths.srs` still writes the deck-nested form today.)*
+- `{n}` is the chunk ordinal, `0`-based. It starts sequential, but **compaction leaves gaps** (§8.4) — anything walking the table must read `chunks[].n`, never `0 until chunks.size`.
+- SRS records live **outside** `/decks/` and are keyed by the deck's author: your review state for someone else's deck was never the owner's data. Author-scoping also stops two authors whose decks share a `deckId` colliding in your `srs/` tree. Chunked for the same reason cards are: one record per card made a studied 20k-card deck ~40,000 records. Written by `PubkyPaths.srsChunk` (#43 §2).
 - Subscriptions live on the **follower's** homeserver, author-keyed for the same reason SRS is. A record's *existence* means "I follow this deck"; see the schema below.
 - `{sha256}` is the hex digest of the blob; acts as a content address and enables per-deck dedupe.
 - `.ext` is informational; MIME is carried in the card's media ref.
@@ -576,7 +599,7 @@ Cards are batched rather than stored one record per card, and the manifest carri
 - **`front_lang` / `back_lang` are what make the two *speech* opt-ins mean anything, and a deck without them offers neither feature** (typing is unaffected — see `type_enabled` above). BCP-47 tags for the language of each card side. The OS speech engines — Android `TextToSpeech` / `SpeechRecognizer`, iOS `AVSpeechSynthesizer` — fall back to the **reader's** device locale when handed no language, so an undeclared Spanish deck is read aloud with English phonetics on an English phone and the spoken reply is transcribed by an English model. That is a wrong answer dressed as a working feature, which is why `Deck.speechReady` gates the buttons rather than any locale being guessed. Absent on manifests written before the pair existed, and additive — schema stays `1` — so those decks simply go quiet until their author sets a pair in the deck editor. Both sides are required, because Listen reads whichever side is facing the user and the two are routinely different languages.
 - A media ref (`cover_image_ref`, `image_ref`, `audio_ref`) may instead carry a `"url"` field for a **web image** (e.g. an Unsplash photo). When `url` is set, `path`/`sha256` are empty (`""`) and no blob is stored on the homeserver; the client loads the remote URL directly.
 - **Unsplash licensing.** Their API guidelines are licensing terms, and breaching them costs API access. Loading the remote `url` rather than re-hosting the bytes satisfies the hotlinking rule; the image picker credits the photographer on every grid cell and links both them and unsplash.com with `?utm_source=loopky&utm_medium=referral`; and `UnsplashClient.trackDownload` pings `links.download_location` when a pick is committed. **Known gap:** a media ref carries no attribution fields, so a published deck cover or card face displays its Unsplash photo uncredited. Closing that means adding `author_name` / `author_url` to `MediaRefDto` (additive, schema stays `1` — `ignoreUnknownKeys` keeps older manifests readable) and rendering a credit wherever a remote image is shown.
-- **The Unsplash access key is the user's, not the build's.** `UnsplashKeyStore` (`data/storage/`, KVault → Android Keystore / iOS Keychain, under its own `loopky.secrets` service so signing out cannot clear it) holds a key the user enters in Settings; `BuildConfig.UNSPLASH_ACCESS_KEY` is only a fallback behind it. `UnsplashClient` resolves the key per call rather than capturing it at construction, and `isConfigured` is a `Flow` so a key saved in Settings reaches an image sheet that is already open.
+- **The Unsplash access key is the user's, not the build's.** `UnsplashKeyStore` (`data/storage/`, KVault → Android Keystore / iOS Keychain, under its own `loopky.secrets` service so signing out cannot clear it) holds a key the user enters in Settings; `BuildConfig.UNSPLASH_ACCESS_KEY_OBF` — XOR+Base64 obfuscated, unwrapped by `data/unsplash/UnsplashKeyObfuscation.kt`, which raises the cost of scraping it from the APK without pretending to be a secret — is only a fallback behind it. `UnsplashClient` resolves the key per call rather than capturing it at construction, and `isConfigured` is a `Flow` so a key saved in Settings reaches an image sheet that is already open.
 
   **Neither key is ever displayed.** The built-in one is only admitted to exist ("Using Loopky's shared key"); a user's own comes back as `maskedKeySuffix` — four characters, never more. The draft key is a parameter to `SettingsViewModel.onSaveUnsplashKey`, deliberately *not* a `SettingsUiState` field, so it cannot survive in a `StateFlow` or a state dump. The key stays in the `Authorization` header and must never move to a `client_id=` query param: URLs land in `HttpError` messages and logcat. Settings calls `SecureScreen()`, which sets `FLAG_SECURE` on release builds only.
 
@@ -616,7 +639,7 @@ Each entry in `cards[]`:
 ```
 
 - `ord` is the study order, sparse with a stride of 1000 (`ORD_STRIDE`). A card inserted between two neighbours takes the midpoint, so an insert rewrites one chunk instead of renumbering every following card — which, chunked, would mean rewriting every chunk in the deck. `ordBetween` returns null when two neighbours are adjacent and the caller must renumber.
-- **Chunk assignment is sequential-append**: a new card goes to the last chunk with room, tracked by `count`. Hash-partitioning on card id would be stable under every mutation but would produce CHUNK_SIZE-many near-empty records for a 50-card deck. A delete leaves the chunk short; **holes are tolerated deliberately** — closing one would mean rewriting every following chunk. Compaction is a later concern.
+- **Chunk assignment is sequential-append**: a new card goes to the last chunk with room, tracked by `count`. Hash-partitioning on card id would be stable under every mutation but would produce CHUNK_SIZE-many near-empty records for a 50-card deck. A delete leaves the chunk short; **holes are tolerated deliberately** — closing one would mean rewriting every following chunk. They are folded away off the critical path by `compactDeck` (§8.4).
 - `CHUNK_SIZE` (100) is the single knob for the storage/write trade-off, and readers derive the chunk count from the manifest rather than assuming it, so it can be retuned with no migration. It is deliberately conservative: **the homeserver's per-record ceiling is undocumented** and has not been measured.
 - A side must have at least one populated field; enforced in `DeckRepository.publish()`.
 - **Cards carry no tags.** Tags are deck-level and live in `manifest.json`; there is no per-card tag field and no plan for one in v1 (spec §8).
@@ -663,68 +686,15 @@ Locating the chunk that holds a card uses the mapping `CardRepository` records w
 
 No cross-record transactions. A momentarily stale manifest vs a newer chunk is tolerated — the next sync reconciles. Last-write-wins; no tombstones, no conflict resolution in v1.
 
-### 8.1 SQLDelight schema (NOT adopted in v1 — future sketch)
+### 8.1 No local database
 
-> **Status:** not in the build. v1 has no SQLDelight dependency and no local relational store —
-> repos cache in memory for the session and re-fetch from Pubky. The schema below is kept only as a
-> sketch for if/when a persistent offline cache is added (see §12 #3). Until then it is aspirational,
-> not a description of the running app.
+v1 has **no SQLDelight dependency and no local relational store**. Repositories cache in memory for
+the session and re-fetch from Pubky; the homeserver is the source of truth (§8.3). This doc once
+carried a full candidate schema for one — it described nothing that was ever built, so it is gone.
 
-```
-Deck(
-  id TEXT PRIMARY KEY,          -- local uuid
-  pubky_uri TEXT UNIQUE,        -- null until published
-  author_pubky TEXT NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT,
-  cover_image_path TEXT,
-  created_at INTEGER NOT NULL,
-  last_studied_at INTEGER
-)
-
-Card(
-  id TEXT PRIMARY KEY,
-  deck_id TEXT NOT NULL REFERENCES Deck(id),
-  front TEXT NOT NULL,
-  back TEXT NOT NULL,
-  image_path TEXT,
-  audio_path TEXT,
-  position INTEGER NOT NULL
-)
-
-Tag(
-  value TEXT PRIMARY KEY         -- Pubky tag label
-)
-
-DeckTag(
-  deck_id TEXT NOT NULL REFERENCES Deck(id),
-  tag_value TEXT NOT NULL REFERENCES Tag(value),
-  PRIMARY KEY (deck_id, tag_value)
-)
-
-SrsState(
-  card_id TEXT PRIMARY KEY REFERENCES Card(id),
-  due_at INTEGER NOT NULL,
-  interval_days INTEGER NOT NULL,
-  ease_factor REAL NOT NULL,
-  repetitions INTEGER NOT NULL,
-  last_grade INTEGER
-)
-
-ImportSession(
-  id TEXT PRIMARY KEY,
-  raw_text TEXT NOT NULL,
-  separator TEXT,
-  created_at INTEGER NOT NULL
-)
-
-Session(
-  pubky TEXT PRIMARY KEY,
-  session_secret TEXT NOT NULL,
-  capabilities TEXT NOT NULL,
-  homeserver TEXT NOT NULL
-)
-```
+The question is not closed, just unforced. What would force it is cross-device SRS (§12 #1, #3): a
+local DB as the SRS source of truth is the endgame, and it would reverse "Pubky is the source of
+truth" for that one slice.
 
 ### 8.2 Preferences & secrets
 
@@ -745,8 +715,8 @@ A preference that has to reach a second device does **not** belong in any of the
 - **Study progress (SRS):** Pubky-backed and canonical, under `/pub/loopky/srs/{authorPubky}/{deckId}/` — **on your own homeserver, for any deck, including decks you do not own**. An in-memory session cache fronts it. *(This row previously read "in-memory in v1; not synced to Pubky", which had been untrue since `SrsStateDto` landed.)*
 - **Decks you follow but do not own:** the owner's homeserver is canonical for the deck content (manifest, chunks, media) — you cannot write it, and every `DeckRepository` write is ownership-checked. Your own homeserver is canonical for your review state over it, and for the subscription record itself (`/pub/loopky/subscriptions/{authorPubky}/{deckId}.json`, §8.0). Unfollowing removes the subscription, not the SRS state.
 - **Import drafts:** in-memory only — each paste is a fresh canvas (spec §4 story 5).
-- **Private decks:** out of scope for v1 (spec §11). If spec §13 Q1 flips, local-only decks would need
-  a persistent store (the §8.1 SQLDelight sketch) with `pubky_uri = NULL`.
+- **Private decks:** out of scope for v1 (spec §11). They would need a local-only write path and a
+  persistent store to hold decks that have no homeserver record (§8.1).
 
 ---
 
@@ -853,6 +823,11 @@ guards three things:
   DTO, so a section added by a newer client is not dropped by `ignoreUnknownKeys` on the way in and
   gone for good on the way out.
 
+Reviews are **buffered in memory and flushed per affected chunk**, on `SrsRepository`'s own
+app-scoped coroutine scope rather than the ViewModel's: `viewModelScope` is cancelled in
+`onCleared()`, so a flush kicked off as the study screen goes away would be killed before it
+finished. It also flushes every N reviews, so a crash costs a few cards rather than a session.
+
 `SrsRepositoryImpl.review()` calls `ensureLoaded()` itself rather than trusting that a queue was
 built first. It is single-flight, so after the first load it costs a field read, and it turns an
 ordering that merely happens to hold into an invariant — a grade scheduled from stale defaults would
@@ -880,18 +855,21 @@ shared/commonMain:
   presentationModule  ← ViewModels
   platformModule      ← expect fun platformModule(): Module
 
-shared/androidMain:
-  actual platformModule() { PubkyClient, TtsEngine, Haptics, FileStore }
-
-shared/iosMain:
-  actual platformModule() { PubkyClient, TtsEngine, Haptics, FileStore }
+shared/androidMain / shared/iosMain:
+  actual platformModule() {
+    PubkyClient, HttpFetcher, NexusClient, HomegateClient, UnsplashClient,
+    SecureSessionStore, AppPreferences, SignupTokenStore, UnsplashKeyStore,
+    PendingReviewStore, StudyProgressStore,
+    Speaker, SpeechRecognizer, MediaProcessor, BackgroundTasks, PubkyRingPresence,
+  }
 ```
 
 ViewModels are bound with Koin's `viewModel { }` DSL (`org.koin.core.module.dsl.viewModel`, from
 `koin-core-viewmodel`) in `SharedModule.kt`; repositories stay `single { }`. Android resolves VMs in
 composables via `koinViewModel()` (`koin-compose-viewmodel`), which scopes them to the nav/backstack
-lifecycle. Android bootstraps Koin in `MainActivity.onCreate`; iOS bootstraps in the `@main` `App`
-initializer and hands VMs to SwiftUI views via initializers.
+lifecycle. Android starts Koin in `LoopkyApp.onCreate` — the `Application`, so a WorkManager-started
+process has the graph too (§9.6); iOS starts it from `iOSApp.swift` and hands VMs to SwiftUI views
+via initializers.
 
 ### 9.2 Async
 
@@ -900,7 +878,11 @@ methods are `suspend` or return `Flow`. The Swift↔Flow bridge **is wired**, ha
 SKIE: `IosFlowWatcher` (`shared/iosMain/util/`) exposes a `Flow` as a callback Swift can subscribe
 to, and `FlowObserver` / `FlowEffectSink` (`iosApp/DI/`) wrap it as an `ObservableObject`. Generics
 erase across the ObjC bridge, so values arrive as `Any` and are cast to the concrete `UiState` /
-`Effect` type the framework exports. See §12 #2 for why not SKIE.
+`Effect` type the framework exports.
+
+**Not SKIE**, and not pending it: Kotlin 2.3.x predates SKIE support, so the bridge was hand-rolled
+instead. Worth revisiting only if SKIE catches up *and* the erased-generics casting becomes a
+burden.
 
 ### 9.3 Error handling
 
@@ -908,21 +890,28 @@ erase across the ObjC bridge, so values arrive as `Any` and are cast to the conc
 sealed class AppError {
     data object Network : AppError()
     data object Unauthorized : AppError()
-    data class Parse(val reason: ParseFailure) : AppError()
+    data class Parse(val reason: String) : AppError()
     data class Pubky(val code: String, val message: String) : AppError()
     data class Unknown(val cause: Throwable) : AppError()
 }
 ```
 
-Repository methods return `Result<T, AppError>` (Arrow `Either` or handwritten — decide at first use). ViewModels map errors to user-facing banners/toasts/snackbars per brief §7.
+Repository methods return plain Kotlin **`Result<T>`** — no Arrow, no custom either type. Classifying
+*why* a failure happened (transient vs. terminal, and which message to show) is `ErrorReason`
+(`domain/model/`), which is what `isQuotaExceeded` / `isRateLimited` / `isNetworkFailure` feed; §8.5
+turns on getting that ordering right. ViewModels map the reason to banners, toasts and snackbars.
+
+Any `runCatching` over **suspending** code must be `runSuspendCatching` (`util/Coroutines.kt`) —
+plain `runCatching` catches `Throwable` and so swallows `CancellationException`, turning "the caller
+went away" into an ordinary failure.
 
 ### 9.4 Accessibility
 
-Shared VMs expose semantic labels (e.g. `"Card 1 of 3 preview, front: hola"`) as strings on the state. Platform UIs wire them into VoiceOver / TalkBack. Reduce-motion and dynamic-type handling live in the platform UI (spec §12, brief §10).
+Shared VMs expose semantic labels (e.g. `"Card 1 of 3 preview, front: hola"`) as strings on the state. Platform UIs wire them into VoiceOver / TalkBack. Reduce-motion and dynamic-type handling live in the platform UI (spec §12).
 
 ### 9.5 Logging
 
-Reserve a `Logger` interface in `commonMain` with no-op default. Platform actuals can plug into Logcat / `os_log`. Telemetry is out of scope for v1.
+`util/Log.kt` is an `expect object Log` with `d`/`w`/`e` and a `debugEnabled` switch; the actuals go to Logcat on Android and `println` on iOS — **not** `NSLog`, whose `%@` formatting segfaults on Kotlin/Native strings. Telemetry is out of scope.
 
 ### 9.6 Background work
 
@@ -957,48 +946,64 @@ real homeserver.
 
 ## 10. Testing strategy
 
-- **`commonTest`** — the important tier.
-  - `ImportRepository.parse()`: one test per rule in spec §6, plus every edge case in spec §9.
-  - Repositories against a `FakePubkyClient` (no SQLDelight to fake in v1 — the cache is in-memory).
-  - ViewModels with [Turbine](https://github.com/cashapp/turbine) asserting state sequences for every spec §10 state. Drive the `viewModelScope` with `Dispatchers.setMain(testDispatcher)` (kotlinx-coroutines-test) rather than injecting a scope.
-- **Android UI** — Compose UI tests (`composeApp/androidUnitTest` or `androidInstrumentedTest`) for Paste → Triage → Commit and Study session.
-- **iOS UI** — XCTest snapshot tests for the same flows.
-- **Integration** — a minimal smoke target that exercises the real `pubky-core-ffi-fork` against a test homeserver; kept separate from the unit suite.
+**`commonTest` is the whole automated suite** — 73 files, ~680 tests across targets, run with
+`./gradlew :shared:allTests`. There is no Compose UI test tier, no iOS test target, and no
+integration smoke target; earlier drafts of this doc listed all three as though they existed.
+
+- `ImportRepository.parse()` — one test per rule in spec §6, plus every edge case in spec §9. The
+  spec is written to be usable as the test matrix; keep it that way.
+- Repositories against a `FakePubkyClient` (`commonTest/.../testing/`). Nothing to fake below it —
+  the cache is in-memory.
+- ViewModels over `FakeRepositories`, asserting state sequences. `kotlin-test` +
+  `kotlinx-coroutines-test` only — **Turbine is not a dependency**. Drive `viewModelScope` with
+  `Dispatchers.setMain(testDispatcher)` rather than injecting a scope.
+- Scheduler and parser units (`SrsScheduler`, `CardChunking`, `SpeakMatcher`, `LanguageTags`) are
+  pure functions and tested directly.
+
+**End-to-end is manual, and scripted.** `journeys/*.xml` holds 19 numbered journeys — onboarding and
+Ring auth, paste import, the study loop, discovery, deck management, offline errors, signup — driven
+on a device or emulator with `android-cli` (`android run`, `adb shell input tap`, `android layout` to
+assert on text). Results and their dates are recorded in `journeys/RESULTS.md`, including the
+failures and what caused them. This is the tier that catches what unit tests cannot: a green
+`assembleDebug` says nothing about what the screen renders.
+
+Two things the journeys have repeatedly caught and unit tests did not: Ring sign-in flakiness on the
+emulator, and SRS flush failures that only appear when the network goes away mid-session.
 
 ---
 
 ## 11. Build & tooling
 
-- **Gradle** with version catalog (`gradle/libs.versions.toml`). Kotlin, AGP, and Compose versions already pinned in the scaffold.
+- **Gradle** with version catalog (`gradle/libs.versions.toml`).
 - **Plugins (actual):** `org.jetbrains.kotlin.multiplatform`, `com.android.library`/`com.android.application`, `org.jetbrains.kotlin.plugin.serialization`, the Compose Multiplatform + Compose-compiler plugins (Android-only Compose), and `io.gitlab.arturbosch.detekt`. Koin is a runtime dependency (no plugin). **No `app.cash.sqldelight` plugin** — SQLDelight is not adopted (§8.1).
 - **iOS framework packaging:** `shared` is consumed as a static framework (`baseName = "Shared"`, `isStatic = true`) per `shared/build.gradle.kts`; an XCFramework / SPM packaging step can come later.
-- **SKIE** is **not** in the build yet (pending §12 #2); it would plug into the `shared` Gradle build once the Swift↔Flow bridge is chosen.
-- **CI:** run `commonTest`, Android unit + Compose tests, iOS unit + snapshot tests per PR.
+- **Notable runtime dependencies** beyond the ones §3 lists: Coil 3 (`coil-compose`, `coil-network-okhttp`) for images, `androidx-navigation-compose`, `androidx-core-splashscreen`, `play-services-code-scanner` for the Ring QR scan, `androidx.work:work-runtime-ktx` (§9.6), and JNA for the UniFFI bindings. **SKIE is not in the build and is not planned** — the Swift↔Flow bridge is hand-rolled (§9.2).
+- **Lint:** detekt with `detekt-formatting` + `detekt-compose-rules` (`config/detekt/detekt.yml`) via `./gradlew detektAll`; SwiftLint via `./gradlew lintSwift` (`iosApp/.swiftlint.yml`, generated `pubkycore.swift` excluded).
+- **CI** (`.github/workflows/ci.yml`), on PR and push to `main`: `detektAll`, then `:shared:testDebugUnitTest :composeApp:testDebugUnitTest`, then `:composeApp:assembleDebug`. **No iOS job** — there is no test target and no `xcodebuild` step, so iOS breakage is caught only by building locally.
 
 ---
 
 ## 12. Open questions
 
-Pulled forward from spec §13 plus architecture-specific items.
+Genuinely open items only. Three questions this list used to carry — the UI strategy, the Swift↔Flow
+bridge, and secret storage — are settled and are recorded where they belong: §3 and §5, §9.2, and
+§7.5 respectively. The UI question in particular gated "before the first screen ships", a gate that
+passed roughly ninety Compose screens ago.
 
-1. **UI strategy final call.** Working assumption: fully native UI per platform. Compose Multiplatform UI is not used. Confirm with design + eng leads before the first screen ships.
-2. **Swift ↔ Flow bridge.** ~~SKIE vs KMP-NativeCoroutines~~ **Resolved**: neither. Kotlin 2.3.x predates SKIE support, so the bridge is hand-rolled — `IosFlowWatcher` on the Kotlin side, `FlowObserver` on the Swift side (§9.2). Revisit if SKIE catches up and the erased-generics casting becomes a burden.
-3. **Multi-module split timing.** Single `shared` module for v1; split into `:core / :data / :domain / :feature-*` if build times or ownership boundaries require it. Relatedly, **SRS at Anki scale is what forces the persistent-cache (SQLDelight) question** (§8.1): a local DB as SRS source of truth is the endgame for #43 §2, and reverses "Pubky is the source of truth" for that one slice.
-4. **Private decks.** If spec §13 Q1 flips in favor of private decks, `DeckRepository` gains a local-only write path and `pubky_uri` stays `NULL` until the user opts in.
-5. **Secret key & session storage** (§7.5). ~~Needs a decision~~ **Resolved**: `SecureSessionStore` via Liftric KVault (Keystore-backed EncryptedSharedPreferences on Android, Keychain on iOS).
-6. **SRS at Anki scale.** ~~v1 keeps SRS local~~ ~~one record per card~~ **Resolved (#43 §2).** Review state is chunked and author-scoped at `/pub/loopky/srs/{authorPubky}/{deckId}/{n}.json`, with reviews buffered in memory and flushed per affected chunk. The flush lives on `SrsRepository`'s own app-scoped coroutine scope, not the ViewModel — `viewModelScope` is cancelled in `onCleared()`, so a flush started as the study screen goes away would be killed before finishing. It also flushes every N reviews, so a crash costs a few cards rather than a session. A local DB as SRS source of truth (see #3) remains the endgame if cross-device conflict handling is ever wanted.
-7. **AI / OCR / URL import** (spec §14) — all reuse `TriageVM` + `CommitDeckVM`. No architectural change needed, only new `ImportRepository` entry points and screens.
-8. **Binding regeneration automation.** Today the fork's `build_android.sh` / `build_ios.sh` are run manually and artifacts are copied in (§7.4). A Gradle task can automate this once the fork API stabilises.
+1. **Multi-module split timing.** Single `shared` module for v1; split into `:core / :data / :domain / :feature-*` if build times or ownership boundaries require it. Relatedly, **SRS at Anki scale is what forces the persistent-cache (SQLDelight) question** (§8.1): a local DB as SRS source of truth is the endgame for #43 §2, and reverses "Pubky is the source of truth" for that one slice.
+2. **Private decks.** Not a v1 feature (spec §11). Adding them means a local-only write path on `DeckRepository` and a persistent store for decks with no homeserver record (§8.1) — the visibility toggle is the small half.
+3. **Cross-device SRS conflicts.** Review state is last-write-wins like everything else, so two devices studying the same deck in one day can lose each other's grades. Nothing handles it, and the fix is the local DB in #1 rather than anything cheaper. How the state itself is stored is *not* open — chunked and author-scoped, see §8.0 and the flush rules below.
+4. **AI / OCR / URL import** (spec §14) — all reuse `TriageViewModel` + `PublishDeckViewModel`, or skip triage for the bulk summary screen as `BulkImportViewModel` does. No architectural change needed, only new `ImportRepository` entry points and screens.
+5. **Binding regeneration automation.** Today the fork's `build_android.sh` / `build_ios.sh` are run manually and artifacts are copied in (§7.4). A Gradle task can automate this once the fork API stabilises.
 
 ---
 
 ## 13. References
 
 - [`docs/specs.md`](./specs.md) — Paste-to-Import product spec.
-- [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md) — design system and screen brief.
-- `pubky-core-ffi-fork` — local sibling repo at `../../../pubky-core-ffi-fork`.
-- Pubky Ring deeplink contract — brief §9.1.
+- `pubky-core-ffi-fork` — local sibling repo at `../pubky-core-ffi-fork`.
+- Pubky Ring deeplink contract — §7.8.
 
 ---
 
-*End of architecture doc. Update alongside spec and design-brief revisions; do not let it drift.*
+*End of architecture doc. Update it alongside the code; do not let it drift.*

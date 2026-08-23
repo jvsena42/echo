@@ -47,7 +47,7 @@ object Routes {
     /** Another user's public profile (their decks + follow button). */
     const val FRIEND_PROFILE = "profile/{pubky}"
 
-    /** Every deck on the network carrying one tag — where a tag chip leads (brief §9.3). */
+    /** Every deck on the network carrying one tag — where a tag chip leads. */
     const val TAG_BROWSE = "tag/{tag}"
 
     /** One box over people and decks, by name or by pubky. Reached from Discover's header. */

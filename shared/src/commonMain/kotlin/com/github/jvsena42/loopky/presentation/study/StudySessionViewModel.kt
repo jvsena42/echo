@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Drives the spaced-repetition study loop (`design/main/phone-loopky.pen` → "03 Study Session").
+ * Drives the spaced-repetition study loop.
  *
  * [deckId] `null` studies every due card across owned decks (Home "Start studying"); a non-null
  * value studies one deck (DeckDetail). Grading delegates to [SrsRepository.review], which owns the
@@ -541,7 +541,7 @@ sealed interface StudySessionUiState {
         val deckId: String = "",
         /** The deck's author — media on a followed deck lives on their homeserver, not yours. */
         val authorPubky: String = "",
-        /** Front-side image, shown as a circular avatar on the card back (design `aLoMj`). */
+        /** Front-side image, shown as a circular avatar on the card back. */
         val frontImageRef: MediaRef.Image? = null,
         /**
          * Back-side image — the answer itself, when the answer is a picture.

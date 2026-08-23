@@ -567,8 +567,8 @@ private fun AnimatedContentScope.FlippableCard(
         contentAlignment = Alignment.Center,
     ) {
         if (rotation < 90f) {
-            // Listen/Speak on the front as well as the back, per DESIGN_GUIDELINE §8 ("Both
-            // sides include a Speak button"). They act on the side facing the user, so on the
+            // Listen/Speak sit on the front as well as the back — both faces carry them.
+            // They act on the side facing the user, so on the
             // front they practise the prompt in the *front* language — which is the side a
             // foreign word usually sits on, and hearing it before answering is the point.
             // The reveal cue lives in the hint row below. The prompt's picture belongs here too

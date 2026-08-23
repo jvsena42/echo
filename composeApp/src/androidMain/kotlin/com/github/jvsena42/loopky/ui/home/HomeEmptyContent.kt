@@ -31,7 +31,7 @@ import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /**
- * Mirrors Pencil node `nwHYV` — "Nothing to study yet" empty state: a white card with a circular
+ * "Nothing to study yet" empty state: a white card with a circular
  * book-open badge, title + subtitle, followed by the "Create a deck" / "Browse examples" actions.
  */
 @Composable

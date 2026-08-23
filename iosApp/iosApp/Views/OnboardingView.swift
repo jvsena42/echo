@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// SwiftUI onboarding screen mirroring the Pencil design (node `l6a3j`).
+/// SwiftUI onboarding screen.
 ///
 /// Pure layout — state comes from the shared `OnboardingViewModel` via `OnboardingScreen`.
 struct OnboardingView: View {

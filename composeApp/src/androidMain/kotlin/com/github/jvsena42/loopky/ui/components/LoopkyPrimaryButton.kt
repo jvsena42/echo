@@ -24,8 +24,8 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /**
  * Loopky primary action button: native Material 3 [Button] tinted with `accent-primary` and shaped
- * as a pill (mirrors Pencil node `xShKh`). Per the native-first rule we apply brand tokens to the
- * native component rather than rebuilding the chrome from primitives.
+ * as a pill. Per the native-first rule we apply brand tokens to the native component rather than
+ * rebuilding the chrome from primitives.
  */
 @Composable
 fun LoopkyPrimaryButton(

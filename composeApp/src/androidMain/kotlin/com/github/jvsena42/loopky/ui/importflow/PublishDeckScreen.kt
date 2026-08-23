@@ -242,7 +242,7 @@ private fun PublishDeckScreen(
                 Spacer(Modifier.size(40.dp))
             }
 
-            // Cards ready badge (design `yFOOS`): peach panel, solid orange check, discarded subtitle.
+            // Cards ready badge: peach panel, solid orange check, discarded subtitle.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

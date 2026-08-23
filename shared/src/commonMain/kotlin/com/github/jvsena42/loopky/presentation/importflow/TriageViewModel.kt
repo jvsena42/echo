@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Review-cards / triage step (design node U92Nh, spec §5.5). Walks the parsed draft one card
+ * Review-cards / triage step (spec §5.4). Walks the parsed draft one card
  * at a time letting the user keep, discard, or edit each. "Approve all" keeps everything and
  * proceeds straight to publish.
  */

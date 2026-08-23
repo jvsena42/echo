@@ -16,7 +16,7 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 /**
  * Bottom navigation built on Material 3 Expressive's [ShortNavigationBar]. We keep the native
  * component (insets, ripple, indicator, expressive selection motion, a11y) and only tint it with
- * Loopky's brand tokens. See `design/DESIGN_GUIDELINE.md §4` (native-first implementation).
+ * Loopky's brand tokens, rather than rebuilding the chrome from primitives.
  */
 @Composable
 fun LoopkyTabBar(

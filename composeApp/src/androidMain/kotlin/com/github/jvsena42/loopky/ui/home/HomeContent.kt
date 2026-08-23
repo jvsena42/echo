@@ -44,7 +44,7 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.relativeFromNow
 
 /**
- * Mirrors Pencil node `xaQR5` — daily study state with hero card + deck list.
+ * Daily study state: hero card + deck list.
  */
 @Composable
 fun HomeContent(
