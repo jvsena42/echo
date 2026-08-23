@@ -2,7 +2,6 @@ package com.github.jvsena42.loopky.ui.study
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -15,6 +14,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -40,7 +40,9 @@ import com.github.jvsena42.loopky.presentation.study.TypePhase
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /**
- * The input the answer is written into, in the slot the SRS buttons take once it is revealed.
+ * The input the answer is written into, drawn **on the card back** — in the very space the answer
+ * itself occupies once it is revealed. The card is where the question is, so it is where the
+ * answer gets written; putting the field below the card made it read as a search box.
  *
  * [cardKey] re-focuses the field per card, so a session of typing is not one tap of setup per
  * card. [languageTag] is the *back's* language when the deck happens to have declared one — the
@@ -49,7 +51,7 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
  * one (`Deck.speechReady`).
  */
 @Composable
-internal fun TypeAnswerRow(
+internal fun TypeAnswerInput(
     value: String,
     languageTag: String?,
     cardKey: Int,
@@ -61,17 +63,22 @@ internal fun TypeAnswerRow(
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(cardKey) { focusRequester.requestFocus() }
 
-    Row(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             singleLine = true,
             placeholder = {
-                Text(stringResource(R.string.study_type_placeholder), fontSize = 15.sp)
+                Text(
+                    text = stringResource(R.string.study_type_placeholder),
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             },
             keyboardOptions = KeyboardOptions(
                 imeAction = ImeAction.Done,
@@ -88,9 +95,14 @@ internal fun TypeAnswerRow(
                 unfocusedTextColor = colors.foregroundPrimary,
                 cursorColor = colors.accentPrimary,
             ),
+            textStyle = LocalTextStyle.current.copy(
+                fontSize = 22.sp,
+                fontWeight = FontWeight.W700,
+                textAlign = TextAlign.Center,
+            ),
             modifier = Modifier
                 .testTag("study_type_input")
-                .weight(1f)
+                .fillMaxWidth()
                 .focusRequester(focusRequester),
         )
         Button(
@@ -98,7 +110,8 @@ internal fun TypeAnswerRow(
             enabled = value.isNotBlank(),
             modifier = Modifier
                 .testTag("study_type_check")
-                .height(56.dp),
+                .fillMaxWidth()
+                .height(52.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = colors.accentPrimary,

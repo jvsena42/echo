@@ -127,9 +127,6 @@
     <string name="study_flip_hint">Tap card to reveal answer</string>
     <string name="study_listen">Listen</string>
     <string name="study_speak">Speak</string>
-    <!-- Stands in for the answer while it is being typed. Fixed length on purpose: one bullet
-         per letter would hand over how long the word is. -->
-    <string name="study_answer_hidden">• • • • •</string>
     <string name="study_type_placeholder">Type the answer</string>
     <string name="study_type_check">Check</string>
     <string name="study_type_give_up">Give up · show me</string>
@@ -231,7 +228,7 @@
     <string name="publish_speak_title">Speak</string>
     <string name="publish_speak_subtitle">Test your pronunciation</string>
     <string name="publish_type_title">Type the answer</string>
-    <string name="publish_type_subtitle">Write the answer instead of just reading it. No language needed.</string>
+    <string name="publish_type_subtitle">Write the answer instead of just reading it</string>
     <string name="deck_languages_hint">Listen and Speak need to know what language each side is in, or the phone reads the card in your own accent. Picking one also tags the deck with that language.</string>
     <string name="deck_front_language_label">Front language</string>
     <string name="deck_back_language_label">Back language</string>

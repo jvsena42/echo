@@ -390,7 +390,6 @@ private fun ReviewingContent(
         // own snapshot while it fades. Without this the un-flip showed the next card's answer
         // for the first half of the turn.
         val reduceMotion = rememberReduceMotion()
-        val maskedAnswer = stringResource(R.string.study_answer_hidden)
         // The weighted Box keeps the flip frame stable across the reveal; the card inside is
         // capped so a one-word prompt doesn't stretch into a near-full-screen rectangle.
         Box(
@@ -404,9 +403,10 @@ private fun ReviewingContent(
                     position = state.position,
                     frontText = state.frontText,
                     // The flip is never blocked while an answer is being typed — what typing
-                    // withholds is the word, not the gesture. So the card turns as it always
-                    // has and the back arrives masked, picture and all.
-                    backText = if (state.answerHidden) maskedAnswer else state.backText,
+                    // withholds is the word, not the gesture. So the card turns as it always has,
+                    // and the back arrives with the input where its answer goes; the answer's own
+                    // text and picture are simply not passed until it is earned.
+                    backText = if (state.answerHidden) "" else state.backText,
                     backLabel = state.backLabel,
                     frontImageRef = state.frontImageRef,
                     backImageRef = state.backImageRef.takeUnless { state.answerHidden },
@@ -441,6 +441,19 @@ private fun ReviewingContent(
                     onReveal = onReveal,
                     onSpeak = onSpeak,
                     onSpeakTest = onSpeakTest,
+                    answerInput = if (state.answerHidden) {
+                        {
+                            TypeAnswerInput(
+                                value = state.typedAnswer,
+                                languageTag = state.backLang,
+                                cardKey = state.position,
+                                onValueChange = onAnswerChange,
+                                onCheck = onCheckAnswer,
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 )
             }
         }
@@ -459,36 +472,26 @@ private fun ReviewingContent(
         // grade buttons appear once the answer is legible, which on a typing card is later than
         // the flip. While it is being typed the same slot holds the input. (Listen/Speak, by
         // contrast, are on both faces — they live inside the card, not here.)
-        Box(modifier = Modifier.heightIn(min = 72.dp)) {
+        Box(modifier = Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
             when {
-                state.answerHidden -> TypeAnswerRow(
-                    value = state.typedAnswer,
-                    languageTag = state.backLang,
-                    cardKey = state.position,
-                    onValueChange = onAnswerChange,
-                    onCheck = onCheckAnswer,
-                )
-
                 state.gradesAvailable -> SrsRow(
                     intervals = state.intervals,
                     onGrade = onGrade,
                     reduceMotion = reduceMotion,
                 )
+                // Never inside the card: the way out of a card must not sit in the same frame as
+                // the thing you are stuck on.
+                state.answerHidden && state.revealed -> GiveUpButton(onGiveUp = onGiveUp)
             }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Give up while answering, the flip hint on an ordinary front; space is reserved either
-        // way so the card above keeps the same size across the flip.
-        Box(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 20.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            when {
-                state.answerHidden -> GiveUpButton(onGiveUp = onGiveUp)
-                // Suppressed while answering: there the tap flips to a mask, not to an answer.
-                !state.revealed -> FlipHint()
+        // Flip hint — shown on the front only; space is reserved on the back too so the
+        // card above keeps the same size across the flip.
+        Box(modifier = Modifier.fillMaxWidth().height(20.dp)) {
+            if (!state.revealed) {
+                FlipHint(modifier = Modifier.align(Alignment.Center))
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -528,6 +531,7 @@ private fun AnimatedContentScope.FlippableCard(
     onReveal: () -> Unit,
     onSpeak: () -> Unit,
     onSpeakTest: () -> Unit,
+    answerInput: (@Composable () -> Unit)? = null,
 ) {
     val colors = LoopkyTheme.colors
     val rotation by animateFloatAsState(
@@ -584,7 +588,7 @@ private fun AnimatedContentScope.FlippableCard(
                 label = card.backLabel,
                 text = card.backText,
                 textSize = 42.sp,
-                dimmed = card.answerHidden,
+                answerInput = answerInput,
                 onSpeak = onSpeak,
                 showListen = interactive && listenEnabled && !card.answerHidden,
                 onSpeakTest = if (interactive && speakEnabled && !card.answerHidden) onSpeakTest else null,
