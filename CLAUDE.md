@@ -190,5 +190,5 @@ points here rather than restating them.
 
 ## Where to read before starting work
 
-- `docs/Architecture.md` — always. §4 (shared layering), §6 (Paste-to-Import state flow), §7 (Pubky open question), §12 (open questions blocking feature work).
-- `docs/specs.md` §5–§10 — for any import/triage/commit work.
+- `docs/Architecture.md` — always. §4 (shared layering), §7 (Pubky, Nexus tag indexing, Homegate signup), §8 (homeserver layout, chunking, quota, SRS), §12 (what is still open).
+- `docs/specs.md` §5–§10 — for any import/triage/commit work; §6 and §9 are the parser test matrix.
