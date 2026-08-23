@@ -17,3 +17,13 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+
+# Build outputs. The release skill drops a renamed, signed APK in the repo root
+# (Loopky-<version>.apk) before uploading it to the GitHub release.
+*.apk
+*.aab
+
+# Keystore files — signing material never belongs in the repo. The keystore path and its
+# passwords are configured in local.properties (gitignored above).
+*.jks
+*.keystore
