@@ -26,9 +26,22 @@
         </intent>
     </queries>
 
+    <!-- Backup is off, and this is not an oversight waiting to be "fixed" into a restore feature.
+         Nothing on this device is worth restoring, and two things would actively break.
+
+         The keystore-backed vaults (`loopky.session`, `loopky.secrets`) are EncryptedSharedPreferences:
+         Auto Backup copies the XML, the Android Keystore master key that decrypts it never leaves the
+         device, so a restored file is undecryptable and throws where it is read. Everything else is
+         device-local by design — AppPreferences says so on the interface, and replaying a restored
+         review journal onto a second device would re-flush reviews that already landed.
+
+         The data that matters lives elsewhere: the identity in Pubky Ring, the decks and review state
+         on the homeserver. Signing in on a new device is the restore path.
+
+         `false` also disables Android 12+ D2D transfer, which is the same exposure by another route. -->
     <application
         android:name=".LoopkyApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
