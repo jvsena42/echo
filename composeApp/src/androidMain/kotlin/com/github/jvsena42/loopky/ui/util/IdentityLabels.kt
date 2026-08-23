@@ -10,7 +10,7 @@ import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 /**
  * How a pubky user is named on screen — the one place that decides, so the same person never
  * reads as two different things. The display name wins; the pubky is the fallback, never the
- * primary identifier (design guideline §9.2). Ownership is drawn separately as a "You" badge,
+ * primary identifier. Ownership is drawn separately as a "You" badge,
  * so it adds to the identity instead of replacing it.
  */
 @Composable

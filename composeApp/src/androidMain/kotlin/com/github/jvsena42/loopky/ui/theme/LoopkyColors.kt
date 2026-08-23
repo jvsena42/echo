@@ -4,8 +4,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 /**
- * Minimal token snapshot taken from the Pencil design (`design/main-design.pen`). Once we
- * codegen from the `.pen` variables these should be removed in favour of generated constants.
+ * Loopky's brand palette. Hand-maintained and the source of truth for Android; the iOS side
+ * mirrors it in `LoopkyColor.swift`, so a change here wants the same change there.
  */
 @Immutable
 data class LoopkyColors(

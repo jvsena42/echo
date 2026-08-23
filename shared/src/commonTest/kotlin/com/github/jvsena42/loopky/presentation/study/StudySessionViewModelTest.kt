@@ -372,7 +372,7 @@ class StudySessionViewModelTest {
 
     @Test
     fun speakPracticeOnTheFrontTargetsTheFrontSide() = runTest {
-        // Both buttons show on both sides (DESIGN_GUIDELINE §8), and on the front the thing to
+        // Both buttons show on both sides, and on the front the thing to
         // pronounce is the prompt — grading it against the back would mark every attempt wrong.
         seedSpeechDeck()
         val vm = viewModel()

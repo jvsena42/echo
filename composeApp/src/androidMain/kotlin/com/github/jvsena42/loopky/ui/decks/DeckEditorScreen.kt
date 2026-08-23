@@ -862,7 +862,7 @@ private fun CardRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Long-press-and-drag handle, per design guideline §6.5. No content description:
+        // Long-press-and-drag handle. No content description:
         // dragging is not operable with TalkBack, and announcing it would just be another
         // dead control — the move buttons next to it are the accessible path to the same move.
         //

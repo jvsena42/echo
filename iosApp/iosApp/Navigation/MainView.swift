@@ -14,7 +14,7 @@ struct MainView: View {
 
     var body: some View {
         // Native `TabView` → system `UITabBar` (Liquid Glass on the iOS 26 SDK). We only tint it
-        // with Loopky's accent. See `design/DESIGN_GUIDELINE.md §4` (native-first implementation).
+        // with Loopky's accent, rather than rebuilding the chrome from primitives.
         TabView(selection: $selectedTab) {
             HomeScreen(
                 onOpenDeck: onDeckTap,

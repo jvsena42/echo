@@ -134,7 +134,7 @@ private fun HomeScreenContent(
     onDeckClick: (String) -> Unit,
     onRetry: () -> Unit,
 ) {
-    // The empty state centers its card + actions in the space below the greeting (design `nwHYV`),
+    // The empty state centers its card + actions in the space below the greeting,
     // so it gets a non-scrolling full-height layout instead of the shared scroll column.
     if (state is HomeUiState.Empty) {
         HomeEmptyScreen(

@@ -82,13 +82,13 @@ grant path):
 
 | Step | Result |
 | --- | --- |
-| Study front card (`w1CAm`) | PASSED — word + "Tap card to reveal answer" only; **no Listen/Speak on the front** (superseded — see journey 12) |
-| Reveal back (`aLoMj`) | PASSED — **"Listen"** pill (peach) + **"Speak"** pill (purple); names + colors now match the design (previously both read "Speak") |
+| Study front card | PASSED — word + "Tap card to reveal answer" only; **no Listen/Speak on the front** (superseded — see journey 12) |
+| Reveal back | PASSED — **"Listen"** pill (peach) + **"Speak"** pill (purple); names + colors now match the design (previously both read "Speak") |
 | Tap **Speak** → mic permission | PASSED — "Allow Loopky to record audio?" dialog appears (the user-reported "permission not requested" bug is fixed) |
 | Grant → recognition unavailable | PASSED — Toast "Speech recognition is unavailable on this device" shows instead of silently doing nothing |
 | Paste preview (`MJ1SR`) | PASSED — bottom orange **Next** button shown once parsed |
-| Publish (`yFOOS`) | PASSED — peach "N cards ready" badge with solid orange check; white card fields; **Listen/Speak option rows have leading icons** (peach headphones / purple mic) |
-| Cover image sheet (`OQ2QL`) | PASSED — **Done** is now a pill (disabled-grey until a selection) |
+| Publish | PASSED — peach "N cards ready" badge with solid orange check; white card fields; **Listen/Speak option rows have leading icons** (peach headphones / purple mic) |
+| Cover image sheet | PASSED — **Done** is now a pill (disabled-grey until a selection) |
 
 Speech recognition itself still needs a device/emulator with Google speech for the
 Correct/Wrong outcome.

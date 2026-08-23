@@ -37,7 +37,7 @@ import com.github.jvsena42.loopky.presentation.study.SpeakPhase
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /**
- * Bottom sheets for Speak pronunciation practice (design sIqOr / n3bMb7 / BlcXn). Rendered based
+ * Bottom sheets for Speak pronunciation practice. Rendered based
  * on the current [SpeakPhase]; [SpeakPhase.Idle] shows nothing.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
@@ -94,7 +94,7 @@ private fun ListeningBody(targetWord: String) {
     ) {
         Text(text = targetWord, fontSize = 28.sp, fontWeight = FontWeight.W800, color = colors.accentSecondary)
     }
-    // Solid purple mic in a soft halo ring (design `sIqOr`).
+    // Solid purple mic in a soft halo ring.
     Box(
         modifier = Modifier
             .size(110.dp)

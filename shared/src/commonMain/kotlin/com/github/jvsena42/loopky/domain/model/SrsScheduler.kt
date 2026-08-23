@@ -9,9 +9,8 @@ import kotlin.math.roundToInt
  * the caller supplies `now` (see `com.github.jvsena42.loopky.util.epochMillis`). Business logic for
  * grading lives in `SrsRepositoryImpl`, which calls these.
  *
- * First-review intervals default to the values shown in the study-session design
- * (`design/main/phone-loopky.pen` → SRSRow): Again `<10m` / Hard `1d` / Good `3d` / Easy `7d`, and
- * are overridable per user through [StudySettings].
+ * First-review intervals default to Again `<10m` / Hard `1d` / Good `3d` / Easy `7d`, and are
+ * overridable per user through [StudySettings].
  */
 private const val MINUTE_MS = 60_000L
 private const val DAY_MS = 86_400_000L

@@ -38,7 +38,7 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /**
- * One side of a card in the Edit-card screens (design `vU2cv`): a white rounded card holding the
+ * One side of a card in the Edit-card screens: a white rounded card holding the
  * text input, with the side label and an "Add image" pill in the header. When an image is set the
  * pill is replaced by a thumbnail preview (tap to change) plus a circular remove button.
  *

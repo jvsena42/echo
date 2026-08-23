@@ -1,6 +1,6 @@
 <journey name="Speak — pronunciation practice in study">
   <description>
-    The Speak study feature (design aLoMj / sIqOr / n3bMb7 / BlcXn): on a speak-enabled deck,
+    The Speak study feature: on a speak-enabled deck,
     reveal a card back and start pronunciation practice. Actual speech cannot be synthesized in
     automation, so this journey verifies the permission prompt and the Listening sheet appear and
     that cancel/retry work; the Correct/Wrong outcome is a manual check. Which *language* each
@@ -13,7 +13,7 @@
     <action>Open a deck that was published with the Speak option enabled AND a front/back language pair, and start studying it</action>
     <action>Manual check: open a deck published before the language pair existed (or one whose pair is unset) and verify the card back shows neither the Listen nor the Speak button — an undeclared deck must not fall back to the phone's locale</action>
     <action>Verify the study card (resource-id: study_card) is shown front-side</action>
-    <action>Verify "Listen" (resource-id: study_listen) and "Speak" (resource-id: study_speak) are shown on the card FRONT — both sides carry them per DESIGN_GUIDELINE §8</action>
+    <action>Verify "Listen" (resource-id: study_listen) and "Speak" (resource-id: study_speak) are shown on the card FRONT — both sides carry them</action>
     <action>Manual check: tap Listen here and verify the prompt is read in the deck's FRONT language, not the back's and not the phone's</action>
     <action>Tap the card to reveal the back and verify both buttons are still shown</action>
     <action>Tap the element with resource-id "study_speak"</action>

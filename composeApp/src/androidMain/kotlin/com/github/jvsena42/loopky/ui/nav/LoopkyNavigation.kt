@@ -89,7 +89,7 @@ internal fun LoopkyNavHost(
                     navController.navigateTo(Routes.deckDetail(deckId, author))
                 },
                 onNavigateCreateDeck = {
-                    // Deck creation always starts at the Paste import flow (design node h9wya).
+                    // Deck creation always starts at the Paste import flow.
                     navController.navigateTo(Routes.IMPORT_PASTE)
                 },
                 onNavigateImport = {

@@ -4,7 +4,7 @@ import SwiftUI
 // bootstrapped on iOS. Until then this view renders the empty-state fallback so the
 // design can be iterated on without blocking on the DI wiring.
 
-/// SwiftUI Home screen mirroring Pencil nodes `xaQR5` (daily study) and `nwHYV` (empty state).
+/// SwiftUI Home screen: the daily study state, and the empty state before any deck exists.
 struct HomeView: View {
     var greetingName: String = "there"
     var state: HomeViewState = .empty

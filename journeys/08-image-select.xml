@@ -1,6 +1,6 @@
 <journey name="Image select — cover from web (Unsplash) and gallery">
   <description>
-    Choosing a card/cover image (design cEXuT / OQ2QL): open the image sheet from the Publish
+    Choosing a card/cover image: open the image sheet from the Publish
     cover, search the web grid, and select a photo. The web grid needs an Unsplash access key —
     either the user's own (Settings, see journey 16) or the build-time UNSPLASH_ACCESS_KEY
     fallback in local.properties. With neither, the grid area shows the "add a key" panel and the

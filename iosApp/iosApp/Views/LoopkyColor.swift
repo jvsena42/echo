@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Loopky design tokens. Values mirror `LoopkyColors.kt` on Android. Will be replaced by
-/// codegen from the Pencil `.pen` variables once that pipeline exists.
+/// Loopky's brand palette. Hand-maintained and mirrors `LoopkyColors.kt` on Android, so a change
+/// here wants the same change there.
 enum LoopkyColor {
     static let surfacePrimary = Color(red: 1.0, green: 0.984, blue: 0.961)
     static let surfaceSecondary = Color(red: 1.0, green: 0.957, blue: 0.918)
