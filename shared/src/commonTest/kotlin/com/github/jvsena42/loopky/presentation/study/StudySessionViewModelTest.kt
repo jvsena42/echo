@@ -371,6 +371,87 @@ class StudySessionViewModelTest {
     }
 
     @Test
+    fun speakPracticeOnTheFrontTargetsTheFrontSide() = runTest {
+        // Both buttons show on both sides (DESIGN_GUIDELINE §8), and on the front the thing to
+        // pronounce is the prompt — grading it against the back would mark every attempt wrong.
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<StudySessionEffect>()
+        val job = launch { vm.effects.toList(effects) }
+
+        vm.onSpeakTest()
+        advanceUntilIdle()
+
+        assertEquals(
+            StudySessionEffect.StartSpeechRecognition("hola", "es-ES"),
+            effects.single(),
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun flippingTheCardMidListenDoesNotChangeWhatIsGraded() = runTest {
+        // The transcript arrives asynchronously. Re-deriving the target on arrival would grade a
+        // correctly spoken prompt against the answer the user flipped to while talking.
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onSpeakTest()
+        advanceUntilIdle()
+        vm.onReveal()
+        advanceUntilIdle()
+        vm.onSpeechResult("hola")
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertIs<SpeakPhase.Correct>(state.speakPhase)
+    }
+
+    @Test
+    fun retryingKeepsTheSideTheAttemptStartedOn() = runTest {
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<StudySessionEffect>()
+        val job = launch { vm.effects.toList(effects) }
+
+        vm.onSpeakTest()
+        advanceUntilIdle()
+        vm.onSpeechResult("adios")
+        advanceUntilIdle()
+        vm.onSpeakRetry()
+        advanceUntilIdle()
+
+        assertEquals(
+            StudySessionEffect.StartSpeechRecognition("hola", "es-ES"),
+            effects.last(),
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun aLateTranscriptAfterDismissalIsIgnored() = runTest {
+        // Dismissing clears the target; without that guard a result landing afterwards would
+        // reopen the Correct/Wrong sheet over a card the user has moved on from.
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onSpeakTest()
+        advanceUntilIdle()
+        vm.onSpeakDismiss()
+        vm.onSpeechResult("hola")
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(SpeakPhase.Idle, state.speakPhase)
+    }
+
+    @Test
     fun aDeckWithNoDeclaredPairOffersNeitherFeature() = runTest {
         // testDeck leaves the languages unset, which is what every deck published before they
         // existed looks like. The opt-ins default true, so only speechReady stops them.

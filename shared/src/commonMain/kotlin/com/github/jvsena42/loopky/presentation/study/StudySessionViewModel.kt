@@ -51,6 +51,9 @@ class StudySessionViewModel(
     private var deckTitle = ""
     private var speakPhase: SpeakPhase = SpeakPhase.Idle
 
+    /** What the in-flight pronunciation attempt grades against. See [targetFor]. */
+    private var speakTarget: SpeakTarget? = null
+
     /**
      * Why buffered reviews are not reaching the homeserver, if they are not. Held on the VM rather
      * than only in the state because [emitCurrent] rebuilds the state on every card, and a warning
@@ -174,15 +177,18 @@ class StudySessionViewModel(
         }
     }
 
-    /** Start pronunciation practice for the revealed card back (gated on the deck's speak opt-in). */
+    /** Start pronunciation practice for the side facing the user (gated on the deck's speak opt-in). */
     fun onSpeakTest() {
         val s = _state.value
-        if (s !is StudySessionUiState.Reviewing || !s.revealed || !s.speakEnabled) return
-        startRecognition(s)
+        if (s !is StudySessionUiState.Reviewing || !s.speakEnabled) return
+        startRecognition(targetFor(s) ?: return)
     }
 
     fun onSpeechResult(text: String) {
-        val expected = queue.getOrNull(index)?.back?.text.orEmpty()
+        // Graded against what was captured when listening began, not against whichever side is
+        // facing now: the answer arrives asynchronously, and a card flipped in the meantime would
+        // otherwise mark a correct utterance wrong against the opposite side's text.
+        val expected = speakTarget?.expected ?: return
         val result = SpeakMatcher.match(text, expected)
         setSpeakPhase(
             if (result.correct) {
@@ -198,23 +204,34 @@ class StudySessionViewModel(
         setSpeakPhase(SpeakPhase.Idle)
     }
 
+    /** Another go at the same target — never re-derived, so a retry cannot change what it grades. */
     fun onSpeakRetry() {
         val s = _state.value
         if (s !is StudySessionUiState.Reviewing || !s.speakEnabled) return
-        startRecognition(s)
+        startRecognition(speakTarget ?: targetFor(s) ?: return)
     }
 
     /**
-     * The target is always the card back, so the recognizer listens in the *back* language. Given
-     * none it would transcribe with the reader's own locale's model, which is why a deck with no
-     * declared pair does not offer this at all (`speakEnabled` folds in `speechReady`).
+     * What a pronunciation attempt grades against: the side facing the user, and *that side's*
+     * language. Null when the side has no text to say, or when the deck never declared a pair —
+     * given no language the recognizer would transcribe with the reader's own locale's model,
+     * which is why `speakEnabled` folds in `speechReady`.
      */
-    private fun startRecognition(s: StudySessionUiState.Reviewing) {
-        val expected = queue.getOrNull(index)?.back?.text?.takeIf { it.isNotBlank() } ?: return
-        val languageTag = s.backLang ?: return
+    private fun targetFor(s: StudySessionUiState.Reviewing): SpeakTarget? {
+        val card = queue.getOrNull(index) ?: return null
+        val side = if (revealed) card.back else card.front
+        val expected = side.text?.takeIf { it.isNotBlank() } ?: return null
+        val languageTag = (if (revealed) s.backLang else s.frontLang) ?: return null
+        return SpeakTarget(expected, languageTag)
+    }
+
+    private fun startRecognition(target: SpeakTarget) {
+        speakTarget = target
         setSpeakPhase(SpeakPhase.Listening)
         viewModelScope.launch {
-            _effects.emit(StudySessionEffect.StartSpeechRecognition(expected, languageTag))
+            _effects.emit(
+                StudySessionEffect.StartSpeechRecognition(target.expected, target.languageTag),
+            )
         }
     }
 
@@ -223,6 +240,7 @@ class StudySessionViewModel(
     }
 
     private fun setSpeakPhase(phase: SpeakPhase) {
+        if (phase is SpeakPhase.Idle) speakTarget = null
         speakPhase = phase
         val s = _state.value
         if (s is StudySessionUiState.Reviewing) {
@@ -439,6 +457,9 @@ sealed interface StudySessionUiState {
 data class GoalCelebration(val newCardsToday: Int, val goal: Int)
 
 /** Pronunciation-practice sheet state for the current card back. */
+/** The text and language one pronunciation attempt is measured against. */
+private data class SpeakTarget(val expected: String, val languageTag: String)
+
 sealed interface SpeakPhase {
     data object Idle : SpeakPhase
     data object Listening : SpeakPhase

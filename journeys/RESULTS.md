@@ -82,7 +82,7 @@ grant path):
 
 | Step | Result |
 | --- | --- |
-| Study front card (`w1CAm`) | PASSED — word + "Tap card to reveal answer" only; **no Listen/Speak on the front** |
+| Study front card (`w1CAm`) | PASSED — word + "Tap card to reveal answer" only; **no Listen/Speak on the front** (superseded — see journey 12) |
 | Reveal back (`aLoMj`) | PASSED — **"Listen"** pill (peach) + **"Speak"** pill (purple); names + colors now match the design (previously both read "Speak") |
 | Tap **Speak** → mic permission | PASSED — "Allow Loopky to record audio?" dialog appears (the user-reported "permission not requested" bug is fixed) |
 | Grant → recognition unavailable | PASSED — Toast "Speech recognition is unavailable on this device" shows instead of silently doing nothing |
@@ -120,6 +120,24 @@ Two things this run did **not** prove:
   write/diff behaviour is covered by `DeckRepositoryTagSyncTest`.
 
 Unrelated pre-existing noise seen during the run: `listFollowed: 3uyducpmnylw unreadable — 404`.
+
+## 12 — Listen/Speak on both card sides — ✅ PASS (2026-08-22, emulator-5554)
+
+Restores what `DESIGN_GUIDELINE §8` specifies ("Both sides include a Speak button"), which the
+`w1CAm` Pencil screen had overridden — so the journey 10 row above no longer holds.
+
+| Step | Result |
+| --- | --- |
+| Study front card | PASSED — **Listen** (peach) and **Speak** (purple) both present, with "Tap card to reveal answer" still below the card |
+| Tap **Listen** on the front | PASSED — logcat `Synthesis request for locale eng-USA`, the deck's **front** language |
+| Reveal the back | PASSED — both buttons still present |
+| Tap **Listen** on the back | PASSED — logcat `Synthesis request for locale spa-ESP`, the deck's **back** language |
+
+So each side is read in its own language rather than one tag being fixed per deck.
+
+Pronunciation practice on the front targets the front text (unit-tested: grading it against the
+back would mark every front attempt wrong), but as with journeys 09/11 the recognizer itself is
+unexercised on this emulator image.
 
 ---
 
