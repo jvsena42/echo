@@ -227,7 +227,7 @@ class StudySessionViewModel(
 
     private fun startRecognition(target: SpeakTarget) {
         speakTarget = target
-        setSpeakPhase(SpeakPhase.Listening)
+        setSpeakPhase(SpeakPhase.Listening(target.expected))
         viewModelScope.launch {
             _effects.emit(
                 StudySessionEffect.StartSpeechRecognition(target.expected, target.languageTag),
@@ -462,7 +462,14 @@ private data class SpeakTarget(val expected: String, val languageTag: String)
 
 sealed interface SpeakPhase {
     data object Idle : SpeakPhase
-    data object Listening : SpeakPhase
+
+    /**
+     * [expected] is the captured target, carried on the phase so the sheet prompts with the very
+     * text [onSpeechResult] grades against — reading it off the state's front/back would let the
+     * prompt and the grading disagree about which side the attempt is for.
+     */
+    data class Listening(val expected: String) : SpeakPhase
+
     data class Correct(val heard: String) : SpeakPhase
     data class Wrong(val heard: String, val expected: String) : SpeakPhase
 }

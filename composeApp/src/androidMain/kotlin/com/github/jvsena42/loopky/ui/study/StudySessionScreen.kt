@@ -283,7 +283,6 @@ fun StudySessionScreen(
     if (state is StudySessionUiState.Reviewing) {
         SpeakSheets(
             phase = state.speakPhase,
-            targetWord = state.backText,
             onCancel = onSpeakCancel,
             onContinue = onSpeakContinue,
             onRetry = onSpeakRetry,

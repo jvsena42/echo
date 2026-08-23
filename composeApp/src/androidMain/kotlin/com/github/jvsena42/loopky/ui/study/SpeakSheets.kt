@@ -44,7 +44,6 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 @Composable
 fun SpeakSheets(
     phase: SpeakPhase,
-    targetWord: String,
     onCancel: () -> Unit,
     onContinue: () -> Unit,
     onRetry: () -> Unit,
@@ -68,7 +67,7 @@ fun SpeakSheets(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             when (phase) {
-                is SpeakPhase.Listening -> ListeningBody(targetWord)
+                is SpeakPhase.Listening -> ListeningBody(phase.expected)
                 is SpeakPhase.Correct -> CorrectBody(phase.heard, onContinue)
                 is SpeakPhase.Wrong -> WrongBody(phase.heard, phase.expected, onRetry)
                 SpeakPhase.Idle -> Unit
