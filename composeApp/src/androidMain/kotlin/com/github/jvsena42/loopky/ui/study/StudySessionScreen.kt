@@ -441,7 +441,7 @@ private fun ReviewingContent(
                     onReveal = onReveal,
                     onSpeak = onSpeak,
                     onSpeakTest = onSpeakTest,
-                    answerInput = if (state.answerHidden) {
+                    answerInput = (state.typePhase as? TypePhase.Answering)?.let { phase ->
                         {
                             TypeAnswerInput(
                                 value = state.typedAnswer,
@@ -449,8 +449,13 @@ private fun ReviewingContent(
                                 cardKey = state.position,
                                 onValueChange = onAnswerChange,
                                 onCheck = onCheckAnswer,
+                                onGiveUp = onGiveUp,
+                                lastMiss = phase.lastMiss,
                             )
                         }
+                    },
+                    answerNote = if (state.typePhase is TypePhase.Correct) {
+                        { TypeCorrectNote() }
                     } else {
                         null
                     },
@@ -460,28 +465,16 @@ private fun ReviewingContent(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // What the check made of the answer. Here rather than below the grades because this is
-        // where the eye lands once the card unmasks; no space is reserved for it, since a
-        // non-typing session never shows one.
-        (state.typePhase as? TypePhase.Checked)?.let { checked ->
-            TypeResultLine(phase = checked)
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-
         // SRS grade row — reserve its space always so the card above stays the same size. The
         // grade buttons appear once the answer is legible, which on a typing card is later than
         // the flip. While it is being typed the same slot holds the input. (Listen/Speak, by
         // contrast, are on both faces — they live inside the card, not here.)
+        // Reserved always so the card above stays the same size across the flip. Everything
+        // typing adds lives on the card itself — the input, the miss line, Check, Give up and
+        // the "Correct!" note — so this row is exactly what it was before the mode existed.
         Box(modifier = Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
-            when {
-                state.gradesAvailable -> SrsRow(
-                    intervals = state.intervals,
-                    onGrade = onGrade,
-                    reduceMotion = reduceMotion,
-                )
-                // Never inside the card: the way out of a card must not sit in the same frame as
-                // the thing you are stuck on.
-                state.answerHidden && state.revealed -> GiveUpButton(onGiveUp = onGiveUp)
+            if (state.gradesAvailable) {
+                SrsRow(intervals = state.intervals, onGrade = onGrade, reduceMotion = reduceMotion)
             }
         }
 
@@ -532,6 +525,7 @@ private fun AnimatedContentScope.FlippableCard(
     onSpeak: () -> Unit,
     onSpeakTest: () -> Unit,
     answerInput: (@Composable () -> Unit)? = null,
+    answerNote: (@Composable () -> Unit)? = null,
 ) {
     val colors = LoopkyTheme.colors
     val rotation by animateFloatAsState(
@@ -589,6 +583,7 @@ private fun AnimatedContentScope.FlippableCard(
                 text = card.backText,
                 textSize = 42.sp,
                 answerInput = answerInput,
+                answerNote = answerNote,
                 onSpeak = onSpeak,
                 showListen = interactive && listenEnabled && !card.answerHidden,
                 onSpeakTest = if (interactive && speakEnabled && !card.answerHidden) onSpeakTest else null,

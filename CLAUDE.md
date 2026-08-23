@@ -77,7 +77,8 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   §7.7 point 4.
 - **Typing is the third study opt-in, and the one that needs no language pair.** `Deck.typeEnabled`
   puts an input on the card *back* — under the prompt label, in the space the answer will occupy —
-  instead of handing the answer over. Four things not to undo. It is deliberately outside
+  instead of handing the answer over. Everything the mode adds (input, miss line, Check, Give up,
+  the "Correct!" note) lives **on the card**; the grade row and flip hint below it are untouched. Four things not to undo. It is deliberately outside
   `speechReady`: a string comparison has no engine to substitute the reader's locale into, and
   gating it would withhold the one assisted mode from exactly the decks (every import predating the
   pair) that have no other. It defaults **off** everywhere, legacy manifests included, unlike
@@ -85,9 +86,12 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   **flip is never blocked**: tapping turns the card as it always has, which is why `answerHidden`
   and `gradesAvailable` sit beside `revealed` on the study state, and why anything acting on "the
   side facing the user" (Listen, Speak) must ask `answerVisible` rather than `revealed` — or it
-  reads out the answer the card is withholding. And **nothing in the flow picks a grade**: Check
-  reports correct / near-miss / wrong, Give up reports nothing at all, and all four SRS buttons
-  stay equally available — an escape hatch that pre-selects Again is a punishment wearing an
+  reads out the answer the card is withholding. **Only a correct Check opens the card** — a wrong
+  or near-miss answer says so and leaves you answering, with what you typed still in the field,
+  because handing the answer over on the first slip turns one typo into a lost card and "check the
+  accents" is a hint to fix what you wrote, not a verdict; Give up is the escape, and it is always
+  right there under Check. And **nothing in the flow picks a grade**: the outcome is reported,
+  Give up reports nothing at all, and all four SRS buttons stay equally available — an escape hatch that pre-selects Again is a punishment wearing an
   escape hatch's label. Matching is `AnswerMatcher` with an `AnswerStrictness`: typing is `Strict`
   (accents count — typing them is the point), `SpeakMatcher` is the `Lenient` view. Cards with no
   back text (an image-only Anki answer) or no prompt fall back to tap-to-reveal.

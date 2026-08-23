@@ -543,7 +543,7 @@ class StudySessionViewModelTest {
         advanceUntilIdle()
 
         val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
-        assertEquals(TypePhase.Answering, state.typePhase)
+        assertIs<TypePhase.Answering>(state.typePhase)
         assertTrue(state.answerHidden)
         assertFalse(state.gradesAvailable, "gradeable without having seen the answer")
         // Typing needs no declared pair: this deck has none and the mode is on regardless.
@@ -589,6 +589,7 @@ class StudySessionViewModelTest {
         advanceUntilIdle()
         assertEquals(StudySessionEffect.Speak("hola", "es-ES"), effects.single())
 
+        // A correct check is what unmasks the back, and only then does Listen follow it there.
         vm.onAnswerChange("hello")
         vm.onCheckAnswer()
         vm.onSpeak()
@@ -598,7 +599,7 @@ class StudySessionViewModelTest {
     }
 
     @Test
-    fun checkingRevealsTheAnswerAndOffersEveryGradeEqually() = runTest {
+    fun aCorrectAnswerIsTheOneCheckThatOpensTheCard() = runTest {
         seedTypingDeck()
         val vm = viewModel()
         advanceUntilIdle()
@@ -611,9 +612,7 @@ class StudySessionViewModelTest {
         advanceUntilIdle()
 
         val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
-        val phase = assertIs<TypePhase.Checked>(state.typePhase)
-        assertEquals(TypedAnswerOutcome.Correct, phase.outcome)
-        assertEquals("hello", phase.expected)
+        assertEquals(TypePhase.Correct("hello"), state.typePhase)
         assertTrue(state.revealed)
         assertFalse(state.answerHidden)
         assertTrue(state.gradesAvailable)
@@ -622,8 +621,9 @@ class StudySessionViewModelTest {
     }
 
     @Test
-    fun aWrongAnswerStillShowsWhatTheAnswerWas() = runTest {
-        // Being told you were wrong without being shown the answer is worse than not asking.
+    fun aWrongAnswerSaysSoAndKeepsTheAnswerHidden() = runTest {
+        // Handing over the answer the moment you slip turns one typo into a lost card. The way
+        // out of a card you genuinely cannot answer is Give up, which is always right there.
         seedTypingDeck()
         val vm = viewModel()
         advanceUntilIdle()
@@ -633,15 +633,49 @@ class StudySessionViewModelTest {
         advanceUntilIdle()
 
         val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
-        val phase = assertIs<TypePhase.Checked>(state.typePhase)
-        assertEquals(TypedAnswerOutcome.Wrong, phase.outcome)
-        assertEquals("goodbye", phase.typed)
-        assertEquals("hello", phase.expected)
-        assertFalse(state.answerHidden)
+        val phase = assertIs<TypePhase.Answering>(state.typePhase)
+        assertEquals(TypeMiss("goodbye", TypedAnswerOutcome.Wrong), phase.lastMiss)
+        assertTrue(state.answerHidden, "a wrong answer gave the answer away")
+        assertFalse(state.gradesAvailable)
+        // Left in the field, so a near miss can be corrected rather than retyped.
+        assertEquals("goodbye", state.typedAnswer)
     }
 
     @Test
-    fun anAccentSlipIsReportedAsANearMissRatherThanAFlatWrong() = runTest {
+    fun aWrongAnswerDoesNotFlipACardThatWasStillFaceDown() = runTest {
+        seedTypingDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAnswerChange("goodbye")
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+
+        assertFalse(assertIs<StudySessionUiState.Reviewing>(vm.state.value).revealed)
+    }
+
+    @Test
+    fun aSecondTryAfterAMissStillCounts() = runTest {
+        seedTypingDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAnswerChange("goodbye")
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+        vm.onAnswerChange("hello")
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(TypePhase.Correct("hello"), state.typePhase)
+        assertTrue(state.gradesAvailable)
+    }
+
+    @Test
+    fun anAccentSlipIsANearMissAndStillLetsYouFixIt() = runTest {
+        // The one case where holding the answer back is the whole point: "check the accents" is
+        // a hint to correct what is already in the field, not a verdict.
         seedDeck()
         deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Spanish", typeEnabled = true)
         srsRepo.due = listOf(testCard("c1", front = "good morning", back = "buenos días"))
@@ -652,10 +686,16 @@ class StudySessionViewModelTest {
         vm.onCheckAnswer()
         advanceUntilIdle()
 
-        val phase = assertIs<TypePhase.Checked>(
-            assertIs<StudySessionUiState.Reviewing>(vm.state.value).typePhase,
-        )
-        assertEquals(TypedAnswerOutcome.NearMiss, phase.outcome)
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        val phase = assertIs<TypePhase.Answering>(state.typePhase)
+        assertEquals(TypedAnswerOutcome.NearMiss, phase.lastMiss?.outcome)
+        assertTrue(state.answerHidden)
+
+        vm.onAnswerChange("buenos días")
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+
+        assertIs<TypePhase.Correct>(assertIs<StudySessionUiState.Reviewing>(vm.state.value).typePhase)
     }
 
     @Test
@@ -669,7 +709,7 @@ class StudySessionViewModelTest {
         advanceUntilIdle()
 
         val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
-        assertEquals(TypePhase.Answering, state.typePhase)
+        assertIs<TypePhase.Answering>(state.typePhase)
         assertTrue(state.answerHidden)
     }
 
@@ -706,7 +746,7 @@ class StudySessionViewModelTest {
         val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
         assertEquals(expected = 2, actual = state.position)
         // The next card starts its own answer, with nothing carried over from the last one.
-        assertEquals(TypePhase.Answering, state.typePhase)
+        assertIs<TypePhase.Answering>(state.typePhase)
         assertEquals("", state.typedAnswer)
         assertFalse(state.revealed)
     }
@@ -773,7 +813,7 @@ class StudySessionViewModelTest {
 
         val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
         assertEquals(expected = 2, actual = state.position)
-        assertEquals(TypePhase.Answering, state.typePhase, "the next card was answered for the user")
+        assertIs<TypePhase.Answering>(state.typePhase, "the next card was answered for the user")
         assertEquals("", state.typedAnswer)
     }
 }

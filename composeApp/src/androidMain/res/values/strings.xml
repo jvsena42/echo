@@ -132,8 +132,7 @@
     <string name="study_type_give_up">Give up · show me</string>
     <string name="study_type_correct">Correct!</string>
     <string name="study_type_near_miss">Almost — check the accents</string>
-    <string name="study_type_wrong">Not quite</string>
-    <string name="study_type_you_typed">You typed: %1$s</string>
+    <string name="study_type_wrong">Not quite — try again</string>
 
     <!-- Discover -->
     <string name="discover_title">Discover</string>

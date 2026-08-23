@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.TypedAnswerOutcome
-import com.github.jvsena42.loopky.presentation.study.TypePhase
+import com.github.jvsena42.loopky.presentation.study.TypeMiss
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /**
@@ -57,7 +57,9 @@ internal fun TypeAnswerInput(
     cardKey: Int,
     onValueChange: (String) -> Unit,
     onCheck: () -> Unit,
+    onGiveUp: () -> Unit,
     modifier: Modifier = Modifier,
+    lastMiss: TypeMiss? = null,
 ) {
     val colors = LoopkyTheme.colors
     val focusRequester = remember { FocusRequester() }
@@ -105,6 +107,24 @@ internal fun TypeAnswerInput(
                 .fillMaxWidth()
                 .focusRequester(focusRequester),
         )
+        // Between the field and Check, because it is about what is still in the field. What was
+        // typed is not repeated back: it has not been cleared, so it is right there.
+        lastMiss?.let { miss ->
+            Text(
+                text = when (miss.outcome) {
+                    TypedAnswerOutcome.NearMiss -> stringResource(R.string.study_type_near_miss)
+                    else -> stringResource(R.string.study_type_wrong)
+                },
+                fontSize = 14.sp,
+                fontWeight = FontWeight.W700,
+                textAlign = TextAlign.Center,
+                color = when (miss.outcome) {
+                    TypedAnswerOutcome.NearMiss -> colors.srsHard
+                    else -> colors.srsAgain
+                },
+                modifier = Modifier.testTag("study_type_miss"),
+            )
+        }
         Button(
             onClick = onCheck,
             enabled = value.isNotBlank(),
@@ -126,11 +146,14 @@ internal fun TypeAnswerInput(
                 modifier = Modifier.padding(start = 6.dp),
             )
         }
+        // Directly under Check, quiet next to it: the two things you can do with a card you are
+        // stuck on belong together, and the escape reads as the smaller of them.
+        GiveUpButton(onGiveUp = onGiveUp)
     }
 }
 
 /**
- * The way out of a card you cannot answer.
+ * The way out of a card you cannot answer, sitting under Check on the card back.
  *
  * Always on offer while answering, with no confirm step — a mode that can trap a session is worse
  * than no mode. It reveals the answer and says nothing about how the card should be graded.
@@ -148,36 +171,21 @@ internal fun GiveUpButton(onGiveUp: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /**
- * What the check made of the answer, between the card and the grade buttons.
+ * "Correct!", under the answer on the card back.
  *
- * Reporting, not scoring — nothing here pre-selects or tints an SRS button, and giving up shows
- * no line at all, because the answer is the only thing that button promised.
+ * The only Check outcome that gets a line on an open card, because it is the only one that opens
+ * it — a miss is reported next to the input it wants you to fix, and giving up says nothing at
+ * all, the answer being the only thing that button promised. Reporting, not scoring: nothing here
+ * pre-selects or tints an SRS button.
  */
 @Composable
-internal fun TypeResultLine(phase: TypePhase.Checked, modifier: Modifier = Modifier) {
-    val colors = LoopkyTheme.colors
-    val (message, tint) = when (phase.outcome) {
-        TypedAnswerOutcome.Correct ->
-            stringResource(R.string.study_type_correct) to colors.srsGood
-        TypedAnswerOutcome.NearMiss ->
-            stringResource(R.string.study_type_near_miss) to colors.srsHard
-        TypedAnswerOutcome.Wrong ->
-            stringResource(R.string.study_type_wrong) to colors.srsAgain
-    }
-    Column(
-        modifier = modifier.fillMaxWidth().testTag("study_type_result"),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(text = message, fontSize = 14.sp, fontWeight = FontWeight.W700, color = tint)
-        // Shown for a near miss too: "almost" is only useful next to what you actually wrote.
-        if (phase.outcome != TypedAnswerOutcome.Correct) {
-            Text(
-                text = stringResource(R.string.study_type_you_typed, phase.typed),
-                fontSize = 12.sp,
-                color = colors.foregroundMuted,
-                textAlign = TextAlign.Center,
-            )
-        }
-    }
+internal fun TypeCorrectNote(modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(R.string.study_type_correct),
+        fontSize = 15.sp,
+        fontWeight = FontWeight.W700,
+        textAlign = TextAlign.Center,
+        color = LoopkyTheme.colors.srsGood,
+        modifier = modifier.testTag("study_type_result"),
+    )
 }

@@ -205,11 +205,15 @@ class StudySessionViewModel(
     }
 
     /**
-     * Compare what was typed against the card's back and unmask it either way — being told you
-     * were wrong without being shown the answer would be the one outcome worse than not asking.
+     * Compare what was typed against the card's back.
      *
-     * No grade is chosen here. The matcher's strictness decides what to *say*, never what to
-     * schedule; picking Again/Hard/Good/Easy stays the user's, exactly as after a tap-flip.
+     * Only a **correct** answer opens the card. Anything else says so and leaves you answering,
+     * with what you wrote still in the field: handing over the answer the moment you slip turns
+     * one typo into a lost card, and a near miss is a hint to fix an accent, not a verdict. The
+     * way out of a card you genuinely cannot answer is [onGiveUp], which is always right there.
+     *
+     * No grade is chosen here either way. The matcher's strictness decides what to *say*, never
+     * what to schedule; picking Again/Hard/Good/Easy stays the user's, exactly as after a tap-flip.
      */
     fun onCheckAnswer() {
         // A check landing after the queue advanced would otherwise grade the next card's text.
@@ -218,12 +222,15 @@ class StudySessionViewModel(
         val expected = queue.getOrNull(index)?.back?.text?.takeIf { it.isNotBlank() } ?: return
         val typed = typedAnswer.trim()
         if (typed.isEmpty()) return
-        typePhase = TypePhase.Checked(
-            typed = typed,
-            expected = expected.trim(),
-            outcome = AnswerMatcher.judge(typed, expected),
-        )
-        revealed = true
+        val outcome = AnswerMatcher.judge(typed, expected)
+        if (outcome == TypedAnswerOutcome.Correct) {
+            typePhase = TypePhase.Correct(typed)
+            revealed = true
+        } else {
+            // `revealed` is deliberately untouched: if the card was already flipped it stays
+            // flipped, still showing the input — a miss changes what is said, not what is shown.
+            typePhase = TypePhase.Answering(lastMiss = TypeMiss(typed, outcome))
+        }
         emitCurrent()
     }
 
@@ -452,7 +459,7 @@ class StudySessionViewModel(
             (!card.front.text.isNullOrBlank() || card.front.imageRef != null)
         return when {
             !eligible -> TypePhase.Off
-            typePhase is TypePhase.Off -> TypePhase.Answering
+            typePhase is TypePhase.Off -> TypePhase.Answering()
             else -> typePhase
         }
     }
@@ -603,18 +610,18 @@ sealed interface TypePhase {
     /** The deck has not opted in, or this card cannot be typed. Tap-to-reveal, exactly as before. */
     data object Off : TypePhase
 
-    /** Input on screen, answer masked. The only phase in which Give up is offered. */
-    data object Answering : TypePhase
+    /**
+     * Input on screen, answer hidden. The only phase in which Give up is offered — and the phase
+     * a rejected attempt stays in, which is why [lastMiss] lives here rather than on a phase of
+     * its own. Null until something has been submitted and turned down.
+     */
+    data class Answering(val lastMiss: TypeMiss? = null) : TypePhase
 
     /**
-     * An answer was submitted and the back is unmasked. [outcome] is what the screen *says* —
-     * it never picks an SRS grade, so the matcher's strictness cannot reach a card's `dueAt`.
+     * Typed correctly, so the back is now on show. The only Check outcome that opens the card —
+     * and it still picks no SRS grade, so the matcher's strictness cannot reach a card's `dueAt`.
      */
-    data class Checked(
-        val typed: String,
-        val expected: String,
-        val outcome: TypedAnswerOutcome,
-    ) : TypePhase
+    data class Correct(val typed: String) : TypePhase
 
     /**
      * The user asked for the answer. Carries nothing on purpose: giving up reveals the back and
@@ -622,6 +629,12 @@ sealed interface TypePhase {
      */
     data object GaveUp : TypePhase
 }
+
+/**
+ * An attempt that was turned down, kept so the screen can say how near it came while the card
+ * stays shut. [outcome] is never [TypedAnswerOutcome.Correct] — that one opens the card instead.
+ */
+data class TypeMiss(val typed: String, val outcome: TypedAnswerOutcome)
 
 sealed interface StudySessionEffect {
     /** [languageTag] is BCP-47; without it the engine reads the card in the reader's own locale. */
