@@ -1,7 +1,10 @@
 # Loopky — Deck Import Spec (Paste-to-Import)
 
-> **Status:** Draft v1 · **Scope:** Product + UX spec for the primary deck-import flow. Engineering RFC comes later.
-> **Reads alongside:** [`docs/Architecture.md`](./Architecture.md)
+> **Scope:** deck import only — the paste flow, the parser, triage and publish. Everything else
+> the app does (study/SRS, discovery, tags, profiles, settings, signup) is documented in
+> [`docs/Architecture.md`](./Architecture.md), not here.
+>
+> §6–§9 are prescriptive and are the test matrix the parser suite is written against.
 
 ---
 
@@ -13,7 +16,7 @@ It is inspired by Anki's "Import File" pattern but rebuilt for touch: no file pi
 
 **Who it's for:** Every Loopky user. Language learners pasting vocab lists, students pasting glossaries, hobbyists pasting their own notes. No technical literacy required.
 
-**Why this instead of AI or `.apkg`:** It's instant, offline, free, private, and covers the single most common import shape — two columns of text the user already has somewhere. AI import and OCR (see §14) will come later as alternative entry points into the same triage queue.
+**Why this rather than a file picker:** it's instant, offline, free, private, and covers the single most common import shape — two columns of text the user already has somewhere. File import (`.txt`, `.csv`, `.apkg`) has since shipped alongside it and reuses this parser; AI and OCR (§14) would too.
 
 ---
 
@@ -22,24 +25,29 @@ It is inspired by Anki's "Import File" pattern but rebuilt for touch: no file pi
 - **One-tap primary import:** Users should reach the paste screen in ≤2 taps from Decks or the empty state.
 - **Zero-config in the common case:** Auto-detect the separator correctly for ≥90% of pastes. The user should rarely need to touch the override.
 - **Preview as cards, not a table:** Show the first 3 parsed items as real Loopky flip-cards so the user feels the result before committing.
-- **Triage before commit:** Every imported card passes through the swipe queue. Users approve, edit, or discard each card before it enters their deck.
+- **Triage before commit:** Every *pasted* card passes through the swipe queue — the user approves, edits, or discards each one before it enters the deck. Bulk file import goes to a summary screen instead (§5.4).
 - **Native feel:** iOS and Android each use their own native components — SF Pro / Roboto, system sheets, platform haptics on successful import.
 - **Accessible:** Full VoiceOver / TalkBack support, dynamic type, reduce-motion alternatives.
 
 ## 3. Non-goals (v1)
 
-Explicitly deferred — do **not** design or build:
+Explicitly deferred:
 
-- `.apkg` / `.colpkg` Anki file import
-- CSV / TSV file upload from device storage
 - AI-generated cards (paste article → cards)
 - OCR / photo-of-page import
 - Audio recording during import
 - Image-folder bulk import
 - Drag-and-drop (desktop only — Loopky is mobile in v1)
-- Cloze deletion syntax (`{{c1::...}}`)
 - Re-import / sync with an external source
 - Private decks of any kind (see §11)
+
+**Shipped since, having started here as non-goals.** All four reuse this spec's parser and commit
+flow rather than a second pipeline, which is why they were cheap enough to bring forward:
+
+- File import from device storage — `.txt` / `.csv` (§14)
+- `.apkg` Anki file import, via the bulk summary screen instead of triage (§5.4, §14)
+- Cloze deletion syntax (`{{c1::…}}`), expanded into cards at parse time
+- Per-column field selection, on the bulk path only (§5.3)
 
 ---
 
@@ -77,13 +85,16 @@ All three routes land on the same paste screen.
 
 ### 5.3 Extra columns
 
-There is **no column mapping UI in v1.** The first column is always the card front and the second is
-always the back; anything past the second column is dropped at parse time. Nothing in the UI mentions
-columns, so nothing claims a behavior the app does not have.
+**On the paste path there is no column mapping UI.** The first column is always the card front and
+the second is always the back; anything past the second is dropped at parse time. Nothing on the
+paste screen mentions columns, so nothing claims a behavior it does not have.
 
-This is a deliberate v1 scope choice, not an omission. Per-column role assignment (`Front / Back /
-Tags / Ignore` chips) is listed in §14 — it is blocked on cards gaining a `tags` field, which they do
-not have (see §8).
+**Bulk file import is the exception.** An Anki export names its fields, so `ImportFieldPicker` lets
+the user choose which two become front and back. That only became possible because the file carries
+field names; a paste does not.
+
+Per-column *role* assignment (`Front / Back / Tags / Ignore` chips) is still unbuilt on both paths —
+it is blocked on cards gaining a `tags` field, which they do not have (see §8, §14).
 
 ### 5.4 Triage queue
 
@@ -139,7 +150,7 @@ The user can always override via the detected-separator chip. The override sheet
 - **Quoting:** double-quoted fields support embedded separators and newlines, CSV-style. `""` escapes a literal quote.
 - **Trimming:** leading and trailing whitespace stripped from every field.
 - **Blank lines:** ignored unless the active rule is blank-line-separated pairs.
-- **Max paste size:** 10,000 characters OR 500 cards, whichever comes first. Over that, show a soft error: *"That's a lot. Try splitting into smaller decks for now."*
+- **Max paste size:** 10,000 characters OR 2,000 cards, whichever comes first (`MAX_CHARS` / `MAX_CARDS` in `ImportRepositoryImpl`). Over that, show a soft error: *"That's a lot. Try splitting into smaller decks for now."*
 - **Dedupe:** exact-match duplicates within a single paste are collapsed silently. Near-duplicates are not touched in v1.
 - **Character encoding:** UTF-8 only. Paste buffer is read as UTF-8; invalid sequences are replaced with `�` and the affected line is flagged in triage.
 - **Line endings:** `\r\n`, `\n`, and `\r` all normalized to `\n`.
@@ -151,7 +162,7 @@ The user can always override via the detected-separator chip. The override sheet
 - **Fixed roles:** col 1 → front, col 2 → back. Always. There is no mapping UI and no way to reassign a column (§5.3).
 - **Extra columns are dropped** at parse time, silently. A `front⇥back⇥tags` spreadsheet or Anki export imports cleanly as front/back; the tags column is discarded.
 - **Tabs split every column.** Tab is a genuine column delimiter — spreadsheet and Anki exports use it and it effectively never appears inside card text — so a tab line splits on every tab and keeps the first two fields. Every other delimiter splits on its **first** occurrence only, so delimiters inside the back are preserved (§9: `date: December 25: Christmas`).
-- **Cards carry no tags.** Tags are deck-level: they live on the deck manifest, are entered on the commit screen (§5.5), and are written via Pubky's native tag primitive (§11). The card record has no `tags` field — see [Architecture.md §8.0](./Architecture.md#8-data-model--persistence).
+- **Cards carry no tags.** Tags are deck-level: they live on the deck manifest, are entered on the commit screen (§5.5), and are written via Pubky's native tag primitive (§11). The card record has no `tags` field — see [Architecture.md §8.0](./Architecture.md#80-homeserver-layout-canonical).
 
 ---
 
@@ -200,7 +211,8 @@ Every state below has a screen.
 
 ### 11.1 Published deck shape
 
-Each published deck is stored as multiple records under the author's pubky so that edits and sync stay cheap **at Anki proportions** — 2k–50k cards, not just the few dozen a paste produces:
+A published deck is not one record. It is a manifest, a set of card **chunk** records (~100 cards
+each), and media blobs keyed by sha256:
 
 ```
 /pub/loopky/decks/{deckId}/manifest.json      — metadata + chunk table
@@ -208,16 +220,15 @@ Each published deck is stored as multiple records under the author's pubky so th
 /pub/loopky/decks/{deckId}/media/{sha256}.{ext}
 ```
 
-- **Manifest** carries deck metadata (title, description, cover, tags), a card *count*, and one entry per chunk. It carries **no list of cards**: a per-card index grew ~73 bytes per card, so a 20k-card deck spent ~1.46 MB of manifest — re-uploaded in full every time a single card changed.
-- **Cards are stored in chunks**, ~100 per record, rather than one record per card. Publishing a 20k-card deck is ~201 writes instead of 20,001; opening it is ~200 reads instead of 20,000.
-- **Editing one card rewrites one chunk** (~63 KB) and patches that chunk's entry in the manifest. The deliberate trade: a card edit costs more than the ~200 bytes a per-card record would, and vastly less than the ~1.46 MB the old manifest rewrite cost. Publish-once / open-often / edit-rarely.
-- **Study order travels on the card**, as a sparse `ord`, not as manifest position. Inserting a card takes a midpoint instead of renumbering everything after it.
-- **Membership is the union of the chunks.** There is no index to keep in sync, so a card record and the manifest can no longer drift apart. Deletions are implicit: a card in no chunk is gone.
-- **Media under the deck path.** Images and audio are stored as blobs keyed by sha256; cards reference them by relative path. Dedupe within a deck is free. Blobs are fetched lazily when a card is shown, never bulk-prefetched.
-- **Sync is driven by `updated_at`.** Clients diff the manifest's chunk table against their cache and re-fetch only the chunks that moved — one chunk when the owner edits one card.
-- **Last-write-wins** for v1; no multi-device conflict resolution and no tombstones.
+The two consequences that reach *this* spec: the layout imposes no ceiling on deck size, so the
+paste cap in §7 is a property of the paste box and the swipe queue, not of storage; and publish is
+~201 writes for a 20k-card deck rather than 20,001, which is what makes the bulk path in §5.4
+viable at all.
 
-See [Architecture.md §8](./Architecture.md#8-data-model--persistence) for the full JSON schemas and Kotlin domain types.
+Everything else about it — the chunk table, why the manifest carries no card index, `ord` as study
+order, sync by `updated_at`, last-write-wins — belongs to storage rather than to import.
+See [Architecture.md §8.0](./Architecture.md#80-homeserver-layout-canonical) for the full JSON
+schemas and §8.4 for the numbers that forced the layout.
 
 ---
 
@@ -234,31 +245,37 @@ See [Architecture.md §8](./Architecture.md#8-data-model--persistence) for the f
 
 ## 13. Open questions
 
-1. **No private decks** — confirm with PM that publishing every imported deck is intentional for v1 and not just "not yet built."
-2. **Deck metadata timing** — should title / description be required before triage or after? Current spec says after. Alternative: pre-triage so users can abandon early. Designer call.
-3. **Triage "Approve all remaining"** — is the bulk-approve shortcut too easy to misuse? Could land junk cards. Consider requiring swipe-through of at least the first N cards before unlocking it.
-4. ~~**Max paste size**~~ — **Resolved.** The storage layout no longer caps deck size (§11.1), so the remaining limit is the *paste box*, not the deck. Paste keeps a modest cap because swipe-triage is the constraint — nobody swipes 20,000 cards. Bulk file import bypasses the paste box and the triage queue entirely, via the summary screen in §5.4.
-5. **Image and audio in paste** — out of scope for v1, but does the parser need to gracefully ignore pasted image data so the user isn't blocked? Likely yes.
-6. **Undo after leaving the screen** — if the user leaves the deck detail before the 10 s timer expires, the undo vanishes. Is that acceptable? Probably yes; matches standard snackbar behavior.
+Four of the original six were settled by shipping, and are recorded as decisions rather than
+questions: deck metadata is collected after triage; "Approve all remaining" shipped without a
+swipe-through gate; the deck size cap moved to the paste box (§7) once the storage layout stopped
+capping decks; and private decks are not a v1 feature (§11) — the code has no visibility toggle and
+no local-only write path.
+
+Genuinely open:
+
+1. **Image and audio in paste** — out of scope, but does the parser need to gracefully ignore
+   pasted image data so the user isn't blocked? Likely yes.
+2. **Undo after leaving the screen** — if the user leaves deck detail before the 10 s timer expires,
+   the undo vanishes. Probably acceptable; matches standard snackbar behavior.
 
 ---
 
 ## 14. Future extensions
 
-These are natural next steps that reuse this spec's triage queue and commit flow:
+These reuse this spec's *parse → preview → commit* spine — not necessarily its swipe queue (see the note at the end):
 
 - **AI "Paste anything"** — user pastes an article or transcript, Claude/Gemini extracts Q/A pairs, the result feeds straight into the same triage queue. No new commit UI needed.
 - **OCR photo import** — textbook page → Vision / ML Kit text → same triage queue.
 - **URL import** — paste a YouTube or article URL, fetch + AI-extract, same triage queue.
-- **Anki `.txt` import (next)** — Anki's "Notes in Plain Text" export is tab-separated, which the existing parser already handles (§6 rule 3). **Zero new dependencies.** Routes through the bulk summary screen, not triage.
+- ~~**Anki `.txt` import**~~ — **shipped.** Anki's "Notes in Plain Text" export is tab-separated, which the existing parser already handles (§6 rule 3), so it needed no new dependencies. Routes through the bulk summary screen, not triage.
 - ~~**`.apkg` import (after that)**~~ — **shipped, and cheaper than estimated.** The estimate assumed three new dependencies (a KMP zip reader, a SQLite driver, zstd). Android has `java.util.zip` and `android.database.sqlite` in the platform, so it needed none of them. The collection's `notes` table is unpacked to tab-separated text and fed through the same parser and summary screen as the `.txt` path — no second pipeline. Not handled, and reported rather than failed on: `collection.anki21b` (zstd, Anki 2.1.50+) and iOS, which has no platform zip or SQLite exposed to Kotlin/Native. Both point at the plain-text export.
 - **Per-column field mapping + per-card tags** — the `Front / Back / Tags / Ignore` chip row from the original spec, so a third column can become card tags instead of being dropped (§8). Blocked on a schema change: the card record has no `tags` field, and adding one touches `Card`, `CardDto`, and the homeserver layout. Tracked in issue #45.
-- **Private decks + public/private toggle** — if the open question in §13 resolves in favor of private decks, add a toggle to the commit screen.
+- **Private decks + public/private toggle** — would need a local-only write path on `DeckRepository` as well as the toggle; §11 is the reason there is neither today.
 - **Drafts** — save an unfinished paste if the user cancels, restore on next entry.
 
 The **commit flow** is the reusable spine; every future import source plugs into it.
 
-> **Narrowed.** This previously read "the triage queue is the reusable spine." Bulk import breaks that: card-at-a-time triage does not scale to a 20k-card Anki export, and no one is going to swipe through one. What every source genuinely shares is the *parse → preview → commit* spine and `DeckRepository.publish`, not the swipe queue. Interactive sources (paste, and probably OCR) keep triage; bulk sources get the summary screen in §5.4.
+> **Not the swipe queue.** Card-at-a-time triage does not scale to a 20k-card Anki export, and no one is going to swipe through one. What every source genuinely shares is the parse → preview → commit spine and `DeckRepository.publish`. Interactive sources (paste, and probably OCR) keep triage; bulk sources get the summary screen in §5.4.
 
 ---
 
