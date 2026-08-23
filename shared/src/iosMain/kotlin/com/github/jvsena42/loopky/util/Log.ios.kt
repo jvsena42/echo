@@ -8,7 +8,11 @@ package com.github.jvsena42.loopky.util
  * `objc_opt_respondsToSelector`. [println] formats on the Kotlin side and is crash-safe.
  */
 actual object Log {
+    /** Set from `doInitKoin` when iOS grows a debug flag of its own; off until then. */
+    actual var debugEnabled: Boolean = false
+
     actual fun d(tag: String, message: String) {
+        if (!debugEnabled) return
         println("D/$tag: $message")
     }
 

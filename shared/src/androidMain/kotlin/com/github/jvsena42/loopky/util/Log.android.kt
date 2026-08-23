@@ -3,7 +3,11 @@ package com.github.jvsena42.loopky.util
 import android.util.Log as AndroidLog
 
 actual object Log {
+    @Volatile
+    actual var debugEnabled: Boolean = false
+
     actual fun d(tag: String, message: String) {
+        if (!debugEnabled) return
         AndroidLog.d(tag, message)
     }
 
