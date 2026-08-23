@@ -6,12 +6,15 @@ import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
+import com.github.jvsena42.loopky.domain.model.AnswerMatcher
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.DEFAULT_NEW_CARDS_PER_DAY
+import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.SpeakMatcher
 import com.github.jvsena42.loopky.domain.model.SrsGrade
+import com.github.jvsena42.loopky.domain.model.TypedAnswerOutcome
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -50,6 +53,18 @@ class StudySessionViewModel(
     private var reviewedCount = 0
     private var deckTitle = ""
     private var speakPhase: SpeakPhase = SpeakPhase.Idle
+    private var typePhase: TypePhase = TypePhase.Off
+    private var typedAnswer: String = ""
+
+    /**
+     * Whether the answer is actually legible right now.
+     *
+     * Not the same question as [revealed]: on a typing card the flip is never blocked — tapping
+     * turns the card as it always has — but the words on the back stay masked until the answer is
+     * checked or given up on. Anything that acts on "the side facing the user" has to ask this
+     * rather than [revealed], or Listen would read out the very answer the mask is hiding.
+     */
+    private val answerVisible: Boolean get() = revealed && typePhase !is TypePhase.Answering
 
     /** What the in-flight pronunciation attempt grades against. See [targetFor]. */
     private var speakTarget: SpeakTarget? = null
@@ -101,6 +116,7 @@ class StudySessionViewModel(
                     index = 0
                     revealed = false
                     reviewedCount = 0
+                    resetTyping()
                     emitCurrent()
                 }
                 .onFailure { err ->
@@ -134,6 +150,7 @@ class StudySessionViewModel(
             index++
             revealed = false
             speakPhase = SpeakPhase.Idle
+            resetTyping()
             celebrateGoalIfOwed()
             emitCurrent()
         }
@@ -175,6 +192,68 @@ class StudySessionViewModel(
         _state.update { current ->
             (current as? StudySessionUiState.Reviewing)?.copy(goalCelebration = null) ?: current
         }
+    }
+
+    // ── Type the answer (#115) ───────────────────────────────────────────────
+
+    fun onAnswerChange(text: String) {
+        if (typePhase !is TypePhase.Answering) return
+        typedAnswer = text
+        _state.update { current ->
+            (current as? StudySessionUiState.Reviewing)?.copy(typedAnswer = text) ?: current
+        }
+    }
+
+    /**
+     * Compare what was typed against the card's back.
+     *
+     * Only a **correct** answer opens the card. Anything else says so and leaves you answering,
+     * with what you wrote still in the field: handing over the answer the moment you slip turns
+     * one typo into a lost card, and a near miss is a hint to fix an accent, not a verdict. The
+     * way out of a card you genuinely cannot answer is [onGiveUp], which is always right there.
+     *
+     * No grade is chosen here either way. The matcher's strictness decides what to *say*, never
+     * what to schedule; picking Again/Hard/Good/Easy stays the user's, exactly as after a tap-flip.
+     */
+    fun onCheckAnswer() {
+        // A check landing after the queue advanced would otherwise grade the next card's text.
+        if (gradeJob?.isActive == true) return
+        if (typePhase !is TypePhase.Answering) return
+        val expected = queue.getOrNull(index)?.back?.text
+            ?.takeIf { AnswerMatcher.isTypable(it) } ?: return
+        val typed = typedAnswer.trim()
+        if (typed.isEmpty()) return
+        val outcome = AnswerMatcher.judge(typed, expected)
+        if (outcome == TypedAnswerOutcome.Correct) {
+            typePhase = TypePhase.Correct(typed)
+            revealed = true
+        } else {
+            // `revealed` is deliberately untouched: if the card was already flipped it stays
+            // flipped, still showing the input — a miss changes what is said, not what is shown.
+            typePhase = TypePhase.Answering(lastMiss = TypeMiss(typed, outcome))
+        }
+        emitCurrent()
+    }
+
+    /**
+     * Show the answer and nothing else.
+     *
+     * Always available while answering, with no confirm step and no penalty: this is the escape
+     * hatch that keeps a stuck card from trapping a session. It deliberately does not choose,
+     * pre-select or highlight a difficulty — a "you clearly meant Again" nudge would quietly turn
+     * an escape into a punishment, and the grade is not this button's to guess.
+     */
+    fun onGiveUp() {
+        if (gradeJob?.isActive == true) return
+        if (typePhase !is TypePhase.Answering) return
+        typePhase = TypePhase.GaveUp
+        revealed = true
+        emitCurrent()
+    }
+
+    private fun resetTyping() {
+        typePhase = TypePhase.Off
+        typedAnswer = ""
     }
 
     /** Start pronunciation practice for the side facing the user (gated on the deck's speak opt-in). */
@@ -219,9 +298,9 @@ class StudySessionViewModel(
      */
     private fun targetFor(s: StudySessionUiState.Reviewing): SpeakTarget? {
         val card = queue.getOrNull(index) ?: return null
-        val side = if (revealed) card.back else card.front
+        val side = if (answerVisible) card.back else card.front
         val expected = side.text?.takeIf { it.isNotBlank() } ?: return null
-        val languageTag = (if (revealed) s.backLang else s.frontLang) ?: return null
+        val languageTag = (if (answerVisible) s.backLang else s.frontLang) ?: return null
         return SpeakTarget(expected, languageTag)
     }
 
@@ -259,9 +338,11 @@ class StudySessionViewModel(
         val s = _state.value
         if (s !is StudySessionUiState.Reviewing || !s.listenEnabled) return
         val card = queue.getOrNull(index) ?: return
-        val text = (if (revealed) card.back.text else card.front.text)?.takeIf { it.isNotBlank() }
+        // answerVisible, not revealed: on a flipped-but-masked typing card the back is on screen
+        // but hidden, and reading it aloud would hand over the answer the mask is withholding.
+        val text = (if (answerVisible) card.back.text else card.front.text)?.takeIf { it.isNotBlank() }
             ?: return
-        val languageTag = (if (revealed) s.backLang else s.frontLang) ?: return
+        val languageTag = (if (answerVisible) s.backLang else s.frontLang) ?: return
         viewModelScope.launch { _effects.emit(StudySessionEffect.Speak(text, languageTag)) }
     }
 
@@ -337,6 +418,7 @@ class StudySessionViewModel(
             val labels = srsRepository.previewIntervals(card)
             val title = deckTitle.ifBlank { resolveDeckTitle(card.deckId) }.ifBlank { card.deckId }
             val deck = deckRepository.getLocal(card.deckId)
+            typePhase = typePhaseFor(card, deck)
             _state.update { StudySessionUiState.Reviewing(
                 deckTitle = title,
                 goalCelebration = goalCelebration.takeIf { goalReached },
@@ -344,12 +426,14 @@ class StudySessionViewModel(
                 total = queue.size,
                 frontText = card.front.text.orEmpty(),
                 backText = card.back.text.orEmpty(),
-                backLabel = card.front.text?.uppercase(),
+                backLabel = card.front.text,
                 revealed = revealed,
                 intervals = labels,
                 listenEnabled = deck?.listenEnabled == true && deck.speechReady,
                 speakEnabled = deck?.speakEnabled == true && deck.speechReady,
                 speakPhase = speakPhase,
+                typePhase = typePhase,
+                typedAnswer = typedAnswer,
                 frontLang = deck?.frontLang,
                 backLang = deck?.backLang,
                 deckId = card.deckId,
@@ -358,6 +442,33 @@ class StudySessionViewModel(
                 backImageRef = card.back.imageRef,
                 syncError = syncError,
             ) }
+        }
+    }
+
+    /**
+     * Where [card] should sit in the typing flow, given what the deck opted into.
+     *
+     * A card with nothing typable on the back has nothing to type against, and one with no prompt
+     * at all has nothing to type *from*. Either way it silently falls back to the ordinary
+     * tap-to-reveal — an image-only answer, which Anki imports produce, must never put up an
+     * input with nothing to match.
+     *
+     * The back test is [AnswerMatcher.isTypable], deliberately not `isNotBlank()`. A back of
+     * `"—"`, `"..."` or a lone emoji is not blank but normalizes to nothing, so no answer can
+     * ever match it — and since a wrong Check no longer reveals, such a card would be a dead end
+     * with Give up as its only exit.
+     *
+     * Otherwise the phase already in progress is kept; [TypePhase.Off] doubles as the fresh-card
+     * state, so that is where a new card starts answering.
+     */
+    private fun typePhaseFor(card: Card, deck: Deck?): TypePhase {
+        val eligible = deck?.typeEnabled == true &&
+            AnswerMatcher.isTypable(card.back.text.orEmpty()) &&
+            (!card.front.text.isNullOrBlank() || card.front.imageRef != null)
+        return when {
+            !eligible -> TypePhase.Off
+            typePhase is TypePhase.Off -> TypePhase.Answering()
+            else -> typePhase
         }
     }
 
@@ -402,7 +513,11 @@ sealed interface StudySessionUiState {
         val total: Int,
         val frontText: String,
         val backText: String,
-        /** Small uppercase hint shown above the answer on the card back (the front prompt). */
+        /**
+         * The prompt, shown small above the answer on the card back — as the author wrote it.
+         * Not uppercased: a deck whose two sides differ only in case would have the back's label
+         * spell out its own answer.
+         */
         val backLabel: String?,
         val revealed: Boolean,
         val intervals: Map<SrsGrade, String>,
@@ -413,6 +528,13 @@ sealed interface StudySessionUiState {
         val listenEnabled: Boolean = false,
         val speakEnabled: Boolean = false,
         val speakPhase: SpeakPhase = SpeakPhase.Idle,
+        /**
+         * Where this card is in the type-the-answer flow, or [TypePhase.Off] when the deck has
+         * not opted in — or when this particular card cannot be typed. See [answerHidden].
+         */
+        val typePhase: TypePhase = TypePhase.Off,
+        /** What is in the input, held here so it survives the state rebuild every reveal causes. */
+        val typedAnswer: String = "",
         /** BCP-47 tags for the two sides, non-null whenever [listenEnabled]/[speakEnabled] are. */
         val frontLang: String? = null,
         val backLang: String? = null,
@@ -435,7 +557,23 @@ sealed interface StudySessionUiState {
          * mid-way through would cost them more than the warning is worth.
          */
         val syncError: ErrorReason? = null,
-    ) : StudySessionUiState
+    ) : StudySessionUiState {
+        /**
+         * The card may be flipped, but the answer on it is masked.
+         *
+         * The flip itself is never blocked by typing — tapping turns the card as it always has.
+         * What typing withholds is the word, not the gesture.
+         */
+        val answerHidden: Boolean get() = typePhase is TypePhase.Answering
+
+        /**
+         * Whether the four SRS buttons belong on screen.
+         *
+         * [revealed] alone is not enough once the answer can be revealed-but-masked: grading a
+         * card you have not been shown the answer to is not a judgement about anything.
+         */
+        val gradesAvailable: Boolean get() = revealed && !answerHidden
+    }
 
     data class Complete(
         val reviewed: Int,
@@ -473,6 +611,42 @@ sealed interface SpeakPhase {
     data class Correct(val heard: String) : SpeakPhase
     data class Wrong(val heard: String, val expected: String) : SpeakPhase
 }
+
+/**
+ * Where the current card sits in the type-the-answer flow (#115).
+ *
+ * The flip is orthogonal to all of this: a card can be turned face-up in any phase. What the
+ * phase decides is whether the answer on that face is legible.
+ */
+sealed interface TypePhase {
+    /** The deck has not opted in, or this card cannot be typed. Tap-to-reveal, exactly as before. */
+    data object Off : TypePhase
+
+    /**
+     * Input on screen, answer hidden. The only phase in which Give up is offered — and the phase
+     * a rejected attempt stays in, which is why [lastMiss] lives here rather than on a phase of
+     * its own. Null until something has been submitted and turned down.
+     */
+    data class Answering(val lastMiss: TypeMiss? = null) : TypePhase
+
+    /**
+     * Typed correctly, so the back is now on show. The only Check outcome that opens the card —
+     * and it still picks no SRS grade, so the matcher's strictness cannot reach a card's `dueAt`.
+     */
+    data class Correct(val typed: String) : TypePhase
+
+    /**
+     * The user asked for the answer. Carries nothing on purpose: giving up reveals the back and
+     * says not one word more about how the card should be graded.
+     */
+    data object GaveUp : TypePhase
+}
+
+/**
+ * An attempt that was turned down, kept so the screen can say how near it came while the card
+ * stays shut. [outcome] is never [TypedAnswerOutcome.Correct] — that one opens the card instead.
+ */
+data class TypeMiss(val typed: String, val outcome: TypedAnswerOutcome)
 
 sealed interface StudySessionEffect {
     /** [languageTag] is BCP-47; without it the engine reads the card in the reader's own locale. */

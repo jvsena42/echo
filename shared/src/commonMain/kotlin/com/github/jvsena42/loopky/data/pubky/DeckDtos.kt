@@ -46,6 +46,12 @@ internal data class ManifestDto(
     val listen_enabled: Boolean = true,
     val speak_enabled: Boolean = true,
     /**
+     * Additive like the two above, so the schema stays at 1. Defaults **off** rather than on:
+     * a manifest written before typing existed says nothing about whether its author wanted the
+     * mode, and off is the reading that cannot surprise anyone studying it.
+     */
+    val type_enabled: Boolean = false,
+    /**
      * BCP-47 tag for the language of the card front / back, e.g. `"en-US"`, `"es-ES"`. Absent on
      * manifests written before the pair existed, which is why listen/speak go inert without them
      * rather than falling back to the reader's device locale — see `Deck.speechReady`.
@@ -140,6 +146,7 @@ internal fun Deck.toDto() = ManifestDto(
     incomplete = incomplete,
     listen_enabled = listenEnabled,
     speak_enabled = speakEnabled,
+    type_enabled = typeEnabled,
     front_lang = frontLang,
     back_lang = backLang,
     media_rehost_cursor = mediaRehostCursor,
@@ -162,6 +169,7 @@ internal fun ManifestDto.toDomain() = Deck(
     incomplete = incomplete,
     listenEnabled = listen_enabled,
     speakEnabled = speak_enabled,
+    typeEnabled = type_enabled,
     frontLang = front_lang,
     backLang = back_lang,
     mediaRehostCursor = media_rehost_cursor,

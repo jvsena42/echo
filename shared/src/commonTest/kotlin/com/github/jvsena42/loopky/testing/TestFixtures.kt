@@ -154,6 +154,7 @@ fun testDeck(
     coverImageRef: MediaRef.Image? = null,
     frontLang: String? = null,
     backLang: String? = null,
+    typeEnabled: Boolean = false,
 ): Deck = Deck(
     id = id,
     authorPubky = authorPubky,
@@ -168,6 +169,7 @@ fun testDeck(
     chunks = chunks,
     frontLang = frontLang,
     backLang = backLang,
+    typeEnabled = typeEnabled,
 )
 
 /**

@@ -114,6 +114,11 @@ class PublishDeckViewModel(
         _state.update { it.copy(speakEnabled = !it.speakEnabled, languagesError = null) }
     }
 
+    /** No `languagesError` to clear: typing needs no language pair. See `Deck.speechReady`. */
+    fun onToggleType() {
+        _state.update { it.copy(typeEnabled = !it.typeEnabled) }
+    }
+
     /**
      * Picking a language also labels the deck with it — `"spanish"`, an ordinary tag the author
      * can still remove — so a stranger learning that language can find the deck. The label the
@@ -301,6 +306,7 @@ class PublishDeckViewModel(
         source = DeckSource(kind = DeckSource.Kind.Import, importedAt = now),
         listenEnabled = listenEnabled,
         speakEnabled = speakEnabled,
+        typeEnabled = typeEnabled,
         frontLang = frontLang,
         backLang = backLang,
     )
@@ -638,7 +644,9 @@ data class PublishDeckUiState(
      */
     val listenEnabled: Boolean = false,
     val speakEnabled: Boolean = false,
-    /** BCP-47 tags for the two card sides; required once either opt-in above is on. */
+    /** Off until asked for as well, though for its own reason — see `Deck.typeEnabled`. */
+    val typeEnabled: Boolean = false,
+    /** BCP-47 tags for the two card sides; required once either speech opt-in above is on. */
     val frontLang: String? = null,
     val backLang: String? = null,
     val languagesError: FormError? = null,

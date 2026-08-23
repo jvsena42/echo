@@ -71,7 +71,7 @@ import com.github.jvsena42.loopky.presentation.importflow.PublishDeckUiState
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.loopky.ui.components.AddTagSheet
 import com.github.jvsena42.loopky.ui.components.CharacterCounter
-import com.github.jvsena42.loopky.ui.components.DeckSpeechOptions
+import com.github.jvsena42.loopky.ui.components.DeckStudyOptions
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.LoopkyOutlinedButton
@@ -124,6 +124,7 @@ fun PublishDeckRoute(
         onRemoveTag = viewModel::onRemoveTag,
         onToggleListen = viewModel::onToggleListen,
         onToggleSpeak = viewModel::onToggleSpeak,
+        onToggleType = viewModel::onToggleType,
         onFrontLangSelected = viewModel::onFrontLangSelected,
         onBackLangSelected = viewModel::onBackLangSelected,
         availableLanguages = speechLanguageOptions(speaker.availableLanguages()),
@@ -152,6 +153,7 @@ private fun PublishDeckScreen(
     onRemoveTag: (String) -> Unit,
     onToggleListen: () -> Unit,
     onToggleSpeak: () -> Unit,
+    onToggleType: () -> Unit,
     onFrontLangSelected: (String) -> Unit,
     onBackLangSelected: (String) -> Unit,
     availableLanguages: List<String>,
@@ -504,15 +506,17 @@ private fun PublishDeckScreen(
                 }
             }
 
-            // Card options (Listen / Speak, and the languages they need)
-            DeckSpeechOptions(
+            // Card options (Listen / Speak / Type, and the languages the speech ones need)
+            DeckStudyOptions(
                 listenEnabled = state.listenEnabled,
                 speakEnabled = state.speakEnabled,
+                typeEnabled = state.typeEnabled,
                 frontLang = state.frontLang,
                 backLang = state.backLang,
                 availableLanguages = availableLanguages,
                 onToggleListen = onToggleListen,
                 onToggleSpeak = onToggleSpeak,
+                onToggleType = onToggleType,
                 onFrontLangSelected = onFrontLangSelected,
                 onBackLangSelected = onBackLangSelected,
             )
@@ -842,6 +846,7 @@ private fun PublishDeckScreenPreview() {
             onRemoveTag = {},
             onToggleListen = {},
             onToggleSpeak = {},
+            onToggleType = {},
             onCoverWebSelected = {},
             onCoverGallerySelected = { _, _ -> },
             onPublishClick = {},
@@ -878,6 +883,7 @@ private fun PublishDeckPublishingPreview() {
             onRemoveTag = {},
             onToggleListen = {},
             onToggleSpeak = {},
+            onToggleType = {},
             onCoverWebSelected = {},
             onCoverGallerySelected = { _, _ -> },
             onPublishClick = {},

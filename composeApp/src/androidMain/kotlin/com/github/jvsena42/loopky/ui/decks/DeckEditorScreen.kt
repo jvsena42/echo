@@ -93,7 +93,7 @@ import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditableCardModel
 import com.github.jvsena42.loopky.ui.components.AddTagSheet
 import com.github.jvsena42.loopky.ui.components.CharacterCounter
-import com.github.jvsena42.loopky.ui.components.DeckSpeechOptions
+import com.github.jvsena42.loopky.ui.components.DeckStudyOptions
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.ReorderableListState
@@ -165,6 +165,7 @@ fun DeckEditorRoute(
         onAddTag = viewModel::onAddTag,
         onToggleListen = viewModel::onToggleListen,
         onToggleSpeak = viewModel::onToggleSpeak,
+        onToggleType = viewModel::onToggleType,
         onFrontLangSelected = viewModel::onFrontLangSelected,
         onBackLangSelected = viewModel::onBackLangSelected,
         availableLanguages = speechLanguageOptions(speaker.availableLanguages()),
@@ -201,6 +202,7 @@ fun DeckEditorScreen(
     onAddTag: (String) -> Unit,
     onToggleListen: () -> Unit,
     onToggleSpeak: () -> Unit,
+    onToggleType: () -> Unit,
     onFrontLangSelected: (String) -> Unit,
     onBackLangSelected: (String) -> Unit,
     availableLanguages: List<String>,
@@ -372,14 +374,16 @@ fun DeckEditorScreen(
                 )
             }
 
-            // 2. Listen/Speak and the languages they need. Editable here and not only at publish:
-            // a deck published before the pair existed offers neither until it is set.
-            item(key = "speech_options") {
-                DeckSpeechSection(
+            // 2. Listen/Speak/Type and the languages the speech pair needs. Editable here and
+            // not only at publish: a deck published before a field existed offers nothing it
+            // controls until it is set.
+            item(key = "study_options") {
+                DeckStudySection(
                     state = state,
                     availableLanguages = availableLanguages,
                     onToggleListen = onToggleListen,
                     onToggleSpeak = onToggleSpeak,
+                    onToggleType = onToggleType,
                     onFrontLangSelected = onFrontLangSelected,
                     onBackLangSelected = onBackLangSelected,
                 )
@@ -566,24 +570,27 @@ private fun MoveCardDialog(
 }
 
 @Composable
-private fun DeckSpeechSection(
+private fun DeckStudySection(
     state: DeckEditorUiState,
     availableLanguages: List<String>,
     onToggleListen: () -> Unit,
     onToggleSpeak: () -> Unit,
+    onToggleType: () -> Unit,
     onFrontLangSelected: (String) -> Unit,
     onBackLangSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
-        DeckSpeechOptions(
+        DeckStudyOptions(
             listenEnabled = state.listenEnabled,
             speakEnabled = state.speakEnabled,
+            typeEnabled = state.typeEnabled,
             frontLang = state.frontLang,
             backLang = state.backLang,
             availableLanguages = availableLanguages,
             onToggleListen = onToggleListen,
             onToggleSpeak = onToggleSpeak,
+            onToggleType = onToggleType,
             onFrontLangSelected = onFrontLangSelected,
             onBackLangSelected = onBackLangSelected,
         )
@@ -1004,6 +1011,7 @@ private fun DeckEditorScreenPreview() {
             onAddTag = {},
             onToggleListen = {},
             onToggleSpeak = {},
+            onToggleType = {},
             onFrontLangSelected = {},
             onBackLangSelected = {},
             availableLanguages = SpeechLanguages.COMMON,

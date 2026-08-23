@@ -60,9 +60,11 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   not an `AppPreferences` value, because they decide `dueAt`s and review state already syncs;
   `SettingsRepository.update` refuses unless the record has actually been read this session, at the
   repository rather than only in the UI. Read Architecture.md §8.6 before touching any of it.
-- **Listen and Speak are inert without a declared language pair, and that is deliberate.** A deck
+- **Listen and Speak are inert without a declared language pair, and that is deliberate — but
+  the gate covers those two only.** A deck
   carries `frontLang`/`backLang` (BCP-47) beside the `listenEnabled`/`speakEnabled` opt-ins, and
-  `Deck.speechReady` gates both features on having them. The OS engines fall back to the
+  `Deck.speechReady` gates both features on having them. It does **not** gate the third opt-in,
+  `typeEnabled` (see the next bullet). The OS engines fall back to the
   **reader's** device locale when given no language, so an undeclared Spanish deck is read aloud
   in an English accent and the spoken reply is graded by an English model — a wrong answer that
   looks like a working feature. Never reintroduce a locale default anywhere in this path: the
@@ -73,6 +75,26 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   (`"spanish"` for `es-ES`, plus the `"language"` umbrella — `LanguageTags`, base subtag, swapped
   when the pair changes), because a reserved label cannot trend or be browsed — Architecture.md
   §7.7 point 4.
+- **Typing is the third study opt-in, and the one that needs no language pair.** `Deck.typeEnabled`
+  puts an input on the card *back* — under the prompt label, in the space the answer will occupy —
+  instead of handing the answer over. Everything the mode adds (input, miss line, Check, Give up,
+  the "Correct!" note) lives **on the card**; the grade row and flip hint below it are untouched. Four things not to undo. It is deliberately outside
+  `speechReady`: a string comparison has no engine to substitute the reader's locale into, and
+  gating it would withhold the one assisted mode from exactly the decks (every import predating the
+  pair) that have no other. It defaults **off** everywhere, legacy manifests included, unlike
+  listen/speak — a manifest written before the field says nothing about its author's intent. The
+  **flip is never blocked**: tapping turns the card as it always has, which is why `answerHidden`
+  and `gradesAvailable` sit beside `revealed` on the study state, and why anything acting on "the
+  side facing the user" (Listen, Speak) must ask `answerVisible` rather than `revealed` — or it
+  reads out the answer the card is withholding. **Only a correct Check opens the card** — a wrong
+  or near-miss answer says so and leaves you answering, with what you typed still in the field,
+  because handing the answer over on the first slip turns one typo into a lost card and "check the
+  accents" is a hint to fix what you wrote, not a verdict; Give up is the escape, and it is always
+  right there under Check. And **nothing in the flow picks a grade**: the outcome is reported,
+  Give up reports nothing at all, and all four SRS buttons stay equally available — an escape hatch that pre-selects Again is a punishment wearing an
+  escape hatch's label. Matching is `AnswerMatcher` with an `AnswerStrictness`: typing is `Strict`
+  (accents count — typing them is the point), `SpeakMatcher` is the `Lenient` view. Cards with no
+  back text (an image-only Anki answer) or no prompt fall back to tap-to-reveal.
 - **Paste-to-Import is the v1 primary import flow.** The implemented spine is `PasteImportViewModel` (parse + live preview) → `PublishDeckViewModel` (commit to Pubky). Every other import source (AI, OCR, URL) listed in spec §14 must reuse this same spine. Don't build parallel commit flows.
 - **Parser rules are prescriptive.** The paste parser (on `ImportRepository`) must follow the exact rule order in spec §6 and the edge-case table in spec §9. Use them as the test matrix.
 - **No use-case layer.** Don't introduce `*UseCase` interfaces or a `domain/usecase/` package. If a piece of logic doesn't fit any existing repo, extend the most relevant repo or add a new one — keep the surface area flat.

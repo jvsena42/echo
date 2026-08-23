@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.DropdownMenu
@@ -45,20 +46,23 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import java.util.Locale
 
 /**
- * The deck's Listen/Speak opt-ins and, when either is on, the language of each card side.
+ * The deck's study opt-ins — Listen, Speak and Type — and, when a *speech* one is on, the language
+ * of each card side.
  *
  * Shared by the publish flow and the deck editor so an already-published deck can be given the
  * pair it was written without — before this, the opt-ins were set at publish and never editable.
  */
 @Composable
-fun DeckSpeechOptions(
+fun DeckStudyOptions(
     listenEnabled: Boolean,
     speakEnabled: Boolean,
+    typeEnabled: Boolean,
     frontLang: String?,
     backLang: String?,
     availableLanguages: List<String>,
     onToggleListen: () -> Unit,
     onToggleSpeak: () -> Unit,
+    onToggleType: () -> Unit,
     onFrontLangSelected: (String) -> Unit,
     onBackLangSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -91,6 +95,18 @@ fun DeckSpeechOptions(
             icon = Icons.Default.Mic,
             iconColor = colors.accentSecondary,
             iconBackground = colors.accentSecondarySoft,
+        )
+        // Above the language block, not below it: typing needs no pair, and a row that sits under
+        // the pickers reads as one more thing they gate.
+        OptionToggleRow(
+            title = stringResource(R.string.publish_type_title),
+            subtitle = stringResource(R.string.publish_type_subtitle),
+            checked = typeEnabled,
+            onToggle = onToggleType,
+            testTag = "publish_type_toggle",
+            icon = Icons.Default.Keyboard,
+            iconColor = colors.accentPrimary,
+            iconBackground = colors.accentPrimarySoft,
         )
 
         if (listenEnabled || speakEnabled) {

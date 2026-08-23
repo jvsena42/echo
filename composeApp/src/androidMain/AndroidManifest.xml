@@ -47,10 +47,14 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Loopky.Starting">
+        <!-- windowSoftInputMode: resize, not the default pan. The study screen's answer input
+             sits mid-screen, and panning slides the card's own header off the top to make room
+             for the keyboard. Resizing lets Modifier.imePadding() give up the space instead. -->
         <activity
             android:exported="true"
             android:launchMode="singleTask"
-            android:name=".MainActivity">
+            android:name=".MainActivity"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

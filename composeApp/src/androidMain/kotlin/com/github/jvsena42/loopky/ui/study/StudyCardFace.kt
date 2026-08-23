@@ -43,6 +43,7 @@ import com.github.jvsena42.loopky.ui.components.CardMediaImage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 @Composable
+@Suppress("LongParameterList")
 internal fun CardFace(
     label: String?,
     text: String,
@@ -51,6 +52,17 @@ internal fun CardFace(
     showListen: Boolean,
     onSpeakTest: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    /**
+     * Drawn where [text] would be, and instead of it: the typed-answer input, so the answer is
+     * written into the space the answer itself will occupy. Non-null only while answering.
+     */
+    answerInput: (@Composable () -> Unit)? = null,
+    /**
+     * A line under the answer, on the card rather than beneath it — "Correct!" after a typed
+     * answer lands. Nothing in the study session's chrome grows for it, so the card keeps its
+     * size across the flip.
+     */
+    answerNote: (@Composable () -> Unit)? = null,
     /**
      * The prompt's picture recalled on the back as a small circular cue, so the answer is read
      * against the question it belongs to. Never the content of the side it is drawn on.
@@ -106,7 +118,18 @@ internal fun CardFace(
                     .clip(RoundedCornerShape(16.dp)),
             )
         }
-        if (text.isNotBlank()) {
+        if (answerInput != null) {
+            // Scrolls rather than clips: with the keyboard up the card is barely taller than the
+            // input block, and a Give up button sheared off by the card's rounded corner is the
+            // one control in this mode that must never be unreachable.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                contentAlignment = Alignment.Center,
+            ) { answerInput() }
+        } else if (text.isNotBlank()) {
             CardText(
                 text = text,
                 maxTextSize = textSize,
@@ -115,6 +138,13 @@ internal fun CardFace(
                 modifier = if (featureImageRef == null) Modifier.weight(1f) else Modifier,
             )
         }
+        answerNote?.let {
+            Spacer(modifier = Modifier.size(12.dp))
+            it()
+        }
+        // Skipped entirely while answering: both buttons are off a card whose answer is hidden,
+        // so the row and its spacer would only be taking height the input needs.
+        if (answerInput != null) return@Column
         Spacer(modifier = Modifier.size(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (showListen) {
