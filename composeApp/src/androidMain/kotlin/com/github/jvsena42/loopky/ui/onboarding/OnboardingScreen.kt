@@ -16,10 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -186,13 +184,6 @@ private fun BrandRow() {
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FoxPlate(
-            size = 44.dp,
-            shape = RoundedCornerShape(BRAND_BADGE_RADIUS),
-            glyphSize = 24.sp,
-            containerColor = colors.accentPrimary,
-        )
-        Spacer(Modifier.width(10.dp))
         Text(
             text = stringResource(R.string.onboarding_brand_name),
             color = colors.foregroundPrimary,
@@ -319,9 +310,6 @@ private fun SplashContent() {
         )
     }
 }
-
-/** Matches the launcher's rounded-square mask, so the badge reads as the app icon. */
-private val BRAND_BADGE_RADIUS = 14.dp
 
 @Preview
 @Composable

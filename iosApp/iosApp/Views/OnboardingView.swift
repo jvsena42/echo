@@ -27,7 +27,6 @@ struct OnboardingView: View {
 
     private var brandRow: some View {
         HStack(spacing: 10) {
-            FoxPlate(size: 44, glyphSize: 24, containerColor: LoopkyColor.accentPrimary, cornerRadius: 14)
             Text("onboarding_brand_name")
                 .font(.system(size: 24, weight: .heavy))
                 .foregroundColor(Color(red: 0.11, green: 0.11, blue: 0.12))
