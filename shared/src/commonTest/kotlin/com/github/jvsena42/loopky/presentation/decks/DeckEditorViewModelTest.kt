@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.domain.model.ChunkMeta
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.MediaRef
+import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.ordForIndex
 import com.github.jvsena42.loopky.testing.CardMove
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
@@ -620,6 +621,43 @@ class DeckEditorViewModelTest {
 
         assertEquals(FormError.LanguagesRequired, vm.state.value.languagesError)
         assertEquals("Deck deck1", deckRepo.decks.getValue("deck1").title, "the save went through")
+    }
+
+    @Test
+    fun `picking a language labels the deck with it`() = runTest(mainDispatcher) {
+        // The label is what makes the deck findable by someone learning that language; asking the
+        // author to also type "spanish" by hand is a step nobody would remember.
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", authorPubky = TEST_PUBKY)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onToggleListen()
+        vm.onFrontLangSelected("en-US")
+        vm.onBackLangSelected("es-MX")
+        vm.onSaveClick()
+        advanceUntilIdle()
+
+        assertEquals(listOf(Tag("english"), Tag("spanish")), deckRepo.decks.getValue("deck1").tags)
+    }
+
+    @Test
+    fun `changing a language takes the old label with it`() = runTest(mainDispatcher) {
+        deckRepo.decks["deck1"] = testDeck(
+            id = "deck1",
+            authorPubky = TEST_PUBKY,
+            tags = listOf(Tag("verbs")),
+            frontLang = "en-US",
+            backLang = "es-ES",
+        )
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onBackLangSelected("fr-FR")
+        advanceUntilIdle()
+
+        // Left behind, "spanish" lists the deck under a language it no longer teaches. The editor
+        // is the one screen that can retype a published deck, so this is where it matters.
+        assertEquals(listOf("verbs", "english", "french"), vm.state.value.tags)
     }
 
     @Test

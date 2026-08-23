@@ -181,22 +181,6 @@ class TagRepositoryImplTest {
     }
 
     @Test
-    fun theLanguageFamilyCountsAsLoopkysOwnLabel() = runTest {
-        // One label per language, so ALL cannot enumerate them — requireReserved admits the family
-        // by prefix instead.
-        assertTrue(repo.putReservedTag(deckUri, ReservedTags.language("es")).isSuccess)
-        assertTrue(repo.removeReservedTag(deckUri, ReservedTags.language("es")).isSuccess)
-    }
-
-    @Test
-    fun aUserCannotAuthorALanguageLabel() = runTest {
-        // It is Loopky's index, derived from the manifest's pair — a hand-typed one would claim a
-        // language the deck has not declared.
-        assertTrue(repo.putTag(deckUri, ReservedTags.language("es")).isFailure)
-        assertTrue(pubky.puts.isEmpty())
-    }
-
-    @Test
     fun rewritingAReservedTagOverwritesTheSameRecord() = runTest {
         // The acceptance criterion "re-running sign-in does not duplicate": ids are derived from
         // subject + label, so the second write lands on the first one's path.

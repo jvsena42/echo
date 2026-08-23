@@ -19,6 +19,7 @@ import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.ImportDraft
+import com.github.jvsena42.loopky.domain.model.LanguageTags
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.SpeechLanguages
@@ -113,12 +114,29 @@ class PublishDeckViewModel(
         _state.update { it.copy(speakEnabled = !it.speakEnabled, languagesError = null) }
     }
 
+    /**
+     * Picking a language also labels the deck with it — `"spanish"`, an ordinary tag the author
+     * can still remove — so a stranger learning that language can find the deck. The label the
+     * previous pick contributed goes in the same step; see [LanguageTags.retag].
+     */
     fun onFrontLangSelected(tag: String) {
-        _state.update { it.copy(frontLang = tag, languagesError = null) }
+        _state.update {
+            it.copy(
+                frontLang = tag,
+                languagesError = null,
+                tags = LanguageTags.retag(it.tags, it.frontLang, it.backLang, tag, it.backLang),
+            )
+        }
     }
 
     fun onBackLangSelected(tag: String) {
-        _state.update { it.copy(backLang = tag, languagesError = null) }
+        _state.update {
+            it.copy(
+                backLang = tag,
+                languagesError = null,
+                tags = LanguageTags.retag(it.tags, it.frontLang, it.backLang, it.frontLang, tag),
+            )
+        }
     }
 
     /** A web (Unsplash) cover image was chosen — saved by URL, no upload. */
