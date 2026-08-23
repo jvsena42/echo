@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky
 import android.app.Application
 import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.data.storage.resolveStartupEnvironment
+import com.github.jvsena42.loopky.data.unsplash.deobfuscateUnsplashKey
 import com.github.jvsena42.loopky.di.initKoinAndroid
 import com.github.jvsena42.loopky.ui.importflow.sweepImportSpools
 import com.github.jvsena42.loopky.util.Log
@@ -32,8 +33,9 @@ class LoopkyApp : Application() {
         }
         initKoinAndroid(
             // A fallback only: a key the user saves in Settings wins, and this one is never
-            // shown to them.
-            unsplashFallbackKey = BuildConfig.UNSPLASH_ACCESS_KEY,
+            // shown to them. Ships scrambled so it is not a literal in the dex — a speed bump
+            // against APK scanners, not protection. See UnsplashKeyObfuscation.
+            unsplashFallbackKey = deobfuscateUnsplashKey(BuildConfig.UNSPLASH_ACCESS_KEY_OBF),
             // Staging on debug, production on release — see composeApp/build.gradle.kts.
             nexusBaseUrl = BuildConfig.NEXUS_BASE_URL,
             // Which Homegate mints signup tokens, and which homeserver they are valid on. A
