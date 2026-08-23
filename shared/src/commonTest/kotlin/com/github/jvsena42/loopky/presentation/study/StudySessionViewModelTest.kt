@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.presentation.study
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.StudySettings
+import com.github.jvsena42.loopky.domain.model.TypedAnswerOutcome
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeSettingsRepository
 import com.github.jvsena42.loopky.testing.FakeSrsRepository
@@ -525,5 +526,254 @@ class StudySessionViewModelTest {
         val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
         assertFalse(state.listenEnabled)
         assertFalse(state.speakEnabled)
+    }
+
+    // ── type the answer (#115) ───────────────────────────────────────────
+
+    /** A deck that has opted into typing but declared no language pair — the common import case. */
+    private suspend fun seedTypingDeck() {
+        seedDeck()
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Spanish", typeEnabled = true)
+    }
+
+    @Test
+    fun aTypingCardStartsWithItsAnswerMaskedAndNoGradesOnOffer() = runTest {
+        seedTypingDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(TypePhase.Answering, state.typePhase)
+        assertTrue(state.answerHidden)
+        assertFalse(state.gradesAvailable, "gradeable without having seen the answer")
+        // Typing needs no declared pair: this deck has none and the mode is on regardless.
+        assertFalse(state.listenEnabled)
+    }
+
+    @Test
+    fun flippingATypingCardIsAllowedAndKeepsTheWordHidden() = runTest {
+        // The flip is never blocked — what typing withholds is the word, not the gesture.
+        seedTypingDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onReveal()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertTrue(state.revealed, "the flip was blocked")
+        assertTrue(state.answerHidden, "the answer was handed over by the flip")
+        assertFalse(state.gradesAvailable)
+    }
+
+    @Test
+    fun listenReadsThePromptWhileTheAnswerIsStillMasked() = runTest {
+        // A flipped-but-masked card is the one place "the side facing the user" and "the side the
+        // user can read" disagree. Reading the back aloud there would speak the hidden answer.
+        seedDeck()
+        deckRepo.decks["deck1"] = testDeck(
+            id = "deck1",
+            title = "Spanish",
+            frontLang = "es-ES",
+            backLang = "en-US",
+            typeEnabled = true,
+        )
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<StudySessionEffect>()
+        val job = launch { vm.effects.toList(effects) }
+
+        vm.onReveal()
+        vm.onSpeak()
+        advanceUntilIdle()
+        assertEquals(StudySessionEffect.Speak("hola", "es-ES"), effects.single())
+
+        vm.onAnswerChange("hello")
+        vm.onCheckAnswer()
+        vm.onSpeak()
+        advanceUntilIdle()
+        assertEquals(StudySessionEffect.Speak("hello", "en-US"), effects.last())
+        job.cancel()
+    }
+
+    @Test
+    fun checkingRevealsTheAnswerAndOffersEveryGradeEqually() = runTest {
+        seedTypingDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAnswerChange("hello")
+        advanceUntilIdle()
+        assertEquals("hello", assertIs<StudySessionUiState.Reviewing>(vm.state.value).typedAnswer)
+
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        val phase = assertIs<TypePhase.Checked>(state.typePhase)
+        assertEquals(TypedAnswerOutcome.Correct, phase.outcome)
+        assertEquals("hello", phase.expected)
+        assertTrue(state.revealed)
+        assertFalse(state.answerHidden)
+        assertTrue(state.gradesAvailable)
+        // Checking is not grading: nothing has been scheduled.
+        assertTrue(srsRepo.reviews.isEmpty())
+    }
+
+    @Test
+    fun aWrongAnswerStillShowsWhatTheAnswerWas() = runTest {
+        // Being told you were wrong without being shown the answer is worse than not asking.
+        seedTypingDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAnswerChange("goodbye")
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        val phase = assertIs<TypePhase.Checked>(state.typePhase)
+        assertEquals(TypedAnswerOutcome.Wrong, phase.outcome)
+        assertEquals("goodbye", phase.typed)
+        assertEquals("hello", phase.expected)
+        assertFalse(state.answerHidden)
+    }
+
+    @Test
+    fun anAccentSlipIsReportedAsANearMissRatherThanAFlatWrong() = runTest {
+        seedDeck()
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Spanish", typeEnabled = true)
+        srsRepo.due = listOf(testCard("c1", front = "good morning", back = "buenos días"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAnswerChange("buenos dias")
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+
+        val phase = assertIs<TypePhase.Checked>(
+            assertIs<StudySessionUiState.Reviewing>(vm.state.value).typePhase,
+        )
+        assertEquals(TypedAnswerOutcome.NearMiss, phase.outcome)
+    }
+
+    @Test
+    fun anEmptyCheckIsIgnoredRatherThanScoredWrong() = runTest {
+        seedTypingDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAnswerChange("   ")
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(TypePhase.Answering, state.typePhase)
+        assertTrue(state.answerHidden)
+    }
+
+    @Test
+    fun givingUpRevealsTheAnswerAndSuggestsNoGrade() = runTest {
+        // An escape hatch, not a self-assessment: the four buttons stay equally available and
+        // nothing is pre-selected. The phase carries no grade at all, so nothing can.
+        seedTypingDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onGiveUp()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(TypePhase.GaveUp, state.typePhase)
+        assertTrue(state.revealed)
+        assertFalse(state.answerHidden)
+        assertTrue(state.gradesAvailable)
+        assertEquals(setOf(SrsGrade.Again, SrsGrade.Hard, SrsGrade.Good, SrsGrade.Easy), state.intervals.keys)
+        assertTrue(srsRepo.reviews.isEmpty(), "giving up graded the card")
+    }
+
+    @Test
+    fun theSessionCarriesOnAfterGivingUp() = runTest {
+        seedTypingDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onGiveUp()
+        vm.onGrade(SrsGrade.Again)
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(expected = 2, actual = state.position)
+        // The next card starts its own answer, with nothing carried over from the last one.
+        assertEquals(TypePhase.Answering, state.typePhase)
+        assertEquals("", state.typedAnswer)
+        assertFalse(state.revealed)
+    }
+
+    @Test
+    fun aCardWithNoBackTextFallsBackToTapToReveal() = runTest {
+        // An image-only answer, which Anki imports produce: an input with nothing to match.
+        seedTypingDeck()
+        srsRepo.due = listOf(testCard("c1", front = "hola", back = ""))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(TypePhase.Off, assertIs<StudySessionUiState.Reviewing>(vm.state.value).typePhase)
+
+        vm.onReveal()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertFalse(state.answerHidden)
+        assertTrue(state.gradesAvailable, "the ordinary flip stopped offering grades")
+    }
+
+    @Test
+    fun aCardWithNoPromptFallsBackToTapToReveal() = runTest {
+        seedTypingDeck()
+        srsRepo.due = listOf(testCard("c1", front = "", back = "hello"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(TypePhase.Off, assertIs<StudySessionUiState.Reviewing>(vm.state.value).typePhase)
+    }
+
+    @Test
+    fun theOptInOffLeavesTodaysBehaviourExactly() = runTest {
+        seedDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(TypePhase.Off, assertIs<StudySessionUiState.Reviewing>(vm.state.value).typePhase)
+
+        vm.onReveal()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertFalse(state.answerHidden)
+        assertTrue(state.gradesAvailable)
+    }
+
+    @Test
+    fun aCheckLandingAfterTheQueueAdvancedDoesNotTouchTheNextCard() = runTest {
+        // Same hazard onGrade guards: the grade is in flight, so the card is on its way out.
+        seedTypingDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onGiveUp()
+        advanceUntilIdle()
+        vm.onGrade(SrsGrade.Good)
+        // Deliberately not advanced: the grade job is still running.
+        vm.onAnswerChange("hello")
+        vm.onCheckAnswer()
+        vm.onGiveUp()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(expected = 2, actual = state.position)
+        assertEquals(TypePhase.Answering, state.typePhase, "the next card was answered for the user")
+        assertEquals("", state.typedAnswer)
     }
 }

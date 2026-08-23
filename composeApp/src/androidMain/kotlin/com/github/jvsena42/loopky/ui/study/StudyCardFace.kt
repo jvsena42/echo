@@ -43,6 +43,7 @@ import com.github.jvsena42.loopky.ui.components.CardMediaImage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 @Composable
+@Suppress("LongParameterList")
 internal fun CardFace(
     label: String?,
     text: String,
@@ -51,6 +52,8 @@ internal fun CardFace(
     showListen: Boolean,
     onSpeakTest: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    /** Drawn muted rather than as content: [text] is the masked-answer placeholder, not an answer. */
+    dimmed: Boolean = false,
     /**
      * The prompt's picture recalled on the back as a small circular cue, so the answer is read
      * against the question it belongs to. Never the content of the side it is drawn on.
@@ -110,6 +113,7 @@ internal fun CardFace(
             CardText(
                 text = text,
                 maxTextSize = textSize,
+                dimmed = dimmed,
                 // An image-only side has no text to give room to, and weight(1f) twice would
                 // halve the picture for the sake of an empty line.
                 modifier = if (featureImageRef == null) Modifier.weight(1f) else Modifier,
@@ -176,7 +180,12 @@ internal fun CardFace(
  * Lastly the weight. Without it a long answer pushed the Listen/Speak row clean off the card.
  */
 @Composable
-private fun ColumnScope.CardText(text: String, maxTextSize: TextUnit, modifier: Modifier = Modifier) {
+private fun ColumnScope.CardText(
+    text: String,
+    maxTextSize: TextUnit,
+    modifier: Modifier = Modifier,
+    dimmed: Boolean = false,
+) {
     val colors = LoopkyTheme.colors
     BoxWithConstraints(
         modifier = modifier.fillMaxWidth(),
@@ -196,7 +205,7 @@ private fun ColumnScope.CardText(text: String, maxTextSize: TextUnit, modifier: 
                 ),
                 lineHeight = CARD_LINE_HEIGHT,
                 fontWeight = FontWeight.W800,
-                color = colors.foregroundPrimary,
+                color = if (dimmed) colors.foregroundMuted else colors.foregroundPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .testTag("study_card_text")

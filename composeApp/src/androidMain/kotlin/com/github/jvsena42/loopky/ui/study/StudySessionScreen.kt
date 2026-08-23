@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -93,6 +94,7 @@ import com.github.jvsena42.loopky.presentation.study.SpeakPhase
 import com.github.jvsena42.loopky.presentation.study.StudySessionEffect
 import com.github.jvsena42.loopky.presentation.study.StudySessionUiState
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
+import com.github.jvsena42.loopky.presentation.study.TypePhase
 import com.github.jvsena42.loopky.ui.components.Confetti
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.PermissionBlockedDialog
@@ -178,6 +180,9 @@ fun StudySessionRoute(
         onSpeakContinue = viewModel::onSpeakDismiss,
         onSpeakRetry = viewModel::onSpeakRetry,
         onSpeakCancel = viewModel::onSpeakDismiss,
+        onAnswerChange = viewModel::onAnswerChange,
+        onCheckAnswer = viewModel::onCheckAnswer,
+        onGiveUp = viewModel::onGiveUp,
         onClose = viewModel::onClose,
         onDone = onClose,
         onDismissSyncError = viewModel::onDismissSyncError,
@@ -197,6 +202,9 @@ fun StudySessionScreen(
     onSpeakContinue: () -> Unit = {},
     onSpeakRetry: () -> Unit = {},
     onSpeakCancel: () -> Unit = {},
+    onAnswerChange: (String) -> Unit = {},
+    onCheckAnswer: () -> Unit = {},
+    onGiveUp: () -> Unit = {},
     onDismissSyncError: () -> Unit = {},
     onContinueAfterGoal: () -> Unit = {},
 ) {
@@ -206,6 +214,7 @@ fun StudySessionScreen(
             .fillMaxSize()
             .background(colors.surfaceSecondary)
             .windowInsetsPadding(WindowInsets.systemBars)
+            .imePadding()
             .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         when (state) {
@@ -254,6 +263,9 @@ fun StudySessionScreen(
                 onGrade = onGrade,
                 onSpeak = onSpeak,
                 onSpeakTest = onSpeakTest,
+                onAnswerChange = onAnswerChange,
+                onCheckAnswer = onCheckAnswer,
+                onGiveUp = onGiveUp,
                 onClose = onClose,
             )
         }
@@ -291,12 +303,16 @@ fun StudySessionScreen(
 }
 
 @Composable
+@Suppress("LongParameterList")
 private fun ReviewingContent(
     state: StudySessionUiState.Reviewing,
     onReveal: () -> Unit,
     onGrade: (SrsGrade) -> Unit,
     onSpeak: () -> Unit,
     onSpeakTest: () -> Unit,
+    onAnswerChange: (String) -> Unit,
+    onCheckAnswer: () -> Unit,
+    onGiveUp: () -> Unit,
     onClose: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
@@ -374,6 +390,7 @@ private fun ReviewingContent(
         // own snapshot while it fades. Without this the un-flip showed the next card's answer
         // for the first half of the turn.
         val reduceMotion = rememberReduceMotion()
+        val maskedAnswer = stringResource(R.string.study_answer_hidden)
         // The weighted Box keeps the flip frame stable across the reveal; the card inside is
         // capped so a one-word prompt doesn't stretch into a near-full-screen rectangle.
         Box(
@@ -386,11 +403,15 @@ private fun ReviewingContent(
                 targetState = CardSnapshot(
                     position = state.position,
                     frontText = state.frontText,
-                    backText = state.backText,
+                    // The flip is never blocked while an answer is being typed — what typing
+                    // withholds is the word, not the gesture. So the card turns as it always
+                    // has and the back arrives masked, picture and all.
+                    backText = if (state.answerHidden) maskedAnswer else state.backText,
                     backLabel = state.backLabel,
                     frontImageRef = state.frontImageRef,
-                    backImageRef = state.backImageRef,
+                    backImageRef = state.backImageRef.takeUnless { state.answerHidden },
                     revealed = state.revealed,
+                    answerHidden = state.answerHidden,
                 ),
                 // Keyed on the card, so revealing swaps content in place (the flip) and only a
                 // card change runs the enter/exit transition.
@@ -426,22 +447,48 @@ private fun ReviewingContent(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // SRS grade row — reserve its space always so the card above stays the same size; the
-        // grade buttons themselves appear only once revealed. (Listen/Speak, by contrast, are on
-        // both faces — they live inside the card, not here.)
-        Box(modifier = Modifier.height(72.dp)) {
-            if (state.revealed) {
-                SrsRow(intervals = state.intervals, onGrade = onGrade, reduceMotion = reduceMotion)
+        // What the check made of the answer. Here rather than below the grades because this is
+        // where the eye lands once the card unmasks; no space is reserved for it, since a
+        // non-typing session never shows one.
+        (state.typePhase as? TypePhase.Checked)?.let { checked ->
+            TypeResultLine(phase = checked)
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // SRS grade row — reserve its space always so the card above stays the same size. The
+        // grade buttons appear once the answer is legible, which on a typing card is later than
+        // the flip. While it is being typed the same slot holds the input. (Listen/Speak, by
+        // contrast, are on both faces — they live inside the card, not here.)
+        Box(modifier = Modifier.heightIn(min = 72.dp)) {
+            when {
+                state.answerHidden -> TypeAnswerRow(
+                    value = state.typedAnswer,
+                    languageTag = state.backLang,
+                    cardKey = state.position,
+                    onValueChange = onAnswerChange,
+                    onCheck = onCheckAnswer,
+                )
+
+                state.gradesAvailable -> SrsRow(
+                    intervals = state.intervals,
+                    onGrade = onGrade,
+                    reduceMotion = reduceMotion,
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Flip hint — shown on the front only; space is reserved on the back too so the
-        // card above keeps the same size across the flip.
-        Box(modifier = Modifier.fillMaxWidth().height(20.dp)) {
-            if (!state.revealed) {
-                FlipHint(modifier = Modifier.align(Alignment.Center))
+        // Give up while answering, the flip hint on an ordinary front; space is reserved either
+        // way so the card above keeps the same size across the flip.
+        Box(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 20.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                state.answerHidden -> GiveUpButton(onGiveUp = onGiveUp)
+                // Suppressed while answering: there the tap flips to a mask, not to an answer.
+                !state.revealed -> FlipHint()
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -461,6 +508,8 @@ private data class CardSnapshot(
     val frontImageRef: MediaRef.Image?,
     val backImageRef: MediaRef.Image?,
     val revealed: Boolean,
+    /** The back is turned but its words are a placeholder — see `Reviewing.answerHidden`. */
+    val answerHidden: Boolean = false,
 )
 
 /**
@@ -529,13 +578,16 @@ private fun AnimatedContentScope.FlippableCard(
             )
         } else {
             // Counter-rotate so the back content is not mirrored.
+            // Listen and Speak come off the masked back: both act on the side facing the user,
+            // and here that side is the answer the mask is withholding.
             CardFace(
                 label = card.backLabel,
                 text = card.backText,
                 textSize = 42.sp,
+                dimmed = card.answerHidden,
                 onSpeak = onSpeak,
-                showListen = interactive && listenEnabled,
-                onSpeakTest = if (interactive && speakEnabled) onSpeakTest else null,
+                showListen = interactive && listenEnabled && !card.answerHidden,
+                onSpeakTest = if (interactive && speakEnabled && !card.answerHidden) onSpeakTest else null,
                 recallImageRef = card.frontImageRef,
                 featureImageRef = card.backImageRef,
                 deckId = deckId,

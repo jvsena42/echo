@@ -127,6 +127,16 @@
     <string name="study_flip_hint">Tap card to reveal answer</string>
     <string name="study_listen">Listen</string>
     <string name="study_speak">Speak</string>
+    <!-- Stands in for the answer while it is being typed. Fixed length on purpose: one bullet
+         per letter would hand over how long the word is. -->
+    <string name="study_answer_hidden">• • • • •</string>
+    <string name="study_type_placeholder">Type the answer</string>
+    <string name="study_type_check">Check</string>
+    <string name="study_type_give_up">Give up · show me</string>
+    <string name="study_type_correct">Correct!</string>
+    <string name="study_type_near_miss">Almost — check the accents</string>
+    <string name="study_type_wrong">Not quite</string>
+    <string name="study_type_you_typed">You typed: %1$s</string>
 
     <!-- Discover -->
     <string name="discover_title">Discover</string>
