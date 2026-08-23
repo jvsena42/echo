@@ -3,10 +3,13 @@ package com.github.jvsena42.loopky
 import android.app.Application
 import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.data.storage.resolveStartupEnvironment
+import com.github.jvsena42.loopky.data.unsplash.deobfuscateUnsplashKey
 import com.github.jvsena42.loopky.di.initKoinAndroid
 import com.github.jvsena42.loopky.ui.importflow.sweepImportSpools
+import com.github.jvsena42.loopky.util.Log
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
+import org.koin.core.logger.Level
 import uniffi.pubkycore.RustlsInit
 import uniffi.pubkycore.initLogging
 
@@ -19,6 +22,10 @@ class LoopkyApp : Application() {
         // Before anything can spool a file of its own: whatever is there belongs to a process
         // that is gone, and a 500 MB deck is not something to leave in someone's cache.
         cacheDir.sweepImportSpools()
+        // The one place that knows whether this is a debug build: `commonMain` cannot read
+        // BuildConfig and `:shared` generates none. Log.d is a no-op until this runs, which is
+        // the safe direction to fail in.
+        Log.debugEnabled = BuildConfig.DEBUG
         if (BuildConfig.DEBUG) {
             // Routes the SDK's tracing plus any Rust panic to logcat under the tag `pubkycore`.
             // Debug-only — it logs network activity.
@@ -26,8 +33,9 @@ class LoopkyApp : Application() {
         }
         initKoinAndroid(
             // A fallback only: a key the user saves in Settings wins, and this one is never
-            // shown to them.
-            unsplashFallbackKey = BuildConfig.UNSPLASH_ACCESS_KEY,
+            // shown to them. Ships scrambled so it is not a literal in the dex — a speed bump
+            // against APK scanners, not protection. See UnsplashKeyObfuscation.
+            unsplashFallbackKey = deobfuscateUnsplashKey(BuildConfig.UNSPLASH_ACCESS_KEY_OBF),
             // Staging on debug, production on release — see composeApp/build.gradle.kts.
             nexusBaseUrl = BuildConfig.NEXUS_BASE_URL,
             // Which Homegate mints signup tokens, and which homeserver they are valid on. A
@@ -38,7 +46,9 @@ class LoopkyApp : Application() {
                 allowStoredOverride = BuildConfig.DEBUG,
             ),
         ) {
-            androidLogger()
+            // Koin's own logger, gated for the same reason as Log.d: it narrates every definition
+            // it resolves, which is noise a shipped build has no use for.
+            androidLogger(if (BuildConfig.DEBUG) Level.INFO else Level.NONE)
             androidContext(this@LoopkyApp)
         }
     }

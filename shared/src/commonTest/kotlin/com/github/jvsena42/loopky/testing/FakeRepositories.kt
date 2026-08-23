@@ -65,6 +65,7 @@ import com.github.jvsena42.loopky.platform.ProcessedImage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -104,6 +105,29 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
         signOutCount++
         session = null
         return Result.success(Unit)
+    }
+
+    var deleteAccountCount = 0
+    var deleteAccountResult: Result<Unit> = Result.success(Unit)
+
+    /** Progress reported by the last [deleteAccount], so a ViewModel test can drive the dialog. */
+    var deleteAccountProgress: List<Pair<Int, Int>> = emptyList()
+
+    /**
+     * Suspends for this long after reporting progress, so a test can observe the in-flight state.
+     * `StateFlow` conflates, and a sweep that reports and returns without ever suspending leaves a
+     * collector nothing but the final value.
+     */
+    var deleteAccountDelayMs: Long = 0
+
+    override suspend fun deleteAccount(onProgress: (Int, Int) -> Unit): Result<Unit> {
+        deleteAccountCount++
+        deleteAccountProgress.forEach { (done, total) -> onProgress(done, total) }
+        if (deleteAccountDelayMs > 0) delay(deleteAccountDelayMs)
+        // Only a success signs the user out, mirroring the real one: an interrupted sweep has to
+        // leave them signed in, because that is the only state a retry is possible from.
+        if (deleteAccountResult.isSuccess) session = null
+        return deleteAccountResult
     }
 
     override suspend fun beginSignIn(capabilities: String): Result<AuthFlowHandle> {
@@ -228,8 +252,12 @@ class FakeDeckRepository : DeckRepository {
         return Result.success(deck)
     }
 
+    /** When set, every [delete] fails — a homeserver that went away mid-sweep. */
+    var deleteError: Throwable? = null
+
     override suspend fun delete(deckId: String): Result<Unit> {
         deleted.add(deckId)
+        deleteError?.let { return Result.failure(it) }
         decks.remove(deckId)
         _changes.tryEmit(Unit)
         return Result.success(Unit)

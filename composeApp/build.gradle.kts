@@ -1,5 +1,6 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Base64
 import java.util.Properties
 
 /**
@@ -17,6 +18,29 @@ val NEXUS_PRODUCTION_URL = "https://nexus.pubky.app"
  */
 val PUBKY_ENV_STAGING = "Staging"
 val PUBKY_ENV_PRODUCTION = "Production"
+
+/**
+ * Must stay byte-for-byte identical to `OBFUSCATION_SALT` in `UnsplashKeyObfuscation.kt`, which
+ * holds the inverse. Written twice because a Gradle script cannot import from `commonMain`;
+ * `UnsplashKeyObfuscationTest` is what catches the two drifting apart.
+ *
+ * Not a secret. It ships in the same APK as the thing it scrambles.
+ */
+val UNSPLASH_OBFUSCATION_SALT = "loopky.unsplash.v1".toByteArray()
+
+/**
+ * XOR against [UNSPLASH_OBFUSCATION_SALT], then Base64 — just enough that the key is not a literal
+ * in the dex. Blank stays blank, so `UnsplashClient.hasFallbackKey` keeps meaning what it says on a
+ * build with no key configured.
+ */
+fun obfuscateUnsplashKey(key: String): String {
+    if (key.isEmpty()) return ""
+    val raw = key.toByteArray()
+    val salted = ByteArray(raw.size) { i ->
+        (raw[i].toInt() xor UNSPLASH_OBFUSCATION_SALT[i % UNSPLASH_OBFUSCATION_SALT.size].toInt()).toByte()
+    }
+    return Base64.getEncoder().encodeToString(salted)
+}
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -80,8 +104,13 @@ android {
         versionName = "1.0"
 
         // Unsplash key for the "from web" image search; blank → gallery-only fallback.
+        //
+        // Emitted scrambled, and only scrambled — a plain constant put the literal in classes3.dex
+        // where `strings | grep` finds it, which is how leaked keys are actually found. This is a
+        // speed bump against automated scanners, not protection: the key ends up in a live
+        // Authorization header, so a proxy reads it regardless. See UnsplashKeyObfuscation.
         val unsplashKey = (localProps.getProperty("UNSPLASH_ACCESS_KEY") ?: "").trim()
-        buildConfigField("String", "UNSPLASH_ACCESS_KEY", "\"$unsplashKey\"")
+        buildConfigField("String", "UNSPLASH_ACCESS_KEY_OBF", "\"${obfuscateUnsplashKey(unsplashKey)}\"")
     }
     buildFeatures {
         buildConfig = true

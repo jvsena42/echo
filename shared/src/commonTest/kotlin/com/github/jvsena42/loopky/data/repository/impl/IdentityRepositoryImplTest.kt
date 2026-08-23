@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.fakeSession
+import com.github.jvsena42.loopky.testing.identityRepository
 import com.github.jvsena42.loopky.testing.signedInProvider
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -23,7 +24,7 @@ class IdentityRepositoryImplTest {
     private val session = signedInProvider()
     private val store = RecordingSessionStore()
     private val tags = RecordingTagRepository()
-    private val repo = IdentityRepositoryImpl(
+    private val repo = identityRepository(
         pubky = pubky,
         sessionStore = store,
         sessionProvider = session,

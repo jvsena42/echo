@@ -14,28 +14,29 @@ import kotlinx.coroutines.withContext
  * same secrets vault as [AndroidUnsplashKeyStore] so that signing out cannot discard it.
  */
 class AndroidSignupTokenStore(context: Context) : SignupTokenStore {
-    private val vault: KVault = KVault(context, SECRETS_SERVICE_NAME)
+    private val vault: KVault? = openVaultOrNull(context, SECRETS_SERVICE_NAME)
 
     private val _pending = MutableStateFlow(readPending())
     override val pending: Flow<PendingSignup?> = _pending.asStateFlow()
 
     override suspend fun save(pending: PendingSignup) {
         withContext(Dispatchers.IO) {
-            vault.set(SIGNUP_TOKEN_STORAGE_KEY, sessionStoreJson.encodeToString(pending))
+            vault?.set(SIGNUP_TOKEN_STORAGE_KEY, sessionStoreJson.encodeToString(pending))
         }
         _pending.update { pending }
     }
 
     override suspend fun clear() {
-        withContext(Dispatchers.IO) { vault.deleteObject(SIGNUP_TOKEN_STORAGE_KEY) }
+        withContext(Dispatchers.IO) { vault?.deleteObject(SIGNUP_TOKEN_STORAGE_KEY) }
         _pending.update { null }
     }
 
     // A blob we can no longer decode is treated as no token rather than a crash, matching
     // AndroidSecureSessionStore. The cost is bounded: the user re-verifies, where a throw here
-    // would make the app unopenable.
+    // would make the app unopenable — and this runs in a field initialiser, so "here" is the
+    // moment Koin first resolves the store.
     private fun readPending(): PendingSignup? {
-        val json = vault.string(SIGNUP_TOKEN_STORAGE_KEY) ?: return null
+        val json = vault.stringOrNull(SIGNUP_TOKEN_STORAGE_KEY) ?: return null
         return runCatching { sessionStoreJson.decodeFromString<PendingSignup>(json) }.getOrNull()
     }
 }

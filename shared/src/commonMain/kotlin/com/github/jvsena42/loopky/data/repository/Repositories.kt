@@ -80,6 +80,46 @@ interface IdentityRepository {
     /** Update the current user's pubky.app profile via session-authenticated PUT. */
     suspend fun updateProfile(name: String?, bio: String?): Result<PubkyIdentity>
 
+    /**
+     * Erase everything Loopky has written for the signed-in user, then sign out.
+     *
+     * **This does not delete the Pubky account, and nothing may tell the user it does.** The
+     * keypair and the homeserver account belong to Pubky Ring; [PubkyClient] has `signUp`,
+     * `signOut` and per-record `deleteWithSession` and no account-delete primitive at all. What
+     * this does is remove every record Loopky authored and take the account out of Loopky's
+     * directory, so signing in again finds an empty app. Copy that claims more than that is a
+     * false statement the user can disprove by opening Ring.
+     *
+     * What goes, in order:
+     * 1. Every owned deck, through [DeckRepository.delete] — reused rather than reimplemented as a
+     *    raw path sweep, because it already takes the per-deck lock, deletes the manifest last,
+     *    and removes the deck's reserved and topic tag records.
+     * 2. Everything else under `/pub/loopky/`: review state, settings, subscriptions, tag records.
+     *    Also the catch-all for anything step 1 could not see.
+     * 3. The `loopky-user` self-tag on the profile. It lives in the **pubky.app** tags namespace
+     *    and is the only thing listing this account in Loopky's user directory, so leaving it
+     *    behind means a deleted account still turns up in Discover and search.
+     * 4. Announcement posts, matched by an embed URI under this user's own deck root. Loopky wrote
+     *    them and they would otherwise link to decks that no longer resolve.
+     *
+     * Deliberately **kept**: any unspent signup token. It was paid for in sats or in one of two
+     * SMS verifications a week, never expires, and still redeems against a *new* account. That is
+     * why it lives in its own vault (see `SignupTokenStore.clear`).
+     *
+     * Deliberately **untouched**: `profile.json` and `/pub/pubky.app/follows/`. Those are the
+     * user's presence in the wider Pubky network, shared with every other app, and not Loopky's to
+     * erase.
+     *
+     * Each homeserver step is best-effort and logged, so one 404 tag record cannot strand the rest.
+     * The **local** wipe and sign-out happen only if the sweep ran to the end: signing someone out
+     * of a half-deleted account they can no longer reach is worse than leaving them signed in to
+     * try again.
+     *
+     * @param onProgress called with `(done, total)` as records are removed. Coarse and advisory —
+     *   `total` is what was known when the sweep started, and the sweep is allowed to find more.
+     */
+    suspend fun deleteAccount(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): Result<Unit>
+
     companion object {
         const val DEFAULT_CAPABILITIES = "/pub/loopky/:rw,/pub/pubky.app/:rw"
     }

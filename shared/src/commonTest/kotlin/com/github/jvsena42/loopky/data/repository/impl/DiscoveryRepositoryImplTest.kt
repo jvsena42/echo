@@ -8,11 +8,9 @@ import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
-import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
-import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
@@ -22,6 +20,7 @@ import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
+import com.github.jvsena42.loopky.testing.identityRepository
 import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCoverImage
 import com.github.jvsena42.loopky.testing.testDeck
@@ -51,9 +50,8 @@ class DiscoveryRepositoryImplTest {
         backgroundTasks = FakeBackgroundTasks(),
     )
     private val tagRepo = RecordingTagRepository()
-    private val identityRepo = IdentityRepositoryImpl(
+    private val identityRepo = identityRepository(
         pubky = pubky,
-        sessionStore = NoopSessionStore(),
         sessionProvider = session,
         tagRepository = tagRepo,
     )
@@ -698,10 +696,4 @@ class DiscoveryRepositoryImplTest {
         /** pubky-app-specs timestamp ids are always 13 Crockford-base32 characters. */
         const val POST_ID_LENGTH = 13
     }
-}
-
-private class NoopSessionStore : SecureSessionStore {
-    override suspend fun save(session: Session) = Unit
-    override suspend fun load(): Session? = null
-    override suspend fun clear() = Unit
 }

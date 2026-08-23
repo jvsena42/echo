@@ -121,9 +121,16 @@ class FakePubkyClient : PubkyClient {
      * silently, which is how a deck whose manifest listed chunk records that were never written —
      * a half-finished import — could be undeletable on device while every delete test passed.
      */
+    /**
+     * Paths that answer 404 to a delete but stay in [store] — a record the sweep never actually
+     * removed. Models the case that makes a delete-count useless as a completeness proof.
+     */
+    val undeletablePaths = mutableSetOf<String>()
+
     override suspend fun deleteWithSession(url: String, sessionSecret: String): Result<String> {
         consumeInjectedFailure()?.let { return Result.failure(it) }
         deletes.add(url)
+        if (url in undeletablePaths) return Result.failure(PubkyError("not found: $url"))
         if (store.remove(url) == null) return Result.failure(PubkyError("not found: $url"))
         return Result.success("ok")
     }

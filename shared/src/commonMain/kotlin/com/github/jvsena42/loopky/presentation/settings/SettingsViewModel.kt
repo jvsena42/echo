@@ -16,6 +16,7 @@ import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -29,7 +30,9 @@ import kotlinx.coroutines.launch
 
 // LongParameterList: Settings is a screen of unrelated concerns by nature — identity, sharing,
 // studying, an API key — and each one needs its own collaborator.
-@Suppress("LongParameterList")
+// TooManyFunctions for the same reason: one handler per control, and Settings has a lot of
+// controls. Splitting it would mean two ViewModels over one screen's state.
+@Suppress("LongParameterList", "TooManyFunctions")
 class SettingsViewModel(
     private val identityRepository: IdentityRepository,
     private val pubkyClient: PubkyClient,
@@ -49,6 +52,8 @@ class SettingsViewModel(
     private var signOutJob: Job? = null
     private var unsplashKeyJob: Job? = null
     private var studySettingsJob: Job? = null
+    private var countdownJob: Job? = null
+    private var deleteJob: Job? = null
 
     init {
         load()
@@ -227,8 +232,75 @@ class SettingsViewModel(
         }
     }
 
+    /**
+     * Open the delete-account dialog and start its countdown.
+     *
+     * The countdown lives here rather than in a `LaunchedEffect` so it survives a rotation — a
+     * timer that restarted every time the screen was rebuilt would be a nuisance rather than a
+     * safeguard — and so it can be driven on virtual time in a test.
+     */
+    fun onDeleteAccountClick() {
+        if (_state.value.deletion != null) return
+        _state.update { it.copy(deletion = DeletionState.Confirming(COUNTDOWN_SECONDS)) }
+        countdownJob?.cancel()
+        countdownJob = viewModelScope.launch {
+            repeat(COUNTDOWN_SECONDS) {
+                delay(COUNTDOWN_TICK_MS)
+                _state.update { state ->
+                    val confirming = state.deletion as? DeletionState.Confirming ?: return@update state
+                    state.copy(deletion = confirming.copy(secondsRemaining = confirming.secondsRemaining - 1))
+                }
+            }
+        }
+    }
+
+    /** Dismiss before the deed. Deliberately does nothing once [onConfirmDeleteAccount] has run. */
+    fun onDeleteAccountDismissed() {
+        if (_state.value.deletion !is DeletionState.Confirming) return
+        countdownJob?.cancel()
+        _state.update { it.copy(deletion = null) }
+    }
+
+    fun onConfirmDeleteAccount() {
+        val confirming = _state.value.deletion as? DeletionState.Confirming ?: return
+        if (!confirming.isConfirmable) return
+        if (deleteJob?.isActive == true) return
+
+        countdownJob?.cancel()
+        _state.update { it.copy(deletion = DeletionState.Deleting(done = 0, total = 0)) }
+        deleteJob = viewModelScope.launch {
+            Log.d(TAG, "onConfirmDeleteAccount: sweeping")
+            identityRepository.deleteAccount { done, total ->
+                _state.update { it.copy(deletion = DeletionState.Deleting(done = done, total = total)) }
+            }
+                .onSuccess {
+                    Log.d(TAG, "onConfirmDeleteAccount: done")
+                    _state.update { it.copy(deletion = null) }
+                    _effects.emit(SettingsEffect.SignedOut)
+                }
+                .onFailure { err ->
+                    // Back to the confirmation, already confirmable: the user has read the warning
+                    // once and a second ten-second wait would only punish them for a homeserver
+                    // that was unreachable. They are still signed in, which is the point.
+                    Log.e(TAG, "onConfirmDeleteAccount: FAILED — ${err.message}", err)
+                    _state.update { it.copy(deletion = DeletionState.Confirming(secondsRemaining = 0)) }
+                    _effects.emit(SettingsEffect.ShowError(SettingsErrorMessage.AccountNotDeleted))
+                }
+        }
+    }
+
     companion object {
         private const val TAG = "Loopky/SettingsVM"
+
+        /**
+         * How long the confirm button stays dead.
+         *
+         * Long enough to be read rather than tapped through. This is the one action in Loopky that
+         * destroys work irrecoverably, so the delay is the feature.
+         */
+        const val COUNTDOWN_SECONDS = 10
+
+        private const val COUNTDOWN_TICK_MS = 1_000L
     }
 }
 
@@ -253,7 +325,33 @@ data class SettingsUiState(
      * that explains the refusal rather than letting a tap silently do nothing.
      */
     val canEditStudySettings: Boolean = false,
+    /** Null when the delete-account dialog is closed, which is almost always. */
+    val deletion: DeletionState? = null,
 )
+
+/**
+ * Where the delete-account flow has got to.
+ *
+ * Two states, not a pair of booleans, because the second one is not dismissable and the first one
+ * is: modelling them separately is what stops a back gesture mid-sweep from closing a dialog over
+ * a deletion that is still running.
+ */
+sealed interface DeletionState {
+    /**
+     * The warning is on screen. [secondsRemaining] counts down to zero, and the confirm button is
+     * dead until it gets there.
+     */
+    data class Confirming(val secondsRemaining: Int) : DeletionState {
+        val isConfirmable: Boolean get() = secondsRemaining <= 0
+    }
+
+    /**
+     * The sweep is running and there is no way back. [total] is what was known when it started, so
+     * treat it as advisory: it can be zero before the first report arrives, and the sweep is
+     * allowed to find more work than it predicted.
+     */
+    data class Deleting(val done: Int, val total: Int) : DeletionState
+}
 
 /**
  * What the Unsplash row reports. Carries no key material: [UserSet] holds four characters, and the
@@ -278,4 +376,4 @@ sealed interface SettingsEffect {
     data class ShowError(val message: SettingsErrorMessage) : SettingsEffect
 }
 
-enum class SettingsErrorMessage { StudySettingsNotSaved }
+enum class SettingsErrorMessage { StudySettingsNotSaved, AccountNotDeleted }

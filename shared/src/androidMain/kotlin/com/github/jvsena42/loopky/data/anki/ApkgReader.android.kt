@@ -96,8 +96,17 @@ actual object ApkgReader {
         COLLECTION_NAMES.mapNotNull { name ->
             val entry = getEntry(name) ?: return@mapNotNull null
             val file = File.createTempFile("loopky-apkg", ".sqlite")
-            getInputStream(entry).use { input ->
-                file.outputStream().use { output -> input.copyTo(output) }
+            // Bounded: the 500 MB picked-file limit bounds the archive, not what an entry inflates
+            // to, and a collection is the one entry we copy to disk whole. Over budget the partial
+            // file goes and the candidate is skipped, which falls through to the next name and
+            // ends as "no readable collection" rather than a filled cache partition.
+            val copied = file.outputStream().use { output ->
+                copyEntryBounded(entry, output, ApkgLimits.MAX_COLLECTION_BYTES)
+            }
+            if (!copied) {
+                Log.d(TAG, "apkg: $name is over ${ApkgLimits.MAX_COLLECTION_BYTES} bytes inflated — skipped")
+                file.delete()
+                return@mapNotNull null
             }
             Candidate(name = name, file = file)
         }

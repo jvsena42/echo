@@ -63,7 +63,14 @@ internal class MediaIndex(private val zip: ZipFile) {
     ): DraftCardImage? {
         cache[src]?.let { return it }
         val entry = entriesByName[src]?.let(zip::getEntry) ?: return null
-        val bytes = zip.getInputStream(entry).use { it.readBytes() }
+        // Bounded: this blob goes straight into heap, so an unbounded read is where a crafted
+        // archive OOMs the app. Over budget reads as a missing blob, which the caller already
+        // handles by dropping the note — the same outcome as a picture the archive never had.
+        val bytes = zip.readEntryBounded(entry, ApkgLimits.MAX_MEDIA_BYTES)
+        if (bytes == null) {
+            Log.d(TAG, "apkg: '$src' is over ${ApkgLimits.MAX_MEDIA_BYTES} bytes inflated — skipped")
+            return null
+        }
         if (bytes.isEmpty()) return null
         val image = compressImage(bytes, src.mimeFromExtension())
         imported++
@@ -77,7 +84,11 @@ internal class MediaIndex(private val zip: ZipFile) {
      */
     private fun readManifest(): Map<String, String> = runCatching {
         val entry = zip.getEntry(MEDIA_ENTRY) ?: return emptyMap()
-        val json = JSONObject(zip.getInputStream(entry).use { it.readBytes() }.decodeToString())
+        // Bounded like every other entry: the manifest is a flat name map, so anything approaching
+        // MAX_MEDIA_BYTES of it is not a manifest. Over budget costs the deck its pictures, which
+        // is what an unparseable manifest already costs.
+        val bytes = zip.readEntryBounded(entry, ApkgLimits.MAX_MEDIA_BYTES) ?: return emptyMap()
+        val json = JSONObject(bytes.decodeToString())
         buildMap {
             json.keys().forEach { key -> put(json.getString(key), key) }
         }
