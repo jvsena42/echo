@@ -1,7 +1,7 @@
 # Loopky — Deck Import Spec (Paste-to-Import)
 
 > **Status:** Draft v1 · **Scope:** Product + UX spec for the primary deck-import flow. Engineering RFC comes later.
-> **Reads alongside:** [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md)
+> **Reads alongside:** [`docs/Architecture.md`](./Architecture.md)
 
 ---
 
@@ -23,7 +23,7 @@ It is inspired by Anki's "Import File" pattern but rebuilt for touch: no file pi
 - **Zero-config in the common case:** Auto-detect the separator correctly for ≥90% of pastes. The user should rarely need to touch the override.
 - **Preview as cards, not a table:** Show the first 3 parsed items as real Loopky flip-cards so the user feels the result before committing.
 - **Triage before commit:** Every imported card passes through the swipe queue. Users approve, edit, or discard each card before it enters their deck.
-- **Native feel:** iOS and Android variants follow §4 of the brief — SF Pro / Roboto, system sheets, platform haptics on successful import.
+- **Native feel:** iOS and Android each use their own native components — SF Pro / Roboto, system sheets, platform haptics on successful import.
 - **Accessible:** Full VoiceOver / TalkBack support, dynamic type, reduce-motion alternatives.
 
 ## 3. Non-goals (v1)
@@ -61,7 +61,7 @@ Three ways to reach the paste screen:
 
 - **Decks tab → floating "+" → "Paste to import"** (primary)
 - **Decks empty state** — the CTA under the illustration reads *"Paste a list to get started"*
-- **Deck editor ([§6.5 of brief](../design/DESIGN_GUIDELINE.md)) → "Add cards in bulk"** — imports into an existing deck instead of creating a new one
+- **Deck editor → "Add cards in bulk"** — imports into an existing deck instead of creating a new one
 
 All three routes land on the same paste screen.
 
@@ -71,7 +71,7 @@ All three routes land on the same paste screen.
 - **Body:**
   - A large rounded text field with the hint *"Paste your list here — one card per line"*. The field auto-focuses and auto-expands as text grows.
   - Below the field, once text exists: a **detected-separator chip** reading e.g. *"Detected: em-dash · tap to change"*. Tapping opens a bottom sheet with the override options (§6).
-  - Below the chip: **live preview** — the first three parsed items rendered as real Loopky flip-cards using the existing Card component from [§7 of brief](../design/DESIGN_GUIDELINE.md). The user can tap any preview card to flip it and see the back. The preview updates within ~150 ms of any change to the text or separator.
+  - Below the chip: **live preview** — the first three parsed items rendered as real Loopky flip-cards using the existing Card component. The user can tap any preview card to flip it and see the back. The preview updates within ~150 ms of any change to the text or separator.
   - A subtle counter: *"42 cards will be imported"*.
 - **Sticky footer:** *"This deck will be public on your Pubky"* notice (see §11) + primary *"Next"* button.
 
@@ -108,7 +108,7 @@ summary. This narrows §14's original claim that triage is the spine every impor
 
 - On triage completion, a confirmation screen: *"42 cards ready. 3 discarded."* + deck metadata form (title, description, cover image, tags). This is the only place tags are entered — they describe the deck, not individual cards (§8).
 - Primary action: *"Publish deck"* (see §11 on why it's "publish," not "save").
-- Success: celebratory micro-animation (§3 of brief), haptic success, land on the new deck detail screen.
+- Success: celebratory micro-animation, haptic success, land on the new deck detail screen.
 
 ### 5.6 Undo window
 
@@ -174,7 +174,7 @@ The user can always override via the detected-separator chip. The override sheet
 
 ## 10. States
 
-Every state from §6 of the brief is enumerated here. The designer must produce each one.
+Every state below has a screen.
 
 1. **Empty** — no text pasted. Text field auto-focused. Preview area shows a faint illustration and *"Your cards will show up here as you paste."*
 2. **Paste detected** — text just landed. Separator chip and preview animate in.
@@ -193,11 +193,10 @@ Every state from §6 of the brief is enumerated here. The designer must produce 
 ## 11. Pubky considerations
 
 - **No private decks in v1.** Every imported deck is published to the user's Pubky homeserver and is discoverable via Discover and the user's profile.
-- This **overrides** the public/private toggle described in [§9.5 of the brief](../design/DESIGN_GUIDELINE.md#96-self-custodial-framing). Flag as an open question (§13) for the designer and PM.
 - The paste screen and commit screen must both show a plain-language notice: *"This deck will be public on your Pubky."* — no fine print, no tooltips, no toggle.
 - The primary commit button reads **"Publish deck"**, not "Save deck" or "Create deck." The word choice matters: it tells the user something public is about to happen.
-- Deck tags entered on the commit screen (§5.5) are written via Pubky's native tag primitive ([§9.3 of brief](../design/DESIGN_GUIDELINE.md)), not a custom Loopky system. Cards carry no tags of their own.
-- The author field on the published deck resolves to the user's pubky identity per [§9.2 of brief](../design/DESIGN_GUIDELINE.md).
+- Deck tags entered on the commit screen (§5.5) are written via Pubky's native tag primitive, not a custom Loopky system. Cards carry no tags of their own.
+- The author field on the published deck resolves to the user's pubky identity — a public key, shown truncated and copyable, never with the legacy `pk:` prefix.
 
 ### 11.1 Published deck shape
 
@@ -235,7 +234,7 @@ See [Architecture.md §8](./Architecture.md#8-data-model--persistence) for the f
 
 ## 13. Open questions
 
-1. **No private decks** — confirm with PM that publishing every imported deck is intentional for v1 and not just "not yet built." The brief §9.5 implies a toggle exists. This spec removes it. Needs a decision before design kickoff.
+1. **No private decks** — confirm with PM that publishing every imported deck is intentional for v1 and not just "not yet built."
 2. **Deck metadata timing** — should title / description be required before triage or after? Current spec says after. Alternative: pre-triage so users can abandon early. Designer call.
 3. **Triage "Approve all remaining"** — is the bulk-approve shortcut too easy to misuse? Could land junk cards. Consider requiring swipe-through of at least the first N cards before unlocking it.
 4. ~~**Max paste size**~~ — **Resolved.** The storage layout no longer caps deck size (§11.1), so the remaining limit is the *paste box*, not the deck. Paste keeps a modest cap because swipe-triage is the constraint — nobody swipes 20,000 cards. Bulk file import bypasses the paste box and the triage queue entirely, via the summary screen in §5.4.
@@ -263,4 +262,4 @@ The **commit flow** is the reusable spine; every future import source plugs into
 
 ---
 
-*End of spec. Hand off to designer for screens covering §5 flow and §10 states.*
+*End of spec.*

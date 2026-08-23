@@ -3,7 +3,6 @@
 A mobile flashcards app that fuses Duolingo TinyCards' playfulness, Anki's spaced-repetition, and Pubky's decentralized identity and social graph. iOS + Android, built with Kotlin Multiplatform.
 
 - **Product spec:** [`docs/specs.md`](./docs/specs.md) — Paste-to-Import, the primary v1 flow.
-- **Design brief:** [`design/DESIGN_GUIDELINE.md`](./design/DESIGN_GUIDELINE.md) — screens, components, design system.
 - **Architecture:** [`docs/Architecture.md`](./docs/Architecture.md) — module layout, layering, state flow, open questions.
 
 ---

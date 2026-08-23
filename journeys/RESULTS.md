@@ -123,8 +123,8 @@ Unrelated pre-existing noise seen during the run: `listFollowed: 3uyducpmnylw un
 
 ## 12 — Listen/Speak on both card sides — ✅ PASS (2026-08-22, emulator-5554)
 
-Restores what `DESIGN_GUIDELINE §8` specifies ("Both sides include a Speak button"), which the
-`w1CAm` Pencil screen had overridden — so the journey 10 row above no longer holds.
+Restores the rule that both card faces carry a Speak button, which an earlier mockup had
+overridden — so the journey 10 row above no longer holds.
 
 | Step | Result |
 | --- | --- |

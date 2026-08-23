@@ -1,7 +1,7 @@
 # Loopky — Architecture
 
 > **Status:** Draft v1 · **Scope:** Technical architecture for the Loopky KMP app.
-> **Reads alongside:** [`docs/specs.md`](./specs.md) · [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md)
+> **Reads alongside:** [`docs/specs.md`](./specs.md)
 
 ---
 
@@ -9,7 +9,7 @@
 
 Loopky is a **Kotlin Multiplatform** flashcards app targeting iOS and Android. Business logic — domain models, repositories, and ViewModels — lives in a single `shared` module (`commonMain`). Repositories own the business logic; there is no separate use-case layer. Each platform renders its own native UI: **Jetpack Compose** on Android (`composeApp/androidMain`) and **SwiftUI** on iOS (`iosApp/`). Identity, social graph, tags, and published decks are backed by **Pubky**, accessed through a native binding layer built on top of `pubky-core-ffi-fork`.
 
-The v1 product is defined by [`docs/specs.md`](./specs.md) (Paste-to-Import primary flow) and [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md) (screens, components, design system).
+Deck import — the flow the rest of the product hangs off — is specified in [`docs/specs.md`](./specs.md).
 
 ---
 
@@ -88,7 +88,7 @@ Platform UI modules depend on `shared`. `shared` depends only on Kotlin stdlib, 
 
 Pure Kotlin. No framework imports.
 
-- **Models:** `Deck`, `Card`, `CardContent` (text / image / audio variants — brief §8), `Tag`, `PubkyIdentity`, `ImportDraft`, `ParsedRow`, `SrsGrade` (Again/Hard/Good/Easy), `SrsState`, `StudyQueueItem`, `AppError`.
+- **Models:** `Deck`, `Card`, `CardContent` (text / image / audio variants), `Tag`, `PubkyIdentity`, `ImportDraft`, `ParsedRow`, `SrsGrade` (Again/Hard/Good/Easy), `SrsState`, `StudyQueueItem`, `AppError`.
 
 Business logic (parse, triage, publish, review, follow, sign-in/out) lives on repositories — see §4.2. There is no separate use-case layer.
 
@@ -98,12 +98,12 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 
 | Repository | Responsibilities | Backing |
 |---|---|---|
-| `IdentityRepository` | Current session, pubky, capabilities, `signInWithRing()` / `signOut()` (brief §9.1) | Pubky FFI + `SecureSessionStore` (KVault) |
+| `IdentityRepository` | Current session, pubky, capabilities, `signInWithRing()` / `signOut()` (§7.8) | Pubky FFI + `SecureSessionStore` (KVault) |
 | `DeckRepository` | CRUD + `publishDeck(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule. Also owns **deck** following — `followDeck()` / `unfollowDeck()` / `listFollowed()` — and `clone()` (§8.0). Deck follows live here rather than on `DiscoveryRepository` because `listFollowed()` merges with `listOwned()` behind one `changes` flow, `sync()` resolves a followed deck's author from the subscription, and `DiscoveryRepositoryImpl` already depends on this repo | Pubky FFI + in-memory cache |
 | `CardRepository` | CRUD cards within a deck | Pubky FFI + in-memory cache |
 | `ImportRepository` | `parse(rawText, separator)` per spec §6/§7 (col 1 → front, col 2 → back, extras dropped — spec §8), `setDecision()` / `keptRows()` triage, in-memory drafts, dedupe | In-memory |
-| `TagRepository` | Read/write Pubky tags on any subject (deck or profile — brief §9.3); the reserved `loopky-*` index labels via `putReservedTag`; deck-topic (`trendingDeckTags`), tagged-subject and tagger-count reads via Nexus (§7.7) | Pubky FFI + Nexus REST |
-| `DiscoveryRepository` | Decks by followed **users**, `followUser()` / `unfollowUser()` (brief §9.4) — deck-level following is on `DeckRepository`, plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
+| `TagRepository` | Read/write Pubky tags on any subject (deck or profile); the reserved `loopky-*` index labels via `putReservedTag`; deck-topic (`trendingDeckTags`), tagged-subject and tagger-count reads via Nexus (§7.7) | Pubky FFI + Nexus REST |
+| `DiscoveryRepository` | Decks by followed **users**, `followUser()` / `unfollowUser()` — deck-level following is on `DeckRepository`, plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
 | `SrsRepository` | Per-card SRS state; the study queue (**due reviews then never-seen cards** — `isNew` is not `isDue`, §8.6), per-deck `DeckCounts`, `mastery()`, `review(card, grade)`, and today's `dailyProgress` | Pubky FFI + in-memory cache |
 | `MediaRepository` | Image + audio blob storage for cards | Pubky FFI (blobs) + platform file I/O |
 | `SettingsRepository` | The user's own study settings (`/pub/loopky/settings.json`) — the new-cards-per-day goal and the Hard/Good/Easy first intervals (§8.6) | Pubky FFI + `AppPreferences` mirror |
@@ -113,7 +113,7 @@ All repositories are interfaces in `commonMain` with implementations in `commonM
 ### 4.3 Presentation (ViewModels)
 
 KMP ViewModels extend the multiplatform `androidx.lifecycle.ViewModel` and launch work in
-`viewModelScope`. One per screen / sheet in brief §6 and spec §5.
+`viewModelScope`. One per screen or sheet.
 
 ```kotlin
 class PasteImportViewModel(
@@ -140,7 +140,7 @@ Rules:
 
 See the **Coding conventions** section in `CLAUDE.md` for the full prescriptive ruleset (this doc points there to avoid re-drift).
 
-ViewModels that back brief §6 screens: `OnboardingVM`, `StudyQueueVM`, `StudySessionVM`, `DeckDetailVM`, `DeckEditorVM`, `DiscoverVM`, `ProfileVM`, `SettingsVM`. ViewModels that back spec §5 flows: `PasteImportVM`, `TriageVM`, `CommitDeckVM`.
+ViewModels that back the app's screens: `OnboardingVM`, `StudyQueueVM`, `StudySessionVM`, `DeckDetailVM`, `DeckEditorVM`, `DiscoverVM`, `ProfileVM`, `SettingsVM`. ViewModels that back spec §5 flows: `PasteImportVM`, `TriageVM`, `CommitDeckVM`.
 
 ---
 
@@ -166,7 +166,7 @@ Both platforms consume the same VMs. Only rendering, navigation, and platform gl
 
 ### 5.3 Theming
 
-Design tokens (brief §11 deliverable) are authored as JSON and consumed both sides:
+Design tokens are authored as JSON and consumed both sides:
 - Android: tokens generated into a Kotlin `LoopkyColors`/`LoopkyType` in `composeApp`.
 - iOS: tokens generated into a Swift `LoopkyColors`/`LoopkyType` in `iosApp`.
 - The shared module does **not** hold a Compose theme.
@@ -914,11 +914,11 @@ sealed class AppError {
 }
 ```
 
-Repository methods return `Result<T, AppError>` (Arrow `Either` or handwritten — decide at first use). ViewModels map errors to user-facing banners/toasts/snackbars per brief §7.
+Repository methods return `Result<T, AppError>` (Arrow `Either` or handwritten — decide at first use). ViewModels map errors to user-facing banners, toasts and snackbars.
 
 ### 9.4 Accessibility
 
-Shared VMs expose semantic labels (e.g. `"Card 1 of 3 preview, front: hola"`) as strings on the state. Platform UIs wire them into VoiceOver / TalkBack. Reduce-motion and dynamic-type handling live in the platform UI (spec §12, brief §10).
+Shared VMs expose semantic labels (e.g. `"Card 1 of 3 preview, front: hola"`) as strings on the state. Platform UIs wire them into VoiceOver / TalkBack. Reduce-motion and dynamic-type handling live in the platform UI (spec §12).
 
 ### 9.5 Logging
 
@@ -995,10 +995,9 @@ Pulled forward from spec §13 plus architecture-specific items.
 ## 13. References
 
 - [`docs/specs.md`](./specs.md) — Paste-to-Import product spec.
-- [`design/DESIGN_GUIDELINE.md`](../design/DESIGN_GUIDELINE.md) — design system and screen brief.
 - `pubky-core-ffi-fork` — local sibling repo at `../../../pubky-core-ffi-fork`.
-- Pubky Ring deeplink contract — brief §9.1.
+- Pubky Ring deeplink contract — §7.8.
 
 ---
 
-*End of architecture doc. Update alongside spec and design-brief revisions; do not let it drift.*
+*End of architecture doc. Update it alongside the code; do not let it drift.*
