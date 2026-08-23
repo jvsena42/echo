@@ -637,7 +637,10 @@ class DeckEditorViewModelTest {
         vm.onSaveClick()
         advanceUntilIdle()
 
-        assertEquals(listOf(Tag("english"), Tag("spanish")), deckRepo.decks.getValue("deck1").tags)
+        assertEquals(
+            listOf(Tag("language"), Tag("english"), Tag("spanish")),
+            deckRepo.decks.getValue("deck1").tags,
+        )
     }
 
     @Test
@@ -657,7 +660,7 @@ class DeckEditorViewModelTest {
 
         // Left behind, "spanish" lists the deck under a language it no longer teaches. The editor
         // is the one screen that can retype a published deck, so this is where it matters.
-        assertEquals(listOf("verbs", "english", "french"), vm.state.value.tags)
+        assertEquals(listOf("verbs", "language", "english", "french"), vm.state.value.tags)
     }
 
     @Test

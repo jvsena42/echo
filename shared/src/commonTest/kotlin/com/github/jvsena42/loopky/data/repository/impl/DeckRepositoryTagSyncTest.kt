@@ -83,7 +83,7 @@ class DeckRepositoryTagSyncTest {
         // from `tags` like any other topic — nothing here derives them from the pair.
         val deck = testDeck(
             id = "deck1",
-            tags = listOf(Tag("english"), Tag("spanish")),
+            tags = listOf(Tag("language"), Tag("english"), Tag("spanish")),
             frontLang = "en-US",
             backLang = "es-ES",
         )
@@ -91,7 +91,11 @@ class DeckRepositoryTagSyncTest {
         repo.publish(deck, listOf(testCard("c1"))).getOrThrow()
 
         assertEquals(
-            listOf(deck.pubkyUri to Tag("english"), deck.pubkyUri to Tag("spanish")),
+            listOf(
+                deck.pubkyUri to Tag("language"),
+                deck.pubkyUri to Tag("english"),
+                deck.pubkyUri to Tag("spanish"),
+            ),
             tagRepo.putTags,
         )
         assertEquals(emptyList(), tagRepo.putReservedTags.filter { it.second != ReservedTags.DECK })

@@ -578,13 +578,13 @@ class PublishDeckViewModelTest {
         vm.onBackLangSelected("es-MX")
         runCurrent()
 
-        assertEquals(listOf("english", "spanish"), vm.state.value.tags)
+        assertEquals(listOf("language", "english", "spanish"), vm.state.value.tags)
 
         vm.onPublishClick()
         runCurrent()
 
         assertEquals(
-            listOf(Tag("english"), Tag("spanish")),
+            listOf(Tag("language"), Tag("english"), Tag("spanish")),
             deckRepo.published.single().first.tags,
         )
     }
@@ -602,7 +602,7 @@ class PublishDeckViewModelTest {
         runCurrent()
 
         // Left behind, "spanish" lists the deck under a language it no longer teaches.
-        assertEquals(listOf("english", "verbs", "french"), vm.state.value.tags)
+        assertEquals(listOf("language", "english", "verbs", "french"), vm.state.value.tags)
     }
 
     @Test
@@ -617,7 +617,7 @@ class PublishDeckViewModelTest {
         vm.onRemoveTag("english")
         runCurrent()
 
-        assertEquals(listOf("spanish"), vm.state.value.tags)
+        assertEquals(listOf("language", "spanish"), vm.state.value.tags)
     }
 
     @Test

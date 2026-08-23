@@ -18,20 +18,33 @@ package com.github.jvsena42.loopky.domain.model
  * - **Named, not coded.** `"spanish"` rather than `es`, because the label is shown to people as a
  *   chip and searched for as a word. Codes the table does not know fall back to the subtag itself
  *   rather than going untagged.
+ * - **[UMBRELLA] rides along.** A language deck is also a `"language"` deck, so the pair earns the
+ *   category label too — someone browsing for language decks at all should not have to guess which
+ *   of seventy language labels to open first.
  */
 object LanguageTags {
 
     /**
-     * Labels for a deck declaring [frontLang]/[backLang] (BCP-47), in declaration order and
-     * deduplicated — a Spanish-to-Spanish deck contributes one label, not two.
+     * The umbrella label every deck that declares a language carries, on top of the languages
+     * themselves — the shelf a browser lands on before knowing which language they want.
      */
-    fun forPair(frontLang: String?, backLang: String?): List<Tag> =
-        listOfNotNull(frontLang, backLang)
+    val UMBRELLA = Tag("language")
+
+    /**
+     * Labels for a deck declaring [frontLang]/[backLang] (BCP-47): [UMBRELLA] and then one per
+     * language in declaration order, deduplicated — a Spanish-to-Spanish deck contributes one
+     * language label, not two. Empty for a deck that has declared nothing, which is what keeps
+     * [UMBRELLA] off a deck with no pair.
+     */
+    fun forPair(frontLang: String?, backLang: String?): List<Tag> {
+        val languages = listOfNotNull(frontLang, backLang)
             .map { it.substringBefore('-').trim().lowercase() }
             .filter { it.isNotBlank() }
             .distinct()
             .map { Tag(nameOf(it)) }
             .distinct()
+        return if (languages.isEmpty()) emptyList() else listOf(UMBRELLA) + languages
+    }
 
     /**
      * [tags] with the labels the old pair contributed swapped for the new pair's, keeping the

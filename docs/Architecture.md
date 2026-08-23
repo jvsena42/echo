@@ -368,10 +368,12 @@ follow relationship to the author. Three details:
   filter the `loopky-` namespace out, on purpose. The author can drop it like any other tag; the
   manifest's `front_lang`/`back_lang` stay the source of truth for *speech*, so a dropped label
   costs discoverability, never Listen or Speak.
-- **Base subtag, named not coded.** `es-ES` and `es-MX` are both `"spanish"` — the region picks a
-  voice, and splitting the label by it would halve a search for Spanish decks. `LanguageTags`
-  holds the subtag → English name table; an unknown subtag labels under itself rather than going
-  untagged.
+- **Base subtag, named not coded, plus the umbrella.** `es-ES` and `es-MX` are both `"spanish"` —
+  the region picks a voice, and splitting the label by it would halve a search for Spanish decks.
+  `LanguageTags` holds the subtag → English name table (an unknown subtag labels under itself
+  rather than going untagged) and adds `"language"` alongside, so a browser who wants language
+  decks at all does not have to guess which of seventy language labels to open first. A deck that
+  has declared nothing gets neither.
 - **Retyping swaps the label.** `LanguageTags.retag` drops what the previous pair contributed as
   it adds the new pair's, or a deck retyped from Spanish to French stays listed as Spanish
   forever. It runs in the ViewModel, on the pick, so the tag chips show what will be published.
