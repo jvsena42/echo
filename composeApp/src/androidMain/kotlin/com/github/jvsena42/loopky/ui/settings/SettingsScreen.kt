@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -79,8 +80,11 @@ import com.github.jvsena42.loopky.presentation.settings.UnsplashKeyStatus
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.nav.Routes
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.LICENSE_URL
+import com.github.jvsena42.loopky.ui.util.PRIVACY_POLICY_URL
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import com.github.jvsena42.loopky.ui.util.openUrl
+import com.github.jvsena42.loopky.ui.util.rememberAppVersion
 import com.github.jvsena42.loopky.ui.util.truncatedPubky
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -94,11 +98,7 @@ fun SettingsRoute(
     focus: String? = null,
 ) {
     val context = LocalContext.current
-    val appVersion = remember(context) {
-        runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        }.getOrNull().orEmpty()
-    }
+    val appVersion = rememberAppVersion()
     val viewModel = koinViewModel<SettingsViewModel> { parametersOf(appVersion) }
 
     val currentSignedOut by rememberUpdatedState(onSignedOut)
@@ -134,6 +134,8 @@ fun SettingsRoute(
         onRemoveUnsplashKey = viewModel::onRemoveUnsplashKey,
         onUnsplashKeyErrorDismissed = viewModel::onUnsplashKeyErrorDismissed,
         onGetUnsplashKeyClick = { context.openUrl(UNSPLASH_DEVELOPER_URL) },
+        onPrivacyPolicyClick = { context.openUrl(PRIVACY_POLICY_URL) },
+        onLicenseClick = { context.openUrl(LICENSE_URL) },
         onSignOutClick = viewModel::onSignOutClick,
     )
 }
@@ -153,6 +155,8 @@ private fun SettingsScreen(
     onRemoveUnsplashKey: () -> Unit,
     onUnsplashKeyErrorDismissed: () -> Unit,
     onGetUnsplashKeyClick: () -> Unit,
+    onPrivacyPolicyClick: () -> Unit,
+    onLicenseClick: () -> Unit,
     onSignOutClick: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
@@ -335,6 +339,18 @@ private fun SettingsScreen(
             SettingsValueRow(
                 label = stringResource(R.string.settings_app_version_label),
                 value = state.appVersion.ifBlank { stringResource(R.string.settings_app_version_unknown) },
+            )
+            SettingsDivider()
+            SettingsLinkRow(
+                label = stringResource(R.string.settings_privacy_policy),
+                onClick = onPrivacyPolicyClick,
+                modifier = Modifier.testTag("settings_privacy_policy"),
+            )
+            SettingsDivider()
+            SettingsLinkRow(
+                label = stringResource(R.string.settings_license),
+                onClick = onLicenseClick,
+                modifier = Modifier.testTag("settings_license"),
             )
         }
 
@@ -728,6 +744,41 @@ private fun SettingsSwitchRow(
     }
 }
 
+/**
+ * A row that leaves the app. Distinct from [SettingsValueRow], which shows a fact: the trailing
+ * open-in-new glyph is the only signal that a tap here hands the user to a browser.
+ */
+@Composable
+private fun SettingsLinkRow(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.W500,
+            color = colors.foregroundPrimary,
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = colors.foregroundMuted,
+        )
+    }
+}
+
 @Composable
 private fun SettingsDivider() {
     HorizontalDivider(
@@ -759,6 +810,8 @@ private fun SettingsScreenPreview() {
             onRemoveUnsplashKey = {},
             onUnsplashKeyErrorDismissed = {},
             onGetUnsplashKeyClick = {},
+            onPrivacyPolicyClick = {},
+            onLicenseClick = {},
             onSignOutClick = {},
         )
     }

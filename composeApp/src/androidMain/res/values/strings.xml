@@ -286,6 +286,12 @@
     <string name="onboarding_signin_default">Sign in with Pubky Ring</string>
     <string name="onboarding_no_email_notice">No email. No password. Your key, your account.</string>
     <string name="onboarding_get_ring">Don\'t have Pubky Ring? Get the app</string>
+    <!-- Consent gate on both account entry points. The two document names are located inside the
+         sentence at runtime and turned into links, so a translation may place them anywhere. -->
+    <string name="onboarding_policy_consent">I have read and agree to the %1$s and the %2$s.</string>
+    <string name="onboarding_policy_privacy">Privacy Policy</string>
+    <string name="onboarding_policy_license">License</string>
+    <string name="onboarding_app_version">Version %1$s</string>
 
     <!-- Profile -->
     <string name="profile_title">Profile</string>
@@ -373,6 +379,8 @@
     <string name="settings_section_about">ABOUT</string>
     <string name="settings_app_version_label">App version</string>
     <string name="settings_app_version_unknown">—</string>
+    <string name="settings_privacy_policy">Privacy policy</string>
+    <string name="settings_license">License</string>
     <string name="settings_sign_out">Sign out</string>
     <string name="settings_sign_out_dialog_title">Sign out?</string>
     <string name="settings_sign_out_dialog_message">Your decks stay on your homeserver. Signing back in restores everything.</string>

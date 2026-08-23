@@ -17,21 +17,34 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +57,10 @@ import com.github.jvsena42.loopky.ui.components.FoxPlate
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.LICENSE_URL
+import com.github.jvsena42.loopky.ui.util.PRIVACY_POLICY_URL
+import com.github.jvsena42.loopky.ui.util.openUrl
+import com.github.jvsena42.loopky.ui.util.rememberAppVersion
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -173,6 +190,16 @@ private fun OnboardingContent(
             onGetRingClick = onGetRingClick,
             onCreatePubky = onCreatePubky,
         )
+
+        // Before sign-in, because a bug report from someone who cannot get past this screen is
+        // exactly the one where knowing the build matters.
+        Text(
+            text = stringResource(R.string.onboarding_app_version, rememberAppVersion()),
+            modifier = Modifier.testTag("onboarding_app_version"),
+            color = colors.foregroundMuted,
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -202,11 +229,25 @@ private fun CtaBlock(
     onCreatePubky: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
+
+    // Local rather than in the ViewModel on purpose. OnboardingUiState is a sealed interface over
+    // modes (Restoring/Starting/AwaitingApproval/…), so a cross-cutting flag would have to be
+    // carried on every one of them to say something none of them is about. Nothing is persisted
+    // across launches either: this screen is only reachable while signed out, so the question is
+    // asked once per account, which is when consent is actually meant to be given.
+    var policyAccepted by rememberSaveable { mutableStateOf(false) }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        PolicyConsentRow(
+            accepted = policyAccepted,
+            enabled = !isWorking,
+            onAcceptedChange = { policyAccepted = it },
+        )
+
         LoopkyPrimaryButton(
             label = when (state) {
                 OnboardingUiState.Starting,
@@ -218,7 +259,7 @@ private fun CtaBlock(
             // means starting a whole new one. Clearing the error first would only cost a tap (#59).
             onClick = onSignInClick,
             loading = isWorking,
-            enabled = !isWorking,
+            enabled = !isWorking && policyAccepted,
             modifier = Modifier.testTag("onboarding_signin"),
             leadingIcon = {
                 Text(
@@ -242,10 +283,11 @@ private fun CtaBlock(
             )
         }
         // The second entry point: signing in assumes an account already exists, and on a
-        // token-gated homeserver most new users do not have one.
+        // token-gated homeserver most new users do not have one. Gated by the same consent, since
+        // it is the path that creates an account rather than merely entering one.
         TextButton(
             onClick = onCreatePubky,
-            enabled = !isWorking,
+            enabled = !isWorking && policyAccepted,
             modifier = Modifier.testTag("onboarding_create_pubky"),
             colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
         ) {
@@ -267,6 +309,88 @@ private fun CtaBlock(
                 fontWeight = FontWeight.SemiBold,
             )
         }
+    }
+}
+
+/**
+ * The consent gate on both account entry points.
+ *
+ * Google Play requires the privacy policy to be agreed to at the point an account is created, so
+ * this sits above the buttons rather than behind a link somewhere in Settings, and blocks them
+ * until it is ticked. "Get Pubky Ring" stays live throughout: sending someone to a Play listing is
+ * not consent to anything.
+ *
+ * The two document names inside the sentence are real links. They are located by [indexOf] rather
+ * than assembled from fragments so a translation can put them wherever its grammar wants; a name
+ * that a translator rewords simply stops being a link, which is a missing underline rather than a
+ * broken screen.
+ */
+@Composable
+private fun PolicyConsentRow(
+    accepted: Boolean,
+    enabled: Boolean,
+    onAcceptedChange: (Boolean) -> Unit,
+) {
+    val colors = LoopkyTheme.colors
+    val context = LocalContext.current
+    val privacyLabel = stringResource(R.string.onboarding_policy_privacy)
+    val licenseLabel = stringResource(R.string.onboarding_policy_license)
+    val sentence = stringResource(R.string.onboarding_policy_consent, privacyLabel, licenseLabel)
+
+    val label = remember(sentence, privacyLabel, licenseLabel, colors.accentPrimary) {
+        val linkStyles = TextLinkStyles(
+            style = SpanStyle(
+                color = colors.accentPrimary,
+                textDecoration = TextDecoration.Underline,
+            ),
+        )
+        buildAnnotatedString {
+            append(sentence)
+            listOf(privacyLabel to PRIVACY_POLICY_URL, licenseLabel to LICENSE_URL).forEach { (name, url) ->
+                val start = sentence.indexOf(name)
+                if (start >= 0) {
+                    addLink(
+                        LinkAnnotation.Url(url, linkStyles) { context.openUrl(url) },
+                        start,
+                        start + name.length,
+                    )
+                }
+            }
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("onboarding_policy_consent")
+            .toggleable(
+                value = accepted,
+                enabled = enabled,
+                role = Role.Checkbox,
+                // Off the Checkbox itself so the label is part of the target. Taps on the two
+                // links are handled by the text, which sits below this in the hierarchy.
+                onValueChange = onAcceptedChange,
+            ),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(
+            checked = accepted,
+            // Null so the Row above owns the click; a Checkbox with its own handler would swallow
+            // the tap and leave the label inert.
+            onCheckedChange = null,
+            enabled = enabled,
+            colors = CheckboxDefaults.colors(
+                checkedColor = colors.accentPrimary,
+                uncheckedColor = colors.foregroundMuted,
+            ),
+        )
+        Text(
+            text = label,
+            color = colors.foregroundSecondary,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
     }
 }
 
