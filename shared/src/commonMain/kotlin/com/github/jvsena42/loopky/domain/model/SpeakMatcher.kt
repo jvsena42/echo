@@ -14,43 +14,20 @@ data class SpeakResult(
 )
 
 /**
- * Pure, testable comparison of a spoken answer to a card's expected text.
+ * Pronunciation practice's view of [AnswerMatcher] — the same normalization, fixed to
+ * [AnswerStrictness.Lenient].
  *
- * Both sides are normalized (lowercased, diacritics stripped, punctuation removed, whitespace
- * collapsed) before comparison so "El Zorro!" matches "el zorro". Kept framework-free so it can
- * be unit-tested in commonTest and reused across platforms.
+ * Speech is graded leniently because a recognizer emits whatever text its model settles on; the
+ * accents in that transcript were never the speaker's to get right. Typing is graded strictly for
+ * the mirror-image reason.
  */
 object SpeakMatcher {
 
     fun match(spoken: String, expected: String): SpeakResult = SpeakResult(
-        correct = normalize(spoken) == normalize(expected) && normalize(expected).isNotEmpty(),
+        correct = AnswerMatcher.matches(spoken, expected, AnswerStrictness.Lenient),
         heard = spoken.trim(),
         expected = expected.trim(),
     )
 
-    /** Lowercase, strip diacritics, drop non-alphanumeric chars, collapse whitespace. */
-    fun normalize(text: String): String = buildString {
-        for (ch in text.lowercase()) {
-            val base = stripDiacritic(ch)
-            when {
-                base.isLetterOrDigit() -> append(base)
-                base.isWhitespace() -> append(' ')
-                // drop everything else (punctuation, symbols)
-            }
-        }
-    }.trim().replace(WHITESPACE, " ")
-
-    private val WHITESPACE = Regex("\\s+")
-
-    /** Map the common Latin accented letters used by supported languages to their base form. */
-    private fun stripDiacritic(ch: Char): Char = when (ch) {
-        'á', 'à', 'â', 'ä', 'ã', 'å' -> 'a'
-        'é', 'è', 'ê', 'ë' -> 'e'
-        'í', 'ì', 'î', 'ï' -> 'i'
-        'ó', 'ò', 'ô', 'ö', 'õ' -> 'o'
-        'ú', 'ù', 'û', 'ü' -> 'u'
-        'ñ' -> 'n'
-        'ç' -> 'c'
-        else -> ch
-    }
+    fun normalize(text: String): String = AnswerMatcher.normalize(text, AnswerStrictness.Lenient)
 }
