@@ -463,15 +463,26 @@ private fun ReviewingContent(
             }
         }
 
+        // Everything typing adds lives on the card itself — the input, the miss line, Check,
+        // Give up and the "Correct!" note — so the two rows below are exactly what they were
+        // before the mode existed. They are reserved rather than conditional so the card keeps
+        // one size across the flip.
+        //
+        // With one exception. On a flipped typing card the grades are not on offer yet and the
+        // flip hint has nothing left to say, so both rows are *certainly* empty — and holding
+        // ~140 dp open for them steals it from the card at the one moment the keyboard has
+        // already taken half the screen. Nothing can pop in to fill that space, so there is no
+        // stability left to protect; the card takes it.
+        if (state.answerHidden && state.revealed) {
+            Spacer(modifier = Modifier.height(8.dp))
+            return@Column
+        }
+
         Spacer(modifier = Modifier.height(20.dp))
 
-        // SRS grade row — reserve its space always so the card above stays the same size. The
-        // grade buttons appear once the answer is legible, which on a typing card is later than
-        // the flip. While it is being typed the same slot holds the input. (Listen/Speak, by
-        // contrast, are on both faces — they live inside the card, not here.)
-        // Reserved always so the card above stays the same size across the flip. Everything
-        // typing adds lives on the card itself — the input, the miss line, Check, Give up and
-        // the "Correct!" note — so this row is exactly what it was before the mode existed.
+        // SRS grade row — reserved always. The grade buttons appear once the answer is legible,
+        // which on a typing card is later than the flip. (Listen/Speak, by contrast, are on both
+        // faces — they live inside the card, not here.)
         Box(modifier = Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
             if (state.gradesAvailable) {
                 SrsRow(intervals = state.intervals, onGrade = onGrade, reduceMotion = reduceMotion)
