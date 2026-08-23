@@ -42,6 +42,20 @@ fun obfuscateUnsplashKey(key: String): String {
     return Base64.getEncoder().encodeToString(salted)
 }
 
+/**
+ * Local, untracked configuration: the SDK path, the Unsplash key and the four signing constants.
+ *
+ * Read through `providers.fileContents` so the configuration cache tracks `local.properties` as an
+ * input. A plain `File.inputStream()` read at configuration time is untracked, so editing the file
+ * would leave a stale cached configuration behind — and a stale one here means a release built
+ * against yesterday's signing settings.
+ */
+val localProps = Properties().apply {
+    providers.fileContents(
+        rootProject.layout.projectDirectory.file("local.properties")
+    ).asText.orNull?.let { load(it.reader()) }
+}
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidApplication)
@@ -91,11 +105,6 @@ android {
     namespace = "com.github.jvsena42.loopky"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
-    val localProps = Properties().apply {
-        val file = rootProject.file("local.properties")
-        if (file.exists()) file.inputStream().use { load(it) }
-    }
-
     defaultConfig {
         applicationId = "com.github.jvsena42.loopky"
         minSdk = libs.versions.android.minSdk.get().toInt()
@@ -120,6 +129,20 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    signingConfigs {
+        // Absent on CI and on machines without a keystore, where release builds stay unsigned.
+        // The four constants live in the gitignored local.properties and are never read anywhere
+        // else — refer to them by name only.
+        val keystoreFile = localProps["KEYSTORE_FILE"] as? String
+        if (keystoreFile != null) {
+            create("release") {
+                storeFile = file(keystoreFile)
+                storePassword = localProps["KEYSTORE_PASSWORD"] as String
+                keyAlias = localProps["KEY_ALIAS"] as String
+                keyPassword = localProps["KEY_PASSWORD"] as String
+            }
+        }
+    }
     buildTypes {
         getByName("debug") {
             // Staging is the dev-only default; override it in local.properties to point a debug
@@ -135,6 +158,9 @@ android {
             buildConfigField("String", "PUBKY_ENV", "\"$debugEnv\"")
         }
         getByName("release") {
+            // Null without a keystore, and then the build produces an unsigned APK rather than
+            // failing — the release skill is what verifies the signature before publishing.
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = false
             // Never overridable: a release must read the same network its users publish to (#42).
             buildConfigField("String", "NEXUS_BASE_URL", "\"$NEXUS_PRODUCTION_URL\"")
