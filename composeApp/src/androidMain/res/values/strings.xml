@@ -527,7 +527,7 @@
 
     <!-- Error states. Reason-based copy; the raw FFI message stays in logcat. -->
     <string name="error_offline_title">You\'re offline</string>
-    <string name="error_offline_message">Loopky can\'t reach your homeserver. Your decks are safe — they live on Pubky. Check your connection and try again.</string>
+    <string name="error_offline_message">Check your connection and try again. Your decks are safe on Pubky.</string>
     <string name="error_session_expired_title">Session expired</string>
     <string name="error_session_expired_message">Sign in with Pubky Ring again to get back to your decks.</string>
     <string name="error_not_found_title">Not found</string>
