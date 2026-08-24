@@ -47,6 +47,19 @@ kotlin {
             // JNA is required by the UniFFI-generated Kotlin bindings (uniffi.pubkycore).
             // `@aar` pulls the Android-flavored artifact with the native .so bundled.
             implementation("${libs.jna.get().module}:${libs.versions.jna.get()}@aar")
+            // `org.rustls.platformverifier.CertificateVerifier`, which libpubkycore.so calls back
+            // into over JNI to verify a TLS certificate against the Android trust store.
+            //
+            // Without it EVERY Pubky HTTPS request that needs webpki verification dies with
+            // "failed to call native verifier", surfaces as `HTTP transport error: error sending
+            // request`, and — because `isNetworkFailure()` matches "transport" — is reported to
+            // the user as "You're offline" on a device whose connection is fine. Reads served off
+            // a pkarr-derived certificate verify by another path and still succeed, which is what
+            // made this look intermittent rather than total.
+            //
+            // `RustlsInit` is the other half and is not enough on its own: it hands the crate the
+            // JVM and Context, and the class it then looks up has to be on the classpath.
+            implementation(libs.rustls.platform.verifier)
         }
     }
 }

@@ -55,11 +55,11 @@ enum ErrorCopy {
     static func message(for reason: ErrorReason) -> String {
         switch reason {
         case .offline:
-            // Pubky is the only source of truth and there is no local cache, so this is exactly
-            // the moment a user would fear they had lost everything.
+            // The reassurance stays, short: Pubky is the only source of truth and there is no
+            // local cache, so this is exactly the moment a user would fear they had lost
+            // everything.
             return NSLocalizedString(
-                "Loopky can't reach your homeserver. Your decks are safe — they live on Pubky. "
-                    + "Check your connection and try again.",
+                "Check your connection and try again. Your decks are safe on Pubky.",
                 comment: "Error message: no connectivity"
             )
         case .sessionExpired:
