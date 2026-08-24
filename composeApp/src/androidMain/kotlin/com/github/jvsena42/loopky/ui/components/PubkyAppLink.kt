@@ -1,6 +1,5 @@
 package com.github.jvsena42.loopky.ui.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,9 +51,10 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
  * The button that leaves for pubky.app: the mark alone, in the same outlined 48dp circle Copy and
  * Share wear, so it carries no more weight in the row than they do.
  *
- * No dark plate behind it. pubky.app sets the mark on black in its own icon, but on Loopky's cream
- * surface that disc was the highest-contrast thing on the screen and pulled the eye before the
- * primary action beside it. The lime is enough to say whose logo this is.
+ * Monochrome, in Share's grey. pubky.app sets the mark in lime on black, but that disc was the
+ * highest-contrast thing on a cream screen and pulled the eye before the primary action beside it
+ * — and the lime without it is the faintest thing on the screen. The shape alone says whose logo
+ * this is, so it wears the same grey as the icons it sits with.
  */
 @Composable
 fun PubkyAppIconButton(
@@ -139,17 +139,14 @@ fun PubkyAppProfileCta(
 }
 
 /**
- * pubky.app's mark, at [size], in the brand lime the drawable carries.
- *
- * Drawn with [Image] rather than [Icon] on purpose: an `Icon` repaints its painter with the
- * surrounding content colour, which would turn the one thing identifying pubky.app into another
- * grey Loopky glyph.
+ * pubky.app's mark, at [size], tinted like every other icon on the screen.
  */
 @Composable
 private fun PubkyMark(size: Dp) {
-    Image(
+    Icon(
         painter = painterResource(R.drawable.ic_pubky),
         contentDescription = null,
+        tint = LoopkyTheme.colors.foregroundSecondary,
         modifier = Modifier.size(size),
     )
 }
