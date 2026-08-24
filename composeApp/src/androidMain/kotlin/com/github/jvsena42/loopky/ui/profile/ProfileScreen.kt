@@ -72,8 +72,11 @@ import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.ProfileHero
 import com.github.jvsena42.loopky.ui.components.ProfileStat
 import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
+import com.github.jvsena42.loopky.ui.components.PubkyAppIconButton
+import com.github.jvsena42.loopky.ui.components.PubkyAppProfileCta
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
+import com.github.jvsena42.loopky.ui.util.openUrl
 import com.github.jvsena42.loopky.ui.util.shareText
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -105,6 +108,7 @@ fun ProfileRoute(
                     chooserTitle = context.getString(R.string.share_profile_chooser_title),
                 )
                 is ProfileEffect.CopyToClipboard -> clipboard.setText(AnnotatedString(effect.text))
+                is ProfileEffect.OpenUrl -> context.openUrl(effect.url)
                 is ProfileEffect.ShowError -> { errorMessage = effect.message }
             }
         }
@@ -121,6 +125,7 @@ fun ProfileRoute(
         },
         onEditProfileClick = viewModel::onEditProfileClick,
         onShareClick = viewModel::onShareClick,
+        onOpenOnPubkyApp = viewModel::onOpenOnPubkyApp,
         onCopyPubky = viewModel::onCopyPubky,
         onSignOutClick = viewModel::onSignOutClick,
         onDismissEditSheet = viewModel::onDismissEditSheet,
@@ -140,6 +145,7 @@ private fun ProfileScreen(
     onOpenFollows: (FollowSource) -> Unit,
     onEditProfileClick: () -> Unit,
     onShareClick: () -> Unit,
+    onOpenOnPubkyApp: () -> Unit,
     onCopyPubky: () -> Unit,
     onSignOutClick: () -> Unit,
     onDismissEditSheet: () -> Unit,
@@ -282,6 +288,13 @@ private fun ProfileScreen(
                     modifier = Modifier.size(18.dp),
                 )
             }
+
+            // The same account, seen from the web client — a third way to act on this profile,
+            // sized and outlined like the other two rather than announcing itself.
+            PubkyAppIconButton(
+                onClick = onOpenOnPubkyApp,
+                modifier = Modifier.testTag("profile_pubky_app"),
+            )
         }
 
         // --- Stats card ---
@@ -327,6 +340,12 @@ private fun ProfileScreen(
                 ),
             ),
         )
+
+        // --- pubky.app ---
+        // Below the stats and above sign-out: it explains the button in the action row for the
+        // person who does not already know what a Pubky account is, and it is the last thing on
+        // the screen rather than the first, because it is context, not a task.
+        PubkyAppProfileCta(onClick = onOpenOnPubkyApp)
 
         // --- Sign out ---
         FilledTonalButton(
@@ -535,6 +554,7 @@ private fun ProfileScreenPreview() {
             onOpenFollows = {},
             onEditProfileClick = {},
             onShareClick = {},
+            onOpenOnPubkyApp = {},
             onCopyPubky = {},
             onSignOutClick = {},
             onDismissEditSheet = {},

@@ -63,9 +63,11 @@ import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.components.ProfileHero
 import com.github.jvsena42.loopky.ui.components.ProfileStat
 import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
+import com.github.jvsena42.loopky.ui.components.PubkyAppIconButton
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
+import com.github.jvsena42.loopky.ui.util.openUrl
 import com.github.jvsena42.loopky.ui.util.shareText
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -90,6 +92,7 @@ fun FriendProfileRoute(
             when (effect) {
                 is FriendProfileEffect.CopyToClipboard -> clipboard.setText(AnnotatedString(effect.text))
                 is FriendProfileEffect.OpenDeck -> currentOpenDeck(effect.deckId)
+                is FriendProfileEffect.OpenUrl -> context.openUrl(effect.url)
                 is FriendProfileEffect.ShareProfile -> context.shareText(
                     // Named, not a bare key: a recipient sees who it is before tapping.
                     text = context.getString(
@@ -111,6 +114,7 @@ fun FriendProfileRoute(
         onToggleFollow = viewModel::onToggleFollow,
         onCopyPubky = viewModel::onCopyPubky,
         onShare = viewModel::onShareClick,
+        onOpenOnPubkyApp = viewModel::onOpenOnPubkyApp,
         onOpenFollows = { source -> currentOpenFollows(state.identity.pubky, source) },
         onOpenDeck = viewModel::onOpenDeck,
     )
@@ -124,6 +128,7 @@ private fun FriendProfileScreen(
     onToggleFollow: () -> Unit,
     onCopyPubky: () -> Unit,
     onShare: () -> Unit,
+    onOpenOnPubkyApp: () -> Unit,
     onOpenFollows: (FollowSource) -> Unit,
     onOpenDeck: (String) -> Unit,
 ) {
@@ -191,6 +196,7 @@ private fun FriendProfileScreen(
                 onToggleFollow = onToggleFollow,
                 onCopyPubky = onCopyPubky,
                 onShare = onShare,
+                onOpenOnPubkyApp = onOpenOnPubkyApp,
             )
 
             state.errorReason?.let { reason ->
@@ -272,7 +278,9 @@ private fun FriendProfileScreen(
  * secondary button — the same solid/soft split the compact `AuthorRow` pill uses.
  *
  * Copy and Share sit beside it as the two ways to pass this person on: copy for a bare key, share
- * for a `pubky://` address a recipient can tap straight back into Loopky.
+ * for a `pubky://` address a recipient can tap straight back into Loopky. The third icon leaves
+ * Loopky entirely, for the rest of this person's Pubky life — posts, tags, the whole follow graph
+ * rather than the Loopky slice of it this screen counts.
  */
 @Composable
 private fun ProfileActionRow(
@@ -282,6 +290,7 @@ private fun ProfileActionRow(
     onToggleFollow: () -> Unit,
     onCopyPubky: () -> Unit,
     onShare: () -> Unit,
+    onOpenOnPubkyApp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
@@ -361,6 +370,11 @@ private fun ProfileActionRow(
                 modifier = Modifier.size(18.dp),
             )
         }
+
+        PubkyAppIconButton(
+            onClick = onOpenOnPubkyApp,
+            modifier = Modifier.testTag("friend_profile_pubky_app"),
+        )
     }
 }
 
@@ -407,6 +421,7 @@ private fun FriendProfileScreenPreview() {
             onToggleFollow = {},
             onCopyPubky = {},
             onShare = {},
+            onOpenOnPubkyApp = {},
             onOpenFollows = {},
             onOpenDeck = {},
         )
@@ -424,6 +439,7 @@ private fun FriendProfileScreenFollowingPreview() {
             onToggleFollow = {},
             onCopyPubky = {},
             onShare = {},
+            onOpenOnPubkyApp = {},
             onOpenFollows = {},
             onOpenDeck = {},
         )
@@ -441,6 +457,7 @@ private fun FriendProfileScreenSelfPreview() {
             onToggleFollow = {},
             onCopyPubky = {},
             onShare = {},
+            onOpenOnPubkyApp = {},
             onOpenFollows = {},
             onOpenDeck = {},
         )

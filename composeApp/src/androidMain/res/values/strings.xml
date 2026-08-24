@@ -301,6 +301,12 @@
     <string name="onboarding_policy_license">License</string>
     <string name="onboarding_app_version">Version %1$s</string>
 
+    <!-- pubky.app — the web client the same account already exists on. -->
+    <string name="pubky_app_open_profile">Open on pubky.app</string>
+    <string name="pubky_app_cta_title">You\'re on pubky.app too</string>
+    <!-- Says what the account is, not that decks appear there — they don\'t. -->
+    <string name="pubky_app_cta_body">The key you signed in with is a Pubky account. See your profile and posts on the web.</string>
+
     <!-- Profile -->
     <string name="profile_title">Profile</string>
     <string name="profile_loading">Loading profile…</string>
