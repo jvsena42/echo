@@ -118,7 +118,6 @@ fun OnboardingScreen(
     OnboardingContent(
         state = state,
         onSignInClick = viewModel::onSignInClick,
-        onGetRingClick = viewModel::onGetRingClick,
         onCreatePubky = onCreatePubky,
     )
 }
@@ -127,7 +126,6 @@ fun OnboardingScreen(
 private fun OnboardingContent(
     state: OnboardingUiState,
     onSignInClick: () -> Unit,
-    onGetRingClick: () -> Unit,
     onCreatePubky: () -> Unit,
 ) {
     if (state is OnboardingUiState.Restoring) {
@@ -144,8 +142,9 @@ private fun OnboardingContent(
     // modes (Restoring/Starting/AwaitingApproval/…), so a cross-cutting flag would have to be
     // carried on every one of them to say something none of them is about. Nothing is persisted
     // across launches either: this screen is only reachable while signed out, so the question is
-    // asked once per account, which is when consent is actually meant to be given.
-    var policyAccepted by rememberSaveable { mutableStateOf(false) }
+    // asked once per account, which is when consent is actually meant to be given. Starts ticked —
+    // the policy is stated in the label above it, and un-ticking is the deliberate act.
+    var policyAccepted by rememberSaveable { mutableStateOf(true) }
 
     Column(
         modifier = Modifier
@@ -195,7 +194,6 @@ private fun OnboardingContent(
             isWorking = isWorking,
             policyAccepted = policyAccepted,
             onSignInClick = onSignInClick,
-            onGetRingClick = onGetRingClick,
             onCreatePubky = onCreatePubky,
         )
 
@@ -243,7 +241,6 @@ private fun CtaBlock(
     isWorking: Boolean,
     policyAccepted: Boolean,
     onSignInClick: () -> Unit,
-    onGetRingClick: () -> Unit,
     onCreatePubky: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
@@ -287,28 +284,18 @@ private fun CtaBlock(
             )
         }
         // The second entry point: signing in assumes an account already exists, and on a
-        // token-gated homeserver most new users do not have one. Gated by the same consent, since
-        // it is the path that creates an account rather than merely entering one.
+        // token-gated homeserver most new users do not have one. Deliberately never disabled — the
+        // signup flow behind it is where a missing Pubky Ring is handled, so a dead-end here is
+        // the one thing that leaves a new user with nowhere to go.
         TextButton(
             onClick = onCreatePubky,
-            enabled = !isWorking && policyAccepted,
             modifier = Modifier.testTag("onboarding_create_pubky"),
-            colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
-        ) {
-            Text(
-                text = stringResource(R.string.onboarding_create_pubky),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-        TextButton(
-            onClick = onGetRingClick,
-            enabled = !isWorking,
-            modifier = Modifier.testTag("onboarding_get_ring"),
+            // Purple rather than the brand orange: the primary button directly above it is orange,
+            // and two orange calls to action stacked read as one control with a stray second line.
             colors = ButtonDefaults.textButtonColors(contentColor = colors.accentSecondary),
         ) {
             Text(
-                text = stringResource(R.string.onboarding_get_ring),
+                text = stringResource(R.string.onboarding_create_pubky),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -317,12 +304,12 @@ private fun CtaBlock(
 }
 
 /**
- * The consent gate on both account entry points.
+ * The consent gate on sign-in.
  *
- * Google Play requires the privacy policy to be agreed to at the point an account is created, so
- * this sits above the buttons rather than behind a link somewhere in Settings, and blocks them
- * until it is ticked. "Get Pubky Ring" stays live throughout: sending someone to a Play listing is
- * not consent to anything.
+ * Google Play requires the privacy policy to be agreed to at the point an account is created, so it
+ * is stated on this screen rather than behind a link somewhere in Settings, and un-ticking it
+ * blocks sign-in. It starts ticked; the create-account path stays live either way, since the flow
+ * behind it asks again before anything is created.
  *
  * The two document names inside the sentence are real links. They are located by [indexOf] rather
  * than assembled from fragments so a translation can put them wherever its grammar wants; a name
@@ -454,7 +441,6 @@ private fun OnboardingContentPreview() {
         OnboardingContent(
             state = OnboardingUiState.Idle,
             onSignInClick = {},
-            onGetRingClick = {},
             onCreatePubky = {},
         )
     }
