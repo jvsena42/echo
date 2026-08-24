@@ -21,7 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -50,18 +49,12 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
  */
 
 /**
- * The disc the mark sits on. pubky.app's own black, because the brand lime is unreadable on
- * anything lighter — but kept small. A full 48dp black circle was the highest-contrast thing on a
- * cream screen, which had a secondary action outshouting the primary one beside it.
- */
-private val PUBKY_PLATE = Color(0xFF0B0B0B)
-
-/**
- * The button that leaves for pubky.app: the logo as pubky.app draws it, inside the same outlined
- * 48dp circle Copy and Share use, so it carries no more weight in the row than they do.
+ * The button that leaves for pubky.app: the mark alone, in the same outlined 48dp circle Copy and
+ * Share wear, so it carries no more weight in the row than they do.
  *
- * The mark keeps its brand colours — someone who has seen it elsewhere should recognise it here
- * without reading anything — but only the badge is dark, not the whole button.
+ * No dark plate behind it. pubky.app sets the mark on black in its own icon, but on Loopky's cream
+ * surface that disc was the highest-contrast thing on the screen and pulled the eye before the
+ * primary action beside it. The lime is enough to say whose logo this is.
  */
 @Composable
 fun PubkyAppIconButton(
@@ -86,7 +79,7 @@ fun PubkyAppIconButton(
             },
         contentAlignment = Alignment.Center,
     ) {
-        PubkyBadge(size = 26.dp)
+        PubkyMark(size = 22.dp)
     }
 }
 
@@ -115,8 +108,8 @@ fun PubkyAppProfileCta(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Same badge the button wears, on the card's own surface rather than filling it.
-        PubkyBadge(size = 30.dp)
+        // The same mark the button wears, on the card's own surface.
+        PubkyMark(size = 26.dp)
 
         Column(
             modifier = Modifier.weight(1f),
@@ -146,30 +139,20 @@ fun PubkyAppProfileCta(
 }
 
 /**
- * The logo as pubky.app draws it: the lime mark on its black disc, sized to [size].
+ * pubky.app's mark, at [size], in the brand lime the drawable carries.
  *
- * Drawn with [Image] rather than [Icon] because the drawable carries its own brand colour, and an
- * `Icon` would repaint it with the surrounding content colour.
+ * Drawn with [Image] rather than [Icon] on purpose: an `Icon` repaints its painter with the
+ * surrounding content colour, which would turn the one thing identifying pubky.app into another
+ * grey Loopky glyph.
  */
 @Composable
-private fun PubkyBadge(size: Dp) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(PUBKY_PLATE),
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(
-            painter = painterResource(R.drawable.ic_pubky),
-            contentDescription = null,
-            modifier = Modifier.size(size * MARK_INSET),
-        )
-    }
+private fun PubkyMark(size: Dp) {
+    Image(
+        painter = painterResource(R.drawable.ic_pubky),
+        contentDescription = null,
+        modifier = Modifier.size(size),
+    )
 }
-
-/** The mark's share of its disc — the logo needs breathing room or it reads as a smudge. */
-private const val MARK_INSET = 0.66f
 
 @Preview
 @Composable
