@@ -27,18 +27,35 @@ package com.github.jvsena42.loopky.data.homegate
 enum class PubkyEnvironment(
     val homegateBaseUrl: String,
     val defaultHomeserver: String,
+    val webBaseUrl: String,
 ) {
     Staging(
         homegateBaseUrl = "https://homegate.staging.pubky.app",
         defaultHomeserver = "ufibwbmed6jeq9k4p583go95wofakh9fwpp4k734trq79pd9u1uy",
+        webBaseUrl = "https://staging.pubky.app",
     ),
     Production(
         homegateBaseUrl = "https://homegate.pubky.app",
         defaultHomeserver = "8um71us3fyw6h8wbcxb5ar3rwusy1a6u49956ikzojg3gcwd1dty",
+        webBaseUrl = "https://pubky.app",
     ),
     ;
 
+    /**
+     * Where [pubky]'s profile lives on the pubky.app web client for *this* environment.
+     *
+     * It has to follow the environment for the same reason the indexer does: a staging account
+     * does not exist on production, so a build that always linked to `pubky.app` would send every
+     * debug user to a 404 for their own profile. The path is pubky.app's own share route
+     * (`useProfileMenuActions` builds `{origin}/profile/{pubky}`), so a link handed out from here
+     * is byte-identical to one copied there.
+     */
+    fun profileUrl(pubky: String): String = "$webBaseUrl$PROFILE_PATH$pubky"
+
     companion object {
+        /** pubky.app's profile route, from its `PROFILE_ROUTES.PROFILE`. */
+        private const val PROFILE_PATH = "/profile/"
+
         /**
          * Parse a persisted or build-time name, falling back to [Production].
          *
