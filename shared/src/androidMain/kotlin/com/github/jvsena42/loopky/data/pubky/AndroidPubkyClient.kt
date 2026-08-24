@@ -38,6 +38,18 @@ import uniffi.pubkycore.switchNetwork as ffiSwitchNetwork
 import uniffi.pubkycore.validateMnemonicPhrase as ffiValidateMnemonicPhrase
 
 /**
+ * Which application the homeserver is being told it is talking to, required by pubky 0.10's
+ * `ClientId` on every sign-in, sign-up, auth flow and secret-key write.
+ *
+ * The type wants a domain string (its own example is `franky.pubky.app`), non-empty and at most
+ * 253 characters — not the Android application id, which is what makes this a constant here
+ * rather than something derived from `BuildConfig`. It travels to the homeserver, so treat it as
+ * a public, stable name for Loopky and not as a build-variant knob: staging and release identify
+ * as the same client on purpose.
+ */
+private const val LOOPKY_CLIENT_ID = "loopky.app"
+
+/**
  * Android implementation of [PubkyClient] delegating to the UniFFI-generated Kotlin
  * bindings in `uniffi.pubkycore`. JNI libraries are shipped in `shared/androidMain/jniLibs`.
  *
@@ -76,12 +88,14 @@ class AndroidPubkyClient : PubkyClient {
         secretKey: String,
         homeserver: String,
         signupToken: String?,
-    ) = runFfiSuspend { ffiSignUp(secretKey, homeserver, signupToken) }
+    ) = runFfiSuspend { ffiSignUp(secretKey, homeserver, signupToken, LOOPKY_CLIENT_ID) }
 
     override suspend fun getSignupToken(homeserverPubky: String, adminPassword: String) =
         runFfiSuspend { ffiGetSignupToken(homeserverPubky, adminPassword) }
 
-    override suspend fun signIn(secretKey: String) = runFfiSuspend { ffiSignIn(secretKey) }
+    override suspend fun signIn(secretKey: String) =
+        runFfiSuspend { ffiSignIn(secretKey, LOOPKY_CLIENT_ID) }
+
     override suspend fun signOut(sessionSecret: String) =
         runFfiSuspend { ffiSignOut(sessionSecret) }
 
@@ -89,7 +103,7 @@ class AndroidPubkyClient : PubkyClient {
         runFfiSuspend { ffiRevalidateSession(sessionSecret) }
 
     override suspend fun startAuthFlow(capabilities: String) =
-        runFfiSuspend { ffiStartAuthFlow(capabilities) }
+        runFfiSuspend { ffiStartAuthFlow(capabilities, LOOPKY_CLIENT_ID) }
 
     override suspend fun awaitAuthApproval() = runFfiSuspend { ffiAwaitAuthApproval() }
     override fun parseAuthUrl(url: String) = runFfi { ffiParseAuthUrl(url) }
@@ -104,10 +118,10 @@ class AndroidPubkyClient : PubkyClient {
         runFfiSuspend { ffiPublishHttps(recordName, target, secretKey) }
 
     override suspend fun put(url: String, content: String, secretKey: String) =
-        runFfiSuspend { ffiPut(url, content, secretKey) }
+        runFfiSuspend { ffiPut(url, content, secretKey, LOOPKY_CLIENT_ID) }
 
     override suspend fun putBytes(url: String, content: ByteArray, secretKey: String) =
-        runFfiSuspend { ffiPutBytes(url, content, secretKey) }
+        runFfiSuspend { ffiPutBytes(url, content, secretKey, LOOPKY_CLIENT_ID) }
 
     override suspend fun get(url: String) = runFfiSuspend { ffiGet(url) }
     override suspend fun getBytes(url: String) = runFfiSuspend { ffiGetBytes(url) }
@@ -120,7 +134,7 @@ class AndroidPubkyClient : PubkyClient {
     ) = runFfiSuspend { ffiList(url, cursor, reverse, limit, shallow) }
 
     override suspend fun deleteFile(url: String, secretKey: String) =
-        runFfiSuspend { ffiDeleteFile(url, secretKey) }
+        runFfiSuspend { ffiDeleteFile(url, secretKey, LOOPKY_CLIENT_ID) }
 
     override suspend fun republishHomeserver(secretKey: String, homeserver: String) =
         runFfiSuspend { ffiRepublishHomeserver(secretKey, homeserver) }
