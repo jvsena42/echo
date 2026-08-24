@@ -523,7 +523,7 @@
     <string name="signup_error_unavailable_title">Couldn\'t reach the service</string>
     <string name="signup_error_unavailable_message">Check your connection and try again.</string>
 
-    <string name="onboarding_create_pubky">Create a Pubky</string>
+    <string name="onboarding_create_pubky">Don\'t have a Pubky? Create account</string>
 
     <!-- Error states. Reason-based copy; the raw FFI message stays in logcat. -->
     <string name="error_offline_title">You\'re offline</string>
