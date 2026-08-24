@@ -290,7 +290,9 @@ private fun CtaBlock(
         TextButton(
             onClick = onCreatePubky,
             modifier = Modifier.testTag("onboarding_create_pubky"),
-            colors = ButtonDefaults.textButtonColors(contentColor = colors.accentPrimary),
+            // Purple rather than the brand orange: the primary button directly above it is orange,
+            // and two orange calls to action stacked read as one control with a stray second line.
+            colors = ButtonDefaults.textButtonColors(contentColor = colors.accentSecondary),
         ) {
             Text(
                 text = stringResource(R.string.onboarding_create_pubky),
