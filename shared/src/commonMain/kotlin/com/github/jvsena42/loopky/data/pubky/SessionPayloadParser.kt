@@ -22,8 +22,8 @@ import kotlinx.serialization.json.jsonPrimitive
  * is one such alias and not a hypothetical: pubky 0.10's grant flow names the field that instead,
  * and the two are interchangeable downstream because the FFI's `restore_session` sniffs which kind
  * of token it was handed. Loopky asks for the cookie flow today (see
- * [PubkyClient.startAuthFlow]), so the alias is what keeps a switch back to grant auth from
- * failing here with a missing-field error rather than anywhere informative.
+ * [PubkyClient.startAuthFlow]), so the alias is what keeps a switch back to grant auth (#130)
+ * from failing here with a missing-field error rather than anywhere informative.
  */
 internal fun parseSessionPayload(payload: String, json: Json): Session {
     val obj: JsonObject = json.parseToJsonElement(payload).jsonObject
