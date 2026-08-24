@@ -61,7 +61,8 @@ interface PubkyClient {
      *
      * Revisit when Ring ships a release built on pubky 0.10 — the work is started on its
      * `chore/pubky-0.10.0` branch, blocked on `react-native-pubky` publishing a 0.10 build.
-     * Upstream marks the cookie flow deprecated, so this is a hold, not a destination.
+     * Upstream marks the cookie flow deprecated, so this is a hold, not a destination: #130
+     * tracks undoing it, and lists what has to ship first.
      */
     suspend fun startAuthFlow(capabilities: String): Result<String>
     suspend fun awaitAuthApproval(): Result<String>
