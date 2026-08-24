@@ -3,7 +3,7 @@ package com.github.jvsena42.loopky.data.pubky
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import uniffi.pubkycore.auth as ffiAuth
-import uniffi.pubkycore.awaitAuthApproval as ffiAwaitAuthApproval
+import uniffi.pubkycore.awaitCookieAuthApproval as ffiAwaitCookieAuthApproval
 import uniffi.pubkycore.createRecoveryFile as ffiCreateRecoveryFile
 import uniffi.pubkycore.createTagId as ffiCreateTagId
 import uniffi.pubkycore.decryptRecoveryFile as ffiDecryptRecoveryFile
@@ -33,13 +33,16 @@ import uniffi.pubkycore.revalidateSession as ffiRevalidateSession
 import uniffi.pubkycore.signIn as ffiSignIn
 import uniffi.pubkycore.signOut as ffiSignOut
 import uniffi.pubkycore.signUp as ffiSignUp
-import uniffi.pubkycore.startAuthFlow as ffiStartAuthFlow
+import uniffi.pubkycore.startCookieAuthFlow as ffiStartCookieAuthFlow
 import uniffi.pubkycore.switchNetwork as ffiSwitchNetwork
 import uniffi.pubkycore.validateMnemonicPhrase as ffiValidateMnemonicPhrase
 
 /**
  * Which application the homeserver is being told it is talking to, required by pubky 0.10's
- * `ClientId` on every sign-in, sign-up, auth flow and secret-key write.
+ * `ClientId` on every sign-in, sign-up and secret-key write.
+ *
+ * Not on the Ring deeplink flow: that binds to the cookie variant, which predates `ClientId` and
+ * takes none — see [PubkyClient.startAuthFlow] for why.
  *
  * The type wants a domain string (its own example is `franky.pubky.app`), non-empty and at most
  * 253 characters — not the Android application id, which is what makes this a constant here
@@ -103,9 +106,9 @@ class AndroidPubkyClient : PubkyClient {
         runFfiSuspend { ffiRevalidateSession(sessionSecret) }
 
     override suspend fun startAuthFlow(capabilities: String) =
-        runFfiSuspend { ffiStartAuthFlow(capabilities, LOOPKY_CLIENT_ID) }
+        runFfiSuspend { ffiStartCookieAuthFlow(capabilities) }
 
-    override suspend fun awaitAuthApproval() = runFfiSuspend { ffiAwaitAuthApproval() }
+    override suspend fun awaitAuthApproval() = runFfiSuspend { ffiAwaitCookieAuthApproval() }
     override fun parseAuthUrl(url: String) = runFfi { ffiParseAuthUrl(url) }
     override suspend fun auth(url: String, secretKey: String) =
         runFfiSuspend { ffiAuth(url, secretKey) }

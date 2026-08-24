@@ -13,19 +13,24 @@ import kotlinx.serialization.json.jsonPrimitive
 /**
  * Parses the session JSON payload returned by `pubky-core-ffi-fork` into a [Session].
  *
- * Payload shape (from `utils::session_to_json_with_secret`):
+ * Payload shape (from `utils::session_to_json_with_cookie_secret`):
  * ```json
  * { "pubky": "...", "capabilities": ["/pub/loopky/:rw"], "session_secret": "..." }
  * ```
  *
- * Extra/aliased field names are tolerated so a future FFI bump continues to work.
+ * Extra/aliased field names are tolerated so a future FFI bump continues to work. `grant_secret`
+ * is one such alias and not a hypothetical: pubky 0.10's grant flow names the field that instead,
+ * and the two are interchangeable downstream because the FFI's `restore_session` sniffs which kind
+ * of token it was handed. Loopky asks for the cookie flow today (see
+ * [PubkyClient.startAuthFlow]), so the alias is what keeps a switch back to grant auth from
+ * failing here with a missing-field error rather than anywhere informative.
  */
 internal fun parseSessionPayload(payload: String, json: Json): Session {
     val obj: JsonObject = json.parseToJsonElement(payload).jsonObject
 
     val pubkey = obj.stringField("pubky", "public_key", "publicKey")
         ?: error("session payload missing 'pubky'")
-    val secret = obj.stringField("session_secret", "sessionSecret", "secret")
+    val secret = obj.stringField("session_secret", "sessionSecret", "grant_secret", "grantSecret", "secret")
         ?: error("session payload missing 'session_secret'")
     val homeserver = obj.stringField("homeserver", "home_server").orEmpty()
     val caps = obj["capabilities"]
