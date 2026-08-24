@@ -832,6 +832,22 @@ interface DiscoveryRepository {
          * list. Beyond this the tail is cut.
          */
         const val MAX_FOLLOW_CANDIDATES = 60
+
+        /**
+         * How many followed accounts [decksFromFollowing] will ask for decks.
+         *
+         * Separate from [MAX_FOLLOW_CANDIDATES] despite the matching value, because the cost is
+         * not the same one: that budget buys indexer queries, this one buys a pkarr resolution
+         * plus a homeserver `list` per author. Tying them together would let a change made for one
+         * silently move the other.
+         *
+         * Loopky follows share the pubky.app follow graph, so an account active there arrives here
+         * following hundreds of people who have never published a deck — and, because Nexus
+         * indexes a single homeserver, all of them hosted on that same one. So this bound is not
+         * only about the wait: it is what keeps opening Discover from becoming a burst against one
+         * server. Beyond this the tail is cut, and [decksFromFollowing] logs when it does.
+         */
+        const val MAX_FOLLOWED_DECK_AUTHORS = 60
     }
 }
 

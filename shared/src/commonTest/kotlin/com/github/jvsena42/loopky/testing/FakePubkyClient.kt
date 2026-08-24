@@ -44,6 +44,14 @@ class FakePubkyClient : PubkyClient {
     var failListWith: Throwable? = null
 
     /**
+     * When set, only [list] calls whose url contains this fail, as a transport error.
+     *
+     * Distinct from [failListWith], which takes down every homeserver at once: a fan-out across
+     * several authors needs *one* of them unreachable to prove the others still answer.
+     */
+    var failListWhenUrlContains: String? = null
+
+    /**
      * Hard cap on entries per [list] call, overriding what the caller asked for. For tests that
      * need to force paging with a handful of records rather than hundreds.
      */
@@ -154,6 +162,9 @@ class FakePubkyClient : PubkyClient {
         listedPrefixes.add(url)
         listCalls.add(ListCall(url, cursor, limit, shallow))
         failListWith?.let { return Result.failure(it) }
+        failListWhenUrlContains?.let { needle ->
+            if (needle in url) return Result.failure(PubkyError("HTTP transport error: error sending request for url ($url)"))
+        }
         failListAfterPages?.let { allowed ->
             if (listCalls.size > allowed) return Result.failure(PubkyError("HTTP transport error: list page failed"))
         }
