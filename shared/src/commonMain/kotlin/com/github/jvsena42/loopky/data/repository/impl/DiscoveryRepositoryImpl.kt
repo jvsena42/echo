@@ -211,13 +211,41 @@ class DiscoveryRepositoryImpl(
         val me = session.current()?.identity?.pubky
         // Following yourself is reachable, and it would put your own decks on a Discover strip.
         val followees = following().filterNot { it == me }
-        return followees
-            .flatMap { author ->
+        val considered = followees.take(DiscoveryRepository.MAX_FOLLOWED_DECK_AUTHORS)
+        // Said out loud rather than trimmed quietly: a strip that is short because the tail was
+        // cut looks exactly like a strip that is short because nobody published.
+        if (considered.size < followees.size) {
+            Log.w(
+                TAG,
+                "decksFromFollowing: querying ${considered.size} of ${followees.size} follows",
+            )
+        }
+        // Concurrent, not a serial loop — measured at ~6.5s per author walking a real account,
+        // still going minutes after Discover opened, which is how a slow strip came to look like
+        // the app being stuck.
+        //
+        // **At the default MAX_IN_FLIGHT, and do not raise it here.** These requests do not spread
+        // across many servers: Nexus indexes exactly one homeserver, and Loopky's follows are the
+        // pubky.app follow graph, so every followee is hosted there — 22 of 22 resolvable authors
+        // sampled off a real account came back with the same `8um71us3…` target. This is N
+        // requests at ONE homeserver, which is the 429 case MAX_IN_FLIGHT was measured against.
+        //
+        // What the wall-clock actually buys is a pkarr resolution per author, not a connection to
+        // a distinct server — and 9 of those 31 sampled followees have no `_pubky` record at all,
+        // so they can only ever time out, on every Discover open.
+        //
+        // The per-author catch has to stay inside the transform: [mapConcurrently] fails fast, so
+        // one unresolvable author would otherwise cancel every other author's request. Swallowing
+        // here is right for the same reason it always was — a stranger's record being absent is
+        // not this user's error to see. `runSuspendCatching` still lets cancellation through.
+        return considered
+            .mapConcurrently { author ->
                 runSuspendCatching { deckRepository.listByAuthor(author) }.getOrElse {
                     Log.e(TAG, "decksFromFollowing: listByAuthor failed for $author — ${it.message}", it)
                     emptyList()
                 }
             }
+            .flatten()
             .sortedByDescending { it.updatedAt }
     }
 

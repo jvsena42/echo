@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.data.pubky.PostKinds
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.toDto
+import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.PubkyUri
@@ -239,6 +240,35 @@ class DiscoveryRepositoryImplTest {
     @Test
     fun decksFromFollowingIsEmptyWithNoFollows() = runTest {
         assertEquals(emptyList(), repo.decksFromFollowing())
+    }
+
+    @Test
+    fun decksFromFollowingSurvivesOneUnreachableAuthor() = runTest {
+        // Every author is a different homeserver, and the fan-out is concurrent — which fails
+        // fast, so a single dead one would cancel everybody else's request if the per-author
+        // catch ever moved outside the transform.
+        repo.followUser("friend1").getOrThrow()
+        repo.followUser("friend2").getOrThrow()
+        putRemoteManifest(author = "friend1", deckId = "unreachable", updatedAt = 300L)
+        putRemoteManifest(author = "friend2", deckId = "reachable", updatedAt = 100L)
+        pubky.failListWhenUrlContains = "pubky://friend1/"
+
+        assertEquals(listOf("reachable"), repo.decksFromFollowing().map { it.id })
+    }
+
+    @Test
+    fun decksFromFollowingCutsTheTailOfALongFollowList() = runTest {
+        // Loopky follows are the pubky.app follow graph, so this is an ordinary account, not a
+        // pathological one. Uncapped, each of these is a homeserver round-trip.
+        val followees = (1..DiscoveryRepository.MAX_FOLLOWED_DECK_AUTHORS + 5)
+            .map { "friend${it.toString().padStart(3, '0')}" }
+        followees.forEach { repo.followUser(it).getOrThrow() }
+        pubky.listedPrefixes.clear()
+
+        repo.decksFromFollowing()
+
+        val queried = pubky.listedPrefixes.filter { it.endsWith("/pub/loopky/decks/") }.distinct()
+        assertEquals(DiscoveryRepository.MAX_FOLLOWED_DECK_AUTHORS, queried.size)
     }
 
     @Test
