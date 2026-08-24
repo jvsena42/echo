@@ -19,6 +19,13 @@ import android.content.Context
  *
  * Backed by a `OnceCell` on the native side, so calling more than once is harmless.
  *
+ * **This is only half of what the crate needs.** It also calls back into
+ * `org.rustls.platformverifier.CertificateVerifier` to do the actual verification, and that class
+ * ships in the crate's own AAR — vendored under `shared/libs/maven` and depended on from
+ * `shared/build.gradle.kts`. With this call in place but the class missing, init still succeeds
+ * and every later handshake fails with "failed to call native verifier", which reaches the user
+ * as "You're offline".
+ *
  * This file is hand-written; it is not part of the generated `pubkycore.kt`.
  */
 object RustlsInit {
