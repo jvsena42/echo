@@ -1,6 +1,15 @@
 import Foundation
 import Shared
 
+/// Which application the homeserver is being told it is talking to, required by pubky 0.10's
+/// `ClientId` on every sign-in, sign-up, auth flow and secret-key write.
+///
+/// The type wants a domain string (its own example is `franky.pubky.app`), non-empty and at most
+/// 253 characters — not the iOS bundle identifier. Kept byte-for-byte identical to
+/// `LOOPKY_CLIENT_ID` in `AndroidPubkyClient.kt`: it travels to the homeserver, so the two
+/// platforms must identify as the same client.
+private let loopkyClientId = "loopky.app"
+
 /// Swift implementation of the shared `RawPubkyClient` interface — a dumb pass-through to
 /// the UniFFI-generated free functions in `pubkycore.swift` (backed by
 /// `PubkyCore.xcframework`). Every method returns the FFI's native `[status, payload]`
@@ -45,14 +54,19 @@ final class IosPubkyClient: NSObject, RawPubkyClient {
     // MARK: - Auth / sessions
 
     func signUp(secretKey: String, homeserver: String, signupToken: String?) -> [String] {
-        Loopky.signUp(secretKey: secretKey, homeserver: homeserver, signupToken: signupToken)
+        Loopky.signUp(
+            secretKey: secretKey,
+            homeserver: homeserver,
+            signupToken: signupToken,
+            clientId: loopkyClientId
+        )
     }
 
     func getSignupToken(homeserverPubky: String, adminPassword: String) -> [String] {
         Loopky.getSignupToken(homeserverPubky: homeserverPubky, adminPassword: adminPassword)
     }
 
-    func signIn(secretKey: String) -> [String] { Loopky.signIn(secretKey: secretKey) }
+    func signIn(secretKey: String) -> [String] { Loopky.signIn(secretKey: secretKey, clientId: loopkyClientId) }
 
     func signOut(sessionSecret: String) -> [String] { Loopky.signOut(sessionSecret: sessionSecret) }
 
@@ -61,7 +75,7 @@ final class IosPubkyClient: NSObject, RawPubkyClient {
     }
 
     func startAuthFlow(capabilities: String) -> [String] {
-        Loopky.startAuthFlow(capabilitiesStr: capabilities)
+        Loopky.startAuthFlow(capabilitiesStr: capabilities, clientId: loopkyClientId)
     }
 
     func awaitAuthApproval() -> [String] { Loopky.awaitAuthApproval() }
@@ -83,14 +97,14 @@ final class IosPubkyClient: NSObject, RawPubkyClient {
     }
 
     func put(url: String, content: String, secretKey: String) -> [String] {
-        Loopky.put(url: url, content: content, secretKey: secretKey)
+        Loopky.put(url: url, content: content, secretKey: secretKey, clientId: loopkyClientId)
     }
 
     func putBytesBase64(url: String, contentBase64: String, secretKey: String) -> [String] {
         guard let data = Data(base64Encoded: contentBase64) else {
             return ["true", "Invalid Base64 payload"]
         }
-        return Loopky.putBytes(url: url, content: data, secretKey: secretKey)
+        return Loopky.putBytes(url: url, content: data, secretKey: secretKey, clientId: loopkyClientId)
     }
 
     func get(url: String) -> [String] { Loopky.get(url: url) }
@@ -114,7 +128,7 @@ final class IosPubkyClient: NSObject, RawPubkyClient {
     }
 
     func deleteFile(url: String, secretKey: String) -> [String] {
-        Loopky.deleteFile(url: url, secretKey: secretKey)
+        Loopky.deleteFile(url: url, secretKey: secretKey, clientId: loopkyClientId)
     }
 
     func republishHomeserver(secretKey: String, homeserver: String) -> [String] {

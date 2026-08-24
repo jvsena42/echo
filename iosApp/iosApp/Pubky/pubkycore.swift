@@ -710,6 +710,22 @@ public func awaitAuthApproval() -> [String] {
     )
 }
 
+public func awaitCookieAuthApproval() -> [String] {
+    return try! FfiConverterSequenceString.lift(
+        try! rustCall {
+            uniffi_pubkycore_fn_func_await_cookie_auth_approval($0)
+        }
+    )
+}
+
+public func awaitGrantAuthApproval() -> [String] {
+    return try! FfiConverterSequenceString.lift(
+        try! rustCall {
+            uniffi_pubkycore_fn_func_await_grant_auth_approval($0)
+        }
+    )
+}
+
 public func createRecoveryFile(secretKey: String, passphrase: String) -> [String] {
     return try! FfiConverterSequenceString.lift(
         try! rustCall {
@@ -743,12 +759,13 @@ public func decryptRecoveryFile(recoveryFile: String, passphrase: String) -> [St
     )
 }
 
-public func deleteFile(url: String, secretKey: String) -> [String] {
+public func deleteFile(url: String, secretKey: String, clientId: String) -> [String] {
     return try! FfiConverterSequenceString.lift(
         try! rustCall {
             uniffi_pubkycore_fn_func_delete_file(
                 FfiConverterString.lower(url),
-                FfiConverterString.lower(secretKey), $0
+                FfiConverterString.lower(secretKey),
+                FfiConverterString.lower(clientId), $0
             )
         }
     )
@@ -880,6 +897,16 @@ public func parseAuthUrl(url: String) -> [String] {
     )
 }
 
+public func parseDeepLink(url: String) -> [String] {
+    return try! FfiConverterSequenceString.lift(
+        try! rustCall {
+            uniffi_pubkycore_fn_func_parse_deep_link(
+                FfiConverterString.lower(url), $0
+            )
+        }
+    )
+}
+
 public func publish(recordName: String, recordContent: String, secretKey: String) -> [String] {
     return try! FfiConverterSequenceString.lift(
         try! rustCall {
@@ -904,25 +931,27 @@ public func publishHttps(recordName: String, target: String, secretKey: String) 
     )
 }
 
-public func put(url: String, content: String, secretKey: String) -> [String] {
+public func put(url: String, content: String, secretKey: String, clientId: String) -> [String] {
     return try! FfiConverterSequenceString.lift(
         try! rustCall {
             uniffi_pubkycore_fn_func_put(
                 FfiConverterString.lower(url),
                 FfiConverterString.lower(content),
-                FfiConverterString.lower(secretKey), $0
+                FfiConverterString.lower(secretKey),
+                FfiConverterString.lower(clientId), $0
             )
         }
     )
 }
 
-public func putBytes(url: String, content: Data, secretKey: String) -> [String] {
+public func putBytes(url: String, content: Data, secretKey: String, clientId: String) -> [String] {
     return try! FfiConverterSequenceString.lift(
         try! rustCall {
             uniffi_pubkycore_fn_func_put_bytes(
                 FfiConverterString.lower(url),
                 FfiConverterData.lower(content),
-                FfiConverterString.lower(secretKey), $0
+                FfiConverterString.lower(secretKey),
+                FfiConverterString.lower(clientId), $0
             )
         }
     )
@@ -1007,11 +1036,33 @@ public func setEventListener(listener: EventListener) {
     }
 }
 
-public func signIn(secretKey: String) -> [String] {
+public func signIn(secretKey: String, clientId: String) -> [String] {
     return try! FfiConverterSequenceString.lift(
         try! rustCall {
             uniffi_pubkycore_fn_func_sign_in(
+                FfiConverterString.lower(secretKey),
+                FfiConverterString.lower(clientId), $0
+            )
+        }
+    )
+}
+
+public func signInCookie(secretKey: String) -> [String] {
+    return try! FfiConverterSequenceString.lift(
+        try! rustCall {
+            uniffi_pubkycore_fn_func_sign_in_cookie(
                 FfiConverterString.lower(secretKey), $0
+            )
+        }
+    )
+}
+
+public func signInGrant(secretKey: String, clientId: String) -> [String] {
+    return try! FfiConverterSequenceString.lift(
+        try! rustCall {
+            uniffi_pubkycore_fn_func_sign_in_grant(
+                FfiConverterString.lower(secretKey),
+                FfiConverterString.lower(clientId), $0
             )
         }
     )
@@ -1027,10 +1078,23 @@ public func signOut(sessionSecret: String) -> [String] {
     )
 }
 
-public func signUp(secretKey: String, homeserver: String, signupToken: String?) -> [String] {
+public func signUp(secretKey: String, homeserver: String, signupToken: String?, clientId: String) -> [String] {
     return try! FfiConverterSequenceString.lift(
         try! rustCall {
             uniffi_pubkycore_fn_func_sign_up(
+                FfiConverterString.lower(secretKey),
+                FfiConverterString.lower(homeserver),
+                FfiConverterOptionString.lower(signupToken),
+                FfiConverterString.lower(clientId), $0
+            )
+        }
+    )
+}
+
+public func signUpCookie(secretKey: String, homeserver: String, signupToken: String?) -> [String] {
+    return try! FfiConverterSequenceString.lift(
+        try! rustCall {
+            uniffi_pubkycore_fn_func_sign_up_cookie(
                 FfiConverterString.lower(secretKey),
                 FfiConverterString.lower(homeserver),
                 FfiConverterOptionString.lower(signupToken), $0
@@ -1039,11 +1103,46 @@ public func signUp(secretKey: String, homeserver: String, signupToken: String?) 
     )
 }
 
-public func startAuthFlow(capabilitiesStr: String) -> [String] {
+public func signUpGrant(secretKey: String, homeserver: String, signupToken: String?, clientId: String) -> [String] {
+    return try! FfiConverterSequenceString.lift(
+        try! rustCall {
+            uniffi_pubkycore_fn_func_sign_up_grant(
+                FfiConverterString.lower(secretKey),
+                FfiConverterString.lower(homeserver),
+                FfiConverterOptionString.lower(signupToken),
+                FfiConverterString.lower(clientId), $0
+            )
+        }
+    )
+}
+
+public func startAuthFlow(capabilitiesStr: String, clientId: String) -> [String] {
     return try! FfiConverterSequenceString.lift(
         try! rustCall {
             uniffi_pubkycore_fn_func_start_auth_flow(
+                FfiConverterString.lower(capabilitiesStr),
+                FfiConverterString.lower(clientId), $0
+            )
+        }
+    )
+}
+
+public func startCookieAuthFlow(capabilitiesStr: String) -> [String] {
+    return try! FfiConverterSequenceString.lift(
+        try! rustCall {
+            uniffi_pubkycore_fn_func_start_cookie_auth_flow(
                 FfiConverterString.lower(capabilitiesStr), $0
+            )
+        }
+    )
+}
+
+public func startGrantAuthFlow(capabilitiesStr: String, clientId: String) -> [String] {
+    return try! FfiConverterSequenceString.lift(
+        try! rustCall {
+            uniffi_pubkycore_fn_func_start_grant_auth_flow(
+                FfiConverterString.lower(capabilitiesStr),
+                FfiConverterString.lower(clientId), $0
             )
         }
     )
@@ -1091,6 +1190,12 @@ private var initializationResult: InitializationResult {
     if uniffi_pubkycore_checksum_func_await_auth_approval() != 56488 {
         return InitializationResult.apiChecksumMismatch
     }
+    if uniffi_pubkycore_checksum_func_await_cookie_auth_approval() != 44552 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_pubkycore_checksum_func_await_grant_auth_approval() != 15252 {
+        return InitializationResult.apiChecksumMismatch
+    }
     if uniffi_pubkycore_checksum_func_create_recovery_file() != 48846 {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1100,7 +1205,7 @@ private var initializationResult: InitializationResult {
     if uniffi_pubkycore_checksum_func_decrypt_recovery_file() != 26407 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_pubkycore_checksum_func_delete_file() != 47931 {
+    if uniffi_pubkycore_checksum_func_delete_file() != 43485 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_pubkycore_checksum_func_delete_with_session() != 26332 {
@@ -1142,16 +1247,19 @@ private var initializationResult: InitializationResult {
     if uniffi_pubkycore_checksum_func_parse_auth_url() != 27379 {
         return InitializationResult.apiChecksumMismatch
     }
+    if uniffi_pubkycore_checksum_func_parse_deep_link() != 29971 {
+        return InitializationResult.apiChecksumMismatch
+    }
     if uniffi_pubkycore_checksum_func_publish() != 48989 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_pubkycore_checksum_func_publish_https() != 5614 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_pubkycore_checksum_func_put() != 64514 {
+    if uniffi_pubkycore_checksum_func_put() != 32173 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_pubkycore_checksum_func_put_bytes() != 16335 {
+    if uniffi_pubkycore_checksum_func_put_bytes() != 47888 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_pubkycore_checksum_func_put_bytes_with_session() != 50346 {
@@ -1178,16 +1286,34 @@ private var initializationResult: InitializationResult {
     if uniffi_pubkycore_checksum_func_set_event_listener() != 60071 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_pubkycore_checksum_func_sign_in() != 21584 {
+    if uniffi_pubkycore_checksum_func_sign_in() != 23529 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_pubkycore_checksum_func_sign_in_cookie() != 28058 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_pubkycore_checksum_func_sign_in_grant() != 49219 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_pubkycore_checksum_func_sign_out() != 27163 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_pubkycore_checksum_func_sign_up() != 48789 {
+    if uniffi_pubkycore_checksum_func_sign_up() != 6399 {
         return InitializationResult.apiChecksumMismatch
     }
-    if uniffi_pubkycore_checksum_func_start_auth_flow() != 25681 {
+    if uniffi_pubkycore_checksum_func_sign_up_cookie() != 55185 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_pubkycore_checksum_func_sign_up_grant() != 65298 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_pubkycore_checksum_func_start_auth_flow() != 45230 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_pubkycore_checksum_func_start_cookie_auth_flow() != 49536 {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if uniffi_pubkycore_checksum_func_start_grant_auth_flow() != 48937 {
         return InitializationResult.apiChecksumMismatch
     }
     if uniffi_pubkycore_checksum_func_switch_network() != 64215 {
