@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.data.pubky.PubkyLinks
 import com.github.jvsena42.loopky.data.pubky.requiresReauth
 import com.github.jvsena42.loopky.data.repository.DeckRepository
@@ -26,6 +27,7 @@ class ProfileViewModel(
     private val deckRepository: DeckRepository,
     private val srsRepository: SrsRepository,
     private val discoveryRepository: DiscoveryRepository,
+    private val pubkyEnvironment: PubkyEnvironment,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ProfileUiState())
     val state: StateFlow<ProfileUiState> = _state.asStateFlow()
@@ -219,6 +221,20 @@ class ProfileViewModel(
         }
     }
 
+    /**
+     * Open this account's profile on the pubky.app web client.
+     *
+     * A Loopky profile *is* a pubky.app profile — the same `profile.json`, the same follow graph —
+     * and nothing in the app said so. The URL comes from [PubkyEnvironment] rather than a constant
+     * because a staging account has no production profile to open (#42).
+     */
+    fun onOpenOnPubkyApp() {
+        val pubky = _state.value.identity?.pubky ?: return
+        viewModelScope.launch {
+            _effects.emit(ProfileEffect.OpenUrl(pubkyEnvironment.profileUrl(pubky)))
+        }
+    }
+
     /** The pubky chip is the copy control, the same one someone else's profile carries. */
     fun onCopyPubky() {
         val pubky = _state.value.identity?.pubky ?: return
@@ -277,5 +293,8 @@ sealed interface ProfileEffect {
     /** [identity] names the person in the shared message; [uri] is what opens Loopky on them. */
     data class ShareProfile(val identity: PubkyIdentity, val uri: String) : ProfileEffect
     data class CopyToClipboard(val text: String) : ProfileEffect
+
+    /** Hand [url] to the browser — the pubky.app profile, never an in-app destination. */
+    data class OpenUrl(val url: String) : ProfileEffect
     data class ShowError(val message: String) : ProfileEffect
 }

@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.data.pubky.PubkyLinks
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.DeckRepository
@@ -33,6 +34,7 @@ class FriendProfileViewModel(
     private val identityRepository: IdentityRepository,
     private val discoveryRepository: DiscoveryRepository,
     private val deckRepository: DeckRepository,
+    private val pubkyEnvironment: PubkyEnvironment,
 ) : ViewModel() {
     private val _state = MutableStateFlow(
         FriendProfileUiState(
@@ -165,6 +167,17 @@ class FriendProfileViewModel(
         }
     }
 
+    /**
+     * Open this person on the pubky.app web client, where the rest of their Pubky life is —
+     * posts, tags, the follow graph Loopky only shows the Loopky half of. Environment-scoped for
+     * the same reason the indexer is: a staging account does not exist on production (#42).
+     */
+    fun onOpenOnPubkyApp() {
+        viewModelScope.launch {
+            _effects.emit(FriendProfileEffect.OpenUrl(pubkyEnvironment.profileUrl(targetPubky)))
+        }
+    }
+
     fun onOpenDeck(deckId: String) {
         viewModelScope.launch { _effects.emit(FriendProfileEffect.OpenDeck(targetPubky, deckId)) }
     }
@@ -220,6 +233,9 @@ data class FriendDeck(
 sealed interface FriendProfileEffect {
     data class CopyToClipboard(val text: String) : FriendProfileEffect
     data class OpenDeck(val authorPubky: String, val deckId: String) : FriendProfileEffect
+
+    /** Hand [url] to the browser — the pubky.app profile, never an in-app destination. */
+    data class OpenUrl(val url: String) : FriendProfileEffect
 
     /** [identity] names the person in the shared message; [uri] is what opens Loopky on them. */
     data class ShareProfile(val identity: PubkyIdentity, val uri: String) : FriendProfileEffect

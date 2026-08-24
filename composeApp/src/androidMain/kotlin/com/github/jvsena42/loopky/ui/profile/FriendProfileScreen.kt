@@ -1,6 +1,5 @@
 package com.github.jvsena42.loopky.ui.profile
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,12 +21,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -63,9 +59,11 @@ import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.components.ProfileHero
 import com.github.jvsena42.loopky.ui.components.ProfileStat
 import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
+import com.github.jvsena42.loopky.ui.components.PubkyAppIconButton
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
+import com.github.jvsena42.loopky.ui.util.openUrl
 import com.github.jvsena42.loopky.ui.util.shareText
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -90,6 +88,7 @@ fun FriendProfileRoute(
             when (effect) {
                 is FriendProfileEffect.CopyToClipboard -> clipboard.setText(AnnotatedString(effect.text))
                 is FriendProfileEffect.OpenDeck -> currentOpenDeck(effect.deckId)
+                is FriendProfileEffect.OpenUrl -> context.openUrl(effect.url)
                 is FriendProfileEffect.ShareProfile -> context.shareText(
                     // Named, not a bare key: a recipient sees who it is before tapping.
                     text = context.getString(
@@ -111,6 +110,7 @@ fun FriendProfileRoute(
         onToggleFollow = viewModel::onToggleFollow,
         onCopyPubky = viewModel::onCopyPubky,
         onShare = viewModel::onShareClick,
+        onOpenOnPubkyApp = viewModel::onOpenOnPubkyApp,
         onOpenFollows = { source -> currentOpenFollows(state.identity.pubky, source) },
         onOpenDeck = viewModel::onOpenDeck,
     )
@@ -124,6 +124,7 @@ private fun FriendProfileScreen(
     onToggleFollow: () -> Unit,
     onCopyPubky: () -> Unit,
     onShare: () -> Unit,
+    onOpenOnPubkyApp: () -> Unit,
     onOpenFollows: (FollowSource) -> Unit,
     onOpenDeck: (String) -> Unit,
 ) {
@@ -154,22 +155,48 @@ private fun FriendProfileScreen(
                 .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Back row
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(colors.surfaceCard)
-                    .clickable(onClick = onBack)
-                    .testTag("friend_profile_back"),
-                contentAlignment = Alignment.Center,
+            // Nav row — back on the left, share on the right, the arrangement every other
+            // screen in the app uses for "leave" and "act on what you are looking at". Share
+            // used to sit in the action row below, which put three same-sized circles in a row
+            // and made the one that matters there (Follow) compete with two that did not.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.friend_profile_back_content_description),
-                    tint = colors.foregroundPrimary,
-                    modifier = Modifier.size(20.dp),
-                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(colors.surfaceCard)
+                        .clickable(onClick = onBack)
+                        .testTag("friend_profile_back"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.friend_profile_back_content_description),
+                        tint = colors.foregroundPrimary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(colors.surfaceCard)
+                        .clickable(onClick = onShare)
+                        .testTag("friend_profile_share"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Share,
+                        contentDescription = stringResource(R.string.friend_profile_share),
+                        tint = colors.foregroundPrimary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
 
             // Identity — the same hero the signed-in user's own profile uses, so a person reads
@@ -189,8 +216,7 @@ private fun FriendProfileScreen(
                 isFollowing = state.isFollowing,
                 isProcessingFollow = state.isProcessingFollow,
                 onToggleFollow = onToggleFollow,
-                onCopyPubky = onCopyPubky,
-                onShare = onShare,
+                onOpenOnPubkyApp = onOpenOnPubkyApp,
             )
 
             state.errorReason?.let { reason ->
@@ -271,8 +297,11 @@ private fun FriendProfileScreen(
  * Following is a settled state rather than a call to action, so it steps down to the soft
  * secondary button — the same solid/soft split the compact `AuthorRow` pill uses.
  *
- * Copy and Share sit beside it as the two ways to pass this person on: copy for a bare key, share
- * for a `pubky://` address a recipient can tap straight back into Loopky.
+ * Beside it, one icon, and it is the one that leaves: pubky.app, for the rest of this person's
+ * Pubky life — posts, tags, the whole follow graph rather than the Loopky slice this screen
+ * counts. Share moved up to the nav row, and copy went with the hero's pubky chip, which was
+ * always the copy control and said so with its own icon — the button was a second way to do the
+ * one thing already on screen.
  */
 @Composable
 private fun ProfileActionRow(
@@ -280,8 +309,7 @@ private fun ProfileActionRow(
     isFollowing: Boolean,
     isProcessingFollow: Boolean,
     onToggleFollow: () -> Unit,
-    onCopyPubky: () -> Unit,
-    onShare: () -> Unit,
+    onOpenOnPubkyApp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
@@ -324,43 +352,10 @@ private fun ProfileActionRow(
             }
         }
 
-        OutlinedIconButton(
-            onClick = onCopyPubky,
-            modifier = Modifier
-                .size(48.dp)
-                .testTag("friend_profile_copy"),
-            shape = CircleShape,
-            colors = IconButtonDefaults.outlinedIconButtonColors(
-                containerColor = colors.surfaceCard,
-                contentColor = colors.foregroundSecondary,
-            ),
-            border = BorderStroke(1.dp, colors.borderSubtle),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.ContentCopy,
-                contentDescription = stringResource(R.string.friend_profile_copy_pubky),
-                modifier = Modifier.size(18.dp),
-            )
-        }
-
-        OutlinedIconButton(
-            onClick = onShare,
-            modifier = Modifier
-                .size(48.dp)
-                .testTag("friend_profile_share"),
-            shape = CircleShape,
-            colors = IconButtonDefaults.outlinedIconButtonColors(
-                containerColor = colors.surfaceCard,
-                contentColor = colors.foregroundSecondary,
-            ),
-            border = BorderStroke(1.dp, colors.borderSubtle),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Share,
-                contentDescription = stringResource(R.string.friend_profile_share),
-                modifier = Modifier.size(18.dp),
-            )
-        }
+        PubkyAppIconButton(
+            onClick = onOpenOnPubkyApp,
+            modifier = Modifier.testTag("friend_profile_pubky_app"),
+        )
     }
 }
 
@@ -407,6 +402,7 @@ private fun FriendProfileScreenPreview() {
             onToggleFollow = {},
             onCopyPubky = {},
             onShare = {},
+            onOpenOnPubkyApp = {},
             onOpenFollows = {},
             onOpenDeck = {},
         )
@@ -424,6 +420,7 @@ private fun FriendProfileScreenFollowingPreview() {
             onToggleFollow = {},
             onCopyPubky = {},
             onShare = {},
+            onOpenOnPubkyApp = {},
             onOpenFollows = {},
             onOpenDeck = {},
         )
@@ -441,6 +438,7 @@ private fun FriendProfileScreenSelfPreview() {
             onToggleFollow = {},
             onCopyPubky = {},
             onShare = {},
+            onOpenOnPubkyApp = {},
             onOpenFollows = {},
             onOpenDeck = {},
         )

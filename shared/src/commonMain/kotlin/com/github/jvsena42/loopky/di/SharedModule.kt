@@ -211,6 +211,7 @@ val sharedModule = module {
             deckRepository = get(),
             srsRepository = get(),
             discoveryRepository = get(),
+            pubkyEnvironment = get(),
         )
     }
     viewModel { params ->
@@ -243,6 +244,7 @@ val sharedModule = module {
             identityRepository = get(),
             discoveryRepository = get(),
             deckRepository = get(),
+            pubkyEnvironment = get(),
         )
     }
     viewModel { params ->
