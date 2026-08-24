@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.presentation.profile
 
+import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
@@ -25,6 +26,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileViewModelTest {
@@ -45,11 +47,14 @@ class ProfileViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel() = ProfileViewModel(
+    private fun viewModel(
+        environment: PubkyEnvironment = PubkyEnvironment.Production,
+    ) = ProfileViewModel(
         identityRepository = identity,
         deckRepository = decks,
         srsRepository = srs,
         discoveryRepository = discovery,
+        pubkyEnvironment = environment,
     )
 
     private val friend = PubkyIdentity("friendpk", "Grace Hopper", null, null)
@@ -70,6 +75,45 @@ class ProfileViewModelTest {
         assertEquals("pubky://$TEST_PUBKY", shared.uri)
         // Named, so a recipient knows whose profile they are about to open.
         assertEquals("Ada", shared.identity.displayName)
+    }
+
+    @Test
+    fun theProfileLinkGoesToTheEnvironmentTheBuildSignedInAgainst() = runTest {
+        // A staging account has no production profile, so a hardcoded pubky.app would send every
+        // debug user to a 404 for their own profile (#42).
+        val expected = mapOf(
+            PubkyEnvironment.Staging to "https://staging.pubky.app/profile/$TEST_PUBKY",
+            PubkyEnvironment.Production to "https://pubky.app/profile/$TEST_PUBKY",
+        )
+        expected.forEach { (environment, url) ->
+            val vm = viewModel(environment)
+            advanceUntilIdle()
+
+            val effects = mutableListOf<ProfileEffect>()
+            val job = launch { vm.effects.toList(effects) }
+            vm.onOpenOnPubkyApp()
+            advanceUntilIdle()
+            job.cancel()
+
+            assertEquals(url, effects.filterIsInstance<ProfileEffect.OpenUrl>().single().url)
+        }
+    }
+
+    @Test
+    fun theProfileLinkIsWithheldUntilThereIsAnIdentityToLinkTo() = runTest {
+        // No session means no pubky, and `.../profile/` with nothing after it is someone else's
+        // page — pubky.app reads a bare profile route as the *signed-in* user's.
+        identity.session = null
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<ProfileEffect>()
+        val job = launch { vm.effects.toList(effects) }
+        vm.onOpenOnPubkyApp()
+        advanceUntilIdle()
+        job.cancel()
+
+        assertTrue(effects.filterIsInstance<ProfileEffect.OpenUrl>().isEmpty())
     }
 
     @Test

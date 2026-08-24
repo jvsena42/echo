@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.presentation.profile
 
+import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
@@ -46,17 +47,44 @@ class FriendProfileViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(target: String = stranger) = FriendProfileViewModel(
+    private fun viewModel(
+        target: String = stranger,
+        environment: PubkyEnvironment = PubkyEnvironment.Production,
+    ) = FriendProfileViewModel(
         targetPubky = target,
         identityRepository = identity,
         discoveryRepository = discovery,
         deckRepository = decks,
+        pubkyEnvironment = environment,
     )
 
     private fun givenStrangerHasDecks(vararg cardCounts: Int) {
         cardCounts.forEachIndexed { index, count ->
             val deck = testDeck(id = "d$index", authorPubky = stranger, cardCount = count)
             decks.decks[deck.id] = deck
+        }
+    }
+
+    @Test
+    fun theirProfileLinkGoesToTheEnvironmentTheBuildSignedInAgainst() = runTest {
+        // Same rule as the owner's own profile: a staging account does not exist on production,
+        // so the host has to follow the build (#42). It links to the person on screen, never to
+        // whoever happens to be signed in on the web.
+        val expected = mapOf(
+            PubkyEnvironment.Staging to "https://staging.pubky.app/profile/$stranger",
+            PubkyEnvironment.Production to "https://pubky.app/profile/$stranger",
+        )
+        expected.forEach { (environment, url) ->
+            val vm = viewModel(environment = environment)
+            advanceUntilIdle()
+
+            val effects = mutableListOf<FriendProfileEffect>()
+            val job = launch { vm.effects.toList(effects) }
+            vm.onOpenOnPubkyApp()
+            advanceUntilIdle()
+            job.cancel()
+
+            assertEquals(url, effects.filterIsInstance<FriendProfileEffect.OpenUrl>().single().url)
         }
     }
 
