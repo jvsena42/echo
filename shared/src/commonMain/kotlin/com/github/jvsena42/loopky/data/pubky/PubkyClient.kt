@@ -38,7 +38,31 @@ interface PubkyClient {
     suspend fun signOut(sessionSecret: String): Result<String>
     suspend fun revalidateSession(sessionSecret: String): Result<String>
 
-    /** Pubky Ring-style deeplink flow. */
+    /**
+     * Pubky Ring-style deeplink flow.
+     *
+     * Both bind to the FFI's **cookie** variant (`start_cookie_auth_flow` /
+     * `await_cookie_auth_approval`), not the grant variant its plain `start_auth_flow` now
+     * delegates to. That is a compatibility choice about the app on the other end of the
+     * deeplink, not a preference:
+     *
+     * - pubky 0.10's grant flow mints `pubkyauth://signin_grant?…&cid=…&cpk=…`. Every released
+     *   Pubky Ring bundles `react-native-pubky@0.13.0` — pubky 0.9.x, whose deeplink parser knows
+     *   `signin`, `signup`, `direct_signup` and `session` and nothing else. It answers a grant URL
+     *   with "Unrecognized format" and the user cannot sign in at all.
+     * - The grant flow also returns its session secret as `grant_secret`, where the rest of this
+     *   client — [signOut], [revalidateSession], `put_with_session` — expects the `session_secret`
+     *   the cookie flow returns. (`restore_session` takes either, so that half is survivable;
+     *   the deeplink half is not.)
+     *
+     * The cookie flow emits `pubkyauth://signin?caps=…&relay=…&secret=…`, which is what Loopky
+     * sent before the 0.10 bindings bump and what Ring understands today. It carries no
+     * `ClientId`, which is why these two are the only calls here that do not pass one.
+     *
+     * Revisit when Ring ships a release built on pubky 0.10 — the work is started on its
+     * `chore/pubky-0.10.0` branch, blocked on `react-native-pubky` publishing a 0.10 build.
+     * Upstream marks the cookie flow deprecated, so this is a hold, not a destination.
+     */
     suspend fun startAuthFlow(capabilities: String): Result<String>
     suspend fun awaitAuthApproval(): Result<String>
     fun parseAuthUrl(url: String): Result<String>
