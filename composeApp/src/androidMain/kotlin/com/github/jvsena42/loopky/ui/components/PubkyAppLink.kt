@@ -1,6 +1,6 @@
 package com.github.jvsena42.loopky.ui.components
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,18 +15,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.loopky.R
@@ -44,32 +48,39 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
  * `PubkyEnvironment` — a debug build points at staging, where its account actually exists.
  */
 
+/** pubky.app's own icon plate: the lime mark on black, which is how the logo is recognised. */
+private val PUBKY_PLATE = Color.Black
+
 /**
- * The icon button that sits beside Copy and Share on every profile: same 48dp circle, same
- * outline, so it reads as a third way to act on this person rather than an advert.
+ * The button that leaves for pubky.app: the logo as pubky.app draws it — lime on its black plate —
+ * rather than a Loopky-tinted glyph.
+ *
+ * Deliberately unlike the outlined icon buttons beside it. Those act on this screen; this one
+ * hands you to another app, and someone who has seen that mark anywhere else should recognise it
+ * here without reading anything. It keeps their 48dp circle, so the row still lines up.
  */
 @Composable
 fun PubkyAppIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = LoopkyTheme.colors
+    val label = stringResource(R.string.pubky_app_open_profile)
 
-    OutlinedIconButton(
-        onClick = onClick,
-        modifier = modifier.size(48.dp),
-        shape = CircleShape,
-        colors = IconButtonDefaults.outlinedIconButtonColors(
-            containerColor = colors.surfaceCard,
-            contentColor = colors.foregroundSecondary,
-        ),
-        border = BorderStroke(1.dp, colors.borderSubtle),
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(PUBKY_PLATE)
+            .clickable(onClick = onClick)
+            // The mark carries the meaning visually and has no text of its own, so the label goes
+            // on the button rather than on the image inside it.
+            .semantics {
+                role = Role.Button
+                contentDescription = label
+            },
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_pubky),
-            contentDescription = stringResource(R.string.pubky_app_open_profile),
-            modifier = Modifier.size(18.dp),
-        )
+        PubkyMark(size = 24.dp)
     }
 }
 
@@ -102,15 +113,10 @@ fun PubkyAppProfileCta(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(colors.accentPrimarySoft),
+                .background(PUBKY_PLATE),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_pubky),
-                contentDescription = null,
-                tint = colors.accentPrimary,
-                modifier = Modifier.size(20.dp),
-            )
+            PubkyMark(size = 20.dp)
         }
 
         Column(
@@ -138,6 +144,19 @@ fun PubkyAppProfileCta(
             modifier = Modifier.size(18.dp),
         )
     }
+}
+
+/**
+ * The mark itself, untinted — the drawable carries its own brand lime, and an `Icon` would repaint
+ * it with the surrounding content colour.
+ */
+@Composable
+private fun PubkyMark(size: Dp) {
+    Image(
+        painter = painterResource(R.drawable.ic_pubky),
+        contentDescription = null,
+        modifier = Modifier.size(size),
+    )
 }
 
 @Preview
