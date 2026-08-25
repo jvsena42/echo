@@ -80,6 +80,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -105,6 +106,7 @@ import com.github.jvsena42.loopky.ui.components.PermissionRationaleDialog
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.components.rememberReduceMotion
+import com.github.jvsena42.loopky.ui.layout.WindowWidthClass
 import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.layout.windowWidthClass
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
@@ -325,7 +327,15 @@ private fun ReviewingContent(
     // card is the tall thing on this screen and the window is the wide one, so the four buttons
     // are the only content that can spend width without being stretched by it — and moving them
     // out gives the card back the ~110dp they were taking off its height.
-    val wide = windowWidthClass().isExpanded
+    val widthClass = windowWidthClass()
+    val wide = widthClass.isExpanded
+    // How tall the card is allowed to get. The cap exists so a one-word prompt doesn't stretch
+    // into a near-full-screen rectangle — but a phone's ceiling on a portrait tablet left a third
+    // of the screen as empty cream above and below the card, which is the same mistake in the
+    // other direction. Keyed on the width class because that is what tells the two apart: a
+    // portrait tablet is Medium and has ~980dp to give, a landscape one is Expanded and has ~610,
+    // and a phone is Compact where the old ceiling never bit in the first place.
+    val cardMaxHeight = studyCardMaxHeight(widthClass)
     Column(
         // Studying is a single-focus task, so it gets a narrow ceiling rather than the reading
         // one: a flashcard blown up to a landscape tablet is 1200dp of white around one word, and
@@ -464,7 +474,7 @@ private fun ReviewingContent(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 560.dp)
+                            .heightIn(max = cardMaxHeight)
                             .fillMaxHeight(),
                         label = "cardAdvance",
                     ) { card ->
@@ -588,6 +598,22 @@ private fun ReviewingContent(
             }
         }
     }
+}
+
+/**
+ * How tall the study card may grow, given how much room the window has.
+ *
+ * The cap exists so a one-word prompt does not stretch into a near-full-screen rectangle. Keyed on
+ * the width class because that is what separates the cases: a portrait tablet is Medium and has
+ * ~980dp of column to give, a landscape one is Expanded and has ~620, and a phone is Compact where
+ * the original ceiling was never the binding constraint anyway. The two tablet ceilings are set
+ * *above* what those layouts actually offer, so there the card simply fills its share — the cap is
+ * a guard against a stretched card, not a second, tighter layout.
+ */
+private fun studyCardMaxHeight(widthClass: WindowWidthClass): Dp = when (widthClass) {
+    WindowWidthClass.Compact -> COMPACT_CARD_MAX_HEIGHT
+    WindowWidthClass.Medium -> MEDIUM_CARD_MAX_HEIGHT
+    WindowWidthClass.Expanded -> EXPANDED_CARD_MAX_HEIGHT
 }
 
 /**
@@ -1065,6 +1091,16 @@ private val STUDY_WIDE_PANE_WIDTH = 880.dp
 
 /** The card keeps the width it has on a phone; only its position changes. */
 private val STUDY_CARD_WIDTH = 640.dp
+
+/** Unchanged from before tablets existed: on a phone this ceiling is never the binding one. */
+private val COMPACT_CARD_MAX_HEIGHT = 560.dp
+
+/** A portrait tablet has the height to spend; short of the full column so the card still floats. */
+private val MEDIUM_CARD_MAX_HEIGHT = 860.dp
+
+/** Above the ~620dp a landscape tablet leaves between the progress bar and the flip hint, so the
+ *  card fills that column rather than floating in it. Binds only on a desktop-tall window. */
+private val EXPANDED_CARD_MAX_HEIGHT = 720.dp
 
 /** Wide enough for "Again" and its interval on one line each. */
 private val GRADE_COLUMN_WIDTH = 200.dp
