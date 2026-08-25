@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.AccountStamp
 import com.github.jvsena42.loopky.data.pubky.AppSettingsDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -60,11 +62,32 @@ class SettingsRepositoryImpl(
     /** Serializes the read-modify-write, and makes [ensureLoaded] single-flight. */
     private val lock = Mutex()
 
+    /** Guarded by [lock]. Study settings are one account's; the snapshot must not outlive it. */
+    private val account = AccountStamp(session)
+
+    /**
+     * Drop a snapshot belonging to a previous account. Caller holds [lock].
+     *
+     * Back to defaults rather than straight to a re-read, because the origin *is* the gate: at
+     * `Defaults` [update] refuses, which is exactly right until this account's own record has been
+     * read. Leaving it at `Remote` was what let the previous account's intervals through the
+     * check and into a second user's `settings.json`.
+     */
+    private fun resetOnAccountChangeLocked() {
+        if (account.changed()) _studySettings.update { StudySettingsSnapshot() }
+        account.mark()
+    }
+
     override suspend fun ensureLoaded() {
         // Cheap pre-check outside the lock: after the first load this is every call, and grading a
-        // card must not queue behind a mutex to learn that nothing needs doing.
-        if (_studySettings.value.origin == SettingsOrigin.Remote) return
+        // card must not queue behind a mutex to learn that nothing needs doing. The account has to
+        // be part of it — after a switch the snapshot is still `Remote`, but it is the previous
+        // account's. Reading the stamp unlocked is only ever an optimisation: it can send us to
+        // the lock we did not need, never past the one we did, because the check is made again
+        // inside it.
+        if (!account.changed() && _studySettings.value.origin == SettingsOrigin.Remote) return
         lock.withLock {
+            resetOnAccountChangeLocked()
             if (_studySettings.value.origin == SettingsOrigin.Remote) return
             // The mirror first, so an offline session schedules with the user's own intervals
             // rather than silently reverting to the defaults.
@@ -76,6 +99,9 @@ class SettingsRepositoryImpl(
     override suspend fun update(settings: StudySettings): Result<Unit> = runSuspendCatching {
         val sanitized = settings.sanitized()
         lock.withLock {
+            // Before the gate, not after: a snapshot left by the previous account would otherwise
+            // satisfy it, and this write would put their intervals in this user's record.
+            resetOnAccountChangeLocked()
             // Not merely "we have not loaded yet" — see the class header. Refusing is the only
             // safe answer, because the alternative writes a guess over the real thing.
             check(_studySettings.value.origin == SettingsOrigin.Remote) {
@@ -158,17 +184,24 @@ class SettingsRepositoryImpl(
             )
 
     private suspend fun restoreMirror() {
+        val owner = session.current()?.identity?.pubky ?: return
         val json = runSuspendCatching { preferences.cachedStudySettings.first() }.getOrNull()
         if (json.isNullOrBlank()) return
-        val cached = runCatching { loopkyJson.decodeFromString<StudySettingsDto>(json) }.getOrNull()
+        val cached = runCatching { loopkyJson.decodeFromString<MirroredStudySettings>(json) }.getOrNull()
             ?: return
-        _studySettings.update { StudySettingsSnapshot(cached.toDomain(), SettingsOrigin.Cached) }
+        // One device-wide key, so it may hold someone else's intervals. Ignoring theirs costs an
+        // offline session its defaults; using them would schedule this user's cards on a stranger's
+        // numbers, and the mirror exists precisely to be trusted before the record answers.
+        if (cached.ownerPubky != owner) return
+        _studySettings.update { StudySettingsSnapshot(cached.study.toDomain(), SettingsOrigin.Cached) }
         Log.d(TAG, "ensureLoaded: using the device's cached copy until the record answers")
     }
 
     /** Best-effort: a cache that fails to save costs an offline session its intervals, nothing more. */
     private suspend fun cacheMirror(dto: StudySettingsDto) {
-        runSuspendCatching { preferences.setCachedStudySettings(loopkyJson.encodeToString(dto)) }
+        val owner = session.current()?.identity?.pubky ?: return
+        val mirrored = loopkyJson.encodeToString(MirroredStudySettings(owner, dto))
+        runSuspendCatching { preferences.setCachedStudySettings(mirrored) }
             .onFailure { Log.w(TAG, "cacheMirror: FAILED — ${it.message}") }
     }
 
@@ -176,3 +209,17 @@ class SettingsRepositoryImpl(
         private const val TAG = "Loopky/SettingsRepo"
     }
 }
+
+/**
+ * The device's copy of one account's study settings.
+ *
+ * The pubky rides along because the mirror is a single device-wide key while the settings in it
+ * belong to whoever was signed in when they were cached. A mirror written by an older build has no
+ * owner and no longer decodes into this shape, so it is ignored — one offline session on the
+ * defaults, once, which is what the mirror is a best-effort improvement on anyway.
+ */
+@Serializable
+private data class MirroredStudySettings(
+    val ownerPubky: String,
+    val study: StudySettingsDto,
+)

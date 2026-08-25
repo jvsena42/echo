@@ -122,6 +122,9 @@ class DeckRepositoryImpl(
     private val rehostAttempted = mutableSetOf<Pair<String, String>>()
     private val rehostLock = Mutex()
 
+    /** Guarded by [rehostLock]. */
+    private val rehostAccount = AccountStamp(session)
+
     private val _changes = MutableSharedFlow<Unit>(
         extraBufferCapacity = CHANGE_BUFFER,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -388,7 +391,16 @@ class DeckRepositoryImpl(
     override suspend fun rehostBlob(deckId: String, sha256: String): Result<Unit> =
         runSuspendCatching {
             val key = deckId to sha256
-            if (!rehostLock.withLock { rehostAttempted.add(key) }) return@runSuspendCatching
+            // "Attempted" is recorded before the ownership check below, so an attempt made while
+            // following a deck would go on suppressing re-hosts of it after signing in as the
+            // account that owns it — for the rest of the session, on the one path that would
+            // actually have work to do.
+            val firstAttempt = rehostLock.withLock {
+                if (rehostAccount.changed()) rehostAttempted.clear()
+                rehostAccount.mark()
+                rehostAttempted.add(key)
+            }
+            if (!firstAttempt) return@runSuspendCatching
 
             // Cache reads only. requireOwnedDeck would fetch the manifest, and a blob that is not
             // already on screen is the sweep's job, not this path's.

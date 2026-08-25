@@ -112,7 +112,7 @@ class AccountEraser(
             "$failures record(s) could not be deleted, ${leftovers.size} still present"
         }
 
-        wipeLocalState()
+        wipeLocalState(owner)
     }
 
     /**
@@ -198,10 +198,13 @@ class AccountEraser(
      *
      * The signup token is deliberately not here.
      */
-    private suspend fun wipeLocalState() {
+    private suspend fun wipeLocalState(owner: String) {
         runSuspendCatching {
             pendingReviews.save(emptyList())
-            studyProgress.save(DailyStudyProgress(dayIndex = 0, newCards = 0, reviews = 0))
+            // Zeroed under [owner] rather than blindly: the counters are account-scoped now, and
+            // an erase that stamped them with nobody would leave a record the next account reads
+            // as its own.
+            studyProgress.save(owner, DailyStudyProgress(dayIndex = 0, newCards = 0, reviews = 0))
             preferences.setCachedStudySettings("")
             unsplashKeyStore.clear()
         }.onFailure { Log.e(TAG, "local wipe FAILED — ${it.message}", it) }

@@ -690,6 +690,22 @@ class SrsRepositoryImplTest {
     }
 
     @Test
+    fun aNewAccountStartsTodaysTallyAtZero() = runTest {
+        publishDeck("deck1", "c1")
+        val card = repo.dueForDeck("deck1").single()
+        repo.review(card, SrsGrade.Good).getOrThrow()
+        repo.refreshDailyProgress()
+        assertEquals(1, repo.dailyProgress.value.reviews)
+
+        // "12 reviews today" is a claim about a person. Congratulating a brand-new account for the
+        // previous one's session is a small lie the goal celebration then acts on.
+        session.set(fakeSession("freshpk"))
+        repo.refreshDailyProgress()
+
+        assertEquals(0, repo.dailyProgress.value.reviews)
+    }
+
+    @Test
     fun aJournalFromBeforeReviewsRecordedTheirOwnerIsDropped() = runTest {
         // Nullable rather than absent so an old journal still decodes; the entries are dropped
         // because the only way to keep them is to credit them to whoever signs in next.

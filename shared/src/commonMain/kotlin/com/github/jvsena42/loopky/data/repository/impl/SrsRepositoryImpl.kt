@@ -346,8 +346,7 @@ class SrsRepositoryImpl(
         }
         // Persisted immediately rather than with the next review: the celebration is shown once a
         // day, and a process killed between showing it and the next grade would show it again.
-        runSuspendCatching { studyProgress.save(updated) }
-            .onFailure { Log.w(TAG, "markGoalCelebrated: could not persist — ${it.message}") }
+        saveProgress(updated) { "markGoalCelebrated: could not persist — $it" }
     }
 
     /**
@@ -370,18 +369,39 @@ class SrsRepositoryImpl(
             _dailyProgress.value = next
             next
         }
-        runSuspendCatching { studyProgress.save(updated) }
-            .onFailure { Log.w(TAG, "recordStudied: could not persist today's progress — ${it.message}") }
+        saveProgress(updated) { "recordStudied: could not persist today's progress — $it" }
+    }
+
+    /** Guarded by [progressLock]. Today's tally belongs to whoever earned it. */
+    private val progressAccount = AccountStamp(session)
+
+    /**
+     * Persist today's counters, if there is anyone to persist them for.
+     *
+     * Signed out there is no owner to attribute them to, and writing them under the next account
+     * to sign in is the whole bug this guards.
+     */
+    private suspend fun saveProgress(progress: DailyStudyProgress, message: (String?) -> String) {
+        val owner = session.current()?.identity?.pubky ?: return
+        runSuspendCatching { studyProgress.save(owner, progress) }
+            .onFailure { Log.w(TAG, message(it.message)) }
     }
 
     /** Caller holds [progressLock]. Reads the stored counters once, then keeps them in memory. */
     private suspend fun restoreProgressLocked() {
         val today = dayIndex(epochMillis())
+        // Today's tally is a claim about a person, so a change of account starts it again from
+        // zero rather than congratulating the new one for the last one's session.
+        if (progressAccount.changed()) progressRestored = false
+        progressAccount.mark()
         if (!progressRestored) {
             progressRestored = true
-            val stored = runSuspendCatching { studyProgress.load() }
-                .onFailure { Log.w(TAG, "restoreProgress: FAILED — ${it.message}") }
-                .getOrNull()
+            val owner = session.current()?.identity?.pubky
+            val stored = owner?.let {
+                runSuspendCatching { studyProgress.load(it) }
+                    .onFailure { Log.w(TAG, "restoreProgress: FAILED — ${it.message}") }
+                    .getOrNull()
+            }
             _dailyProgress.value = (stored ?: DailyStudyProgress(dayIndex = today)).forToday(today)
             return
         }

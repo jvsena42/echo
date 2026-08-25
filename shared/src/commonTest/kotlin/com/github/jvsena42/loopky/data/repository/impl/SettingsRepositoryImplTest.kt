@@ -9,11 +9,14 @@ import com.github.jvsena42.loopky.testing.CountingRevalidator
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
+import com.github.jvsena42.loopky.testing.fakeSession
 import com.github.jvsena42.loopky.testing.signedInProvider
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -68,6 +71,55 @@ class SettingsRepositoryImplTest {
         assertEquals(SettingsOrigin.Remote, repo.studySettings.value.origin)
         assertTrue(repo.studySettings.value.isEditable)
         assertFalse(pubky.store.containsKey(url), "an absent record must not be written on read")
+    }
+
+    @Test
+    fun aNewAccountDoesNotInheritThePreviousOnesSettings() = runTest {
+        seedRecord(StudySettings(newCardsPerDayGoal = 40, firstEasyDays = 10))
+        val repo = repo()
+        repo.ensureLoaded()
+        assertEquals(40, repo.studySettings.value.settings.newCardsPerDayGoal)
+
+        // Same process, different pubky. The snapshot was still `Remote`, so `ensureLoaded`
+        // returned at the pre-check and the second user saw the first one's intervals.
+        session.set(fakeSession("freshpk"))
+        repo.ensureLoaded()
+
+        assertEquals(StudySettings.Default, repo.studySettings.value.settings)
+    }
+
+    @Test
+    fun aNewAccountCannotWriteThePreviousOnesSettingsIntoItsOwnRecord() = runTest {
+        seedRecord(StudySettings(newCardsPerDayGoal = 40, firstEasyDays = 10))
+        val repo = repo()
+        repo.ensureLoaded()
+
+        // The gate is the origin, and a stale `Remote` satisfied it — so the first tap in Settings
+        // wrote the previous account's numbers into this one's record, which is exactly the quiet
+        // overwrite the gate exists to prevent.
+        session.set(fakeSession("freshpk"))
+
+        assertFails { repo.update(StudySettings(newCardsPerDayGoal = 40)).getOrThrow() }
+        assertFalse(
+            pubky.store.containsKey("pubky://freshpk/pub/loopky/settings.json"),
+            "wrote settings for an account whose record was never read",
+        )
+    }
+
+    @Test
+    fun theDeviceMirrorIsNotReadBackForADifferentAccount() = runTest {
+        seedRecord(StudySettings(newCardsPerDayGoal = 40))
+        repo().ensureLoaded()
+        assertTrue(preferences.cachedStudySettings.first().isNotBlank(), "nothing was mirrored")
+
+        // The mirror is one device-wide key. Offline, a second account would otherwise schedule
+        // its cards on the first account's intervals.
+        session.set(fakeSession("freshpk"))
+        pubky.failGetWith = PubkyError("HTTP transport error: error sending request for url (...)")
+        val fresh = repo()
+        fresh.ensureLoaded()
+
+        assertEquals(StudySettings.Default, fresh.studySettings.value.settings)
     }
 
     @Test

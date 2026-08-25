@@ -1283,10 +1283,15 @@ class FakeSettingsRepository(
 class FakeStudyProgressStore(private var stored: DailyStudyProgress? = null) : StudyProgressStore {
     val saved = mutableListOf<DailyStudyProgress>()
 
-    override suspend fun load(): DailyStudyProgress? = stored
+    /** Whose tally [stored] is; defaults to the standard test pubky. */
+    var storedOwner: String = TEST_PUBKY
 
-    override suspend fun save(progress: DailyStudyProgress) {
+    override suspend fun load(ownerPubky: String): DailyStudyProgress? =
+        stored?.takeIf { storedOwner == ownerPubky }
+
+    override suspend fun save(ownerPubky: String, progress: DailyStudyProgress) {
         stored = progress
+        storedOwner = ownerPubky
         saved.add(progress)
     }
 }
