@@ -17,10 +17,16 @@ import kotlinx.serialization.json.Json
  * device rather than in the keystore or on the homeserver.
  */
 interface StudyProgressStore {
-    /** Null before anything has been studied on this device. */
-    suspend fun load(): DailyStudyProgress?
+    /**
+     * [ownerPubky]'s counters for today, or null before they have studied anything on this device.
+     *
+     * Scoped by account even though it is one device-wide record: "12 reviews, 7 new" is a claim
+     * about a person, and handing a freshly created account the previous user's tally is a small
+     * lie the app then congratulates them for. A record belonging to someone else reads as absent.
+     */
+    suspend fun load(ownerPubky: String): DailyStudyProgress?
 
-    suspend fun save(progress: DailyStudyProgress)
+    suspend fun save(ownerPubky: String, progress: DailyStudyProgress)
 }
 
 internal const val KEY_STUDY_PROGRESS = "study_progress"
@@ -28,6 +34,8 @@ internal const val KEY_STUDY_PROGRESS = "study_progress"
 /** One day's counters on disk. Mirrors [DailyStudyProgress] so the domain stays serializer-free. */
 @Serializable
 internal data class StoredStudyProgress(
+    /** Whose tally this is. Null on a record written before the counters were account-scoped. */
+    val ownerPubky: String? = null,
     val dayIndex: Int,
     val newCards: Int,
     val reviews: Int,
@@ -37,8 +45,12 @@ internal data class StoredStudyProgress(
 /** Shared by both platform implementations so the on-disk shape cannot drift between them. */
 private val progressJson = Json { ignoreUnknownKeys = true }
 
-internal fun encodeStudyProgress(progress: DailyStudyProgress): String = progressJson.encodeToString(
+internal fun encodeStudyProgress(
+    ownerPubky: String,
+    progress: DailyStudyProgress,
+): String = progressJson.encodeToString(
     StoredStudyProgress(
+        ownerPubky = ownerPubky,
         dayIndex = progress.dayIndex,
         newCards = progress.newCards,
         reviews = progress.reviews,
@@ -46,11 +58,18 @@ internal fun encodeStudyProgress(progress: DailyStudyProgress): String = progres
     ),
 )
 
-/** A counter that cannot be read is worth exactly one lost day of motivation — never an error. */
-internal fun decodeStudyProgress(payload: String?): DailyStudyProgress? {
+/**
+ * A counter that cannot be read is worth exactly one lost day of motivation — never an error.
+ *
+ * A record belonging to a different account — or to none, which is how one written before this was
+ * scoped decodes — is treated the same way as an unreadable one. Starting the day at zero is the
+ * right answer for someone who has not studied today; inheriting a stranger's tally is not.
+ */
+internal fun decodeStudyProgress(payload: String?, ownerPubky: String): DailyStudyProgress? {
     if (payload.isNullOrBlank()) return null
     return runCatching { progressJson.decodeFromString<StoredStudyProgress>(payload) }
         .getOrNull()
+        ?.takeIf { it.ownerPubky == ownerPubky }
         ?.let {
             DailyStudyProgress(
                 dayIndex = it.dayIndex,

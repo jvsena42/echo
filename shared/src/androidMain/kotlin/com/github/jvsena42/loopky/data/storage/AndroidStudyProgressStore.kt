@@ -11,15 +11,15 @@ class AndroidStudyProgressStore(context: Context) : StudyProgressStore {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
-    override suspend fun load(): DailyStudyProgress? = withContext(Dispatchers.IO) {
-        decodeStudyProgress(prefs.getString(KEY_STUDY_PROGRESS, null))
+    override suspend fun load(ownerPubky: String): DailyStudyProgress? = withContext(Dispatchers.IO) {
+        decodeStudyProgress(prefs.getString(KEY_STUDY_PROGRESS, null), ownerPubky)
     }
 
-    override suspend fun save(progress: DailyStudyProgress) {
+    override suspend fun save(ownerPubky: String, progress: DailyStudyProgress) {
         withContext(Dispatchers.IO) {
             // apply(), unlike the review journal's commit(): losing today's counter to a killed
             // process costs a progress bar, where losing a review costs the user their work.
-            prefs.edit().putString(KEY_STUDY_PROGRESS, encodeStudyProgress(progress)).apply()
+            prefs.edit().putString(KEY_STUDY_PROGRESS, encodeStudyProgress(ownerPubky, progress)).apply()
         }
     }
 }

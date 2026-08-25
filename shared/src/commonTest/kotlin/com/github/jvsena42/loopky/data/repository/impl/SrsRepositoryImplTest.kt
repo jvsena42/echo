@@ -5,6 +5,8 @@ import com.github.jvsena42.loopky.data.pubky.CardChunkDto
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.SrsChunkDto
 import com.github.jvsena42.loopky.data.pubky.toDto
+import com.github.jvsena42.loopky.data.storage.PendingReview
+import com.github.jvsena42.loopky.data.storage.decodePendingReviews
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckCounts
@@ -21,6 +23,7 @@ import com.github.jvsena42.loopky.testing.FakeSettingsRepository
 import com.github.jvsena42.loopky.testing.FakeStudyProgressStore
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
+import com.github.jvsena42.loopky.testing.fakeSession
 import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
@@ -38,6 +41,7 @@ import kotlinx.serialization.encodeToString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -618,6 +622,97 @@ class SrsRepositoryImplTest {
         val url = "pubky://$TEST_PUBKY/pub/loopky/srs/$TEST_PUBKY/deck1/$chunk.json"
         assertTrue(pubky.store.containsKey(url), "landed elsewhere: ${pubky.store.keys}")
         assertEquals(state, restarted.stateFor("deck1", "c1"))
+    }
+
+    // ── per-account scoping ──────────────────────────────────────────────
+
+    @Test
+    fun aNewAccountDoesNotInheritThePreviousOnesReviewStates() = runTest {
+        publishDeck("deck1", "c1")
+        val card = repo.dueForDeck("deck1").single()
+        repo.review(card, SrsGrade.Good).getOrThrow()
+        assertNotNull(repo.stateFor("deck1", "c1"))
+
+        // Same process, different pubky. The in-memory states are keyed by the *deck's* author, so
+        // without an account guard the new user is handed the previous one's schedule — and
+        // `loadedDecks` reports the deck as already loaded, so nothing goes to fetch their own.
+        session.set(fakeSession("freshpk"))
+
+        assertNull(repo.stateFor("deck1", "c1"))
+    }
+
+    @Test
+    fun aNewAccountDoesNotRestoreThePreviousOnesUnflushedReviews() = runTest {
+        publishDeck("deck1", "c1")
+        val card = repo.dueForDeck("deck1").single()
+        pubky.failAllSessionCallsWith = PubkyError("Request failed: 507 Insufficient Storage")
+        runCatching { repo.review(card, SrsGrade.Good) }
+        assertTrue(journal.entries.isNotEmpty(), "the review was never journalled")
+        pubky.failAllSessionCallsWith = null
+
+        // The journal is one device-wide file. Restoring another account's entries would both show
+        // this user reviews they never did and flush them to *their* homeserver.
+        session.set(fakeSession("freshpk"))
+        val restarted =
+            SrsRepositoryImpl(pubky, session, revalidator, deckRepo, cardRepo, journal, settings, progressStore)
+        restarted.flush().getOrThrow()
+
+        assertNull(restarted.stateFor("deck1", "c1"))
+        assertFalse(
+            pubky.store.keys.any { it.startsWith("pubky://freshpk/pub/loopky/srs/") },
+            "wrote the previous account's reviews under the new one: ${pubky.store.keys}",
+        )
+    }
+
+    @Test
+    fun flushingKeepsAnotherAccountsJournalledReviews() = runTest {
+        publishDeck("deck1", "c1")
+        val theirs = PendingReview(
+            ownerPubky = "otherpk",
+            authorPubky = "otherpk",
+            deckId = "deckX",
+            chunk = 0,
+            cardId = "cX",
+            dueAt = 1L,
+            intervalDays = 1,
+            easeFactor = 2.5,
+            repetitions = 1,
+        )
+        journal.seed(theirs)
+
+        val card = repo.dueForDeck("deck1").single()
+        repo.review(card, SrsGrade.Good).getOrThrow()
+        repo.flush().getOrThrow()
+
+        // The journal is written whole, but "whole" only ever meant this account's slice of it —
+        // clearing ours must not throw away work belonging to someone who is simply signed out.
+        assertEquals(listOf(theirs), journal.entries)
+    }
+
+    @Test
+    fun aNewAccountStartsTodaysTallyAtZero() = runTest {
+        publishDeck("deck1", "c1")
+        val card = repo.dueForDeck("deck1").single()
+        repo.review(card, SrsGrade.Good).getOrThrow()
+        repo.refreshDailyProgress()
+        assertEquals(1, repo.dailyProgress.value.reviews)
+
+        // "12 reviews today" is a claim about a person. Congratulating a brand-new account for the
+        // previous one's session is a small lie the goal celebration then acts on.
+        session.set(fakeSession("freshpk"))
+        repo.refreshDailyProgress()
+
+        assertEquals(0, repo.dailyProgress.value.reviews)
+    }
+
+    @Test
+    fun aJournalFromBeforeReviewsRecordedTheirOwnerIsDropped() = runTest {
+        // Nullable rather than absent so an old journal still decodes; the entries are dropped
+        // because the only way to keep them is to credit them to whoever signs in next.
+        val legacy = """[{"authorPubky":"$TEST_PUBKY","deckId":"deck1","chunk":0,"cardId":"c1",
+            "dueAt":1,"intervalDays":1,"easeFactor":2.5,"repetitions":1}]"""
+
+        assertEquals(emptyList(), decodePendingReviews(legacy))
     }
 
     @Test

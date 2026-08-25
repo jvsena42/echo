@@ -487,6 +487,11 @@ class FakePendingReviewStore : PendingReviewStore {
 
     val saves = mutableListOf<List<PendingReview>>()
 
+    /** Pre-load a journal, as a previous process — or another account — would have left one. */
+    fun seed(vararg entries: PendingReview) {
+        this.entries = entries.toList()
+    }
+
     override suspend fun load(): List<PendingReview> = entries
 
     override suspend fun save(entries: List<PendingReview>) {
@@ -1278,10 +1283,15 @@ class FakeSettingsRepository(
 class FakeStudyProgressStore(private var stored: DailyStudyProgress? = null) : StudyProgressStore {
     val saved = mutableListOf<DailyStudyProgress>()
 
-    override suspend fun load(): DailyStudyProgress? = stored
+    /** Whose tally [stored] is; defaults to the standard test pubky. */
+    var storedOwner: String = TEST_PUBKY
 
-    override suspend fun save(progress: DailyStudyProgress) {
+    override suspend fun load(ownerPubky: String): DailyStudyProgress? =
+        stored?.takeIf { storedOwner == ownerPubky }
+
+    override suspend fun save(ownerPubky: String, progress: DailyStudyProgress) {
         stored = progress
+        storedOwner = ownerPubky
         saved.add(progress)
     }
 }

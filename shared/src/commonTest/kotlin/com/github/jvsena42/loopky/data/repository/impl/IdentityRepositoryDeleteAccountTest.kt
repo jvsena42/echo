@@ -168,14 +168,14 @@ class IdentityRepositoryDeleteAccountTest {
     @Test
     fun localStateIsClearedButAnUnspentSignupTokenIsNot() = runTest {
         pendingReviews.save(listOf(pendingReview()))
-        studyProgress.save(DailyStudyProgress(dayIndex = 7, newCards = 3, reviews = 12))
+        studyProgress.save(TEST_PUBKY, DailyStudyProgress(dayIndex = 7, newCards = 3, reviews = 12))
         preferences.setCachedStudySettings("""{"newCardsPerDayGoal":40}""")
         unsplashKey.save("a-key")
 
         repo.deleteAccount().getOrThrow()
 
         assertTrue(pendingReviews.load().isEmpty())
-        assertEquals(0, studyProgress.load()?.reviews)
+        assertEquals(0, studyProgress.load(TEST_PUBKY)?.reviews)
         assertEquals("", preferences.cachedStudySettings.first())
         assertEquals("", unsplashKey.key.first())
         // The token is deliberately absent from this flow: it cost sats or one of two SMS
