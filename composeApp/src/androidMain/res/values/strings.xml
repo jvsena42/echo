@@ -618,6 +618,16 @@
     <string name="bulk_format_text_title">Plain text export</string>
     <string name="bulk_format_text_detail">In Anki: File → Export → “Notes in Plain Text”. Any tab- or comma-separated list works too.</string>
     <string name="bulk_idle_limit">Files up to %1$d MB</string>
+    <string name="bulk_examples_label">WHAT A TEXT FILE LOOKS LIKE</string>
+    <string name="bulk_example_hint">One line per card: what comes before the separator is the front, what comes after is the back.</string>
+    <string name="bulk_example_footnote">Only the first separator on a line splits it, so punctuation in the answer is safe. A tab file may carry extra columns — Loopky keeps the first two.</string>
+    <string name="bulk_example_csv_name">spanish.csv</string>
+    <string name="bulk_example_tab_name">biology.txt</string>
+    <string name="bulk_example_colon_name">glossary.txt</string>
+    <string name="bulk_example_sep_comma">Comma</string>
+    <string name="bulk_example_sep_tab">Tab</string>
+    <string name="bulk_example_sep_colon">Colon</string>
+    <string name="bulk_example_tab_note">Tabs are invisible — ⇥ marks where one sits.</string>
     <string name="bulk_idle_no_deck">Don\'t have a deck yet?</string>
     <string name="bulk_idle_browse_ankiweb">Browse shared decks on AnkiWeb</string>
     <string name="bulk_reading">Reading your file…</string>

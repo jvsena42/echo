@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -314,6 +315,64 @@ private fun PickFilePrompt(onPickFile: () -> Unit, onBrowseSharedDecks: () -> Un
         modifier = Modifier.fillMaxWidth(),
     )
 
+    // "Plain text export" tells you a text file works but not what one has to look like, which
+    // is the whole question for anyone building the file themselves rather than exporting it.
+    Spacer(Modifier.height(28.dp))
+    Text(
+        text = stringResource(R.string.bulk_examples_label),
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.8.sp,
+        color = colors.foregroundMuted,
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = stringResource(R.string.bulk_example_hint),
+        fontSize = 13.sp,
+        color = colors.foregroundSecondary,
+    )
+    Spacer(Modifier.height(12.dp))
+    ExampleFileCard(
+        fileName = stringResource(R.string.bulk_example_csv_name),
+        separator = stringResource(R.string.bulk_example_sep_comma),
+        glyph = ",",
+        rows = listOf(
+            "hola" to "hello",
+            "gracias" to "thank you",
+            "buenos días" to "good morning",
+        ),
+    )
+    Spacer(Modifier.height(10.dp))
+    ExampleFileCard(
+        // What Anki's "Notes in Plain Text" writes, and the one separator you cannot see in
+        // your own file — so it is drawn with a stand-in glyph and said out loud in the note.
+        fileName = stringResource(R.string.bulk_example_tab_name),
+        separator = stringResource(R.string.bulk_example_sep_tab),
+        glyph = " ⇥ ",
+        glyphIsStandIn = true,
+        rows = listOf(
+            "mitosis" to "cell division",
+            "osmosis" to "water crossing a membrane",
+        ),
+        note = stringResource(R.string.bulk_example_tab_note),
+    )
+    Spacer(Modifier.height(10.dp))
+    ExampleFileCard(
+        fileName = stringResource(R.string.bulk_example_colon_name),
+        separator = stringResource(R.string.bulk_example_sep_colon),
+        glyph = ": ",
+        rows = listOf(
+            "HTTP" to "HyperText Transfer Protocol",
+            "RAM" to "Random Access Memory",
+        ),
+    )
+    Spacer(Modifier.height(10.dp))
+    Text(
+        text = stringResource(R.string.bulk_example_footnote),
+        fontSize = 12.sp,
+        color = colors.foregroundMuted,
+    )
+
     // The screen assumes you already have a file, which an Anki refugee does and a new user
     // doesn't. AnkiWeb's shared decks are the shortest route from empty to something to import.
     Spacer(Modifier.height(20.dp))
@@ -373,6 +432,74 @@ private fun FormatCard(extension: String, title: String, detail: String) {
             )
         }
         Text(detail, fontSize = 13.sp, color = colors.foregroundSecondary)
+    }
+}
+
+/**
+ * One example of a well-formed import file: what it is called, which separator it uses, and the
+ * first few lines exactly as they are written.
+ *
+ * The lines are laid out as front + separator + back rather than as one pre-joined string so a
+ * tab — invisible in any font — can be drawn as a muted ⇥ stand-in while the separators you do
+ * type are shown literally, in the same colour as the text around them.
+ */
+@Composable
+private fun ExampleFileCard(
+    fileName: String,
+    separator: String,
+    glyph: String,
+    rows: List<Pair<String, String>>,
+    note: String? = null,
+    glyphIsStandIn: Boolean = false,
+) {
+    val colors = LoopkyTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .border(1.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
+            .background(colors.surfaceCard)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = fileName,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                color = colors.foregroundPrimary,
+            )
+            Text(
+                text = separator,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.accentPrimary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.accentPrimarySoft)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        rows.forEach { (front, back) ->
+            Row {
+                Text(front, fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = colors.foregroundSecondary)
+                Text(
+                    text = glyph,
+                    fontSize = 13.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = if (glyphIsStandIn) colors.foregroundMuted else colors.foregroundSecondary,
+                )
+                Text(back, fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = colors.foregroundSecondary)
+            }
+        }
+        if (note != null) {
+            Text(note, fontSize = 12.sp, color = colors.foregroundMuted)
+        }
     }
 }
 
