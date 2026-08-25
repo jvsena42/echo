@@ -102,6 +102,7 @@ import com.github.jvsena42.loopky.ui.components.PermissionRationaleDialog
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.components.rememberReduceMotion
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.relativeFromNow
 import kotlinx.coroutines.Job
@@ -316,7 +317,15 @@ private fun ReviewingContent(
     onClose: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        // Studying is a single-focus task, so it gets the narrow ceiling rather than the reading
+        // one: a flashcard blown up to a landscape tablet is 1200dp of white around one word, and
+        // four grade buttons stretched to match are a 300dp-wide "Again". Capped and centred, the
+        // card keeps the proportions it has on a phone and the eye keeps its place across a flip.
+        modifier = Modifier
+            .fillMaxSize()
+            .contentPane(STUDY_PANE_WIDTH),
+    ) {
         // Header: close · deck name + counter · spacer
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1076,3 +1085,13 @@ private fun MicPermissionDialogs(
         )
     }
 }
+
+/**
+ * How wide the study column is allowed to get.
+ *
+ * Between [com.github.jvsena42.loopky.ui.layout.PaneWidth.Focused] and `Reading`: a card wants
+ * more room than a sign-in form, because the text on it auto-sizes and a wider box lets a long
+ * sentence stay large — but less than a settings list, because the grade row underneath is four
+ * buttons that should stay thumb-sized rather than growing into banners.
+ */
+private val STUDY_PANE_WIDTH = 640.dp

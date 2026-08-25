@@ -70,6 +70,8 @@ import com.github.jvsena42.loopky.presentation.importflow.TriageEffect
 import com.github.jvsena42.loopky.presentation.importflow.TriageUiState
 import com.github.jvsena42.loopky.presentation.importflow.TriageViewModel
 import com.github.jvsena42.loopky.ui.components.rememberReduceMotion
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
@@ -208,6 +210,7 @@ private fun TriageScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .contentPane(PaneWidth.Reading)
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {

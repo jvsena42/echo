@@ -42,6 +42,8 @@ import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.ui.components.AuthorRow
 import com.github.jvsena42.loopky.ui.components.LoopkyErrorBlock
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -126,7 +128,9 @@ private fun FollowListScreen(
             state.people.isEmpty() -> EmptyFollowList(source = state.source, isSelf = state.isSelf)
 
             else -> LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .contentPane(PaneWidth.Reading),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 contentPadding = PaddingValues(bottom = 24.dp),
             ) {

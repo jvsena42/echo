@@ -25,6 +25,8 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.presentation.signup.SignupError
 import com.github.jvsena42.loopky.ui.components.signupErrorMessage
 import com.github.jvsena42.loopky.ui.components.signupErrorTitle
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /**
@@ -48,6 +50,7 @@ fun SignupScaffold(
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.systemBars)
             .verticalScroll(rememberScrollState())
+            .contentPane(PaneWidth.Focused)
             .padding(horizontal = 24.dp),
     ) {
         TextButton(onClick = onBack, modifier = Modifier.testTag("signup_back")) {
