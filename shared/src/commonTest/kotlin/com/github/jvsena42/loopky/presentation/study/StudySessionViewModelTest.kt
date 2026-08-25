@@ -349,6 +349,29 @@ class StudySessionViewModelTest {
     }
 
     @Test
+    fun listenReadsThePhraseAndNotTheCardsAside() = runTest {
+        // Handed "hola (formal)", the engine reads the editorial note out as a word.
+        seedSpeechDeck()
+        srsRepo.due = listOf(testCard("c1", front = "hola (formal)", back = "hello (formal)"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<StudySessionEffect>()
+        val job = launch { vm.effects.toList(effects) }
+
+        vm.onSpeak()
+        advanceUntilIdle()
+        assertEquals(StudySessionEffect.Speak("hola", "es-ES"), effects.single())
+
+        vm.onReveal()
+        vm.onSpeak()
+        advanceUntilIdle()
+        assertEquals(StudySessionEffect.Speak("hello", "en-US"), effects.last())
+
+        job.cancel()
+    }
+
+    @Test
     fun speakPracticeListensInTheBackLanguage() = runTest {
         // The target is always the card back, so an en-US model would be grading Spanish speech.
         seedSpeechDeck()

@@ -37,6 +37,34 @@ class SpeakMatcherTest {
     }
 
     @Test
+    fun ignoresParentheticalAsideOnTheCard() {
+        assertTrue(SpeakMatcher.match("hello", "hello (formal)").correct)
+        assertTrue(SpeakMatcher.match("hello", "(formal) hello").correct)
+        assertTrue(SpeakMatcher.match("hello there", "hello (very formal) there").correct)
+        assertTrue(SpeakMatcher.match("konnichiwa", "konnichiwa（丁寧）").correct)
+    }
+
+    @Test
+    fun ignoresParentheticalInTheTranscript() {
+        assertTrue(SpeakMatcher.match("hello (formal)", "hello").correct)
+    }
+
+    @Test
+    fun stillGradesTheRestOfThePhrase() {
+        assertFalse(SpeakMatcher.match("goodbye", "hello (formal)").correct)
+    }
+
+    @Test
+    fun wholeTextParentheticalStaysAnswerable() {
+        assertTrue(SpeakMatcher.match("formal", "(formal)").correct)
+    }
+
+    @Test
+    fun mismatchStillReportsExpectedAsWritten() {
+        assertEquals("hello (formal)", SpeakMatcher.match("goodbye", "hello (formal)").expected)
+    }
+
+    @Test
     fun emptyExpectedNeverMatches() {
         assertFalse(SpeakMatcher.match("", "").correct)
         assertFalse(SpeakMatcher.match("anything", "").correct)

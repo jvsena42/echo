@@ -95,6 +95,15 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   escape hatch's label. Matching is `AnswerMatcher` with an `AnswerStrictness`: typing is `Strict`
   (accents count — typing them is the point), `SpeakMatcher` is the `Lenient` view. Cards with no
   back text (an image-only Anki answer) or no prompt fall back to tap-to-reveal.
+- **A parenthesized aside is never part of the answer, in any of the three modes.** `"hello
+  (formal)"` is a card asking for `"hello"`: the bracket is an editorial note about which sense is
+  meant. `AnswerMatcher.stripParentheticals` drops it inside `matches`/`isTypable`, so typing and
+  Speak inherit it, and `StudySessionViewModel.onSpeak` drops it before the TTS effect — an engine
+  handed the note reads it out as a word. Punctuation stripping alone does **not** cover this: it
+  removes the brackets and leaves `formal` in the target. Two things not to undo — a text that is
+  *entirely* parenthesized comes back untouched (`matches` refuses an empty target, so stripping
+  would make the card unanswerable), and what is *shown* keeps the aside: `SpeakResult.expected`
+  and the speak prompt quote the card as written, because the note is the context worth seeing.
 - **Paste-to-Import is the v1 primary import flow.** The implemented spine is `PasteImportViewModel` (parse + live preview) → `PublishDeckViewModel` (commit to Pubky). Every other import source (AI, OCR, URL) listed in spec §14 must reuse this same spine. Don't build parallel commit flows.
 - **Parser rules are prescriptive.** The paste parser (on `ImportRepository`) must follow the exact rule order in spec §6 and the edge-case table in spec §9. Use them as the test matrix.
 - **No use-case layer.** Don't introduce `*UseCase` interfaces or a `domain/usecase/` package. If a piece of logic doesn't fit any existing repo, extend the most relevant repo or add a new one — keep the surface area flat.

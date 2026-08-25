@@ -38,11 +38,17 @@ object AnswerMatcher {
      * a card that cannot be answered correctly is a card the mode would trap you on.
      */
     fun isTypable(expected: String): Boolean =
-        normalize(expected, AnswerStrictness.Strict).isNotEmpty()
+        normalize(stripParentheticals(expected), AnswerStrictness.Strict).isNotEmpty()
 
+    /**
+     * Whether [given] answers [expected], ignoring any parenthesized aside on either side.
+     *
+     * See [stripParentheticals] for why the aside never counts — it is the same argument in both
+     * modes, so the drop lives here rather than in each caller.
+     */
     fun matches(given: String, expected: String, strictness: AnswerStrictness): Boolean {
-        val target = normalize(expected, strictness)
-        return target.isNotEmpty() && normalize(given, strictness) == target
+        val target = normalize(stripParentheticals(expected), strictness)
+        return target.isNotEmpty() && normalize(stripParentheticals(given), strictness) == target
     }
 
     /**
@@ -50,12 +56,35 @@ object AnswerMatcher {
      *
      * A near miss is reported rather than scored: it reveals the answer and says which way it
      * differed. Nothing here picks an SRS grade — that stays the user's, whatever the outcome.
+     *
+     * A parenthesized aside on the card is not part of what has to be typed, so `"hello"` answers
+     * `"hello (formal)"` outright — see [stripParentheticals].
      */
     fun judge(typed: String, expected: String): TypedAnswerOutcome = when {
         matches(typed, expected, AnswerStrictness.Strict) -> TypedAnswerOutcome.Correct
         matches(typed, expected, AnswerStrictness.Lenient) -> TypedAnswerOutcome.NearMiss
         else -> TypedAnswerOutcome.Wrong
     }
+
+    /**
+     * Drop parenthesized asides, so `"hello (formal)"` is graded as `"hello"`.
+     *
+     * A parenthetical on a card is a note to the reader — a register, a disambiguation, a part of
+     * speech — not part of the phrase itself. Nobody says it out loud, and nobody should have to
+     * type it: counting it fails an otherwise-perfect utterance and turns an editorial note into
+     * four extra words to get exactly right. Punctuation stripping alone is not enough — it would
+     * leave the word *inside* the brackets in the target.
+     *
+     * Returns [text] untouched when the asides are all there is, since a card whose whole text is
+     * parenthesized still has to be answerable.
+     */
+    fun stripParentheticals(text: String): String {
+        val stripped = text.replace(PARENTHETICAL, " ").replace(WHITESPACE, " ").trim()
+        return if (normalize(stripped, AnswerStrictness.Strict).isEmpty()) text else stripped
+    }
+
+    /** Both ASCII and full-width brackets — CJK decks routinely use the latter. */
+    private val PARENTHETICAL = Regex("""\([^()]*\)|（[^（）]*）""")
 
     /** Lowercase, drop non-alphanumeric chars, collapse whitespace; fold diacritics when lenient. */
     fun normalize(text: String, strictness: AnswerStrictness): String = buildString {
