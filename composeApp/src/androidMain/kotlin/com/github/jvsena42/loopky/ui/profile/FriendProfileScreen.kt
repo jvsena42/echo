@@ -61,6 +61,8 @@ import com.github.jvsena42.loopky.ui.components.ProfileStat
 import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
 import com.github.jvsena42.loopky.ui.components.PubkyAppIconButton
 import com.github.jvsena42.loopky.ui.components.errorMessage
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
 import com.github.jvsena42.loopky.ui.util.openUrl
@@ -152,6 +154,7 @@ private fun FriendProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .contentPane(PaneWidth.Reading)
                 .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {

@@ -82,6 +82,8 @@ import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.components.formErrorMessage
 import com.github.jvsena42.loopky.ui.components.publishErrorMessage
 import com.github.jvsena42.loopky.ui.components.speechLanguageOptions
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.toast
 import kotlinx.coroutines.flow.collectLatest
@@ -206,6 +208,7 @@ private fun PublishDeckScreen(
                 // so the field being typed into stays hidden and there is nothing left to scroll.
                 .imePadding()
                 .verticalScroll(rememberScrollState())
+                .contentPane(PaneWidth.Reading)
                 .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {

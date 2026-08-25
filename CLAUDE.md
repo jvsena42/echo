@@ -42,6 +42,33 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
 - **ViewModels live in `shared/commonMain`, not in platform modules.** Both Compose and SwiftUI screens consume the same VMs. No `@Composable` or `ObservableObject` in shared code.
 - **Always import symbols; never reference them fully-qualified inline.** Add an `import` at the top of the file (e.g. `import androidx.compose.ui.graphics.Color`) and use the short name, rather than writing `androidx.compose.ui.graphics.Color` inline in a type or call. Applies to both Kotlin and Swift.
 - **Native-first UI.** Prefer native platform components — **Material 3 Expressive** (`ShortNavigationBar`, `Scaffold`, `TopAppBar`, etc.; opt in with `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`) on Android, and native SwiftUI / Liquid Glass on iOS — over bespoke custom Composables/Views, so the app feels platform-native. Apply Loopky brand tokens (accent, type, radii) *to* native components rather than rebuilding chrome from primitives; build fully custom only where Loopky's identity needs it and no native equivalent exists (e.g. the study card flip). The custom `LoopkyTabBar` pill has been replaced by a Material 3 Expressive `ShortNavigationBar` (Android) and a native `TabView`/`UITabBar` (iOS).
+- **Every screen is width-adaptive, and a new one has to be too — a phone layout on a tablet is
+  the default failure, not an edge case.** Loopky runs on tablets, and nothing about a stretched
+  layout raises an error: it compiles, runs, and looks broken. The pieces live in
+  `composeApp/.../ui/layout/`:
+  - `WindowWidthClass` (compact <600dp / medium <840dp / expanded) comes from
+    `currentWindowAdaptiveInfo()` and is published at the `MainActivity` root by
+    `ProvideWindowSize`, so `windowWidthClass()` is readable from any composable, including ones
+    reached by deeplink.
+  - `Modifier.contentPane(max)` caps a block and centres it. The three `PaneWidth` ceilings are
+    named for what the content *is* — `Reading` for a column of rows or prose, `Focused` for a
+    single-task screen, `Wide` for a tile grid — so they never bite on a phone.
+  - `deckGridColumns()` gives 2/3/4 by width. **Never `chunked(2)`** — that is the bug this
+    replaced, and it produced 600dp-wide tiles on a landscape tablet.
+  - Navigation switches in `MainScreen`: `LoopkyNavRail` at expanded width, `LoopkyTabBar`
+    otherwise. Both carry the **same `tab_*` test tags** — renaming them breaks every android-cli
+    journey the moment a device is held in landscape, which is the case nobody runs.
+  - Home, deck detail, profile and onboarding have real two-pane layouts at expanded width, not
+    just narrower content. Prefer that over centring a phone column when a screen would otherwise
+    use a third of the height.
+
+  Three traps. **Never ask "is this a tablet"** (`userInterfaceIdiom`, screen size, a build
+  config): split-screen and rotation change the answer while the app is running, which is exactly
+  why the width class is read from the *window*. Where a screen paints its own background, the cap
+  goes **after** the background and scroll modifiers — before them it constrains the surface too
+  and the cream stops reaching the edges. And on iOS the same rules apply with SwiftUI's own tools
+  (`horizontalSizeClass`, `NavigationSplitView`) — do **not** move `WindowWidthClass` into
+  `commonMain`; it is an Android UI concern. See issue #113 for the iPad findings.
 - **Announcing a deck is opt-in, per action.** `DiscoveryRepository.announceDeck` writes a `pubky.app` post so a create/follow/clone reaches the user's followers, gated by `AppPreferences.shareOnPubky` (default on) *and* a confirm prompt each time. Off means never asked and never posted — the gate is on the write itself, not only in the ViewModels. **"Share" here means announcing, never visibility**: published decks are public either way (spec §11), and copy that blurs the two describes a privacy control Loopky does not have. Announcing is best-effort: a failed post must never roll back the deck, follow or clone. See Architecture.md §7.7 for the two things the post record has to get right.
 - **Pubky is the source of truth for published decks.** The app is not offline-first in v1 — repos talk directly to `PubkyClient` and keep only an in-memory cache for the session. A persistent SQLDelight cache may come later. There are no private/local-only decks in v1 (spec §11).
 - **Homeserver layout is fixed.** Decks published under `/pub/loopky/decks/{deckId}/{manifest.json, cards/{n}.json, media/{sha256}.{ext}}`. Cards are stored in **chunk records** (~100 per record, `CHUNK_SIZE` in `DeckDtos.kt`), and the manifest carries a chunk table + `card_count` — **not** a per-card index. Study order is the card's own sparse `ord`, not manifest position. Sync diffs `chunks[].updated_at`. Single-card writes go through `DeckRepository.upsertCard`/`deleteCard`, which own the chunk write and the manifest patch together — never write a chunk without patching the manifest. Full schemas in `docs/Architecture.md §8.0`. Binary media is written raw via the FFI's `put_bytes_with_session`; reads come back Base64-encoded from the FFI transport and are decoded in `MediaRepositoryImpl`.
@@ -201,6 +228,21 @@ points here rather than restating them.
   tap`, read the result with `android layout` (flat JSON list, fastest way to assert on text) and
   `android screen capture -o <file>` for the look of it. A green `assembleDebug` says nothing about
   what the screen renders.
+- **For every UI change, ask whether the tablet layout needs the same change — then check it on
+  one.** Home, deck detail, profile and onboarding each have *two* layouts (see the width-adaptive
+  rule above), so editing the compact path alone silently leaves the wide one stale: the phone
+  looks right, the build is green, and the tablet keeps the old behaviour with nothing reporting
+  it. Screens with a single layout still need the look checked, because a new full-width row or
+  button is only obviously wrong at 1280dp.
+
+  The `Pixel_Tablet` AVD is set up for this: `android emulator start Pixel_Tablet`, then
+  `adb shell settings put system accelerometer_rotation 0` and
+  `adb shell settings put system user_rotation 0`/`1` to force landscape/portrait — **check both**,
+  since they land in different width classes (expanded vs medium) and take different code paths.
+  Confirm the rotation actually took with `dumpsys display | grep rotation=` before trusting a
+  screenshot; `user_rotation` sometimes does not apply on the first try. Anything gated on width —
+  the nav rail, the two-pane layouts, the QR sign-in panel — simply does not exist on a phone, so a
+  phone-only pass cannot regress-test it at all.
 - Write focused, descriptive commit messages that explain the change and its rationale.
 - **Use commit history as context when investigating why a change was made.** Before changing or
   reverting code, check `git log`/`git blame` (e.g. `git log -p <file>`, `git blame -L`) — the commit

@@ -103,6 +103,8 @@ import com.github.jvsena42.loopky.ui.components.formErrorMessage
 import com.github.jvsena42.loopky.ui.components.rememberReorderableListState
 import com.github.jvsena42.loopky.ui.components.reorderableHandle
 import com.github.jvsena42.loopky.ui.components.speechLanguageOptions
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.toast
 import kotlinx.coroutines.flow.collectLatest
@@ -357,7 +359,8 @@ fun DeckEditorScreen(
                 // Without this the scroll container keeps its full height behind the keyboard,
                 // so the field being typed into stays hidden and there is nothing left to scroll.
                 .imePadding()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .contentPane(PaneWidth.Reading),
             // Extra bottom room so the FAB never covers the last card.
             contentPadding = PaddingValues(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),

@@ -72,6 +72,8 @@ import com.github.jvsena42.loopky.presentation.importflow.PasteImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PasteValidation
 import com.github.jvsena42.loopky.presentation.importflow.PreviewCard
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -147,7 +149,10 @@ private fun PasteScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .imePadding(),
+                .imePadding()
+                // A paste box and its worked examples are prose-shaped; the format chip on each
+                // example row was ending up a full screen away from the title it labels.
+                .contentPane(PaneWidth.Reading),
         ) {
             // Top fixed region: input + detected-separator summary.
             Column(

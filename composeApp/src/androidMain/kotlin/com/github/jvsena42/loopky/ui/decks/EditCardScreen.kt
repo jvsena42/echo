@@ -52,6 +52,8 @@ import com.github.jvsena42.loopky.ui.components.CardSideEditor
 import com.github.jvsena42.loopky.ui.components.ImagePickerSheet
 import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.formErrorMessage
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -177,6 +179,7 @@ fun EditCardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .contentPane(PaneWidth.Reading)
                 // Without this the scroll container keeps its full height behind the keyboard,
                 // so the field being typed into stays hidden and there is nothing left to scroll.
                 .imePadding()

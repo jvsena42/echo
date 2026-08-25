@@ -56,6 +56,9 @@ import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.loopky.presentation.discover.SectionState
 import com.github.jvsena42.loopky.ui.components.LoopkyErrorBlock
 import com.github.jvsena42.loopky.ui.components.errorMessage
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
+import com.github.jvsena42.loopky.ui.layout.deckGridColumns
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -133,8 +136,14 @@ private fun DiscoverScreen(
         ) {
             // A LazyColumn rather than a scrolling Column: strips settle at different times, and
             // item keys keep one landing from recomposing the others.
+            // Computed out here: the section builders below are LazyListScope extensions, not
+            // composables, so they cannot read the window themselves and take the count instead.
+            val deckColumns = deckGridColumns()
+            val tileActions = DeckTileActions(onOpenDeck = onOpenDeck, onOpenAuthor = onOpenAuthor)
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .contentPane(PaneWidth.Wide),
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
@@ -145,12 +154,12 @@ private fun DiscoverScreen(
                 // is the fallback firehose and sits under the people and decks you chose — which
                 // costs a new account nothing, because the followed strip hides itself when empty.
                 if (state.selectedTag != null) {
-                    browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onSearch)
+                    browseSection(state, deckColumns, onTagSelected, tileActions, onSearch)
                 }
                 peopleSection(state, onOpenAuthor, onFollowToggle)
-                followingSection(state, onOpenDeck, onOpenAuthor, onRetryFollowing)
+                followingSection(state, deckColumns, tileActions, onRetryFollowing)
                 if (state.selectedTag == null) {
-                    browseSection(state, onTagSelected, onOpenDeck, onOpenAuthor, onSearch)
+                    browseSection(state, deckColumns, onTagSelected, tileActions, onSearch)
                 }
             }
         }
@@ -211,9 +220,9 @@ private fun LazyListScope.peopleSection(
 
 private fun LazyListScope.browseSection(
     state: DiscoverUiState,
+    columns: Int,
     onTagSelected: (Tag?) -> Unit,
-    onOpenDeck: (String, String) -> Unit,
-    onOpenAuthor: (String) -> Unit,
+    actions: DeckTileActions,
     onSearch: () -> Unit,
 ) {
     // Everything browse found is already in the follow strip below, so this section has nothing
@@ -245,17 +254,17 @@ private fun LazyListScope.browseSection(
     }
     deckRows(
         section = browse,
+        columns = columns,
         keyPrefix = "browse",
         tileTestTag = "discover_deck_tile",
-        onOpenDeck = onOpenDeck,
-        onOpenAuthor = onOpenAuthor,
+        actions = actions,
     )
 }
 
 private fun LazyListScope.followingSection(
     state: DiscoverUiState,
-    onOpenDeck: (String, String) -> Unit,
-    onOpenAuthor: (String) -> Unit,
+    columns: Int,
+    actions: DeckTileActions,
     onRetryFollowing: () -> Unit,
 ) {
     // Silent while it is empty: someone who follows nobody should see browse, not a reminder that
@@ -275,29 +284,30 @@ private fun LazyListScope.followingSection(
     }
     deckRows(
         section = state.following,
+        columns = columns,
         keyPrefix = "following",
         tileTestTag = "discover_following_tile",
-        onOpenDeck = onOpenDeck,
-        onOpenAuthor = onOpenAuthor,
+        actions = actions,
     )
 }
 
 private fun LazyListScope.deckRows(
     section: SectionState<DiscoverDeck>,
+    columns: Int,
     keyPrefix: String,
     tileTestTag: String,
-    onOpenDeck: (String, String) -> Unit,
-    onOpenAuthor: (String) -> Unit,
+    actions: DeckTileActions,
 ) {
-    val rows = section.items.chunked(2)
+    val rows = section.items.chunked(columns)
     items(
         items = rows,
         key = { row -> keyPrefix + ":" + row.joinToString(",") { "${it.authorPubky}/${it.id}" } },
     ) { row ->
         DeckRow(
             decks = row,
-            onOpenDeck = onOpenDeck,
-            onOpenAuthor = onOpenAuthor,
+            columns = columns,
+            onOpenDeck = actions.onOpenDeck,
+            onOpenAuthor = actions.onOpenAuthor,
             tileTestTag = tileTestTag,
         )
     }
@@ -406,3 +416,14 @@ private fun DiscoverScreenEmptyBrowsePreview() {
         )
     }
 }
+
+/**
+ * The two ways out of a deck tile — into the deck, or into whoever wrote it.
+ *
+ * Carried together because they always are: every section that renders tiles forwards both,
+ * unchanged, to the row beneath it.
+ */
+private data class DeckTileActions(
+    val onOpenDeck: (String, String) -> Unit,
+    val onOpenAuthor: (String) -> Unit,
+)

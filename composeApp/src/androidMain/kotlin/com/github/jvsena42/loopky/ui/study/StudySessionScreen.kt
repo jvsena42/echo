@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -15,14 +16,15 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -40,9 +42,10 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Close
@@ -77,6 +80,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -102,6 +106,9 @@ import com.github.jvsena42.loopky.ui.components.PermissionRationaleDialog
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.components.rememberReduceMotion
+import com.github.jvsena42.loopky.ui.layout.WindowWidthClass
+import com.github.jvsena42.loopky.ui.layout.contentPane
+import com.github.jvsena42.loopky.ui.layout.windowWidthClass
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.relativeFromNow
 import kotlinx.coroutines.Job
@@ -316,7 +323,29 @@ private fun ReviewingContent(
     onClose: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
-    Column(modifier = Modifier.fillMaxSize()) {
+    // Landscape stands the grades in a column beside the card instead of a row beneath it. The
+    // card is the tall thing on this screen and the window is the wide one, so the four buttons
+    // are the only content that can spend width without being stretched by it — and moving them
+    // out gives the card back the ~110dp they were taking off its height.
+    val widthClass = windowWidthClass()
+    val wide = widthClass.isExpanded
+    // How tall the card is allowed to get. The cap exists so a one-word prompt doesn't stretch
+    // into a near-full-screen rectangle — but a phone's ceiling on a portrait tablet left a third
+    // of the screen as empty cream above and below the card, which is the same mistake in the
+    // other direction. Keyed on the width class because that is what tells the two apart: a
+    // portrait tablet is Medium and has ~980dp to give, a landscape one is Expanded and has ~610,
+    // and a phone is Compact where the old ceiling never bit in the first place.
+    val cardMaxHeight = studyCardMaxHeight(widthClass)
+    Column(
+        // Studying is a single-focus task, so it gets a narrow ceiling rather than the reading
+        // one: a flashcard blown up to a landscape tablet is 1200dp of white around one word, and
+        // four grade buttons stretched to match are a 300dp-wide "Again". Capped and centred, the
+        // card keeps the proportions it has on a phone and the eye keeps its place across a flip.
+        // The wide ceiling is the same card plus the grade column beside it.
+        modifier = Modifier
+            .fillMaxSize()
+            .contentPane(if (wide) STUDY_WIDE_PANE_WIDTH else STUDY_PANE_WIDTH),
+    ) {
         // Header: close · deck name + counter · spacer
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -390,116 +419,201 @@ private fun ReviewingContent(
         // own snapshot while it fades. Without this the un-flip showed the next card's answer
         // for the first half of the turn.
         val reduceMotion = rememberReduceMotion()
-        // The weighted Box keeps the flip frame stable across the reveal; the card inside is
-        // capped so a one-word prompt doesn't stretch into a near-full-screen rectangle.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            contentAlignment = Alignment.Center,
+        // Shown, not reserved. Holding the column open on the front would leave the card sitting
+        // half a gutter off-centre for the whole time the question is up, which is most of a
+        // session — so the card is centred on its own, and the grades expand in beside it, sliding
+        // it left to make the room. The card's own width never changes, so the flip is still
+        // stable in the way that matters: the text does not re-wrap, it only moves.
+        val showGradeColumn = wide && state.gradesAvailable
+        Row(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            horizontalArrangement = Arrangement.Center,
         ) {
-            AnimatedContent(
-                targetState = CardSnapshot(
-                    position = state.position,
-                    frontText = state.frontText,
-                    // The flip is never blocked while an answer is being typed — what typing
-                    // withholds is the word, not the gesture. So the card turns as it always has,
-                    // and the back arrives with the input where its answer goes; the answer's own
-                    // text and picture are simply not passed until it is earned.
-                    backText = if (state.answerHidden) "" else state.backText,
-                    backLabel = state.backLabel,
-                    frontImageRef = state.frontImageRef,
-                    backImageRef = state.backImageRef.takeUnless { state.answerHidden },
-                    revealed = state.revealed,
-                    answerHidden = state.answerHidden,
-                ),
-                // Keyed on the card, so revealing swaps content in place (the flip) and only a
-                // card change runs the enter/exit transition.
-                contentKey = { it.position },
-                transitionSpec = {
-                    if (reduceMotion) {
-                        EnterTransition.None togetherWith ExitTransition.None
-                    } else {
-                        fadeIn(tween(durationMillis = 200)) +
-                            slideInVertically(tween(durationMillis = 200)) { it / 12 } togetherWith
-                            fadeOut(tween(durationMillis = 100))
-                    }
-                },
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 560.dp)
+                    // `fill = false` so the card keeps its own width and lets the row centre it,
+                    // rather than swallowing whatever the grade column is not using.
+                    .weight(1f, fill = false)
+                    .widthIn(max = STUDY_CARD_WIDTH)
                     .fillMaxHeight(),
-                label = "cardAdvance",
-            ) { card ->
-                FlippableCard(
-                    card = card,
-                    reduceMotion = reduceMotion,
-                    listenEnabled = state.listenEnabled,
-                    speakEnabled = state.speakEnabled,
-                    deckId = state.deckId,
-                    authorPubky = state.authorPubky,
-                    onReveal = onReveal,
-                    onSpeak = onSpeak,
-                    onSpeakTest = onSpeakTest,
-                    answerInput = (state.typePhase as? TypePhase.Answering)?.let { phase ->
-                        {
-                            TypeAnswerInput(
-                                value = state.typedAnswer,
-                                languageTag = state.backLang,
-                                cardKey = state.position,
-                                onValueChange = onAnswerChange,
-                                onCheck = onCheckAnswer,
-                                onGiveUp = onGiveUp,
-                                lastMiss = phase.lastMiss,
-                            )
+            ) {
+                // The weighted Box keeps the flip frame stable across the reveal; the card inside is
+                // capped so a one-word prompt doesn't stretch into a near-full-screen rectangle.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AnimatedContent(
+                        targetState = CardSnapshot(
+                            position = state.position,
+                            frontText = state.frontText,
+                            // The flip is never blocked while an answer is being typed — what typing
+                            // withholds is the word, not the gesture. So the card turns as it always has,
+                            // and the back arrives with the input where its answer goes; the answer's own
+                            // text and picture are simply not passed until it is earned.
+                            backText = if (state.answerHidden) "" else state.backText,
+                            backLabel = state.backLabel,
+                            frontImageRef = state.frontImageRef,
+                            backImageRef = state.backImageRef.takeUnless { state.answerHidden },
+                            revealed = state.revealed,
+                            answerHidden = state.answerHidden,
+                        ),
+                        // Keyed on the card, so revealing swaps content in place (the flip) and only a
+                        // card change runs the enter/exit transition.
+                        contentKey = { it.position },
+                        transitionSpec = {
+                            if (reduceMotion) {
+                                EnterTransition.None togetherWith ExitTransition.None
+                            } else {
+                                fadeIn(tween(durationMillis = 200)) +
+                                    slideInVertically(tween(durationMillis = 200)) { it / 12 } togetherWith
+                                    fadeOut(tween(durationMillis = 100))
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = cardMaxHeight)
+                            .fillMaxHeight(),
+                        label = "cardAdvance",
+                    ) { card ->
+                        FlippableCard(
+                            card = card,
+                            reduceMotion = reduceMotion,
+                            listenEnabled = state.listenEnabled,
+                            speakEnabled = state.speakEnabled,
+                            deckId = state.deckId,
+                            authorPubky = state.authorPubky,
+                            onReveal = onReveal,
+                            onSpeak = onSpeak,
+                            onSpeakTest = onSpeakTest,
+                            answerInput = (state.typePhase as? TypePhase.Answering)?.let { phase ->
+                                {
+                                    TypeAnswerInput(
+                                        value = state.typedAnswer,
+                                        languageTag = state.backLang,
+                                        cardKey = state.position,
+                                        onValueChange = onAnswerChange,
+                                        onCheck = onCheckAnswer,
+                                        onGiveUp = onGiveUp,
+                                        lastMiss = phase.lastMiss,
+                                    )
+                                }
+                            },
+                            answerNote = if (state.typePhase is TypePhase.Correct) {
+                                { TypeCorrectNote() }
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                }
+
+                // Everything typing adds lives on the card itself — the input, the miss line, Check,
+                // Give up and the "Correct!" note — so the two rows below are exactly what they were
+                // before the mode existed. They are reserved rather than conditional so the card keeps
+                // one size across the flip.
+                //
+                // With one exception. On a flipped typing card the grades are not on offer yet and the
+                // flip hint has nothing left to say, so both rows are *certainly* empty — and holding
+                // ~140 dp open for them steals it from the card at the one moment the keyboard has
+                // already taken half the screen. Nothing can pop in to fill that space, so there is no
+                // stability left to protect; the card takes it.
+                // An `if` rather than the early return this used to be: the content below the card now
+                // sits inside the left pane, so returning here would abandon the grade column too.
+                if (state.answerHidden && state.revealed) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                } else {
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // SRS grade row — reserved always, and only when the grades are not already standing
+                    // in a column to the right. The buttons appear once the answer is legible, which on a
+                    // typing card is later than the flip. (Listen/Speak, by contrast, are on both faces —
+                    // they live inside the card, not here.)
+                    if (!wide) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(72.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (state.gradesAvailable) {
+                                SrsRow(
+                                    intervals = state.intervals,
+                                    onGrade = onGrade,
+                                    reduceMotion = reduceMotion,
+                                )
+                            }
                         }
-                    },
-                    answerNote = if (state.typePhase is TypePhase.Correct) {
-                        { TypeCorrectNote() }
-                    } else {
-                        null
-                    },
-                )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+                    }
+
+                    // Flip hint — shown on the front only; space is reserved on the back too so the
+                    // card above keeps the same size across the flip.
+                    Box(modifier = Modifier.fillMaxWidth().height(20.dp)) {
+                        if (!state.revealed) {
+                            FlipHint(modifier = Modifier.align(Alignment.Center))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+            // The column's width *is* the animation. As it expands the row re-centres, which
+            // slides the card left by half the gutter under the same easing — one spring, two
+            // things moving, so the card and the buttons cannot drift out of step. Expanding from
+            // the start edge means the buttons grow out of the card's edge rather than flying in
+            // from off-screen. The per-button stagger inside `SrsColumn` then lands them in turn.
+            AnimatedVisibility(
+                visible = showGradeColumn,
+                enter = if (reduceMotion) {
+                    EnterTransition.None
+                } else {
+                    expandHorizontally(
+                        animationSpec = tween(GRADE_REVEAL_MS, easing = FastOutSlowInEasing),
+                        expandFrom = Alignment.Start,
+                    ) + fadeIn(animationSpec = tween(GRADE_REVEAL_MS))
+                },
+                exit = if (reduceMotion) {
+                    ExitTransition.None
+                } else {
+                    shrinkHorizontally(
+                        animationSpec = tween(GRADE_REVEAL_MS, easing = FastOutSlowInEasing),
+                        shrinkTowards = Alignment.Start,
+                    ) + fadeOut(animationSpec = tween(GRADE_REVEAL_MS))
+                },
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(start = GRADE_COLUMN_GAP)
+                        .width(GRADE_COLUMN_WIDTH)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    SrsColumn(
+                        intervals = state.intervals,
+                        onGrade = onGrade,
+                        reduceMotion = reduceMotion,
+                    )
+                }
             }
         }
-
-        // Everything typing adds lives on the card itself — the input, the miss line, Check,
-        // Give up and the "Correct!" note — so the two rows below are exactly what they were
-        // before the mode existed. They are reserved rather than conditional so the card keeps
-        // one size across the flip.
-        //
-        // With one exception. On a flipped typing card the grades are not on offer yet and the
-        // flip hint has nothing left to say, so both rows are *certainly* empty — and holding
-        // ~140 dp open for them steals it from the card at the one moment the keyboard has
-        // already taken half the screen. Nothing can pop in to fill that space, so there is no
-        // stability left to protect; the card takes it.
-        if (state.answerHidden && state.revealed) {
-            Spacer(modifier = Modifier.height(8.dp))
-            return@Column
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // SRS grade row — reserved always. The grade buttons appear once the answer is legible,
-        // which on a typing card is later than the flip. (Listen/Speak, by contrast, are on both
-        // faces — they live inside the card, not here.)
-        Box(modifier = Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
-            if (state.gradesAvailable) {
-                SrsRow(intervals = state.intervals, onGrade = onGrade, reduceMotion = reduceMotion)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Flip hint — shown on the front only; space is reserved on the back too so the
-        // card above keeps the same size across the flip.
-        Box(modifier = Modifier.fillMaxWidth().height(20.dp)) {
-            if (!state.revealed) {
-                FlipHint(modifier = Modifier.align(Alignment.Center))
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
     }
+}
+
+/**
+ * How tall the study card may grow, given how much room the window has.
+ *
+ * The cap exists so a one-word prompt does not stretch into a near-full-screen rectangle. Keyed on
+ * the width class because that is what separates the cases: a portrait tablet is Medium and has
+ * ~980dp of column to give, a landscape one is Expanded and has ~620, and a phone is Compact where
+ * the original ceiling was never the binding constraint anyway. The two tablet ceilings are set
+ * *above* what those layouts actually offer, so there the card simply fills its share — the cap is
+ * a guard against a stretched card, not a second, tighter layout.
+ */
+private fun studyCardMaxHeight(widthClass: WindowWidthClass): Dp = when (widthClass) {
+    WindowWidthClass.Compact -> COMPACT_CARD_MAX_HEIGHT
+    WindowWidthClass.Medium -> MEDIUM_CARD_MAX_HEIGHT
+    WindowWidthClass.Expanded -> EXPANDED_CARD_MAX_HEIGHT
 }
 
 /**
@@ -628,121 +742,6 @@ private fun FlipHint(modifier: Modifier = Modifier) {
             fontWeight = FontWeight.W500,
             color = colors.foregroundMuted,
         )
-    }
-}
-
-@Composable
-private fun SrsRow(
-    intervals: Map<SrsGrade, String>,
-    onGrade: (SrsGrade) -> Unit,
-    reduceMotion: Boolean,
-) {
-    val colors = LoopkyTheme.colors
-    val buttons = listOf(
-        SrsGrade.Again to colors.srsAgain,
-        SrsGrade.Hard to colors.srsHard,
-        SrsGrade.Good to colors.srsGood,
-        SrsGrade.Easy to colors.srsEasy,
-    )
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        buttons.forEachIndexed { index, (grade, color) ->
-            SrsButton(
-                grade = grade,
-                color = color,
-                interval = intervals[grade] ?: "",
-                index = index,
-                reduceMotion = reduceMotion,
-                onGrade = onGrade,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-/**
- * One grade button. On reveal the buttons fade + rise + scale in with a per-index
- * stagger; pressing dips the scale for tactile feedback. Both effects are skipped when
- * the OS has animations disabled.
- */
-@Composable
-private fun SrsButton(
-    grade: SrsGrade,
-    color: Color,
-    interval: String,
-    index: Int,
-    reduceMotion: Boolean,
-    onGrade: (SrsGrade) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-    val enter by animateFloatAsState(
-        targetValue = if (visible) 1f else 0f,
-        animationSpec = if (reduceMotion) {
-            snap()
-        } else {
-            tween(durationMillis = 280, delayMillis = index * 60, easing = FastOutSlowInEasing)
-        },
-        label = "srsEnter",
-    )
-
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
-        targetValue = if (pressed && !reduceMotion) 0.94f else 1f,
-        animationSpec = tween(durationMillis = 120),
-        label = "srsPress",
-    )
-
-    Button(
-        onClick = { onGrade(grade) },
-        interactionSource = interactionSource,
-        modifier = modifier
-            .testTag("study_${grade.name.lowercase()}")
-            .height(72.dp)
-            .graphicsLayer {
-                alpha = enter
-                val scale = (0.85f + 0.15f * enter) * pressScale
-                scaleX = scale
-                scaleY = scale
-                translationY = (1f - enter) * 20.dp.toPx()
-            },
-        shape = RoundedCornerShape(20.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = color,
-            contentColor = Color.White,
-        ),
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = grade.name,
-                autoSize = TextAutoSize.StepBased(
-                    minFontSize = 11.sp,
-                    maxFontSize = 15.sp,
-                    stepSize = 0.5.sp,
-                ),
-                fontWeight = FontWeight.W700,
-                maxLines = 1,
-                softWrap = false,
-            )
-            Text(
-                text = interval,
-                autoSize = TextAutoSize.StepBased(
-                    minFontSize = 8.sp,
-                    maxFontSize = 11.sp,
-                    stepSize = 0.5.sp,
-                ),
-                fontWeight = FontWeight.W500,
-                maxLines = 1,
-                softWrap = false,
-            )
-        }
     }
 }
 
@@ -1076,3 +1075,38 @@ private fun MicPermissionDialogs(
         )
     }
 }
+
+/**
+ * How wide the study column is allowed to get.
+ *
+ * Between [com.github.jvsena42.loopky.ui.layout.PaneWidth.Focused] and `Reading`: a card wants
+ * more room than a sign-in form, because the text on it auto-sizes and a wider box lets a long
+ * sentence stay large — but less than a settings list, because the grade row underneath is four
+ * buttons that should stay thumb-sized rather than growing into banners.
+ */
+private val STUDY_PANE_WIDTH = 640.dp
+
+/** The card at its usual width plus the grade column and the gap between them. */
+private val STUDY_WIDE_PANE_WIDTH = 880.dp
+
+/** The card keeps the width it has on a phone; only its position changes. */
+private val STUDY_CARD_WIDTH = 640.dp
+
+/** Unchanged from before tablets existed: on a phone this ceiling is never the binding one. */
+private val COMPACT_CARD_MAX_HEIGHT = 560.dp
+
+/** A portrait tablet has the height to spend; short of the full column so the card still floats. */
+private val MEDIUM_CARD_MAX_HEIGHT = 860.dp
+
+/** Above the ~620dp a landscape tablet leaves between the progress bar and the flip hint, so the
+ *  card fills that column rather than floating in it. Binds only on a desktop-tall window. */
+private val EXPANDED_CARD_MAX_HEIGHT = 720.dp
+
+/** Wide enough for "Again" and its interval on one line each. */
+private val GRADE_COLUMN_WIDTH = 200.dp
+
+/** Between the card and the grades. Part of the gutter the card slides across. */
+private val GRADE_COLUMN_GAP = 24.dp
+
+/** Short enough to feel like a response to the tap, long enough to read as movement. */
+private const val GRADE_REVEAL_MS = 260

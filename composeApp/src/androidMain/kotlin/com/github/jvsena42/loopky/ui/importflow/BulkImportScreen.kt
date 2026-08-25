@@ -63,6 +63,8 @@ import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.components.bulkImportErrorMessage
 import com.github.jvsena42.loopky.ui.components.bulkImportErrorTitle
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.openUrl
 import kotlinx.coroutines.launch
@@ -201,6 +203,7 @@ private fun BulkImportScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .contentPane(PaneWidth.Reading)
                 .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
         ) {
