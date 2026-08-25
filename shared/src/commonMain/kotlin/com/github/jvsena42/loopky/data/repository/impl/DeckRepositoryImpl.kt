@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.AccountStamp
 import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.data.pubky.CardChunking
 import com.github.jvsena42.loopky.data.pubky.MAX_IN_FLIGHT
@@ -94,6 +95,9 @@ class DeckRepositoryImpl(
      */
     private var subscriptions: MutableMap<String, SubscriptionDto>? = null
     private val subscriptionLock = Mutex()
+
+    /** Guarded by [subscriptionLock]. Who you follow is per-account; the cache must not outlive it. */
+    private val subscriptionAccount = AccountStamp(session)
 
     /**
      * One write lock per deck, guarding the read-manifest → write-chunk → write-manifest sequence.
@@ -967,7 +971,13 @@ class DeckRepositoryImpl(
 
     /** The subscription set for this session, read from the homeserver on first use. */
     private suspend fun loadSubscriptions(): Map<String, SubscriptionDto> {
-        subscriptionLock.withLock { subscriptions }?.let { return it.toMap() }
+        // The account check comes *before* the cache is served, not after. The other way round —
+        // which is how this read, and what the bug was — hands a freshly created pubky the
+        // previous user's subscriptions, and Home shows it decks it never followed.
+        subscriptionLock.withLock {
+            if (subscriptionAccount.changed()) subscriptions = null
+            subscriptions
+        }?.let { return it.toMap() }
         val owner = session.current()?.identity?.pubky ?: return emptyMap()
 
         val loaded = mutableMapOf<String, SubscriptionDto>()
@@ -982,7 +992,10 @@ class DeckRepositoryImpl(
                 .onSuccess { loaded[it.deck_id] = it }
                 .onFailure { Log.e(TAG, "loadSubscriptions: $path is not a subscription", it) }
         }
-        subscriptionLock.withLock { subscriptions = loaded }
+        subscriptionLock.withLock {
+            subscriptions = loaded
+            subscriptionAccount.mark()
+        }
         return loaded.toMap()
     }
 

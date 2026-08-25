@@ -21,6 +21,7 @@ import com.github.jvsena42.loopky.testing.FakeMediaRepository
 import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
+import com.github.jvsena42.loopky.testing.fakeSession
 import com.github.jvsena42.loopky.testing.identityRepository
 import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCoverImage
@@ -725,5 +726,18 @@ class DiscoveryRepositoryImplTest {
 
         /** pubky-app-specs timestamp ids are always 13 Crockford-base32 characters. */
         const val POST_ID_LENGTH = 13
+    }
+
+    @Test
+    fun followingForgetsThePreviousAccountsFollows() = runTest {
+        repo.followUser("friendpk").getOrThrow()
+        assertEquals(listOf("friendpk"), repo.following())
+
+        // Same shape as the subscription cache: served before the owner was read, so a fresh
+        // pubky inherited whoever the last one followed.
+        session.set(null)
+        session.set(fakeSession("freshpk"))
+
+        assertEquals(emptyList(), repo.following())
     }
 }
