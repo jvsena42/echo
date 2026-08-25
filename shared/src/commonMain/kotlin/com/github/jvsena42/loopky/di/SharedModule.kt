@@ -131,7 +131,7 @@ val sharedModule = module {
         TagRepositoryImpl(pubky = get(), session = get(), revalidator = get(), nexus = get())
     }
 
-    viewModel { OnboardingViewModel(identityRepository = get()) }
+    viewModel { OnboardingViewModel(identityRepository = get(), ringPresence = get()) }
     viewModel { SignupStartViewModel(signupRepository = get(), ringPresence = get()) }
     viewModel { InviteCodeViewModel(signupRepository = get()) }
     viewModel { PhoneVerificationViewModel(signupRepository = get()) }

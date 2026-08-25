@@ -27,10 +27,14 @@ sealed interface OnboardingUiState {
      *
      * @param handoff how the user was sent to Ring, which decides whether this screen shows a
      *  spinner (Ring is already in the foreground on this device) or the QR code.
+     * @param ringInstalledHere whether anything on *this* device answers `pubkyauth://`, which is
+     *  the only thing that makes the QR panel's "open it here instead" escape hatch worth
+     *  offering — a dead button on the one screen a user cannot get past is worse than no button.
      */
     data class AwaitingApproval(
         val authUrl: String,
         val handoff: RingHandoff,
+        val ringInstalledHere: Boolean,
     ) : OnboardingUiState
 
     /** Parsing the callback + persisting session. Full-screen progress overlay acceptable. */

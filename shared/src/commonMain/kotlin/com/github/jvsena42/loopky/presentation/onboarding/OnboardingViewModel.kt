@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.data.pubky.redactAuthUrl
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.ErrorReason
+import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -29,6 +30,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 class OnboardingViewModel(
     private val identityRepository: IdentityRepository,
+    private val ringPresence: PubkyRingPresence,
     private val pubkyRingInstallUrl: String = DEFAULT_INSTALL_URL,
 ) : ViewModel() {
     private val _state = MutableStateFlow<OnboardingUiState>(OnboardingUiState.Restoring)
@@ -83,7 +85,16 @@ class OnboardingViewModel(
             }
             Log.d(TAG, "onSignInClick: got authUrl=${handle.authUrl.redactAuthUrl()}")
 
-            _state.update { OnboardingUiState.AwaitingApproval(handle.authUrl, handoff) }
+            _state.update {
+                OnboardingUiState.AwaitingApproval(
+                    authUrl = handle.authUrl,
+                    handoff = handoff,
+                    // Asked here rather than in the UI so both platforms answer it the same way:
+                    // the same probe already gates signup, and iOS's `canOpenURL` needs the
+                    // `pubkyauth` entry in LSApplicationQueriesSchemes that this object documents.
+                    ringInstalledHere = ringPresence.isInstalled(),
+                )
+            }
             Log.d(TAG, "onSignInClick: state=AwaitingApproval, handoff=$handoff")
             // Only when Ring is meant to be on this device. Firing the deeplink for the QR path
             // would bounce the user out to whatever claims `pubkyauth://` — or to nothing at all,

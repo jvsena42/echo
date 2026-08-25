@@ -308,6 +308,7 @@ private fun SignInPanel(
         if (awaitingScan != null) {
             RingScanPanel(
                 authUrl = awaitingScan.authUrl,
+                ringInstalledHere = awaitingScan.ringInstalledHere,
                 onOpenRingHere = onOpenRingHere,
                 onCancel = onCancelSignIn,
             )
@@ -342,6 +343,7 @@ private fun SignInPanel(
 @Composable
 private fun RingScanPanel(
     authUrl: String,
+    ringInstalledHere: Boolean,
     onOpenRingHere: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
@@ -349,7 +351,6 @@ private fun RingScanPanel(
     val colors = LoopkyTheme.colors
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
-    val ringInstalledHere = rememberRingInstalledHere()
 
     Column(
         modifier = modifier
@@ -425,22 +426,6 @@ private fun RingScanPanel(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-    }
-}
-
-/**
- * Whether anything on this device handles `pubkyauth://`.
- *
- * Resolved once per composition rather than watched: installing Ring while this screen is open and
- * expecting the button to appear is not a case worth a `BroadcastReceiver`, and the QR above works
- * either way. The manifest's `<queries>` element is what makes this answerable at all on API 30+.
- */
-@Composable
-private fun rememberRingInstalledHere(): Boolean {
-    val context = LocalContext.current
-    return remember(context) {
-        Intent(Intent.ACTION_VIEW, Uri.parse(RING_PROBE_URI))
-            .resolveActivity(context.packageManager) != null
     }
 }
 
@@ -677,6 +662,3 @@ private fun OnboardingContentPreview() {
 
 private val QR_SIZE = 220.dp
 private val HERO_MAX_WIDTH = 420.dp
-
-/** Any `pubkyauth://` URL resolves the same handler; the path is irrelevant to the probe. */
-private const val RING_PROBE_URI = "pubkyauth:///"

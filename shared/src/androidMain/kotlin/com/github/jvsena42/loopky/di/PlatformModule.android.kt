@@ -68,6 +68,7 @@ fun androidPlatformModule(
     factory {
         OnboardingViewModel(
             identityRepository = get(),
+            ringPresence = get(),
             pubkyRingInstallUrl = PUBKY_RING_PLAY_STORE_URL,
         )
     }

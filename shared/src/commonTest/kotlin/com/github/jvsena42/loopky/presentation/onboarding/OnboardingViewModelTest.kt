@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.presentation.onboarding
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
+import com.github.jvsena42.loopky.testing.FakePubkyRingPresence
 import com.github.jvsena42.loopky.testing.fakeSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,7 +42,12 @@ class OnboardingViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel() = OnboardingViewModel(identityRepository = identityRepo)
+    private val ringPresence = FakePubkyRingPresence()
+
+    private fun viewModel() = OnboardingViewModel(
+        identityRepository = identityRepo,
+        ringPresence = ringPresence,
+    )
 
     /** Subscribes eagerly so the deeplink effect emitted during sign-in is not dropped. */
     private fun TestScope.collectEffects(vm: OnboardingViewModel): List<OnboardingEffect> {
