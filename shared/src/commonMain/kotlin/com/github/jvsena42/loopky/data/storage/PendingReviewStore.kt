@@ -14,6 +14,14 @@ import kotlinx.serialization.json.Json
  */
 @Serializable
 data class PendingReview(
+    /**
+     * Who did the reviewing. Distinct from [authorPubky] and not derivable from it: review state
+     * is stored per-reader on the homeserver (`srs/{owner}/{author}/{deckId}`), so an entry that
+     * does not say whose it is can be flushed to the wrong account. Null on a journal written
+     * before this field existed — [decodePendingReviews] drops those rather than guessing, because
+     * the only available guess is "whoever is signed in now", which is exactly the bug.
+     */
+    val ownerPubky: String? = null,
     /** The deck's author. Review state is author-keyed, since followed decks are studiable too. */
     val authorPubky: String,
     val deckId: String,
@@ -65,9 +73,15 @@ internal fun encodePendingReviews(entries: List<PendingReview>): String =
 /**
  * Decode a stored journal, or nothing if it cannot be read. A corrupt or outdated journal costs
  * the unflushed reviews it held — the same as having no journal, which is where this started.
+ *
+ * Entries with no [PendingReview.ownerPubky] are dropped for the same reason: they come from a
+ * journal written before reviews recorded who made them, and the only way to keep them would be to
+ * credit them to whoever signs in next. Losing a handful of unflushed reviews once, on upgrade, is
+ * the cheaper mistake — they are the ones a flush had already failed to send.
  */
 internal fun decodePendingReviews(payload: String?): List<PendingReview> {
     if (payload.isNullOrBlank()) return emptyList()
     return runCatching { journalJson.decodeFromString<List<PendingReview>>(payload) }
         .getOrDefault(emptyList())
+        .filter { it.ownerPubky != null }
 }

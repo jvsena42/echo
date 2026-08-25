@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.AccountStamp
 import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
@@ -113,6 +114,46 @@ class SrsRepositoryImpl(
     private val cacheLock = Mutex()
     private var sinceFlush = 0
 
+    /** Guarded by [cacheLock]. Review state is per-reader, so none of this may outlive the account. */
+    private val cacheAccount = AccountStamp(session)
+
+    /**
+     * Take [cacheLock], dropping everything in it first if the account has changed.
+     *
+     * Every read and write of the caches goes through this rather than through `cacheLock`directly,
+     * because the alternative — a check at each of the twenty-odd call sites — is one missed path
+     * away from serving a new account the previous one's review history.
+     */
+    private suspend fun <T> withCaches(block: suspend () -> T): T = cacheLock.withLock {
+        evictOnAccountChangeLocked()
+        block()
+    }
+
+    /**
+     * Drop every cached map when the signed-in account changes. Caller holds [cacheLock].
+     *
+     * Safe to lose the dirty set here: reviews are journalled to disk as they are graded, not only
+     * when they flush, and the journal is now owner-scoped — so the previous account's unflushed
+     * work is still on the device waiting for it to sign back in. [journalRestored] resets for the
+     * same reason: the new account has its own journal to fold in.
+     */
+    private fun evictOnAccountChangeLocked() {
+        if (cacheAccount.changed()) {
+            cache.clear()
+            stateChunks.clear()
+            dirty.clear()
+            dirtyStates.clear()
+            deckAuthors.clear()
+            loadedDecks.clear()
+            journalRestored = false
+            sinceFlush = 0
+        }
+        // Re-stamped on every acquisition, not only after an eviction: the stamp is what makes the
+        // *next* change detectable, so skipping it while nothing had changed would mean the caches
+        // were never claimed by anyone and no later switch would ever register.
+        cacheAccount.mark()
+    }
+
     private val _changes = MutableSharedFlow<String>(
         extraBufferCapacity = CHANGE_BUFFER,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -162,8 +203,8 @@ class SrsRepositoryImpl(
 
     /** Whether this deck's review state has actually been read this session. */
     private suspend fun isLoadedFor(deckId: String): Boolean {
-        val author = cacheLock.withLock { deckAuthors[deckId] } ?: return false
-        return cacheLock.withLock { loadedDecks.contains(author to deckId) }
+        val author = withCaches { deckAuthors[deckId] } ?: return false
+        return withCaches { loadedDecks.contains(author to deckId) }
     }
 
     override suspend fun countsToday(): Map<String, DeckCounts> {
@@ -212,7 +253,7 @@ class SrsRepositoryImpl(
             .getOrNull() ?: deckRepository.getLocal(deckId)
         val author = deck?.authorPubky ?: session.current()?.identity?.pubky
             ?: return DeckQueue(emptyList(), emptyList())
-        cacheLock.withLock { deckAuthors[deckId] = author }
+        withCaches { deckAuthors[deckId] = author }
 
         val cards = cardRepository.listByDeck(deckId)
         loadChunksFor(author, deckId)
@@ -231,19 +272,19 @@ class SrsRepositoryImpl(
 
     override suspend fun nextDueAt(): Long? {
         val now = epochMillis()
-        return cacheLock.withLock { cache.values.map { it.dueAt } }
+        return withCaches { cache.values.map { it.dueAt } }
             .filter { it > now }
             .minOrNull()
     }
 
     override suspend fun stateFor(deckId: String, cardId: String): SrsState? {
         val author = authorFor(deckId)
-        return cacheLock.withLock { cache[StateKey(author, deckId, cardId)] }
+        return withCaches { cache[StateKey(author, deckId, cardId)] }
     }
 
     override suspend fun statesForDeck(deckId: String): Map<String, SrsState> {
         val author = authorFor(deckId)
-        return cacheLock.withLock {
+        return withCaches {
             cache.entries
                 .filter { it.key.authorPubky == author && it.key.deckId == deckId }
                 .associate { it.key.cardId to it.value }
@@ -257,7 +298,7 @@ class SrsRepositoryImpl(
      */
     override suspend fun dueCountsCached(): Map<String, DeckCounts> {
         val now = epochMillis()
-        val decks = cacheLock.withLock { deckAuthors.toMap() }
+        val decks = withCaches { deckAuthors.toMap() }
         return decks.mapValues { (deckId, _) ->
             val states = statesForDeck(deckId)
             val cards = cardRepository.listByDeck(deckId)
@@ -377,9 +418,9 @@ class SrsRepositoryImpl(
     override suspend fun upsert(deckId: String, state: SrsState): Result<Unit> = runSuspendCatching {
         val author = authorFor(deckId)
         val key = StateKey(author, deckId, state.cardId)
-        val chunk = cacheLock.withLock { stateChunks[key] } ?: chunkFor(deckId, state.cardId)
+        val chunk = withCaches { stateChunks[key] } ?: chunkFor(deckId, state.cardId)
 
-        val shouldFlush = cacheLock.withLock {
+        val shouldFlush = withCaches {
             cache[key] = state
             stateChunks[key] = chunk
             dirty.add(Triple(author, deckId, chunk))
@@ -397,7 +438,7 @@ class SrsRepositoryImpl(
 
     override suspend fun flush(): Result<Unit> = runSuspendCatching {
         restoreJournal()
-        val (pending, pendingStates) = cacheLock.withLock {
+        val (pending, pendingStates) = withCaches {
             val chunks = dirty.toList()
             val states = dirtyStates.toList()
             dirty.clear()
@@ -419,7 +460,7 @@ class SrsRepositoryImpl(
             }
         } catch (err: Throwable) {
             // Put them back so the next flush retries rather than silently losing progress.
-            cacheLock.withLock {
+            withCaches {
                 dirty.addAll(pending)
                 dirtyStates.addAll(pendingStates)
             }
@@ -454,20 +495,26 @@ class SrsRepositoryImpl(
      * so the nested call returns false rather than recursing.
      */
     private suspend fun restoreJournal(): Boolean {
-        val alreadyRestored = cacheLock.withLock {
+        val alreadyRestored = withCaches {
             val was = journalRestored
             journalRestored = true
             was
         }
         if (alreadyRestored) return false
 
+        // Nothing to fold in for nobody: signed out, there is no account to attribute a review to.
+        val owner = session.current()?.identity?.pubky ?: return false
         val entries = runSuspendCatching { pendingReviews.load() }.getOrElse {
             Log.e(TAG, "restoreJournal: unreadable — ${it.message}", it)
             return false
         }
+            // The journal is one device-wide file and may hold another account's unflushed work.
+            // Restoring theirs would both show this user reviews they never did and, on the next
+            // flush, write them to *this* account's homeserver.
+            .filter { it.ownerPubky == owner }
         if (entries.isEmpty()) return false
 
-        cacheLock.withLock {
+        withCaches {
             for (entry in entries) {
                 val key = StateKey(entry.authorPubky, entry.deckId, entry.cardId)
                 cache[key] = entry.toDomain()
@@ -487,14 +534,21 @@ class SrsRepositoryImpl(
      * newer one on the next restore.
      */
     private suspend fun writeJournal() {
-        val entries = cacheLock.withLock {
+        val owner = session.current()?.identity?.pubky ?: return
+        val mine = withCaches {
             dirtyStates.mapNotNull { key ->
                 val state = cache[key] ?: return@mapNotNull null
                 val chunk = stateChunks[key] ?: return@mapNotNull null
-                state.toPendingReview(key.authorPubky, key.deckId, chunk)
+                state.toPendingReview(owner, key.authorPubky, key.deckId, chunk)
             }
         }
-        runSuspendCatching { pendingReviews.save(entries) }
+        // "Written whole" now means whole *for this account*. The file is device-wide, so
+        // overwriting it with only our own entries — which is what this did — would throw away
+        // another account's unflushed reviews the moment we flushed ours.
+        val theirs = runSuspendCatching { pendingReviews.load() }
+            .getOrDefault(emptyList())
+            .filter { it.ownerPubky != owner }
+        runSuspendCatching { pendingReviews.save(theirs + mine) }
             .onFailure { Log.e(TAG, "writeJournal: FAILED — ${it.message}", it) }
     }
 
@@ -502,7 +556,7 @@ class SrsRepositoryImpl(
     private var journalRestored = false
 
     private suspend fun writeChunk(owner: String, author: String, deckId: String, chunk: Int) {
-        val states = cacheLock.withLock {
+        val states = withCaches {
             cache.filterKeys { key ->
                 key.authorPubky == author && key.deckId == deckId && stateChunks[key] == chunk
             }.values.map { it.toDto() }
@@ -528,7 +582,7 @@ class SrsRepositoryImpl(
      */
     private suspend fun loadChunksFor(author: String, deckId: String) {
         val owner = session.current()?.identity?.pubky ?: return
-        val loaded = cacheLock.withLock { loadedDecks.contains(author to deckId) }
+        val loaded = withCaches { loadedDecks.contains(author to deckId) }
         if (loaded) return
 
         val root = PubkyPaths.srsRoot(owner, author, deckId)
@@ -542,7 +596,7 @@ class SrsRepositoryImpl(
             pubky.get(url)
                 .mapCatching { loopkyJson.decodeFromString<SrsChunkDto>(it) }
                 .onSuccess { dto ->
-                    cacheLock.withLock {
+                    withCaches {
                         dto.states.forEach { state ->
                             val key = StateKey(author, deckId, state.card_id)
                             // A buffered review is newer than what is on the homeserver.
@@ -553,16 +607,16 @@ class SrsRepositoryImpl(
                 }
                 .onFailure { Log.e(TAG, "loadChunksFor: $url unreadable — ${it.message}", it) }
         }
-        cacheLock.withLock { loadedDecks.add(author to deckId) }
+        withCaches { loadedDecks.add(author to deckId) }
     }
 
     private val loadedDecks = mutableSetOf<Pair<String, String>>()
 
     private suspend fun stateOf(author: String, deckId: String, cardId: String): SrsState? =
-        cacheLock.withLock { cache[StateKey(author, deckId, cardId)] }
+        withCaches { cache[StateKey(author, deckId, cardId)] }
 
     private suspend fun authorFor(deckId: String): String =
-        cacheLock.withLock { deckAuthors[deckId] }
+        withCaches { deckAuthors[deckId] }
             ?: deckRepository.getLocal(deckId)?.authorPubky
             ?: session.requireSession().identity.pubky
 
@@ -602,7 +656,13 @@ class SrsRepositoryImpl(
  * whose deck it is and which chunk record it belongs in — since neither is recoverable from the
  * state alone.
  */
-private fun SrsState.toPendingReview(authorPubky: String, deckId: String, chunk: Int) = PendingReview(
+private fun SrsState.toPendingReview(
+    ownerPubky: String,
+    authorPubky: String,
+    deckId: String,
+    chunk: Int,
+) = PendingReview(
+    ownerPubky = ownerPubky,
     authorPubky = authorPubky,
     deckId = deckId,
     chunk = chunk,

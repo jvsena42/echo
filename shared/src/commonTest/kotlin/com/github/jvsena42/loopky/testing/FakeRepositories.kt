@@ -487,6 +487,11 @@ class FakePendingReviewStore : PendingReviewStore {
 
     val saves = mutableListOf<List<PendingReview>>()
 
+    /** Pre-load a journal, as a previous process — or another account — would have left one. */
+    fun seed(vararg entries: PendingReview) {
+        this.entries = entries.toList()
+    }
+
     override suspend fun load(): List<PendingReview> = entries
 
     override suspend fun save(entries: List<PendingReview>) {
