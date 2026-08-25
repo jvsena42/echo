@@ -109,10 +109,64 @@ class NexusClientTest {
     }
 
     @Test
-    fun taggersOfLabelParsesTheDirectory() = runTest {
-        http.respond("$BASE/v0/tags/taggers/loopky-user?limit=20", """["pk1","pk2"]""")
+    fun usersByProfileTagUnwrapsTheScoredHits() = runTest {
+        http.respond(
+            "$BASE/v0/search/users/by_tags?tags=loopky-user&limit=50",
+            """[{"user_id":"pk1","score":1},{"user_id":"pk2","score":1}]""",
+        )
 
-        assertEquals(listOf("pk1", "pk2"), client.taggersOfLabel("loopky-user").getOrThrow())
+        assertEquals(listOf("pk1", "pk2"), client.usersByProfileTag("loopky-user").getOrThrow())
+    }
+
+    @Test
+    fun usersByProfileTagEncodesTheLabelAndClampsTheLimit() = runTest {
+        client.usersByProfileTag("loopky user", limit = 5000)
+
+        assertEquals(
+            "$BASE/v0/search/users/by_tags?tags=loopky%20user&limit=200",
+            http.requestedUrls.single(),
+        )
+    }
+
+    @Test
+    fun usersByProfileTagFailsOnAnIndexerWithoutTheEndpoint() = runTest {
+        // Prod today. The caller has to see this as "no such query", not "no Loopky users" (#134).
+        http.enqueue(
+            HttpMethod.GET,
+            "$BASE/v0/search/users/by_tags?tags=loopky-user&limit=50",
+            HttpResponse(statusCode = 404, body = ""),
+        )
+
+        val error = client.usersByProfileTag("loopky-user").exceptionOrNull()
+
+        assertEquals(expected = 404, actual = (error as HttpError).statusCode)
+    }
+
+    @Test
+    fun postAuthorsByTagTakesTheAuthorOffEachPostKey() = runTest {
+        http.respond(
+            "$BASE/v0/search/posts/by_tag/loopky-deck?limit=100",
+            """
+            [
+              {"post_key":"pk1:0035KSA35F6XG","score":1787691071993},
+              {"post_key":"pk1:0035KS8NGTDV0","score":1787690305483},
+              {"post_key":"pk2:0035KJDP8R1A0","score":1787572742484}
+            ]
+            """.trimIndent(),
+        )
+
+        // An author who announced three decks is one entry, not three.
+        assertEquals(listOf("pk1", "pk2"), client.postAuthorsByTag("loopky-deck").getOrThrow())
+    }
+
+    @Test
+    fun postAuthorsByTagSkipsAMalformedKey() = runTest {
+        http.respond(
+            "$BASE/v0/search/posts/by_tag/loopky-deck?limit=100",
+            """[{"post_key":":0035KSA35F6XG"},{"post_key":"pk1:0035KS8NGTDV0"}]""",
+        )
+
+        assertEquals(listOf("pk1"), client.postAuthorsByTag("loopky-deck").getOrThrow())
     }
 
     @Test

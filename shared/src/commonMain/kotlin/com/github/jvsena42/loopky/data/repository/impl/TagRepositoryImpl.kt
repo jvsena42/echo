@@ -32,7 +32,7 @@ import kotlinx.serialization.encodeToString
  *
  * - subject is a pubky.app `profile.json` or `posts/{id}` → [PubkyPaths.tag], the pubky.app
  *   namespace, indexed into the user/post graph — the only one `/v0/tags/hot`,
- *   `/v0/tags/taggers/{label}` and `/v0/search/posts/by_tag/{label}` can see;
+ *   `/v0/search/users/by_tags` and `/v0/search/posts/by_tag/{label}` can see;
  * - anything else, i.e. a deck manifest → [PubkyPaths.loopkyTag], indexed as a generic resource
  *   (reachable from `/v0/stream/resources?app=loopky`).
  *
@@ -162,10 +162,19 @@ class TagRepositoryImpl(
             }
     }
 
-    override suspend fun taggersOf(tag: Tag, limit: Int): List<String> {
+    override suspend fun usersTagged(tag: Tag, limit: Int): List<String> {
         val label = sanitizeLabel(tag).getOrElse { return emptyList() }
-        return nexus.taggersOfLabel(label, limit)
-            .onFailure { Log.w(TAG, "taggersOf('$label'): FAILED — ${it.message}") }
+        // Propagated, not swallowed: a 404 here means the indexer predates the endpoint, and the
+        // caller falls back to the deck-derived sources on it. See the contract.
+        return nexus.usersByProfileTag(label, limit)
+            .onFailure { Log.w(TAG, "usersTagged('$label'): FAILED — ${it.message}") }
+            .getOrThrow()
+    }
+
+    override suspend fun postAuthorsTagged(tag: Tag, limit: Int): List<String> {
+        val label = sanitizeLabel(tag).getOrElse { return emptyList() }
+        return nexus.postAuthorsByTag(label, limit)
+            .onFailure { Log.w(TAG, "postAuthorsTagged('$label'): FAILED — ${it.message}") }
             .getOrElse { emptyList() }
     }
 

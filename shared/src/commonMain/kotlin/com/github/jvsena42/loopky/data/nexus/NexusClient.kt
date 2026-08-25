@@ -116,19 +116,57 @@ class NexusClient(
     }
 
     /**
-     * Pubkys that have used [label] anywhere. For a self-tag like `loopky-user` the taggers *are*
-     * the directory — each entry tagged its own profile.
+     * Pubkys whose **profile** carries [label] — the read the `loopky-user` directory is built on.
      *
-     * Only reaches tags on pubky.app profiles and posts; resource tags are invisible here.
+     * Replaces `/v0/tags/taggers/{label}`, which looked like this query and is not one: without a
+     * `user_id` that endpoint answers out of the hot-tags Redis cache
+     * (`nexus-common/src/models/tag/global.rs:119-135`), so a label that never reached the top-N
+     * network-wide misses the map and comes back `[]` — indistinguishable from nobody having used
+     * it. Prod's `User` hot list bottomed out at 66 tagged users while `loopky-user` had 2, and
+     * `bitkit-user` reads empty for the same reason, so every app-directory label hits it (#134).
+     * The reach-scoped branch of the same endpoint is no better: it is hardcoded to `Post`
+     * subjects, so it cannot see a profile tag at any count (pubky/pubky-nexus#1036).
+     *
+     * **Fails with a 404 [HttpError] on an indexer that predates the endpoint** — it landed in
+     * pubky/pubky-nexus#1030 and is live on staging but not yet on prod, so callers must fall back
+     * rather than treat the failure as "no Loopky users" (see
+     * [com.github.jvsena42.loopky.data.repository.impl.DiscoveryRepositoryImpl.loopkyUsers]).
+     *
+     * Untrusted like every other tag read: `score` counts taggers and says nothing about *who*
+     * tagged, so a stranger labelling someone else scores the same as a self-tag. Verify with
+     * [userTaggers].
      */
-    suspend fun taggersOfLabel(
+    suspend fun usersByProfileTag(
         label: String,
-        limit: Int = MAX_GLOBAL_TAGGERS_LIMIT,
+        limit: Int = DEFAULT_PROFILE_TAG_LIMIT,
     ): Result<List<String>> = runSuspendCatching {
-        val url = "$baseUrl/v0/tags/taggers/${encodeUriComponent(label)}" +
-            "?limit=${limit.coerceIn(1, MAX_GLOBAL_TAGGERS_LIMIT)}"
+        // The endpoint takes a comma-separated `tags` list and ORs it; Loopky asks one label at a
+        // time, so the multi-label scoring is deliberately not relied on here.
+        val url = "$baseUrl/v0/search/users/by_tags" +
+            "?tags=${encodeUriComponent(label)}" +
+            "&limit=${limit.coerceIn(1, MAX_PROFILE_TAG_LIMIT)}"
         val body = http.get(url).getOrThrow()
-        loopkyJson.decodeFromString(ListSerializer(String.serializer()), body)
+        loopkyJson.decodeFromString(ListSerializer(NexusScoredUserDto.serializer()), body)
+            .map { it.user_id }
+    }
+
+    /**
+     * Authors of the posts carrying [label], most recent first, each pubky once.
+     *
+     * Post tags are the one Loopky label that reaches the global tag index (Architecture.md §7.7
+     * point 5), and a `post_key` is `{author}:{post_id}` — so the authors of every deck
+     * announcement fall out of the index without fetching a single post.
+     */
+    suspend fun postAuthorsByTag(
+        label: String,
+        limit: Int = DEFAULT_POST_SEARCH_LIMIT,
+    ): Result<List<String>> = runSuspendCatching {
+        val url = "$baseUrl/v0/search/posts/by_tag/${encodeUriComponent(label)}" +
+            "?limit=${limit.coerceIn(1, MAX_POST_SEARCH_LIMIT)}"
+        val body = http.get(url).getOrThrow()
+        loopkyJson.decodeFromString(ListSerializer(NexusPostKeyDto.serializer()), body)
+            .mapNotNull { it.post_key.substringBefore(':').takeIf { author -> author.isNotEmpty() } }
+            .distinct()
     }
 
     /**
@@ -177,7 +215,10 @@ class NexusClient(
         private const val DEFAULT_RESOURCE_LIMIT = 30
         private const val MAX_RESOURCE_LIMIT = 100
         private const val MAX_TAGS_PER_RESOURCE = 100
-        private const val MAX_GLOBAL_TAGGERS_LIMIT = 20
+        private const val DEFAULT_PROFILE_TAG_LIMIT = 50
+        private const val MAX_PROFILE_TAG_LIMIT = 200
+        private const val DEFAULT_POST_SEARCH_LIMIT = 100
+        private const val MAX_POST_SEARCH_LIMIT = 200
         private const val DEFAULT_USER_TAGGERS_LIMIT = 40
         private const val MAX_USER_TAGGERS_LIMIT = 100
         private const val DEFAULT_FOLLOWS_LIMIT = 60
@@ -218,6 +259,22 @@ data class NexusResourceDto(
 data class NexusResourceTagsDto(
     val resource: NexusResourceDetailsDto,
     val tags: List<NexusTagDetailsDto> = emptyList(),
+)
+
+/**
+ * One hit of `GET /v0/search/users/by_tags` (Nexus scored user). [score] is a tagger count, not
+ * evidence of a self-tag — see [NexusClient.usersByProfileTag].
+ */
+@Serializable
+data class NexusScoredUserDto(
+    val user_id: String,
+    val score: Double = 0.0,
+)
+
+/** One hit of `GET /v0/search/posts/by_tag/{label}`. [post_key] is `{author}:{post_id}`. */
+@Serializable
+data class NexusPostKeyDto(
+    val post_key: String,
 )
 
 /** `GET /v0/user/{id}/taggers/{label}` (Nexus `TaggersInfoResponse`). */

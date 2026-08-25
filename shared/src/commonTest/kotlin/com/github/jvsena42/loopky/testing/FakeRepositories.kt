@@ -840,7 +840,18 @@ class RecordingTagRepository : TagRepository {
 
     /** Indexer reads, canned per label. */
     var subjectsByTag: Map<Tag, List<TaggedSubject>> = emptyMap()
-    var taggersByTag: Map<Tag, List<String>> = emptyMap()
+
+    /** Profiles carrying a label — `/v0/search/users/by_tags`. */
+    var usersByTag: Map<Tag, List<String>> = emptyMap()
+
+    /** Authors of posts carrying a label — `/v0/search/posts/by_tag/{label}`. */
+    var postAuthorsByTag: Map<Tag, List<String>> = emptyMap()
+
+    /**
+     * When set, [usersTagged] throws it — the live prod case, where the endpoint 404s on an
+     * indexer that predates it and the caller has to fall back rather than read it as "nobody".
+     */
+    var usersTaggedError: Throwable? = null
     var selfTaggers: Set<String> = emptySet()
     var counts: Map<PubkyUri, Map<Tag, Int>> = emptyMap()
 
@@ -852,8 +863,13 @@ class RecordingTagRepository : TagRepository {
         return subjectsByTag[tag].orEmpty().take(limit)
     }
 
-    override suspend fun taggersOf(tag: Tag, limit: Int): List<String> =
-        taggersByTag[tag].orEmpty().take(limit)
+    override suspend fun usersTagged(tag: Tag, limit: Int): List<String> {
+        usersTaggedError?.let { throw it }
+        return usersByTag[tag].orEmpty().take(limit)
+    }
+
+    override suspend fun postAuthorsTagged(tag: Tag, limit: Int): List<String> =
+        postAuthorsByTag[tag].orEmpty().take(limit)
 
     /** Every self-tag lookup, so a test can prove a repeated question is answered from a cache. */
     val selfTagChecks = mutableListOf<String>()

@@ -395,8 +395,43 @@ class DiscoveryRepositoryImpl(
 
     override suspend fun loopkyUsers(limit: Int): List<PubkyIdentity> {
         val me = session.current()?.identity?.pubky
-        val candidates = tagRepository.taggersOf(ReservedTags.USER, limit).filterNot { it == me }
-        return candidates.mapConcurrently { pubky -> verifiedUser(pubky) }.filterNotNull()
+        val candidates = directoryCandidates(limit).filterNot { it == me }.take(limit)
+        val kept = candidates.mapConcurrently { pubky -> verifiedUser(pubky) }.filterNotNull()
+        Log.d(TAG, "loopkyUsers: ${kept.size} verified of ${candidates.size} candidates")
+        return kept
+    }
+
+    /**
+     * The pubkys worth asking about, from three indexer reads at once. See
+     * [DiscoveryRepository.loopkyUsers] for why it takes all three.
+     *
+     * Each source swallows its own failure rather than emptying the union: the profile-tag search
+     * is a 404 on an indexer that predates it (#134), and an indexer down for one read is no
+     * reason to discard the other two. Deduped in source order, so a self-tagged account keeps its
+     * place ahead of one merely inferred from a deck.
+     *
+     * The [limit] is spent per source, not across them — every candidate is verified afterwards
+     * and most of the deck-derived ones collapse onto an author already in the list.
+     */
+    private suspend fun directoryCandidates(limit: Int): List<String> = coroutineScope {
+        val selfTagged = async {
+            // Throws where the other tag reads return empty, precisely so this can tell "the
+            // indexer has no such query" from "no Loopky users" — the confusion #134 was.
+            runSuspendCatching { tagRepository.usersTagged(ReservedTags.USER, limit) }
+                .onFailure { Log.w(TAG, "loopkyUsers: profile-tag search unavailable — ${it.message}") }
+                .getOrElse { emptyList() }
+        }
+        val deckOwners = async {
+            tagRepository
+                .taggedSubjects(ReservedTags.DECK, DiscoveryRepository.DIRECTORY_DECK_SAMPLE)
+                // The author is the URI's owner, and parsing it is also what rules out a label
+                // pointed at something that is not a deck manifest at all.
+                .mapNotNull { PubkyUris.parseDeckManifest(it.uri.value)?.authorPubky }
+        }
+        val announcers = async { tagRepository.postAuthorsTagged(ReservedTags.DECK) }
+        val union = (selfTagged.await() + deckOwners.await() + announcers.await()).distinct()
+        Log.d(TAG, "loopkyUsers: ${union.size} candidates from profile tags, decks and posts")
+        union
     }
 
     override suspend fun suggestedPeople(seedDecks: List<Deck>, limit: Int): List<PubkyIdentity> {
