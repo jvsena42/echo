@@ -302,6 +302,14 @@
     <string name="onboarding_policy_consent">I have read and agree to the %1$s and the %2$s.</string>
     <string name="onboarding_policy_privacy">Privacy Policy</string>
     <string name="onboarding_policy_license">License</string>
+    <string name="onboarding_qr_title">Scan with Pubky Ring</string>
+    <string name="onboarding_qr_body">Open Pubky Ring on your phone, tap Authorize, and scan this code.</string>
+    <string name="onboarding_qr_content_description">QR code containing this sign-in request</string>
+    <string name="onboarding_qr_waiting">Waiting for you to approve in Pubky Ring…</string>
+    <string name="onboarding_qr_open_here">I have Pubky Ring on this device</string>
+    <string name="onboarding_qr_cancel">Cancel</string>
+    <string name="onboarding_qr_copy">Copy sign-in link</string>
+    <string name="onboarding_qr_copied">Sign-in link copied</string>
     <string name="onboarding_app_version">Version %1$s</string>
 
     <!-- pubky.app — the web client the same account already exists on. -->

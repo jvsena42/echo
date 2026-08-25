@@ -32,6 +32,9 @@ navigationCompose = "2.9.0-beta03"
 kvault = "1.12.0"
 playServicesCodeScanner = "16.1.0"
 coil = "3.0.4"
+# QR encoding for the tablet Pubky Ring sign-in panel. Core only — the `android` artifact
+# pulls in a camera/scanner stack we already cover with play-services-code-scanner.
+zxing = "3.5.3"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -73,6 +76,7 @@ kvault = { module = "com.liftric:kvault", version.ref = "kvault" }
 play-services-code-scanner = { module = "com.google.android.gms:play-services-code-scanner", version.ref = "playServicesCodeScanner" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

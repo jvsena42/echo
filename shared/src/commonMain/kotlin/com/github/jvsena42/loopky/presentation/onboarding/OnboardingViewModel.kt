@@ -58,13 +58,22 @@ class OnboardingViewModel(
         }
     }
 
-    fun onSignInClick() {
+    /**
+     * Begin a Pubky Ring authorisation.
+     *
+     * [handoff] decides only whether we *also* fire the deeplink. The relay poll underneath is
+     * identical either way — Ring posts the approval back over the relay whether it was opened by
+     * a deeplink on this device or by scanning the QR on another one — which is why a tablet can
+     * be signed in from a phone at all, and why this is a branch in the effect rather than a
+     * second flow.
+     */
+    fun onSignInClick(handoff: RingHandoff = RingHandoff.ThisDevice) {
         if (signInJob?.isActive == true) {
             Log.d(TAG, "onSignInClick: ignored — sign-in already in progress")
             return
         }
         signInJob = viewModelScope.launch {
-            Log.d(TAG, "onSignInClick: state=Starting, calling beginSignIn")
+            Log.d(TAG, "onSignInClick: state=Starting, calling beginSignIn handoff=$handoff")
             _state.update { OnboardingUiState.Starting }
             val handleResult = identityRepository.beginSignIn()
             val handle = handleResult.getOrElse { error ->
@@ -74,9 +83,14 @@ class OnboardingViewModel(
             }
             Log.d(TAG, "onSignInClick: got authUrl=${handle.authUrl.redactAuthUrl()}")
 
-            _state.update { OnboardingUiState.AwaitingApproval }
-            Log.d(TAG, "onSignInClick: state=AwaitingApproval, emitting OpenDeeplink")
-            _effects.emit(OnboardingEffect.OpenDeeplink(handle.authUrl))
+            _state.update { OnboardingUiState.AwaitingApproval(handle.authUrl, handoff) }
+            Log.d(TAG, "onSignInClick: state=AwaitingApproval, handoff=$handoff")
+            // Only when Ring is meant to be on this device. Firing the deeplink for the QR path
+            // would bounce the user out to whatever claims `pubkyauth://` — or to nothing at all,
+            // which is the case the QR exists to serve.
+            if (handoff == RingHandoff.ThisDevice) {
+                _effects.emit(OnboardingEffect.OpenDeeplink(handle.authUrl))
+            }
 
             Log.d(TAG, "onSignInClick: awaiting Pubky Ring approval…")
             // Bounded because the relay poll is not: `await_auth_approval` blocks with no timeout
@@ -126,6 +140,37 @@ class OnboardingViewModel(
             ErrorReason.NotFound -> ErrorReason.NoHomeserverAccount
             else -> reason
         }
+    }
+
+    /**
+     * Escape hatch from the QR panel: approve on *this* device after all, without restarting.
+     *
+     * The same live authorisation, so the QR stays valid and the relay poll keeps running — a
+     * fresh [onSignInClick] would abandon the in-flight flow and invalidate the code the user may
+     * already be pointing a phone at.
+     */
+    fun onOpenRingOnThisDevice() {
+        val awaiting = _state.value as? OnboardingUiState.AwaitingApproval ?: run {
+            Log.w(TAG, "onOpenRingOnThisDevice: ignored — no authorisation in flight")
+            return
+        }
+        viewModelScope.launch { _effects.emit(OnboardingEffect.OpenDeeplink(awaiting.authUrl)) }
+    }
+
+    /**
+     * Back out of a sign-in that is still waiting on Ring, without leaving an error behind.
+     *
+     * Distinct from [onDeeplinkUnavailable], which also cancels the job but lands on
+     * [ErrorReason.RingNotInstalled]: the user closing the QR panel has not hit a problem, so the
+     * screen goes back to [OnboardingUiState.Idle] and the CTA is live again. The abandoned
+     * authorisation is left to expire on the relay — there is nothing to revoke, and the URL is
+     * useless to anyone who did not already have it.
+     */
+    fun onCancelSignIn() {
+        Log.d(TAG, "onCancelSignIn: user dismissed the handoff")
+        signInJob?.cancel()
+        signInJob = null
+        _state.update { OnboardingUiState.Idle }
     }
 
     fun onGetRingClick() {

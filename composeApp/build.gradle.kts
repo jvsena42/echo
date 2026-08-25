@@ -79,6 +79,7 @@ kotlin {
             implementation(libs.play.services.code.scanner)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.okhttp)
+            implementation(libs.zxing.core)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)

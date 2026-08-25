@@ -4,8 +4,10 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,9 +18,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -34,10 +38,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -53,9 +61,15 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingEffect
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingUiState
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingViewModel
+import com.github.jvsena42.loopky.presentation.onboarding.RingHandoff
 import com.github.jvsena42.loopky.ui.components.FoxPlate
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
+import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
+import com.github.jvsena42.loopky.ui.components.QrCode
 import com.github.jvsena42.loopky.ui.components.errorMessage
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
+import com.github.jvsena42.loopky.ui.layout.windowWidthClass
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.LICENSE_URL
 import com.github.jvsena42.loopky.ui.util.PRIVACY_POLICY_URL
@@ -119,14 +133,18 @@ fun OnboardingScreen(
         state = state,
         onSignInClick = viewModel::onSignInClick,
         onCreatePubky = onCreatePubky,
+        onOpenRingHere = viewModel::onOpenRingOnThisDevice,
+        onCancelSignIn = viewModel::onCancelSignIn,
     )
 }
 
 @Composable
 private fun OnboardingContent(
     state: OnboardingUiState,
-    onSignInClick: () -> Unit,
+    onSignInClick: (RingHandoff) -> Unit,
     onCreatePubky: () -> Unit,
+    onOpenRingHere: () -> Unit,
+    onCancelSignIn: () -> Unit,
 ) {
     if (state is OnboardingUiState.Restoring) {
         SplashContent()
@@ -146,6 +164,16 @@ private fun OnboardingContent(
     // the policy is stated in the label above it, and un-ticking is the deliberate act.
     var policyAccepted by rememberSaveable { mutableStateOf(true) }
 
+    val widthClass = windowWidthClass()
+    // The whole reason this screen knows about window size. A phone's key is in Ring on that same
+    // phone, so the deeplink is the shortest path; a tablet's owner keeps their key on their phone,
+    // where the deeplink cannot reach, so the way in is a code that phone can scan. Ring being
+    // installed *here* doesn't change it — the panel offers that as a second option rather than
+    // guessing, because a tablet that happens to have Ring may still not have this user's key.
+    val handoff = if (widthClass.isAtLeastMedium) RingHandoff.AnotherDevice else RingHandoff.ThisDevice
+    val awaitingScan = (state as? OnboardingUiState.AwaitingApproval)
+        ?.takeIf { it.handoff == RingHandoff.AnotherDevice }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -157,54 +185,52 @@ private fun OnboardingContent(
     ) {
         BrandRow()
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            FoxPlate(
-                size = 160.dp,
-                shape = CircleShape,
-                glyphSize = 96.sp,
-                containerColor = colors.accentPrimarySoft,
-            )
-            Spacer(Modifier.height(20.dp))
-            Text(
-                text = stringResource(R.string.brand_tagline),
-                color = colors.foregroundPrimary,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.ExtraBold,
-                textAlign = TextAlign.Center,
-                lineHeight = 34.sp,
-            )
-            Spacer(Modifier.height(20.dp))
-            Text(
-                text = stringResource(R.string.onboarding_hero_subtitle),
-                color = colors.foregroundSecondary,
-                fontSize = 15.sp,
-                textAlign = TextAlign.Center,
-                lineHeight = 22.sp,
+        // Landscape tablets get the hero and the sign-in side by side. Stacked, the same content
+        // on a 1280x800 window puts the fox against the ceiling and the button against the floor
+        // with a screen's worth of cream between them; side by side each half is a normal size.
+        if (widthClass.isExpanded) {
+            Row(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(48.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Hero(modifier = Modifier.widthIn(max = HERO_MAX_WIDTH))
+                SignInPanel(
+                    state = state,
+                    awaitingScan = awaitingScan,
+                    isWorking = isWorking,
+                    policyAccepted = policyAccepted,
+                    onPolicyAcceptedChange = { policyAccepted = it },
+                    onSignInClick = { onSignInClick(handoff) },
+                    onCreatePubky = onCreatePubky,
+                    onOpenRingHere = onOpenRingHere,
+                    onCancelSignIn = onCancelSignIn,
+                    modifier = Modifier.widthIn(max = PaneWidth.Focused),
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Hero()
+            }
+            SignInPanel(
+                state = state,
+                awaitingScan = awaitingScan,
+                isWorking = isWorking,
+                policyAccepted = policyAccepted,
+                onPolicyAcceptedChange = { policyAccepted = it },
+                onSignInClick = { onSignInClick(handoff) },
+                onCreatePubky = onCreatePubky,
+                onOpenRingHere = onOpenRingHere,
+                onCancelSignIn = onCancelSignIn,
+                modifier = Modifier.contentPane(PaneWidth.Focused),
             )
         }
-
-        CtaBlock(
-            state = state,
-            isWorking = isWorking,
-            policyAccepted = policyAccepted,
-            onSignInClick = onSignInClick,
-            onCreatePubky = onCreatePubky,
-        )
-
-        // Foot of the screen, under the calls to action: the gate has to be visible before the
-        // buttons are usable, but it is fine print rather than a step, and putting it between the
-        // hero and the primary button pushed the thing people came here to tap down the page.
-        PolicyConsentRow(
-            accepted = policyAccepted,
-            enabled = !isWorking,
-            onAcceptedChange = { policyAccepted = it },
-        )
 
         // Last, because a bug report from someone who cannot get past this screen is exactly the
         // one where knowing the build matters.
@@ -215,6 +241,206 @@ private fun OnboardingContent(
             fontSize = 11.sp,
             textAlign = TextAlign.Center,
         )
+    }
+}
+
+/** Fox, tagline, subtitle — the half of the screen that is pure brand. */
+@Composable
+private fun Hero(modifier: Modifier = Modifier) {
+    val colors = LoopkyTheme.colors
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        FoxPlate(
+            size = 160.dp,
+            shape = CircleShape,
+            glyphSize = 96.sp,
+            containerColor = colors.accentPrimarySoft,
+        )
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = stringResource(R.string.brand_tagline),
+            color = colors.foregroundPrimary,
+            fontSize = 30.sp,
+            fontWeight = FontWeight.ExtraBold,
+            textAlign = TextAlign.Center,
+            lineHeight = 34.sp,
+        )
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = stringResource(R.string.onboarding_hero_subtitle),
+            color = colors.foregroundSecondary,
+            fontSize = 15.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 22.sp,
+        )
+    }
+}
+
+/**
+ * Everything that acts: the call to action (or the QR handoff that replaces it) plus the consent
+ * gate that governs it.
+ *
+ * One composable rather than two so the two layouts above cannot drift — the consent tick and the
+ * button it enables have to stay together, and on the wide layout they belong in the same column
+ * rather than one of them stranded under the hero.
+ */
+@Composable
+private fun SignInPanel(
+    state: OnboardingUiState,
+    awaitingScan: OnboardingUiState.AwaitingApproval?,
+    isWorking: Boolean,
+    policyAccepted: Boolean,
+    onPolicyAcceptedChange: (Boolean) -> Unit,
+    onSignInClick: () -> Unit,
+    onCreatePubky: () -> Unit,
+    onOpenRingHere: () -> Unit,
+    onCancelSignIn: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        if (awaitingScan != null) {
+            RingScanPanel(
+                authUrl = awaitingScan.authUrl,
+                onOpenRingHere = onOpenRingHere,
+                onCancel = onCancelSignIn,
+            )
+        } else {
+            CtaBlock(
+                state = state,
+                isWorking = isWorking,
+                policyAccepted = policyAccepted,
+                onSignInClick = onSignInClick,
+                onCreatePubky = onCreatePubky,
+            )
+            // Under the calls to action: the gate has to be visible before the buttons are usable,
+            // but it is fine print rather than a step, and putting it between the hero and the
+            // primary button pushed the thing people came here to tap down the page.
+            PolicyConsentRow(
+                accepted = policyAccepted,
+                enabled = !isWorking,
+                onAcceptedChange = onPolicyAcceptedChange,
+            )
+        }
+    }
+}
+
+/**
+ * The tablet way in: the pending authorisation as a QR code for Pubky Ring on the user's phone.
+ *
+ * The code encodes the same one-shot `pubkyauth://` URL the deeplink would have carried, and the
+ * relay poll behind it is the same one — Ring does not care whether it was opened by a tap here or
+ * a camera over there. The consent tick is deliberately absent: it was already ticked to get to
+ * this state, and re-asking mid-handoff would be a second gate on a decision already made.
+ */
+@Composable
+private fun RingScanPanel(
+    authUrl: String,
+    onOpenRingHere: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val ringInstalledHere = rememberRingInstalledHere()
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("onboarding_ring_qr")
+            .clip(RoundedCornerShape(28.dp))
+            .background(colors.surfaceCard)
+            .padding(horizontal = 24.dp, vertical = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.onboarding_qr_title),
+            color = colors.foregroundPrimary,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.ExtraBold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = stringResource(R.string.onboarding_qr_body),
+            color = colors.foregroundSecondary,
+            fontSize = 14.sp,
+            lineHeight = 20.sp,
+            textAlign = TextAlign.Center,
+        )
+        // A white plate under the code regardless of theme: a QR inverted for dark mode is not a
+        // QR any scanner will read, and the quiet zone is this padding rather than encoded margin.
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(16.dp),
+        ) {
+            QrCode(content = authUrl, size = QR_SIZE)
+        }
+        Text(
+            text = stringResource(R.string.onboarding_qr_waiting),
+            color = colors.foregroundMuted,
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+        )
+        // Only when something on this device actually claims pubkyauth://. Offering it otherwise
+        // is a button that opens nothing, on the one screen where a dead end means the user cannot
+        // get into the app at all.
+        if (ringInstalledHere) {
+            LoopkySecondaryButton(
+                text = stringResource(R.string.onboarding_qr_open_here),
+                onClick = onOpenRingHere,
+                modifier = Modifier.testTag("onboarding_qr_open_here"),
+            )
+        }
+        TextButton(
+            onClick = {
+                clipboard.setText(AnnotatedString(authUrl))
+                Toast.makeText(context, R.string.onboarding_qr_copied, Toast.LENGTH_SHORT).show()
+            },
+            colors = ButtonDefaults.textButtonColors(contentColor = colors.accentSecondary),
+        ) {
+            Text(
+                text = stringResource(R.string.onboarding_qr_copy),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        TextButton(
+            onClick = onCancel,
+            modifier = Modifier.testTag("onboarding_qr_cancel"),
+            colors = ButtonDefaults.textButtonColors(contentColor = colors.foregroundMuted),
+        ) {
+            Text(
+                text = stringResource(R.string.onboarding_qr_cancel),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+/**
+ * Whether anything on this device handles `pubkyauth://`.
+ *
+ * Resolved once per composition rather than watched: installing Ring while this screen is open and
+ * expecting the button to appear is not a case worth a `BroadcastReceiver`, and the QR above works
+ * either way. The manifest's `<queries>` element is what makes this answerable at all on API 30+.
+ */
+@Composable
+private fun rememberRingInstalledHere(): Boolean {
+    val context = LocalContext.current
+    return remember(context) {
+        Intent(Intent.ACTION_VIEW, Uri.parse(RING_PROBE_URI))
+            .resolveActivity(context.packageManager) != null
     }
 }
 
@@ -252,7 +478,8 @@ private fun CtaBlock(
         LoopkyPrimaryButton(
             label = when (state) {
                 OnboardingUiState.Starting,
-                OnboardingUiState.AwaitingApproval -> stringResource(R.string.onboarding_signin_waiting)
+                is OnboardingUiState.AwaitingApproval,
+                -> stringResource(R.string.onboarding_signin_waiting)
                 OnboardingUiState.Verifying -> stringResource(R.string.onboarding_signin_verifying)
                 else -> stringResource(R.string.onboarding_signin_default)
             },
@@ -442,6 +669,14 @@ private fun OnboardingContentPreview() {
             state = OnboardingUiState.Idle,
             onSignInClick = {},
             onCreatePubky = {},
+            onOpenRingHere = {},
+            onCancelSignIn = {},
         )
     }
 }
+
+private val QR_SIZE = 220.dp
+private val HERO_MAX_WIDTH = 420.dp
+
+/** Any `pubkyauth://` URL resolves the same handler; the path is irrelevant to the probe. */
+private const val RING_PROBE_URI = "pubkyauth:///"
