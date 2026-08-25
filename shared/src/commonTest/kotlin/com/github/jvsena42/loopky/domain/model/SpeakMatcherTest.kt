@@ -65,6 +65,29 @@ class SpeakMatcherTest {
     }
 
     @Test
+    fun aSpelledNumberAnswersADigitAndTheOtherWayRound() {
+        // Which of the two an engine emits is the engine's choice, not the speaker's.
+        assertTrue(SpeakMatcher.match("ten", "10", "en-US").correct)
+        assertTrue(SpeakMatcher.match("10", "ten", "en-US").correct)
+        assertTrue(SpeakMatcher.match("I have 3 cats", "I have three cats", "en-US").correct)
+        assertTrue(SpeakMatcher.match("veintidós", "22", "es-ES").correct)
+    }
+
+    @Test
+    fun theWrongNumberIsStillWrong() {
+        assertFalse(SpeakMatcher.match("nine", "10", "en-US").correct)
+        assertFalse(SpeakMatcher.match("21", "12", "en-US").correct)
+    }
+
+    @Test
+    fun numbersAreOnlyFoldedInTheLanguageThatWasDeclared() {
+        // "once" is eleven in Spanish and "one time" in English; guessing marks it right.
+        assertFalse(SpeakMatcher.match("11", "once", "en-US").correct)
+        assertFalse(SpeakMatcher.match("11", "once").correct)
+        assertTrue(SpeakMatcher.match("11", "once", "es-ES").correct)
+    }
+
+    @Test
     fun emptyExpectedNeverMatches() {
         assertFalse(SpeakMatcher.match("", "").correct)
         assertFalse(SpeakMatcher.match("anything", "").correct)

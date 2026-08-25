@@ -267,8 +267,10 @@ class StudySessionViewModel(
         // Graded against what was captured when listening began, not against whichever side is
         // facing now: the answer arrives asynchronously, and a card flipped in the meantime would
         // otherwise mark a correct utterance wrong against the opposite side's text.
-        val expected = speakTarget?.expected ?: return
-        val result = SpeakMatcher.match(text, expected)
+        val target = speakTarget ?: return
+        // The target's own language, not the deck's front: it decides which language's number
+        // words "10" may be spoken as, and the two sides of a card rarely share one.
+        val result = SpeakMatcher.match(text, target.expected, target.languageTag)
         setSpeakPhase(
             if (result.correct) {
                 SpeakPhase.Correct(result.heard)
