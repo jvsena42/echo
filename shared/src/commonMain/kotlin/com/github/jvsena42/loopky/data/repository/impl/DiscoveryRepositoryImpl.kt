@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.nexus.NexusClient
+import com.github.jvsena42.loopky.data.pubky.AccountStamp
 import com.github.jvsena42.loopky.data.pubky.FollowDto
 import com.github.jvsena42.loopky.data.pubky.PostDto
 import com.github.jvsena42.loopky.data.pubky.PostEmbedDto
@@ -71,8 +72,16 @@ class DiscoveryRepositoryImpl(
     private var cache: MutableSet<String>? = null
     private val cacheLock = Mutex()
 
+    /** Guarded by [cacheLock]. The follow set is per-account and must not outlive it. */
+    private val cacheAccount = AccountStamp(session)
+
     override suspend fun following(): List<String> {
-        cacheLock.withLock { cache }?.let { return it.toList() }
+        // Checked before the cache is served — see the same guard in `loadSubscriptions`. Served
+        // first, a new account inherits whoever the last one followed.
+        cacheLock.withLock {
+            if (cacheAccount.changed()) cache = null
+            cache
+        }?.let { return it.toList() }
         val owner = session.current()?.identity?.pubky ?: return emptyList()
         // Propagate transport failures for the same reason as DeckRepositoryImpl.listByAuthor:
         // "couldn't reach the homeserver" must not render as "you follow nobody".
@@ -82,7 +91,10 @@ class DiscoveryRepositoryImpl(
         val entries = pubky.listAllEntries(PubkyPaths.followsRoot(owner))
             .getOrElse { if (it.isNotFound()) null else throw it }
         val followees = entries?.let(::parseFollowees) ?: emptyList()
-        cacheLock.withLock { cache = followees.toMutableSet() }
+        cacheLock.withLock {
+            cache = followees.toMutableSet()
+            cacheAccount.mark()
+        }
         return followees
     }
 
@@ -93,7 +105,11 @@ class DiscoveryRepositoryImpl(
         val body = loopkyJson.encodeToString(FollowDto(created_at = epochMillis()))
         this.pubky.putWithSessionRetry(PubkyPaths.follow(owner, pubky), body, session, revalidator)
             .getOrThrow()
-        cacheLock.withLock { (cache ?: mutableSetOf<String>().also { cache = it }).add(pubky) }
+        // Updates the cache only if it has already been loaded, matching `followDeck`'s handling
+        // of the subscription map. Seeding it from a single follow — which is what this did —
+        // published a one-element set as the complete follow list to the next `following()`, and
+        // left it stamped to nobody, so it also survived a change of account.
+        cacheLock.withLock { cache?.add(pubky) }
         Unit
     }
 

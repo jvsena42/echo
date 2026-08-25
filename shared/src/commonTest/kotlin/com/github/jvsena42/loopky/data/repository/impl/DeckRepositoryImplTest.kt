@@ -22,6 +22,7 @@ import com.github.jvsena42.loopky.testing.FakePubkyClient
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
 import com.github.jvsena42.loopky.testing.deckRepository
+import com.github.jvsena42.loopky.testing.fakeSession
 import com.github.jvsena42.loopky.testing.signedInProvider
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
@@ -467,6 +468,22 @@ class DeckRepositoryImplTest {
 
         assertEquals(listOf("alpha", "beta"), followed.map { it.id }.sorted())
         assertEquals(listOf("friendpk", "otherpk"), followed.map { it.authorPubky }.sorted())
+    }
+
+    @Test
+    fun listFollowedForgetsTheSubscriptionsOfAPreviousAccount() = runTest {
+        val alpha = putRemoteDeck("friendpk", "alpha", listOf(testCard("a1", deckId = "alpha")))
+        repo.followDeck(alpha).getOrThrow()
+        assertEquals(listOf("alpha"), repo.listFollowed().map { it.id })
+
+        // Sign out, then sign in as a pubky that has never followed anything. The process — and so
+        // the repository and its caches — survives, which is exactly the case that broke: the
+        // subscription cache was served before anything checked whose session it belonged to, so a
+        // brand-new account opened Home and found the previous user's decks waiting for it.
+        session.set(null)
+        session.set(fakeSession("freshpk"))
+
+        assertEquals(emptyList(), repo.listFollowed().map { it.id })
     }
 
     @Test
