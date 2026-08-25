@@ -480,6 +480,24 @@ class StudySessionViewModelTest {
     }
 
     @Test
+    fun aTranscriptThatCameBackAsDigitsStillMatchesASpelledCard() = runTest {
+        // The recognizer decides between "diez" and "10"; the speaker said the same thing either
+        // way. Graded in the *target side's* language, which is what makes the fold safe.
+        seedSpeechDeck()
+        srsRepo.due = listOf(testCard("c1", front = "diez", back = "ten"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onSpeakTest()
+        advanceUntilIdle()
+        vm.onSpeechResult("10")
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertIs<SpeakPhase.Correct>(state.speakPhase)
+    }
+
+    @Test
     fun aLateTranscriptAfterDismissalIsIgnored() = runTest {
         // Dismissing clears the target; without that guard a result landing afterwards would
         // reopen the Correct/Wrong sheet over a card the user has moved on from.
