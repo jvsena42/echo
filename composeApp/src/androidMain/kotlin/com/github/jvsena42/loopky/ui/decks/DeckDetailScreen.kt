@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
@@ -75,10 +73,11 @@ import com.github.jvsena42.loopky.ui.components.ExpandableLinkedText
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.SharePromptDialog
-import com.github.jvsena42.loopky.ui.components.StatsBar
-import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
+import com.github.jvsena42.loopky.ui.layout.windowWidthClass
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
 import com.github.jvsena42.loopky.ui.util.shareText
@@ -354,135 +353,50 @@ private fun DeckDetailContent(
             }
         },
     ) { innerPadding ->
+        if (windowWidthClass().isExpanded) {
+            WideDeckDetail(
+                state = state,
+                onOpenTag = onOpenTag,
+                onOpenProfile = onOpenProfile,
+                onBackClick = onBackClick,
+                onShareClick = onShareClick,
+                onCardClick = onCardClick,
+                onEditClick = onEditClick,
+                onDeleteClick = onDeleteClick,
+                onToggleFollow = onToggleFollow,
+                onCloneClick = onCloneClick,
+                modifier = Modifier.padding(innerPadding),
+            )
+            return@Scaffold
+        }
         // A LazyColumn rather than a scrolling Column: the card list below is as long as the
         // deck, and a 500-card deck would otherwise compose every row up front.
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                // Card rows are front-and-back pairs. Given a landscape tablet's full width they
+                // put the prompt at one edge and the answer at the other, which is unreadable as
+                // a pair — and the cover art above them becomes a letterbox.
+                .contentPane(PaneWidth.Reading)
                 .testTag("deck_detail_content"),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp),
         ) {
             // Everything above the card list is a fixed set of sections that are on screen
             // together anyway, so they stay in one item and keep their shared 20.dp rhythm.
             item(key = "header") {
-                Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    // Header: Back + Edit/Delete (owner only) + Share
-                    HeaderBar(
-                        isOwned = state.isOwned,
-                        onBackClick = onBackClick,
-                        onShareClick = onShareClick,
-                        onEditClick = onEditClick,
-                        onDeleteClick = onDeleteClick,
-                    )
-
-                    // Cover
-                    CoverSection(
-                        coverEmoji = state.coverEmoji,
-                        coverImageUrl = state.coverImageUrl,
-                        coverImageBase64 = state.coverImageBase64,
-                        isOwned = state.isOwned,
-                    )
-
-                    // Owned badge
-                    if (state.isOwned) {
-                        OwnedBadgeRow()
-                        if (state.isIncomplete) IncompleteWarning()
-                    }
-
-                    // Title + Description
-                    TitleSection(title = state.title, description = state.description)
-
-                    // Credit for a clone, so attribution lives on the copy and not only in the
-                    // manifest's `source` block.
-                    state.clonedFrom?.let { ClonedFromRow(author = it) }
-
-                    // Hidden at zero rather than shown as "0 following": the indexer returns
-                    // nothing when it is unreachable or has not caught up, and a confident zero
-                    // would be a lie in both cases.
-                    SocialCountsRow(
-                        followerCount = state.followerCount,
-                        clonedCount = state.clonedCount,
-                    )
-
-                    // Author — tapping them opens their profile. This is where you actually meet
-                    // a stranger, so leaving it inert was the one dead end into their decks.
-                    // Your own name stays inert: there is nowhere to go but the Profile tab.
-                    AuthorRow(
-                        identity = state.author,
-                        isOwned = state.isOwned,
-                        onNameClick = if (state.isOwned) {
-                            null
-                        } else {
-                            { onOpenProfile(state.author.pubky) }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("deck_detail_author"),
-                    )
-
-                    // Tags
-                    if (state.tags.isNotEmpty()) {
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            state.tags.forEach { tag ->
-                                // Live since #26: global browse exists, so a chip leads to every
-                                // deck on the network carrying it rather than to a dead end.
-                                TagChip(tag = tag, onClick = { onOpenTag(tag) })
-                            }
-                        }
-                    }
-
-                    // Stats
-                    StatsBar(
-                        totalCards = state.totalCards,
-                        dueLabel = state.dueLabel,
-                        newCards = state.newCards,
-                        masteredPercent = state.masteredPercent,
-                        // Only Total means anything on a deck that is not yours yet: the actions
-                        // below are Follow and Clone, and there is nothing to be due.
-                        showProgress = state.isOwned || state.isFollowing,
-                    )
-
-                    // The two ways of keeping someone else's deck, side by side and equally
-                    // weighted: they are genuinely different choices, not a primary and an
-                    // afterthought. They sit under the stats rather than in the bottom bar —
-                    // crowded against Study they read as three competing primaries, and Study
-                    // is the only action that belongs to a deck you have already kept.
-                    if (!state.isOwned) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            FollowDeckButton(
-                                isFollowing = state.isFollowing,
-                                isPending = state.isFollowPending,
-                                onClick = onToggleFollow,
-                                modifier = Modifier.weight(1f),
-                            )
-                            LoopkyPrimaryButton(
-                                label = stringResource(R.string.deck_detail_clone),
-                                onClick = onCloneClick,
-                                enabled = !state.isCloning,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("deck_clone"),
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.ContentCopy,
-                                        contentDescription = null,
-                                        tint = colors.foregroundOnAccent,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                },
-                            )
-                        }
-                    }
-                }
+                DeckDetailHeader(
+                    state = state,
+                    showHeaderBar = true,
+                    onOpenTag = onOpenTag,
+                    onOpenProfile = onOpenProfile,
+                    onBackClick = onBackClick,
+                    onShareClick = onShareClick,
+                    onEditClick = onEditClick,
+                    onDeleteClick = onDeleteClick,
+                    onToggleFollow = onToggleFollow,
+                    onCloneClick = onCloneClick,
+                )
             }
 
             // Cards. Shown for decks you don't own too — being able to look through the cards
@@ -527,7 +441,7 @@ private fun DeckDetailContent(
 }
 
 @Composable
-private fun CardsHeading(count: Int, modifier: Modifier = Modifier) {
+internal fun CardsHeading(count: Int, modifier: Modifier = Modifier) {
     val colors = LoopkyTheme.colors
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -550,7 +464,7 @@ private fun CardsHeading(count: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun CardsEmptyState(isOwned: Boolean) {
+internal fun CardsEmptyState(isOwned: Boolean) {
     val colors = LoopkyTheme.colors
     Text(
         text = if (isOwned) {
@@ -568,16 +482,17 @@ private fun CardsEmptyState(isOwned: Boolean) {
 }
 
 @Composable
-private fun HeaderBar(
+internal fun HeaderBar(
     isOwned: Boolean,
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -649,7 +564,7 @@ private fun HeaderCircleButton(
  * The alpha while pending matches [AuthorRow]'s author-follow pill — the same optimistic flip.
  */
 @Composable
-private fun FollowDeckButton(
+internal fun FollowDeckButton(
     isFollowing: Boolean,
     isPending: Boolean,
     onClick: () -> Unit,
@@ -705,7 +620,7 @@ private fun FollowDeckButton(
  */
 @OptIn(ExperimentalEncodingApi::class)
 @Composable
-private fun CoverSection(
+internal fun CoverSection(
     coverEmoji: String,
     coverImageUrl: String?,
     coverImageBase64: String?,
@@ -752,7 +667,7 @@ private fun CoverSection(
  * the manifest, so without this the deck looks complete while holding fewer cards than it says.
  */
 @Composable
-private fun IncompleteWarning() {
+internal fun IncompleteWarning() {
     val colors = LoopkyTheme.colors
     Text(
         text = stringResource(R.string.deck_incomplete_warning),
@@ -763,7 +678,7 @@ private fun IncompleteWarning() {
 }
 
 @Composable
-private fun OwnedBadgeRow() {
+internal fun OwnedBadgeRow() {
     val colors = LoopkyTheme.colors
     // The "last studied" date is not tracked yet, so only the library badge is shown for now.
     AssistChip(
@@ -786,7 +701,7 @@ private fun OwnedBadgeRow() {
 }
 
 @Composable
-private fun TitleSection(title: String, description: String?) {
+internal fun TitleSection(title: String, description: String?) {
     val colors = LoopkyTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(

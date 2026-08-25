@@ -39,6 +39,9 @@ import com.github.jvsena42.loopky.presentation.discover.TagBrowseUiState
 import com.github.jvsena42.loopky.presentation.discover.TagBrowseViewModel
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.discover.DeckRow
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
+import com.github.jvsena42.loopky.ui.layout.deckGridColumns
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -131,17 +134,22 @@ private fun DeckGrid(
     onOpenDeck: (String, String) -> Unit,
     onOpenAuthor: (String) -> Unit,
 ) {
+    val columns = deckGridColumns()
     LazyColumn(
-        modifier = Modifier.fillMaxSize().testTag("tag_browse_grid"),
+        modifier = Modifier
+            .fillMaxSize()
+            .contentPane(PaneWidth.Wide)
+            .testTag("tag_browse_grid"),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         items(
-            items = decks.chunked(2),
+            items = decks.chunked(columns),
             key = { row -> row.joinToString(",") { "${it.authorPubky}/${it.id}" } },
         ) { row ->
             DeckRow(
                 decks = row,
+                columns = columns,
                 onOpenDeck = onOpenDeck,
                 onOpenAuthor = onOpenAuthor,
                 tileTestTag = "tag_browse_tile",

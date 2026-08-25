@@ -137,12 +137,16 @@ fun TopicRow(
 }
 
 /**
- * One row of the two-column deck grid. The grid is built from chunked rows rather than a
- * `LazyVerticalGrid` because it lives inside the screen's own `LazyColumn`.
+ * One row of the deck grid, [columns] tiles wide. The grid is built from chunked rows rather than
+ * a `LazyVerticalGrid` because it lives inside the screen's own `LazyColumn`.
+ *
+ * [columns] is passed in rather than read here so it matches the count the caller chunked by — the
+ * two going out of step would leave a row either overfull or short of its padding.
  */
 @Composable
 fun DeckRow(
     decks: List<DiscoverDeck>,
+    columns: Int,
     onOpenDeck: (String, String) -> Unit,
     onOpenAuthor: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -166,8 +170,9 @@ fun DeckRow(
                 modifier = Modifier.weight(1f).testTag(tileTestTag),
             )
         }
-        // Keeps a lone tile at half width instead of stretching it across the row.
-        if (decks.size == 1) {
+        // Keeps a short last row's tiles at their column width instead of stretching them across
+        // everything a full row would have held.
+        repeat(columns - decks.size) {
             Spacer(modifier = Modifier.weight(1f))
         }
     }

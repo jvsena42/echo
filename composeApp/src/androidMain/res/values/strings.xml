@@ -21,6 +21,9 @@
     <string name="home_start_studying">Start studying</string>
     <string name="home_todays_decks">Today\'s decks</string>
     <string name="home_see_all">See all</string>
+    <string name="home_deck_due">%1$d due</string>
+    <string name="home_deck_new">%1$d new</string>
+    <string name="home_deck_caught_up">Caught up</string>
     <string name="home_empty_title">Nothing to study yet</string>
     <string name="home_empty_subtitle">Create or import a deck to start your first study session. Cards will appear here when they\'re ready for review.</string>
     <string name="home_create_first_deck">Create a deck</string>
@@ -299,6 +302,14 @@
     <string name="onboarding_policy_consent">I have read and agree to the %1$s and the %2$s.</string>
     <string name="onboarding_policy_privacy">Privacy Policy</string>
     <string name="onboarding_policy_license">License</string>
+    <string name="onboarding_qr_title">Scan with Pubky Ring</string>
+    <string name="onboarding_qr_body">Open Pubky Ring on your phone, tap Authorize, and scan this code.</string>
+    <string name="onboarding_qr_content_description">QR code containing this sign-in request</string>
+    <string name="onboarding_qr_waiting">Waiting for you to approve in Pubky Ring…</string>
+    <string name="onboarding_qr_open_here">I have Pubky Ring on this device</string>
+    <string name="onboarding_qr_cancel">Cancel</string>
+    <string name="onboarding_qr_copy">Copy sign-in link</string>
+    <string name="onboarding_qr_copied">Sign-in link copied</string>
     <string name="onboarding_app_version">Version %1$s</string>
 
     <!-- pubky.app — the web client the same account already exists on. -->

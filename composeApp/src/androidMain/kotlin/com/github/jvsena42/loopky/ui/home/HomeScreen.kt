@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -36,6 +38,9 @@ import com.github.jvsena42.loopky.presentation.home.HomeUiState
 import com.github.jvsena42.loopky.presentation.home.HomeViewModel
 import com.github.jvsena42.loopky.ui.components.LoopkyErrorBlock
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
+import com.github.jvsena42.loopky.ui.layout.windowWidthClass
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.labelOrFallback
 import kotlinx.coroutines.flow.collectLatest
@@ -145,22 +150,36 @@ private fun HomeScreenContent(
         return
     }
 
+    val wide = windowWidthClass().isExpanded
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            // Wide enough for two panes side by side; on narrower windows the due-today hero is a
+            // number and its caption, and unbounded they drift to opposite ends of the card and
+            // read as two unrelated things.
+            .contentPane(if (wide) PaneWidth.Wide else PaneWidth.Reading)
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         when (state) {
             is HomeUiState.Content -> {
                 GreetingHeader(name = state.identity.labelOrFallback())
-                HomeContent(
-                    state = state,
-                    onStartStudyClick = onStartStudyClick,
-                    onSeeAllDecksClick = onSeeAllDecksClick,
-                    onDeckClick = onDeckClick,
-                )
+                if (wide) {
+                    WideHomeContent(
+                        state = state,
+                        onStartStudyClick = onStartStudyClick,
+                        onSeeAllDecksClick = onSeeAllDecksClick,
+                        onDeckClick = onDeckClick,
+                    )
+                } else {
+                    HomeContent(
+                        state = state,
+                        onStartStudyClick = onStartStudyClick,
+                        onSeeAllDecksClick = onSeeAllDecksClick,
+                        onDeckClick = onDeckClick,
+                    )
+                }
             }
             is HomeUiState.Error -> {
                 GreetingHeader(name = state.identity.labelOrFallback())
@@ -172,6 +191,43 @@ private fun HomeScreenContent(
             }
             HomeUiState.Loading, is HomeUiState.Empty -> Unit
         }
+    }
+}
+
+/**
+ * Home on a landscape tablet: the day's headline beside the decks, rather than stacked above them.
+ *
+ * Two things are different from the compact layout, both about the same problem. The hero is
+ * pinned to a column of its own instead of running the full width — a "2 / cards to review" card
+ * stretched across 1100dp puts its number and its caption a hand's width apart. And the deck list
+ * becomes a grid of covers, because the stacked pair used barely a third of the height and left
+ * the rest of the screen empty; the tiles are the same decks, drawn at a size the space deserves.
+ */
+@Composable
+private fun WideHomeContent(
+    state: HomeUiState.Content,
+    onStartStudyClick: () -> Unit,
+    onSeeAllDecksClick: () -> Unit,
+    onDeckClick: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        HomeHero(
+            state = state,
+            onStartStudyClick = onStartStudyClick,
+            modifier = Modifier.width(HERO_PANE_WIDTH),
+        )
+        TodaysDecksGrid(
+            decks = state.decks,
+            // Two across inside the right pane. The window may be wide, but this pane is only
+            // part of it, so the screen-wide count would give tiles too narrow to read.
+            columns = WIDE_HOME_DECK_COLUMNS,
+            onSeeAllClick = onSeeAllDecksClick,
+            onDeckClick = onDeckClick,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -264,3 +320,7 @@ private fun HomeScreenPreview() {
         )
     }
 }
+
+/** Wide enough for the hero's headline number and its caption to stay one phrase. */
+private val HERO_PANE_WIDTH = 380.dp
+private const val WIDE_HOME_DECK_COLUMNS = 2

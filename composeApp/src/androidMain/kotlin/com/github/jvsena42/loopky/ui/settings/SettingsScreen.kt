@@ -79,6 +79,8 @@ import com.github.jvsena42.loopky.presentation.settings.SettingsUiState
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
 import com.github.jvsena42.loopky.presentation.settings.UnsplashKeyStatus
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.nav.Routes
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.LICENSE_URL
@@ -195,6 +197,10 @@ private fun SettingsScreen(
             // the field right above it.
             .imePadding()
             .verticalScroll(rememberScrollState())
+            // A settings row is a label and its control; at full tablet width the two end up at
+            // opposite edges and stop reading as one row. See ProfileScreen for why this sits
+            // after the background rather than before it.
+            .contentPane(PaneWidth.Reading)
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 100.dp)),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
