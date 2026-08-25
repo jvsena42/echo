@@ -613,8 +613,29 @@ interface TagRepository {
      */
     suspend fun taggedSubjects(tag: Tag, limit: Int = DEFAULT_TAGGED_LIMIT): List<TaggedSubject>
 
-    /** Pubkys that have used [tag] anywhere; for a self-tag this is a directory of accounts. */
-    suspend fun taggersOf(tag: Tag, limit: Int = DEFAULT_TAGGERS_LIMIT): List<String>
+    /**
+     * Pubkys whose **profile** carries [tag]; for a self-tag like [ReservedTags.USER] this is the
+     * directory of accounts.
+     *
+     * Throws rather than swallowing, unlike the other indexer reads here, because "the indexer
+     * does not offer this query" and "nobody carries this label" are different answers and the
+     * caller has to tell them apart — an indexer older than pubky/pubky-nexus#1030 answers 404,
+     * which is not evidence about the network (#134). See
+     * [com.github.jvsena42.loopky.data.nexus.NexusClient.usersByProfileTag].
+     *
+     * Untrusted: a stranger can label someone else's profile. Confirm with [isSelfTagged].
+     */
+    suspend fun usersTagged(tag: Tag, limit: Int = DEFAULT_TAGGERS_LIMIT): List<String>
+
+    /**
+     * Authors of the posts carrying [tag] — for [ReservedTags.DECK], everyone who has announced a
+     * deck. Empty on indexer failure.
+     *
+     * The post tag index is the only one of Loopky's that Nexus admits to the global tag graph
+     * (Architecture.md §7.7 point 5), and a post key carries its author, so this costs one request
+     * and no post fetches.
+     */
+    suspend fun postAuthorsTagged(tag: Tag, limit: Int = DEFAULT_POST_AUTHOR_LIMIT): List<String>
 
     /**
      * True when [pubky] applied [tag] to its own profile. The check that separates an account
@@ -633,6 +654,9 @@ interface TagRepository {
     companion object {
         const val DEFAULT_TAGGED_LIMIT = 30
         const val DEFAULT_TAGGERS_LIMIT = 20
+
+        /** One page of announcement posts — many per author, so it is asked wider than it yields. */
+        const val DEFAULT_POST_AUTHOR_LIMIT = 100
 
         /** One indexer page. The resource stream caps at 100; 50 is broad coverage for one request. */
         const val DEFAULT_DECK_TAG_SAMPLE = 50
@@ -740,6 +764,21 @@ interface DiscoveryRepository {
      *
      * Verified the same way: kept only if the account self-tagged (tagger == subject) and its
      * profile resolves.
+     *
+     * Candidates come from three indexer reads, unioned, because no single one of them sees every
+     * Loopky account (#134):
+     *
+     * 1. [TagRepository.usersTagged] — profiles carrying [ReservedTags.USER]. The direct answer,
+     *    and the only source that reaches an account which has never published. Not deployed
+     *    everywhere yet, so it can contribute nothing at all.
+     * 2. deck manifests carrying [ReservedTags.DECK] — the author is in the manifest URI, so this
+     *    is free from a read global browse already makes.
+     * 3. [TagRepository.postAuthorsTagged] — authors of deck announcements, which reaches someone
+     *    whose manifest failed to index while their post did.
+     *
+     * The union is not belt-and-braces: 2 and 3 are what works on an indexer without 1, and 1 is
+     * the only one that reaches a user with no decks. Ordered so the accounts that claimed to be
+     * Loopky users come before the ones inferred from a deck.
      */
     suspend fun loopkyUsers(
         limit: Int = TagRepository.DEFAULT_TAGGERS_LIMIT,
@@ -785,10 +824,10 @@ interface DiscoveryRepository {
      * the authors of [seedDecks] — pass the decks global browse already fetched, so this costs no
      * second browse.
      *
-     * The directory alone is not enough in practice. `/v0/tags/hot` and `/v0/tags/taggers/{label}`
-     * only surface labels with real traction, so a `loopky-user` self-tag with one tagger comes
-     * back empty from the indexer even though the tag exists and the account is indexed (probed
-     * against staging, #26). Deck authors are the source that works from the first published deck.
+     * The seed authors are not redundant with the directory. [loopkyUsers] keeps only accounts
+     * that self-tagged with [ReservedTags.USER] *and* resolve a profile, so a published author who
+     * never got the self-tag written — or whose profile is missing — is dropped there and picked
+     * up here, under a bare pubky.
      *
      * A directory entry has only its own claim behind it, so it still has to verify. A deck author
      * is already corroborated — global browse fetched and parsed their manifest — so an author with
@@ -824,6 +863,13 @@ interface DiscoveryRepository {
 
         /** Below this a query matches nearly everything, and a pubky prefix is not yet a prefix. */
         const val MIN_SEARCH_QUERY_LENGTH = 2
+
+        /**
+         * How many indexed decks [loopkyUsers] reads authors off. Asked far wider than the
+         * directory it feeds: one author publishes many decks, so this collapses hard — the two
+         * real accounts on prod own five decks between them.
+         */
+        const val DIRECTORY_DECK_SAMPLE = 100
 
         /**
          * How many follow-graph entries [followingProfiles]/[followerProfiles] will inspect.

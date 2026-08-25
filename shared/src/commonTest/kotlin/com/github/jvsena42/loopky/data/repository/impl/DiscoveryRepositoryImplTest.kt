@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.nexus.HttpError
 import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.FollowDto
 import com.github.jvsena42.loopky.data.pubky.PostDto
@@ -405,7 +406,7 @@ class DiscoveryRepositoryImplTest {
     fun loopkyUsersReturnsSelfTaggedAccountsWithProfiles() = runTest {
         pubky.store["pubky://strangerpk/pub/pubky.app/profile.json"] =
             """{"name":"Ada","bio":null,"image":null}"""
-        tagRepo.taggersByTag = mapOf(ReservedTags.USER to listOf("strangerpk"))
+        tagRepo.usersByTag = mapOf(ReservedTags.USER to listOf("strangerpk"))
         tagRepo.selfTaggers = setOf("strangerpk")
 
         val users = repo.loopkyUsers()
@@ -420,7 +421,7 @@ class DiscoveryRepositoryImplTest {
         // about themselves and must not enter the directory.
         pubky.store["pubky://impostorpk/pub/pubky.app/profile.json"] =
             """{"name":"Impostor","bio":null,"image":null}"""
-        tagRepo.taggersByTag = mapOf(ReservedTags.USER to listOf("impostorpk"))
+        tagRepo.usersByTag = mapOf(ReservedTags.USER to listOf("impostorpk"))
         tagRepo.selfTaggers = emptySet()
 
         assertEquals(emptyList(), repo.loopkyUsers())
@@ -428,8 +429,90 @@ class DiscoveryRepositoryImplTest {
 
     @Test
     fun loopkyUsersDropsAccountsWithNoProfileAndTheSignedInUser() = runTest {
-        tagRepo.taggersByTag = mapOf(ReservedTags.USER to listOf("ghostpk", TEST_PUBKY))
+        tagRepo.usersByTag = mapOf(ReservedTags.USER to listOf("ghostpk", TEST_PUBKY))
         tagRepo.selfTaggers = setOf("ghostpk", TEST_PUBKY)
+
+        assertEquals(emptyList(), repo.loopkyUsers())
+    }
+
+    @Test
+    fun loopkyUsersFindsDeckOwnersWhenTheProfileTagSearchIsUnavailable() = runTest {
+        // Prod today: /v0/search/users/by_tags is not deployed, so the whole directory has to come
+        // off the decks. Its 404 must not read as "no Loopky users" (#134).
+        tagRepo.usersTaggedError = HttpError(404, "not found")
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(
+                tagged(manifestUri("publisherpk", "deck1"), taggers = listOf("publisherpk")),
+                tagged(manifestUri("publisherpk", "deck2"), taggers = listOf("publisherpk")),
+            ),
+        )
+        tagRepo.selfTaggers = setOf("publisherpk")
+        pubky.store["pubky://publisherpk/pub/pubky.app/profile.json"] =
+            """{"name":"Ada","bio":null,"image":null}"""
+
+        assertEquals(listOf("publisherpk"), repo.loopkyUsers().map { it.pubky })
+    }
+
+    @Test
+    fun loopkyUsersFindsAnnouncementAuthorsWhoseManifestIsNotIndexed() = runTest {
+        tagRepo.usersTaggedError = HttpError(404, "not found")
+        tagRepo.postAuthorsByTag = mapOf(ReservedTags.DECK to listOf("announcerpk"))
+        tagRepo.selfTaggers = setOf("announcerpk")
+        pubky.store["pubky://announcerpk/pub/pubky.app/profile.json"] =
+            """{"name":"Ada","bio":null,"image":null}"""
+
+        assertEquals(listOf("announcerpk"), repo.loopkyUsers().map { it.pubky })
+    }
+
+    @Test
+    fun loopkyUsersUnionsTheThreeSourcesSelfTaggedFirst() = runTest {
+        tagRepo.usersByTag = mapOf(ReservedTags.USER to listOf("selfpk"))
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(
+                // Also self-tagged: listed once, in the position its own claim earned it.
+                tagged(manifestUri("selfpk", "deck1"), taggers = listOf("selfpk")),
+                tagged(manifestUri("publisherpk", "deck2"), taggers = listOf("publisherpk")),
+            ),
+        )
+        tagRepo.postAuthorsByTag = mapOf(ReservedTags.DECK to listOf("publisherpk", "announcerpk"))
+        tagRepo.selfTaggers = setOf("selfpk", "publisherpk", "announcerpk")
+        for (pk in listOf("selfpk", "publisherpk", "announcerpk")) {
+            pubky.store["pubky://$pk/pub/pubky.app/profile.json"] =
+                """{"name":"$pk","bio":null,"image":null}"""
+        }
+
+        assertEquals(
+            listOf("selfpk", "publisherpk", "announcerpk"),
+            repo.loopkyUsers().map { it.pubky },
+        )
+    }
+
+    @Test
+    fun loopkyUsersStillVerifiesTheSelfTagOfADeckOwner() = runTest {
+        // Publishing a deck is not a claim to be a Loopky user, and a manifest URI can be tagged
+        // by anyone — the directory's bar is unchanged whichever source found the candidate.
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(tagged(manifestUri("publisherpk", "deck1"), listOf("publisherpk"))),
+        )
+        tagRepo.selfTaggers = emptySet()
+        pubky.store["pubky://publisherpk/pub/pubky.app/profile.json"] =
+            """{"name":"Ada","bio":null,"image":null}"""
+
+        assertEquals(emptyList(), repo.loopkyUsers())
+    }
+
+    @Test
+    fun loopkyUsersIgnoresATaggedUriThatIsNotADeckManifest() = runTest {
+        // The label is untrusted: anyone can point `loopky-deck` at any record, and the owner of
+        // an arbitrary URI is not an author of anything.
+        tagRepo.subjectsByTag = mapOf(
+            ReservedTags.DECK to listOf(
+                tagged(PubkyUri("pubky://randompk/pub/pubky.app/profile.json"), listOf("randompk")),
+            ),
+        )
+        tagRepo.selfTaggers = setOf("randompk")
+        pubky.store["pubky://randompk/pub/pubky.app/profile.json"] =
+            """{"name":"Ada","bio":null,"image":null}"""
 
         assertEquals(emptyList(), repo.loopkyUsers())
     }
@@ -438,8 +521,8 @@ class DiscoveryRepositoryImplTest {
 
     @Test
     fun suggestedPeopleFallsBackToDeckAuthorsWhenTheDirectoryIsEmpty() = runTest {
-        // The live case: /v0/tags/taggers/loopky-user returns nothing for a low-count label, so
-        // the directory is empty and deck authors are the only thing carrying the strip.
+        // The directory can still come back empty — nobody self-tagged, or nothing indexed yet —
+        // and the seed decks are what keeps the strip from being blank.
         pubky.store["pubky://authorpk/pub/pubky.app/profile.json"] =
             """{"name":"Ada","bio":null,"image":null}"""
 
@@ -463,7 +546,7 @@ class DiscoveryRepositoryImplTest {
     fun suggestedPeoplePrefersTheDirectoryAndDedupesAgainstIt() = runTest {
         pubky.store["pubky://authorpk/pub/pubky.app/profile.json"] =
             """{"name":"Ada","bio":null,"image":null}"""
-        tagRepo.taggersByTag = mapOf(ReservedTags.USER to listOf("authorpk"))
+        tagRepo.usersByTag = mapOf(ReservedTags.USER to listOf("authorpk"))
         tagRepo.selfTaggers = setOf("authorpk")
 
         val people = repo.suggestedPeople(seedDecks = listOf(testDeck(authorPubky = "authorpk")))

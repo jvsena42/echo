@@ -323,7 +323,8 @@ Reads in use today:
 | `searchTagsByPrefix` | `/v0/search/tags/by_prefix/{prefix}` | tag autocomplete (no caller yet — but it *does* reach deck labels, unlike the hot list) |
 | `resourcesByTag` | `/v0/stream/resources?app=loopky&tags=…&sorting=taggers_count` | global deck browse **and** client-side deck-tag topics |
 | `resourceByUri` | `/v0/resource/by-uri` | per-deck tagger counts ("N followers") |
-| `taggersOfLabel` | `/v0/tags/taggers/{label}` | the `loopky-user` directory — **empty in practice, see §7.7 point 9** |
+| `usersByProfileTag` | `/v0/search/users/by_tags?tags=…` | the `loopky-user` directory — **404 on prod until it redeploys, see §7.7 point 9** |
+| `postAuthorsByTag` | `/v0/search/posts/by_tag/{label}` | deck-announcement authors, the directory's second source |
 | `userTaggers` | `/v0/user/{id}/taggers/{label}` | verifying a self-tag |
 | `searchUsersByName` | `/v0/search/users/by_name/{prefix}` | the people half of search — a name *prefix*, lexicographic, not a substring |
 | `searchUsersById` | `/v0/search/users/by_id/{prefix}` | the same, by pubky prefix (Nexus rejects fewer than 3 chars) |
@@ -362,7 +363,7 @@ generic **resource**, whatever URI it is.
 
 | Subject | Record must live at | Indexed as | Readable via |
 |---|---|---|---|
-| `pubky://{id}/pub/pubky.app/profile.json` | `/pub/pubky.app/tags/{id}` | user | `/v0/user/{id}/tags`, `/v0/tags/taggers/{label}`, `/v0/tags/hot` |
+| `pubky://{id}/pub/pubky.app/profile.json` | `/pub/pubky.app/tags/{id}` | user | `/v0/user/{id}/tags`, `/v0/user/{id}/taggers/{label}`, `/v0/search/users/by_tags`, `/v0/tags/hot` |
 | `pubky://{author}/pub/loopky/decks/{id}/manifest.json` | `/pub/loopky/tags/{id}` | resource | `/v0/stream/resources?app=loopky`, `/v0/resource/by-uri` |
 
 `TagRepositoryImpl` routes on the subject for exactly this reason.
@@ -373,7 +374,8 @@ subject URI. Loopky resources are `app=loopky` because records live at `/pub/loo
 resources, `?app=mapky` returns none.)
 
 **3. Resource tags never trend.** `/v0/tags/hot` and `/v0/tags/taggers/{label}` are
-restricted to `Post|User` targets (`nexus-common/src/db/graph/queries/get.rs:614-640`), so
+restricted to `Post|User` targets (`nexus-common/src/db/graph/queries/get.rs:614-640`) — and the
+latter is unusable even for those, see point 9 — so
 **deck labels — including `loopky-deck` — cannot appear in the trending row**. Only
 `loopky-user`, a profile tag, can. Trending over deck tags therefore has to be aggregated
 client-side from `/v0/stream/resources?app=loopky&sorting=taggers_count` — which is what
@@ -466,16 +468,46 @@ old decks are missing from the indexer, that is why, not indexer lag.
 Crockford-base32(blake3(`"{uri}:{label}"`)[..16]), 26 chars, from the FFI. Nexus
 `resource_id` = lowercase-hex(blake3(normalized_uri)[..16]), 32 chars. Easy to confuse.
 
-**9. `/v0/tags/taggers/{label}` only surfaces labels with real traction.** Probed against staging
-while building #26: a `loopky-user` self-tag was written, ingested, and visible two days later on
-both `/v0/user/{id}` and `/v0/user/{id}/taggers/loopky-user` — yet `/v0/tags/taggers/loopky-user`
-returned `[]`, while busy labels (`synonym`, `bitcoin`, `test`) returned their taggers. So the
-`loopky-user` directory reads empty on a young network even though every account is tagged
-correctly, and `DiscoveryRepository.loopkyUsers` cannot be the only source of suggested people.
-`suggestedPeople` unions it with the authors of globally-browsable decks, which works from the
-first published deck. Note the label *is* discoverable by prefix search
-(`/v0/search/tags/by_prefix/loopky` returns it) — it is the graph query that filters it out, not
-the index.
+**9. `/v0/tags/taggers/{label}` is "taggers of a *hot* tag", and is not usable for a directory —
+ever.** This entry previously read "only surfaces labels with real traction", which was wrong in
+the way that matters: it described a *not yet*, and the answer never arrives (#134).
+
+Without a `user_id`, that endpoint does not touch the graph. It loads the hot-tags Redis cache
+(`HOT_TAGS_CACHE_PREFIX`, key `POST_HOT_TAGS/Taggers/{timeframe}`), does a plain
+`taggers_hash_map.get(label)`, and returns `Ok(None)` → `[]` on a miss
+(`nexus-common/src/models/tag/global.rs:96-135`). The map only ever holds labels that made the hot
+list, so the 200 + empty array is indistinguishable from "nobody has used this label". Measured on
+prod: the `tagged_type=User` hot list bottoms out at **66 tagged users**, `loopky-user` has 2, and
+`bitkit-user` (3) reads empty too — every app-directory label hits this, and the threshold rises as
+the network grows. The reach-scoped branch (`?user_id=…&reach=…`) does hit the graph but is
+hardcoded to `MATCH (reach)-[tag:TAGGED]->(tagged:Post)`
+(`nexus-common/src/db/graph/queries/get.rs:549`), so it cannot see a profile tag at any count.
+Both branches are dead ends for a profile-tag directory, for different reasons; filed upstream as
+pubky/pubky-nexus#1036. `/v0/stream/users` is no help either — it has no tag filter at all.
+
+**What replaces it.** `/v0/search/users/by_tags?tags=loopky-user` (pubky/pubky-nexus#1030) *is* the
+graph query, and returns the whole directory. It is **live on staging and 404s on prod**, which
+reports the same version string on both — prod is on commit `e6fc8616` (2026-07-16), staging
+`958121ea` (2026-08-22). So `DiscoveryRepository.loopkyUsers` unions three sources and verifies
+every candidate with `/v0/user/{id}/taggers/loopky-user`, which has always worked:
+
+1. `TagRepository.usersTagged` → `by_tags`. **Throws on failure** where the other tag reads return
+   empty, so the caller can tell "this indexer has no such query" from "no Loopky users" — that
+   confusion is the whole bug. Contributes nothing on prod today, and fixes prod without a Loopky
+   release the day it redeploys.
+2. Deck owners, off the `loopky-deck` resource stream global browse already reads — the author is
+   the manifest URI's owner, so this costs no extra parse.
+3. Announcement post authors, off `/v0/search/posts/by_tag/loopky-deck` — a `post_key` is
+   `{author}:{post_id}`, so the authors fall out of the index with no post fetched.
+
+2 and 3 recovered 2 of 2 real prod accounts against 0 of 2 before. They stay after prod redeploys:
+they reach a published author whose profile self-tag never made it, and 1 reaches an account that
+has never published — which neither 2 nor 3 can. **Known ceiling:** a user who self-tagged but has
+published nothing stays invisible on an indexer without `by_tags`. Nothing client-side reaches
+them; that needs the deploy, or Loopky's own index (#58).
+
+Note the label *is* discoverable by prefix search (`/v0/search/tags/by_prefix/loopky` returns it) —
+it was never the index that was missing it.
 
 ---
 
