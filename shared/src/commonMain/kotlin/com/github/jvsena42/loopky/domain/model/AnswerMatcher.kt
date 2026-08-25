@@ -57,6 +57,25 @@ object AnswerMatcher {
         else -> TypedAnswerOutcome.Wrong
     }
 
+    /**
+     * Drop parenthesized asides, so `"hello (formal)"` is graded as `"hello"`.
+     *
+     * A parenthetical on a card is a note to the reader — a register, a disambiguation, a part of
+     * speech — not part of the phrase itself. Nobody says it out loud, so counting it would fail
+     * every otherwise-perfect utterance. Punctuation stripping alone is not enough: it would leave
+     * the word *inside* the brackets in the target.
+     *
+     * Returns [text] untouched when the asides are all there is, since a card whose whole text is
+     * parenthesized still has to be answerable.
+     */
+    fun stripParentheticals(text: String): String {
+        val stripped = text.replace(PARENTHETICAL, " ").replace(WHITESPACE, " ").trim()
+        return if (normalize(stripped, AnswerStrictness.Strict).isEmpty()) text else stripped
+    }
+
+    /** Both ASCII and full-width brackets — CJK decks routinely use the latter. */
+    private val PARENTHETICAL = Regex("""\([^()]*\)|（[^（）]*）""")
+
     /** Lowercase, drop non-alphanumeric chars, collapse whitespace; fold diacritics when lenient. */
     fun normalize(text: String, strictness: AnswerStrictness): String = buildString {
         for (ch in text.lowercase()) {

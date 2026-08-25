@@ -79,6 +79,27 @@ class AnswerMatcherTest {
     }
 
     @Test
+    fun stripParentheticalsDropsAsides() {
+        assertEquals("hello", AnswerMatcher.stripParentheticals("hello (formal)"))
+        assertEquals("hello", AnswerMatcher.stripParentheticals("(formal) hello"))
+        assertEquals("hello there", AnswerMatcher.stripParentheticals("hello (very formal) there"))
+        assertEquals("konnichiwa", AnswerMatcher.stripParentheticals("konnichiwa（丁寧）"))
+    }
+
+    @Test
+    fun stripParentheticalsKeepsTextWithNoAside() {
+        assertEquals("el zorro", AnswerMatcher.stripParentheticals("el zorro"))
+        // An unclosed bracket is not an aside — leave it to the punctuation stripping.
+        assertEquals("hello (formal", AnswerMatcher.stripParentheticals("hello (formal"))
+    }
+
+    @Test
+    fun stripParentheticalsLeavesAWhollyParenthesizedCardAnswerable() {
+        // Stripping would empty it, and `matches` refuses an empty target — so keep it as written.
+        assertEquals("(formal)", AnswerMatcher.stripParentheticals("(formal)"))
+    }
+
+    @Test
     fun normalizeCollapsesRunsOfWhitespace() {
         assertEquals("el zorro corre", AnswerMatcher.normalize("  el\t zorro\n\ncorre ", Strict))
     }
