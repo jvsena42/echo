@@ -73,6 +73,9 @@ import com.github.jvsena42.loopky.ui.components.ProfileHero
 import com.github.jvsena42.loopky.ui.components.ProfileStat
 import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
 import com.github.jvsena42.loopky.ui.components.PubkyAppProfileCta
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
+import com.github.jvsena42.loopky.ui.layout.windowWidthClass
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
 import com.github.jvsena42.loopky.ui.util.openUrl
@@ -194,12 +197,17 @@ private fun ProfileScreen(
         return
     }
 
+    val wide = windowWidthClass().isExpanded
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surfacePrimary)
             .windowInsetsPadding(WindowInsets.statusBars)
             .verticalScroll(rememberScrollState())
+            // After the background and the scroll, so the surface still reaches both edges and
+            // only the content inside is bounded. A stat band stretched to a landscape tablet put
+            // "Decks" and "Followers" a hand's width apart with nothing in between.
+            .contentPane(if (wide) PaneWidth.Wide else PaneWidth.Reading)
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -236,132 +244,41 @@ private fun ProfileScreen(
             }
         }
 
-        // --- Profile section ---
-        // The same hero someone else's profile draws, so your own picture shows up here too —
-        // this screen used to hand-roll an initial-only circle and was the one avatar slot the
-        // pubky.app file-URI fix could not reach. No "You" badge: that marks you inside someone
-        // else's context, and everything on this tab is already yours.
-        val identity = state.identity
-        if (identity != null) {
-            ProfileHero(
-                identity = identity,
-                onPubkyClick = onCopyPubky,
+        if (wide) {
+            // Who you are on the left, what that adds up to on the right. Stacked, this screen is
+            // a column of full-width bands: at tablet width a three-number stat card puts "Decks"
+            // and "Due" a hand's width apart with a strip of empty card between them.
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        // --- Action row ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            LoopkyPrimaryButton(
-                label = stringResource(R.string.profile_edit_profile),
-                onClick = onEditProfileClick,
-                modifier = Modifier.weight(1f),
-                leadingIcon = {
-                    Icon(
-                        painter = painterResource(id = android.R.drawable.ic_menu_edit),
-                        contentDescription = null,
-                        tint = colors.foregroundOnAccent,
-                        modifier = Modifier.size(16.dp),
-                    )
-                },
-            )
-
-            // Share button
-            OutlinedIconButton(
-                onClick = onShareClick,
-                modifier = Modifier.size(48.dp),
-                shape = CircleShape,
-                colors = IconButtonDefaults.outlinedIconButtonColors(
-                    containerColor = colors.surfaceCard,
-                    contentColor = colors.foregroundSecondary,
-                ),
-                border = BorderStroke(1.dp, colors.borderSubtle),
+                horizontalArrangement = Arrangement.spacedBy(28.dp),
             ) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_share),
-                    contentDescription = stringResource(R.string.profile_share_content_description),
-                    modifier = Modifier.size(18.dp),
+                ProfileIdentityPane(
+                    state = state,
+                    onCopyPubky = onCopyPubky,
+                    onEditProfileClick = onEditProfileClick,
+                    onShareClick = onShareClick,
+                    modifier = Modifier.width(PROFILE_PANE_WIDTH),
+                )
+                ProfileDetailsPane(
+                    state = state,
+                    onOpenFollows = onOpenFollows,
+                    onOpenOnPubkyApp = onOpenOnPubkyApp,
+                    onSignOutRequest = { confirmSignOut = true },
+                    modifier = Modifier.weight(1f),
                 )
             }
-        }
-
-        // --- Stats card ---
-        ProfileStatsCard(
-            stats = listOf(
-                ProfileStat(
-                    value = state.deckCount.toString(),
-                    label = stringResource(R.string.profile_stat_decks),
-                    valueColor = colors.foregroundPrimary,
-                ),
-                ProfileStat(
-                    value = state.cardCount.toString(),
-                    label = stringResource(R.string.profile_stat_cards),
-                    valueColor = colors.accentPrimary,
-                ),
-                ProfileStat(
-                    value = state.dueCount.toString(),
-                    label = stringResource(R.string.profile_stat_due),
-                    valueColor = colors.srsGood,
-                ),
-            ),
-        )
-
-        // --- People card ---
-        // A second strip rather than five columns in the first: on a phone that reduces every
-        // label to unreadable, and these two answer a different question than your library does.
-        val pending = stringResource(R.string.profile_stat_pending)
-        ProfileStatsCard(
-            stats = listOf(
-                ProfileStat(
-                    value = state.followingCount?.toString() ?: pending,
-                    label = stringResource(R.string.profile_stat_following),
-                    valueColor = colors.foregroundPrimary,
-                    onClick = { onOpenFollows(FollowSource.FOLLOWING) },
-                    testTag = "profile_stat_following",
-                ),
-                ProfileStat(
-                    value = state.followerCount?.toString() ?: pending,
-                    label = stringResource(R.string.profile_stat_followers),
-                    valueColor = colors.accentPrimary,
-                    onClick = { onOpenFollows(FollowSource.FOLLOWERS) },
-                    testTag = "profile_stat_followers",
-                ),
-            ),
-        )
-
-        // --- pubky.app ---
-        // Below the stats and above sign-out: it explains the button in the action row for the
-        // person who does not already know what a Pubky account is, and it is the last thing on
-        // the screen rather than the first, because it is context, not a task.
-        PubkyAppProfileCta(onClick = onOpenOnPubkyApp)
-
-        // --- Sign out ---
-        FilledTonalButton(
-            onClick = { confirmSignOut = true },
-            modifier = Modifier
-                .testTag("profile_signout")
-                .fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
-            colors = ButtonDefaults.filledTonalButtonColors(
-                containerColor = colors.dangerSoft,
-                contentColor = colors.srsAgain,
-            ),
-        ) {
-            Icon(
-                painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
+        } else {
+            ProfileIdentityPane(
+                state = state,
+                onCopyPubky = onCopyPubky,
+                onEditProfileClick = onEditProfileClick,
+                onShareClick = onShareClick,
             )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.profile_sign_out),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
+            ProfileDetailsPane(
+                state = state,
+                onOpenFollows = onOpenFollows,
+                onOpenOnPubkyApp = onOpenOnPubkyApp,
+                onSignOutRequest = { confirmSignOut = true },
             )
         }
     }
@@ -524,6 +441,164 @@ private fun EditProfileSheet(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+/** Avatar, name, pubky and the two things you can do with your own profile. */
+@Composable
+private fun ProfileIdentityPane(
+    state: ProfileUiState,
+    onCopyPubky: () -> Unit,
+    onEditProfileClick: () -> Unit,
+    onShareClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // --- Profile section ---
+        // The same hero someone else's profile draws, so your own picture shows up here too —
+        // this screen used to hand-roll an initial-only circle and was the one avatar slot the
+        // pubky.app file-URI fix could not reach. No "You" badge: that marks you inside someone
+        // else's context, and everything on this tab is already yours.
+        val identity = state.identity
+        if (identity != null) {
+            ProfileHero(
+                identity = identity,
+                onPubkyClick = onCopyPubky,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        // --- Action row ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LoopkyPrimaryButton(
+                label = stringResource(R.string.profile_edit_profile),
+                onClick = onEditProfileClick,
+                modifier = Modifier.weight(1f),
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_edit),
+                        contentDescription = null,
+                        tint = colors.foregroundOnAccent,
+                        modifier = Modifier.size(16.dp),
+                    )
+                },
+            )
+
+            // Share button
+            OutlinedIconButton(
+                onClick = onShareClick,
+                modifier = Modifier.size(48.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.outlinedIconButtonColors(
+                    containerColor = colors.surfaceCard,
+                    contentColor = colors.foregroundSecondary,
+                ),
+                border = BorderStroke(1.dp, colors.borderSubtle),
+            ) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_share),
+                    contentDescription = stringResource(R.string.profile_share_content_description),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+/** The counts, the pubky.app pointer and sign-out — everything your profile adds up to. */
+@Composable
+private fun ProfileDetailsPane(
+    state: ProfileUiState,
+    onOpenFollows: (FollowSource) -> Unit,
+    onOpenOnPubkyApp: () -> Unit,
+    onSignOutRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // --- Stats card ---
+        ProfileStatsCard(
+            stats = listOf(
+                ProfileStat(
+                    value = state.deckCount.toString(),
+                    label = stringResource(R.string.profile_stat_decks),
+                    valueColor = colors.foregroundPrimary,
+                ),
+                ProfileStat(
+                    value = state.cardCount.toString(),
+                    label = stringResource(R.string.profile_stat_cards),
+                    valueColor = colors.accentPrimary,
+                ),
+                ProfileStat(
+                    value = state.dueCount.toString(),
+                    label = stringResource(R.string.profile_stat_due),
+                    valueColor = colors.srsGood,
+                ),
+            ),
+        )
+
+        // --- People card ---
+        // A second strip rather than five columns in the first: on a phone that reduces every
+        // label to unreadable, and these two answer a different question than your library does.
+        val pending = stringResource(R.string.profile_stat_pending)
+        ProfileStatsCard(
+            stats = listOf(
+                ProfileStat(
+                    value = state.followingCount?.toString() ?: pending,
+                    label = stringResource(R.string.profile_stat_following),
+                    valueColor = colors.foregroundPrimary,
+                    onClick = { onOpenFollows(FollowSource.FOLLOWING) },
+                    testTag = "profile_stat_following",
+                ),
+                ProfileStat(
+                    value = state.followerCount?.toString() ?: pending,
+                    label = stringResource(R.string.profile_stat_followers),
+                    valueColor = colors.accentPrimary,
+                    onClick = { onOpenFollows(FollowSource.FOLLOWERS) },
+                    testTag = "profile_stat_followers",
+                ),
+            ),
+        )
+
+        // --- pubky.app ---
+        // Below the stats and above sign-out: it explains the button in the action row for the
+        // person who does not already know what a Pubky account is, and it is the last thing on
+        // the screen rather than the first, because it is context, not a task.
+        PubkyAppProfileCta(onClick = onOpenOnPubkyApp)
+
+        // --- Sign out ---
+        FilledTonalButton(
+            onClick = onSignOutRequest,
+            modifier = Modifier
+                .testTag("profile_signout")
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = colors.dangerSoft,
+                contentColor = colors.srsAgain,
+            ),
+        ) {
+            Icon(
+                painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.profile_sign_out),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+/** Wide enough for a display name and a truncated pubky to sit on one line each. */
+private val PROFILE_PANE_WIDTH = 340.dp
+
 @Preview
 @Composable
 private fun ProfileScreenPreview() {
