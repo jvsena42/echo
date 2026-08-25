@@ -22,6 +22,9 @@ jna = "5.14.0"
 # `rustls-platform-verifier-android` 0.1.1.
 rustlsPlatformVerifier = "0.1.1"
 material3 = "1.10.0-alpha05"
+# Compose Multiplatform build of androidx.compose.material3.adaptive. Versioned independently of
+# material3 itself (it tracks the AndroidX adaptive 1.x line), which is why it is a separate ref.
+material3Adaptive = "1.2.0"
 detekt = "1.23.8"
 detektComposeRules = "0.4.22"
 koin = "4.0.2"
@@ -48,6 +51,7 @@ androidx-work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "material3" }
+compose-material3-adaptive = { module = "org.jetbrains.compose.material3.adaptive:adaptive", version.ref = "material3Adaptive" }
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }

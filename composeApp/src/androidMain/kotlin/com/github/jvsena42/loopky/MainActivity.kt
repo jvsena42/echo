@@ -21,6 +21,7 @@ import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
 import com.github.jvsena42.loopky.ui.importflow.FileReadException
 import com.github.jvsena42.loopky.ui.importflow.IncomingFile
 import com.github.jvsena42.loopky.ui.importflow.readPickedFile
+import com.github.jvsena42.loopky.ui.layout.ProvideWindowSize
 import com.github.jvsena42.loopky.ui.nav.LoopkyNavHost
 import com.github.jvsena42.loopky.ui.nav.PendingOpen
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
@@ -53,17 +54,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             val pending by pendingOpen.asStateFlow().collectAsStateWithLifecycle()
             LoopkyTheme {
-                // Surface every Modifier.testTag(...) as a UiAutomator/adb resource-id so the
-                // android-cli journeys can target elements by id instead of pixel position.
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .semantics { testTagsAsResourceId = true },
-                ) {
-                    LoopkyNavHost(
-                        pendingOpen = pending,
-                        onPendingOpenHandled = { pendingOpen.value = null },
-                    )
+                // Above the nav host so every screen — including the ones reached by deeplink,
+                // which never pass through MainScreen — can size itself to the window.
+                ProvideWindowSize {
+                    // Surface every Modifier.testTag(...) as a UiAutomator/adb resource-id so the
+                    // android-cli journeys can target elements by id instead of pixel position.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .semantics { testTagsAsResourceId = true },
+                    ) {
+                        LoopkyNavHost(
+                            pendingOpen = pending,
+                            onPendingOpenHandled = { pendingOpen.value = null },
+                        )
+                    }
                 }
             }
         }
