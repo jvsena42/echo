@@ -72,6 +72,9 @@ import com.github.jvsena42.loopky.ui.discover.SectionHeader
 import com.github.jvsena42.loopky.ui.discover.SectionHint
 import com.github.jvsena42.loopky.ui.discover.SectionSpinner
 import com.github.jvsena42.loopky.ui.discover.scanPubky
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
+import com.github.jvsena42.loopky.ui.layout.deckGridColumns
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -180,10 +183,15 @@ private fun SearchScreen(
             )
         },
     ) { padding ->
+        val deckColumns = deckGridColumns()
         LazyColumn(
             // The keyboard stays up while searching, so without this the last results sit
             // under it with nothing left to scroll.
-            modifier = Modifier.fillMaxSize().padding(padding).imePadding(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .contentPane(PaneWidth.Wide)
+                .imePadding(),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -199,7 +207,7 @@ private fun SearchScreen(
                 }
             }
             peopleSection(state, onOpenProfile, onFollowToggle)
-            decksSection(state, onOpenDeck, onOpenProfile)
+            decksSection(deckColumns, state, onOpenDeck, onOpenProfile)
             if (state.isEmpty) {
                 item(key = "empty") { NoMatchesBlock(query = state.query) }
             }
@@ -237,6 +245,7 @@ private fun LazyListScope.peopleSection(
 }
 
 private fun LazyListScope.decksSection(
+    columns: Int,
     state: SearchUiState,
     onOpenDeck: (String, String) -> Unit,
     onOpenAuthor: (String) -> Unit,
@@ -245,13 +254,14 @@ private fun LazyListScope.decksSection(
     item(key = "decks_header") {
         SectionHeader(text = stringResource(R.string.search_decks_title))
     }
-    val rows = state.decks.chunked(2)
+    val rows = state.decks.chunked(columns)
     items(
         items = rows,
         key = { row -> "decks:" + row.joinToString(",") { "${it.authorPubky}/${it.id}" } },
     ) { row ->
         DeckRow(
             decks = row,
+            columns = columns,
             onOpenDeck = onOpenDeck,
             onOpenAuthor = onOpenAuthor,
             tileTestTag = "search_deck_tile",

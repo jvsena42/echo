@@ -63,6 +63,9 @@ import com.github.jvsena42.loopky.ui.components.DeckTile
 import com.github.jvsena42.loopky.ui.components.LoopkyErrorBlock
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
+import com.github.jvsena42.loopky.ui.layout.PaneWidth
+import com.github.jvsena42.loopky.ui.layout.contentPane
+import com.github.jvsena42.loopky.ui.layout.deckGridColumns
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
 import kotlinx.coroutines.flow.collectLatest
@@ -164,6 +167,11 @@ private fun DecksScreenContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // Wide rather than Reading: this column is mostly a tile grid, which is the one thing
+            // that genuinely improves with more room — it answers with more columns, not wider
+            // tiles. The ceiling still stops the header and the paste banner from stretching to a
+            // desktop window's full width.
+            .contentPane(PaneWidth.Wide)
             .verticalScroll(rememberScrollState())
             .padding(PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)),
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -395,7 +403,11 @@ private fun NoSearchResults(query: String) {
 
 @Composable
 private fun DeckGrid(decks: List<DeckTileModel>, onDeckClick: (String) -> Unit) {
-    val rows = decks.chunked(2)
+    // Chunked rows rather than a LazyVerticalGrid because this lives inside the screen's own
+    // scrolling Column; the column count is the window's, so a landscape tablet gets four tiles
+    // across instead of two 600dp-wide ones.
+    val columns = deckGridColumns()
+    val rows = decks.chunked(columns)
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         rows.forEach { row ->
             Row(
@@ -419,8 +431,9 @@ private fun DeckGrid(decks: List<DeckTileModel>, onDeckClick: (String) -> Unit) 
                             .testTag("deck_tile_${deck.id}"),
                     )
                 }
-                // If odd number of items, add spacer to balance the last row
-                if (row.size == 1) {
+                // Pad the last row so a lone tile keeps its column width instead of stretching
+                // across everything the full row would have held.
+                repeat(columns - row.size) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
             }
