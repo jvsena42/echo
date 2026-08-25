@@ -72,7 +72,6 @@ import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.ProfileHero
 import com.github.jvsena42.loopky.ui.components.ProfileStat
 import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
-import com.github.jvsena42.loopky.ui.components.PubkyAppIconButton
 import com.github.jvsena42.loopky.ui.components.PubkyAppProfileCta
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
@@ -288,13 +287,6 @@ private fun ProfileScreen(
                     modifier = Modifier.size(18.dp),
                 )
             }
-
-            // The same account, seen from the web client — a third way to act on this profile,
-            // sized and outlined like the other two rather than announcing itself.
-            PubkyAppIconButton(
-                onClick = onOpenOnPubkyApp,
-                modifier = Modifier.testTag("profile_pubky_app"),
-            )
         }
 
         // --- Stats card ---
