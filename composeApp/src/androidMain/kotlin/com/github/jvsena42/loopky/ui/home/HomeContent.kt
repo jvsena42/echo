@@ -20,6 +20,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +41,7 @@ import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.presentation.home.DeckSummary
 import com.github.jvsena42.loopky.presentation.home.HomeUiState
 import com.github.jvsena42.loopky.ui.components.DeckCover
+import com.github.jvsena42.loopky.ui.components.DeckTile
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.relativeFromNow
 
@@ -53,22 +55,117 @@ fun HomeContent(
     onSeeAllDecksClick: () -> Unit,
     onDeckClick: (String) -> Unit,
 ) {
-    if (state.isCaughtUp) {
-        CaughtUpHeroCard(nextDueAtMillis = state.nextDueAtMillis)
-    } else {
-        DueTodayHeroCard(
-            studyTarget = state.studyTarget,
-            doneToday = state.doneToday,
-            newCardsToday = state.newCardsToday,
-            newCardsGoal = state.newCardsGoal,
-            onStartStudyClick = onStartStudyClick,
-        )
-    }
+    HomeHero(state = state, onStartStudyClick = onStartStudyClick)
     TodaysDecksSection(
         decks = state.decks,
         onSeeAllClick = onSeeAllDecksClick,
         onDeckClick = onDeckClick,
     )
+}
+
+/**
+ * The day's headline: what is due and the button that starts it, or the caught-up note.
+ *
+ * Split out from [HomeContent] so the wide layout can put it beside the deck list rather than
+ * above it — stacked on a landscape tablet, the two together fill about half the height and leave
+ * the rest of the screen empty.
+ */
+@Composable
+fun HomeHero(
+    state: HomeUiState.Content,
+    onStartStudyClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        if (state.isCaughtUp) {
+            CaughtUpHeroCard(nextDueAtMillis = state.nextDueAtMillis)
+        } else {
+            DueTodayHeroCard(
+                studyTarget = state.studyTarget,
+                doneToday = state.doneToday,
+                newCardsToday = state.newCardsToday,
+                newCardsGoal = state.newCardsGoal,
+                onStartStudyClick = onStartStudyClick,
+            )
+        }
+    }
+}
+
+/**
+ * Today's decks as a wall of cover tiles, for windows with room for them.
+ *
+ * Same list as the compact [TodaysDecksSection] — `decks` is every studiable deck, not only the
+ * ones with something due — drawn as covers rather than 60dp rows. The swap is the point: a
+ * landscape tablet showing six decks as thin rows uses a fifth of the height it has and leaves the
+ * rest empty, while the same six as tiles fill it and put the cover art to work.
+ */
+@Composable
+fun TodaysDecksGrid(
+    decks: List<DeckSummary>,
+    columns: Int,
+    onSeeAllClick: () -> Unit,
+    onDeckClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = stringResource(R.string.home_todays_decks),
+                color = colors.foregroundPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            TextButton(onClick = onSeeAllClick, modifier = Modifier.testTag("home_see_all_decks")) {
+                Text(
+                    text = stringResource(R.string.home_see_all),
+                    color = colors.accentSecondary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+        decks.chunked(columns).forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                row.forEach { deck ->
+                    DeckTile(
+                        deckId = deck.id,
+                        authorPubky = deck.authorPubky,
+                        title = deck.title,
+                        cardCount = deck.cardCount,
+                        coverEmoji = deck.coverInitial.toString(),
+                        coverImage = deck.coverImage,
+                        authorLabel = dueCaption(deck),
+                        onClick = { onDeckClick(deck.id) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("home_deck_tile_${deck.id}"),
+                    )
+                }
+                repeat(columns - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/**
+ * The caption under a tile: what this deck is asking of you today, falling back to its size.
+ *
+ * The tile's own caption slot is normally the author's name, which on this screen is always you or
+ * someone you already chose to follow — so it is spent on the number that decides whether to tap.
+ */
+@Composable
+private fun dueCaption(deck: DeckSummary): String = when {
+    deck.dueCount > 0 -> stringResource(R.string.home_deck_due, deck.dueCount)
+    deck.newCount > 0 -> stringResource(R.string.home_deck_new, deck.newCount)
+    else -> stringResource(R.string.home_deck_caught_up)
 }
 
 /**
@@ -238,13 +335,14 @@ private fun ProgressBar(progress: Float) {
 }
 
 @Composable
-private fun TodaysDecksSection(
+fun TodaysDecksSection(
     decks: List<DeckSummary>,
     onSeeAllClick: () -> Unit,
     onDeckClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
