@@ -24,19 +24,14 @@ data class SpeakResult(
 object SpeakMatcher {
 
     /**
-     * Grade [spoken] against [expected], ignoring any parenthesized aside on the card.
+     * Grade [spoken] against [expected] — leniently, and past any parenthesized aside on the card.
      *
-     * `"hello (formal)"` is graded as `"hello"` — the bracketed note tells the reader which sense
-     * of the word this card means; it is not part of what they are asked to say. Only the grading
-     * drops it: [SpeakResult.expected] keeps the card's text as written, because the note is
-     * exactly the context worth showing on the "wrong" sheet.
+     * `"hello (formal)"` is graded as `"hello"`; only the *grading* drops the aside.
+     * [SpeakResult.expected] keeps the card's text as written, because the note is exactly the
+     * context worth showing on the "wrong" sheet.
      */
     fun match(spoken: String, expected: String): SpeakResult = SpeakResult(
-        correct = AnswerMatcher.matches(
-            given = AnswerMatcher.stripParentheticals(spoken),
-            expected = AnswerMatcher.stripParentheticals(expected),
-            strictness = AnswerStrictness.Lenient,
-        ),
+        correct = AnswerMatcher.matches(spoken, expected, AnswerStrictness.Lenient),
         heard = spoken.trim(),
         expected = expected.trim(),
     )

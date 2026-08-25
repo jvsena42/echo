@@ -231,6 +231,57 @@ class StudySessionTypingTest {
     }
 
     @Test
+    fun theAnswerNeedNotRepeatTheCardsParentheticalAside() = runTest {
+        // "(formal)" tells the reader which sense the card means; it is not four more words to
+        // get exactly right.
+        seedDeck()
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Spanish", typeEnabled = true)
+        srsRepo.due = listOf(testCard("c1", front = "hola", back = "hello (formal)"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAnswerChange("hello")
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+
+        assertIs<TypePhase.Correct>(assertIs<StudySessionUiState.Reviewing>(vm.state.value).typePhase)
+    }
+
+    @Test
+    fun typingTheAsideAnywayIsStillCorrect() = runTest {
+        // Whoever reads "(formal)" as part of the answer should not be punished for it either.
+        seedDeck()
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Spanish", typeEnabled = true)
+        srsRepo.due = listOf(testCard("c1", front = "hola", back = "hello (formal)"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAnswerChange("hello (formal)")
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+
+        assertIs<TypePhase.Correct>(assertIs<StudySessionUiState.Reviewing>(vm.state.value).typePhase)
+    }
+
+    @Test
+    fun theRestOfThePhraseIsStillGradedAroundAnAside() = runTest {
+        seedDeck()
+        deckRepo.decks["deck1"] = testDeck(id = "deck1", title = "Spanish", typeEnabled = true)
+        srsRepo.due = listOf(testCard("c1", front = "hola", back = "hello (formal)"))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onAnswerChange("formal")
+        vm.onCheckAnswer()
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        val phase = assertIs<TypePhase.Answering>(state.typePhase)
+        assertEquals(TypedAnswerOutcome.Wrong, phase.lastMiss?.outcome)
+        assertTrue(state.answerHidden)
+    }
+
+    @Test
     fun anEmptyCheckIsIgnoredRatherThanScoredWrong() = runTest {
         seedTypingDeck()
         val vm = viewModel()

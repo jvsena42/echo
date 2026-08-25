@@ -333,6 +333,8 @@ class StudySessionViewModel(
      *
      * Gated here and not only in the UI: like the announce gate, the check belongs on the action,
      * so a deck that never declared its languages cannot be read aloud in the reader's accent.
+     *
+     * What is read is the phrase, not the card's editorial asides — see [AnswerMatcher.stripParentheticals].
      */
     fun onSpeak() {
         val s = _state.value
@@ -340,7 +342,11 @@ class StudySessionViewModel(
         val card = queue.getOrNull(index) ?: return
         // answerVisible, not revealed: on a flipped-but-masked typing card the back is on screen
         // but hidden, and reading it aloud would hand over the answer the mask is withholding.
-        val text = (if (answerVisible) card.back.text else card.front.text)?.takeIf { it.isNotBlank() }
+        // Parenthesized asides are dropped for the same reason the matchers drop them: "(formal)"
+        // is a note about the card, and an engine handed it reads the note out as a word.
+        val text = (if (answerVisible) card.back.text else card.front.text)
+            ?.let(AnswerMatcher::stripParentheticals)
+            ?.takeIf { it.isNotBlank() }
             ?: return
         val languageTag = (if (answerVisible) s.backLang else s.frontLang) ?: return
         viewModelScope.launch { _effects.emit(StudySessionEffect.Speak(text, languageTag)) }
