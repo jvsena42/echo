@@ -76,7 +76,16 @@ private fun BackupStartScreen(
     val colors = LoopkyTheme.colors
     SignupScaffold(
         title = stringResource(R.string.backup_start_title),
-        subtitle = stringResource(R.string.backup_start_subtitle),
+        // A restored key is already backed up, so the default copy — "your key lives only on this
+        // device" — would be describing a risk the user does not have. What is still worth
+        // offering them is Ring, which is a custody change rather than a backup.
+        subtitle = stringResource(
+            if (state.isBackedUp) {
+                R.string.backup_start_subtitle_backed_up
+            } else {
+                R.string.backup_start_subtitle
+            },
+        ),
         onBack = onBack,
         modifier = modifier,
     ) {
@@ -110,7 +119,14 @@ private fun BackupStartScreen(
                 BackupCard(
                     method = BackupMethod.PubkyRing,
                     label = stringResource(R.string.backup_method_ring),
-                    detail = stringResource(R.string.backup_method_ring_detail),
+                    // Still offered when Ring is absent — the screen behind it installs — but it
+                    // says so, rather than looking identical and then explaining itself one tap
+                    // later. This is what `ringInstalled` was plumbed here for; nothing read it.
+                    detail = if (state.ringInstalled) {
+                        stringResource(R.string.backup_method_ring_detail)
+                    } else {
+                        stringResource(R.string.backup_method_ring_missing)
+                    },
                     onClick = onRing,
                     tag = "backup_method_ring",
                 ),

@@ -616,6 +616,11 @@
     <string name="signup_create_locally">Create the key in Loopky instead</string>
     <string name="backup_start_title">Back up your account</string>
     <string name="backup_start_subtitle">Your key lives only on this device. Save it somewhere you can reach if you lose your phone. You can also do this later.</string>
+    <!-- For a key restored from a phrase or file: it IS already backed up, so telling the user to
+         back it up would be describing a risk they do not have. What is still on offer is Pubky
+         Ring, which is a custody change rather than a backup. -->
+    <string name="backup_start_subtitle_backed_up">You already have a copy of this key, so it\'s safe. Pubky Ring keeps it in a separate app — safer still — or add another backup here. You can also do this later.</string>
+    <string name="backup_method_ring_missing">Not installed — we\'ll take you to it.</string>
     <string name="backup_later">I\'ll do this later</string>
     <string name="backup_done_label">Done</string>
     <string name="backup_method_phrase">Recovery phrase</string>

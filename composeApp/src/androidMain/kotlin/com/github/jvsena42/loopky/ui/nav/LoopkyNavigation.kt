@@ -363,9 +363,17 @@ private fun NavGraphBuilder.backupDestinations(navController: NavHostController)
     composable(Routes.BACKUP_START) {
         BackupStartRoute(
             onBack = { navController.popBackStack() },
+            // Entered two ways, and they need opposite exits: from onboarding the back stack is
+            // this screen alone, so leaving means going home; from Settings there is somewhere to
+            // return to, and sending that user to MAIN would both lose their place and push a
+            // second MAIN onto the stack.
             onDone = {
-                navController.navigateTo(Routes.MAIN) {
-                    popUpTo(Routes.BACKUP_START) { inclusive = true }
+                if (navController.previousBackStackEntry != null) {
+                    navController.popBackStack()
+                } else {
+                    navController.navigateTo(Routes.MAIN) {
+                        popUpTo(Routes.BACKUP_START) { inclusive = true }
+                    }
                 }
             },
             onPhrase = { navController.navigateTo(Routes.BACKUP_PHRASE) },
@@ -464,8 +472,13 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
             onUnregistered = { pubky ->
                 navController.navigateTo(Routes.unregisteredKey(pubky, loopkyHoldsKey = true))
             },
+            // Via the backup menu, not straight home. A restored key is already backed up, so
+            // nothing nags about it later — which meant Pubky Ring, the one thing still worth
+            // offering, sat behind a Settings row the user had no reason to open. Ring is a
+            // custody change rather than a backup, and this is the moment to offer it: someone
+            // restoring has usually just lost or replaced a device. The menu is skippable.
             onRestored = {
-                navController.navigateTo(Routes.MAIN) {
+                navController.navigateTo(Routes.BACKUP_START) {
                     popUpTo(Routes.ONBOARDING) { inclusive = true }
                 }
             },
@@ -481,8 +494,13 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
             },
             // The whole restore stack goes: coming "back" into it after signing in would offer to
             // restore an account the user is already using.
+            // Via the backup menu, not straight home. A restored key is already backed up, so
+            // nothing nags about it later — which meant Pubky Ring, the one thing still worth
+            // offering, sat behind a Settings row the user had no reason to open. Ring is a
+            // custody change rather than a backup, and this is the moment to offer it: someone
+            // restoring has usually just lost or replaced a device. The menu is skippable.
             onRestored = {
-                navController.navigateTo(Routes.MAIN) {
+                navController.navigateTo(Routes.BACKUP_START) {
                     popUpTo(Routes.ONBOARDING) { inclusive = true }
                 }
             },
