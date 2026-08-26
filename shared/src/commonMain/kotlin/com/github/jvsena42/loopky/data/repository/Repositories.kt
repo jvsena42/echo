@@ -76,8 +76,13 @@ interface IdentityRepository {
      * the caller knows whether the user asked for this deliberately — and running it here would
      * hide a DHT outage inside a sign-in failure, which is the confusion this whole path exists to
      * end.
+     *
+     * @param knownHomeserver the answer a caller already has from its own [lookupHomeserver]. The
+     *   grant flow's session JSON carries no `homeserver` field, so without this the homeserver has
+     *   to be resolved again — a second DHT round trip, measured at ~3s on device, on the only path
+     *   back into the app for someone locked out.
      */
-    suspend fun signInWithKey(source: KeySource): Result<Session>
+    suspend fun signInWithKey(source: KeySource, knownHomeserver: String? = null): Result<Session>
 
     /**
      * Two-step Pubky Ring sign-in that hands control of "open the deeplink" back to the caller

@@ -154,4 +154,22 @@ class IdentityRepositoryRestoreTest {
         assertNull(keyStore.current())
         assertEquals(KeyCustody.External, keyStore.custody.first())
     }
+
+    @Test
+    fun aCallerThatAlreadyResolvedTheHomeserverIsNotMadeToAskTheDhtTwice() = runTest {
+        // Measured on device: the pre-flight lookup takes ~3s, and the grant session carries no
+        // homeserver field, so resolving it again inside sign-in doubled the wait on the only path
+        // back into the app for someone locked out.
+        pubky.homeserverLookups[expectedPubky] = Result.success("homeserver-z32")
+        val repo = repository()
+        pubky.homeserverLookupCount = 0
+
+        val session = repo.signInWithKey(
+            KeySource.Phrase(VALID_TEST_MNEMONIC),
+            knownHomeserver = "homeserver-z32",
+        ).getOrThrow()
+
+        assertEquals("homeserver-z32", session.homeserver)
+        assertEquals(0, pubky.homeserverLookupCount, "sign-in must not re-resolve a known homeserver")
+    }
 }

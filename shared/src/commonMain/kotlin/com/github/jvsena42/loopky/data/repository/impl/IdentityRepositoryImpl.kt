@@ -179,7 +179,10 @@ internal class IdentityRepositoryImpl(
         )
     }
 
-    override suspend fun signInWithKey(source: KeySource): Result<Session> = runSuspendCatching {
+    override suspend fun signInWithKey(
+        source: KeySource,
+        knownHomeserver: String?,
+    ): Result<Session> = runSuspendCatching {
         val keypair = deriveKeypair(source).getOrThrow()
         Log.d(TAG, "signInWithKey: signing in as ${keypair.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
 
@@ -189,7 +192,10 @@ internal class IdentityRepositoryImpl(
         // The homeserver we actually landed on is not in the payload — the grant flow's session
         // JSON carries no `homeserver` field at all, so parseSessionPayload defaults it to "".
         // Resolving it here keeps Settings from showing "Unknown" for every restored account.
+        // Prefer what the caller already learned: on the restore path the pre-flight resolved this
+        // moments ago, and asking the DHT twice costs a second round trip on the critical path.
         val resolved = session.homeserver.takeIf { it.isNotBlank() }
+            ?: knownHomeserver
             ?: (lookupHomeserver(keypair.pubky) as? HomeserverLookup.Registered)?.homeserverPubky
             ?: ""
 

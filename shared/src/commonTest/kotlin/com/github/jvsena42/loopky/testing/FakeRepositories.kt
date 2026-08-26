@@ -127,7 +127,7 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
         return homeserverLookup
     }
 
-    override suspend fun signInWithKey(source: KeySource): Result<Session> {
+    override suspend fun signInWithKey(source: KeySource, knownHomeserver: String?): Result<Session> {
         signInWithKeyCalls.add(source)
         return signInWithKeyResult.onSuccess { session = it }
     }

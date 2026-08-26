@@ -77,7 +77,7 @@ class RestorePhraseViewModel(
             }
 
             when (val lookup = identityRepository.lookupHomeserver(pubky)) {
-                is HomeserverLookup.Registered -> signIn(phrase)
+                is HomeserverLookup.Registered -> signIn(phrase, lookup.homeserverPubky)
 
                 // Valid words, no account. The pubky goes in the state so the screen can show it.
                 HomeserverLookup.NoRecord -> _state.update {
@@ -91,8 +91,10 @@ class RestorePhraseViewModel(
         }
     }
 
-    private suspend fun signIn(phrase: String) {
-        runSuspendCatching { identityRepository.signInWithKey(KeySource.Phrase(phrase)).getOrThrow() }
+    private suspend fun signIn(phrase: String, homeserver: String) {
+        runSuspendCatching {
+            identityRepository.signInWithKey(KeySource.Phrase(phrase), knownHomeserver = homeserver).getOrThrow()
+        }
             .onSuccess {
                 // The words are done with the moment the session exists.
                 _state.update { RestorePhraseUiState() }

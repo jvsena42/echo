@@ -251,6 +251,9 @@ class FakePubkyClient : PubkyClient {
     /** Answer for a pubky with no entry in [homeserverLookups]. Defaults to "never registered". */
     var defaultHomeserverLookup: Result<String> = Result.failure(noHomeserverRecord())
 
+    /** Counts DHT lookups, so a test can assert a caller does not ask twice. */
+    var homeserverLookupCount = 0
+
     val signUpCalls = mutableListOf<SignUpCall>()
     val signInCalls = mutableListOf<String>()
 
@@ -375,8 +378,10 @@ class FakePubkyClient : PubkyClient {
     override suspend fun republishHomeserver(secretKey: String, homeserver: String): Result<String> = unused()
     override suspend fun resolve(publicKey: String): Result<String> = unused()
     override suspend fun resolveHttps(publicKey: String): Result<String> = unused()
-    override suspend fun getHomeserver(pubky: String): Result<String> =
-        homeserverLookups[pubky] ?: defaultHomeserverLookup
+    override suspend fun getHomeserver(pubky: String): Result<String> {
+        homeserverLookupCount++
+        return homeserverLookups[pubky] ?: defaultHomeserverLookup
+    }
     override fun switchNetwork(useTestnet: Boolean): Result<String> = unused()
 
     private fun keypairJson(secretKeyHex: String, mnemonic: String?): String {
