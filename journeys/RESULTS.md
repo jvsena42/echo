@@ -347,3 +347,49 @@ front of the z32 id, so it can never resolve; `following()` passes it through ve
 the strips (the other followee still loads) but it inflates the follow count and spams the log.
 Worth a separate fix — either dropping ids that are not shaped like a pubky when parsing the
 follows listing, or finding whatever wrote that record.
+
+---
+
+## #147 — Local keys, recovery restore, and backup (2026-08-26)
+
+Driven on the Pixel_9 emulator against **staging**. Sign-out between runs via
+`adb shell pm clear com.github.jvsena42.loopky`.
+
+| Check | Result |
+|---|---|
+| Third door present on onboarding | PASSED — `onboarding_restore` renders below the two existing entry points |
+| Restore with a valid phrase | PASSED — signs in and lands on home |
+| One DHT lookup per attempt | PASSED — was two (~3s each); the pre-flight answer is now passed into sign-in |
+| Bitcoin-seed warning | PASSED — permanent inline block above the field, not dismissible |
+| Valid phrase with no account | PASSED — "This key has no account yet", derived pubky shown, "Check my recovery phrase again" ranked above "Register this key" |
+| Ring-missing → local route | PASSED — `signup_create_locally` unlocks every method with Ring **disabled**, and prices are quoted |
+| Fiat quote | PASSED — `Pay ₿ 10 (≈ US$0.01) once` on staging |
+| Price test tags | FIXED — `signup_method_*_price` never existed; the tag was written as a literal `$testTag_price` |
+| Landscape onboarding | FIXED — the third button pushed the policy consent (which gates the primary button) off the bottom of the bounded two-pane panel, clipping in silence. The panel now scrolls |
+| Medium width (700dp) | PASSED — stacked layout, every control reachable |
+
+### Found only on device
+
+**The grant auth flow does not work against Synonym's staging homeserver.** A first test key
+happened to succeed, so it was briefly believed verified; a second produced
+`403 Forbidden - Writing to directories other than '/pub/' is forbidden` from the grant flow's
+`export_grant_session_secret`. `signIn`/`signUp` now bind to the **cookie** variants, which sign in
+cleanly and answer an unregistered pubky with an honest 404. Revisit with #130.
+
+**A pkarr homeserver record can outlive the account it points at.** `getHomeserver` answered
+*Registered* for a key the homeserver then 404'd at signin — so the pre-flight cannot rule this out,
+and the 404 has to be classified as "no account" on the restore path. It was rendering
+`ErrorReason.NotFound`, whose copy is *"This deck no longer exists"*: deck copy, on a
+recovery-phrase screen.
+
+### Not exercised
+
+**A real local signup end-to-end.** It needs a signup token, and the three ways to get one cost an
+SMS attempt, sats, or an invite code — none of which were available in this session. Everything up
+to the token is verified (the gate flip, prices, method selection); the redemption step itself,
+the backup screens, and the sign-out guard are covered by unit tests only. Journey 22 is written to
+be run with a real invite code.
+
+**The tablet AVD.** Landscape and Medium width were exercised by rotating and resizing the phone,
+which covers the Expanded and Medium code paths. `Pixel_Tablet` itself was not booted.
+

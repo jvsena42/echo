@@ -1,0 +1,27 @@
+<journey name="Restore — an encrypted recovery file">
+  <description>
+    The other restore door, for someone who saved a `recovery.pkarr` rather than writing words down.
+
+    The interesting failure is a **wrong passphrase**, which must never be reported as "no account":
+    a failed decryption says nothing at all about whether the account exists, and confusing the two
+    sends someone hunting for a lost identity over a typo.
+
+    The file format matters and is easy to get wrong invisibly. A recovery file on disk is raw
+    bytes; the FFI works in Base64. A file Loopky writes must be openable by pubky.app and Pubky
+    Ring, and vice versa — so the cross-app check at the end is the real test.
+  </description>
+  <actions>
+    <action>From a signed-out Loopky, tap "onboarding_restore", then "restore_method_file"</action>
+    <action>Tap "restore_file_choose" and pick a file that is NOT a recovery file (a photo). Verify "restore_outcome_title" reads "Couldn't read that file" — the size cap rejects it before it is read into memory</action>
+
+    <action>Pick a real recovery.pkarr, enter the WRONG passphrase, and submit</action>
+    <action>Verify the outcome reads "That didn't open the file" and explicitly does NOT claim the account is missing</action>
+    <action>Verify logcat shows no "lookupHomeserver:" line for that attempt — a file that will not open has nothing to look up</action>
+
+    <action>Enter the correct passphrase and submit. Verify Loopky lands on home</action>
+    <action>Settings → verify the homeserver row is populated, not "Unknown" — the session payload carries no homeserver, so it has to be resolved</action>
+    <action>Verify the backup screen does NOT offer a recovery phrase for this account ("backup_method_phrase" absent): BIP-39 runs one way, so a file-restored key genuinely has no words</action>
+
+    <action>CROSS-APP CHECK. Create a file from Loopky (Settings → back up → encrypted file), then open it in pubky.app or import it into Pubky Ring. It must be accepted — if Loopky wrote Base64 text instead of raw bytes, only Loopky can read it and nothing else reports the mistake</action>
+  </actions>
+</journey>

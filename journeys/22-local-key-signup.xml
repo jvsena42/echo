@@ -1,0 +1,34 @@
+<journey name="Create an account in Loopky, with no Pubky Ring at all">
+  <description>
+    The route this whole issue exists for: a user who has never heard of Pubky gets an account
+    without installing a second app.
+
+    Use the **invite-code** method so the journey costs nothing. Run it with Ring disabled, because
+    the point is that none of this needs Ring.
+
+    The dangerous case here is not failure, it is a *silent second identity*: if signup fails and a
+    retry mints a fresh key, the user's first pubky is stranded forever with nothing reporting it.
+    The retry check below is the one that matters.
+  </description>
+  <actions>
+    <action>Disable Ring: adb shell pm disable-user --user 0 to.pubky.ring</action>
+    <action>From a signed-out Loopky: "onboarding_create_pubky" → "signup_create_locally" → "signup_method_invite"</action>
+    <action>Enter a valid invite code and submit</action>
+    <action>Verify "signup_local_progress" appears — Loopky is minting the key and registering it itself, with no deeplink and no relay</action>
+    <action>Verify Loopky lands on the BACKUP screen, not home: this is the only moment in the app where a key exists that nobody has a copy of</action>
+
+    <action>THE RETRY CHECK. Repeat with airplane mode on so the registration fails. Note the pubky in logcat ("registerKey: registering …"), then turn airplane mode off and tap "signup_local_retry"</action>
+    <action>Verify the SAME pubky is registered on the retry — a different one means a fresh key was minted and the first identity was stranded</action>
+    <action>Verify logcat shows no second Homegate request: the stored token is reused, not re-bought</action>
+
+    <action>BACKUP. Tap "backup_method_phrase", reveal the words, continue, and pass the quiz</action>
+    <action>Verify "backup_method_phrase_done" now shows on the menu, and that the Settings nag ("settings_backup_nag") is GONE</action>
+    <action>Verify the phrase screen blocks screenshots in a RELEASE build (debug deliberately allows them so these journeys can capture)</action>
+
+    <action>SIGN-OUT GUARD. Create a second local account and skip backup. Settings → Sign out</action>
+    <action>Verify "settings_signout_unbacked_title" appears and that "Back up first" is the affirmative button — signing out erases the only copy of that identity</action>
+    <action>Tap "Back up first" and verify it lands on the backup menu rather than signing out</action>
+
+    <action>Restore the device: adb shell pm enable to.pubky.ring</action>
+  </actions>
+</journey>
