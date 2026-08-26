@@ -777,7 +777,6 @@ class DeckDetailViewModelTest {
     }
 }
 
-/** A card the scheduler has stretched past the 21-day maturity threshold. */
 /** Previously graded and back up for review — "due" in the sense the counters now mean. */
 private fun dueState(cardId: String) = SrsState(
     cardId = cardId,
@@ -788,6 +787,7 @@ private fun dueState(cardId: String) = SrsState(
     lastGrade = SrsGrade.Good,
 )
 
+/** A card the scheduler has stretched past the 21-day maturity threshold. */
 private fun matureState(cardId: String) = SrsState(
     cardId = cardId,
     dueAt = 0L,

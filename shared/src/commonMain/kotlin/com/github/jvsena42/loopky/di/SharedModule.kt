@@ -210,10 +210,15 @@ val sharedModule = module {
     }
     viewModel { params ->
         StudySessionViewModel(
-            deckId = params.getOrNull(),
+            deckId = params.values.getOrNull(0) as? String,
             srsRepository = get(),
             deckRepository = get(),
+            cardRepository = get(),
             settingsRepository = get(),
+            identityRepository = get(),
+            // A preview samples a deck nobody has kept — no grading, no session. See the VM.
+            isPreview = params.values.getOrNull(1) as? Boolean == true,
+            previewAuthorPubky = params.values.getOrNull(2) as? String,
         )
     }
     viewModel { params ->

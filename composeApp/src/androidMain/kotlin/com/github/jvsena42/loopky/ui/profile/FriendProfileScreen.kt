@@ -60,6 +60,7 @@ import com.github.jvsena42.loopky.ui.components.ProfileHero
 import com.github.jvsena42.loopky.ui.components.ProfileStat
 import com.github.jvsena42.loopky.ui.components.ProfileStatsCard
 import com.github.jvsena42.loopky.ui.components.PubkyAppIconButton
+import com.github.jvsena42.loopky.ui.components.SignInPromptDialog
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.layout.PaneWidth
 import com.github.jvsena42.loopky.ui.layout.contentPane
@@ -77,6 +78,8 @@ fun FriendProfileRoute(
     onBack: () -> Unit = {},
     onOpenDeck: (String) -> Unit = {},
     onOpenFollows: (pubky: String, source: FollowSource) -> Unit = { _, _ -> },
+    /** Leave for the sign-in flow, when a signed-out visitor reaches for Follow. */
+    onSignIn: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<FriendProfileViewModel> { parametersOf(pubky) }
 
@@ -105,6 +108,20 @@ fun FriendProfileRoute(
     }
 
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    // Over the profile, which stays fully readable underneath: a public profile and its decks are
+    // public records, and only Follow needs an account.
+    state.signInPrompt?.let { reason ->
+        SignInPromptDialog(
+            reason = reason,
+            onSignIn = {
+                viewModel.onDismissSignInPrompt()
+                onSignIn()
+            },
+            onDismiss = viewModel::onDismissSignInPrompt,
+        )
+    }
+
     FriendProfileScreen(
         state = state,
         onBack = onBack,

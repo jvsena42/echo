@@ -12,6 +12,7 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
+import com.github.jvsena42.loopky.presentation.auth.SignInReason
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -72,17 +73,27 @@ class DiscoverViewModel(
         if (loadJob?.isActive == true) return
         loadJob = viewModelScope.launch {
             val tag = _state.value.selectedTag
+            // Discover is the one screen a signed-out visitor gets in full, so the session is
+            // resolved here rather than assumed: everything below reads public records, and the
+            // only thing an account changes is whether the followed strip and the follow pills
+            // mean anything.
+            val signedIn = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+                ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
+            val isSignedIn = signedIn != null
             _state.update {
                 it.copy(
+                    isSignedIn = isSignedIn,
                     topics = it.topics.loading(),
                     people = it.people.loading(),
                     browse = it.browse.loading(),
-                    following = it.following.loading(),
+                    // Not "loading" for a guest: there is no follow graph to read, and a spinner
+                    // that can only ever settle empty is a strip promising something it has none of.
+                    following = if (isSignedIn) it.following.loading() else it.following.loaded(emptyList()),
                     isRefreshing = isRefresh,
                 )
             }
             coroutineScope {
-                launch { loadFollowing() }
+                if (isSignedIn) launch { loadFollowing() }
                 launch { loadTopics() }
                 // People is seeded from what browse found, so it chains off it rather than
                 // racing it. Everything else runs alongside.
@@ -193,6 +204,7 @@ class DiscoverViewModel(
 
     /** Retries the followed feed alone — the other strips degrade to empty rather than error. */
     fun onRetryFollowing() {
+        if (!_state.value.isSignedIn) return
         viewModelScope.launch {
             _state.update { it.copy(following = it.following.loading()) }
             loadFollowing()
@@ -205,6 +217,13 @@ class DiscoverViewModel(
      * worth retrying rather than hiding.
      */
     fun onFollowToggle(pubky: String) {
+        // On the action, not only on the pill. A guest sees the strip in full — the suggestions
+        // are worth seeing, and they are what a visitor is here for — but following writes a
+        // record into a follow graph that does not exist yet.
+        if (!_state.value.isSignedIn) {
+            viewModelScope.launch { _effects.emit(DiscoverEffect.RequireSignIn(SignInReason.FollowPerson)) }
+            return
+        }
         val person = _state.value.people.items.firstOrNull { it.identity.pubky == pubky } ?: return
         if (person.isFollowPending) return
         val wasFollowing = person.isFollowing
@@ -311,6 +330,12 @@ internal fun List<Deck>.toCards(authors: Map<String, PubkyIdentity>): List<Disco
  * the screen is in some `Content` case is what produced the stale-write races this replaced.
  */
 data class DiscoverUiState(
+    /**
+     * False while the visitor has no account. Discover works either way — every read on it is
+     * public — so this changes only what is *offered*: the followed strip goes, and the follow
+     * pills raise a sign-in prompt instead of writing.
+     */
+    val isSignedIn: Boolean = true,
     val topics: SectionState<Tag> = SectionState(),
     val people: SectionState<DiscoverPerson> = SectionState(),
     val browse: SectionState<DiscoverDeck> = SectionState(),
@@ -393,4 +418,7 @@ sealed interface DiscoverEffect {
 
     /** A follow that failed — the pill has already reverted, so this only explains why. */
     data class ShowFollowError(val reason: ErrorReason) : DiscoverEffect
+
+    /** A guest reached for something that writes. [reason] is what the prompt is about. */
+    data class RequireSignIn(val reason: SignInReason) : DiscoverEffect
 }

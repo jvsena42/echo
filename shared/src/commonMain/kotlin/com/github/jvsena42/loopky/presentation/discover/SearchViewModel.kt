@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.presentation.auth.SignInReason
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.FlowPreview
@@ -67,6 +68,13 @@ class SearchViewModel(
     private val authors = mutableMapOf<String, PubkyIdentity>()
 
     init {
+        // Search is reachable from Discover, which a signed-out visitor gets in full — so the
+        // results are readable either way and only the follow pill needs an account.
+        viewModelScope.launch {
+            val session = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+                ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
+            _state.update { it.copy(isSignedIn = session != null) }
+        }
         viewModelScope.launch {
             typed
                 .debounce(DEBOUNCE_MILLIS)
@@ -176,6 +184,10 @@ class SearchViewModel(
      * than two. Optimistic and reverted on failure, like the Discover strip.
      */
     fun onFollowToggle(pubky: String) {
+        if (!_state.value.isSignedIn) {
+            viewModelScope.launch { _effects.emit(SearchEffect.RequireSignIn(SignInReason.FollowPerson)) }
+            return
+        }
         val person = _state.value.people.firstOrNull { it.identity.pubky == pubky } ?: return
         if (person.isFollowPending) return
         val wasFollowing = person.isFollowing
@@ -240,6 +252,8 @@ class SearchViewModel(
  * screen is in some `Content` case is what produced stale-write races on Discover.
  */
 data class SearchUiState(
+    /** False while nobody is signed in: results still resolve, but Follow raises a prompt. */
+    val isSignedIn: Boolean = true,
     val query: String = "",
     val isSearching: Boolean = false,
     /** True once a query has settled, which is what separates "no matches" from "not asked yet". */
@@ -260,4 +274,7 @@ sealed interface SearchEffect {
 
     /** A follow that failed — the pill has already reverted, so this only explains why. */
     data class ShowFollowError(val reason: ErrorReason) : SearchEffect
+
+    /** A guest reached for Follow. [reason] is what the prompt is about. */
+    data class RequireSignIn(val reason: SignInReason) : SearchEffect
 }

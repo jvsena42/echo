@@ -22,6 +22,17 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun MainScreen(
+    /**
+     * Nobody is signed in — the visitor came in through onboarding's "Look around first".
+     *
+     * Discover is the whole shell in that case, with no tab bar at all. Today, Decks and Profile
+     * are each a view onto a library, a review queue and an identity that do not exist yet, so a
+     * guest tab set of four would be one working destination and three apologies. What replaces
+     * them is the banner at the top of Discover, which is a way *in* rather than a wall.
+     */
+    isGuest: Boolean = false,
+    /** Leave the guest shell for the sign-in flow. */
+    onSignIn: () -> Unit = {},
     onNavigateDeckDetail: (deckId: String, author: String?) -> Unit = { _, _ -> },
     onNavigateCreateDeck: () -> Unit = {},
     onNavigateImport: () -> Unit = {},
@@ -33,6 +44,17 @@ fun MainScreen(
     onNavigateFollows: (pubky: String, source: FollowSource) -> Unit = { _, _ -> },
     onSignOut: () -> Unit = {},
 ) {
+    if (isGuest) {
+        DiscoverRoute(
+            isGuest = true,
+            onSignIn = onSignIn,
+            onOpenProfile = onNavigateProfile,
+            onOpenDeck = onNavigateDeckDetail,
+            onOpenSearch = onNavigateSearch,
+        )
+        return
+    }
+
     val pagerState = rememberPagerState(pageCount = { LoopkyTab.entries.size })
     val scope = rememberCoroutineScope()
     val selectedTab = LoopkyTab.entries[pagerState.currentPage]

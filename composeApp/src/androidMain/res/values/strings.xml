@@ -801,4 +801,39 @@
     <string name="tag_sheet_suggested_label">SUGGESTED</string>
     <string name="tag_sheet_current_label">CURRENT TAGS</string>
     <string name="tag_sheet_add_button">Add Tag</string>
+
+    <!--
+      Browsing without an account (#150).
+
+      Loopky is readable signed out: Discover, deck detail, profiles and a sample of any deck's
+      cards are all public records. These strings cover the two places that changes what is on
+      screen — the banner offering the way in, and the prompt raised by an action that writes.
+    -->
+    <string name="onboarding_explore">Look around first</string>
+    <string name="guest_banner_title">You\'re just looking around</string>
+    <string name="guest_banner_body">Create an account to keep decks, track what you\'ve learned and follow people. No email needed.</string>
+    <string name="guest_banner_cta">Get started</string>
+
+    <string name="sign_in_prompt_cta">Create account or sign in</string>
+    <string name="sign_in_prompt_dismiss">Not now</string>
+    <string name="sign_in_prompt_follow_deck_title">Keep this deck</string>
+    <string name="sign_in_prompt_follow_deck_body">Following saves a deck to your library, keeps it up to date with the author and remembers what you\'ve learned. It needs an account — one key, no email.</string>
+    <string name="sign_in_prompt_clone_deck_title">Make it yours</string>
+    <string name="sign_in_prompt_clone_deck_body">A clone is your own copy, published under your key and yours to edit. It needs an account — one key, no email.</string>
+    <string name="sign_in_prompt_follow_person_title">Follow people</string>
+    <string name="sign_in_prompt_follow_person_body">Following puts the decks people publish on your Discover. It needs an account — one key, no email.</string>
+
+    <!--
+      Previewing a deck nobody has kept: a fixed handful of cards, graded and stored nowhere.
+      The badge is on screen the whole time because "nothing is being saved" is the one thing a
+      preview must never let someone find out afterwards.
+    -->
+    <string name="deck_detail_try_cards">Try these cards</string>
+    <string name="study_preview_badge">Preview · progress isn\'t saved</string>
+    <string name="study_preview_next">Next card</string>
+    <string name="study_preview_complete_title">That\'s the preview 👋</string>
+    <string name="study_preview_guest_detail">Create an account and this deck remembers what you got right — and asks again on the day you\'re about to forget it.</string>
+    <string name="study_preview_member_detail">Follow or clone this deck to keep your progress on it.</string>
+    <string name="study_preview_action_guest">Create account</string>
+    <string name="study_preview_back">Back to deck</string>
 </resources>

@@ -60,12 +60,14 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.data.pubky.PubkyLink
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.presentation.auth.SignInReason
 import com.github.jvsena42.loopky.presentation.discover.DiscoverDeck
 import com.github.jvsena42.loopky.presentation.discover.DiscoverPerson
 import com.github.jvsena42.loopky.presentation.discover.SearchEffect
 import com.github.jvsena42.loopky.presentation.discover.SearchUiState
 import com.github.jvsena42.loopky.presentation.discover.SearchViewModel
 import com.github.jvsena42.loopky.ui.components.AuthorRow
+import com.github.jvsena42.loopky.ui.components.SignInPromptDialog
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.discover.DeckRow
 import com.github.jvsena42.loopky.ui.discover.SectionHeader
@@ -84,6 +86,8 @@ fun SearchRoute(
     onBack: () -> Unit = {},
     onOpenProfile: (String) -> Unit = {},
     onOpenDeck: (deckId: String, author: String?) -> Unit = { _, _ -> },
+    /** Leave for the sign-in flow, when a signed-out visitor reaches for Follow. */
+    onSignIn: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<SearchViewModel>()
 
@@ -91,6 +95,7 @@ fun SearchRoute(
     val currentOpenProfile by rememberUpdatedState(onOpenProfile)
     val currentOpenDeck by rememberUpdatedState(onOpenDeck)
     var followError by remember { mutableStateOf<ErrorReason?>(null) }
+    var signInPrompt by remember { mutableStateOf<SignInReason?>(null) }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -98,6 +103,7 @@ fun SearchRoute(
                 is SearchEffect.OpenProfile -> currentOpenProfile(effect.pubky)
                 is SearchEffect.OpenDeck -> currentOpenDeck(effect.deckId, effect.authorPubky)
                 is SearchEffect.ShowFollowError -> followError = effect.reason
+                is SearchEffect.RequireSignIn -> signInPrompt = effect.reason
             }
         }
     }
@@ -109,6 +115,17 @@ fun SearchRoute(
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             followError = null
         }
+    }
+
+    signInPrompt?.let { reason ->
+        SignInPromptDialog(
+            reason = reason,
+            onSignIn = {
+                signInPrompt = null
+                onSignIn()
+            },
+            onDismiss = { signInPrompt = null },
+        )
     }
 
     val state by viewModel.state.collectAsStateWithLifecycle()

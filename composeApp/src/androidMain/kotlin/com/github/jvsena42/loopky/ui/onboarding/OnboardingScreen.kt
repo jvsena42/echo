@@ -88,6 +88,7 @@ fun OnboardingRoute(
     onCreatePubky: () -> Unit,
     onRestore: () -> Unit,
     onUnregistered: (String) -> Unit,
+    onExplore: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<OnboardingViewModel>()
     OnboardingScreen(
@@ -96,6 +97,7 @@ fun OnboardingRoute(
         onCreatePubky = onCreatePubky,
         onRestore = onRestore,
         onUnregistered = onUnregistered,
+        onExplore = onExplore,
     )
 }
 
@@ -106,6 +108,7 @@ fun OnboardingScreen(
     onCreatePubky: () -> Unit,
     onRestore: () -> Unit,
     onUnregistered: (String) -> Unit,
+    onExplore: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -149,6 +152,7 @@ fun OnboardingScreen(
         onSignInClick = viewModel::onSignInClick,
         onCreatePubky = onCreatePubky,
         onRestore = onRestore,
+        onExplore = onExplore,
         onOpenRingHere = viewModel::onOpenRingOnThisDevice,
         onCancelSignIn = viewModel::onCancelSignIn,
     )
@@ -162,6 +166,7 @@ private fun OnboardingContent(
     onRestore: () -> Unit,
     onOpenRingHere: () -> Unit,
     onCancelSignIn: () -> Unit,
+    onExplore: () -> Unit = {},
 ) {
     if (state is OnboardingUiState.Restoring) {
         SplashContent()
@@ -221,6 +226,7 @@ private fun OnboardingContent(
                     onSignInClick = { onSignInClick(handoff) },
                     onCreatePubky = onCreatePubky,
                     onRestore = onRestore,
+                    onExplore = onExplore,
                     onOpenRingHere = onOpenRingHere,
                     onCancelSignIn = onCancelSignIn,
                     // Scrollable, because this Row bounds the panel to the window height and a
@@ -251,6 +257,7 @@ private fun OnboardingContent(
                 onSignInClick = { onSignInClick(handoff) },
                 onCreatePubky = onCreatePubky,
                 onRestore = onRestore,
+                onExplore = onExplore,
                 onOpenRingHere = onOpenRingHere,
                 onCancelSignIn = onCancelSignIn,
                 modifier = Modifier.contentPane(PaneWidth.Focused),
@@ -322,6 +329,7 @@ private fun SignInPanel(
     onSignInClick: () -> Unit,
     onCreatePubky: () -> Unit,
     onRestore: () -> Unit,
+    onExplore: () -> Unit,
     onOpenRingHere: () -> Unit,
     onCancelSignIn: () -> Unit,
     modifier: Modifier = Modifier,
@@ -346,6 +354,7 @@ private fun SignInPanel(
                 onSignInClick = onSignInClick,
                 onCreatePubky = onCreatePubky,
                 onRestore = onRestore,
+                onExplore = onExplore,
             )
             // Under the calls to action: the gate has to be visible before the buttons are usable,
             // but it is fine print rather than a step, and putting it between the hero and the
@@ -481,6 +490,7 @@ private fun CtaBlock(
     onSignInClick: () -> Unit,
     onCreatePubky: () -> Unit,
     onRestore: () -> Unit,
+    onExplore: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -573,6 +583,26 @@ private fun CtaBlock(
         ) {
             Text(
                 text = stringResource(R.string.onboarding_create_pubky),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        // The one way off this screen that is not a way *in*, and the only control here the
+        // consent tick deliberately does not gate: browsing creates no account and writes nothing,
+        // so there is nothing for the policy to govern — gating it would leave a declined visitor
+        // with a screen where nothing at all works.
+        //
+        // Muted and last, under the three real doors, because it is a detour and not the
+        // recommendation. It is still a button rather than a line of prose: for someone who has
+        // never heard of Pubky, the three options above are three unfamiliar words, and this is
+        // the one that lets them find out what the app is before deciding.
+        TextButton(
+            onClick = onExplore,
+            modifier = Modifier.testTag("onboarding_explore"),
+            colors = ButtonDefaults.textButtonColors(contentColor = colors.foregroundMuted),
+        ) {
+            Text(
+                text = stringResource(R.string.onboarding_explore),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -723,6 +753,7 @@ private fun OnboardingContentPreview() {
             onSignInClick = {},
             onCreatePubky = {},
             onRestore = {},
+            onExplore = {},
             onOpenRingHere = {},
             onCancelSignIn = {},
         )
