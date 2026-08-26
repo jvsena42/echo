@@ -578,12 +578,14 @@ Cards are batched rather than stored one record per card, and the manifest carri
 /pub/loopky/srs/{authorPubky}/{deckId}/{n}.json        — your review state, chunked (see §8.3)
 /pub/loopky/subscriptions/{authorPubky}/{deckId}.json  — a deck you follow (see below)
 /pub/loopky/settings.json                              — your study settings (see §8.6)
+/pub/loopky/announcements/{sha256}.json                — a deck you have already announced (see below)
 ```
 
 - `{deckId}` and `{cardId}` are UUIDv4, generated client-side.
 - `{n}` is the chunk ordinal, `0`-based. It starts sequential, but **compaction leaves gaps** (§8.4) — anything walking the table must read `chunks[].n`, never `0 until chunks.size`.
 - SRS records live **outside** `/decks/` and are keyed by the deck's author: your review state for someone else's deck was never the owner's data. Author-scoping also stops two authors whose decks share a `deckId` colliding in your `srs/` tree. Chunked for the same reason cards are: one record per card made a studied 20k-card deck ~40,000 records. Written by `PubkyPaths.srsChunk` (#43 §2).
 - Subscriptions live on the **follower's** homeserver, author-keyed for the same reason SRS is. A record's *existence* means "I follow this deck"; see the schema below.
+- Announcements are the ledger behind "announce a deck once" (#145) — see the schema below. Loopky's namespace rather than pubky.app's because it is bookkeeping, not social data.
 - `{sha256}` is the hex digest of the blob; acts as a content address and enables per-deck dedupe.
 - `.ext` is informational; MIME is carried in the card's media ref.
 
@@ -697,6 +699,25 @@ Each entry in `cards[]`:
 - **Keeping a deck is what earns review state.** `SrsRepository.review` rejects a deck you neither own nor follow, and deck detail offers Follow / Clone in place of Study for one you are only browsing. Otherwise grading from Discover would write SRS records under a deck absent from both the library and the due queue — progress the user can neither see nor resume.
 - Following writes `loopky-followed` on the deck's manifest, so "N people follow this" falls out of the indexer's tagger count (§7.7). Unfollowing removes the record and that label — **and nothing else**: review state is yours, not the author's, and re-following must not reset your progress (§8.3).
 - **Cloning is the other half of #33 and stores nothing here.** A clone is a full copy under your own pubky with a new `deck_id`, new card ids, and `source.kind = "clone"`; it never receives the original's updates. New card ids are what keep SRS state from bleeding between an original and its copy. Card media is copied **by reference** — each ref keeps the source author's blob in `uri` rather than re-uploading it, so cloning an Anki-sized deck costs card records rather than hundreds of MB. `MediaRepository.rehost` copies a blob under the clone's own path; because refs are content-addressed the digest is unchanged, so the swap is invisible. **Re-hosting happens on first fetch (#65):** `MediaRepository.get` emits a `PinnedBlob` once it has served a still-pinned ref, and `DeckRepository.rehostBlob` copies the blob and rewrites every ref carrying that sha — card sides through the chunk+manifest pair, the cover through the manifest. Three things that path has to get right: it is **ownership-guarded** at both the signal and the write, so a *followed* deck's blobs are never copied under your pubky at a deckId you cannot edit; it is **cache-only**, because there is no sha→card index and locating the card otherwise would cost ~200 chunk reads on a 20k-card deck; and it writes with `touchDeck = false`, since re-hosting changes no content and bumping `updated_at` would tell every follower the author published changes. A failed copy leaves the ref dangling rather than clearing it — a 404 today may be an outage tomorrow — and is not retried for the rest of the session. **Blobs the user never looks at are handled by the deferred sweep (#53):** `DeckRepository.rehostPendingMedia` walks the deck's chunks from a persisted cursor, copying every ref still pinned, at most `DEFAULT_REHOST_CHUNK_BUDGET` chunks per call. Two additive manifest fields carry the progress — `media_rehost_cursor` and `media_rehosted` — because re-host progress is *deck* state, not device state: it should survive a reinstall and hold across the user's devices. **The cursor is what makes the pass resumable**, and the reason is not obvious: a re-hosted ref loses its `uri`, but a chunk with nothing pinned in it is never rewritten, so without a cursor a budgeted run restarts at chunk 0 and a deck with more chunks than the budget never reaches its tail. The budget is counted in **chunks, not blobs** — a 200-chunk deck with media in ten of them still costs 200 reads to find them. The chunk record is the durable unit, written as each chunk is processed; the manifest is patched every `REHOST_MANIFEST_BATCH` chunks and once at the end. A **deleted origin** (`isNotFound()`) counts as *missing* and does not block completion — treating it as a failure would re-sweep the deck forever, on every device, for a blob that is not coming back — while a transient failure keeps it pending. Scheduling goes through the `BackgroundTasks` seam (§9.6), triggered after a clone and from `listOwned()` as a self-heal.
+
+**`announcements/{sha256}.json`** — a deck already announced (#145):
+
+```json
+{
+  "post_uri": "pubky://{owner}/pub/pubky.app/posts/{postId}",
+  "deck_uri": "pubky://{owner}/pub/loopky/decks/{deckId}/manifest.json",
+  "kind": "Created",
+  "title": "English Lessons Flashcards",
+  "created_at": 1787690305000
+}
+```
+
+- **What it prevents:** one deck advertised by several posts. Announcing is per action (§7.7), and every action that offers it — create, follow, clone — mints a fresh post id, so nothing stopped the same deck being posted about twice. It showed up in the wild as two "I published a new deck" posts for one deck the author had deleted and re-imported, the older one linking to a manifest that no longer resolves.
+- **The record id is a hash of `DeckAnnouncement.dedupeKey`** — kind + trimmed, lowercased title + the source author's name — and deliberately **not** the deck's URI. A deck deleted and published again gets a new `deckId`, which a URI key would read as a different deck, which is precisely the case that produced the duplicate. The cost of that choice, stated plainly: a genuinely new deck reusing an old title goes unannounced.
+- `post_uri` is the only field code reads; the rest is for a human reading the record. `DiscoveryRepository.announcedPost` returns it, and `announceDeck` returns it in place of writing a second post — the check is at the write, not only where the prompt is raised, so no caller can duplicate a post by forgetting to ask.
+- **An unreadable ledger answers "not announced".** Suppressing an offer because a read failed would silently drop a real deck's announcement; asking twice is the recoverable half of that trade.
+- Written **after** the post, best-effort: a ledger entry with no post behind it silences an announcement that never happened, whereas a post with no entry only risks asking again.
+- Deleting a deck does **not** delete its post or its ledger entry. A post is a thing the user said, and the entry is what stops the re-published deck being announced again.
 
 **Sync algorithm (client side):**
 
