@@ -312,6 +312,13 @@ class DeckDetailViewModel(
     ): Boolean {
         if (!appPreferences.shareOnPubky.first()) return false
         val announcement = DeckAnnouncement.of(deck, kind, authorName)
+        // Already announced — a re-follow or a second clone of the same deck says nothing new,
+        // and posting it again is the duplicate this dedupe exists to stop (#145).
+        if (discoveryRepository.announcedPost(announcement) != null) {
+            Log.d(TAG, "offerShare: already announced, not asking — ${deck.id}")
+            _state.update { s -> (s as? DeckDetailUiState.Content)?.copy(isCloning = false) ?: s }
+            return false
+        }
         _state.update { s ->
             (s as? DeckDetailUiState.Content)?.copy(
                 isCloning = false,

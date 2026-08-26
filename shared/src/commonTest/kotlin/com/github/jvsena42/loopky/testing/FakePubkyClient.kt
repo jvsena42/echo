@@ -101,12 +101,20 @@ class FakePubkyClient : PubkyClient {
      */
     var putGate: CompletableDeferred<Unit>? = null
 
+    /**
+     * Fails only the writes whose URL contains this, leaving the rest of a multi-record write to
+     * succeed — the shape of a best-effort side record failing while its main write stands.
+     */
+    var failPutWhenUrlContains: String? = null
+
     override suspend fun putWithSession(
         url: String,
         content: String,
         sessionSecret: String,
     ): Result<String> {
         putGate?.await()
+        failPutWhenUrlContains?.takeIf { it in url }
+            ?.let { return Result.failure(PubkyError("Request failed: write refused for $it")) }
         consumeInjectedFailure()?.let { return Result.failure(it) }
         store[url] = content
         puts.add(url to content)

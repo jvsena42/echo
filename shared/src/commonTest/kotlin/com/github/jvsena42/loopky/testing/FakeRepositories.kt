@@ -699,11 +699,23 @@ class FakeDiscoveryRepository : DiscoveryRepository {
     val announcements = mutableListOf<DeckAnnouncement>()
     var announceError: Throwable? = null
 
+    /**
+     * The ledger the real repository keeps on the homeserver, keyed by
+     * [DeckAnnouncement.dedupeKey]. Seed it to stand for a deck announced in an earlier session.
+     */
+    val announcedPosts = mutableMapOf<String, PubkyUri>()
+
     override suspend fun announceDeck(announcement: DeckAnnouncement): Result<PubkyUri> {
         announceError?.let { return Result.failure(it) }
+        announcedPosts[announcement.dedupeKey]?.let { return Result.success(it) }
         announcements.add(announcement)
-        return Result.success(PubkyUri("pubky://author/pub/pubky.app/posts/0032TESTPOST0"))
+        val uri = PubkyUri("pubky://author/pub/pubky.app/posts/0032TESTPOST0")
+        announcedPosts[announcement.dedupeKey] = uri
+        return Result.success(uri)
     }
+
+    override suspend fun announcedPost(announcement: DeckAnnouncement): PubkyUri? =
+        announcedPosts[announcement.dedupeKey]
 
     /** The Loopky accounts each follow list resolves to, keyed by whose list it is. */
     var followingByUser: Map<String, List<PubkyIdentity>> = emptyMap()

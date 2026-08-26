@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.AccountStamp
+import com.github.jvsena42.loopky.data.pubky.AnnouncementDto
 import com.github.jvsena42.loopky.data.pubky.FollowDto
 import com.github.jvsena42.loopky.data.pubky.PostDto
 import com.github.jvsena42.loopky.data.pubky.PostEmbedDto
@@ -18,6 +19,7 @@ import com.github.jvsena42.loopky.data.pubky.isNotFound
 import com.github.jvsena42.loopky.data.pubky.mapConcurrently
 import com.github.jvsena42.loopky.data.pubky.putWithSessionRetry
 import com.github.jvsena42.loopky.data.pubky.requireSession
+import com.github.jvsena42.loopky.data.pubky.sha256Hex
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
@@ -121,12 +123,35 @@ class DiscoveryRepositoryImpl(
         Unit
     }
 
+    override suspend fun announcedPost(announcement: DeckAnnouncement): PubkyUri? {
+        val owner = session.current()?.identity?.pubky ?: return null
+        val path = PubkyPaths.announcement(owner, announcementId(announcement))
+        // Absent is the common answer and a failed read is indistinguishable from it here; both
+        // mean "go ahead and ask", which is the safe direction — see `announcedPost`'s contract.
+        val body = pubky.get(path).getOrElse { err ->
+            if (!err.isNotFound()) Log.w(TAG, "announcedPost: read FAILED — ${err.message}")
+            return null
+        }
+        return runCatching { loopkyJson.decodeFromString<AnnouncementDto>(body) }
+            .onFailure { Log.w(TAG, "announcedPost: $path is unreadable — ${it.message}") }
+            .getOrNull()
+            ?.post_uri
+            ?.let(::PubkyUri)
+    }
+
     override suspend fun announceDeck(announcement: DeckAnnouncement): Result<PubkyUri> =
         runSuspendCatching {
             // The gate lives next to the write, not only in the callers. "Off" in #39 means
             // nothing reaches the homeserver, and three separate ViewModels each remembering to
             // check is three chances to post behind the user's back.
             check(preferences.shareOnPubky.first()) { "Sharing on Pubky is turned off" }
+            // Same reasoning for announcing twice: the ledger is consulted at the write, not only
+            // where the prompt is raised, so no caller can produce a second post for one deck by
+            // forgetting to ask first (#145).
+            announcedPost(announcement)?.let { existing ->
+                Log.d(TAG, "announceDeck: already announced as ${existing.value}")
+                return@runSuspendCatching existing
+            }
             val owner = session.requireSession().identity.pubky
             // Microseconds is what pubky-app-specs encodes, and epochMillis() is the only clock
             // commonMain has. Two announcements inside one millisecond would land on one id, which
@@ -151,8 +176,40 @@ class DiscoveryRepositoryImpl(
             Log.d(TAG, "announceDeck: ${announcement.kind} -> $path")
             val uri = PubkyUri(path)
             tagAnnouncement(uri, announcement.tags)
+            recordAnnouncement(owner, announcement, uri)
             uri
         }.onFailure { Log.w(TAG, "announceDeck: FAILED — ${it.message}", it) }
+
+    /**
+     * Write the ledger entry that makes this deck already-announced.
+     *
+     * Best-effort and deliberately *after* the post: a ledger entry with no post behind it is the
+     * one failure worth avoiding, because it silences the announcement of a deck that was never
+     * actually announced. The other way round only risks asking again, which is where this
+     * started.
+     */
+    private suspend fun recordAnnouncement(
+        owner: String,
+        announcement: DeckAnnouncement,
+        postUri: PubkyUri,
+    ) {
+        val body = loopkyJson.encodeToString(
+            AnnouncementDto(
+                post_uri = postUri.value,
+                deck_uri = announcement.deckUri.value,
+                kind = announcement.kind.name,
+                title = announcement.deckTitle,
+                created_at = epochMillis(),
+            ),
+        )
+        val path = PubkyPaths.announcement(owner, announcementId(announcement))
+        pubky.putWithSessionRetry(path, body, session, revalidator)
+            .onFailure { Log.w(TAG, "announceDeck: ledger write FAILED — ${it.message}") }
+    }
+
+    /** Path-safe, collision-free id for [DeckAnnouncement.dedupeKey] — a title is free text. */
+    private fun announcementId(announcement: DeckAnnouncement): String =
+        sha256Hex(announcement.dedupeKey.encodeToByteArray())
 
     /**
      * Label the announcement post with the deck's topics and [ReservedTags.DECK].

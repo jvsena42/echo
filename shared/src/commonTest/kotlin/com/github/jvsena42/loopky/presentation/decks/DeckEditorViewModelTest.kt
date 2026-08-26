@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.domain.model.ChunkMeta
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.MediaRef
+import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.ordForIndex
 import com.github.jvsena42.loopky.testing.CardMove
@@ -516,6 +517,30 @@ class DeckEditorViewModelTest {
 
         assertNull(vm.state.value.sharePrompt)
         assertTrue(discoveryRepo.announcements.isEmpty())
+    }
+
+    @Test
+    fun `a deck this account already announced is not offered again`() = runTest(mainDispatcher) {
+        discoveryRepo.announcedPosts[
+            DeckAnnouncement(
+                kind = DeckAnnouncement.Kind.Created,
+                deckTitle = "Kanji N5",
+                deckUri = PubkyUri("pubky://author/pub/loopky/decks/gone/manifest.json"),
+            ).dedupeKey,
+        ] = PubkyUri("pubky://author/pub/pubky.app/posts/0032OLDPOST00")
+        val vm = viewModel(deckId = null)
+        advanceUntilIdle()
+        vm.onTitleChanged("Kanji N5")
+        val effects = mutableListOf<DeckEditorEffect>()
+        val job = launch { vm.effects.collect { effects.add(it) } }
+
+        vm.onSaveClick()
+        advanceUntilIdle()
+        job.cancel()
+
+        assertNull(vm.state.value.sharePrompt)
+        assertTrue(discoveryRepo.announcements.isEmpty())
+        assertIs<DeckEditorEffect.SaveSuccess>(effects.single())
     }
 
     @Test

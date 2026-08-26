@@ -480,14 +480,14 @@ class DeckEditorViewModel(
     private suspend fun settle(deck: Deck, isCreate: Boolean) {
         savedDeckId = deck.id
         if (isCreate && appPreferences.shareOnPubky.first()) {
-            _state.update {
-                it.copy(
-                    sharePrompt = DeckSharePrompt(
-                        DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created),
-                    ),
-                )
+            val announcement = DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created)
+            // A deck this account has already announced is not news a second time — see
+            // DeckAnnouncement.dedupeKey (#145).
+            if (discoveryRepository.announcedPost(announcement) == null) {
+                _state.update { it.copy(sharePrompt = DeckSharePrompt(announcement)) }
+                return
             }
-            return
+            Log.d(TAG, "settle: already announced, not asking — deckId=${deck.id}")
         }
         _effects.emit(DeckEditorEffect.SaveSuccess(deck.id))
     }

@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.domain.model.DeckLimits
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.FormError
+import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
@@ -378,6 +379,33 @@ class PublishDeckViewModelTest {
     }
 
     // ── share on Pubky (#39) ─────────────────────────────────────────────
+
+    @Test
+    fun aDeckThatWasAlreadyAnnouncedIsNotOfferedAgain() = runTest {
+        // Publishing a deck that was deleted and re-imported is how one deck ended up with two
+        // posts on the feed, the older pointing at a manifest that no longer resolves (#145).
+        discoveryRepo.announcedPosts[
+            DeckAnnouncement(
+                kind = DeckAnnouncement.Kind.Created,
+                deckTitle = "Spanish",
+                deckUri = PubkyUri("pubky://author/pub/loopky/decks/gone/manifest.json"),
+            ).dedupeKey,
+        ] = PubkyUri("pubky://author/pub/pubky.app/posts/0032OLDPOST00")
+        val vm = viewModel()
+        val effects = mutableListOf<PublishDeckEffect>()
+        val job = launch { vm.effects.collect { effects.add(it) } }
+        vm.onTitleChanged("Spanish")
+
+        vm.onPublishClick()
+        advanceTimeBy(11_000L)
+        runCurrent()
+        job.cancel()
+
+        assertNull(vm.state.value.sharePrompt)
+        assertTrue(discoveryRepo.announcements.isEmpty())
+        // The publish itself still lands and the screen still leaves for the deck.
+        assertTrue(effects.any { it is PublishDeckEffect.Published }, effects.toString())
+    }
 
     @Test
     fun theShareOfferWaitsForTheUndoWindowToRunOut() = runTest {

@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.presentation.decks
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
@@ -661,6 +662,33 @@ class DeckDetailViewModelTest {
         assertTrue(prompt.preview.contains("Kanji N5 by Ada"), prompt.preview)
         // Nothing written until the user says so.
         assertTrue(discoveryRepo.announcements.isEmpty())
+    }
+
+    @Test
+    fun `a deck already announced is not offered on a re-follow`() = runTest(mainDispatcher) {
+        // Unfollow and follow again says nothing new about the deck, and posting it again is the
+        // duplicate the ledger exists to stop (#145).
+        val deck = testDeck(id = "deck1", authorPubky = "friendpk", title = "Kanji N5")
+        deckRepo.decks["deck1"] = deck
+        identityRepo.profiles["friendpk"] = PubkyIdentity(
+            pubky = "friendpk",
+            displayName = "Ada",
+            avatarUrl = null,
+            bio = null,
+        )
+        discoveryRepo.announcedPosts[
+            DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Followed, "Ada").dedupeKey,
+        ] = PubkyUri("pubky://author/pub/pubky.app/posts/0032OLDPOST00")
+        val vm = viewModel(authorPubky = "friendpk")
+        advanceUntilIdle()
+
+        vm.onToggleFollow()
+        advanceUntilIdle()
+
+        assertNull(assertIs<DeckDetailUiState.Content>(vm.state.value).sharePrompt)
+        assertTrue(discoveryRepo.announcements.isEmpty())
+        // The follow itself still happened — only the post is suppressed.
+        assertTrue(assertIs<DeckDetailUiState.Content>(vm.state.value).isFollowing)
     }
 
     @Test

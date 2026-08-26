@@ -680,6 +680,9 @@ data class TaggedSubject(
  * and feed building. Tag discovery is a local filter over decks the user can already reach
  * (following + own) — global tag search is deferred pending an indexer (see [TagRepository.trending]).
  */
+// Sixteen: follows, announcements and three shapes of discovery read (following, tag, indexer),
+// each a distinct question the screens ask. Splitting them would move the seam without removing one.
+@Suppress("TooManyFunctions")
 interface DiscoveryRepository {
     /** Pubkys the current user follows. */
     suspend fun following(): List<String>
@@ -705,10 +708,30 @@ interface DiscoveryRepository {
      * here as well as in the callers so that "off" is an invariant of the write rather than a rule
      * three ViewModels each have to remember.
      *
+     * **Announces a deck once.** A deck already in the ledger (see [announcedPost]) returns that
+     * post's URI without writing anything, so a re-published deck cannot end up with two posts
+     * advertising it — the older of which points at a manifest the delete took away (#145).
+     *
      * **Best-effort by contract.** Callers must treat a failure as cosmetic: the deck was created,
      * the follow or the clone stands, and only the post is missing. Never roll the action back.
      */
     suspend fun announceDeck(announcement: DeckAnnouncement): Result<PubkyUri>
+
+    /**
+     * The post that already announced [announcement], or null if this deck has never been
+     * announced — the check that keeps one deck to one post (#145).
+     *
+     * Matched on [DeckAnnouncement.dedupeKey], not on the deck's URI, so a deck deleted and
+     * published again is still recognised as the deck it is. Callers use it to decide whether to
+     * raise the confirm prompt at all; [announceDeck] applies it again at the write, so no path
+     * can post a second time by forgetting to ask.
+     *
+     * Answers **null when it cannot tell** — no session, an unreadable ledger, a homeserver that
+     * is not answering. Offering a prompt one time too many is a question the user can decline;
+     * suppressing it on a failed read would silently drop the announcement of a genuinely new
+     * deck.
+     */
+    suspend fun announcedPost(announcement: DeckAnnouncement): PubkyUri?
 
     /**
      * The Loopky accounts [pubky] follows, as resolved profiles.

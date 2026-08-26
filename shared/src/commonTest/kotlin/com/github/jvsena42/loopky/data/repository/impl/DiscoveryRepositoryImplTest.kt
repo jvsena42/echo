@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.data.pubky.PostDto
 import com.github.jvsena42.loopky.data.pubky.PostKinds
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
+import com.github.jvsena42.loopky.data.pubky.sha256Hex
 import com.github.jvsena42.loopky.data.pubky.toDto
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.TaggedSubject
@@ -37,6 +38,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+// One repository, one test class: every case here shares the same fake homeserver, session and
+// preference setup, and splitting it would duplicate that rather than separate anything.
+@Suppress("LargeClass")
 class DiscoveryRepositoryImplTest {
 
     private val pubky = FakePubkyClient()
@@ -730,8 +734,7 @@ class DiscoveryRepositoryImplTest {
         // retry queue forever.
         repo.announceDeck(DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created)).getOrThrow()
 
-        val post = loopkyJson.decodeFromString<PostDto>(pubky.puts.last().second)
-        assertEquals(PostKinds.LINK, post.embed?.kind)
+        assertEquals(PostKinds.LINK, pubky.lastPost().embed?.kind)
     }
 
     @Test
@@ -742,7 +745,7 @@ class DiscoveryRepositoryImplTest {
 
         repo.announceDeck(DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created)).getOrThrow()
 
-        val post = loopkyJson.decodeFromString<PostDto>(pubky.puts.last().second)
+        val post = pubky.lastPost()
         // pubky.app resolves `attachments` strictly as pubky.app file records, so a URL there is
         // invisible — it renders the first http(s) link in the *content* instead.
         assertNull(post.attachments)
@@ -793,6 +796,83 @@ class DiscoveryRepositoryImplTest {
         assertTrue(pubky.puts.none { it.first.contains("/pub/pubky.app/posts/") })
     }
 
+    // --- announcing once per deck (#145) --------------------------------------
+
+    @Test
+    fun `announcing the same deck twice writes one post`() = runTest {
+        val first = repo.announceDeck(
+            DeckAnnouncement.of(testDeck(id = "d1", title = "Kanji N5"), DeckAnnouncement.Kind.Created),
+        ).getOrThrow()
+
+        // A deck deleted and re-published is a *new* deckId for what the author sees as the same
+        // deck, which is how one deck ended up advertised by two posts (#145).
+        val second = repo.announceDeck(
+            DeckAnnouncement.of(testDeck(id = "d2", title = "Kanji N5"), DeckAnnouncement.Kind.Created),
+        ).getOrThrow()
+
+        assertEquals(first, second)
+        assertEquals(
+            expected = 1,
+            actual = pubky.puts.count { it.first.contains("/pub/pubky.app/posts/") },
+        )
+    }
+
+    @Test
+    fun `announcedPost answers with the post already advertising the deck`() = runTest {
+        val announcement =
+            DeckAnnouncement.of(testDeck(title = "Kanji N5"), DeckAnnouncement.Kind.Created)
+        assertNull(repo.announcedPost(announcement))
+
+        val uri = repo.announceDeck(announcement).getOrThrow()
+
+        assertEquals(uri, repo.announcedPost(announcement))
+        // Retyping the title, or announcing from another device, must not read as a new deck.
+        assertEquals(
+            uri,
+            repo.announcedPost(
+                DeckAnnouncement.of(testDeck(id = "other", title = "  kanji n5 "), DeckAnnouncement.Kind.Created),
+            ),
+        )
+    }
+
+    @Test
+    fun `a different deck and a different kind are each their own announcement`() = runTest {
+        val deck = testDeck(title = "Kanji N5")
+        repo.announceDeck(DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created)).getOrThrow()
+
+        assertNull(repo.announcedPost(DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Cloned)))
+        assertNull(
+            repo.announcedPost(
+                DeckAnnouncement.of(testDeck(title = "Kanji N4"), DeckAnnouncement.Kind.Created),
+            ),
+        )
+    }
+
+    @Test
+    fun `a ledger that cannot be read asks rather than silently skipping`() = runTest {
+        // Suppressing the offer on an unreadable ledger would drop a genuinely new deck's
+        // announcement with nothing on screen saying so. Asking twice is the recoverable half.
+        val announcement = DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created)
+        pubky.store[
+            PubkyPaths.announcement(TEST_PUBKY, sha256Hex(announcement.dedupeKey.encodeToByteArray())),
+        ] = "not json"
+
+        assertNull(repo.announcedPost(announcement))
+        assertTrue(repo.announceDeck(announcement).isSuccess)
+    }
+
+    @Test
+    fun `a failed ledger write leaves the post standing`() = runTest {
+        val announcement = DeckAnnouncement.of(testDeck(), DeckAnnouncement.Kind.Created)
+        pubky.failPutWhenUrlContains = "/pub/loopky/announcements/"
+
+        val result = repo.announceDeck(announcement)
+
+        // Bookkeeping, not the announcement: the post is written and worth having either way.
+        assertTrue(result.isSuccess)
+        assertTrue(pubky.store.containsKey(result.getOrThrow().value))
+    }
+
     @Test
     fun `announceDeck reports failure rather than throwing`() = runTest {
         pubky.failNextSessionCallWith = PubkyError("homeserver unreachable")
@@ -803,6 +883,15 @@ class DiscoveryRepositoryImplTest {
 
         assertTrue(result.isFailure)
     }
+
+    /**
+     * The announcement post, picked by path rather than by being the last write: announcing also
+     * writes its ledger entry and its tag records (#145).
+     */
+    private fun FakePubkyClient.lastPost(): PostDto =
+        loopkyJson.decodeFromString(
+            puts.last { it.first.contains("/pub/pubky.app/posts/") }.second,
+        )
 
     private companion object {
         const val NEXUS_BASE = "https://nexus.test"

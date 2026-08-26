@@ -41,6 +41,27 @@ data class DeckAnnouncement(
     enum class Kind { Created, Followed, Cloned }
 
     /**
+     * What makes two announcements *the same announcement*, so the second one is never posted
+     * (#145): the kind, the deck's title, and — for a follow or a clone — whose deck it was.
+     *
+     * **Deliberately not the deck's URI.** A deck deleted and published again gets a fresh
+     * `deckId`, so keying on the URI would call the re-publish a different deck and announce it
+     * again — which is exactly the duplicate seen on the feed: two "I published a new deck" posts
+     * for one deck the author had re-made, the older one pointing at a manifest that no longer
+     * resolves. The trade-off is the honest one: a genuinely new deck reusing an old title goes
+     * unannounced, rather than one deck being announced twice.
+     *
+     * Trimmed and lowercased so re-typing a title does not read as a new deck. [Kind] is part of
+     * the key because following a deck and cloning it are two different things to say about it.
+     */
+    val dedupeKey: String
+        get() = listOf(
+            kind.name,
+            deckTitle.trim().lowercase(),
+            authorName?.trim()?.lowercase().orEmpty(),
+        ).joinToString(KEY_SEPARATOR)
+
+    /**
      * The post body: a headline, the deck's `pubky://` address, and the cover's image URL.
      *
      * **The URI is deliberately left bare, and it will not be clickable everywhere.** pubky.app
@@ -93,6 +114,9 @@ data class DeckAnnouncement(
                 coverImageUrl = deck.previewableCoverUrl(),
                 tags = deck.announceableTags(),
             )
+
+        /** NUL: it cannot occur in a title or a display name, so the parts cannot run together. */
+        private const val KEY_SEPARATOR = "\u0000"
 
         private const val DEFAULT_ICON = "📚"
         private const val MAX_TITLE_LENGTH = 120

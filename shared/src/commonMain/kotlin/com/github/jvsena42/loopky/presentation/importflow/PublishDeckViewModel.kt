@@ -421,14 +421,15 @@ class PublishDeckViewModel(
         importRepository.clear()
         val deck = publishedDeck
         if (deck != null && appPreferences.shareOnPubky.first()) {
-            _state.update {
-                it.copy(
-                    sharePrompt = DeckSharePrompt(
-                        DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created),
-                    ),
-                )
+            val announcement = DeckAnnouncement.of(deck, DeckAnnouncement.Kind.Created)
+            // Nothing to ask about a deck that already has a post: re-publishing one that was
+            // deleted is how a single deck ended up advertised twice, the older post pointing at
+            // a manifest that no longer resolves (#145).
+            if (discoveryRepository.announcedPost(announcement) == null) {
+                _state.update { it.copy(sharePrompt = DeckSharePrompt(announcement)) }
+                return
             }
-            return
+            Log.d(TAG, "settle: already announced, not asking — deckId=$deckId")
         }
         _effects.emit(PublishDeckEffect.Published(deckId))
     }

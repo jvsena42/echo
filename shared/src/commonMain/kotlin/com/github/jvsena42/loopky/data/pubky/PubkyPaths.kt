@@ -95,6 +95,21 @@ internal object PubkyPaths {
     fun post(ownerPubky: String, postId: String): String =
         "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/posts/$postId"
 
+    /**
+     * Loopky's own record of a deck it has already announced — an announcement ledger entry,
+     * keyed by [com.github.jvsena42.loopky.domain.model.DeckAnnouncement.dedupeKey]'s hash.
+     *
+     * In Loopky's namespace rather than pubky.app's because it is bookkeeping, not social data:
+     * nothing outside Loopky reads it, and `deleteAccount`'s sweep of `/pub/loopky/` already
+     * takes it with everything else. On the homeserver rather than in device preferences so a
+     * second device does not re-announce what the first one already posted (#145).
+     */
+    fun announcement(ownerPubky: String, announcementId: String): String =
+        "${announcementsRoot(ownerPubky)}$announcementId.json"
+
+    fun announcementsRoot(ownerPubky: String): String =
+        "pubky://$ownerPubky/$APP_NAMESPACE/announcements/"
+
     /** The `posts/` directory under one account, for recognising a post URI. */
     fun postsRoot(ownerPubky: String): String =
         "pubky://$ownerPubky/$PUBKY_APP_NAMESPACE/posts/"
