@@ -30,6 +30,7 @@ object Routes {
     /** Restore an existing account from a backup — the door for a user with no working Ring. */
     const val RESTORE_START = "restore"
     const val RESTORE_PHRASE = "restore/phrase"
+    const val RESTORE_FILE = "restore/file"
 
     const val SIGNUP_START = "signup"
     const val SIGNUP_PHONE = "signup/phone"

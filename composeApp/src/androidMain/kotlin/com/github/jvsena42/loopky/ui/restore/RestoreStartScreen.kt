@@ -32,6 +32,7 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 fun RestoreStartRoute(
     onBack: () -> Unit,
     onRestoreWithPhrase: () -> Unit,
+    onRestoreWithFile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     SignupScaffold(
@@ -45,6 +46,13 @@ fun RestoreStartRoute(
             detail = stringResource(R.string.restore_method_phrase_detail),
             onClick = onRestoreWithPhrase,
             modifier = Modifier.testTag("restore_method_phrase"),
+        )
+        Spacer(Modifier.height(12.dp))
+        RestoreMethodCard(
+            label = stringResource(R.string.restore_method_file),
+            detail = stringResource(R.string.restore_method_file_detail),
+            onClick = onRestoreWithFile,
+            modifier = Modifier.testTag("restore_method_file"),
         )
     }
 }
@@ -84,6 +92,6 @@ private fun RestoreMethodCard(
 @Composable
 private fun RestoreStartPreview() {
     LoopkyTheme {
-        RestoreStartRoute(onBack = {}, onRestoreWithPhrase = {})
+        RestoreStartRoute(onBack = {}, onRestoreWithPhrase = {}, onRestoreWithFile = {})
     }
 }

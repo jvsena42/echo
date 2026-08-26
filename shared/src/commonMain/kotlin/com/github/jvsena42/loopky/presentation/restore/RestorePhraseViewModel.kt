@@ -149,6 +149,18 @@ sealed interface RestoreOutcome {
 
     /** The account exists but signing in failed — a homeserver or transport problem, not the key. */
     data class SignInFailed(val reason: ErrorReason) : RestoreOutcome
+
+    /**
+     * A recovery file would not decrypt: wrong passphrase, or the wrong file.
+     *
+     * Its own outcome because decryption failing says **nothing** about whether the account
+     * exists. Reporting it as "no account" would send someone hunting for a lost identity when
+     * all they did was mistype.
+     */
+    data object WrongPassphrase : RestoreOutcome
+
+    /** The picker handed back something unreadable — a permission or a provider problem. */
+    data object FileUnreadable : RestoreOutcome
 }
 
 sealed interface RestoreEffect {

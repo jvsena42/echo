@@ -148,7 +148,7 @@ private fun RestorePhraseScreen(
  * already worried they mistyped.
  */
 @Composable
-private fun RestoreOutcomeBlock(outcome: RestoreOutcome, modifier: Modifier = Modifier) {
+internal fun RestoreOutcomeBlock(outcome: RestoreOutcome, modifier: Modifier = Modifier) {
     val colors = LoopkyTheme.colors
     Column(modifier = modifier.fillMaxWidth().testTag("restore_outcome")) {
         val title: String
@@ -169,6 +169,14 @@ private fun RestoreOutcomeBlock(outcome: RestoreOutcome, modifier: Modifier = Mo
             is RestoreOutcome.SignInFailed -> {
                 title = errorTitle(outcome.reason)
                 message = errorMessage(outcome.reason)
+            }
+            RestoreOutcome.WrongPassphrase -> {
+                title = stringResource(R.string.restore_error_passphrase_title)
+                message = stringResource(R.string.restore_error_passphrase_message)
+            }
+            RestoreOutcome.FileUnreadable -> {
+                title = stringResource(R.string.restore_error_unreadable_title)
+                message = stringResource(R.string.restore_error_unreadable_message)
             }
         }
 

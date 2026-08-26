@@ -25,6 +25,7 @@ import com.github.jvsena42.loopky.ui.importflow.TriageRoute
 import com.github.jvsena42.loopky.ui.onboarding.OnboardingRoute
 import com.github.jvsena42.loopky.ui.profile.FollowListRoute
 import com.github.jvsena42.loopky.ui.profile.FriendProfileRoute
+import com.github.jvsena42.loopky.ui.restore.RestoreFileRoute
 import com.github.jvsena42.loopky.ui.restore.RestorePhraseRoute
 import com.github.jvsena42.loopky.ui.restore.RestoreStartRoute
 import com.github.jvsena42.loopky.ui.search.SearchRoute
@@ -331,6 +332,17 @@ private fun NavGraphBuilder.restoreDestinations(navController: NavHostController
         RestoreStartRoute(
             onBack = { navController.popBackStack() },
             onRestoreWithPhrase = { navController.navigateTo(Routes.RESTORE_PHRASE) },
+            onRestoreWithFile = { navController.navigateTo(Routes.RESTORE_FILE) },
+        )
+    }
+    composable(Routes.RESTORE_FILE) {
+        RestoreFileRoute(
+            onBack = { navController.popBackStack() },
+            onRestored = {
+                navController.navigateTo(Routes.MAIN) {
+                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                }
+            },
         )
     }
     composable(Routes.RESTORE_PHRASE) {

@@ -591,6 +591,19 @@
          dismissed. Deliberately no heuristic detection: a false negative would read as an
          all-clear, which is worse than saying nothing. -->
     <string name="restore_seed_warning">Only enter a phrase created for Pubky. Never enter a Bitcoin or other crypto wallet recovery phrase here.</string>
+    <string name="restore_method_file">Encrypted recovery file</string>
+    <string name="restore_method_file_detail">A recovery.pkarr file and its passphrase.</string>
+    <string name="restore_file_title">Open your recovery file</string>
+    <string name="restore_file_subtitle">Choose the file you saved, then enter its passphrase.</string>
+    <string name="restore_file_choose">Choose file</string>
+    <string name="restore_file_change">Choose a different file</string>
+    <string name="restore_file_passphrase_label">Passphrase</string>
+    <string name="restore_file_passphrase_placeholder">The passphrase you set</string>
+    <string name="restore_file_submit">Restore account</string>
+    <string name="restore_error_passphrase_title">That didn\'t open the file</string>
+    <string name="restore_error_passphrase_message">Check the passphrase, and that this is the recovery file for the account you want. This says nothing about whether the account exists.</string>
+    <string name="restore_error_unreadable_title">Couldn\'t read that file</string>
+    <string name="restore_error_unreadable_message">Loopky couldn\'t open the file you chose. Try choosing it again.</string>
     <string name="restore_error_invalid_title">That\'s not a valid recovery phrase</string>
     <string name="restore_error_invalid_message">Check that all twelve words are spelled correctly and in the right order.</string>
     <!-- Never "invalid": the phrase is valid, it just is not this account\'s. Showing the pubky is

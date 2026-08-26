@@ -43,6 +43,7 @@ import com.github.jvsena42.loopky.presentation.onboarding.OnboardingViewModel
 import com.github.jvsena42.loopky.presentation.profile.FollowListViewModel
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
+import com.github.jvsena42.loopky.presentation.restore.RestoreFileViewModel
 import com.github.jvsena42.loopky.presentation.restore.RestorePhraseViewModel
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
 import com.github.jvsena42.loopky.presentation.signup.InviteCodeViewModel
@@ -135,6 +136,7 @@ val sharedModule = module {
 
     viewModel { OnboardingViewModel(identityRepository = get(), ringPresence = get()) }
     viewModel { RestorePhraseViewModel(identityRepository = get()) }
+    viewModel { RestoreFileViewModel(identityRepository = get()) }
     viewModel { SignupStartViewModel(signupRepository = get(), ringPresence = get()) }
     viewModel { InviteCodeViewModel(signupRepository = get()) }
     viewModel { PhoneVerificationViewModel(signupRepository = get()) }
