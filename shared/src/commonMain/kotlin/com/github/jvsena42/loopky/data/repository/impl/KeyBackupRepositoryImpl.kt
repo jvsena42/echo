@@ -54,31 +54,37 @@ internal class KeyBackupRepositoryImpl(
             .map { it.coerceIn(0, words.size - 1) }
             .distinct()
 
+        // Decoys are drawn from words that are **not** an answer to any question, and split into
+        // disjoint groups. Two weaker arrangements were tried and both left the quiz passable with
+        // no phrase at all: taking the first three words gave two questions identical option sets,
+        // and taking the three words *following* each answer put every question's answer inside
+        // the previous question's options — so two of the three were readable off the screen and
+        // the third was a one-in-three guess. All three questions are visible at once, so any
+        // overlap between an option set and another question's answer is a free answer.
+        val answerWords = positions.map { words[it] }.toSet()
+        val pool = words
+            .filterIndexed { index, _ -> index !in positions.toSet() }
+            .distinct()
+            .filterNot { it in answerWords }
+
         PhraseQuiz(
-            questions = positions.map { index ->
+            questions = positions.mapIndexed { questionIndex, index ->
                 val answer = words[index]
-                // Decoys come from the phrase itself. A decoy from the wider BIP-39 list would be
-                // eliminable by someone holding the phrase who cannot read their own handwriting,
-                // which is not the thing being tested.
-                //
-                // **Taken from a window that starts just after this question's own word**, so the
-                // three questions draw disjoint decoys. Taking the first three words of the phrase
-                // for every question — which is what `.take()` over the whole list did — gave two
-                // of the three questions *identical* option sets, and all three are on screen at
-                // once: each answer was then simply the option missing from the other two, and the
-                // quiz could be passed without ever having seen the phrase. Passing it is what
-                // marks the key backed up and removes the sign-out guard, so that was a way to
-                // erase your only key having been warned about nothing.
-                val decoys = (1 until words.size)
-                    .map { offset -> words[(index + offset) % words.size] }
-                    .filter { it != answer }
-                    .distinct()
-                    .take(OPTION_COUNT - 1)
+                // Cycles rather than slices, so a phrase with heavy word repetition — where the
+                // pool of non-answer words is tiny — still yields a real choice instead of a
+                // single option that answers itself.
+                val decoys = if (pool.isEmpty()) {
+                    emptyList()
+                } else {
+                    List(OPTION_COUNT - 1) { slot ->
+                        pool[(questionIndex * (OPTION_COUNT - 1) + slot) % pool.size]
+                    }
+                }
                 PhraseQuizQuestion(
                     position = index + 1,
                     // Sorted rather than shuffled: no `Random` anywhere near key material, and a
                     // stable order is also what makes the quiz testable.
-                    options = (decoys + answer).sorted(),
+                    options = (decoys + answer).distinct().sorted(),
                     answer = answer,
                 )
             },

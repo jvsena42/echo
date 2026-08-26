@@ -165,6 +165,12 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
         return holdKeyResult ?: derivedPubky
     }
 
+    var discardedUnregisteredKeys = 0
+
+    override fun discardUnregisteredKey() {
+        discardedUnregisteredKeys++
+    }
+
     override suspend fun createLocalAccount(
         homeserverPubky: String,
         signupToken: String,

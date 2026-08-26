@@ -105,7 +105,7 @@ private fun SignupStartScreen(
         onBack = onBack,
     ) {
         if (!state.isRingInstalled) {
-            RingRequiredCard(onInstallRing = onInstallRing, onCreateLocally = onCreateLocally)
+            RingRequiredCard(onInstallRing = onInstallRing)
             Spacer(Modifier.height(24.dp))
         }
 
@@ -188,7 +188,9 @@ private fun SignupStartScreen(
  * this is stated *here*, on the way in, rather than at the hand-off after the user has paid.
  */
 @Composable
-private fun RingRequiredCard(onInstallRing: () -> Unit, onCreateLocally: () -> Unit) {
+// The local-key route is *not* offered here any more: the screen now shows it unconditionally
+// below the method list, and rendering both put two buttons for the same thing on one screen.
+private fun RingRequiredCard(onInstallRing: () -> Unit) {
     val colors = LoopkyTheme.colors
     Column(
         modifier = Modifier
@@ -227,20 +229,6 @@ private fun RingRequiredCard(onInstallRing: () -> Unit, onCreateLocally: () -> U
             fontSize = 12.sp,
             lineHeight = 17.sp,
         )
-        Spacer(Modifier.height(12.dp))
-        // The way out of what used to be a dead end. Ring is still the recommendation above; this
-        // exists so someone who will not install a second app is not simply stuck (#147).
-        TextButton(
-            onClick = onCreateLocally,
-            modifier = Modifier.testTag("signup_create_locally"),
-            colors = ButtonDefaults.textButtonColors(contentColor = colors.accentSecondary),
-        ) {
-            Text(
-                text = stringResource(R.string.signup_create_locally),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
     }
 }
 

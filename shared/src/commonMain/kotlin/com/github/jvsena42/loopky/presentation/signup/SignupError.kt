@@ -83,11 +83,19 @@ internal fun Throwable.toSignupError(): SignupError = when {
 private fun Throwable.isTokenRejected(): Boolean {
     val msg = message?.lowercase() ?: return false
     if ("signup" !in msg) return false
-    return "invalid token" in msg ||
-        "401" in msg ||
-        "403" in msg ||
-        "signup token" in msg
+    // Explicit token wording, or a status code *with* the word that goes with it. The bare
+    // substrings "401"/"403" matched a port number, a request id or a byte count — and because
+    // this is the only classification that unlocks `clearPending()`, a misclassified transient
+    // failure threw away a token the user may have paid sats for.
+    if ("invalid token" in msg || "signup token" in msg || "invalid signup" in msg) return true
+    val unauthorized = STATUS_401.containsMatchIn(msg) && "unauthorized" in msg
+    val forbidden = STATUS_403.containsMatchIn(msg) && "forbidden" in msg
+    return unauthorized || forbidden
 }
+
+/** Word-bounded, for the same reason `PubkyErrors` bounds its 507: ids are random alphanumerics. */
+private val STATUS_401 = Regex("(?<![0-9a-z])401(?![0-9a-z])")
+private val STATUS_403 = Regex("(?<![0-9a-z])403(?![0-9a-z])")
 
 private fun Throwable.toHomegateSignupError(): SignupError = when (this) {
     is HomegateException -> when (error) {

@@ -131,6 +131,25 @@ interface IdentityRepository {
     suspend fun holdKeyForRegistration(source: KeySource): Result<String>
 
     /**
+     * Drop a key held only so it could be registered, when the user walks away instead.
+     *
+     * Never touches a key that has an account. Without this, abandoning the unregistered-key
+     * screen left a secret key and its mnemonic in the keystore with no session and no owner —
+     * and since custody is seeded from the vault at construction, every later launch reported
+     * `KeyCustody.Loopky` for that orphan, offering to reveal *its* recovery phrase to whoever
+     * signed in next.
+     */
+    /**
+     * Fire-and-forget on purpose, and **not** a suspend function.
+     *
+     * Its only caller is a ViewModel's `onCleared`, which runs as the nav entry is destroyed — by
+     * which point `viewModelScope` is already cancelled, so a suspending version launched from
+     * there never ran and the orphan survived. Matches the fire-and-forget scope
+     * `DeckRepositoryImpl` and `SrsRepositoryImpl` already own.
+     */
+    fun discardUnregisteredKey()
+
+    /**
      * Two-step Pubky Ring sign-in that hands control of "open the deeplink" back to the caller
      * so the ViewModel — not the repo — owns the UI effect.
      *

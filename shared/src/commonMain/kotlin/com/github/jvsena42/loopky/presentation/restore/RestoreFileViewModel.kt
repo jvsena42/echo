@@ -109,6 +109,9 @@ class RestoreFileViewModel(
                 val outcome = error.toRestoreOutcome(pubky)
                 _state.update { it.copy(isChecking = false, outcome = outcome) }
                 if (outcome is RestoreOutcome.NoAccount) {
+                    // Same gap as the phrase path: a 404 at signin is the common way here, and
+                    // the key has to be held for the next screen to have anything to register.
+                    identityRepository.holdKeyForRegistration(source)
                     _effects.emit(RestoreEffect.NavigateUnregistered(pubky))
                 }
             }
@@ -118,6 +121,23 @@ class RestoreFileViewModel(
     fun onLeave() {
         submitJob?.cancel()
         _state.update { RestoreFileUiState() }
+    }
+
+    /**
+     * Last resort, and the honest bound on how long the passphrase and the encrypted file survive.
+     *
+     * [onLeaveUnlessCorrecting] deliberately keeps them across the hop to the unregistered-key
+     * screen, so "Check my recovery phrase again" returns to a filled field rather than a blank
+     * one. But that screen can also push *forward* into verification, and this ViewModel is scoped
+     * to its nav back-stack entry — so without this the secret lived until `popUpTo(ONBOARDING)`
+     * finally destroyed the entry, which is minutes and a whole signup flow, not a hop.
+     *
+     * `onCleared` fires when that entry is destroyed either way. It is the ceiling, not the
+     * intent: the intent is [onLeaveUnlessCorrecting].
+     */
+    override fun onCleared() {
+        _state.update { RestoreFileUiState() }
+        super.onCleared()
     }
 
     /**

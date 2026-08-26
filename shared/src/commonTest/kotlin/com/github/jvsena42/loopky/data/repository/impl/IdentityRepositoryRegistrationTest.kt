@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.domain.model.KeySource
 import com.github.jvsena42.loopky.testing.FakeLocalKeyStore
 import com.github.jvsena42.loopky.testing.FakePubkyClient
+import com.github.jvsena42.loopky.testing.SECOND_TEST_MNEMONIC
 import com.github.jvsena42.loopky.testing.VALID_TEST_MNEMONIC
 import com.github.jvsena42.loopky.testing.fakePubkyFor
 import com.github.jvsena42.loopky.testing.fakeSecretKeyFor
@@ -116,5 +117,48 @@ class IdentityRepositoryRegistrationTest {
         val result = repository().createLocalAccount("homeserver-z32", "token-1")
 
         assertTrue(result.isFailure, "a session for a key we did not register must not be accepted")
+    }
+
+    @Test
+    fun callingCreateLocalAccountAgainAfterAFailureKeepsTheSamePubky() = runTest {
+        // The retry path, and the fix for the bug that made "Register this key" mint a stranger:
+        // three routes re-enter this method with a key already on the device, and minting over it
+        // published a different identity than the one the user confirmed.
+        pubky.signUpFailure = PubkyError("signup failure: 500")
+        val repo = repository()
+        repo.createLocalAccount("homeserver-z32", "token-1")
+        val first = assertNotNull(keyStore.current()).pubky
+        pubky.signUpFailure = null
+
+        val account = repo.createLocalAccount("homeserver-z32", "token-1").getOrThrow()
+
+        assertEquals(first, account.pubky, "the retry must register the key already held")
+    }
+
+    @Test
+    fun anAlreadyRegisteredKeyIsNotReusedByANewSignup() = runTest {
+        // The other side of it: a key with a working account is somebody's identity, and a fresh
+        // signup must not re-register it.
+        val repo = repository()
+        repo.createLocalAccount("homeserver-z32", "token-1").getOrThrow()
+        val registered = assertNotNull(keyStore.current()).pubky
+        // The fake's RNG is deterministic, so the next mint is spelled out rather than assumed.
+        pubky.mintedMnemonic = SECOND_TEST_MNEMONIC
+
+        val second = repo.createLocalAccount("homeserver-z32", "token-2").getOrThrow()
+
+        assertTrue(second.pubky != registered, "a registered key must not be re-registered")
+    }
+
+    @Test
+    fun theKeyIsMarkedRegisteredAsSoonAsSignUpSucceeds() = runTest {
+        // Marked after signUp rather than after the session save: if persisting throws, a key
+        // reading `registered = false` would be re-registered next time, spending a second token
+        // on an account that already exists.
+        val repo = repository()
+
+        repo.createLocalAccount("homeserver-z32", "token-1").getOrThrow()
+
+        assertTrue(assertNotNull(keyStore.current()).registered)
     }
 }

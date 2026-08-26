@@ -117,6 +117,11 @@ class RestorePhraseViewModel(
         val outcome = error.toRestoreOutcome(pubky)
         _state.update { it.copy(isChecking = false, outcome = outcome) }
         if (outcome is RestoreOutcome.NoAccount) {
+            // Held here too, not only on the pre-flight branch. This is the path the device
+            // actually takes for a pkarr record that outlived its account: the lookup answers
+            // *Registered* and the homeserver then 404s at signin. Storing only on the other
+            // branch left "Register this key" with nothing to register on the common case.
+            identityRepository.holdKeyForRegistration(KeySource.Phrase(_state.value.phrase))
             _effects.emit(RestoreEffect.NavigateUnregistered(pubky))
         }
     }
@@ -131,11 +136,34 @@ class RestorePhraseViewModel(
      * **Deliberately not called when routing to the unregistered-key screen.** That screen's
      * primary action is "Check my recovery phrase again" — the likeliest fix for landing there is
      * one mistyped word — and wiping the field first drops the user on a blank form to retype all
-     * twelve. The words survive that hop and are cleared when the flow itself is left.
+     * twelve.
+     *
+     * Be precise about the cost: that screen can also push *forward* into verification, in which
+     * case the words outlive the hop and survive until this ViewModel's back-stack entry is
+     * destroyed. [onCleared] is that ceiling. The trade is a filled field on the one action the
+     * next screen recommends, against a longer in-memory lifetime on a path that ends in
+     * registering this same key anyway.
      */
     fun onLeave() {
         submitJob?.cancel()
         _state.update { RestorePhraseUiState() }
+    }
+
+    /**
+     * Last resort, and the honest bound on how long the twelve words survive.
+     *
+     * [onLeaveUnlessCorrecting] deliberately keeps them across the hop to the unregistered-key
+     * screen, so "Check my recovery phrase again" returns to a filled field rather than a blank
+     * one. But that screen can also push *forward* into verification, and this ViewModel is scoped
+     * to its nav back-stack entry — so without this the secret lived until `popUpTo(ONBOARDING)`
+     * finally destroyed the entry, which is minutes and a whole signup flow, not a hop.
+     *
+     * `onCleared` fires when that entry is destroyed either way. It is the ceiling, not the
+     * intent: the intent is [onLeaveUnlessCorrecting].
+     */
+    override fun onCleared() {
+        _state.update { RestorePhraseUiState() }
+        super.onCleared()
     }
 
     /** True while an outcome is on screen that the user is expected to come back and act on. */

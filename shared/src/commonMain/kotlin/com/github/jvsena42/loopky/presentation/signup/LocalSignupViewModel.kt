@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.storage.PendingSignup
-import com.github.jvsena42.loopky.domain.model.LocalAccount
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -56,14 +55,16 @@ class LocalSignupViewModel(
     /**
      * Retry after a failed registration.
      *
-     * **Registers the key already minted; never mints another.** `createLocalAccount` stores its
-     * key before calling `signUp`, so by the time anything can fail there is a pubky on this
-     * device — and if that `signUp` actually landed and only the response was lost, minting a
-     * second key would spend nothing, register nothing, and strand the first identity forever.
+     * Plain re-entry: `createLocalAccount` reuses an unregistered key already on the device and
+     * mints only when there is none. That covers both shapes this can take — a `signUp` that
+     * failed *after* the key was stored (register that same pubky) and one that failed *before* it
+     * (mint, because nothing was kept). An earlier version forced the register path here and
+     * deadlocked the second shape: every retry hit "No local key to register" with no way out but
+     * backing out of the screen.
      */
-    fun onRetryClick() = start(reuseHeldKey = true)
+    fun onRetryClick() = start()
 
-    private fun start(reuseHeldKey: Boolean = false) {
+    private fun start() {
         if (job?.isActive == true) return
         job = viewModelScope.launch {
             _state.update { it.copy(isWorking = true, error = null) }
@@ -78,17 +79,10 @@ class LocalSignupViewModel(
                 return@launch
             }
 
-            val registration = if (reuseHeldKey) {
-                identityRepository.registerHeldKey(
-                    homeserverPubky = pending.homeserverPubky,
-                    signupToken = pending.token,
-                ).map { LocalAccount(pubky = it.identity.pubky, mnemonic = "") }
-            } else {
-                identityRepository.createLocalAccount(
-                    homeserverPubky = pending.homeserverPubky,
-                    signupToken = pending.token,
-                )
-            }
+            val registration = identityRepository.createLocalAccount(
+                homeserverPubky = pending.homeserverPubky,
+                signupToken = pending.token,
+            )
 
             registration
                 .onSuccess { account ->
@@ -103,7 +97,10 @@ class LocalSignupViewModel(
                     _effects.emit(LocalSignupEffect.NavigateBackup)
                 }
                 .onFailure { error ->
-                    Log.e(TAG, "start: FAILED — ${error::class.simpleName}: ${error.message}", error)
+                    // Class name only. The repository below deliberately withholds the message
+                    // because `toResult` wraps the FFI string verbatim and these calls were handed
+                    // a mnemonic or a secret key — re-logging it here undid that one layer up.
+                    Log.e(TAG, "start: FAILED — ${error::class.simpleName}")
                     // The token is deliberately kept: if signUp never landed it is still spendable,
                     // and the key is already stored so a retry registers the same pubky.
                     _state.update { it.copy(isWorking = false, error = error.toSignupError()) }

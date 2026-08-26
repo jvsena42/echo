@@ -34,8 +34,11 @@ import com.github.jvsena42.loopky.domain.model.UnbackedUpLocalKey
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.encodeUriComponent
 import com.github.jvsena42.loopky.util.runSuspendCatching
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -61,6 +64,14 @@ internal class IdentityRepositoryImpl(
     private val eraser: AccountEraser,
     private val localKeyStore: LocalKeyStore,
 ) : IdentityRepository {
+
+    /**
+     * Fire-and-forget cleanup that has to outlive its caller.
+     *
+     * Not a constructor parameter: nothing needs to substitute it, and the one thing it runs —
+     * dropping an unregistered key — is asserted through the store rather than through the scope.
+     */
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob())
 
     override val keyCustody: Flow<KeyCustody> = localKeyStore.custody
 
@@ -247,27 +258,42 @@ internal class IdentityRepositoryImpl(
         homeserverPubky: String,
         signupToken: String,
     ): Result<LocalAccount> = runSuspendCatching {
-        // Minting validates the key against its own phrase before we ever see it; a failure here
-        // is terminal and is never retried with a weaker source.
-        val minted = withContext(Dispatchers.Default) { pubky.mintValidatedKeypair() }.getOrThrow()
-        val mnemonic = requireNotNull(minted.mnemonic) { "a minted keypair must carry its phrase" }
+        // **Reuses an unregistered key before minting one.** Three separate paths land here with a
+        // key already on the device and no account for it: a retry after a failed `signUp`, the
+        // "start over" that follows a refused token, and the unregistered-key screen sending a
+        // user through verification to get one. Minting unconditionally overwrote that key in all
+        // three — so the user confirmed "publish *this* pubky", got a different one, and the
+        // original was stranded with no way back to it.
+        //
+        // Only an *unregistered* key is reused. One that already has an account is somebody's
+        // working identity and must not be re-registered.
+        val held = localKeyStore.current()?.takeIf { !it.registered }
 
-        // Stored *before* signUp, and marked unregistered. If the registration fails halfway the
-        // key survives, and `registerHeldKey` can finish the job for that same pubky — minting
-        // again on retry is the Pubky Ring failure mode this whole path exists to avoid, and it
-        // strands the first identity permanently if `signUp` actually landed.
-        localKeyStore.save(
-            LocalKey(
-                secretKeyHex = minted.secretKeyHex,
-                pubky = minted.pubky,
-                mnemonic = mnemonic,
-                registered = false,
-            ),
-        )
+        val account = if (held != null) {
+            Log.d(TAG, "createLocalAccount: registering the key already held")
+            LocalAccount(pubky = held.pubky, mnemonic = held.mnemonic.orEmpty())
+        } else {
+            // Minting validates the key against its own phrase before we ever see it; a failure
+            // here is terminal and is never retried with a weaker source.
+            val minted = withContext(Dispatchers.Default) { pubky.mintValidatedKeypair() }.getOrThrow()
+            val mnemonic = requireNotNull(minted.mnemonic) { "a minted keypair must carry its phrase" }
 
-        registerKey(minted.secretKeyHex, minted.pubky, homeserverPubky, signupToken)
-        localKeyStore.markRegistered()
-        LocalAccount(pubky = minted.pubky, mnemonic = mnemonic)
+            // Stored *before* signUp, and marked unregistered. If the registration fails halfway
+            // the key survives, and the next attempt finds it above rather than minting again.
+            localKeyStore.save(
+                LocalKey(
+                    secretKeyHex = minted.secretKeyHex,
+                    pubky = minted.pubky,
+                    mnemonic = mnemonic,
+                    registered = false,
+                ),
+            )
+            LocalAccount(pubky = minted.pubky, mnemonic = mnemonic)
+        }
+
+        val secretKey = requireNotNull(localKeyStore.current()) { "the key was not stored" }.secretKeyHex
+        registerKey(secretKey, account.pubky, homeserverPubky, signupToken)
+        account
     }.onFailure {
         // Never the message, and never the throwable: `toResult` wraps the FFI string
         // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
@@ -281,7 +307,6 @@ internal class IdentityRepositoryImpl(
         val held = requireNotNull(localKeyStore.current()) { "No local key to register" }
         check(!held.registered) { "This key already has an account" }
         registerKey(held.secretKeyHex, held.pubky, homeserverPubky, signupToken)
-            .also { localKeyStore.markRegistered() }
     }.onFailure {
         // Never the message, and never the throwable: `toResult` wraps the FFI string
         // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
@@ -310,6 +335,12 @@ internal class IdentityRepositoryImpl(
             "signUp returned a different pubky than the key we registered"
         }
 
+        // Marked here, not after persistSession. The account exists the moment signUp returns for
+        // the right pubky; if the session save or the profile fetch below then throws, a key left
+        // reading `registered = false` would be re-registered on the next attempt — spending a
+        // second token on an account that already exists.
+        localKeyStore.markRegistered()
+
         // The grant flow's session JSON has no `homeserver` field, so it is filled from the value
         // we registered against rather than left blank for Settings to render as "Unknown".
         return persistSession(session.copy(homeserver = session.homeserver.ifBlank { homeserverPubky }))
@@ -335,6 +366,16 @@ internal class IdentityRepositoryImpl(
             // Never the message: the FFI echoes its input back in some error strings.
             Log.e(TAG, "holdKeyForRegistration: FAILED — ${it::class.simpleName}")
         }
+
+    override fun discardUnregisteredKey() {
+        // On this repository's own scope, because the caller's is already gone — see the interface.
+        scope.launch {
+            val held = localKeyStore.current() ?: return@launch
+            if (held.registered) return@launch
+            Log.d(TAG, "discardUnregisteredKey: dropping a key that was never registered")
+            localKeyStore.clear()
+        }
+    }
 
     /** What restoring from [this] proves the user already has a copy of. */
     private fun KeySource.backupMethod(): BackupMethod = when (this) {

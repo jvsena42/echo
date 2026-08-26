@@ -75,14 +75,11 @@ class LocalSignupViewModelTest {
     }
 
     @Test
-    fun aRetryRegistersTheKeyAlreadyMintedRatherThanMintingASecondIdentity() = runTest {
-        // `createLocalAccount` stores its key *before* calling signUp, so by the time anything can
-        // fail there is already a pubky on this device. Minting again would spend nothing and
-        // register nothing — and if the first signUp actually landed and only its response was
-        // lost, the first identity is stranded forever with the token gone.
-        //
-        // This previously asserted the opposite and passed, because the fake returned success for
-        // whichever method was called: the test exercised the ViewModel and never the lifecycle.
+    fun aRetryReEntersRegistrationRatherThanGivingUp() = runTest {
+        // What the *identity* guarantee rests on is one layer down: `createLocalAccount` reuses an
+        // unregistered key already on the device and mints only when there is none, so re-entering
+        // it is safe. `IdentityRepositoryRegistrationTest` is what pins that; asserting it here
+        // over a fake would only be asserting the fake, which is how the original bug survived.
         signupRepo = FakeSignupRepository(redeemable())
         identityRepo.createLocalAccountResult = Result.failure(PubkyError("signup failure: 500"))
         val vm = viewModel()
@@ -91,12 +88,8 @@ class LocalSignupViewModelTest {
         vm.onRetryClick()
         advanceUntilIdle()
 
-        assertEquals(1, identityRepo.createLocalAccountCalls.size, "the key is minted exactly once")
-        assertEquals(
-            listOf("homeserver-z32" to "token-123"),
-            identityRepo.registerHeldKeyCalls,
-            "the retry registers the key already held",
-        )
+        assertEquals(2, identityRepo.createLocalAccountCalls.size)
+        assertTrue(identityRepo.createLocalAccountCalls.all { it == "homeserver-z32" to "token-123" })
     }
 
     @Test

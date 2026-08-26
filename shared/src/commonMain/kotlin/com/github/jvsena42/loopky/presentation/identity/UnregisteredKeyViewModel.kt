@@ -100,8 +100,11 @@ class UnregisteredKeyViewModel(
 
             val token = usableToken()
             if (token == null) {
-                // Nothing spendable yet: the human check has to run first, and that is a whole
-                // flow rather than something to do silently here.
+                // Nothing spendable yet: the human check has to run first. The key is kept,
+                // because `createLocalAccount` at the end of that flow reuses an unregistered key
+                // rather than minting — which is what stops the user confirming one pubky and
+                // ending up with another.
+                keyHasAFuture = true
                 _state.update { it.copy(isRegistering = false) }
                 _effects.emit(UnregisteredKeyEffect.NavigateSignup)
                 return@launch
@@ -113,6 +116,7 @@ class UnregisteredKeyViewModel(
                     // reaching here is proof the token was spent on the right account.
                     runSuspendCatching { signupRepository.clearPending() }
                         .onFailure { Log.w(TAG, "register: could not clear the spent token") }
+                    keyHasAFuture = true
                     _state.update { it.copy(isRegistering = false) }
                     _effects.emit(UnregisteredKeyEffect.NavigateBackup)
                 }
@@ -122,6 +126,30 @@ class UnregisteredKeyViewModel(
                     _state.update { it.copy(isRegistering = false, error = error.toSignupError()) }
                 }
         }
+    }
+
+    /**
+     * True once the key is on a path that will register it — either it just was, or the user is on
+     * their way through verification, which ends in registering this same pubky.
+     */
+    private var keyHasAFuture = false
+
+    /**
+     * The user left without registering.
+     *
+     * Drops the key held for that registration. It was written to the keystore before anyone
+     * agreed to anything, and nothing else would ever remove it: `signOut` is the only other
+     * caller of `clear`, and this path has no session to sign out of. Left behind, it made every
+     * later launch report local custody for an orphan — and offer its recovery phrase to whoever
+     * signed in next.
+     *
+     * In `onCleared` rather than a screen-side `DisposableEffect`, and calling a *non-suspend*
+     * repository method: by the time the nav entry is destroyed `viewModelScope` is cancelled, so
+     * a `viewModelScope.launch` from there was measured never to run.
+     */
+    override fun onCleared() {
+        if (!keyHasAFuture) identityRepository.discardUnregisteredKey()
+        super.onCleared()
     }
 
     private companion object {
