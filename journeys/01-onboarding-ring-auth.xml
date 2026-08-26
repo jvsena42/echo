@@ -26,7 +26,9 @@
     single-use, so there is nothing to resume.
   </description>
   <actions>
-    <action>Verify the entry screen offers THREE doors (#147): "onboarding_signin" (primary, Pubky Ring), "onboarding_create_pubky", and "onboarding_restore" — a user with no Ring must never be left with nowhere to go</action>
+    <action>Verify the entry screen offers the two sign-in routes as a matched pair: "onboarding_signin" (filled, Pubky mark, "Continue with Pubky Ring") above "onboarding_restore" (outlined, key mark, "Use a recovery phrase or file"). Same height, same shape, marks on the same vertical line — only one filled, because the ranking IS the recommendation</action>
+    <action>Verify "onboarding_create_pubky" stays a text link below them: signing up is a different intent from signing in, and it must not become a third button in the set</action>
+    <action>Verify BOTH provider labels render in full at every width. They were tried side by side and truncated to "Continue with Pubky" / "Use a recovery" — a clipped label reads as the whole label, so stacked is deliberate</action>
     <action>Launch the Loopky app (package com.github.jvsena42.loopky)</action>
     <action>Verify the onboarding screen is shown with the headline "Learn anything, remember everything." and a "Sign in with Pubky Ring" button (resource-id: onboarding_signin)</action>
     <action>Chain these three taps with no verification between them — ~2s after the first, ~1s after the second: tap "onboarding_signin"; tap the identity row in Pubky Ring's "Select Pubky" list; tap Pubky Ring's "ConfirmAuthAuthorizeButton". On a 1080x2424 emulator those land at (540, 1962), (540, 844) and (789, 2245). Anything slower fails on a healthy relay — see the description.</action>

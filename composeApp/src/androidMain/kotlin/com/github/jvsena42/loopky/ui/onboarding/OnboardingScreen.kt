@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
@@ -65,9 +66,10 @@ import com.github.jvsena42.loopky.presentation.onboarding.OnboardingUiState
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingViewModel
 import com.github.jvsena42.loopky.presentation.onboarding.RingHandoff
 import com.github.jvsena42.loopky.ui.components.FoxPlate
-import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.components.QrCode
+import com.github.jvsena42.loopky.ui.components.SignInProviderButton
+import com.github.jvsena42.loopky.ui.components.SignInProviderVariant
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.layout.PaneWidth
 import com.github.jvsena42.loopky.ui.layout.contentPane
@@ -486,27 +488,55 @@ private fun CtaBlock(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        LoopkyPrimaryButton(
-            label = when (state) {
-                OnboardingUiState.Starting,
-                is OnboardingUiState.AwaitingApproval,
-                -> stringResource(R.string.onboarding_signin_waiting)
-                OnboardingUiState.Verifying -> stringResource(R.string.onboarding_signin_verifying)
-                else -> stringResource(R.string.onboarding_signin_default)
-            },
-            // Also the recovery path: a failed approval consumes the FFI's auth flow, so retrying
-            // means starting a whole new one. Clearing the error first would only cost a tap (#59).
-            onClick = onSignInClick,
-            loading = isWorking,
-            enabled = !isWorking && policyAccepted,
-            modifier = Modifier.testTag("onboarding_signin"),
-            leadingIcon = {
-                Text(
-                    text = "\uD83D\uDD11",
-                    fontSize = 18.sp,
-                )
-            },
-        )
+        // Two ways *in*, presented as a set the way a social sign-in screen presents its
+        // providers: same silhouette, marks on the same line, and only one of them filled. Ring is
+        // the filled one because it keeps the key in a separate app, which is the arrangement
+        // Loopky recommends — the ranking is the recommendation, so it has to be legible at a
+        // glance rather than explained.
+        val ringButton: @Composable (Modifier) -> Unit = { buttonModifier ->
+            SignInProviderButton(
+                label = when (state) {
+                    OnboardingUiState.Starting,
+                    is OnboardingUiState.AwaitingApproval,
+                    -> stringResource(R.string.onboarding_signin_waiting)
+                    OnboardingUiState.Verifying -> stringResource(R.string.onboarding_signin_verifying)
+                    else -> stringResource(R.string.onboarding_signin_default)
+                },
+                // The crowned keyhole is the Pubky mark, shared by Pubky Ring and pubky.app — the
+                // thing a user recognises from the app they are being sent to.
+                icon = painterResource(R.drawable.ic_pubky),
+                // Also the recovery path: a failed approval consumes the FFI's auth flow, so
+                // retrying means a whole new one. Clearing the error first would cost a tap (#59).
+                onClick = onSignInClick,
+                variant = SignInProviderVariant.Primary,
+                loading = isWorking,
+                enabled = !isWorking && policyAccepted,
+                contentDescription = stringResource(R.string.onboarding_ring_icon_description),
+                modifier = buttonModifier.testTag("onboarding_signin"),
+            )
+        }
+        // The other way in, for someone who has a pubky but no working Ring — a dead phone, a
+        // reinstall. A button rather than the text link it used to be: for the person who needs
+        // it, it is the only control on this screen that does anything, and a text link at the
+        // bottom is where an option goes to be missed.
+        val restoreButton: @Composable (Modifier) -> Unit = { buttonModifier ->
+            SignInProviderButton(
+                label = stringResource(R.string.onboarding_restore),
+                icon = painterResource(R.drawable.ic_recovery_key),
+                onClick = onRestore,
+                variant = SignInProviderVariant.Secondary,
+                enabled = !isWorking,
+                contentDescription = stringResource(R.string.onboarding_recovery_icon_description),
+                modifier = buttonModifier.testTag("onboarding_restore"),
+            )
+        }
+
+        // Stacked, always. Side by side was tried and abandoned: "Continue with Pubky Ring" and
+        // "Use a recovery phrase or file" do not fit in half a panel at any width this layout can
+        // spare from the hero, and they truncated to "Continue with Pubky" / "Use a recovery" —
+        // which is worse than a scroll, because a clipped label reads as the whole label.
+        ringButton(Modifier)
+        restoreButton(Modifier)
         Text(
             text = stringResource(R.string.onboarding_no_email_notice),
             color = colors.foregroundMuted,
@@ -521,35 +551,22 @@ private fun CtaBlock(
                 textAlign = TextAlign.Center,
             )
         }
-        // The second entry point: signing in assumes an account already exists, and on a
-        // token-gated homeserver most new users do not have one. Deliberately never disabled — the
-        // signup flow behind it is where a missing Pubky Ring is handled, so a dead-end here is
-        // the one thing that leaves a new user with nowhere to go.
+        // Signing up, not signing in — a different intent, so it keeps the text-link treatment
+        // that sign-in screens conventionally give it rather than becoming a third button in the
+        // set above. Deliberately never disabled: the signup flow behind it is where a missing
+        // Pubky Ring is handled, so a dead end here is the one thing that leaves a new user with
+        // nowhere to go.
         TextButton(
             onClick = onCreatePubky,
             modifier = Modifier.testTag("onboarding_create_pubky"),
-            // Purple rather than the brand orange: the primary button directly above it is orange,
-            // and two orange calls to action stacked read as one control with a stray second line.
+            // Purple rather than the brand orange: the primary button above is orange, and two
+            // orange calls to action read as one control with a stray second line.
             colors = ButtonDefaults.textButtonColors(contentColor = colors.accentSecondary),
         ) {
             Text(
                 text = stringResource(R.string.onboarding_create_pubky),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-            )
-        }
-        // The third door, and it matters as much as the second: today a user who *has* a pubky but
-        // whose Pubky Ring is on a lost or dead phone has no route back into Loopky at all. Ranked
-        // below the other two because it is the least common case, not because it is a fallback —
-        // for the person who needs it, it is the only thing on this screen that works.
-        TextButton(
-            onClick = onRestore,
-            modifier = Modifier.testTag("onboarding_restore"),
-            colors = ButtonDefaults.textButtonColors(contentColor = colors.foregroundSecondary),
-        ) {
-            Text(
-                text = stringResource(R.string.onboarding_restore),
-                fontSize = 13.sp,
             )
         }
     }

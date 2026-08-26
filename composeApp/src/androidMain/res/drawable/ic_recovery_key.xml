@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A key, for the "use a recovery phrase or file" route.
+
+  Its own drawable rather than `Icons.Default.Key` so it can be sized and weighted to sit beside
+  the Pubky mark in the same button set — a stock Material glyph next to a brand mark reads as one
+  of these two buttons being an afterthought.
+
+  Black, so an `Icon` tint decides the colour.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M15.5,3C11.91,3 9,5.91 9,9.5c0,0.64 0.09,1.26 0.27,1.84L3,17.61V21h3.5v-2H9v-2h2l1.66,-1.66c0.9,0.42 1.9,0.66 2.84,0.66c3.59,0 6.5,-2.91 6.5,-6.5S19.09,3 15.5,3zM15.5,15c-0.72,0 -1.43,-0.18 -2.06,-0.5l-0.83,-0.42l-0.66,0.66L10.17,16.5H9h-2v2H5v-0.56l5.77,-5.77l0.66,-0.66l-0.42,-0.83C10.68,10.02 10.5,9.28 10.5,8.5v1C10.5,6.74 12.74,4.5 15.5,4.5S20.5,6.74 20.5,9.5S18.26,15 15.5,15zM17.5,7.25m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0" />
+</vector>

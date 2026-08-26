@@ -393,3 +393,22 @@ be run with a real invite code.
 **The tablet AVD.** Landscape and Medium width were exercised by rotating and resizing the phone,
 which covers the Expanded and Medium code paths. `Pixel_Tablet` itself was not booted.
 
+### Sign-in options restyled (2026-08-26)
+
+Driven on the Pixel_9 (phone) and **Pixel_Tablet** emulators.
+
+| Check | Result |
+|---|---|
+| Phone portrait | PASSED — filled "Continue with Pubky Ring" above outlined "Use a recovery phrase or file", marks aligned, both labels complete |
+| Tablet landscape (1280×800dp, Expanded) | PASSED — two-pane; buttons, notice, create link and consent all visible with room to spare |
+| Tablet portrait (800×1280dp, Medium) | PASSED — stacked; everything visible |
+| Landscape **phone** (Expanded width, ~445dp height) | Content exceeds the bounded panel and is reached by scrolling. The consent checkbox gates the primary button, so this is the one width where the screen can look finished while the orange button is disabled |
+
+**Side-by-side buttons were tried and reverted.** At any panel width this layout can spare from the
+hero, "Continue with Pubky Ring" and "Use a recovery phrase or file" truncate to "Continue with
+Pubky" and "Use a recovery". A clipped label reads as the whole label, which is worse than a
+scroll.
+
+`emu rotate` is what actually rotates the tablet — `settings put system user_rotation` did not take
+on it, and `wm size` overrides did not reach the app either.
+
