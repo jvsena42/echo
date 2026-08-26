@@ -13,7 +13,10 @@ import com.github.jvsena42.loopky.domain.model.DeckCounts
 import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
+import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.ImportDraft
+import com.github.jvsena42.loopky.domain.model.KeyCustody
+import com.github.jvsena42.loopky.domain.model.KeySource
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
@@ -35,6 +38,46 @@ interface IdentityRepository {
     suspend fun loadPersistedSession(): Session?
     suspend fun signIn(): Result<Session>
     suspend fun signOut(): Result<Unit>
+
+    /**
+     * Who holds the key for the account we are signed in as, and whether it has been backed up.
+     *
+     * Emits immediately, then on change. Carries no key material, so it is safe in a `UiState` —
+     * which is the point, because the backup nag, the export row and the sign-out warning all need
+     * this answer and none of them may see a secret.
+     */
+    val keyCustody: Flow<KeyCustody>
+
+    /**
+     * Derive the pubky for [source] without touching the network.
+     *
+     * Only the pubky comes back: the secret crosses this boundary in one direction, as part of
+     * [KeySource], and never comes out. Fails with an invalid-phrase error when the words are not
+     * BIP-39, or a decryption error when a recovery file's passphrase is wrong — both of which are
+     * honest verdicts, unlike the "no account" case, which this call cannot and must not reach.
+     */
+    suspend fun derivePubky(source: KeySource): Result<String>
+
+    /**
+     * Ask the DHT whether [pubky] has a homeserver account.
+     *
+     * **Call this on explicit submit only.** A lookup per completed phrase would make the restore
+     * screen an enumeration oracle for "does this pubky exist", and it costs a DHT round trip
+     * besides.
+     *
+     * Never throws for the answer "no account" — that is [HomeserverLookup.NoRecord], a value.
+     */
+    suspend fun lookupHomeserver(pubky: String): HomeserverLookup
+
+    /**
+     * Sign in with a key Loopky derives from [source], persisting both the key and the session.
+     *
+     * Deliberately does **not** run [lookupHomeserver] first. The caller owns that, because only
+     * the caller knows whether the user asked for this deliberately — and running it here would
+     * hide a DHT outage inside a sign-in failure, which is the confusion this whole path exists to
+     * end.
+     */
+    suspend fun signInWithKey(source: KeySource): Result<Session>
 
     /**
      * Two-step Pubky Ring sign-in that hands control of "open the deeplink" back to the caller
@@ -145,6 +188,16 @@ data class PublishProgress(
         }
 }
 
+/**
+ * A Pubky Ring authorisation in flight.
+ *
+ * Two phases because an OS handoff sits between them: the URL goes out to another app, and the
+ * session comes back over the relay. **The local-key paths deliberately do not use this** —
+ * [IdentityRepository.signInWithKey] and friends have no deeplink and no relay poll, so an
+ * `authUrl` would be a required field with nothing to put in it. They are ordinary suspend
+ * functions returning a `Result<Session>`, and unifying the two shapes would only give the local
+ * path a field it has to lie about.
+ */
 interface AuthFlowHandle {
     val authUrl: String
     suspend fun complete(): Result<Session>

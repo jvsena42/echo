@@ -38,6 +38,10 @@ complexity:
       # Same reason as the two above: a wide interface, and the count is the interface's, not a
       # cohesion problem in the implementation.
       - '**/data/repository/impl/DiscoveryRepositoryImpl.kt'
+      # Likewise. IdentityRepository covers Ring auth, local keys, profiles and account deletion —
+      # the widest interface in the app — and the heavy parts are already split out into their own
+      # collaborators (AccountEraser).
+      - '**/data/repository/impl/IdentityRepositoryImpl.kt'
       - '**/commonTest/**'
       - '**/androidUnitTest/**'
       - '**/testing/**'

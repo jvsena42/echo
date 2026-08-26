@@ -86,6 +86,7 @@ val sharedModule = module {
             sessionProvider = get(),
             tagRepository = get(),
             eraser = get(),
+            localKeyStore = get(),
         )
     }
 

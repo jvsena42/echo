@@ -1,18 +1,29 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.MintedKeypair
 import com.github.jvsena42.loopky.data.pubky.MutableSessionProvider
 import com.github.jvsena42.loopky.data.pubky.ProfileDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.asSignupUrl
+import com.github.jvsena42.loopky.data.pubky.isNoHomeserverRecord
+import com.github.jvsena42.loopky.data.pubky.keypairFromMnemonic
+import com.github.jvsena42.loopky.data.pubky.keypairFromSecretKey
 import com.github.jvsena42.loopky.data.pubky.parseSessionPayload
 import com.github.jvsena42.loopky.data.pubky.redactAuthUrl
 import com.github.jvsena42.loopky.data.pubky.redactSessionPayload
 import com.github.jvsena42.loopky.data.pubky.toDomain
+import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
+import com.github.jvsena42.loopky.data.storage.LocalKey
+import com.github.jvsena42.loopky.data.storage.LocalKeyStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.domain.model.BackupMethod
+import com.github.jvsena42.loopky.domain.model.HomeserverLookup
+import com.github.jvsena42.loopky.domain.model.KeyCustody
+import com.github.jvsena42.loopky.domain.model.KeySource
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
@@ -20,8 +31,11 @@ import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.encodeUriComponent
 import com.github.jvsena42.loopky.util.runSuspendCatching
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * [IdentityRepository] backed by [PubkyClient] and [SecureSessionStore].
@@ -30,7 +44,7 @@ import kotlinx.coroutines.sync.withLock
  * opens the URL in Pubky Ring, then [AuthFlowHandle.complete] blocks on `awaitAuthApproval` and
  * finalises the session.
  */
-class IdentityRepositoryImpl(
+internal class IdentityRepositoryImpl(
     private val pubky: PubkyClient,
     private val sessionStore: SecureSessionStore,
     private val sessionProvider: MutableSessionProvider,
@@ -42,7 +56,10 @@ class IdentityRepositoryImpl(
      * cycle to create.
      */
     private val eraser: AccountEraser,
+    private val localKeyStore: LocalKeyStore,
 ) : IdentityRepository {
+
+    override val keyCustody: Flow<KeyCustody> = localKeyStore.custody
 
     override suspend fun currentSession(): Session? = sessionProvider.current()
 
@@ -64,6 +81,12 @@ class IdentityRepositoryImpl(
             pubky.signOut(current.sessionSecret)
         }
         sessionStore.clear()
+        // The key goes with the session: a signed-out device holding a secret key is a credential
+        // nobody is watching. Safe to do unguarded *today* because the only keys that exist are
+        // restored ones, and their owner demonstrably holds the phrase or file they restored from.
+        // Minting a key here (#147 phase 3) introduces the first key nobody has a copy of, and
+        // that is what the sign-out confirm is for — it arrives with the code that creates the risk.
+        localKeyStore.clear()
         sessionProvider.set(null)
         selfTaggedThisProcess = false
         profileCacheLock.withLock { profileCache.clear() }
@@ -122,32 +145,121 @@ class IdentityRepositoryImpl(
 
             val session = parseSessionPayload(sessionJson, loopkyJson)
             Log.d(TAG, "complete: parsed session pubky=${session.identity.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
-            sessionStore.save(session)
-            sessionProvider.set(session)
-            Log.d(TAG, "complete: session saved")
-
-            selfTagAsLoopkyUser(session)
-
-            // Best-effort profile fetch — don't fail sign-in if this fails
-            val profile = runSuspendCatching { fetchProfile(session.identity.pubky).getOrNull() }.getOrNull()
-            if (profile != null && (profile.displayName != null || profile.bio != null)) {
-                val enriched = session.copy(
-                    identity = session.identity.copy(
-                        displayName = profile.displayName,
-                        avatarUrl = profile.avatarUrl,
-                        bio = profile.bio,
-                    ),
-                )
-                sessionStore.save(enriched)
-                sessionProvider.set(enriched)
-                Log.d(TAG, "complete: session enriched with profile")
-                return@runSuspendCatching enriched
-            }
-
-            session
+            // Shared with the local-key paths on purpose: everything after "we have a session" is
+            // identical, and letting the two drift is how one of them stops self-tagging and
+            // quietly falls out of the only global directory Loopky has.
+            persistSession(session).also { Log.d(TAG, "complete: session saved") }
         }.onFailure {
             Log.e(TAG, "complete: FAILED — ${it::class.simpleName}: ${it.message}", it)
         }
+    }
+
+    // --- Local keys ------------------------------------------------------------
+
+    override suspend fun derivePubky(source: KeySource): Result<String> =
+        deriveKeypair(source).map { it.pubky }
+
+    override suspend fun lookupHomeserver(pubky: String): HomeserverLookup {
+        Log.d(TAG, "lookupHomeserver: ${pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+        val result = runSuspendCatching { this.pubky.getHomeserver(pubky).getOrThrow() }
+        return result.fold(
+            onSuccess = { HomeserverLookup.Registered(it.trim()) },
+            onFailure = { error ->
+                // The FFI reports "this pubky published no homeserver record" and "the DHT did not
+                // answer" through the same call, and only the first is a fact about the key. The
+                // classifier ordering in toErrorReason is what keeps them apart.
+                if (error.isNoHomeserverRecord()) {
+                    Log.d(TAG, "lookupHomeserver: no record for this pubky")
+                    HomeserverLookup.NoRecord
+                } else {
+                    Log.w(TAG, "lookupHomeserver: could not check — ${error::class.simpleName}")
+                    HomeserverLookup.CouldNotCheck(error.toErrorReason())
+                }
+            },
+        )
+    }
+
+    override suspend fun signInWithKey(source: KeySource): Result<Session> = runSuspendCatching {
+        val keypair = deriveKeypair(source).getOrThrow()
+        Log.d(TAG, "signInWithKey: signing in as ${keypair.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+
+        val payload = pubky.signIn(keypair.secretKeyHex).getOrThrow()
+        val session = parseSessionPayload(payload, loopkyJson)
+
+        // The homeserver we actually landed on is not in the payload — the grant flow's session
+        // JSON carries no `homeserver` field at all, so parseSessionPayload defaults it to "".
+        // Resolving it here keeps Settings from showing "Unknown" for every restored account.
+        val resolved = session.homeserver.takeIf { it.isNotBlank() }
+            ?: (lookupHomeserver(keypair.pubky) as? HomeserverLookup.Registered)?.homeserverPubky
+            ?: ""
+
+        // The key is persisted only once the homeserver has accepted it. Storing it earlier would
+        // leave a device holding a key for an account it could not sign into.
+        localKeyStore.save(
+            LocalKey(
+                secretKeyHex = keypair.secretKeyHex,
+                pubky = keypair.pubky,
+                mnemonic = keypair.mnemonic,
+                // A restored key is already backed up, and recording that is not a shortcut: the
+                // user just demonstrated they hold the phrase or the file by signing in with it.
+                // Nagging them to back up what they only just typed in would be describing a risk
+                // that does not exist. A *minted* key is the un-backed-up case.
+                backedUpBy = setOf(source.backupMethod()),
+            ),
+        )
+        persistSession(session.copy(homeserver = resolved))
+    }.onFailure {
+        Log.e(TAG, "signInWithKey: FAILED — ${it::class.simpleName}: ${it.message}", it)
+    }
+
+    /**
+     * Derive a keypair from [source] off the caller's thread.
+     *
+     * The FFI's key calls are synchronous and un-dispatched, and a recovery file is Argon2id, so
+     * this hop is what keeps a ViewModel from running a key-derivation function on the main thread.
+     */
+    private suspend fun deriveKeypair(source: KeySource): Result<MintedKeypair> =
+        withContext(Dispatchers.Default) {
+            when (source) {
+                is KeySource.Phrase -> pubky.keypairFromMnemonic(source.mnemonic)
+                is KeySource.RecoveryFile ->
+                    pubky.decryptRecoveryFile(source.base64, source.passphrase)
+                        .mapCatching { pubky.keypairFromSecretKey(it.trim()).getOrThrow() }
+            }
+        }
+
+    /** What restoring from [this] proves the user already has a copy of. */
+    private fun KeySource.backupMethod(): BackupMethod = when (this) {
+        is KeySource.Phrase -> BackupMethod.RecoveryPhrase
+        is KeySource.RecoveryFile -> BackupMethod.EncryptedFile
+    }
+
+    /**
+     * Save a session, publish it, announce the account, and enrich it from the published profile.
+     *
+     * Extracted so the Ring path and the local-key paths cannot drift: everything after "we have a
+     * session" is identical, and duplicating it is how one of them ends up not self-tagging and
+     * quietly staying out of the only global directory Loopky has.
+     */
+    private suspend fun persistSession(session: Session): Session {
+        sessionStore.save(session)
+        sessionProvider.set(session)
+        selfTagAsLoopkyUser(session)
+
+        val profile = runSuspendCatching { fetchProfile(session.identity.pubky).getOrNull() }.getOrNull()
+        if (profile != null && (profile.displayName != null || profile.bio != null)) {
+            val enriched = session.copy(
+                identity = session.identity.copy(
+                    displayName = profile.displayName,
+                    avatarUrl = profile.avatarUrl,
+                    bio = profile.bio,
+                ),
+            )
+            sessionStore.save(enriched)
+            sessionProvider.set(enriched)
+            return enriched
+        }
+        return session
     }
 
     /**
