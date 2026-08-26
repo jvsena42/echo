@@ -75,6 +75,20 @@ enum class ErrorReason {
      */
     StorageFull,
 
+    /**
+     * We could not ask the DHT whether a pubky has an account, so we do not know.
+     *
+     * Deliberately distinct from [Offline], for the same reason [AuthRelayUnreachable] is: pkarr
+     * resolution runs over UDP to the mainline DHT, which plenty of carrier and corporate networks
+     * drop while HTTP keeps working perfectly. Rendering that as "you're offline" sends someone to
+     * check a connection that is fine — and on the restore screen it would be worse than useless,
+     * because the one thing this state must never do is read as a verdict on the recovery phrase
+     * the user just typed.
+     *
+     * Always paired with a retry. "We couldn't check" is not "there is no account" (#147).
+     */
+    HomeserverLookupFailed,
+
     /** Anything we could not classify. */
     Unknown,
 }

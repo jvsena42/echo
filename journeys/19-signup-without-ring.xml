@@ -1,9 +1,13 @@
-<journey name="Signup — nothing is spent before Pubky Ring is there">
+<journey name="Signup — nothing is spent before its spender is there">
   <description>
-    The gate that keeps a user from paying for something they cannot use. Every signup method ends
-    in a single-use token only Pubky Ring can redeem, so with Ring missing the flow must refuse to
-    ask Homegate for anything at all — not an SMS, not an invoice, not even the availability probe
-    that quotes the Lightning price.
+    The gate that keeps a user from paying for something they cannot use — and, since #147, the
+    door out of it.
+
+    A signup token is single-use and costs an SMS attempt or sats. Who can *spend* it depends on
+    which route the user took: a token redeemed through Pubky Ring needs Ring on the device, and a
+    token redeemed in Loopky needs nothing at all. So the pre-check follows the **spender**, not
+    the flow. With Ring missing the Ring route still refuses to ask Homegate for anything, and the
+    Loopky route quotes prices and works.
 
     Ring is *disabled* rather than uninstalled on purpose: uninstalling destroys the keys of the
     test accounts on the device.
@@ -11,14 +15,17 @@
   <actions>
     <action>Disable Ring without removing it: adb shell pm disable-user --user 0 to.pubky.ring</action>
     <action>From a signed-out Loopky, tap "onboarding_create_pubky"</action>
-    <action>Verify "signup_ring_required" is present and reads "First, install Pubky Ring"</action>
+    <action>Verify "signup_ring_required_title" is present and reads "First, install Pubky Ring"</action>
     <action>Verify BOTH method cards read "Needs Pubky Ring" in place of a price — "signup_method_lightning_price" must NOT show a sats figure, because a figure could only have come from Homegate</action>
     <action>Verify logcat shows "load: Pubky Ring is not installed — not minting a token that cannot be spent", and no Homegate request</action>
-    <action>Tap "signup_method_sms", then "signup_method_invite", and verify the screen does not move — both lead to a screen that mints a token on entry</action>
 
-    <action>THE UNBLOCK. Press home, re-enable Ring (adb shell pm enable to.pubky.ring), then bring Loopky back to the front</action>
-    <action>Verify the install block is gone and "signup_method_lightning_price" now quotes sats — the resume is what released the first Homegate call</action>
+    <action>THE DOOR OUT (#147). Tap "signup_create_locally_option" — "Create an account in Loopky". It is offered whether or not Ring is installed, so this same tag is the local route in both states</action>
+    <action>Verify the install block is GONE with Ring still disabled, and that "signup_method_lightning_price" now quotes sats — Homegate was asked, because this route can spend the token itself</action>
+    <action>Verify the fiat figure appears beside the sats one, e.g. "Pay ₿ 10 (≈ US$0.01) once". If the rate lookup fails it must read "Pay ₿ 10 once" with no placeholder and no spinner, and the card must stay tappable either way</action>
+    <action>Tap "signup_method_invite" and verify the screen moves — the local route has no Ring dependency to block on</action>
 
-    <action>Restore the device: adb shell pm enable to.pubky.ring (if not already done)</action>
+    <action>THE RING ROUTE STILL GATES. Press back to onboarding, tap "onboarding_create_pubky" again, and verify the install block is back — the default spender is still Ring, and an unrecognised route argument must fall back to it rather than to local keys</action>
+
+    <action>Restore the device: adb shell pm enable to.pubky.ring</action>
   </actions>
 </journey>

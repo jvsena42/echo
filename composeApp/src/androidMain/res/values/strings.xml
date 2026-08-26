@@ -294,7 +294,7 @@
     <string name="onboarding_brand_name">Loopky</string>
     <string name="onboarding_signin_waiting">Waiting for Pubky Ring…</string>
     <string name="onboarding_signin_verifying">Signing in…</string>
-    <string name="onboarding_signin_default">Sign in with Pubky Ring</string>
+    <string name="onboarding_signin_default">Continue with Pubky Ring</string>
     <string name="onboarding_no_email_notice">No email. No password. Your key, your account.</string>
     <string name="onboarding_get_ring">Don\'t have Pubky Ring? Get the app</string>
     <!-- Consent gate on both account entry points. The two document names are located inside the
@@ -540,6 +540,8 @@
     <string name="signup_error_unavailable_title">Couldn\'t reach the service</string>
     <string name="signup_error_unavailable_message">Check your connection and try again.</string>
 
+    <string name="onboarding_ring_icon_description">Pubky Ring</string>
+    <string name="onboarding_recovery_icon_description">Recovery phrase or file</string>
     <string name="onboarding_create_pubky">Don\'t have a Pubky? Create account</string>
 
     <!-- Error states. Reason-based copy; the raw FFI message stays in logcat. -->
@@ -550,7 +552,11 @@
     <string name="error_not_found_title">Not found</string>
     <string name="error_not_found_message">This deck no longer exists. It may have been deleted.</string>
     <string name="error_no_account_title">Your Pubky isn\'t set up yet</string>
-    <string name="error_no_account_message">This Pubky doesn\'t have a homeserver account yet, so there\'s nowhere to keep your decks. Finish setting it up in Pubky Ring, then sign in again.</string>
+    <!-- Deliberately does NOT send the user back to Pubky Ring. Creating the account needs a
+         signup token, tokens come from Homegate, and Homegate lives in Loopky — Ring's only route
+         is its Edit-pubky sheet, which wants a homeserver z32 and a token the user does not have.
+         Pointing at Ring here points at the one app that cannot help. -->
+    <string name="error_no_account_message">This pubky doesn\'t have an account yet, so there\'s nowhere to keep your decks. Getting one takes a quick verification — Loopky can walk you through it.</string>
     <string name="error_not_signed_in_title">Not signed in</string>
     <string name="error_not_signed_in_message">Sign in with Pubky Ring to continue.</string>
     <string name="error_ring_not_installed_title">Pubky Ring not found</string>
@@ -573,6 +579,130 @@
     <string name="error_server_busy_message">Your homeserver is rate-limiting Loopky, so this couldn\'t be finished. Nothing is wrong with your connection — wait a moment and try again.</string>
     <string name="error_storage_full_title">Your Pubky storage is full</string>
     <string name="error_storage_full_message">There\'s no room left on your homeserver, so this couldn\'t be saved. Delete a deck you no longer study to free up space, or upgrade your Pubky plan for more.</string>
+    <!-- Restore (#147): the door for someone who has a pubky but no working Pubky Ring. -->
+    <string name="onboarding_restore">Use a recovery phrase or file</string>
+    <string name="restore_start_title">Restore your account</string>
+    <string name="restore_start_subtitle">Use the backup you made when your pubky was created.</string>
+    <string name="restore_method_phrase">Recovery phrase</string>
+    <string name="restore_method_phrase_detail">The twelve words you wrote down.</string>
+    <string name="restore_phrase_title">Enter your recovery phrase</string>
+    <string name="restore_phrase_subtitle">Twelve words, in order, separated by spaces.</string>
+    <string name="restore_phrase_label">Recovery phrase</string>
+    <string name="restore_phrase_placeholder">word one word two word three…</string>
+    <string name="restore_phrase_submit">Restore account</string>
+    <string name="restore_phrase_checking">Checking…</string>
+    <!-- Permanent and inline, never a toast or a dismissible popover. A Bitcoin seed and a Pubky
+         seed are the same twelve BIP-39 words and there is no way to tell them apart, so warning
+         is the only protection available — and a warning you can dismiss is one that gets
+         dismissed. Deliberately no heuristic detection: a false negative would read as an
+         all-clear, which is worse than saying nothing. -->
+    <string name="restore_seed_warning">Only enter a phrase created for Pubky. Never enter a Bitcoin or other crypto wallet recovery phrase here.</string>
+    <!-- Local key creation + backup (#147). -->
+    <!-- Separate strings rather than appending "(≈ US$0.85)" onto a translated sentence: the
+         parenthetical belongs in a different place in half the languages we will ship. -->
+    <string name="signup_lightning_card_price_fiat">Pay ₿ %1$d (%2$s) once</string>
+    <string name="signup_lightning_amount_fiat">Pay ₿ %1$d (%2$s) to continue.</string>
+    <string name="onboarding_create_local">Create an account in Loopky</string>
+    <!-- Terminal: retrying re-sends the same dead token. The copy has to send the user back to
+         get a new one rather than at a button that cannot work. -->
+    <string name="signup_error_token_rejected_title">That signup code was refused</string>
+    <string name="signup_error_token_rejected_message">Your homeserver wouldn\'t accept this code — it may already have been used. Trying again won\'t help; start over to get a new one.</string>
+    <string name="signup_start_over">Start over</string>
+    <string name="signup_local_title">Creating your account</string>
+    <string name="signup_local_subtitle">Making your key and registering it. This takes a moment.</string>
+    <string name="signup_local_retry">Try again</string>
+    <string name="signup_ring_recommended_title">Pubky Ring is the safest place for your key</string>
+    <string name="signup_ring_recommended_body">Pubky Ring keeps your key in a separate app, so signing in to Loopky never exposes it. Install it, or create your key in Loopky instead.</string>
+    <string name="backup_start_title">Back up your account</string>
+    <string name="backup_start_subtitle">Your key lives only on this device. Save it somewhere you can reach if you lose your phone. You can also do this later.</string>
+    <!-- For a key restored from a phrase or file: it IS already backed up, so telling the user to
+         back it up would be describing a risk they do not have. What is still on offer is Pubky
+         Ring, which is a custody change rather than a backup. -->
+    <string name="backup_start_subtitle_backed_up">You already have a copy of this key, so it\'s safe. Pubky Ring keeps it in a separate app — safer still — or add another backup here. You can also do this later.</string>
+    <string name="backup_method_ring_missing">Not installed — we\'ll take you to it.</string>
+    <string name="backup_later">I\'ll do this later</string>
+    <string name="backup_done_label">Done</string>
+    <string name="backup_method_phrase">Recovery phrase</string>
+    <string name="backup_method_phrase_detail">Write down twelve words and confirm them.</string>
+    <string name="backup_method_file">Encrypted file</string>
+    <string name="backup_method_file_detail">Save a passphrase-protected file to Drive or Files.</string>
+    <string name="backup_method_ring">Export to Pubky Ring</string>
+    <string name="backup_method_ring_detail">Copy your key into Pubky Ring. Loopky keeps its copy too.</string>
+    <string name="backup_phrase_title">Your recovery phrase</string>
+    <string name="backup_phrase_subtitle">Write these twelve words down, in order, and keep them somewhere safe.</string>
+    <string name="backup_phrase_reveal">Tap to reveal</string>
+    <string name="backup_phrase_continue">I\'ve written them down</string>
+    <!-- The inverted seed warning: prevents someone sending sats to a Pubky account. -->
+    <string name="backup_phrase_warning">This phrase is for your Pubky account only. It is not a Bitcoin wallet and holds no funds.</string>
+    <string name="backup_quiz_title">Confirm your phrase</string>
+    <string name="backup_quiz_subtitle">Pick the right word for each position.</string>
+    <string name="backup_quiz_position">Word %1$d</string>
+    <string name="backup_quiz_submit">Confirm</string>
+    <string name="backup_quiz_wrong">That\'s not quite right. Check your written copy and try again.</string>
+    <string name="backup_file_title">Encrypted recovery file</string>
+    <string name="backup_file_subtitle">Choose a passphrase. You will need it — and the file — to restore.</string>
+    <string name="backup_file_passphrase">Passphrase</string>
+    <string name="backup_file_create">Create and save file</string>
+    <string name="backup_file_failed">Couldn\'t create the file. Please try again.</string>
+    <string name="backup_strength_too_short">Too short</string>
+    <string name="backup_strength_weak">Weak — 16 characters or more is much stronger</string>
+    <string name="backup_strength_fair">Fair — 16 characters or more is much stronger</string>
+    <string name="backup_strength_strong">Strong</string>
+    <string name="backup_ring_title">Export to Pubky Ring</string>
+    <!-- Never implies the key moved. Ring imports it; Loopky keeps its copy and its session, and
+         the words the user wrote down are still valid. -->
+    <string name="backup_ring_subtitle">This copies your key into Pubky Ring. Loopky keeps its own copy, and your recovery phrase still works.</string>
+    <string name="backup_ring_open">Open Pubky Ring</string>
+    <string name="backup_ring_missing">Pubky Ring isn\'t installed on this device.</string>
+    <string name="backup_ring_confirm">I imported it into Pubky Ring</string>
+    <string name="settings_back_up_account">Back up your account</string>
+    <string name="backup_nag_title">Back up your account</string>
+    <string name="backup_nag_body">Your key lives only on this device. If you lose it, your decks go with it.</string>
+    <string name="backup_nag_action">Back up now</string>
+    <string name="settings_signout_unbacked_title">Signing out will erase your key</string>
+    <string name="settings_signout_unbacked_body">Loopky holds the only copy of the key for %1$s, and you haven\'t backed it up. Signing out deletes it, and this account can never be recovered.</string>
+    <string name="settings_signout_unbacked_confirm">Sign out and erase</string>
+    <string name="settings_signout_unbacked_backup">Back up first</string>
+    <string name="unregistered_title">This key has no account yet</string>
+    <string name="unregistered_subtitle">The key is valid — there\'s just no Pubky account registered for it.</string>
+    <string name="unregistered_pubky_label">The key you presented:</string>
+    <string name="unregistered_check_phrase">Check my recovery phrase again</string>
+    <string name="unregistered_check_hint">A single mistyped or out-of-order word still passes the checksum and unlocks a different account. This is the most common reason to see this screen.</string>
+    <string name="unregistered_register">Register this key</string>
+    <!-- Says plainly what the button does, because it publishes a record to the DHT. -->
+    <string name="unregistered_register_hint">Creates an account for the key shown above, and publishes it publicly. Needs a quick verification if you haven\'t done one.</string>
+    <string name="unregistered_register_confirm_title">Register this key?</string>
+    <string name="unregistered_register_confirm_body">This publishes %1$s as a public identity on the Pubky network. Only do this for a key you created for Pubky — never for a Bitcoin or crypto wallet recovery phrase.</string>
+    <string name="unregistered_register_confirm_yes">Register it</string>
+    <string name="unregistered_register_confirm_cancel">Cancel</string>
+    <string name="unregistered_ring_title">Pubky Ring is holding this key</string>
+    <string name="unregistered_ring_body">Loopky can\'t register a key it doesn\'t hold. Ring can\'t create the account either — that needs a signup token, and those come from Loopky. Two routes keep your key: use Ring\'s Edit pubky sheet with a token from Loopky, or reveal the recovery phrase in Ring and restore it here.</string>
+    <string name="unregistered_ring_import">Restore with my recovery phrase</string>
+    <string name="restore_method_file">Encrypted recovery file</string>
+    <string name="restore_method_file_detail">A recovery.pkarr file and its passphrase.</string>
+    <string name="restore_file_title">Open your recovery file</string>
+    <string name="restore_file_subtitle">Choose the file you saved, then enter its passphrase.</string>
+    <string name="restore_file_choose">Choose file</string>
+    <string name="restore_file_change">Choose a different file</string>
+    <string name="restore_file_passphrase_label">Passphrase</string>
+    <string name="restore_file_passphrase_placeholder">The passphrase you set</string>
+    <string name="restore_file_submit">Restore account</string>
+    <string name="restore_error_passphrase_title">That didn\'t open the file</string>
+    <string name="restore_error_passphrase_message">Check the passphrase, and that this is the recovery file for the account you want. This says nothing about whether the account exists.</string>
+    <string name="restore_error_unreadable_title">Couldn\'t read that file</string>
+    <string name="restore_error_unreadable_message">Loopky couldn\'t open the file you chose. Try choosing it again.</string>
+    <string name="restore_error_invalid_title">That\'s not a valid recovery phrase</string>
+    <string name="restore_error_invalid_message">Check that all twelve words are spelled correctly and in the right order.</string>
+    <!-- Never "invalid": the phrase is valid, it just is not this account\'s. Showing the pubky is
+         the fastest diagnosis available and the only one the user can make. -->
+    <string name="restore_error_no_account_title">That phrase doesn\'t match an account</string>
+    <string name="restore_error_no_account_message">This recovery phrase is valid, but no Pubky account has been created for it. Check for a mistyped or out-of-order word — and if it came from a Bitcoin or crypto wallet, that\'s a different kind of phrase and won\'t work here.</string>
+    <string name="restore_error_no_account_pubky">It unlocks this pubky:</string>
+    <string name="restore_retry">Try again</string>
+    <!-- The pkarr/DHT lookup that decides whether a pubky has an account did not answer.
+         Never a verdict on what was looked up: it must always read as "we don't know yet". -->
+    <string name="error_lookup_failed_title">We couldn\'t check that</string>
+    <string name="error_lookup_failed_message">We couldn\'t reach the Pubky network to look this up, so we don\'t know yet. This often means a network that blocks peer-to-peer traffic. Try again, or switch to a different Wi-Fi or mobile data.</string>
     <string name="error_generic_title">Something went wrong</string>
     <string name="error_generic_message">Something went wrong. Please try again.</string>
     <string name="home_caught_up_title">You\'re all caught up</string>

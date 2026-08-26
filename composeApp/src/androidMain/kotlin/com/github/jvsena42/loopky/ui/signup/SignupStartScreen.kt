@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,10 +31,12 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.presentation.signup.SignupStartEffect
 import com.github.jvsena42.loopky.presentation.signup.SignupStartUiState
 import com.github.jvsena42.loopky.presentation.signup.SignupStartViewModel
+import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Composable
 fun SignupStartRoute(
@@ -41,8 +44,12 @@ fun SignupStartRoute(
     onSms: () -> Unit,
     onLightning: () -> Unit,
     onInviteCode: () -> Unit,
+    onCreateLocally: () -> Unit,
+    redeemer: TokenRedeemer = TokenRedeemer.PubkyRing,
 ) {
-    val viewModel: SignupStartViewModel = koinViewModel()
+    // Keyed on the redeemer so switching spender rebuilds the ViewModel rather than reusing one
+    // that already decided Ring was required.
+    val viewModel: SignupStartViewModel = koinViewModel(key = redeemer.name) { parametersOf(redeemer) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
@@ -73,6 +80,9 @@ fun SignupStartRoute(
         onSms = onSms,
         onLightning = onLightning,
         onInviteCode = onInviteCode,
+        onCreateLocally = onCreateLocally,
+        // The local flow must not offer itself.
+        showCreateLocally = redeemer == TokenRedeemer.PubkyRing,
         onInstallRing = viewModel::onInstallRingClick,
     )
 }
@@ -84,6 +94,8 @@ private fun SignupStartScreen(
     onSms: () -> Unit,
     onLightning: () -> Unit,
     onInviteCode: () -> Unit,
+    onCreateLocally: () -> Unit,
+    showCreateLocally: Boolean,
     onInstallRing: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
@@ -99,7 +111,7 @@ private fun SignupStartScreen(
 
         // Every method below ends in a token only Pubky Ring can spend, so while it is missing
         // they all say the same thing rather than each screen discovering it separately.
-        val unavailableLabel = if (state.isRingInstalled) {
+        val unavailableLabel = if (state.hasRedeemer) {
             stringResource(R.string.signup_card_unavailable)
         } else {
             stringResource(R.string.signup_card_needs_ring)
@@ -117,8 +129,15 @@ private fun SignupStartScreen(
         Spacer(Modifier.height(16.dp))
         MethodCard(
             title = stringResource(R.string.signup_lightning_card_title),
+            // Two strings rather than concatenation: the parenthetical belongs elsewhere in
+            // other languages. No quote — in flight, failed, or geoblocked — renders exactly the
+            // sats-only string it always did.
             price = state.lightningPriceSat
-                ?.let { stringResource(R.string.signup_lightning_card_price, it) }
+                ?.let { sats ->
+                    state.fiatPrice
+                        ?.let { stringResource(R.string.signup_lightning_card_price_fiat, sats, it) }
+                        ?: stringResource(R.string.signup_lightning_card_price, sats)
+                }
                 ?: stringResource(R.string.signup_lightning_card_price_unknown),
             note = stringResource(R.string.signup_lightning_card_note),
             enabled = state.isLightningEnabled,
@@ -129,17 +148,35 @@ private fun SignupStartScreen(
         Spacer(Modifier.height(20.dp))
         TextButton(
             onClick = onInviteCode,
-            enabled = state.isRingInstalled,
+            enabled = state.hasRedeemer,
             modifier = Modifier.testTag("signup_method_invite"),
         ) {
             Text(
                 text = stringResource(R.string.signup_invite_link),
                 // Explicit rather than inherited: a coloured `Text` overrides the button's own
                 // disabled tint, and a link that looks live but does nothing is worse than none.
-                color = if (state.isRingInstalled) colors.accentSecondary else colors.foregroundMuted,
+                color = if (state.hasRedeemer) colors.accentSecondary else colors.foregroundMuted,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
             )
+        }
+
+        // Offered whether or not Ring is installed. It used to live only inside RingRequiredCard,
+        // which meant the local route existed *only* for users who did not have Ring — someone who
+        // has it could never choose to keep the key here, and the choice this issue is about was
+        // invisible to them.
+        if (showCreateLocally) {
+            Spacer(Modifier.height(8.dp))
+            TextButton(
+                onClick = onCreateLocally,
+                modifier = Modifier.testTag("signup_create_locally_option"),
+                colors = ButtonDefaults.textButtonColors(contentColor = colors.foregroundSecondary),
+            ) {
+                Text(
+                    text = stringResource(R.string.onboarding_create_local),
+                    fontSize = 13.sp,
+                )
+            }
         }
     }
 }
@@ -151,6 +188,8 @@ private fun SignupStartScreen(
  * this is stated *here*, on the way in, rather than at the hand-off after the user has paid.
  */
 @Composable
+// The local-key route is *not* offered here any more: the screen now shows it unconditionally
+// below the method list, and rendering both put two buttons for the same thing on one screen.
 private fun RingRequiredCard(onInstallRing: () -> Unit) {
     val colors = LoopkyTheme.colors
     Column(
@@ -228,7 +267,7 @@ private fun MethodCard(
             // Tagged: this is the value that shows which environment the build is talking to —
             // staging and production quote different prices.
             text = if (enabled) price else unavailableLabel,
-            modifier = Modifier.testTag("${'$'}testTag" + "_price"),
+            modifier = Modifier.testTag(testTag + "_price"),
             color = if (enabled) colors.accentPrimary else colors.foregroundMuted,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
@@ -246,11 +285,13 @@ private fun MethodCard(
 private fun SignupStartRingMissingPreview() {
     LoopkyTheme {
         SignupStartScreen(
-            state = SignupStartUiState(isLoading = false, isRingInstalled = false),
+            state = SignupStartUiState(isLoading = false, isRingInstalled = false, hasRedeemer = false),
             onBack = {},
             onSms = {},
             onLightning = {},
             onInviteCode = {},
+            onCreateLocally = {},
+            showCreateLocally = true,
             onInstallRing = {},
         )
     }

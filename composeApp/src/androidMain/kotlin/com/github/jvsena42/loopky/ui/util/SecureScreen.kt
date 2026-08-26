@@ -22,12 +22,29 @@ fun SecureScreen() {
     val window = (LocalContext.current as? Activity)?.window ?: return
     DisposableEffect(window) {
         if (!BuildConfig.DEBUG) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            // Reference-counted, because the flag is a property of the *window* while this is
+            // scoped to a composable, and Compose Navigation composes the incoming destination
+            // before disposing the outgoing one. With a plain add/clear, moving between two secure
+            // screens — the recovery phrase to its confirm quiz, and back — cleared the flag on
+            // arrival and left the screen showing twelve words capturable. Nothing reports that;
+            // it only shows up in a screen recording that should have been black.
+            if (secureRequests++ == 0) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
         }
         onDispose {
             if (!BuildConfig.DEBUG) {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                if (--secureRequests == 0) {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                }
             }
         }
     }
 }
+
+/**
+ * How many secure screens are currently composed.
+ *
+ * Single-threaded by construction: composition and disposal both run on the main thread.
+ */
+private var secureRequests = 0

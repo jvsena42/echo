@@ -94,7 +94,11 @@ private fun LightningVerificationScreen(
     SignupScaffold(
         title = stringResource(R.string.signup_lightning_title),
         subtitle = state.invoice
-            ?.let { stringResource(R.string.signup_lightning_amount, it.amountSat) }
+            ?.let { invoice ->
+                state.fiatPrice
+                    ?.let { stringResource(R.string.signup_lightning_amount_fiat, invoice.amountSat, it) }
+                    ?: stringResource(R.string.signup_lightning_amount, invoice.amountSat)
+            }
             .orEmpty(),
         onBack = onBack,
         error = state.error,

@@ -27,6 +27,7 @@ fun errorTitle(reason: ErrorReason): String = stringResource(
         ErrorReason.AuthRelayUnreachable -> R.string.error_auth_relay_title
         ErrorReason.ServerBusy -> R.string.error_server_busy_title
         ErrorReason.StorageFull -> R.string.error_storage_full_title
+        ErrorReason.HomeserverLookupFailed -> R.string.error_lookup_failed_title
         ErrorReason.Unknown -> R.string.error_generic_title
     },
 )
@@ -44,6 +45,7 @@ fun errorMessage(reason: ErrorReason): String = stringResource(
         ErrorReason.AuthRelayUnreachable -> R.string.error_auth_relay_message
         ErrorReason.ServerBusy -> R.string.error_server_busy_message
         ErrorReason.StorageFull -> R.string.error_storage_full_message
+        ErrorReason.HomeserverLookupFailed -> R.string.error_lookup_failed_message
         ErrorReason.Unknown -> R.string.error_generic_message
     },
 )
@@ -108,6 +110,7 @@ fun signupErrorTitle(error: SignupError): String = stringResource(
         SignupError.RingFailed -> R.string.signup_error_ring_failed_title
         SignupError.RingNotInstalled -> R.string.signup_error_ring_missing_title
         SignupError.Unavailable -> R.string.signup_error_unavailable_title
+        SignupError.TokenRejected -> R.string.signup_error_token_rejected_title
     },
 )
 
@@ -125,6 +128,7 @@ fun signupErrorMessage(error: SignupError): String = stringResource(
         SignupError.RingFailed -> R.string.signup_error_ring_failed_message
         SignupError.RingNotInstalled -> R.string.signup_error_ring_missing_message
         SignupError.Unavailable -> R.string.signup_error_unavailable_message
+        SignupError.TokenRejected -> R.string.signup_error_token_rejected_message
     },
 )
 

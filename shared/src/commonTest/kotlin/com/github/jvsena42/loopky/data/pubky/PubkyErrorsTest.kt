@@ -122,4 +122,44 @@ class PubkyErrorsTest {
     fun fallsBackToUnknownForUnrecognisedText() {
         assertEquals(ErrorReason.Unknown, IllegalStateException("kaboom").toErrorReason())
     }
+
+    @Test
+    fun namesAPubkyWithNoHomeserverRecordInsteadOfGuessingAtTheNetwork() {
+        // `get_homeserver` turns Ok(None) into an error carrying this exact wording. Without its
+        // own classifier it fell through to Unknown, and the sign-in path renders Unknown as
+        // "sign-in didn't finish" — a Pubky Ring failure, for a phrase that simply has no account.
+        val noRecord = PubkyError("No homeserver found for this public key")
+
+        assertEquals(ErrorReason.NoHomeserverAccount, noRecord.toErrorReason())
+    }
+
+    @Test
+    fun aDhtResolutionFailureIsNotReportedAsHavingNoAccount() {
+        // The other arm of the same FFI call. This one genuinely is a transport failure and must
+        // stay one: telling a user their recovery phrase belongs to no account because the DHT was
+        // unreachable is a verdict we have no basis for (#147).
+        val unreachable = PubkyError("Failed to get homeserver: pkarr: failed to resolve packet for key")
+
+        assertEquals(ErrorReason.Offline, unreachable.toErrorReason())
+    }
+
+    @Test
+    fun theNoRecordClassifierWinsOverTheTransportOneWhenAMessageCarriesBoth() {
+        // The ordering guard. "failed to resolve" is in isNetworkFailure's list, so a message
+        // containing both substrings is exactly how the specific answer gets swallowed by the
+        // generic one. isNoHomeserverRecord runs first precisely so this cannot happen.
+        val both = PubkyError("No homeserver found for this public key (failed to resolve)")
+
+        assertEquals(ErrorReason.NoHomeserverAccount, both.toErrorReason())
+    }
+
+    @Test
+    fun anUnrelatedNotFoundIsStillANotFound() {
+        // Proof the new classifier is narrow enough to sit second: it must not capture the
+        // ordinary record misses that every deck and profile read produces.
+        val deckMiss = PubkyError("Request failed: 404 Not Found - pubky://x/pub/loopky/decks/1/manifest.json")
+
+        assertEquals(ErrorReason.NotFound, deckMiss.toErrorReason())
+        assertFalse(deckMiss.isNoHomeserverRecord())
+    }
 }

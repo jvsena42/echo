@@ -1,0 +1,30 @@
+<journey name="A valid key with no account — and never calling it invalid">
+  <description>
+    Two entrances, one situation: a recovery phrase whose pre-flight found no homeserver record,
+    and a pubky Pubky Ring authorised that the homeserver has no account for.
+
+    Everything here is about not lying to someone who is already worried they mistyped. The phrase
+    IS valid — a single wrong or transposed word still passes the BIP-39 checksum and unlocks a
+    different, real key. Calling that "invalid" sends them hunting for a problem that is not there.
+
+    Note a state the pre-flight cannot rule out, seen on staging: a pkarr homeserver record can
+    outlive the account it points at, so the lookup says *Registered* and the homeserver still
+    404s. That 404 must read as "no account", never as "this deck no longer exists".
+  </description>
+  <actions>
+    <action>FROM RESTORE. Sign out, tap "onboarding_restore" → "restore_method_phrase"</action>
+    <action>Enter a valid BIP-39 phrase that has no Pubky account (e.g. the second standard test vector: legal winner thank year wave sausage worth useful legal winner thank yellow) and submit</action>
+    <action>Verify the screen is "This key has no account yet" — it must NOT say the phrase is invalid</action>
+    <action>Verify "unregistered_pubky" shows the derived pubky in full: recognising it is not theirs is the fastest diagnosis, and only the user can make it</action>
+    <action>Verify "unregistered_check_phrase" is the PRIMARY button and "unregistered_register" is the secondary one — a typo is far likelier than wanting to register, and registering is the branch that costs money</action>
+    <action>Verify the copy never reads "This deck no longer exists" — that is ErrorReason.NotFound's message, and a 404 on this path means the account, not a record</action>
+
+    <action>Tap "unregistered_register" and verify a confirm dialog appears naming the pubky, and that it repeats the Bitcoin-seed warning in its PUBLISH form — this is the moment a wallet seed would become a public identity in the DHT</action>
+    <action>Cancel, and verify nothing was registered</action>
+
+    <action>FROM PUBKY RING. In Ring, create a brand-new pubky with "Add pubky" (it will have no homeserver account). Sign in to Loopky with it</action>
+    <action>Verify the same screen appears, but with NO "Register this key" button — Loopky does not hold that key, and a button here would register a different one and strand theirs</action>
+    <action>Verify "unregistered_ring_block" explains the two routes that keep the key, and that neither is a bare "create an account" CTA</action>
+    <action>Verify the old copy is gone: nothing should tell the user to "finish setting it up in Pubky Ring", which is the one app that cannot create the account</action>
+  </actions>
+</journey>

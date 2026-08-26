@@ -16,6 +16,7 @@ import com.github.jvsena42.loopky.data.repository.impl.AccountEraser
 import com.github.jvsena42.loopky.data.repository.impl.DeckRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.IdentityRepositoryImpl
 import com.github.jvsena42.loopky.data.storage.AppPreferences
+import com.github.jvsena42.loopky.data.storage.LocalKeyStore
 import com.github.jvsena42.loopky.data.storage.PendingReviewStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.data.storage.StudyProgressStore
@@ -224,7 +225,7 @@ fun deckRepository(
  * these, and a constructor that grows again should cost one edit here instead of one per test.
  */
 @Suppress("LongParameterList")
-fun identityRepository(
+internal fun identityRepository(
     pubky: PubkyClient = FakePubkyClient(),
     sessionStore: SecureSessionStore = NoopSessionStore(),
     sessionProvider: MutableSessionProvider = signedInProvider(),
@@ -235,11 +236,16 @@ fun identityRepository(
     studyProgress: StudyProgressStore = FakeStudyProgressStore(),
     preferences: AppPreferences = FakeAppPreferences(),
     unsplashKeyStore: UnsplashKeyStore = FakeUnsplashKeyStore(),
+    localKeyStore: LocalKeyStore = FakeLocalKeyStore(),
+    /** Defaults to the caller's scope so `runTest` can await the fire-and-forget cleanup. */
+    scope: CoroutineScope = CoroutineScope(SupervisorJob()),
 ): IdentityRepositoryImpl = IdentityRepositoryImpl(
     pubky = pubky,
     sessionStore = sessionStore,
     sessionProvider = sessionProvider,
     tagRepository = tagRepository,
+    localKeyStore = localKeyStore,
+    scope = scope,
     eraser = AccountEraser(
         pubky = pubky,
         session = sessionProvider,

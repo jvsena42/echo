@@ -10,11 +10,13 @@ import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.RawPubkyClient
 import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.IosAppPreferences
+import com.github.jvsena42.loopky.data.storage.IosLocalKeyStore
 import com.github.jvsena42.loopky.data.storage.IosPendingReviewStore
 import com.github.jvsena42.loopky.data.storage.IosSecureSessionStore
 import com.github.jvsena42.loopky.data.storage.IosSignupTokenStore
 import com.github.jvsena42.loopky.data.storage.IosStudyProgressStore
 import com.github.jvsena42.loopky.data.storage.IosUnsplashKeyStore
+import com.github.jvsena42.loopky.data.storage.LocalKeyStore
 import com.github.jvsena42.loopky.data.storage.PendingReviewStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
@@ -103,6 +105,7 @@ private fun iosPlatformModule(
     single<StudyProgressStore> { IosStudyProgressStore() }
     single<UnsplashKeyStore> { IosUnsplashKeyStore() }
     single<SignupTokenStore> { IosSignupTokenStore() }
+    single<LocalKeyStore> { IosLocalKeyStore() }
     single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }
     single<Speaker> { IosSpeaker() }
     single<PubkyRingPresence> { IosPubkyRingPresence() }

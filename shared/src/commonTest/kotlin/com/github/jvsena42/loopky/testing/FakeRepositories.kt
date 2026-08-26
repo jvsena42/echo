@@ -39,7 +39,11 @@ import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
+import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.ImportDraft
+import com.github.jvsena42.loopky.domain.model.KeyCustody
+import com.github.jvsena42.loopky.domain.model.KeySource
+import com.github.jvsena42.loopky.domain.model.LocalAccount
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
@@ -95,16 +99,92 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
     val profiles = mutableMapOf<String, PubkyIdentity>()
     val fetchedProfiles = mutableListOf<String>()
 
+    // --- Local keys ------------------------------------------------------------
+
+    /** Custody reported to the UI. Defaults to Ring, which is every account predating #147. */
+    val custodyFlow = MutableStateFlow<KeyCustody>(KeyCustody.External)
+    override val keyCustody: Flow<KeyCustody> = custodyFlow
+
+    /** Pubkys derived per source, so a test can model a typo deriving a stranger's key. */
+    var derivedPubky: Result<String> = Result.success(fakePubkyFor(fakeSecretKeyFor(VALID_TEST_MNEMONIC)))
+
+    /**
+     * What the pkarr pre-flight answers. Defaults to registered — the boring case — so a test that
+     * cares about the other two has to say so.
+     */
+    var homeserverLookup: HomeserverLookup = HomeserverLookup.Registered("homeserver-pubky")
+
+    /** Counts lookups, so a test can assert none happen before an explicit submit. */
+    var lookupCount = 0
+
+    /** Records what was handed to [signInWithKey], and how often. */
+    val signInWithKeyCalls = mutableListOf<KeySource>()
+    var signInWithKeyResult: Result<Session> = Result.success(fakeSession())
+
+    override suspend fun derivePubky(source: KeySource): Result<String> = derivedPubky
+
+    override suspend fun lookupHomeserver(pubky: String): HomeserverLookup {
+        lookupCount++
+        return homeserverLookup
+    }
+
+    override suspend fun signInWithKey(source: KeySource, knownHomeserver: String?): Result<Session> {
+        signInWithKeyCalls.add(source)
+        return signInWithKeyResult.onSuccess { session = it }
+    }
+
     override suspend fun currentSession(): Session? = session
     override suspend fun loadPersistedSession(): Session? = session
 
-    override suspend fun signIn(): Result<Session> =
-        session?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no session"))
+    /** When set, a non-forced sign-out is refused, as an un-backed-up local key makes it. */
+    var signOutRefusal: Throwable? = null
+    val forcedSignOuts = mutableListOf<Boolean>()
 
-    override suspend fun signOut(): Result<Unit> {
+    override suspend fun signOut(force: Boolean): Result<Unit> {
+        forcedSignOuts.add(force)
+        signOutRefusal?.takeIf { !force }?.let { return Result.failure(it) }
         signOutCount++
         session = null
         return Result.success(Unit)
+    }
+
+    /** Records what [createLocalAccount] was asked for, and how many keys were minted. */
+    val createLocalAccountCalls = mutableListOf<Pair<String, String>>()
+    var createLocalAccountResult: Result<LocalAccount> =
+        Result.success(LocalAccount(pubky = "pkminted", mnemonic = VALID_TEST_MNEMONIC))
+
+    val registerHeldKeyCalls = mutableListOf<Pair<String, String>>()
+    var registerHeldKeyResult: Result<Session> = Result.success(fakeSession())
+
+    /** Records what [holdKeyForRegistration] was asked to store. */
+    val heldForRegistration = mutableListOf<KeySource>()
+    var holdKeyResult: Result<String>? = null
+
+    override suspend fun holdKeyForRegistration(source: KeySource): Result<String> {
+        heldForRegistration.add(source)
+        return holdKeyResult ?: derivedPubky
+    }
+
+    var discardedUnregisteredKeys = 0
+
+    override fun discardUnregisteredKey() {
+        discardedUnregisteredKeys++
+    }
+
+    override suspend fun createLocalAccount(
+        homeserverPubky: String,
+        signupToken: String,
+    ): Result<LocalAccount> {
+        createLocalAccountCalls.add(homeserverPubky to signupToken)
+        return createLocalAccountResult
+    }
+
+    override suspend fun registerHeldKey(
+        homeserverPubky: String,
+        signupToken: String,
+    ): Result<Session> {
+        registerHeldKeyCalls.add(homeserverPubky to signupToken)
+        return registerHeldKeyResult
     }
 
     var deleteAccountCount = 0

@@ -11,8 +11,10 @@ import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.data.unsplash.UnsplashError
 import com.github.jvsena42.loopky.data.unsplash.UnsplashException
 import com.github.jvsena42.loopky.data.unsplash.maskedKeySuffix
+import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.StudySettings
+import com.github.jvsena42.loopky.domain.model.UnbackedUpLocalKey
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -57,6 +59,7 @@ class SettingsViewModel(
 
     init {
         load()
+        observeKeyCustody()
         // Collected rather than read once: the publish/follow/clone prompts carry their own
         // "Don't ask again", and flipping it there has to move this switch too — they are one
         // setting with two controls, not two settings.
@@ -223,12 +226,48 @@ class SettingsViewModel(
     private fun Throwable.toUnsplashError(): UnsplashError =
         (this as? UnsplashException)?.error ?: UnsplashError.Unavailable
 
-    fun onSignOutClick() {
+    /** Custody drives the backup nag, so it is collected for the life of the screen. */
+    private fun observeKeyCustody() {
+        viewModelScope.launch {
+            identityRepository.keyCustody.collect { custody ->
+                _state.update { it.copy(keyCustody = custody) }
+            }
+        }
+    }
+
+    fun onSignOutClick() = signOut(force = false)
+
+    /**
+     * The user has seen the warning and said yes anyway.
+     *
+     * Only reachable from the confirm that [UnbackedUpLocalKey] raises, and it destroys the only
+     * copy of an identity — so it is a separate entry point rather than a boolean on the first.
+     */
+    fun onConfirmSignOutWithoutBackup() = signOut(force = true)
+
+    fun onDismissSignOutWarning() = _state.update { it.copy(unbackedUpPubky = null) }
+
+    private fun signOut(force: Boolean) {
         if (signOutJob?.isActive == true) return
         signOutJob = viewModelScope.launch {
-            Log.d(TAG, "onSignOutClick: signing out")
-            identityRepository.signOut()
-            _effects.emit(SettingsEffect.SignedOut)
+            Log.d(TAG, "signOut: force=$force")
+            identityRepository.signOut(force = force)
+                .onSuccess {
+                    _state.update { it.copy(unbackedUpPubky = null) }
+                    _effects.emit(SettingsEffect.SignedOut)
+                }
+                .onFailure { error ->
+                    // The repository refuses rather than warns, so this is the only place the
+                    // confirm can come from — a UI that forgot to handle it would fail to sign out
+                    // rather than silently destroy the key.
+                    if (error is UnbackedUpLocalKey) {
+                        Log.w(TAG, "signOut: refused — the local key has never been backed up")
+                        _state.update { it.copy(unbackedUpPubky = error.pubky) }
+                    } else {
+                        Log.e(TAG, "signOut: FAILED — ${error::class.simpleName}", error)
+                        _effects.emit(SettingsEffect.SignedOut)
+                    }
+                }
         }
     }
 
@@ -306,6 +345,13 @@ class SettingsViewModel(
 
 data class SettingsUiState(
     val isLoading: Boolean = true,
+    /**
+     * Set when sign-out was refused because Loopky holds a key nobody has backed up. The screen
+     * raises a confirm; only [SettingsViewModel.onConfirmSignOutWithoutBackup] proceeds.
+     */
+    val unbackedUpPubky: String? = null,
+    /** Custody of the signed-in account's key, driving the "back up your account" nag. */
+    val keyCustody: KeyCustody = KeyCustody.External,
     val pubky: String = "",
     val displayName: String? = null,
     val homeserver: String = "",

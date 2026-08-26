@@ -20,9 +20,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -43,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
@@ -63,9 +66,10 @@ import com.github.jvsena42.loopky.presentation.onboarding.OnboardingUiState
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingViewModel
 import com.github.jvsena42.loopky.presentation.onboarding.RingHandoff
 import com.github.jvsena42.loopky.ui.components.FoxPlate
-import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.LoopkySecondaryButton
 import com.github.jvsena42.loopky.ui.components.QrCode
+import com.github.jvsena42.loopky.ui.components.SignInProviderButton
+import com.github.jvsena42.loopky.ui.components.SignInProviderVariant
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.layout.PaneWidth
 import com.github.jvsena42.loopky.ui.layout.contentPane
@@ -79,12 +83,19 @@ import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun OnboardingRoute(onNavigateHome: () -> Unit, onCreatePubky: () -> Unit) {
+fun OnboardingRoute(
+    onNavigateHome: () -> Unit,
+    onCreatePubky: () -> Unit,
+    onRestore: () -> Unit,
+    onUnregistered: (String) -> Unit,
+) {
     val viewModel = koinViewModel<OnboardingViewModel>()
     OnboardingScreen(
         viewModel = viewModel,
         onNavigateHome = onNavigateHome,
         onCreatePubky = onCreatePubky,
+        onRestore = onRestore,
+        onUnregistered = onUnregistered,
     )
 }
 
@@ -93,10 +104,13 @@ fun OnboardingScreen(
     viewModel: OnboardingViewModel,
     onNavigateHome: () -> Unit,
     onCreatePubky: () -> Unit,
+    onRestore: () -> Unit,
+    onUnregistered: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentOnNavigateHome by rememberUpdatedState(onNavigateHome)
+    val currentOnUnregistered by rememberUpdatedState(onUnregistered)
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -125,6 +139,7 @@ fun OnboardingScreen(
                     }
                 }
                 OnboardingEffect.NavigateHome -> currentOnNavigateHome()
+                is OnboardingEffect.NavigateUnregistered -> currentOnUnregistered(effect.pubky)
             }
         }
     }
@@ -133,6 +148,7 @@ fun OnboardingScreen(
         state = state,
         onSignInClick = viewModel::onSignInClick,
         onCreatePubky = onCreatePubky,
+        onRestore = onRestore,
         onOpenRingHere = viewModel::onOpenRingOnThisDevice,
         onCancelSignIn = viewModel::onCancelSignIn,
     )
@@ -143,6 +159,7 @@ private fun OnboardingContent(
     state: OnboardingUiState,
     onSignInClick: (RingHandoff) -> Unit,
     onCreatePubky: () -> Unit,
+    onRestore: () -> Unit,
     onOpenRingHere: () -> Unit,
     onCancelSignIn: () -> Unit,
 ) {
@@ -203,9 +220,16 @@ private fun OnboardingContent(
                     onPolicyAcceptedChange = { policyAccepted = it },
                     onSignInClick = { onSignInClick(handoff) },
                     onCreatePubky = onCreatePubky,
+                    onRestore = onRestore,
                     onOpenRingHere = onOpenRingHere,
                     onCancelSignIn = onCancelSignIn,
-                    modifier = Modifier.widthIn(max = PaneWidth.Focused),
+                    // Scrollable, because this Row bounds the panel to the window height and a
+                    // Column that overflows a bounded parent clips in silence — no error, no
+                    // ellipsis, just a button sliced in half. A landscape phone is the tightest
+                    // case, and the panel grew a third door (#147).
+                    modifier = Modifier
+                        .widthIn(max = PaneWidth.Focused)
+                        .verticalScroll(rememberScrollState()),
                 )
             }
         } else {
@@ -226,6 +250,7 @@ private fun OnboardingContent(
                 onPolicyAcceptedChange = { policyAccepted = it },
                 onSignInClick = { onSignInClick(handoff) },
                 onCreatePubky = onCreatePubky,
+                onRestore = onRestore,
                 onOpenRingHere = onOpenRingHere,
                 onCancelSignIn = onCancelSignIn,
                 modifier = Modifier.contentPane(PaneWidth.Focused),
@@ -296,6 +321,7 @@ private fun SignInPanel(
     onPolicyAcceptedChange: (Boolean) -> Unit,
     onSignInClick: () -> Unit,
     onCreatePubky: () -> Unit,
+    onRestore: () -> Unit,
     onOpenRingHere: () -> Unit,
     onCancelSignIn: () -> Unit,
     modifier: Modifier = Modifier,
@@ -319,6 +345,7 @@ private fun SignInPanel(
                 policyAccepted = policyAccepted,
                 onSignInClick = onSignInClick,
                 onCreatePubky = onCreatePubky,
+                onRestore = onRestore,
             )
             // Under the calls to action: the gate has to be visible before the buttons are usable,
             // but it is fine print rather than a step, and putting it between the hero and the
@@ -453,6 +480,7 @@ private fun CtaBlock(
     policyAccepted: Boolean,
     onSignInClick: () -> Unit,
     onCreatePubky: () -> Unit,
+    onRestore: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -460,27 +488,58 @@ private fun CtaBlock(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        LoopkyPrimaryButton(
-            label = when (state) {
-                OnboardingUiState.Starting,
-                is OnboardingUiState.AwaitingApproval,
-                -> stringResource(R.string.onboarding_signin_waiting)
-                OnboardingUiState.Verifying -> stringResource(R.string.onboarding_signin_verifying)
-                else -> stringResource(R.string.onboarding_signin_default)
-            },
-            // Also the recovery path: a failed approval consumes the FFI's auth flow, so retrying
-            // means starting a whole new one. Clearing the error first would only cost a tap (#59).
-            onClick = onSignInClick,
-            loading = isWorking,
-            enabled = !isWorking && policyAccepted,
-            modifier = Modifier.testTag("onboarding_signin"),
-            leadingIcon = {
-                Text(
-                    text = "\uD83D\uDD11",
-                    fontSize = 18.sp,
-                )
-            },
-        )
+        // Two ways *in*, presented as a set the way a social sign-in screen presents its
+        // providers: same silhouette, marks on the same line, and only one of them filled. Ring is
+        // the filled one because it keeps the key in a separate app, which is the arrangement
+        // Loopky recommends — the ranking is the recommendation, so it has to be legible at a
+        // glance rather than explained.
+        val ringButton: @Composable (Modifier) -> Unit = { buttonModifier ->
+            SignInProviderButton(
+                label = when (state) {
+                    OnboardingUiState.Starting,
+                    is OnboardingUiState.AwaitingApproval,
+                    -> stringResource(R.string.onboarding_signin_waiting)
+                    OnboardingUiState.Verifying -> stringResource(R.string.onboarding_signin_verifying)
+                    else -> stringResource(R.string.onboarding_signin_default)
+                },
+                // The crowned keyhole is the Pubky mark, shared by Pubky Ring and pubky.app — the
+                // thing a user recognises from the app they are being sent to.
+                icon = painterResource(R.drawable.ic_pubky),
+                // Also the recovery path: a failed approval consumes the FFI's auth flow, so
+                // retrying means a whole new one. Clearing the error first would cost a tap (#59).
+                onClick = onSignInClick,
+                variant = SignInProviderVariant.Primary,
+                loading = isWorking,
+                enabled = !isWorking && policyAccepted,
+                contentDescription = stringResource(R.string.onboarding_ring_icon_description),
+                modifier = buttonModifier.testTag("onboarding_signin"),
+            )
+        }
+        // The other way in, for someone who has a pubky but no working Ring — a dead phone, a
+        // reinstall. A button rather than the text link it used to be: for the person who needs
+        // it, it is the only control on this screen that does anything, and a text link at the
+        // bottom is where an option goes to be missed.
+        val restoreButton: @Composable (Modifier) -> Unit = { buttonModifier ->
+            SignInProviderButton(
+                label = stringResource(R.string.onboarding_restore),
+                icon = painterResource(R.drawable.ic_recovery_key),
+                onClick = onRestore,
+                variant = SignInProviderVariant.Secondary,
+                // Gated on consent like the button above it. Restoring signs you in, so letting it
+                // through while the policy is declined meant the tick governed one of three ways
+                // into the same account.
+                enabled = !isWorking && policyAccepted,
+                contentDescription = stringResource(R.string.onboarding_recovery_icon_description),
+                modifier = buttonModifier.testTag("onboarding_restore"),
+            )
+        }
+
+        // Stacked, always. Side by side was tried and abandoned: "Continue with Pubky Ring" and
+        // "Use a recovery phrase or file" do not fit in half a panel at any width this layout can
+        // spare from the hero, and they truncated to "Continue with Pubky" / "Use a recovery" —
+        // which is worse than a scroll, because a clipped label reads as the whole label.
+        ringButton(Modifier)
+        restoreButton(Modifier)
         Text(
             text = stringResource(R.string.onboarding_no_email_notice),
             color = colors.foregroundMuted,
@@ -495,15 +554,21 @@ private fun CtaBlock(
                 textAlign = TextAlign.Center,
             )
         }
-        // The second entry point: signing in assumes an account already exists, and on a
-        // token-gated homeserver most new users do not have one. Deliberately never disabled — the
-        // signup flow behind it is where a missing Pubky Ring is handled, so a dead-end here is
-        // the one thing that leaves a new user with nowhere to go.
+        // Signing up, not signing in — a different intent, so it keeps the text-link treatment
+        // that sign-in screens conventionally give it rather than becoming a third button in the
+        // set above.
+        //
+        // Gated like the two buttons above it. This used to be deliberately always-live, on the
+        // reasoning that a dead end here leaves a new user nowhere to go — but every one of these
+        // three ends in an account, and a consent that governs one of three doors is not a consent.
+        // The way out of the dead end is the tick itself, which starts ticked and sits directly
+        // below.
         TextButton(
             onClick = onCreatePubky,
+            enabled = policyAccepted,
             modifier = Modifier.testTag("onboarding_create_pubky"),
-            // Purple rather than the brand orange: the primary button directly above it is orange,
-            // and two orange calls to action stacked read as one control with a stray second line.
+            // Purple rather than the brand orange: the primary button above is orange, and two
+            // orange calls to action read as one control with a stray second line.
             colors = ButtonDefaults.textButtonColors(contentColor = colors.accentSecondary),
         ) {
             Text(
@@ -519,9 +584,12 @@ private fun CtaBlock(
  * The consent gate on sign-in.
  *
  * Google Play requires the privacy policy to be agreed to at the point an account is created, so it
- * is stated on this screen rather than behind a link somewhere in Settings, and un-ticking it
- * blocks sign-in. It starts ticked; the create-account path stays live either way, since the flow
- * behind it asks again before anything is created.
+ * is stated on this screen rather than behind a link somewhere in Settings.
+ *
+ * Un-ticking it blocks **all three** ways in — Pubky Ring, restore, and create-account — because
+ * all three end in an account and a gate on one of three doors is decoration. It starts ticked, so
+ * the state where nothing on the screen works is one the user chose and can undo in one tap,
+ * directly beneath the controls it disabled.
  *
  * The two document names inside the sentence are real links. They are located by [indexOf] rather
  * than assembled from fragments so a translation can put them wherever its grammar wants; a name
@@ -654,6 +722,7 @@ private fun OnboardingContentPreview() {
             state = OnboardingUiState.Idle,
             onSignInClick = {},
             onCreatePubky = {},
+            onRestore = {},
             onOpenRingHere = {},
             onCancelSignIn = {},
         )

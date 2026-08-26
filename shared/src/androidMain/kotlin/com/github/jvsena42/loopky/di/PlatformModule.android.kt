@@ -8,12 +8,14 @@ import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.AndroidPubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.storage.AndroidAppPreferences
+import com.github.jvsena42.loopky.data.storage.AndroidLocalKeyStore
 import com.github.jvsena42.loopky.data.storage.AndroidPendingReviewStore
 import com.github.jvsena42.loopky.data.storage.AndroidSecureSessionStore
 import com.github.jvsena42.loopky.data.storage.AndroidSignupTokenStore
 import com.github.jvsena42.loopky.data.storage.AndroidStudyProgressStore
 import com.github.jvsena42.loopky.data.storage.AndroidUnsplashKeyStore
 import com.github.jvsena42.loopky.data.storage.AppPreferences
+import com.github.jvsena42.loopky.data.storage.LocalKeyStore
 import com.github.jvsena42.loopky.data.storage.PendingReviewStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
@@ -54,6 +56,7 @@ fun androidPlatformModule(
     single<StudyProgressStore> { AndroidStudyProgressStore(androidContext()) }
     single<UnsplashKeyStore> { AndroidUnsplashKeyStore(androidContext()) }
     single<SignupTokenStore> { AndroidSignupTokenStore(androidContext()) }
+    single<LocalKeyStore> { AndroidLocalKeyStore(androidContext()) }
     single<Speaker> { AndroidSpeaker(androidContext()) }
     single<MediaProcessor> { AndroidMediaProcessor() }
     single<SpeechRecognizer> { AndroidSpeechRecognizer(androidContext()) }

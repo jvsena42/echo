@@ -1,27 +1,48 @@
 package com.github.jvsena42.loopky.data.repository.impl
 
+import com.github.jvsena42.loopky.data.pubky.MintedKeypair
 import com.github.jvsena42.loopky.data.pubky.MutableSessionProvider
 import com.github.jvsena42.loopky.data.pubky.ProfileDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.asSignupUrl
+import com.github.jvsena42.loopky.data.pubky.isNoHomeserverRecord
+import com.github.jvsena42.loopky.data.pubky.keypairFromMnemonic
+import com.github.jvsena42.loopky.data.pubky.keypairFromSecretKey
+import com.github.jvsena42.loopky.data.pubky.mintValidatedKeypair
 import com.github.jvsena42.loopky.data.pubky.parseSessionPayload
 import com.github.jvsena42.loopky.data.pubky.redactAuthUrl
 import com.github.jvsena42.loopky.data.pubky.redactSessionPayload
 import com.github.jvsena42.loopky.data.pubky.toDomain
+import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
+import com.github.jvsena42.loopky.data.storage.KeyOrigin
+import com.github.jvsena42.loopky.data.storage.LocalKey
+import com.github.jvsena42.loopky.data.storage.LocalKeyStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.domain.model.BackupMethod
+import com.github.jvsena42.loopky.domain.model.HomeserverLookup
+import com.github.jvsena42.loopky.domain.model.KeyCustody
+import com.github.jvsena42.loopky.domain.model.KeySource
+import com.github.jvsena42.loopky.domain.model.LocalAccount
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Session
+import com.github.jvsena42.loopky.domain.model.UnbackedUpLocalKey
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.encodeUriComponent
 import com.github.jvsena42.loopky.util.runSuspendCatching
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * [IdentityRepository] backed by [PubkyClient] and [SecureSessionStore].
@@ -30,7 +51,7 @@ import kotlinx.coroutines.sync.withLock
  * opens the URL in Pubky Ring, then [AuthFlowHandle.complete] blocks on `awaitAuthApproval` and
  * finalises the session.
  */
-class IdentityRepositoryImpl(
+internal class IdentityRepositoryImpl(
     private val pubky: PubkyClient,
     private val sessionStore: SecureSessionStore,
     private val sessionProvider: MutableSessionProvider,
@@ -42,7 +63,18 @@ class IdentityRepositoryImpl(
      * cycle to create.
      */
     private val eraser: AccountEraser,
+    private val localKeyStore: LocalKeyStore,
+    /**
+     * Fire-and-forget cleanup that has to outlive its caller — see [discardUnregisteredKey].
+     *
+     * Injectable, because a hardcoded scope is invisible to `runTest`: the one thing it runs is a
+     * *deletion*, and a test that cannot await it cannot tell "did not delete" from "has not
+     * deleted yet". Same pattern as `DeckRepositoryImpl`.
+     */
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob()),
 ) : IdentityRepository {
+
+    override val keyCustody: Flow<KeyCustody> = localKeyStore.custody
 
     override suspend fun currentSession(): Session? = sessionProvider.current()
 
@@ -53,17 +85,26 @@ class IdentityRepositoryImpl(
         return persisted
     }
 
-    override suspend fun signIn(): Result<Session> {
-        val handle = beginSignIn().getOrElse { return Result.failure(it) }
-        return handle.complete()
-    }
+    override suspend fun signOut(force: Boolean): Result<Unit> = runSuspendCatching {
+        // Refused rather than warned-about-in-the-dialog, so no future caller can sign out
+        // silently and take the only copy of an identity with it. The UI catches this, raises a
+        // confirm, and calls back with force = true.
+        val held = localKeyStore.current()
+        if (!force && held != null && held.backedUpBy.isEmpty()) {
+            throw UnbackedUpLocalKey(held.pubky)
+        }
 
-    override suspend fun signOut(): Result<Unit> = runSuspendCatching {
         val current = sessionProvider.current()
         if (current != null) {
             pubky.signOut(current.sessionSecret)
         }
         sessionStore.clear()
+        // The key goes with the session: a signed-out device holding a secret key is a credential
+        // nobody is watching. Safe to do unguarded *today* because the only keys that exist are
+        // restored ones, and their owner demonstrably holds the phrase or file they restored from.
+        // Minting a key here (#147 phase 3) introduces the first key nobody has a copy of, and
+        // that is what the sign-out confirm is for — it arrives with the code that creates the risk.
+        localKeyStore.clear()
         sessionProvider.set(null)
         selfTaggedThisProcess = false
         profileCacheLock.withLock { profileCache.clear() }
@@ -122,32 +163,266 @@ class IdentityRepositoryImpl(
 
             val session = parseSessionPayload(sessionJson, loopkyJson)
             Log.d(TAG, "complete: parsed session pubky=${session.identity.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
-            sessionStore.save(session)
-            sessionProvider.set(session)
-            Log.d(TAG, "complete: session saved")
-
-            selfTagAsLoopkyUser(session)
-
-            // Best-effort profile fetch — don't fail sign-in if this fails
-            val profile = runSuspendCatching { fetchProfile(session.identity.pubky).getOrNull() }.getOrNull()
-            if (profile != null && (profile.displayName != null || profile.bio != null)) {
-                val enriched = session.copy(
-                    identity = session.identity.copy(
-                        displayName = profile.displayName,
-                        avatarUrl = profile.avatarUrl,
-                        bio = profile.bio,
-                    ),
-                )
-                sessionStore.save(enriched)
-                sessionProvider.set(enriched)
-                Log.d(TAG, "complete: session enriched with profile")
-                return@runSuspendCatching enriched
-            }
-
-            session
+            // Shared with the local-key paths on purpose: everything after "we have a session" is
+            // identical, and letting the two drift is how one of them stops self-tagging and
+            // quietly falls out of the only global directory Loopky has.
+            persistSession(session).also { Log.d(TAG, "complete: session saved") }
         }.onFailure {
             Log.e(TAG, "complete: FAILED — ${it::class.simpleName}: ${it.message}", it)
         }
+    }
+
+    // --- Local keys ------------------------------------------------------------
+
+    override suspend fun derivePubky(source: KeySource): Result<String> =
+        deriveKeypair(source).map { it.pubky }
+
+    override suspend fun lookupHomeserver(pubky: String): HomeserverLookup {
+        Log.d(TAG, "lookupHomeserver: ${pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+        val result = runSuspendCatching { this.pubky.getHomeserver(pubky).getOrThrow() }
+        return result.fold(
+            onSuccess = { HomeserverLookup.Registered(it.trim()) },
+            onFailure = { error ->
+                // The FFI reports "this pubky published no homeserver record" and "the DHT did not
+                // answer" through the same call, and only the first is a fact about the key. The
+                // classifier ordering in toErrorReason is what keeps them apart.
+                if (error.isNoHomeserverRecord()) {
+                    Log.d(TAG, "lookupHomeserver: no record for this pubky")
+                    HomeserverLookup.NoRecord
+                } else {
+                    Log.w(TAG, "lookupHomeserver: could not check — ${error::class.simpleName}")
+                    HomeserverLookup.CouldNotCheck(error.toErrorReason())
+                }
+            },
+        )
+    }
+
+    override suspend fun signInWithKey(
+        source: KeySource,
+        knownHomeserver: String?,
+    ): Result<Session> = runSuspendCatching {
+        val keypair = deriveKeypair(source).getOrThrow()
+        Log.d(TAG, "signInWithKey: signing in as ${keypair.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+
+        val payload = pubky.signIn(keypair.secretKeyHex).getOrThrow()
+        val session = parseSessionPayload(payload, loopkyJson)
+
+        // The homeserver we actually landed on is not in the payload — the grant flow's session
+        // JSON carries no `homeserver` field at all, so parseSessionPayload defaults it to "".
+        // Resolving it here keeps Settings from showing "Unknown" for every restored account.
+        // Prefer what the caller already learned: on the restore path the pre-flight resolved this
+        // moments ago, and asking the DHT twice costs a second round trip on the critical path.
+        val resolved = session.homeserver.takeIf { it.isNotBlank() }
+            ?: knownHomeserver
+            ?: (lookupHomeserver(keypair.pubky) as? HomeserverLookup.Registered)?.homeserverPubky
+            ?: ""
+
+        // The key is persisted only once the homeserver has accepted it. Storing it earlier would
+        // leave a device holding a key for an account it could not sign into.
+        localKeyStore.save(
+            LocalKey(
+                secretKeyHex = keypair.secretKeyHex,
+                pubky = keypair.pubky,
+                mnemonic = keypair.mnemonic,
+                // A restored key is already backed up, and recording that is not a shortcut: the
+                // user just demonstrated they hold the phrase or the file by signing in with it.
+                // Nagging them to back up what they only just typed in would be describing a risk
+                // that does not exist. A *minted* key is the un-backed-up case.
+                backedUpBy = setOf(source.backupMethod()),
+                registered = true,
+                origin = KeyOrigin.Restored,
+            ),
+        )
+        persistSession(session.copy(homeserver = resolved))
+    }.onFailure {
+        // Never the message, and never the throwable: `toResult` wraps the FFI string
+        // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
+        Log.e(TAG, "signInWithKey: FAILED — ${it::class.simpleName}")
+    }
+
+    /**
+     * Derive a keypair from [source] off the caller's thread.
+     *
+     * The FFI's key calls are synchronous and un-dispatched, and a recovery file is Argon2id, so
+     * this hop is what keeps a ViewModel from running a key-derivation function on the main thread.
+     */
+    private suspend fun deriveKeypair(source: KeySource): Result<MintedKeypair> =
+        withContext(Dispatchers.Default) {
+            when (source) {
+                is KeySource.Phrase -> pubky.keypairFromMnemonic(source.mnemonic)
+                is KeySource.RecoveryFile ->
+                    pubky.decryptRecoveryFile(source.base64, source.passphrase)
+                        .mapCatching { pubky.keypairFromSecretKey(it.trim()).getOrThrow() }
+            }
+        }
+
+    override suspend fun createLocalAccount(
+        homeserverPubky: String,
+        signupToken: String,
+    ): Result<LocalAccount> = runSuspendCatching {
+        // **Reuses an unregistered key before minting one.** Three separate paths land here with a
+        // key already on the device and no account for it: a retry after a failed `signUp`, the
+        // "start over" that follows a refused token, and the unregistered-key screen sending a
+        // user through verification to get one. Minting unconditionally overwrote that key in all
+        // three — so the user confirmed "publish *this* pubky", got a different one, and the
+        // original was stranded with no way back to it.
+        //
+        // Only an *unregistered* key is reused. One that already has an account is somebody's
+        // working identity and must not be re-registered.
+        // **Only a key this flow minted.** Adopting a *restored* one meant "Create an account in
+        // Loopky" could silently register whatever phrase the user had typed on the restore screen
+        // earlier and abandoned — they ask for a new identity and get an old one, and if it came
+        // from a recovery file it has no mnemonic, so the phrase backup step vanishes too.
+        // Registering a restored key is a real thing to want; it goes through `registerHeldKey`,
+        // reached from the screen that shows the user which pubky they are registering.
+        val held = localKeyStore.current()?.takeIf { !it.registered && it.origin == KeyOrigin.Minted }
+
+        val account = if (held != null) {
+            Log.d(TAG, "createLocalAccount: registering the key already held")
+            LocalAccount(pubky = held.pubky, mnemonic = held.mnemonic.orEmpty())
+        } else {
+            // Minting validates the key against its own phrase before we ever see it; a failure
+            // here is terminal and is never retried with a weaker source.
+            val minted = withContext(Dispatchers.Default) { pubky.mintValidatedKeypair() }.getOrThrow()
+            val mnemonic = requireNotNull(minted.mnemonic) { "a minted keypair must carry its phrase" }
+
+            // Stored *before* signUp, and marked unregistered. If the registration fails halfway
+            // the key survives, and the next attempt finds it above rather than minting again.
+            localKeyStore.save(
+                LocalKey(
+                    secretKeyHex = minted.secretKeyHex,
+                    pubky = minted.pubky,
+                    mnemonic = mnemonic,
+                    registered = false,
+                    origin = KeyOrigin.Minted,
+                ),
+            )
+            LocalAccount(pubky = minted.pubky, mnemonic = mnemonic)
+        }
+
+        val secretKey = requireNotNull(localKeyStore.current()) { "the key was not stored" }.secretKeyHex
+        registerKey(secretKey, account.pubky, homeserverPubky, signupToken)
+        account
+    }.onFailure {
+        // Never the message, and never the throwable: `toResult` wraps the FFI string
+        // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
+        Log.e(TAG, "createLocalAccount: FAILED — ${it::class.simpleName}")
+    }
+
+    override suspend fun registerHeldKey(
+        homeserverPubky: String,
+        signupToken: String,
+    ): Result<Session> = runSuspendCatching {
+        val held = requireNotNull(localKeyStore.current()) { "No local key to register" }
+        check(!held.registered) { "This key already has an account" }
+        registerKey(held.secretKeyHex, held.pubky, homeserverPubky, signupToken)
+    }.onFailure {
+        // Never the message, and never the throwable: `toResult` wraps the FFI string
+        // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
+        Log.e(TAG, "registerHeldKey: FAILED — ${it::class.simpleName}")
+    }
+
+    /**
+     * `signUp` for [secretKeyHex], then verify the account we actually landed on.
+     *
+     * The assertion is not paranoia. A session coming back is not proof the token was spent on the
+     * key we meant: Architecture.md §7.8 records Pubky Ring quietly authorising a *different*
+     * already-signed-up pubky when its own signup fails. The same shape is possible here, and a
+     * pubky we did not set out to register is a failure to surface rather than a session to keep.
+     */
+    private suspend fun registerKey(
+        secretKeyHex: String,
+        expectedPubky: String,
+        homeserverPubky: String,
+        signupToken: String,
+    ): Session {
+        Log.d(TAG, "registerKey: registering ${expectedPubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+        val payload = pubky.signUp(secretKeyHex, homeserverPubky, signupToken).getOrThrow()
+        val session = parseSessionPayload(payload, loopkyJson)
+
+        check(session.identity.pubky == expectedPubky) {
+            "signUp returned a different pubky than the key we registered"
+        }
+
+        // Marked here, not after persistSession. The account exists the moment signUp returns for
+        // the right pubky; if the session save or the profile fetch below then throws, a key left
+        // reading `registered = false` would be re-registered on the next attempt — spending a
+        // second token on an account that already exists.
+        localKeyStore.markRegistered()
+
+        // The grant flow's session JSON has no `homeserver` field, so it is filled from the value
+        // we registered against rather than left blank for Settings to render as "Unknown".
+        return persistSession(session.copy(homeserver = session.homeserver.ifBlank { homeserverPubky }))
+    }
+
+    override suspend fun holdKeyForRegistration(source: KeySource): Result<String> =
+        runSuspendCatching {
+            val keypair = deriveKeypair(source).getOrThrow()
+            // Marked unregistered on purpose: this is a key whose pre-flight said no account
+            // exists. Without storing it, "Register this key" on the next screen has nothing to
+            // register and fails on a `requireNotNull` the user never caused.
+            localKeyStore.save(
+                LocalKey(
+                    secretKeyHex = keypair.secretKeyHex,
+                    pubky = keypair.pubky,
+                    mnemonic = keypair.mnemonic,
+                    backedUpBy = setOf(source.backupMethod()),
+                    registered = false,
+                    origin = KeyOrigin.Restored,
+                ),
+            )
+            keypair.pubky
+        }.onFailure {
+            // Never the message: the FFI echoes its input back in some error strings.
+            Log.e(TAG, "holdKeyForRegistration: FAILED — ${it::class.simpleName}")
+        }
+
+    override fun discardUnregisteredKey() {
+        // On this repository's own scope, because the caller's is already gone — see the interface.
+        scope.launch {
+            val held = localKeyStore.current() ?: return@launch
+            if (held.registered) return@launch
+            // Restored only. A minted key exists nowhere else on earth, so if its signup was
+            // interrupted the right answer is to let the user finish it, not to delete it behind
+            // their back. A restored one can be re-derived from what they already hold.
+            if (held.origin != KeyOrigin.Restored) return@launch
+            Log.d(TAG, "discardUnregisteredKey: dropping an unregistered restored key")
+            localKeyStore.clear()
+        }
+    }
+
+    /** What restoring from [this] proves the user already has a copy of. */
+    private fun KeySource.backupMethod(): BackupMethod = when (this) {
+        is KeySource.Phrase -> BackupMethod.RecoveryPhrase
+        is KeySource.RecoveryFile -> BackupMethod.EncryptedFile
+    }
+
+    /**
+     * Save a session, publish it, announce the account, and enrich it from the published profile.
+     *
+     * Extracted so the Ring path and the local-key paths cannot drift: everything after "we have a
+     * session" is identical, and duplicating it is how one of them ends up not self-tagging and
+     * quietly staying out of the only global directory Loopky has.
+     */
+    private suspend fun persistSession(session: Session): Session {
+        sessionStore.save(session)
+        sessionProvider.set(session)
+        selfTagAsLoopkyUser(session)
+
+        val profile = runSuspendCatching { fetchProfile(session.identity.pubky).getOrNull() }.getOrNull()
+        if (profile != null && (profile.displayName != null || profile.bio != null)) {
+            val enriched = session.copy(
+                identity = session.identity.copy(
+                    displayName = profile.displayName,
+                    avatarUrl = profile.avatarUrl,
+                    bio = profile.bio,
+                ),
+            )
+            sessionStore.save(enriched)
+            sessionProvider.set(enriched)
+            return enriched
+        }
+        return session
     }
 
     /**
@@ -255,7 +530,11 @@ class IdentityRepositoryImpl(
         // So a later sign-in on this same process announces the account again rather than
         // believing it already did.
         selfTaggedThisProcess = false
-        signOut().getOrThrow()
+        // Forced: the account's records are already gone, so refusing here would strand a
+        // half-deleted account behind a backup prompt. The confirm that matters happens before
+        // deletion starts — after the sweep, the phrase is the only thing that could ever reach
+        // this identity again.
+        signOut(force = true).getOrThrow()
         Log.d(TAG, "deleteAccount: done")
     }.onFailure {
         Log.e(TAG, "deleteAccount: FAILED — ${it::class.simpleName}: ${it.message}", it)

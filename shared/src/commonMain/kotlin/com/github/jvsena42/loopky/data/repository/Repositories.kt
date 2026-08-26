@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.data.homegate.LnInvoice
 import com.github.jvsena42.loopky.data.homegate.MethodAvailability
 import com.github.jvsena42.loopky.data.storage.PendingSignup
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
+import com.github.jvsena42.loopky.domain.model.BackupMethod
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
 import com.github.jvsena42.loopky.domain.model.Deck
@@ -13,7 +14,11 @@ import com.github.jvsena42.loopky.domain.model.DeckCounts
 import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
+import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.ImportDraft
+import com.github.jvsena42.loopky.domain.model.KeyCustody
+import com.github.jvsena42.loopky.domain.model.KeySource
+import com.github.jvsena42.loopky.domain.model.LocalAccount
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
@@ -33,8 +38,116 @@ import kotlinx.coroutines.flow.StateFlow
 interface IdentityRepository {
     suspend fun currentSession(): Session?
     suspend fun loadPersistedSession(): Session?
-    suspend fun signIn(): Result<Session>
-    suspend fun signOut(): Result<Unit>
+
+    /**
+     * Sign out, clearing the session **and** any key Loopky holds — a signed-out device holding a
+     * secret key is a credential nobody is watching.
+     *
+     * Fails with [UnbackedUpLocalKey] when the key has never been backed up, so the UI is forced
+     * to raise a confirm before destroying the only copy of an identity. Pass [force] once the
+     * user has said yes. Backed-up keys and Ring-held keys sign out with no prompt.
+     *
+     * The guard lives here rather than only in the dialog so no future caller can sign out
+     * silently and take an un-backed-up account with it.
+     */
+    suspend fun signOut(force: Boolean = false): Result<Unit>
+
+    /**
+     * Who holds the key for the account we are signed in as, and whether it has been backed up.
+     *
+     * Emits immediately, then on change. Carries no key material, so it is safe in a `UiState` —
+     * which is the point, because the backup nag, the export row and the sign-out warning all need
+     * this answer and none of them may see a secret.
+     */
+    val keyCustody: Flow<KeyCustody>
+
+    /**
+     * Derive the pubky for [source] without touching the network.
+     *
+     * Only the pubky comes back: the secret crosses this boundary in one direction, as part of
+     * [KeySource], and never comes out. Fails with an invalid-phrase error when the words are not
+     * BIP-39, or a decryption error when a recovery file's passphrase is wrong — both of which are
+     * honest verdicts, unlike the "no account" case, which this call cannot and must not reach.
+     */
+    suspend fun derivePubky(source: KeySource): Result<String>
+
+    /**
+     * Ask the DHT whether [pubky] has a homeserver account.
+     *
+     * **Call this on explicit submit only.** A lookup per completed phrase would make the restore
+     * screen an enumeration oracle for "does this pubky exist", and it costs a DHT round trip
+     * besides.
+     *
+     * Never throws for the answer "no account" — that is [HomeserverLookup.NoRecord], a value.
+     */
+    suspend fun lookupHomeserver(pubky: String): HomeserverLookup
+
+    /**
+     * Sign in with a key Loopky derives from [source], persisting both the key and the session.
+     *
+     * Deliberately does **not** run [lookupHomeserver] first. The caller owns that, because only
+     * the caller knows whether the user asked for this deliberately — and running it here would
+     * hide a DHT outage inside a sign-in failure, which is the confusion this whole path exists to
+     * end.
+     *
+     * @param knownHomeserver the answer a caller already has from its own [lookupHomeserver]. The
+     *   grant flow's session JSON carries no `homeserver` field, so without this the homeserver has
+     *   to be resolved again — a second DHT round trip, measured at ~3s on device, on the only path
+     *   back into the app for someone locked out.
+     */
+    suspend fun signInWithKey(source: KeySource, knownHomeserver: String? = null): Result<Session>
+
+    /**
+     * Mint a key inside the FFI, register it against [homeserverPubky] with [signupToken], and
+     * sign in — the local alternative to handing the token to Pubky Ring.
+     *
+     * Never falls back to weaker entropy: a key that fails its own round-trip validation is a
+     * terminal failure, and the screen offers Ring rather than trying again (see `KeyMinting`).
+     *
+     * The returned session's pubky is asserted to be the key we minted **before** this returns.
+     * A homeserver that answers about a different account is a failure to surface, not a session
+     * to accept.
+     */
+    suspend fun createLocalAccount(homeserverPubky: String, signupToken: String): Result<LocalAccount>
+
+    /**
+     * Register the key Loopky **already holds** — from a restore, or from a mint whose `signUp`
+     * failed after the key was stored.
+     *
+     * Never mints. That distinction is the whole point: Pubky Ring's signup deeplink hardcodes
+     * minting and keys reuse only on the signup token, so redeeming through it for a pubky the
+     * user already has silently registers a *different* identity and leaves theirs account-less
+     * forever. This registers exactly the key in hand, and asserts the pubky that comes back.
+     */
+    suspend fun registerHeldKey(homeserverPubky: String, signupToken: String): Result<Session>
+
+    /**
+     * Store the key [source] derives, marked as having no account, and return its pubky.
+     *
+     * Called when the pkarr pre-flight says a valid phrase belongs to no account. Without it
+     * [registerHeldKey] has nothing to register, and the "Register this key" button on the next
+     * screen fails on a missing key the user never caused.
+     */
+    suspend fun holdKeyForRegistration(source: KeySource): Result<String>
+
+    /**
+     * Drop a key held only so it could be registered, when the user walks away instead.
+     *
+     * **Only a restored key.** One that has an account is untouched, and one this app *minted* is
+     * untouched too — that key exists nowhere else, so an interrupted signup is something to let
+     * the user finish rather than something to clean up behind them. A restored key can always be
+     * re-derived from the phrase or file they still hold.
+     *
+     * Without this, abandoning the unregistered-key screen left a secret key and its mnemonic in
+     * the keystore with no session and no owner — and since custody is seeded from the vault at
+     * construction, every later launch reported `KeyCustody.Loopky` for that orphan and would have
+     * offered its recovery phrase to whoever signed in next.
+     *
+     * Fire-and-forget, and **not** a suspend function: its caller is a ViewModel's `onCleared`,
+     * which runs as the nav entry is destroyed and after `viewModelScope` is already cancelled, so
+     * a suspending version launched from there was measured never to run.
+     */
+    fun discardUnregisteredKey()
 
     /**
      * Two-step Pubky Ring sign-in that hands control of "open the deeplink" back to the caller
@@ -126,6 +239,67 @@ interface IdentityRepository {
 }
 
 /**
+ * Getting a locally-held key somewhere that survives losing this device.
+ *
+ * Separate from [IdentityRepository] because nothing here produces or consumes a [Session] — these
+ * are read-and-export operations over a key that already exists. Every one of them touches the
+ * secret, so nothing here logs and nothing returns key material that is not immediately destined
+ * for a `FLAG_SECURE` screen or the platform's own share/save sheet.
+ */
+interface KeyBackupRepository {
+
+    /** Who holds the key and what has been done about it. Carries no secret. */
+    val custody: Flow<KeyCustody>
+
+    /**
+     * The twelve words, for a screenshot-blocked screen.
+     *
+     * Fails when Loopky holds no key, or holds one restored from a recovery file — BIP-39 runs one
+     * way, so those genuinely have no phrase and the UI must not offer to show one.
+     */
+    suspend fun revealRecoveryPhrase(): Result<String>
+
+    /**
+     * A quiz over the phrase: a few positions, four candidates each, the right word among them.
+     *
+     * Derived fresh each time rather than stored, so the answers cannot be read out of anything.
+     */
+    suspend fun buildPhraseQuiz(): Result<PhraseQuiz>
+
+    /**
+     * An encrypted recovery file for [passphrase].
+     *
+     * Returns the FFI's Base64. The bytes written to disk must be the **decoded** form — that is
+     * what pubky-app writes as `recovery.pkarr` and what Pubky Ring reads — so the platform layer
+     * doing the saving owns that step.
+     */
+    suspend fun createRecoveryFile(passphrase: String): Result<RecoveryFileBlob>
+
+    /**
+     * A `pubkyring://` deeplink that imports this key into Pubky Ring.
+     *
+     * Never log this and never stage it in a clipboard: it carries the phrase in a URL, where
+     * recents snapshots and IME clipboard history can see it. Hand it straight to the OS.
+     */
+    suspend fun ringExportUrl(): Result<String>
+
+    /** Record that a method is done. Additive; having written the words down does not retire the file. */
+    suspend fun markBackedUp(method: BackupMethod)
+}
+
+/** One question in the confirm quiz: which word belongs at [position] (1-based, as displayed). */
+data class PhraseQuizQuestion(
+    val position: Int,
+    val options: List<String>,
+    val answer: String,
+)
+
+data class PhraseQuiz(val questions: List<PhraseQuizQuestion>)
+
+/** An encrypted recovery file, Base64 as the FFI returns it, plus the name to offer for it. */
+data class RecoveryFileBlob(val base64: String, val fileName: String)
+
+/**
  * How far a [DeckRepository.publish] has got. [chunksWritten] counts card chunks only; the
  * manifest write is reported by [done].
  */
@@ -145,6 +319,16 @@ data class PublishProgress(
         }
 }
 
+/**
+ * A Pubky Ring authorisation in flight.
+ *
+ * Two phases because an OS handoff sits between them: the URL goes out to another app, and the
+ * session comes back over the relay. **The local-key paths deliberately do not use this** —
+ * [IdentityRepository.signInWithKey] and friends have no deeplink and no relay poll, so an
+ * `authUrl` would be a required field with nothing to put in it. They are ordinary suspend
+ * functions returning a `Result<Session>`, and unifying the two shapes would only give the local
+ * path a field it has to lie about.
+ */
 interface AuthFlowHandle {
     val authUrl: String
     suspend fun complete(): Result<Session>
