@@ -573,6 +573,10 @@
     <string name="error_server_busy_message">Your homeserver is rate-limiting Loopky, so this couldn\'t be finished. Nothing is wrong with your connection — wait a moment and try again.</string>
     <string name="error_storage_full_title">Your Pubky storage is full</string>
     <string name="error_storage_full_message">There\'s no room left on your homeserver, so this couldn\'t be saved. Delete a deck you no longer study to free up space, or upgrade your Pubky plan for more.</string>
+    <!-- The pkarr/DHT lookup that decides whether a pubky has an account did not answer.
+         Never a verdict on what was looked up: it must always read as "we don't know yet". -->
+    <string name="error_lookup_failed_title">We couldn\'t check that</string>
+    <string name="error_lookup_failed_message">We couldn\'t reach the Pubky network to look this up, so we don\'t know yet. This often means a network that blocks peer-to-peer traffic. Try again, or switch to a different Wi-Fi or mobile data.</string>
     <string name="error_generic_title">Something went wrong</string>
     <string name="error_generic_message">Something went wrong. Please try again.</string>
     <string name="home_caught_up_title">You\'re all caught up</string>

@@ -47,6 +47,11 @@ enum ErrorCopy {
                 "Your Pubky storage is full",
                 comment: "Error title: homeserver storage quota exceeded"
             )
+        case .homeserverLookupFailed:
+            return NSLocalizedString(
+                "We couldn't check that",
+                comment: "Error title: pkarr/DHT lookup did not answer"
+            )
         default:
             return NSLocalizedString("Something went wrong", comment: "Error title: generic")
         }
@@ -120,6 +125,16 @@ enum ErrorCopy {
                     + "Delete a deck you no longer study to free up space, or upgrade your "
                     + "Pubky plan for more.",
                 comment: "Error message: homeserver storage quota exceeded"
+            )
+        case .homeserverLookupFailed:
+            // Never a verdict. This is the lookup that decides whether a recovery phrase belongs
+            // to an account, and it failing means we do not know — saying anything about the
+            // phrase here would be a guess presented as an answer.
+            return NSLocalizedString(
+                "We couldn't reach the Pubky network to look this up, so we don't know yet. "
+                    + "This often means a network that blocks peer-to-peer traffic. Try again, "
+                    + "or switch to a different Wi-Fi or mobile data.",
+                comment: "Error message: pkarr/DHT lookup did not answer"
             )
         default:
             return NSLocalizedString(

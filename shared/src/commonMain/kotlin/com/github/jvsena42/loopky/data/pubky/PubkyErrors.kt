@@ -15,6 +15,24 @@ internal fun Throwable.isNotFound(): Boolean {
 }
 
 /**
+ * `get_homeserver` answered `Ok(None)`: this pubky has published no homeserver record, so it has
+ * never had an account anywhere. The fork turns that into an *error* carrying this exact wording
+ * (`pubky-core-ffi-fork/src/lib.rs`, `get_homeserver`), which is why it needs classifying at all.
+ *
+ * Deliberately ordered **ahead of** [isNetworkFailure] in [toErrorReason], and that is not
+ * tidiness. The `Err(...)` arm of the same FFI call reports a DHT failure as
+ * `"Failed to get homeserver: ... failed to resolve ..."`, and `"failed to resolve"` is in
+ * [isNetworkFailure]'s list. Letting the transport classifier win would answer "you're offline"
+ * for a phrase that simply belongs to no account — a verdict on the user's connection when we
+ * have the real answer in hand (#147).
+ *
+ * Safe this early because the string comes from one call site in the fork: no deck, card or
+ * profile read can produce it, so it cannot swallow an ordinary not-found.
+ */
+internal fun Throwable.isNoHomeserverRecord(): Boolean =
+    message?.lowercase()?.contains("no homeserver found") == true
+
+/**
  * The request never reached the homeserver: no connectivity, DNS failure, TLS problem or
  * timeout. Distinct from a homeserver that answered with an error, and the difference matters
  * — Pubky is the only source of truth, so "we couldn't reach it" must never be rendered as
@@ -78,6 +96,10 @@ private val STATUS_507 = Regex("(?<![0-9a-z])507(?![0-9a-z])")
  */
 fun Throwable.toErrorReason(): ErrorReason = when {
     isSessionExpired() -> ErrorReason.SessionExpired
+    // Second, and ahead of every transport classifier: the FFI reports "this pubky has no
+    // homeserver record" and "the DHT did not answer" through the same call, and only the first
+    // is a fact about the user's key. See the note on isNoHomeserverRecord.
+    isNoHomeserverRecord() -> ErrorReason.NoHomeserverAccount
     // Checked ahead of the transient classifiers on purpose. Nothing they match collides with the
     // 507 body *today*, but "quota" is the word a future bandwidth limit will also reach for, and
     // reading a full disk as "the server is busy" would retry against it forever.
