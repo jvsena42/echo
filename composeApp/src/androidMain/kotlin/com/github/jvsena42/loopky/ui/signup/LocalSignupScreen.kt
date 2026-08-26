@@ -23,6 +23,7 @@ import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 /**
  * Redeem the signup token in Loopky: mint a key here, register it, sign in.
@@ -32,11 +33,16 @@ import org.koin.compose.viewmodel.koinViewModel
  */
 @Composable
 fun LocalSignupRoute(
+    registerHeldKey: Boolean,
     onBack: () -> Unit,
     onCreated: () -> Unit,
     onStartOver: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: LocalSignupViewModel = koinViewModel(),
+    // Keyed on the intent so the two entry points cannot share a ViewModel that already decided
+    // whether to mint.
+    viewModel: LocalSignupViewModel = koinViewModel(key = "local-signup-$registerHeldKey") {
+        parametersOf(registerHeldKey)
+    },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentOnCreated by rememberUpdatedState(onCreated)

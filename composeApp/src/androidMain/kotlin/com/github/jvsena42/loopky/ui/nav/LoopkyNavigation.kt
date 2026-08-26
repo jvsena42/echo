@@ -352,9 +352,12 @@ internal fun LoopkyNavHost(
 private fun NavHostController.navigateToRedemption() {
     val entry = currentBackStack.value.firstOrNull { it.destination.route == Routes.SIGNUP_START }
     val redeemer = TokenRedeemer.fromNameOrRing(entry?.arguments?.getString("with"))
+    // Carried from the door the user came through, so the terminal step knows whether it is
+    // registering a key they confirmed or minting a new one.
+    val adoptHeldKey = entry?.arguments?.getString("adopt").toBoolean()
     val target = when (redeemer) {
         TokenRedeemer.PubkyRing -> Routes.SIGNUP_HANDOFF
-        TokenRedeemer.Loopky -> Routes.SIGNUP_LOCAL
+        TokenRedeemer.Loopky -> Routes.signupLocal(adoptHeldKey = adoptHeldKey)
     }
     navigateTo(target)
 }
@@ -454,7 +457,11 @@ private fun NavGraphBuilder.unregisteredKeyDestination(navController: NavHostCon
             // carries no secret either way.
             custody = if (loopkyHolds) KeyCustody.Loopky(pubky = pubky) else KeyCustody.External,
             onBack = { navController.popBackStack() },
-            onNeedsVerification = { navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky)) },
+            // `adopt`: the verification that follows must register *this* key, not mint a new
+            // one. The user has just confirmed this pubky by name.
+            onNeedsVerification = {
+                navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky, adoptHeldKey = true))
+            },
             onRegistered = {
                 navController.navigateTo(Routes.BACKUP_START) {
                     popUpTo(Routes.ONBOARDING) { inclusive = true }
@@ -517,6 +524,11 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
                 nullable = true
                 defaultValue = null
             },
+            navArgument("adopt") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = "false"
+            },
         ),
     ) { entry ->
         // Unknown values fall back to Ring — the recommended path — rather than silently choosing
@@ -535,8 +547,18 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
             },
         )
     }
-    composable(Routes.SIGNUP_LOCAL) {
+    composable(
+        route = Routes.SIGNUP_LOCAL,
+        arguments = listOf(
+            navArgument("adopt") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = "false"
+            },
+        ),
+    ) { entry ->
         LocalSignupRoute(
+            registerHeldKey = entry.arguments?.getString("adopt").toBoolean(),
             onBack = { navController.popBackStack() },
             onStartOver = {
                 navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky)) {

@@ -104,6 +104,15 @@ internal data class LocalKey(
      * ends up with a second identity while their first is stranded.
      */
     val registered: Boolean = true,
+    /**
+     * Where this key came from, which decides whether anything may adopt it.
+     *
+     * A [KeyOrigin.Minted] key exists nowhere else, so it must be finished rather than abandoned.
+     * A [KeyOrigin.Restored] one can always be re-derived from the phrase or file the user holds,
+     * which is what makes it safe to discard — and unsafe to silently adopt into a signup the user
+     * started by asking for a *new* account.
+     */
+    val origin: KeyOrigin = KeyOrigin.Minted,
 ) {
     fun toCustody(): KeyCustody.Loopky = KeyCustody.Loopky(
         pubky = pubky,
@@ -111,5 +120,9 @@ internal data class LocalKey(
         hasPhrase = mnemonic != null,
     )
 }
+
+/** How a held key came to be here. */
+@Serializable
+internal enum class KeyOrigin { Minted, Restored }
 
 internal const val LOCAL_KEY_STORAGE_KEY = "identity.key.v1"

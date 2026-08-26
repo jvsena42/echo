@@ -129,10 +129,23 @@ class UnregisteredKeyViewModel(
     }
 
     /**
-     * True once the key is on a path that will register it — either it just was, or the user is on
-     * their way through verification, which ends in registering this same pubky.
+     * True while the user is on a path that will register this key.
+     *
+     * **Reset by [onReturned].** As a one-way latch this survived the user backing out of the
+     * verification flow and coming back — the entry stays alive, since that navigation carries no
+     * `popUpTo` — so leaving for good afterwards skipped the cleanup and orphaned the key anyway.
      */
     private var keyHasAFuture = false
+
+    /**
+     * The screen is in front of the user again.
+     *
+     * Whatever they set off towards last time, they are back here now and have not registered
+     * anything, so the key is once more only held on spec.
+     */
+    fun onReturned() {
+        keyHasAFuture = false
+    }
 
     /**
      * The user left without registering.

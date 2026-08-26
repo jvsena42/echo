@@ -237,12 +237,15 @@ internal fun identityRepository(
     preferences: AppPreferences = FakeAppPreferences(),
     unsplashKeyStore: UnsplashKeyStore = FakeUnsplashKeyStore(),
     localKeyStore: LocalKeyStore = FakeLocalKeyStore(),
+    /** Defaults to the caller's scope so `runTest` can await the fire-and-forget cleanup. */
+    scope: CoroutineScope = CoroutineScope(SupervisorJob()),
 ): IdentityRepositoryImpl = IdentityRepositoryImpl(
     pubky = pubky,
     sessionStore = sessionStore,
     sessionProvider = sessionProvider,
     tagRepository = tagRepository,
     localKeyStore = localKeyStore,
+    scope = scope,
     eraser = AccountEraser(
         pubky = pubky,
         session = sessionProvider,

@@ -159,7 +159,13 @@ val sharedModule = module {
             identityRepository = get(),
         )
     }
-    viewModel { LocalSignupViewModel(signupRepository = get(), identityRepository = get()) }
+    viewModel { params ->
+        LocalSignupViewModel(
+            signupRepository = get(),
+            identityRepository = get(),
+            registerHeldKey = params.getOrNull() ?: false,
+        )
+    }
     viewModel { BackupStartViewModel(keyBackup = get(), ringPresence = get()) }
     viewModel { BackupPhraseViewModel(keyBackup = get()) }
     viewModel { BackupQuizViewModel(keyBackup = get()) }

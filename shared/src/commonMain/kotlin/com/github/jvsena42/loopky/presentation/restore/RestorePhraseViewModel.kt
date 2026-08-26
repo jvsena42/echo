@@ -83,7 +83,15 @@ class RestorePhraseViewModel(
                 HomeserverLookup.NoRecord -> {
                     // Stored before routing onward: the next screen offers "Register this key",
                     // and it has nothing to register unless the key is actually held.
-                    identityRepository.holdKeyForRegistration(KeySource.Phrase(phrase))
+                    // If the keystore is unavailable the key cannot be held, and the next
+                    // screen's "Register this key" would die on a missing key the user never
+                    // caused. Say so here instead of routing them at a broken button.
+                    if (identityRepository.holdKeyForRegistration(KeySource.Phrase(phrase)).isFailure) {
+                        _state.update {
+                            it.copy(isChecking = false, outcome = RestoreOutcome.SignInFailed(ErrorReason.Unknown))
+                        }
+                        return@launch
+                    }
                     // Not a dead end: this key is valid and can be registered deliberately, which
                     // is what the unregistered-key screen is for. The outcome stays in state so
                     // coming back shows what happened rather than an empty form.
@@ -109,11 +117,11 @@ class RestorePhraseViewModel(
             }
             .onFailure { error ->
                 Log.e(TAG, "signIn: FAILED — ${error::class.simpleName}")
-                emitSignInFailure(error, pubky)
+                emitSignInFailure(error, phrase, pubky)
             }
     }
 
-    private suspend fun emitSignInFailure(error: Throwable, pubky: String) {
+    private suspend fun emitSignInFailure(error: Throwable, phrase: String, pubky: String) {
         val outcome = error.toRestoreOutcome(pubky)
         _state.update { it.copy(isChecking = false, outcome = outcome) }
         if (outcome is RestoreOutcome.NoAccount) {
@@ -121,7 +129,17 @@ class RestorePhraseViewModel(
             // actually takes for a pkarr record that outlived its account: the lookup answers
             // *Registered* and the homeserver then 404s at signin. Storing only on the other
             // branch left "Register this key" with nothing to register on the common case.
-            identityRepository.holdKeyForRegistration(KeySource.Phrase(_state.value.phrase))
+            // The phrase captured at submit, **not** `_state.value.phrase`. The field stays
+            // editable while the lookup and sign-in are in flight, so a user still fixing a typo
+            // would have had a key stored for the edited words while the next screen showed the
+            // pubky for the submitted ones — and "Register this key" would then spend the token on
+            // a pubky they never confirmed.
+            if (identityRepository.holdKeyForRegistration(KeySource.Phrase(phrase)).isFailure) {
+                _state.update {
+                    it.copy(isChecking = false, outcome = RestoreOutcome.SignInFailed(ErrorReason.Unknown))
+                }
+                return
+            }
             _effects.emit(RestoreEffect.NavigateUnregistered(pubky))
         }
     }
@@ -138,32 +156,21 @@ class RestorePhraseViewModel(
      * one mistyped word — and wiping the field first drops the user on a blank form to retype all
      * twelve.
      *
-     * Be precise about the cost: that screen can also push *forward* into verification, in which
-     * case the words outlive the hop and survive until this ViewModel's back-stack entry is
-     * destroyed. [onCleared] is that ceiling. The trade is a filled field on the one action the
-     * next screen recommends, against a longer in-memory lifetime on a path that ends in
-     * registering this same key anyway.
+     * **Be precise about the cost, because it is not one hop.** The unregistered screen can also
+     * push *forward* into verification, and this ViewModel lives as long as its nav back-stack
+     * entry — so on that path the words stay in memory through the whole SMS/Lightning flow until
+     * `popUpTo(ONBOARDING)` destroys the entry. An `onCleared` override was tried and removed: it
+     * fires at exactly that moment, by which point the state is already unreachable, so it bought
+     * nothing but the appearance of a bound.
+     *
+     * The trade being made is a filled field on the one action the next screen recommends, against
+     * that lifetime on a path that ends in registering this same key anyway. If the lifetime is
+     * judged too long, the fix is to clear on leaving *forward* — which needs the unregistered
+     * screen to say which way it went — not another hook at the same moment as the last one.
      */
     fun onLeave() {
         submitJob?.cancel()
         _state.update { RestorePhraseUiState() }
-    }
-
-    /**
-     * Last resort, and the honest bound on how long the twelve words survive.
-     *
-     * [onLeaveUnlessCorrecting] deliberately keeps them across the hop to the unregistered-key
-     * screen, so "Check my recovery phrase again" returns to a filled field rather than a blank
-     * one. But that screen can also push *forward* into verification, and this ViewModel is scoped
-     * to its nav back-stack entry — so without this the secret lived until `popUpTo(ONBOARDING)`
-     * finally destroyed the entry, which is minutes and a whole signup flow, not a hop.
-     *
-     * `onCleared` fires when that entry is destroyed either way. It is the ceiling, not the
-     * intent: the intent is [onLeaveUnlessCorrecting].
-     */
-    override fun onCleared() {
-        _state.update { RestorePhraseUiState() }
-        super.onCleared()
     }
 
     /** True while an outcome is on screen that the user is expected to come back and act on. */

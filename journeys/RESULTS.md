@@ -362,7 +362,7 @@ Driven on the Pixel_9 emulator against **staging**. Sign-out between runs via
 | One DHT lookup per attempt | PASSED — was two (~3s each); the pre-flight answer is now passed into sign-in |
 | Bitcoin-seed warning | PASSED — permanent inline block above the field, not dismissible |
 | Valid phrase with no account | PASSED — "This key has no account yet", derived pubky shown, "Check my recovery phrase again" ranked above "Register this key" |
-| Ring-missing → local route | PASSED — `signup_create_locally` unlocks every method with Ring **disabled**, and prices are quoted |
+| Ring-missing → local route | PASSED — `signup_create_locally_option` unlocks every method with Ring **disabled**, and prices are quoted |
 | Fiat quote | PASSED — `Pay ₿ 10 (≈ US$0.01) once` on staging |
 | Price test tags | FIXED — `signup_method_*_price` never existed; the tag was written as a literal `$testTag_price` |
 | Landscape onboarding | FIXED — the third button pushed the policy consent (which gates the primary button) off the bottom of the bounded two-pane panel, clipping in silence. The panel now scrolls |

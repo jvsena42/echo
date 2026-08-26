@@ -10,11 +10,15 @@ import com.github.jvsena42.loopky.testing.fakePubkyFor
 import com.github.jvsena42.loopky.testing.fakeSecretKeyFor
 import com.github.jvsena42.loopky.testing.identityRepository
 import com.github.jvsena42.loopky.testing.noHomeserverRecord
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -29,7 +33,13 @@ class IdentityRepositoryRegistrationTest {
     private val pubky = FakePubkyClient()
     private val keyStore = FakeLocalKeyStore()
 
-    private fun repository() = identityRepository(pubky = pubky, localKeyStore = keyStore)
+    // Unconfined, so the fire-and-forget cleanup runs the moment it is launched rather than
+    // waiting on a scheduler tick this test would then have to guess at.
+    private fun TestScope.repository() = identityRepository(
+        pubky = pubky,
+        localKeyStore = keyStore,
+        scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler)),
+    )
 
     @Test
     fun aMintedKeyIsStoredUnregisteredBeforeSignUpIsEvenAttempted() = runTest {
@@ -160,5 +170,57 @@ class IdentityRepositoryRegistrationTest {
         repo.createLocalAccount("homeserver-z32", "token-1").getOrThrow()
 
         assertTrue(assertNotNull(keyStore.current()).registered)
+    }
+
+    @Test
+    fun creatingAnAccountNeverAdoptsAKeyLeftBehindByAnAbandonedRestore() = runTest {
+        // "Create an account in Loopky" means a new identity. Adopting whatever unregistered key
+        // happened to be on the device meant a user who had earlier restored a phrase with no
+        // account, and walked away, got *that* identity instead — and if it came from a recovery
+        // file it carries no mnemonic, so the phrase backup step silently disappears too.
+        pubky.defaultHomeserverLookup = Result.failure(noHomeserverRecord())
+        val repo = repository()
+        repo.holdKeyForRegistration(KeySource.Phrase(VALID_TEST_MNEMONIC)).getOrThrow()
+        val restored = assertNotNull(keyStore.current()).pubky
+        // The fake's RNG is deterministic, so the fresh mint is spelled out.
+        pubky.mintedMnemonic = SECOND_TEST_MNEMONIC
+
+        val created = repo.createLocalAccount("homeserver-z32", "token-1").getOrThrow()
+
+        assertTrue(created.pubky != restored, "a new account must not adopt a restored key")
+        assertTrue(created.mnemonic.isNotEmpty(), "a minted account must carry its phrase")
+    }
+
+    @Test
+    fun aRestoredKeyIsStillRegisterableDeliberatelyThroughRegisterHeldKey() = runTest {
+        // The other half: adopting a restored key is a real thing to want — it is just something
+        // the user confirms by name on the unregistered screen, not something inferred.
+        pubky.defaultHomeserverLookup = Result.failure(noHomeserverRecord())
+        val repo = repository()
+        repo.holdKeyForRegistration(KeySource.Phrase(VALID_TEST_MNEMONIC)).getOrThrow()
+        val restored = assertNotNull(keyStore.current()).pubky
+
+        val session = repo.registerHeldKey("homeserver-z32", "token-1").getOrThrow()
+
+        assertEquals(restored, session.identity.pubky)
+    }
+
+    @Test
+    fun discardingDropsARestoredKeyAndSparesAMintedOne() = runTest {
+        // A minted key exists nowhere else, so an interrupted signup is something to let the user
+        // finish rather than clean up behind them. A restored one can be retyped.
+        pubky.defaultHomeserverLookup = Result.failure(noHomeserverRecord())
+        val repo = repository()
+        repo.holdKeyForRegistration(KeySource.Phrase(VALID_TEST_MNEMONIC)).getOrThrow()
+
+        repo.discardUnregisteredKey()
+        assertNull(keyStore.current(), "an unregistered restored key is dropped")
+
+        pubky.signUpFailure = PubkyError("signup failure: 500")
+        repo.createLocalAccount("homeserver-z32", "token-1")
+        assertNotNull(keyStore.current(), "the minted key survives its failed signup")
+
+        repo.discardUnregisteredKey()
+        assertNotNull(keyStore.current(), "and is never discarded, because nothing else holds it")
     }
 }

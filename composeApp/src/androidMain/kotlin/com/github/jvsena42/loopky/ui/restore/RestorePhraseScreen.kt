@@ -35,7 +35,6 @@ import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
-import com.github.jvsena42.loopky.ui.util.NoAutofill
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -55,7 +54,6 @@ fun RestorePhraseRoute(
     // Blocks screenshots and screen recording while a recovery phrase is on screen. Release builds
     // only, so android-cli journeys can still capture this screen.
     SecureScreen()
-    NoAutofill()
 
     // The words must not outlive the screen: a StateFlow lives as long as the ViewModel, so
     // without this they stay in memory — and in any heap dump — after the user has navigated away.
@@ -109,6 +107,10 @@ private fun RestorePhraseScreen(
             value = state.phrase,
             onValueChange = onPhraseChange,
             modifier = Modifier.fillMaxWidth().testTag("restore_phrase_input"),
+            // Locked while the DHT lookup and sign-in are in flight. Editable, the field let a
+            // user keep fixing a typo during the round trip, so the words that got checked and the
+            // words on screen could differ — and everything downstream keys off the submitted ones.
+            enabled = !state.isChecking,
             placeholder = {
                 Text(text = stringResource(R.string.restore_phrase_placeholder), color = colors.foregroundMuted)
             },

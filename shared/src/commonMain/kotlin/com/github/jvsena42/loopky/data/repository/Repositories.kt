@@ -133,19 +133,19 @@ interface IdentityRepository {
     /**
      * Drop a key held only so it could be registered, when the user walks away instead.
      *
-     * Never touches a key that has an account. Without this, abandoning the unregistered-key
-     * screen left a secret key and its mnemonic in the keystore with no session and no owner —
-     * and since custody is seeded from the vault at construction, every later launch reported
-     * `KeyCustody.Loopky` for that orphan, offering to reveal *its* recovery phrase to whoever
-     * signed in next.
-     */
-    /**
-     * Fire-and-forget on purpose, and **not** a suspend function.
+     * **Only a restored key.** One that has an account is untouched, and one this app *minted* is
+     * untouched too — that key exists nowhere else, so an interrupted signup is something to let
+     * the user finish rather than something to clean up behind them. A restored key can always be
+     * re-derived from the phrase or file they still hold.
      *
-     * Its only caller is a ViewModel's `onCleared`, which runs as the nav entry is destroyed — by
-     * which point `viewModelScope` is already cancelled, so a suspending version launched from
-     * there never ran and the orphan survived. Matches the fire-and-forget scope
-     * `DeckRepositoryImpl` and `SrsRepositoryImpl` already own.
+     * Without this, abandoning the unregistered-key screen left a secret key and its mnemonic in
+     * the keystore with no session and no owner — and since custody is seeded from the vault at
+     * construction, every later launch reported `KeyCustody.Loopky` for that orphan and would have
+     * offered its recovery phrase to whoever signed in next.
+     *
+     * Fire-and-forget, and **not** a suspend function: its caller is a ViewModel's `onCleared`,
+     * which runs as the nav entry is destroyed and after `viewModelScope` is already cancelled, so
+     * a suspending version launched from there was measured never to run.
      */
     fun discardUnregisteredKey()
 

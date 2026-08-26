@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.presentation.restore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.KeySource
 import com.github.jvsena42.loopky.util.Log
@@ -78,7 +79,12 @@ class RestoreFileViewModel(
                 HomeserverLookup.NoRecord -> {
                     // Stored before routing onward: the next screen offers "Register this key",
                     // and it has nothing to register unless the key is actually held.
-                    identityRepository.holdKeyForRegistration(source)
+                    if (identityRepository.holdKeyForRegistration(source).isFailure) {
+                        _state.update {
+                            it.copy(isChecking = false, outcome = RestoreOutcome.SignInFailed(ErrorReason.Unknown))
+                        }
+                        return@launch
+                    }
                     // Not a dead end: this key is valid and can be registered deliberately, which
                     // is what the unregistered-key screen is for. The outcome stays in state so
                     // coming back shows what happened rather than an empty form.
@@ -111,7 +117,12 @@ class RestoreFileViewModel(
                 if (outcome is RestoreOutcome.NoAccount) {
                     // Same gap as the phrase path: a 404 at signin is the common way here, and
                     // the key has to be held for the next screen to have anything to register.
-                    identityRepository.holdKeyForRegistration(source)
+                    if (identityRepository.holdKeyForRegistration(source).isFailure) {
+                        _state.update {
+                            it.copy(isChecking = false, outcome = RestoreOutcome.SignInFailed(ErrorReason.Unknown))
+                        }
+                        return@onFailure
+                    }
                     _effects.emit(RestoreEffect.NavigateUnregistered(pubky))
                 }
             }
@@ -121,23 +132,6 @@ class RestoreFileViewModel(
     fun onLeave() {
         submitJob?.cancel()
         _state.update { RestoreFileUiState() }
-    }
-
-    /**
-     * Last resort, and the honest bound on how long the passphrase and the encrypted file survive.
-     *
-     * [onLeaveUnlessCorrecting] deliberately keeps them across the hop to the unregistered-key
-     * screen, so "Check my recovery phrase again" returns to a filled field rather than a blank
-     * one. But that screen can also push *forward* into verification, and this ViewModel is scoped
-     * to its nav back-stack entry — so without this the secret lived until `popUpTo(ONBOARDING)`
-     * finally destroyed the entry, which is minutes and a whole signup flow, not a hop.
-     *
-     * `onCleared` fires when that entry is destroyed either way. It is the ceiling, not the
-     * intent: the intent is [onLeaveUnlessCorrecting].
-     */
-    override fun onCleared() {
-        _state.update { RestoreFileUiState() }
-        super.onCleared()
     }
 
     /**

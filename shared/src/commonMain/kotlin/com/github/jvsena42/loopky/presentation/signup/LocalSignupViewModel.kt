@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.storage.PendingSignup
+import com.github.jvsena42.loopky.domain.model.LocalAccount
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -38,6 +39,15 @@ import kotlinx.coroutines.launch
 class LocalSignupViewModel(
     private val signupRepository: SignupRepository,
     private val identityRepository: IdentityRepository,
+    /**
+     * Register the key already on the device instead of minting one.
+     *
+     * True only when the user arrived from the unregistered-key screen, which showed them the
+     * pubky and asked them to confirm it. Stated as an intent rather than inferred from what
+     * happens to be in the keystore: inferring it meant "Create an account in Loopky" could adopt
+     * a key left behind by an abandoned restore, and the user got an identity they never asked for.
+     */
+    private val registerHeldKey: Boolean = false,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LocalSignupUiState())
@@ -79,10 +89,17 @@ class LocalSignupViewModel(
                 return@launch
             }
 
-            val registration = identityRepository.createLocalAccount(
-                homeserverPubky = pending.homeserverPubky,
-                signupToken = pending.token,
-            )
+            val registration = if (registerHeldKey) {
+                identityRepository.registerHeldKey(
+                    homeserverPubky = pending.homeserverPubky,
+                    signupToken = pending.token,
+                ).map { LocalAccount(pubky = it.identity.pubky, mnemonic = "") }
+            } else {
+                identityRepository.createLocalAccount(
+                    homeserverPubky = pending.homeserverPubky,
+                    signupToken = pending.token,
+                )
+            }
 
             registration
                 .onSuccess { account ->

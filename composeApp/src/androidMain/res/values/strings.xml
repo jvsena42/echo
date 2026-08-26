@@ -613,7 +613,6 @@
     <string name="signup_local_retry">Try again</string>
     <string name="signup_ring_recommended_title">Pubky Ring is the safest place for your key</string>
     <string name="signup_ring_recommended_body">Pubky Ring keeps your key in a separate app, so signing in to Loopky never exposes it. Install it, or create your key in Loopky instead.</string>
-    <string name="signup_create_locally">Create the key in Loopky instead</string>
     <string name="backup_start_title">Back up your account</string>
     <string name="backup_start_subtitle">Your key lives only on this device. Save it somewhere you can reach if you lose your phone. You can also do this later.</string>
     <!-- For a key restored from a phrase or file: it IS already backed up, so telling the user to

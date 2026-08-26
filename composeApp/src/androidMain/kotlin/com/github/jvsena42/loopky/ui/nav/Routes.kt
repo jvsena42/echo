@@ -42,8 +42,8 @@ object Routes {
      * A nav argument rather than repository state because it is a property of *this journey*, and
      * the same three verification screens serve both spenders unchanged.
      */
-    const val SIGNUP_START = "signup?with={with}"
-    const val SIGNUP_LOCAL = "signup/local"
+    const val SIGNUP_START = "signup?with={with}&adopt={adopt}"
+    const val SIGNUP_LOCAL = "signup/local?adopt={adopt}"
     const val SIGNUP_PHONE = "signup/phone"
     const val SIGNUP_LIGHTNING = "signup/lightning"
     const val SIGNUP_INVITE = "signup/invite"
@@ -105,10 +105,15 @@ object Routes {
     fun triageEditCard(rowIndex: Int) = "import/triage/edit/$rowIndex"
 
     /** Signup for a given spender. Ring is the default and the recommendation. */
-    fun signupStart(redeemer: TokenRedeemer = TokenRedeemer.PubkyRing): String =
-        "signup?with=${redeemer.name.lowercase()}"
+    fun signupStart(
+        redeemer: TokenRedeemer = TokenRedeemer.PubkyRing,
+        adoptHeldKey: Boolean = false,
+    ): String = "signup?with=${redeemer.name.lowercase()}&adopt=$adoptHeldKey"
 
     /** [ACCOUNT_UNREGISTERED] for a pubky, saying whether Loopky can register it itself. */
     fun unregisteredKey(pubky: String, loopkyHoldsKey: Boolean): String =
         "account/unregistered/${Uri.encode(pubky)}?local=$loopkyHoldsKey"
+
+    /** Local redemption. [adoptHeldKey] registers the key already on the device rather than minting. */
+    fun signupLocal(adoptHeldKey: Boolean = false): String = "signup/local?adopt=$adoptHeldKey"
 }

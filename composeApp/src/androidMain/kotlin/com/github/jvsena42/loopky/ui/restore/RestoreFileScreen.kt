@@ -34,7 +34,6 @@ import com.github.jvsena42.loopky.ui.components.LoopkyOutlinedButton
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
-import com.github.jvsena42.loopky.ui.util.NoAutofill
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -56,7 +55,6 @@ fun RestoreFileRoute(
 
     // A passphrase is on screen, so the same capture block the phrase screen uses applies.
     SecureScreen()
-    NoAutofill()
 
     DisposableEffect(viewModel) {
         onDispose { viewModel.onLeaveUnlessCorrecting() }
@@ -128,6 +126,8 @@ private fun RestoreFileScreen(
                 value = state.passphrase,
                 onValueChange = onPassphraseChange,
                 modifier = Modifier.fillMaxWidth().testTag("restore_file_passphrase"),
+                // Locked while checking, for the same reason the phrase field is.
+                enabled = !state.isChecking,
                 placeholder = {
                     Text(
                         text = stringResource(R.string.restore_file_passphrase_placeholder),

@@ -18,6 +18,7 @@ import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
+import com.github.jvsena42.loopky.data.storage.KeyOrigin
 import com.github.jvsena42.loopky.data.storage.LocalKey
 import com.github.jvsena42.loopky.data.storage.LocalKeyStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
@@ -63,15 +64,15 @@ internal class IdentityRepositoryImpl(
      */
     private val eraser: AccountEraser,
     private val localKeyStore: LocalKeyStore,
-) : IdentityRepository {
-
     /**
-     * Fire-and-forget cleanup that has to outlive its caller.
+     * Fire-and-forget cleanup that has to outlive its caller — see [discardUnregisteredKey].
      *
-     * Not a constructor parameter: nothing needs to substitute it, and the one thing it runs —
-     * dropping an unregistered key — is asserted through the store rather than through the scope.
+     * Injectable, because a hardcoded scope is invisible to `runTest`: the one thing it runs is a
+     * *deletion*, and a test that cannot await it cannot tell "did not delete" from "has not
+     * deleted yet". Same pattern as `DeckRepositoryImpl`.
      */
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob())
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob()),
+) : IdentityRepository {
 
     override val keyCustody: Flow<KeyCustody> = localKeyStore.custody
 
@@ -229,6 +230,7 @@ internal class IdentityRepositoryImpl(
                 // that does not exist. A *minted* key is the un-backed-up case.
                 backedUpBy = setOf(source.backupMethod()),
                 registered = true,
+                origin = KeyOrigin.Restored,
             ),
         )
         persistSession(session.copy(homeserver = resolved))
@@ -267,7 +269,13 @@ internal class IdentityRepositoryImpl(
         //
         // Only an *unregistered* key is reused. One that already has an account is somebody's
         // working identity and must not be re-registered.
-        val held = localKeyStore.current()?.takeIf { !it.registered }
+        // **Only a key this flow minted.** Adopting a *restored* one meant "Create an account in
+        // Loopky" could silently register whatever phrase the user had typed on the restore screen
+        // earlier and abandoned — they ask for a new identity and get an old one, and if it came
+        // from a recovery file it has no mnemonic, so the phrase backup step vanishes too.
+        // Registering a restored key is a real thing to want; it goes through `registerHeldKey`,
+        // reached from the screen that shows the user which pubky they are registering.
+        val held = localKeyStore.current()?.takeIf { !it.registered && it.origin == KeyOrigin.Minted }
 
         val account = if (held != null) {
             Log.d(TAG, "createLocalAccount: registering the key already held")
@@ -286,6 +294,7 @@ internal class IdentityRepositoryImpl(
                     pubky = minted.pubky,
                     mnemonic = mnemonic,
                     registered = false,
+                    origin = KeyOrigin.Minted,
                 ),
             )
             LocalAccount(pubky = minted.pubky, mnemonic = mnemonic)
@@ -359,6 +368,7 @@ internal class IdentityRepositoryImpl(
                     mnemonic = keypair.mnemonic,
                     backedUpBy = setOf(source.backupMethod()),
                     registered = false,
+                    origin = KeyOrigin.Restored,
                 ),
             )
             keypair.pubky
@@ -372,7 +382,11 @@ internal class IdentityRepositoryImpl(
         scope.launch {
             val held = localKeyStore.current() ?: return@launch
             if (held.registered) return@launch
-            Log.d(TAG, "discardUnregisteredKey: dropping a key that was never registered")
+            // Restored only. A minted key exists nowhere else on earth, so if its signup was
+            // interrupted the right answer is to let the user finish it, not to delete it behind
+            // their back. A restored one can be re-derived from what they already hold.
+            if (held.origin != KeyOrigin.Restored) return@launch
+            Log.d(TAG, "discardUnregisteredKey: dropping an unregistered restored key")
             localKeyStore.clear()
         }
     }

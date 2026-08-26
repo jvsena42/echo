@@ -21,6 +21,10 @@ complexity:
       - '**/commonTest/**'
       - '**/androidUnitTest/**'
       - '**/testing/**'
+      # Seven injected collaborators, not a parameter-object smell: the widest repository in the
+      # app plus an injectable coroutine scope, which exists so a test can await a deletion that
+      # would otherwise be invisible to `runTest`.
+      - '**/data/repository/impl/IdentityRepositoryImpl.kt'
   LongMethod:
     active: true
     ignoreAnnotated: ['Composable', 'Preview']

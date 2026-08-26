@@ -19,7 +19,7 @@
     <action>Verify BOTH method cards read "Needs Pubky Ring" in place of a price — "signup_method_lightning_price" must NOT show a sats figure, because a figure could only have come from Homegate</action>
     <action>Verify logcat shows "load: Pubky Ring is not installed — not minting a token that cannot be spent", and no Homegate request</action>
 
-    <action>THE DOOR OUT (#147). Tap "signup_create_locally" — "Create the key in Loopky instead"</action>
+    <action>THE DOOR OUT (#147). Tap "signup_create_locally_option" — "Create an account in Loopky". It is offered whether or not Ring is installed, so this same tag is the local route in both states</action>
     <action>Verify the install block is GONE with Ring still disabled, and that "signup_method_lightning_price" now quotes sats — Homegate was asked, because this route can spend the token itself</action>
     <action>Verify the fiat figure appears beside the sats one, e.g. "Pay ₿ 10 (≈ US$0.01) once". If the rate lookup fails it must read "Pay ₿ 10 once" with no placeholder and no spinner, and the card must stay tappable either way</action>
     <action>Tap "signup_method_invite" and verify the screen moves — the local route has no Ring dependency to block on</action>

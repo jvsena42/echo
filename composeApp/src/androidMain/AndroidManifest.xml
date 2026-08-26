@@ -67,16 +67,20 @@
              sits mid-screen, and panning slides the card's own header off the top to make room
              for the keyboard. Resizing lets Modifier.imePadding() give up the space instead. -->
         <!-- No field in Loopky benefits from autofill, and four of them hold a recovery phrase,
-             a recovery-file passphrase or an API key. Focusing a Compose text field dispatches the
-             view structure to the device's autofill service — Google Password Manager on a stock
-             Play-services device — plus an augmented request to Android System Intelligence, and a
-             password input type is the strongest hint that a field is worth *saving*.
+             a recovery-file passphrase or an API key.
 
-             Set here rather than at runtime: `importantForAutofill` applied from a composable to
-             the host or decor view was measured (`dumpsys autofill`) not to suppress the request,
-             because Compose's own AndroidAutofillManager notifies the platform on focus regardless.
-             The manifest attribute is applied before the view tree exists, which is what the
-             framework consults. -->
+             This attribute is kept as a declaration of intent and because other autofill
+             implementations may honour it — but on Compose Multiplatform 1.10.3 it is **measured
+             to be inert**: focusing a Compose text field still dispatches the view structure to
+             the device's autofill service. `androidx.compose.ui.autofill.AndroidAutofillManager`
+             implements `FocusListener` and notifies the platform directly, independent of the view
+             flags the framework would otherwise consult, and CMP 1.10.3 exposes no per-node
+             opt-out (`contentType`, `contentDataType` and `fillableData` all *describe* a field;
+             none excludes one).
+
+             Do not read this line as protection. See PR #148 for the measurements and for the one
+             approach that would work: a classic `EditText` inside an `AndroidView`, which does
+             honour `importantForAutofill`. -->
         <activity
             android:exported="true"
             android:importantForAutofill="noExcludeDescendants"

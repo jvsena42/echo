@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.KeyCustody
@@ -65,6 +66,14 @@ fun UnregisteredKeyRoute(
     val currentOnVerify by rememberUpdatedState(onNeedsVerification)
     val currentOnRegistered by rememberUpdatedState(onRegistered)
     var confirming by remember { mutableStateOf(false) }
+
+    // Backing out of the verification flow lands here again; the key is then held on spec once
+    // more, so the "it has a future" flag must not still be set from the earlier tap.
+    val onReturned = viewModel::onReturned
+    LifecycleResumeEffect(onReturned) {
+        onReturned()
+        onPauseOrDispose { }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
