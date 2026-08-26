@@ -13,6 +13,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.github.jvsena42.loopky.data.pubky.PubkyLink
+import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
 import com.github.jvsena42.loopky.ui.backup.BackupFileRoute
@@ -23,6 +24,7 @@ import com.github.jvsena42.loopky.ui.backup.BackupStartRoute
 import com.github.jvsena42.loopky.ui.decks.DeckDetailRoute
 import com.github.jvsena42.loopky.ui.decks.DeckEditorRoute
 import com.github.jvsena42.loopky.ui.decks.EditCardRoute
+import com.github.jvsena42.loopky.ui.identity.UnregisteredKeyRoute
 import com.github.jvsena42.loopky.ui.importflow.BulkImportRoute
 import com.github.jvsena42.loopky.ui.importflow.PasteRoute
 import com.github.jvsena42.loopky.ui.importflow.PublishDeckRoute
@@ -87,6 +89,11 @@ internal fun LoopkyNavHost(
             OnboardingRoute(
                 onCreatePubky = { navController.navigateTo(Routes.signupStart()) },
                 onRestore = { navController.navigateTo(Routes.RESTORE_START) },
+                // Ring holds this key, so Loopky cannot register it — the screen offers the two
+                // routes that keep it rather than a button that would mint a different one.
+                onUnregistered = { pubky ->
+                    navController.navigateTo(Routes.unregisteredKey(pubky, loopkyHoldsKey = false))
+                },
                 onNavigateHome = {
                     navController.navigateTo(Routes.MAIN) {
                         popUpTo(Routes.ONBOARDING) { inclusive = true }
@@ -414,9 +421,49 @@ private fun NavGraphBuilder.restoreDestinations(navController: NavHostController
             onRestoreWithFile = { navController.navigateTo(Routes.RESTORE_FILE) },
         )
     }
+    unregisteredKeyDestination(navController)
+    restoreFileDestination(navController)
+}
+
+/** A valid key with no account, reachable from both the restore path and a Ring sign-in. */
+private fun NavGraphBuilder.unregisteredKeyDestination(navController: NavHostController) {
+    composable(
+        route = Routes.ACCOUNT_UNREGISTERED,
+        arguments = listOf(
+            navArgument("pubky") { type = NavType.StringType },
+            navArgument("local") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = "false"
+            },
+        ),
+    ) { entry ->
+        val pubky = entry.arguments?.getString("pubky").orEmpty()
+        val loopkyHolds = entry.arguments?.getString("local").toBoolean()
+        UnregisteredKeyRoute(
+            pubky = pubky,
+            // Only the pubky and "can we register it" cross the nav boundary; the custody object
+            // carries no secret either way.
+            custody = if (loopkyHolds) KeyCustody.Loopky(pubky = pubky) else KeyCustody.External,
+            onBack = { navController.popBackStack() },
+            onNeedsVerification = { navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky)) },
+            onRegistered = {
+                navController.navigateTo(Routes.BACKUP_START) {
+                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                }
+            },
+            onRestoreWithPhrase = { navController.navigateTo(Routes.RESTORE_PHRASE) },
+        )
+    }
+}
+
+private fun NavGraphBuilder.restoreFileDestination(navController: NavHostController) {
     composable(Routes.RESTORE_FILE) {
         RestoreFileRoute(
             onBack = { navController.popBackStack() },
+            onUnregistered = { pubky ->
+                navController.navigateTo(Routes.unregisteredKey(pubky, loopkyHoldsKey = true))
+            },
             onRestored = {
                 navController.navigateTo(Routes.MAIN) {
                     popUpTo(Routes.ONBOARDING) { inclusive = true }
@@ -427,6 +474,11 @@ private fun NavGraphBuilder.restoreDestinations(navController: NavHostController
     composable(Routes.RESTORE_PHRASE) {
         RestorePhraseRoute(
             onBack = { navController.popBackStack() },
+            // Loopky holds the key by the time this fires: derivation succeeded, so it can be
+            // registered here rather than needing Ring.
+            onUnregistered = { pubky ->
+                navController.navigateTo(Routes.unregisteredKey(pubky, loopkyHoldsKey = true))
+            },
             // The whole restore stack goes: coming "back" into it after signing in would offer to
             // restore an account the user is already using.
             onRestored = {

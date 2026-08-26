@@ -27,6 +27,27 @@ interface PubkyClient {
     fun decryptRecoveryFile(recoveryFile: String, passphrase: String): Result<String>
 
     // --- Auth / sessions ------------------------------------------------------
+
+    /**
+     * Sign up / sign in with a secret key Loopky holds — the local alternative to the Ring
+     * deeplink (#147).
+     *
+     * **Both bind to the FFI's cookie variants**, like [startAuthFlow] and for an overlapping
+     * reason. The fork's plain `sign_in`/`sign_up` delegate to the *grant* flow, and measured
+     * against Synonym's staging homeserver that flow fails: `export_grant_session_secret` writes
+     * outside `/pub/`, which the homeserver refuses with
+     * `403 Forbidden - Writing to directories other than '/pub/' is forbidden`. The cookie flow
+     * signs in cleanly and answers a pubky with no account with an honest 404.
+     *
+     * It is also what the rest of this client already expects: [signOut], [revalidateSession] and
+     * `put_with_session` take the `session_secret` the cookie flow returns, and every Ring session
+     * is a cookie session, so the local paths now produce the same kind of session as every other
+     * path in the app rather than a second kind.
+     *
+     * Revisit alongside #130 — upstream marks the cookie flow deprecated, so this is a hold rather
+     * than a destination, and the grant flow needs a homeserver that accepts it before it can be
+     * the answer here.
+     */
     suspend fun signUp(
         secretKey: String,
         homeserver: String,

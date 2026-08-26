@@ -33,6 +33,9 @@ object Routes {
     const val RESTORE_PHRASE = "restore/phrase"
     const val RESTORE_FILE = "restore/file"
 
+    /** A valid key with no account: `{pubky}`, plus who holds it. */
+    const val ACCOUNT_UNREGISTERED = "account/unregistered/{pubky}?local={local}"
+
     /**
      * Signup, parameterised by who will spend the token: `ring` (default) or `loopky`.
      *
@@ -104,4 +107,8 @@ object Routes {
     /** Signup for a given spender. Ring is the default and the recommendation. */
     fun signupStart(redeemer: TokenRedeemer = TokenRedeemer.PubkyRing): String =
         "signup?with=${redeemer.name.lowercase()}"
+
+    /** [ACCOUNT_UNREGISTERED] for a pubky, saying whether Loopky can register it itself. */
+    fun unregisteredKey(pubky: String, loopkyHoldsKey: Boolean): String =
+        "account/unregistered/${Uri.encode(pubky)}?local=$loopkyHoldsKey"
 }

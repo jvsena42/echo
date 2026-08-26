@@ -77,11 +77,15 @@ class RestorePhraseViewModel(
             }
 
             when (val lookup = identityRepository.lookupHomeserver(pubky)) {
-                is HomeserverLookup.Registered -> signIn(phrase, lookup.homeserverPubky)
+                is HomeserverLookup.Registered -> signIn(phrase, lookup.homeserverPubky, pubky)
 
                 // Valid words, no account. The pubky goes in the state so the screen can show it.
-                HomeserverLookup.NoRecord -> _state.update {
-                    it.copy(isChecking = false, outcome = RestoreOutcome.NoAccount(pubky))
+                HomeserverLookup.NoRecord -> {
+                    // Not a dead end: this key is valid and can be registered deliberately, which
+                    // is what the unregistered-key screen is for. The outcome stays in state so
+                    // coming back shows what happened rather than an empty form.
+                    _state.update { it.copy(isChecking = false, outcome = RestoreOutcome.NoAccount(pubky)) }
+                    _effects.emit(RestoreEffect.NavigateUnregistered(pubky))
                 }
 
                 is HomeserverLookup.CouldNotCheck -> _state.update {
@@ -91,7 +95,7 @@ class RestorePhraseViewModel(
         }
     }
 
-    private suspend fun signIn(phrase: String, homeserver: String) {
+    private suspend fun signIn(phrase: String, homeserver: String, pubky: String) {
         runSuspendCatching {
             identityRepository.signInWithKey(KeySource.Phrase(phrase), knownHomeserver = homeserver).getOrThrow()
         }
@@ -102,10 +106,16 @@ class RestorePhraseViewModel(
             }
             .onFailure { error ->
                 Log.e(TAG, "signIn: FAILED — ${error::class.simpleName}")
-                _state.update {
-                    it.copy(isChecking = false, outcome = RestoreOutcome.SignInFailed(error.toErrorReason()))
-                }
+                emitSignInFailure(error, pubky)
             }
+    }
+
+    private suspend fun emitSignInFailure(error: Throwable, pubky: String) {
+        val outcome = error.toRestoreOutcome(pubky)
+        _state.update { it.copy(isChecking = false, outcome = outcome) }
+        if (outcome is RestoreOutcome.NoAccount) {
+            _effects.emit(RestoreEffect.NavigateUnregistered(pubky))
+        }
     }
 
     /**
@@ -163,8 +173,35 @@ sealed interface RestoreOutcome {
     data object FileUnreadable : RestoreOutcome
 }
 
+/**
+ * Classify a sign-in failure on a restore path.
+ *
+ * **A 404 here means "no account for this pubky", not "not found".** The homeserver answers 404 at
+ * signin for a pubky it has never registered, and nothing else on this path is fetching a record —
+ * no deck, no profile — so a not-found is always the account. Without this remap the generic
+ * classifier renders `ErrorReason.NotFound`, whose copy is *"This deck no longer exists"*: deck
+ * copy, on a recovery-phrase screen, for someone who has no account. That is the exact confusion
+ * `NoHomeserverAccount` was added to end, and `OnboardingViewModel` carries the same remap for the
+ * same reason.
+ *
+ * It is also reachable in a state the pre-flight cannot rule out: a pkarr homeserver record can
+ * outlive the account it points at, so `getHomeserver` says *Registered* and the homeserver still
+ * 404s. Seen on staging.
+ */
+internal fun Throwable.toRestoreOutcome(pubky: String): RestoreOutcome =
+    when (val reason = toErrorReason()) {
+        ErrorReason.NotFound, ErrorReason.NoHomeserverAccount -> RestoreOutcome.NoAccount(pubky)
+        else -> RestoreOutcome.SignInFailed(reason)
+    }
+
 sealed interface RestoreEffect {
     data object NavigateHome : RestoreEffect
+
+    /**
+     * A valid key with no account. Carries the derived [pubky] so the next screen can show it —
+     * recognising it is not theirs is the fastest diagnosis the user can make.
+     */
+    data class NavigateUnregistered(val pubky: String) : RestoreEffect
 }
 
 private const val TAG = "Loopky/RestorePhraseVM"

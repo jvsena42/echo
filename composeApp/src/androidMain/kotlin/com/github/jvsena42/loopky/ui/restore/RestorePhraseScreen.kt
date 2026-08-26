@@ -42,11 +42,13 @@ import org.koin.compose.viewmodel.koinViewModel
 fun RestorePhraseRoute(
     onBack: () -> Unit,
     onRestored: () -> Unit,
+    onUnregistered: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RestorePhraseViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentOnRestored by rememberUpdatedState(onRestored)
+    val currentOnUnregistered by rememberUpdatedState(onUnregistered)
 
     // Blocks screenshots and screen recording while a recovery phrase is on screen. Release builds
     // only, so android-cli journeys can still capture this screen.
@@ -62,6 +64,7 @@ fun RestorePhraseRoute(
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 RestoreEffect.NavigateHome -> currentOnRestored()
+                is RestoreEffect.NavigateUnregistered -> currentOnUnregistered(effect.pubky)
             }
         }
     }

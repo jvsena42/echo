@@ -550,7 +550,11 @@
     <string name="error_not_found_title">Not found</string>
     <string name="error_not_found_message">This deck no longer exists. It may have been deleted.</string>
     <string name="error_no_account_title">Your Pubky isn\'t set up yet</string>
-    <string name="error_no_account_message">This Pubky doesn\'t have a homeserver account yet, so there\'s nowhere to keep your decks. Finish setting it up in Pubky Ring, then sign in again.</string>
+    <!-- Deliberately does NOT send the user back to Pubky Ring. Creating the account needs a
+         signup token, tokens come from Homegate, and Homegate lives in Loopky — Ring's only route
+         is its Edit-pubky sheet, which wants a homeserver z32 and a token the user does not have.
+         Pointing at Ring here points at the one app that cannot help. -->
+    <string name="error_no_account_message">This pubky doesn\'t have an account yet, so there\'s nowhere to keep your decks. Getting one takes a quick verification — Loopky can walk you through it.</string>
     <string name="error_not_signed_in_title">Not signed in</string>
     <string name="error_not_signed_in_message">Sign in with Pubky Ring to continue.</string>
     <string name="error_ring_not_installed_title">Pubky Ring not found</string>
@@ -643,6 +647,21 @@
     <string name="settings_signout_unbacked_body">Loopky holds the only copy of the key for %1$s, and you haven\'t backed it up. Signing out deletes it, and this account can never be recovered.</string>
     <string name="settings_signout_unbacked_confirm">Sign out and erase</string>
     <string name="settings_signout_unbacked_backup">Back up first</string>
+    <string name="unregistered_title">This key has no account yet</string>
+    <string name="unregistered_subtitle">The key is valid — there\'s just no Pubky account registered for it.</string>
+    <string name="unregistered_pubky_label">The key you presented:</string>
+    <string name="unregistered_check_phrase">Check my recovery phrase again</string>
+    <string name="unregistered_check_hint">A single mistyped or out-of-order word still passes the checksum and unlocks a different account. This is the most common reason to see this screen.</string>
+    <string name="unregistered_register">Register this key</string>
+    <!-- Says plainly what the button does, because it publishes a record to the DHT. -->
+    <string name="unregistered_register_hint">Creates an account for the key shown above, and publishes it publicly. Needs a quick verification if you haven\'t done one.</string>
+    <string name="unregistered_register_confirm_title">Register this key?</string>
+    <string name="unregistered_register_confirm_body">This publishes %1$s as a public identity on the Pubky network. Only do this for a key you created for Pubky — never for a Bitcoin or crypto wallet recovery phrase.</string>
+    <string name="unregistered_register_confirm_yes">Register it</string>
+    <string name="unregistered_register_confirm_cancel">Cancel</string>
+    <string name="unregistered_ring_title">Pubky Ring is holding this key</string>
+    <string name="unregistered_ring_body">Loopky can\'t register a key it doesn\'t hold. Ring can\'t create the account either — that needs a signup token, and those come from Loopky. Two routes keep your key: use Ring\'s Edit pubky sheet with a token from Loopky, or reveal the recovery phrase in Ring and restore it here.</string>
+    <string name="unregistered_ring_import">Restore with my recovery phrase</string>
     <string name="restore_method_file">Encrypted recovery file</string>
     <string name="restore_method_file_detail">A recovery.pkarr file and its passphrase.</string>
     <string name="restore_file_title">Open your recovery file</string>

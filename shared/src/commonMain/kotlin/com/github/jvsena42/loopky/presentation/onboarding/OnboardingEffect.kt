@@ -9,4 +9,13 @@ sealed interface OnboardingEffect {
 
     /** Onboarding complete — pop onboarding and navigate to the main app. */
     data object NavigateHome : OnboardingEffect
+
+    /**
+     * Ring authorised a pubky the homeserver has no account for.
+     *
+     * Its own destination rather than an error message, because the remedy is a flow: verify, then
+     * register *that* key. Ring cannot do it — creating the account needs a token from Homegate,
+     * and Homegate lives in Loopky.
+     */
+    data class NavigateUnregistered(val pubky: String) : OnboardingEffect
 }

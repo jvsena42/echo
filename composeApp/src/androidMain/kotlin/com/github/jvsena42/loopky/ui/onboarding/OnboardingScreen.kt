@@ -81,13 +81,19 @@ import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun OnboardingRoute(onNavigateHome: () -> Unit, onCreatePubky: () -> Unit, onRestore: () -> Unit) {
+fun OnboardingRoute(
+    onNavigateHome: () -> Unit,
+    onCreatePubky: () -> Unit,
+    onRestore: () -> Unit,
+    onUnregistered: (String) -> Unit,
+) {
     val viewModel = koinViewModel<OnboardingViewModel>()
     OnboardingScreen(
         viewModel = viewModel,
         onNavigateHome = onNavigateHome,
         onCreatePubky = onCreatePubky,
         onRestore = onRestore,
+        onUnregistered = onUnregistered,
     )
 }
 
@@ -97,10 +103,12 @@ fun OnboardingScreen(
     onNavigateHome: () -> Unit,
     onCreatePubky: () -> Unit,
     onRestore: () -> Unit,
+    onUnregistered: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentOnNavigateHome by rememberUpdatedState(onNavigateHome)
+    val currentOnUnregistered by rememberUpdatedState(onUnregistered)
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -129,6 +137,7 @@ fun OnboardingScreen(
                     }
                 }
                 OnboardingEffect.NavigateHome -> currentOnNavigateHome()
+                is OnboardingEffect.NavigateUnregistered -> currentOnUnregistered(effect.pubky)
             }
         }
     }

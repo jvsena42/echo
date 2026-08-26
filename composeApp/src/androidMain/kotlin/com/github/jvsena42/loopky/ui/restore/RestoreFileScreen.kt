@@ -41,11 +41,13 @@ import org.koin.compose.viewmodel.koinViewModel
 fun RestoreFileRoute(
     onBack: () -> Unit,
     onRestored: () -> Unit,
+    onUnregistered: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RestoreFileViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentOnRestored by rememberUpdatedState(onRestored)
+    val currentOnUnregistered by rememberUpdatedState(onUnregistered)
     val resolver = LocalContext.current.contentResolver
     val scope = rememberCoroutineScope()
 
@@ -60,6 +62,7 @@ fun RestoreFileRoute(
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 RestoreEffect.NavigateHome -> currentOnRestored()
+                is RestoreEffect.NavigateUnregistered -> currentOnUnregistered(effect.pubky)
             }
         }
     }

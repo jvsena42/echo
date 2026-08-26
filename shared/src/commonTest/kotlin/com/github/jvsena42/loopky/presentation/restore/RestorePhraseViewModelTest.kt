@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.presentation.restore
 
+import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.KeySource
@@ -167,5 +168,56 @@ class RestorePhraseViewModelTest {
         vm.onPhraseChange("$VALID_TEST_MNEMONIC ")
 
         assertEquals(null, vm.state.value.outcome)
+    }
+
+    @Test
+    fun a404AtSignInIsNoAccountAndNeverTheDeckCopy() = runTest {
+        // Seen on staging: getHomeserver answered *Registered* — a pkarr record can outlive the
+        // account it points at — and the homeserver then 404'd at signin. The generic classifier
+        // turns that into ErrorReason.NotFound, whose copy is "This deck no longer exists": deck
+        // copy, on a recovery-phrase screen, for someone who has no account.
+        identityRepo.homeserverLookup = HomeserverLookup.Registered("homeserver-z32")
+        identityRepo.signInWithKeyResult = Result.failure(
+            PubkyError("Failed to sign in: Request failed: Server responded with an error: 404 Not Found - Not Found"),
+        )
+        identityRepo.derivedPubky = Result.success("pkorphan")
+        val vm = viewModel()
+
+        vm.onPhraseChange(VALID_TEST_MNEMONIC)
+        vm.onSubmit()
+        advanceUntilIdle()
+
+        assertEquals("pkorphan", assertIs<RestoreOutcome.NoAccount>(vm.state.value.outcome).pubky)
+    }
+
+    @Test
+    fun aPubkyWithNoAccountRoutesOnwardRatherThanDeadEnding() = runTest {
+        // The key is valid and *can* be registered deliberately, so this is a fork in the flow
+        // rather than a terminal error.
+        identityRepo.derivedPubky = Result.success("pkorphan")
+        identityRepo.homeserverLookup = HomeserverLookup.NoRecord
+        val vm = viewModel()
+        val effects = collectEffects(vm)
+
+        vm.onPhraseChange(VALID_TEST_MNEMONIC)
+        vm.onSubmit()
+        advanceUntilIdle()
+
+        assertEquals(listOf(RestoreEffect.NavigateUnregistered("pkorphan")), effects)
+    }
+
+    @Test
+    fun aRealTransportFailureIsStillReportedAsOneRatherThanAsAMissingAccount() = runTest {
+        // The remap must stay narrow: only a not-found means "no account". Everything else keeps
+        // its own diagnosis.
+        identityRepo.homeserverLookup = HomeserverLookup.Registered("homeserver-z32")
+        identityRepo.signInWithKeyResult = Result.failure(PubkyError("HTTP transport error: error sending request"))
+        val vm = viewModel()
+
+        vm.onPhraseChange(VALID_TEST_MNEMONIC)
+        vm.onSubmit()
+        advanceUntilIdle()
+
+        assertIs<RestoreOutcome.SignInFailed>(vm.state.value.outcome)
     }
 }

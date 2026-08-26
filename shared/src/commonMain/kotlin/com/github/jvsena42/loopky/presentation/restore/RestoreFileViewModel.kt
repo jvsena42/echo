@@ -2,7 +2,6 @@ package com.github.jvsena42.loopky.presentation.restore
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.KeySource
@@ -74,10 +73,14 @@ class RestoreFileViewModel(
             }
 
             when (val lookup = identityRepository.lookupHomeserver(pubky)) {
-                is HomeserverLookup.Registered -> signIn(source, lookup.homeserverPubky)
+                is HomeserverLookup.Registered -> signIn(source, lookup.homeserverPubky, pubky)
 
-                HomeserverLookup.NoRecord -> _state.update {
-                    it.copy(isChecking = false, outcome = RestoreOutcome.NoAccount(pubky))
+                HomeserverLookup.NoRecord -> {
+                    // Not a dead end: this key is valid and can be registered deliberately, which
+                    // is what the unregistered-key screen is for. The outcome stays in state so
+                    // coming back shows what happened rather than an empty form.
+                    _state.update { it.copy(isChecking = false, outcome = RestoreOutcome.NoAccount(pubky)) }
+                    _effects.emit(RestoreEffect.NavigateUnregistered(pubky))
                 }
 
                 is HomeserverLookup.CouldNotCheck -> _state.update {
@@ -87,7 +90,7 @@ class RestoreFileViewModel(
         }
     }
 
-    private suspend fun signIn(source: KeySource, homeserver: String) {
+    private suspend fun signIn(source: KeySource, homeserver: String, pubky: String) {
         runSuspendCatching {
             identityRepository.signInWithKey(source, knownHomeserver = homeserver).getOrThrow()
         }
@@ -97,8 +100,13 @@ class RestoreFileViewModel(
             }
             .onFailure { error ->
                 Log.e(TAG, "signIn: FAILED — ${error::class.simpleName}")
-                _state.update {
-                    it.copy(isChecking = false, outcome = RestoreOutcome.SignInFailed(error.toErrorReason()))
+                // A 404 at signin is the homeserver saying it has no account for this pubky — see
+                // toRestoreOutcome. Rendering it as "not found" gives deck copy to someone
+                // restoring an account.
+                val outcome = error.toRestoreOutcome(pubky)
+                _state.update { it.copy(isChecking = false, outcome = outcome) }
+                if (outcome is RestoreOutcome.NoAccount) {
+                    _effects.emit(RestoreEffect.NavigateUnregistered(pubky))
                 }
             }
     }

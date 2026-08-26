@@ -41,6 +41,7 @@ import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.loopky.presentation.discover.SearchViewModel
 import com.github.jvsena42.loopky.presentation.discover.TagBrowseViewModel
 import com.github.jvsena42.loopky.presentation.home.HomeViewModel
+import com.github.jvsena42.loopky.presentation.identity.UnregisteredKeyViewModel
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PasteImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
@@ -147,6 +148,14 @@ val sharedModule = module {
     viewModel { OnboardingViewModel(identityRepository = get(), ringPresence = get()) }
     viewModel { RestorePhraseViewModel(identityRepository = get()) }
     viewModel { RestoreFileViewModel(identityRepository = get()) }
+    viewModel { params ->
+        UnregisteredKeyViewModel(
+            pubky = params.get(),
+            custody = params.get(),
+            signupRepository = get(),
+            identityRepository = get(),
+        )
+    }
     viewModel { LocalSignupViewModel(signupRepository = get(), identityRepository = get()) }
     viewModel { BackupStartViewModel(keyBackup = get(), ringPresence = get()) }
     viewModel { BackupPhraseViewModel(keyBackup = get()) }

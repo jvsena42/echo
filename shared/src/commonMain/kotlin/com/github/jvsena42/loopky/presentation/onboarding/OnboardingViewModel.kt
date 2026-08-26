@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.data.pubky.redactAuthUrl
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.ErrorReason
+import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -122,7 +123,19 @@ class OnboardingViewModel(
                 }
                 .onFailure { err ->
                     Log.e(TAG, "onSignInClick: completion FAILED — ${err::class.simpleName}: ${err.message}", err)
-                    _state.update { OnboardingUiState.Error(err.toSignInReason()) }
+                    val reason = err.toSignInReason()
+                    _state.update { OnboardingUiState.Error(reason) }
+                    // A pubky Ring authorised that the homeserver has no account for is not an
+                    // error to read and shrug at — it is a specific, fixable situation with its own
+                    // screen. The old copy sent the user back to Ring, which structurally cannot
+                    // create the account: that needs a signup token, and tokens come from Homegate,
+                    // which lives here (#147).
+                    if (reason == ErrorReason.NoHomeserverAccount) {
+                        val pubky = (completion.getOrNull() ?: sessionPubkyOrNull())?.identity?.pubky
+                        if (pubky != null) {
+                            _effects.emit(OnboardingEffect.NavigateUnregistered(pubky))
+                        }
+                    }
                 }
         }
     }
@@ -133,6 +146,15 @@ class OnboardingViewModel(
      * unreachable, not the user being offline. Anything we cannot classify is still an auth
      * failure from the user's point of view, not a mystery.
      */
+    /**
+     * The pubky Ring authorised, when we managed to learn it.
+     *
+     * Null on the paths where the failure happened before a session was ever parsed — the screen
+     * then shows the error without the follow-up, rather than inventing a key to talk about.
+     */
+    private suspend fun sessionPubkyOrNull(): Session? =
+        runSuspendCatching { identityRepository.currentSession() }.getOrNull()
+
     private fun Throwable.toSignInReason(): ErrorReason {
         // Matched by type, not message: `toErrorReason` classifies "timed out"/"timeout" as a
         // transport failure, which would render "the relay isn't responding". Ring going quiet
