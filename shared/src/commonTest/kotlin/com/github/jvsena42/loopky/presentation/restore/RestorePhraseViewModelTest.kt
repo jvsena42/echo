@@ -220,4 +220,47 @@ class RestorePhraseViewModelTest {
 
         assertIs<RestoreOutcome.SignInFailed>(vm.state.value.outcome)
     }
+
+    @Test
+    fun aKeyWithNoAccountIsHeldSoTheNextScreenHasSomethingToRegister() = runTest {
+        // The unregistered screen offers "Register this key". Without this the key was never
+        // stored, and that button failed on a missing key the user never caused.
+        identityRepo.derivedPubky = Result.success("pkorphan")
+        identityRepo.homeserverLookup = HomeserverLookup.NoRecord
+        val vm = viewModel()
+
+        vm.onPhraseChange(VALID_TEST_MNEMONIC)
+        vm.onSubmit()
+        advanceUntilIdle()
+
+        assertIs<KeySource.Phrase>(identityRepo.heldForRegistration.single())
+    }
+
+    @Test
+    fun thePhraseSurvivesTheHopToTheUnregisteredScreen() = runTest {
+        // That screen's primary action is "Check my recovery phrase again" — the likeliest fix is
+        // one mistyped word. Clearing the field first drops the user on a blank form to retype all
+        // twelve, which is the opposite of what that button promises.
+        identityRepo.derivedPubky = Result.success("pkorphan")
+        identityRepo.homeserverLookup = HomeserverLookup.NoRecord
+        val vm = viewModel()
+        vm.onPhraseChange(VALID_TEST_MNEMONIC)
+        vm.onSubmit()
+        advanceUntilIdle()
+
+        vm.onLeaveUnlessCorrecting()
+
+        assertEquals(VALID_TEST_MNEMONIC, vm.state.value.phrase)
+    }
+
+    @Test
+    fun thePhraseIsStillClearedWhenTheFlowIsLeftForGood() = runTest {
+        // The memory-hygiene guarantee has to survive the exception above it.
+        val vm = viewModel()
+        vm.onPhraseChange(VALID_TEST_MNEMONIC)
+
+        vm.onLeaveUnlessCorrecting()
+
+        assertEquals("", vm.state.value.phrase)
+    }
 }

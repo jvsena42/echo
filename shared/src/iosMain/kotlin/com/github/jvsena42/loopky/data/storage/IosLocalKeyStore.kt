@@ -41,6 +41,17 @@ internal class IosLocalKeyStore : LocalKeyStore {
         _custody.update { updated.toCustody() }
     }
 
+    override suspend fun markRegistered() {
+        val updated = withContext(Dispatchers.Default) {
+            val existing = readKey() ?: return@withContext null
+            if (existing.registered) return@withContext existing
+            existing.copy(registered = true).also {
+                vault.set(LOCAL_KEY_STORAGE_KEY, sessionStoreJson.encodeToString(it))
+            }
+        } ?: return
+        _custody.update { updated.toCustody() }
+    }
+
     override suspend fun clear() {
         withContext(Dispatchers.Default) { vault.deleteObject(LOCAL_KEY_STORAGE_KEY) }
         _custody.update { KeyCustody.External }

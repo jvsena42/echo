@@ -38,7 +38,6 @@ import kotlinx.coroutines.flow.StateFlow
 interface IdentityRepository {
     suspend fun currentSession(): Session?
     suspend fun loadPersistedSession(): Session?
-    suspend fun signIn(): Result<Session>
 
     /**
      * Sign out, clearing the session **and** any key Loopky holds — a signed-out device holding a
@@ -121,6 +120,15 @@ interface IdentityRepository {
      * forever. This registers exactly the key in hand, and asserts the pubky that comes back.
      */
     suspend fun registerHeldKey(homeserverPubky: String, signupToken: String): Result<Session>
+
+    /**
+     * Store the key [source] derives, marked as having no account, and return its pubky.
+     *
+     * Called when the pkarr pre-flight says a valid phrase belongs to no account. Without it
+     * [registerHeldKey] has nothing to register, and the "Register this key" button on the next
+     * screen fails on a missing key the user never caused.
+     */
+    suspend fun holdKeyForRegistration(source: KeySource): Result<String>
 
     /**
      * Two-step Pubky Ring sign-in that hands control of "open the deeplink" back to the caller

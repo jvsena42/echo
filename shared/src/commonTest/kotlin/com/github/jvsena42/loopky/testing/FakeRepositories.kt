@@ -136,9 +136,6 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
     override suspend fun currentSession(): Session? = session
     override suspend fun loadPersistedSession(): Session? = session
 
-    override suspend fun signIn(): Result<Session> =
-        session?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no session"))
-
     /** When set, a non-forced sign-out is refused, as an un-backed-up local key makes it. */
     var signOutRefusal: Throwable? = null
     val forcedSignOuts = mutableListOf<Boolean>()
@@ -158,6 +155,15 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
 
     val registerHeldKeyCalls = mutableListOf<Pair<String, String>>()
     var registerHeldKeyResult: Result<Session> = Result.success(fakeSession())
+
+    /** Records what [holdKeyForRegistration] was asked to store. */
+    val heldForRegistration = mutableListOf<KeySource>()
+    var holdKeyResult: Result<String>? = null
+
+    override suspend fun holdKeyForRegistration(source: KeySource): Result<String> {
+        heldForRegistration.add(source)
+        return holdKeyResult ?: derivedPubky
+    }
 
     override suspend fun createLocalAccount(
         homeserverPubky: String,

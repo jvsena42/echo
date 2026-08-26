@@ -603,6 +603,11 @@
     <string name="signup_lightning_card_price_fiat">Pay ₿ %1$d (%2$s) once</string>
     <string name="signup_lightning_amount_fiat">Pay ₿ %1$d (%2$s) to continue.</string>
     <string name="onboarding_create_local">Create an account in Loopky</string>
+    <!-- Terminal: retrying re-sends the same dead token. The copy has to send the user back to
+         get a new one rather than at a button that cannot work. -->
+    <string name="signup_error_token_rejected_title">That signup code was refused</string>
+    <string name="signup_error_token_rejected_message">Your homeserver wouldn\'t accept this code — it may already have been used. Trying again won\'t help; start over to get a new one.</string>
+    <string name="signup_start_over">Start over</string>
     <string name="signup_local_title">Creating your account</string>
     <string name="signup_local_subtitle">Making your key and registering it. This takes a moment.</string>
     <string name="signup_local_retry">Try again</string>
@@ -646,6 +651,7 @@
     <string name="backup_ring_open">Open Pubky Ring</string>
     <string name="backup_ring_missing">Pubky Ring isn\'t installed on this device.</string>
     <string name="backup_ring_confirm">I imported it into Pubky Ring</string>
+    <string name="settings_back_up_account">Back up your account</string>
     <string name="backup_nag_title">Back up your account</string>
     <string name="backup_nag_body">Your key lives only on this device. If you lose it, your decks go with it.</string>
     <string name="backup_nag_action">Back up now</string>

@@ -525,7 +525,10 @@ private fun CtaBlock(
                 icon = painterResource(R.drawable.ic_recovery_key),
                 onClick = onRestore,
                 variant = SignInProviderVariant.Secondary,
-                enabled = !isWorking,
+                // Gated on consent like the button above it. Restoring signs you in, so letting it
+                // through while the policy is declined meant the tick governed one of three ways
+                // into the same account.
+                enabled = !isWorking && policyAccepted,
                 contentDescription = stringResource(R.string.onboarding_recovery_icon_description),
                 modifier = buttonModifier.testTag("onboarding_restore"),
             )
@@ -558,6 +561,8 @@ private fun CtaBlock(
         // nowhere to go.
         TextButton(
             onClick = onCreatePubky,
+            // Also gated: it ends in an account too, and the consent covers the whole app.
+            enabled = policyAccepted,
             modifier = Modifier.testTag("onboarding_create_pubky"),
             // Purple rather than the brand orange: the primary button above is orange, and two
             // orange calls to action read as one control with a stray second line.

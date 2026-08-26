@@ -520,6 +520,11 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
     composable(Routes.SIGNUP_LOCAL) {
         LocalSignupRoute(
             onBack = { navController.popBackStack() },
+            onStartOver = {
+                navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky)) {
+                    popUpTo(Routes.SIGNUP_LOCAL) { inclusive = true }
+                }
+            },
             // Straight to backup, not home: this is the only moment in the app where a key exists
             // that nobody has a copy of.
             onCreated = {
@@ -532,6 +537,12 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
     // The three verification screens are identical for both spenders and are deliberately
     // untouched; only where their "done" lands differs, and that is nav-layer code. The redeemer
     // is read off the back stack rather than threaded through them.
+    signupMethodDestinations(navController)
+    signupRedemptionDestinations(navController)
+}
+
+/** The three ways to prove you are not a robot. Identical for both spenders. */
+private fun NavGraphBuilder.signupMethodDestinations(navController: NavHostController) {
     composable(Routes.SIGNUP_PHONE) {
         PhoneVerificationRoute(
             onBack = { navController.popBackStack() },
@@ -550,7 +561,6 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
             onDone = { navController.navigateToRedemption() },
         )
     }
-    signupRedemptionDestinations(navController)
 }
 
 /** The two terminal steps: Ring's deeplink handoff, and Loopky's own redemption. */

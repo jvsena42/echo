@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -66,6 +68,10 @@ fun BackupFileRoute(
             resolver.writeRecoveryFile(uri, blob)
                 // Only a file that was actually written counts as a backup.
                 .onSuccess { viewModel.onFileSaved() }
+                // A silent failure here is the worst outcome on this screen: the user picks a
+                // location, comes back to no error and nothing ticked, and reasonably concludes
+                // the backup exists.
+                .onFailure { viewModel.onFileSaveFailed() }
         }
     }
 
@@ -118,6 +124,9 @@ private fun BackupFileScreen(
             modifier = Modifier.fillMaxWidth().testTag("backup_file_passphrase"),
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
+            // Masking is only the visual half. The password *input type* is what stops the IME
+            // learning the passphrase into its shared dictionary.
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = colors.accentPrimary,

@@ -25,8 +25,13 @@ internal class AndroidLocalKeyStore(context: Context) : LocalKeyStore {
     override val custody: Flow<KeyCustody> = _custody.asStateFlow()
 
     override suspend fun save(key: LocalKey) {
+        // Throws rather than no-ops when the vault could not be opened. The session store tolerates
+        // that — a lost session means signing in again — but a lost *key* means an account that
+        // exists on a homeserver and can never be reached, and reporting custody for a key that was
+        // never written is how the app would then claim to hold it.
+        val target = checkNotNull(vault) { "The secrets vault is unavailable, so the key cannot be stored" }
         withContext(Dispatchers.IO) {
-            vault?.set(LOCAL_KEY_STORAGE_KEY, sessionStoreJson.encodeToString(key))
+            target.set(LOCAL_KEY_STORAGE_KEY, sessionStoreJson.encodeToString(key))
         }
         _custody.update { key.toCustody() }
     }
@@ -40,6 +45,17 @@ internal class AndroidLocalKeyStore(context: Context) : LocalKeyStore {
             // that marks on every entry does not churn the keystore.
             if (method in existing.backedUpBy) return@withContext existing
             existing.copy(backedUpBy = existing.backedUpBy + method).also {
+                vault?.set(LOCAL_KEY_STORAGE_KEY, sessionStoreJson.encodeToString(it))
+            }
+        } ?: return
+        _custody.update { updated.toCustody() }
+    }
+
+    override suspend fun markRegistered() {
+        val updated = withContext(Dispatchers.IO) {
+            val existing = readKey() ?: return@withContext null
+            if (existing.registered) return@withContext existing
+            existing.copy(registered = true).also {
                 vault?.set(LOCAL_KEY_STORAGE_KEY, sessionStoreJson.encodeToString(it))
             }
         } ?: return

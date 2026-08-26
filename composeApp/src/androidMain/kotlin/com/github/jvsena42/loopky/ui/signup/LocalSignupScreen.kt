@@ -34,16 +34,19 @@ import org.koin.compose.viewmodel.koinViewModel
 fun LocalSignupRoute(
     onBack: () -> Unit,
     onCreated: () -> Unit,
+    onStartOver: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LocalSignupViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentOnCreated by rememberUpdatedState(onCreated)
+    val currentOnStartOver by rememberUpdatedState(onStartOver)
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 LocalSignupEffect.NavigateBackup -> currentOnCreated()
+                LocalSignupEffect.NavigateStartOver -> currentOnStartOver()
             }
         }
     }
@@ -51,6 +54,7 @@ fun LocalSignupRoute(
     LocalSignupScreen(
         state = state,
         onRetry = viewModel::onRetryClick,
+        onStartOver = viewModel::onStartOverClick,
         onBack = onBack,
         modifier = modifier,
     )
@@ -60,6 +64,7 @@ fun LocalSignupRoute(
 private fun LocalSignupScreen(
     state: LocalSignupUiState,
     onRetry: () -> Unit,
+    onStartOver: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -77,15 +82,22 @@ private fun LocalSignupScreen(
                 color = colors.accentPrimary,
             )
         }
-        if (state.error != null) {
+        if (state.canRetry) {
             Spacer(Modifier.height(16.dp))
-            // Retrying re-reads the stored token rather than minting a new one, and the key is
-            // already saved — so a retry registers the *same* pubky instead of creating a second
-            // identity and stranding the first.
+            // Registers the key already minted rather than minting another — see onRetryClick.
             LoopkyPrimaryButton(
                 label = stringResource(R.string.signup_local_retry),
                 onClick = onRetry,
                 modifier = Modifier.testTag("signup_local_retry"),
+            )
+        }
+        if (state.canStartOver) {
+            Spacer(Modifier.height(16.dp))
+            // No "try again" here on purpose: the token is refused, so a retry is a loop.
+            LoopkyPrimaryButton(
+                label = stringResource(R.string.signup_start_over),
+                onClick = onStartOver,
+                modifier = Modifier.testTag("signup_local_start_over"),
             )
         }
         state.pubky?.let {
@@ -99,6 +111,6 @@ private fun LocalSignupScreen(
 @Composable
 private fun LocalSignupPreview() {
     LoopkyTheme {
-        LocalSignupScreen(state = LocalSignupUiState(), onRetry = {}, onBack = {})
+        LocalSignupScreen(state = LocalSignupUiState(), onRetry = {}, onStartOver = {}, onBack = {})
     }
 }

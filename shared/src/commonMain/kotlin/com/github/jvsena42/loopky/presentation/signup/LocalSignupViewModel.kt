@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.storage.PendingSignup
+import com.github.jvsena42.loopky.domain.model.LocalAccount
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -52,9 +53,17 @@ class LocalSignupViewModel(
         start()
     }
 
-    fun onRetryClick() = start()
+    /**
+     * Retry after a failed registration.
+     *
+     * **Registers the key already minted; never mints another.** `createLocalAccount` stores its
+     * key before calling `signUp`, so by the time anything can fail there is a pubky on this
+     * device — and if that `signUp` actually landed and only the response was lost, minting a
+     * second key would spend nothing, register nothing, and strand the first identity forever.
+     */
+    fun onRetryClick() = start(reuseHeldKey = true)
 
-    private fun start() {
+    private fun start(reuseHeldKey: Boolean = false) {
         if (job?.isActive == true) return
         job = viewModelScope.launch {
             _state.update { it.copy(isWorking = true, error = null) }
@@ -69,10 +78,19 @@ class LocalSignupViewModel(
                 return@launch
             }
 
-            identityRepository.createLocalAccount(
-                homeserverPubky = pending.homeserverPubky,
-                signupToken = pending.token,
-            )
+            val registration = if (reuseHeldKey) {
+                identityRepository.registerHeldKey(
+                    homeserverPubky = pending.homeserverPubky,
+                    signupToken = pending.token,
+                ).map { LocalAccount(pubky = it.identity.pubky, mnemonic = "") }
+            } else {
+                identityRepository.createLocalAccount(
+                    homeserverPubky = pending.homeserverPubky,
+                    signupToken = pending.token,
+                )
+            }
+
+            registration
                 .onSuccess { account ->
                     // Only now: the repository has already asserted that the pubky we registered is
                     // the pubky that came back.
@@ -93,6 +111,21 @@ class LocalSignupViewModel(
         }
     }
 
+    /**
+     * Drop a refused token and start again.
+     *
+     * Only offered for [SignupError.TokenRejected]. The token is cleared *here* rather than on the
+     * failure itself, so a user who backgrounds the app mid-error still has it if it turns out to
+     * have been usable after all.
+     */
+    fun onStartOverClick() {
+        viewModelScope.launch {
+            runSuspendCatching { signupRepository.clearPending() }
+                .onFailure { Log.w(TAG, "startOver: could not clear the refused token") }
+            _effects.emit(LocalSignupEffect.NavigateStartOver)
+        }
+    }
+
     private companion object {
         const val TAG = "Loopky/LocalSignupVM"
     }
@@ -104,8 +137,26 @@ data class LocalSignupUiState(
     /** The account that was created, once it exists. */
     val pubky: String? = null,
     val error: SignupError? = null,
-)
+) {
+    /**
+     * Whether retrying could possibly help.
+     *
+     * False for a refused token: the retry re-sends the same dead value, so offering the button
+     * is offering a loop.
+     */
+    val canRetry: Boolean get() = error != null && error != SignupError.TokenRejected
 
+    /** The way out when a retry cannot work. */
+    val canStartOver: Boolean get() = error == SignupError.TokenRejected
+}
+
+/**
+ * Abandon a token the homeserver refused, and go back for a new one.
+ *
+ * Clearing is safe *only* for [SignupError.TokenRejected]: that is a definitive verdict that the
+ * token cannot be spent. Any other failure keeps it, because the user may have paid for it and a
+ * transient error must never throw that away.
+ */
 sealed interface LocalSignupEffect {
     /**
      * Straight to the backup step, not to home.
@@ -115,4 +166,7 @@ sealed interface LocalSignupEffect {
      * skippable from there, but it is not something to discover later in Settings.
      */
     data object NavigateBackup : LocalSignupEffect
+
+    /** Back to the method picker, with the dead token dropped. */
+    data object NavigateStartOver : LocalSignupEffect
 }

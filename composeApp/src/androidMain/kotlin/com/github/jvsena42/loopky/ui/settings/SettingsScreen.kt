@@ -319,6 +319,21 @@ private fun SettingsScreen(
                     }
                 },
             )
+            // A permanent way back into the backup flow, for as long as Loopky holds the key.
+            //
+            // The nag card above is not enough on its own: it disappears the moment one method is
+            // done, which made the whole flow unreachable afterwards — no second method, no
+            // encrypted file to add later, and no route at all for a restored account, which is
+            // marked backed-up the moment it signs in. Backup methods accumulate deliberately, so
+            // the door has to stay open.
+            (state.keyCustody as? KeyCustody.Loopky)?.let {
+                SettingsDivider()
+                SettingsLinkRow(
+                    label = stringResource(R.string.settings_back_up_account),
+                    onClick = onBackUpNow,
+                    modifier = Modifier.testTag("settings_back_up_account"),
+                )
+            }
         }
 
         // --- Sharing section ---

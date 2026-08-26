@@ -41,6 +41,15 @@ internal class FakeLocalKeyStore(initial: LocalKey? = null) : LocalKeyStore {
         _custody.update { updated.toCustody() }
     }
 
+    override suspend fun markRegistered() {
+        val existing = stored ?: return
+        if (existing.registered) return
+        val updated = existing.copy(registered = true)
+        stored = updated
+        writes++
+        _custody.update { updated.toCustody() }
+    }
+
     override suspend fun clear() {
         stored = null
         _custody.update { KeyCustody.External }

@@ -75,9 +75,14 @@ class LocalSignupViewModelTest {
     }
 
     @Test
-    fun aRetryRegistersTheSameKeyRatherThanMintingASecondIdentity() = runTest {
-        // The repository stores the key before signUp runs, so the retry re-enters with the same
-        // pubky. Minting again is the Pubky Ring failure mode this whole path exists to avoid.
+    fun aRetryRegistersTheKeyAlreadyMintedRatherThanMintingASecondIdentity() = runTest {
+        // `createLocalAccount` stores its key *before* calling signUp, so by the time anything can
+        // fail there is already a pubky on this device. Minting again would spend nothing and
+        // register nothing — and if the first signUp actually landed and only its response was
+        // lost, the first identity is stranded forever with the token gone.
+        //
+        // This previously asserted the opposite and passed, because the fake returned success for
+        // whichever method was called: the test exercised the ViewModel and never the lifecycle.
         signupRepo = FakeSignupRepository(redeemable())
         identityRepo.createLocalAccountResult = Result.failure(PubkyError("signup failure: 500"))
         val vm = viewModel()
@@ -86,8 +91,12 @@ class LocalSignupViewModelTest {
         vm.onRetryClick()
         advanceUntilIdle()
 
-        assertEquals(2, identityRepo.createLocalAccountCalls.size)
-        assertTrue(identityRepo.createLocalAccountCalls.all { it == "homeserver-z32" to "token-123" })
+        assertEquals(1, identityRepo.createLocalAccountCalls.size, "the key is minted exactly once")
+        assertEquals(
+            listOf("homeserver-z32" to "token-123"),
+            identityRepo.registerHeldKeyCalls,
+            "the retry registers the key already held",
+        )
     }
 
     @Test

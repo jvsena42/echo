@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,7 +58,7 @@ fun RestorePhraseRoute(
     // The words must not outlive the screen: a StateFlow lives as long as the ViewModel, so
     // without this they stay in memory — and in any heap dump — after the user has navigated away.
     DisposableEffect(viewModel) {
-        onDispose { viewModel.onLeave() }
+        onDispose { viewModel.onLeaveUnlessCorrecting() }
     }
 
     LaunchedEffect(viewModel) {
@@ -113,9 +114,14 @@ private fun RestorePhraseScreen(
             isError = state.outcome is RestoreOutcome.InvalidPhrase,
             // Autocorrect off and no capitalisation: BIP-39 words are lowercase, and an IME that
             // "helpfully" corrects one turns a good phrase into a checksum-valid stranger.
+            // `KeyboardType.Password` is what actually suppresses IME personalized learning on
+            // Android — autocorrect off does not. Without it the twelve words land in the
+            // keyboard's learned-word store, which is one of the exposures SeedPhraseWarning
+            // itself names.
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.None,
                 autoCorrectEnabled = false,
+                keyboardType = KeyboardType.Password,
             ),
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(

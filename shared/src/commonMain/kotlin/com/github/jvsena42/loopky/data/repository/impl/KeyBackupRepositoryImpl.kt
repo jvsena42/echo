@@ -58,9 +58,20 @@ internal class KeyBackupRepositoryImpl(
             questions = positions.map { index ->
                 val answer = words[index]
                 // Decoys come from the phrase itself. A decoy from the wider BIP-39 list would be
-                // eliminable by someone who is holding the phrase but cannot read their own
-                // handwriting, which is not the thing being tested.
-                val decoys = words.filterIndexed { i, w -> i != index && w != answer }
+                // eliminable by someone holding the phrase who cannot read their own handwriting,
+                // which is not the thing being tested.
+                //
+                // **Taken from a window that starts just after this question's own word**, so the
+                // three questions draw disjoint decoys. Taking the first three words of the phrase
+                // for every question — which is what `.take()` over the whole list did — gave two
+                // of the three questions *identical* option sets, and all three are on screen at
+                // once: each answer was then simply the option missing from the other two, and the
+                // quiz could be passed without ever having seen the phrase. Passing it is what
+                // marks the key backed up and removes the sign-out guard, so that was a way to
+                // erase your only key having been warned about nothing.
+                val decoys = (1 until words.size)
+                    .map { offset -> words[(index + offset) % words.size] }
+                    .filter { it != answer }
                     .distinct()
                     .take(OPTION_COUNT - 1)
                 PhraseQuizQuestion(

@@ -81,6 +81,8 @@ fun SignupStartRoute(
         onLightning = onLightning,
         onInviteCode = onInviteCode,
         onCreateLocally = onCreateLocally,
+        // The local flow must not offer itself.
+        showCreateLocally = redeemer == TokenRedeemer.PubkyRing,
         onInstallRing = viewModel::onInstallRingClick,
     )
 }
@@ -93,6 +95,7 @@ private fun SignupStartScreen(
     onLightning: () -> Unit,
     onInviteCode: () -> Unit,
     onCreateLocally: () -> Unit,
+    showCreateLocally: Boolean,
     onInstallRing: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
@@ -108,7 +111,7 @@ private fun SignupStartScreen(
 
         // Every method below ends in a token only Pubky Ring can spend, so while it is missing
         // they all say the same thing rather than each screen discovering it separately.
-        val unavailableLabel = if (state.isRingInstalled) {
+        val unavailableLabel = if (state.hasRedeemer) {
             stringResource(R.string.signup_card_unavailable)
         } else {
             stringResource(R.string.signup_card_needs_ring)
@@ -145,17 +148,35 @@ private fun SignupStartScreen(
         Spacer(Modifier.height(20.dp))
         TextButton(
             onClick = onInviteCode,
-            enabled = state.isRingInstalled,
+            enabled = state.hasRedeemer,
             modifier = Modifier.testTag("signup_method_invite"),
         ) {
             Text(
                 text = stringResource(R.string.signup_invite_link),
                 // Explicit rather than inherited: a coloured `Text` overrides the button's own
                 // disabled tint, and a link that looks live but does nothing is worse than none.
-                color = if (state.isRingInstalled) colors.accentSecondary else colors.foregroundMuted,
+                color = if (state.hasRedeemer) colors.accentSecondary else colors.foregroundMuted,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
             )
+        }
+
+        // Offered whether or not Ring is installed. It used to live only inside RingRequiredCard,
+        // which meant the local route existed *only* for users who did not have Ring — someone who
+        // has it could never choose to keep the key here, and the choice this issue is about was
+        // invisible to them.
+        if (showCreateLocally) {
+            Spacer(Modifier.height(8.dp))
+            TextButton(
+                onClick = onCreateLocally,
+                modifier = Modifier.testTag("signup_create_locally_option"),
+                colors = ButtonDefaults.textButtonColors(contentColor = colors.foregroundSecondary),
+            ) {
+                Text(
+                    text = stringResource(R.string.onboarding_create_local),
+                    fontSize = 13.sp,
+                )
+            }
         }
     }
 }
@@ -282,6 +303,7 @@ private fun SignupStartRingMissingPreview() {
             onLightning = {},
             onInviteCode = {},
             onCreateLocally = {},
+            showCreateLocally = true,
             onInstallRing = {},
         )
     }

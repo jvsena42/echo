@@ -73,11 +73,6 @@ internal class IdentityRepositoryImpl(
         return persisted
     }
 
-    override suspend fun signIn(): Result<Session> {
-        val handle = beginSignIn().getOrElse { return Result.failure(it) }
-        return handle.complete()
-    }
-
     override suspend fun signOut(force: Boolean): Result<Unit> = runSuspendCatching {
         // Refused rather than warned-about-in-the-dialog, so no future caller can sign out
         // silently and take the only copy of an identity with it. The UI catches this, raises a
@@ -222,11 +217,14 @@ internal class IdentityRepositoryImpl(
                 // Nagging them to back up what they only just typed in would be describing a risk
                 // that does not exist. A *minted* key is the un-backed-up case.
                 backedUpBy = setOf(source.backupMethod()),
+                registered = true,
             ),
         )
         persistSession(session.copy(homeserver = resolved))
     }.onFailure {
-        Log.e(TAG, "signInWithKey: FAILED — ${it::class.simpleName}: ${it.message}", it)
+        // Never the message, and never the throwable: `toResult` wraps the FFI string
+        // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
+        Log.e(TAG, "signInWithKey: FAILED — ${it::class.simpleName}")
     }
 
     /**
@@ -254,17 +252,26 @@ internal class IdentityRepositoryImpl(
         val minted = withContext(Dispatchers.Default) { pubky.mintValidatedKeypair() }.getOrThrow()
         val mnemonic = requireNotNull(minted.mnemonic) { "a minted keypair must carry its phrase" }
 
-        // Stored *before* signUp. If the registration fails halfway the key still exists, so the
-        // retry registers the same pubky rather than minting a second identity and stranding the
-        // first — which is the Pubky Ring failure mode this whole path exists to avoid.
+        // Stored *before* signUp, and marked unregistered. If the registration fails halfway the
+        // key survives, and `registerHeldKey` can finish the job for that same pubky — minting
+        // again on retry is the Pubky Ring failure mode this whole path exists to avoid, and it
+        // strands the first identity permanently if `signUp` actually landed.
         localKeyStore.save(
-            LocalKey(secretKeyHex = minted.secretKeyHex, pubky = minted.pubky, mnemonic = mnemonic),
+            LocalKey(
+                secretKeyHex = minted.secretKeyHex,
+                pubky = minted.pubky,
+                mnemonic = mnemonic,
+                registered = false,
+            ),
         )
 
         registerKey(minted.secretKeyHex, minted.pubky, homeserverPubky, signupToken)
+        localKeyStore.markRegistered()
         LocalAccount(pubky = minted.pubky, mnemonic = mnemonic)
     }.onFailure {
-        Log.e(TAG, "createLocalAccount: FAILED — ${it::class.simpleName}: ${it.message}", it)
+        // Never the message, and never the throwable: `toResult` wraps the FFI string
+        // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
+        Log.e(TAG, "createLocalAccount: FAILED — ${it::class.simpleName}")
     }
 
     override suspend fun registerHeldKey(
@@ -272,9 +279,13 @@ internal class IdentityRepositoryImpl(
         signupToken: String,
     ): Result<Session> = runSuspendCatching {
         val held = requireNotNull(localKeyStore.current()) { "No local key to register" }
+        check(!held.registered) { "This key already has an account" }
         registerKey(held.secretKeyHex, held.pubky, homeserverPubky, signupToken)
+            .also { localKeyStore.markRegistered() }
     }.onFailure {
-        Log.e(TAG, "registerHeldKey: FAILED — ${it::class.simpleName}: ${it.message}", it)
+        // Never the message, and never the throwable: `toResult` wraps the FFI string
+        // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
+        Log.e(TAG, "registerHeldKey: FAILED — ${it::class.simpleName}")
     }
 
     /**
@@ -303,6 +314,27 @@ internal class IdentityRepositoryImpl(
         // we registered against rather than left blank for Settings to render as "Unknown".
         return persistSession(session.copy(homeserver = session.homeserver.ifBlank { homeserverPubky }))
     }
+
+    override suspend fun holdKeyForRegistration(source: KeySource): Result<String> =
+        runSuspendCatching {
+            val keypair = deriveKeypair(source).getOrThrow()
+            // Marked unregistered on purpose: this is a key whose pre-flight said no account
+            // exists. Without storing it, "Register this key" on the next screen has nothing to
+            // register and fails on a `requireNotNull` the user never caused.
+            localKeyStore.save(
+                LocalKey(
+                    secretKeyHex = keypair.secretKeyHex,
+                    pubky = keypair.pubky,
+                    mnemonic = keypair.mnemonic,
+                    backedUpBy = setOf(source.backupMethod()),
+                    registered = false,
+                ),
+            )
+            keypair.pubky
+        }.onFailure {
+            // Never the message: the FFI echoes its input back in some error strings.
+            Log.e(TAG, "holdKeyForRegistration: FAILED — ${it::class.simpleName}")
+        }
 
     /** What restoring from [this] proves the user already has a copy of. */
     private fun KeySource.backupMethod(): BackupMethod = when (this) {

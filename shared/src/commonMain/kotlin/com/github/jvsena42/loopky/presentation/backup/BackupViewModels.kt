@@ -212,6 +212,12 @@ class BackupFileViewModel(
         }
     }
 
+    /** The platform could not write where the user chose. Says so rather than doing nothing. */
+    fun onFileSaveFailed() {
+        Log.e(TAG, "file: the chosen location could not be written")
+        _state.update { it.copy(failed = true) }
+    }
+
     /** The platform reported the file was actually written. Only then does this count. */
     fun onFileSaved() {
         viewModelScope.launch {
@@ -244,7 +250,12 @@ class BackupRingViewModel(
     private val ringPresence: PubkyRingPresence,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(BackupRingUiState(ringInstalled = ringPresence.canImportKey()))
+    private val _state = MutableStateFlow(
+        BackupRingUiState(
+            ringInstalled = ringPresence.canImportKey(),
+            installUrl = ringPresence.installUrl,
+        ),
+    )
     val state: StateFlow<BackupRingUiState> = _state.asStateFlow()
 
     private val _effects = MutableSharedFlow<BackupEffect>(extraBufferCapacity = 4)
@@ -275,10 +286,27 @@ class BackupRingViewModel(
     }
 
     fun onRingUnavailable() = _state.update { it.copy(ringInstalled = false) }
+
+    /**
+     * Send the user to install Ring.
+     *
+     * The screen used to state that Ring was missing beside a *disabled* button and stop there —
+     * a dead end on the one screen whose entire purpose is getting the key into Ring.
+     */
+    fun onInstallRingClick() {
+        viewModelScope.launch { _effects.emit(BackupEffect.OpenInstallPage(_state.value.installUrl)) }
+    }
+
+    /** Re-check on return from the store, the way the signup screen does. */
+    fun onScreenResumed() {
+        if (_state.value.ringInstalled) return
+        _state.update { it.copy(ringInstalled = ringPresence.canImportKey()) }
+    }
 }
 
 data class BackupRingUiState(
     val ringInstalled: Boolean = false,
+    val installUrl: String = "",
     val failed: Boolean = false,
 )
 
@@ -286,4 +314,7 @@ sealed interface BackupEffect {
     data object Done : BackupEffect
     data class SaveFile(val base64: String, val fileName: String) : BackupEffect
     data class OpenDeeplink(val url: String) : BackupEffect
+
+    /** The store listing for Pubky Ring, so "not installed" is not a dead end. */
+    data class OpenInstallPage(val url: String) : BackupEffect
 }

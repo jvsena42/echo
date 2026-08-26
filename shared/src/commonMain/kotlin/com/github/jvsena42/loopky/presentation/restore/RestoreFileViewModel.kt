@@ -76,6 +76,9 @@ class RestoreFileViewModel(
                 is HomeserverLookup.Registered -> signIn(source, lookup.homeserverPubky, pubky)
 
                 HomeserverLookup.NoRecord -> {
+                    // Stored before routing onward: the next screen offers "Register this key",
+                    // and it has nothing to register unless the key is actually held.
+                    identityRepository.holdKeyForRegistration(source)
                     // Not a dead end: this key is valid and can be registered deliberately, which
                     // is what the unregistered-key screen is for. The outcome stays in state so
                     // coming back shows what happened rather than an empty form.
@@ -115,6 +118,17 @@ class RestoreFileViewModel(
     fun onLeave() {
         submitJob?.cancel()
         _state.update { RestoreFileUiState() }
+    }
+
+    /**
+     * [onLeave], unless an outcome is on screen the user is expected to come back and act on.
+     *
+     * The unregistered-key screen sends people back here to try again; arriving to a cleared
+     * passphrase and no file means re-picking both to change one of them.
+     */
+    fun onLeaveUnlessCorrecting() {
+        if (_state.value.outcome is RestoreOutcome.NoAccount) return
+        onLeave()
     }
 
     private companion object {

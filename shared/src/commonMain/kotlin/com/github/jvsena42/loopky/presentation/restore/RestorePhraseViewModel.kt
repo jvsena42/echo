@@ -81,6 +81,9 @@ class RestorePhraseViewModel(
 
                 // Valid words, no account. The pubky goes in the state so the screen can show it.
                 HomeserverLookup.NoRecord -> {
+                    // Stored before routing onward: the next screen offers "Register this key",
+                    // and it has nothing to register unless the key is actually held.
+                    identityRepository.holdKeyForRegistration(KeySource.Phrase(phrase))
                     // Not a dead end: this key is valid and can be registered deliberately, which
                     // is what the unregistered-key screen is for. The outcome stays in state so
                     // coming back shows what happened rather than an empty form.
@@ -119,15 +122,30 @@ class RestorePhraseViewModel(
     }
 
     /**
-     * Drop the phrase when the screen goes away.
+     * Drop the phrase when the user leaves the flow for good.
      *
      * Not housekeeping: a `StateFlow` outlives the composable that reads it, so without this the
      * twelve words sit in memory for as long as the ViewModel does, reachable from a heap dump
      * long after the user has left the screen.
+     *
+     * **Deliberately not called when routing to the unregistered-key screen.** That screen's
+     * primary action is "Check my recovery phrase again" — the likeliest fix for landing there is
+     * one mistyped word — and wiping the field first drops the user on a blank form to retype all
+     * twelve. The words survive that hop and are cleared when the flow itself is left.
      */
     fun onLeave() {
         submitJob?.cancel()
         _state.update { RestorePhraseUiState() }
+    }
+
+    /** True while an outcome is on screen that the user is expected to come back and act on. */
+    private val isAwaitingCorrection: Boolean
+        get() = _state.value.outcome is RestoreOutcome.NoAccount
+
+    /** [onLeave], unless the user is mid-correction — see its note. */
+    fun onLeaveUnlessCorrecting() {
+        if (isAwaitingCorrection) return
+        onLeave()
     }
 }
 

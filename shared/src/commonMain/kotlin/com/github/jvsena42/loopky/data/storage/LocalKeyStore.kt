@@ -60,6 +60,9 @@ internal interface LocalKeyStore {
      */
     suspend fun markBackedUp(method: BackupMethod)
 
+    /** Record that the held key now has a homeserver account. */
+    suspend fun markRegistered()
+
     /**
      * Drop the key.
      *
@@ -92,6 +95,15 @@ internal data class LocalKey(
      */
     val mnemonic: String? = null,
     val backedUpBy: Set<BackupMethod> = emptySet(),
+    /**
+     * Whether this key has an account on a homeserver.
+     *
+     * False for a key held only so it can be registered — a recovery phrase that turned out to
+     * belong to no account, or a mint whose `signUp` failed. The distinction decides whether a
+     * retry may *register* this key or must mint a fresh one, and getting it wrong is how someone
+     * ends up with a second identity while their first is stranded.
+     */
+    val registered: Boolean = true,
 ) {
     fun toCustody(): KeyCustody.Loopky = KeyCustody.Loopky(
         pubky = pubky,
