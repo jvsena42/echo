@@ -27,6 +27,10 @@ object Routes {
      * Getting a homeserver account. Flat siblings rather than a nested graph, matching the import
      * flow: the in-flight token lives in `SignupRepository`, not in nav arguments.
      */
+    /** Restore an existing account from a backup — the door for a user with no working Ring. */
+    const val RESTORE_START = "restore"
+    const val RESTORE_PHRASE = "restore/phrase"
+
     const val SIGNUP_START = "signup"
     const val SIGNUP_PHONE = "signup/phone"
     const val SIGNUP_LIGHTNING = "signup/lightning"

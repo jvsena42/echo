@@ -573,6 +573,32 @@
     <string name="error_server_busy_message">Your homeserver is rate-limiting Loopky, so this couldn\'t be finished. Nothing is wrong with your connection — wait a moment and try again.</string>
     <string name="error_storage_full_title">Your Pubky storage is full</string>
     <string name="error_storage_full_message">There\'s no room left on your homeserver, so this couldn\'t be saved. Delete a deck you no longer study to free up space, or upgrade your Pubky plan for more.</string>
+    <!-- Restore (#147): the door for someone who has a pubky but no working Pubky Ring. -->
+    <string name="onboarding_restore">Restore with a recovery phrase</string>
+    <string name="restore_start_title">Restore your account</string>
+    <string name="restore_start_subtitle">Use the backup you made when your pubky was created.</string>
+    <string name="restore_method_phrase">Recovery phrase</string>
+    <string name="restore_method_phrase_detail">The twelve words you wrote down.</string>
+    <string name="restore_phrase_title">Enter your recovery phrase</string>
+    <string name="restore_phrase_subtitle">Twelve words, in order, separated by spaces.</string>
+    <string name="restore_phrase_label">Recovery phrase</string>
+    <string name="restore_phrase_placeholder">word one word two word three…</string>
+    <string name="restore_phrase_submit">Restore account</string>
+    <string name="restore_phrase_checking">Checking…</string>
+    <!-- Permanent and inline, never a toast or a dismissible popover. A Bitcoin seed and a Pubky
+         seed are the same twelve BIP-39 words and there is no way to tell them apart, so warning
+         is the only protection available — and a warning you can dismiss is one that gets
+         dismissed. Deliberately no heuristic detection: a false negative would read as an
+         all-clear, which is worse than saying nothing. -->
+    <string name="restore_seed_warning">Only enter a phrase created for Pubky. Never enter a Bitcoin or other crypto wallet recovery phrase here.</string>
+    <string name="restore_error_invalid_title">That\'s not a valid recovery phrase</string>
+    <string name="restore_error_invalid_message">Check that all twelve words are spelled correctly and in the right order.</string>
+    <!-- Never "invalid": the phrase is valid, it just is not this account\'s. Showing the pubky is
+         the fastest diagnosis available and the only one the user can make. -->
+    <string name="restore_error_no_account_title">That phrase doesn\'t match an account</string>
+    <string name="restore_error_no_account_message">This recovery phrase is valid, but no Pubky account has been created for it. Check for a mistyped or out-of-order word — and if it came from a Bitcoin or crypto wallet, that\'s a different kind of phrase and won\'t work here.</string>
+    <string name="restore_error_no_account_pubky">It unlocks this pubky:</string>
+    <string name="restore_retry">Try again</string>
     <!-- The pkarr/DHT lookup that decides whether a pubky has an account did not answer.
          Never a verdict on what was looked up: it must always read as "we don't know yet". -->
     <string name="error_lookup_failed_title">We couldn\'t check that</string>

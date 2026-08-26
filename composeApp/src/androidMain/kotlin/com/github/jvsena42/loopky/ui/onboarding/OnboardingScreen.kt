@@ -20,9 +20,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -79,12 +81,13 @@ import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun OnboardingRoute(onNavigateHome: () -> Unit, onCreatePubky: () -> Unit) {
+fun OnboardingRoute(onNavigateHome: () -> Unit, onCreatePubky: () -> Unit, onRestore: () -> Unit) {
     val viewModel = koinViewModel<OnboardingViewModel>()
     OnboardingScreen(
         viewModel = viewModel,
         onNavigateHome = onNavigateHome,
         onCreatePubky = onCreatePubky,
+        onRestore = onRestore,
     )
 }
 
@@ -93,6 +96,7 @@ fun OnboardingScreen(
     viewModel: OnboardingViewModel,
     onNavigateHome: () -> Unit,
     onCreatePubky: () -> Unit,
+    onRestore: () -> Unit,
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -133,6 +137,7 @@ fun OnboardingScreen(
         state = state,
         onSignInClick = viewModel::onSignInClick,
         onCreatePubky = onCreatePubky,
+        onRestore = onRestore,
         onOpenRingHere = viewModel::onOpenRingOnThisDevice,
         onCancelSignIn = viewModel::onCancelSignIn,
     )
@@ -143,6 +148,7 @@ private fun OnboardingContent(
     state: OnboardingUiState,
     onSignInClick: (RingHandoff) -> Unit,
     onCreatePubky: () -> Unit,
+    onRestore: () -> Unit,
     onOpenRingHere: () -> Unit,
     onCancelSignIn: () -> Unit,
 ) {
@@ -203,9 +209,16 @@ private fun OnboardingContent(
                     onPolicyAcceptedChange = { policyAccepted = it },
                     onSignInClick = { onSignInClick(handoff) },
                     onCreatePubky = onCreatePubky,
+                    onRestore = onRestore,
                     onOpenRingHere = onOpenRingHere,
                     onCancelSignIn = onCancelSignIn,
-                    modifier = Modifier.widthIn(max = PaneWidth.Focused),
+                    // Scrollable, because this Row bounds the panel to the window height and a
+                    // Column that overflows a bounded parent clips in silence — no error, no
+                    // ellipsis, just a button sliced in half. A landscape phone is the tightest
+                    // case, and the panel grew a third door (#147).
+                    modifier = Modifier
+                        .widthIn(max = PaneWidth.Focused)
+                        .verticalScroll(rememberScrollState()),
                 )
             }
         } else {
@@ -226,6 +239,7 @@ private fun OnboardingContent(
                 onPolicyAcceptedChange = { policyAccepted = it },
                 onSignInClick = { onSignInClick(handoff) },
                 onCreatePubky = onCreatePubky,
+                onRestore = onRestore,
                 onOpenRingHere = onOpenRingHere,
                 onCancelSignIn = onCancelSignIn,
                 modifier = Modifier.contentPane(PaneWidth.Focused),
@@ -296,6 +310,7 @@ private fun SignInPanel(
     onPolicyAcceptedChange: (Boolean) -> Unit,
     onSignInClick: () -> Unit,
     onCreatePubky: () -> Unit,
+    onRestore: () -> Unit,
     onOpenRingHere: () -> Unit,
     onCancelSignIn: () -> Unit,
     modifier: Modifier = Modifier,
@@ -319,6 +334,7 @@ private fun SignInPanel(
                 policyAccepted = policyAccepted,
                 onSignInClick = onSignInClick,
                 onCreatePubky = onCreatePubky,
+                onRestore = onRestore,
             )
             // Under the calls to action: the gate has to be visible before the buttons are usable,
             // but it is fine print rather than a step, and putting it between the hero and the
@@ -453,6 +469,7 @@ private fun CtaBlock(
     policyAccepted: Boolean,
     onSignInClick: () -> Unit,
     onCreatePubky: () -> Unit,
+    onRestore: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -510,6 +527,20 @@ private fun CtaBlock(
                 text = stringResource(R.string.onboarding_create_pubky),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
+            )
+        }
+        // The third door, and it matters as much as the second: today a user who *has* a pubky but
+        // whose Pubky Ring is on a lost or dead phone has no route back into Loopky at all. Ranked
+        // below the other two because it is the least common case, not because it is a fallback —
+        // for the person who needs it, it is the only thing on this screen that works.
+        TextButton(
+            onClick = onRestore,
+            modifier = Modifier.testTag("onboarding_restore"),
+            colors = ButtonDefaults.textButtonColors(contentColor = colors.foregroundSecondary),
+        ) {
+            Text(
+                text = stringResource(R.string.onboarding_restore),
+                fontSize = 13.sp,
             )
         }
     }
@@ -654,6 +685,7 @@ private fun OnboardingContentPreview() {
             state = OnboardingUiState.Idle,
             onSignInClick = {},
             onCreatePubky = {},
+            onRestore = {},
             onOpenRingHere = {},
             onCancelSignIn = {},
         )

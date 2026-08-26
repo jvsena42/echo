@@ -25,6 +25,8 @@ import com.github.jvsena42.loopky.ui.importflow.TriageRoute
 import com.github.jvsena42.loopky.ui.onboarding.OnboardingRoute
 import com.github.jvsena42.loopky.ui.profile.FollowListRoute
 import com.github.jvsena42.loopky.ui.profile.FriendProfileRoute
+import com.github.jvsena42.loopky.ui.restore.RestorePhraseRoute
+import com.github.jvsena42.loopky.ui.restore.RestoreStartRoute
 import com.github.jvsena42.loopky.ui.search.SearchRoute
 import com.github.jvsena42.loopky.ui.settings.SettingsRoute
 import com.github.jvsena42.loopky.ui.signup.InviteCodeRoute
@@ -76,6 +78,7 @@ internal fun LoopkyNavHost(
         composable(Routes.ONBOARDING) {
             OnboardingRoute(
                 onCreatePubky = { navController.navigateTo(Routes.SIGNUP_START) },
+                onRestore = { navController.navigateTo(Routes.RESTORE_START) },
                 onNavigateHome = {
                     navController.navigateTo(Routes.MAIN) {
                         popUpTo(Routes.ONBOARDING) { inclusive = true }
@@ -256,6 +259,7 @@ internal fun LoopkyNavHost(
             )
         }
         signupDestinations(navController)
+        restoreDestinations(navController)
         cardEditorDestinations(navController)
         composable(
             route = Routes.STUDY,
@@ -322,6 +326,27 @@ internal fun LoopkyNavHost(
  * Grouped like [cardEditorDestinations] and flat like the import flow — the token in flight lives
  * in `SignupRepository`, so no step needs a nav argument and every back press is a plain pop.
  */
+private fun NavGraphBuilder.restoreDestinations(navController: NavHostController) {
+    composable(Routes.RESTORE_START) {
+        RestoreStartRoute(
+            onBack = { navController.popBackStack() },
+            onRestoreWithPhrase = { navController.navigateTo(Routes.RESTORE_PHRASE) },
+        )
+    }
+    composable(Routes.RESTORE_PHRASE) {
+        RestorePhraseRoute(
+            onBack = { navController.popBackStack() },
+            // The whole restore stack goes: coming "back" into it after signing in would offer to
+            // restore an account the user is already using.
+            onRestored = {
+                navController.navigateTo(Routes.MAIN) {
+                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                }
+            },
+        )
+    }
+}
+
 private fun NavGraphBuilder.signupDestinations(navController: NavHostController) {
     composable(Routes.SIGNUP_START) {
         SignupStartRoute(

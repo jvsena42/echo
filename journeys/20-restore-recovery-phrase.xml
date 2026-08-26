@@ -1,0 +1,37 @@
+<journey name="Restore — a recovery phrase, and three honest answers when it fails">
+  <description>
+    The third door. Before this, a user who had a pubky but whose Pubky Ring was on a lost or dead
+    phone had no route back into Loopky at all.
+
+    Most of what matters here is the failure copy, because the three ways this goes wrong are
+    genuinely different and collapsing any two of them lies to someone who is already anxious about
+    having mistyped. A checksum-passing typo is the common case, and it derives a *valid* phrase
+    that simply is not theirs — calling that "invalid" sends them hunting for a problem that is not
+    there. A DHT that cannot be reached is not a verdict on anything.
+
+    The phrase below is the standard BIP-39 test vector. It is public knowledge, so it is safe to
+    type into a journey — but note it IS registered on staging, so it signs in rather than
+    reporting "no account". Use a phrase you have altered by one word to see the no-account path.
+  </description>
+  <actions>
+    <action>From a signed-out Loopky, verify "onboarding_restore" is present and reads "Restore with a recovery phrase"</action>
+    <action>Tap "onboarding_restore", then "restore_method_phrase"</action>
+    <action>Verify "restore_seed_warning" is present, is NOT dismissible, and warns against entering a Bitcoin or crypto wallet phrase — it must be permanently visible above the field, not a toast</action>
+
+    <action>THE TYPO CASE. Enter a valid phrase with one word changed (e.g. replace the last word "about" with "abandon" — still a valid BIP-39 checksum). Tap "restore_phrase_submit"</action>
+    <action>Verify "restore_outcome_title" reads "That's not a valid recovery phrase" ONLY if the checksum failed; if the checksum passed, it must instead read "That phrase doesn't match an account" and NEVER call the phrase invalid</action>
+    <action>Verify "restore_outcome_pubky" shows the derived pubky — the user recognising it is not theirs is the fastest diagnosis available</action>
+
+    <action>THE OFFLINE CASE. Turn on airplane mode, edit one character, and submit again</action>
+    <action>Verify the outcome offers a retry and says "We couldn't check that" — it must NOT say the phrase is wrong or that no account exists</action>
+    <action>Turn airplane mode off</action>
+
+    <action>THE HAPPY PATH. Enter: abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about</action>
+    <action>Tap "restore_phrase_submit" and verify Loopky lands on home (tab_study/tab_decks/tab_discover/tab_profile present)</action>
+    <action>Verify logcat shows exactly ONE "lookupHomeserver:" line for the attempt — the pre-flight answer is passed into sign-in, and asking the DHT twice costs ~3s on the only path back in for someone locked out</action>
+
+    <action>Settings → Sign out. Verify signing out succeeds (a restored key counts as backed up, since the user demonstrably holds the phrase they just typed)</action>
+
+    <action>LANDSCAPE. Rotate to landscape and re-open the onboarding screen. Verify "Restore with a recovery phrase" and the policy consent are reachable — the two-pane branch bounds the panel to the window height, and before #147 a third button clipped in silence with no error and no ellipsis</action>
+  </actions>
+</journey>
