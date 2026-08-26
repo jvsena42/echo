@@ -37,6 +37,7 @@ import com.github.jvsena42.loopky.presentation.backup.BackupFileViewModel
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.NoAutofill
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -56,6 +57,7 @@ fun BackupFileRoute(
     var pendingBlob by remember { mutableStateOf<String?>(null) }
 
     SecureScreen()
+    NoAutofill()
     DisposableEffect(viewModel) { onDispose { viewModel.onLeave() } }
 
     val saver = rememberLauncherForActivityResult(

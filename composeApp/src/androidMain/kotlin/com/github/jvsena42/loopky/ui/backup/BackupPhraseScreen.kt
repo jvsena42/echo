@@ -35,6 +35,7 @@ import com.github.jvsena42.loopky.ui.layout.windowWidthClass
 import com.github.jvsena42.loopky.ui.restore.SeedPhraseWarning
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.NoAutofill
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -48,6 +49,7 @@ fun BackupPhraseRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     SecureScreen()
+    NoAutofill()
     DisposableEffect(viewModel) { onDispose { viewModel.onLeave() } }
 
     BackupPhraseScreen(

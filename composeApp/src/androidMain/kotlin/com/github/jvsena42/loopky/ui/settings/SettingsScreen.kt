@@ -86,6 +86,7 @@ import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.nav.Routes
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.LICENSE_URL
+import com.github.jvsena42.loopky.ui.util.NoAutofill
 import com.github.jvsena42.loopky.ui.util.PRIVACY_POLICY_URL
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import com.github.jvsena42.loopky.ui.util.openUrl
@@ -185,6 +186,9 @@ private fun SettingsScreen(
     // The access key is a credential, and this is the one screen that puts a field for it on
     // display. Release builds refuse screenshots and screen recording while it is open.
     SecureScreen()
+    // Screen-wide, and that is the right granularity: the Unsplash access key is a credential, and
+    // nothing else on this screen is a field anyone would want autofilled.
+    NoAutofill()
 
     if (state.isLoading) {
         Box(

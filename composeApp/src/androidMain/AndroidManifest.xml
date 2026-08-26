@@ -66,8 +66,20 @@
         <!-- windowSoftInputMode: resize, not the default pan. The study screen's answer input
              sits mid-screen, and panning slides the card's own header off the top to make room
              for the keyboard. Resizing lets Modifier.imePadding() give up the space instead. -->
+        <!-- No field in Loopky benefits from autofill, and four of them hold a recovery phrase,
+             a recovery-file passphrase or an API key. Focusing a Compose text field dispatches the
+             view structure to the device's autofill service — Google Password Manager on a stock
+             Play-services device — plus an augmented request to Android System Intelligence, and a
+             password input type is the strongest hint that a field is worth *saving*.
+
+             Set here rather than at runtime: `importantForAutofill` applied from a composable to
+             the host or decor view was measured (`dumpsys autofill`) not to suppress the request,
+             because Compose's own AndroidAutofillManager notifies the platform on focus regardless.
+             The manifest attribute is applied before the view tree exists, which is what the
+             framework consults. -->
         <activity
             android:exported="true"
+            android:importantForAutofill="noExcludeDescendants"
             android:launchMode="singleTask"
             android:name=".MainActivity"
             android:windowSoftInputMode="adjustResize">

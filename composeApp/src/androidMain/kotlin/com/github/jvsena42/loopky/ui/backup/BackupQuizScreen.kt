@@ -33,6 +33,7 @@ import com.github.jvsena42.loopky.presentation.backup.BackupQuizViewModel
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.NoAutofill
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -51,6 +52,7 @@ fun BackupQuizRoute(
     val currentOnDone by rememberUpdatedState(onDone)
 
     SecureScreen()
+    NoAutofill()
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->

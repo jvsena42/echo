@@ -35,6 +35,7 @@ import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.NoAutofill
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -54,6 +55,7 @@ fun RestorePhraseRoute(
     // Blocks screenshots and screen recording while a recovery phrase is on screen. Release builds
     // only, so android-cli journeys can still capture this screen.
     SecureScreen()
+    NoAutofill()
 
     // The words must not outlive the screen: a StateFlow lives as long as the ViewModel, so
     // without this they stay in memory — and in any heap dump — after the user has navigated away.
