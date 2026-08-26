@@ -556,12 +556,15 @@ private fun CtaBlock(
         }
         // Signing up, not signing in — a different intent, so it keeps the text-link treatment
         // that sign-in screens conventionally give it rather than becoming a third button in the
-        // set above. Deliberately never disabled: the signup flow behind it is where a missing
-        // Pubky Ring is handled, so a dead end here is the one thing that leaves a new user with
-        // nowhere to go.
+        // set above.
+        //
+        // Gated like the two buttons above it. This used to be deliberately always-live, on the
+        // reasoning that a dead end here leaves a new user nowhere to go — but every one of these
+        // three ends in an account, and a consent that governs one of three doors is not a consent.
+        // The way out of the dead end is the tick itself, which starts ticked and sits directly
+        // below.
         TextButton(
             onClick = onCreatePubky,
-            // Also gated: it ends in an account too, and the consent covers the whole app.
             enabled = policyAccepted,
             modifier = Modifier.testTag("onboarding_create_pubky"),
             // Purple rather than the brand orange: the primary button above is orange, and two
@@ -581,9 +584,12 @@ private fun CtaBlock(
  * The consent gate on sign-in.
  *
  * Google Play requires the privacy policy to be agreed to at the point an account is created, so it
- * is stated on this screen rather than behind a link somewhere in Settings, and un-ticking it
- * blocks sign-in. It starts ticked; the create-account path stays live either way, since the flow
- * behind it asks again before anything is created.
+ * is stated on this screen rather than behind a link somewhere in Settings.
+ *
+ * Un-ticking it blocks **all three** ways in — Pubky Ring, restore, and create-account — because
+ * all three end in an account and a gate on one of three doors is decoration. It starts ticked, so
+ * the state where nothing on the screen works is one the user chose and can undo in one tap,
+ * directly beneath the controls it disabled.
  *
  * The two document names inside the sentence are real links. They are located by [indexOf] rather
  * than assembled from fragments so a translation can put them wherever its grammar wants; a name
