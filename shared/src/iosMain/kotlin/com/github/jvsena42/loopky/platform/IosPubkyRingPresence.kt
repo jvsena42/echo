@@ -14,10 +14,14 @@ import platform.UIKit.UIApplication
 class IosPubkyRingPresence(
     override val installUrl: String = DEFAULT_INSTALL_URL,
 ) : PubkyRingPresence {
-    override fun isInstalled(): Boolean {
-        val url = NSURL(string = PUBKY_RING_PROBE_URL)
-        return UIApplication.sharedApplication.canOpenURL(url)
-    }
+    override fun isInstalled(): Boolean = canOpen(PUBKY_RING_PROBE_URL)
+
+    // `pubkyring` is already in Info.plist's LSApplicationQueriesSchemes alongside `pubkyauth`,
+    // so this probe answers honestly without a plist change.
+    override fun canImportKey(): Boolean = canOpen(PUBKY_RING_IMPORT_PROBE_URL)
+
+    private fun canOpen(scheme: String): Boolean =
+        UIApplication.sharedApplication.canOpenURL(NSURL(string = scheme))
 
     private companion object {
         /** Product landing page — forwards to the App Store. */

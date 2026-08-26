@@ -14,6 +14,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.github.jvsena42.loopky.data.pubky.PubkyLink
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
+import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
+import com.github.jvsena42.loopky.ui.backup.BackupFileRoute
+import com.github.jvsena42.loopky.ui.backup.BackupPhraseRoute
+import com.github.jvsena42.loopky.ui.backup.BackupQuizRoute
+import com.github.jvsena42.loopky.ui.backup.BackupRingRoute
+import com.github.jvsena42.loopky.ui.backup.BackupStartRoute
 import com.github.jvsena42.loopky.ui.decks.DeckDetailRoute
 import com.github.jvsena42.loopky.ui.decks.DeckEditorRoute
 import com.github.jvsena42.loopky.ui.decks.EditCardRoute
@@ -32,6 +38,7 @@ import com.github.jvsena42.loopky.ui.search.SearchRoute
 import com.github.jvsena42.loopky.ui.settings.SettingsRoute
 import com.github.jvsena42.loopky.ui.signup.InviteCodeRoute
 import com.github.jvsena42.loopky.ui.signup.LightningVerificationRoute
+import com.github.jvsena42.loopky.ui.signup.LocalSignupRoute
 import com.github.jvsena42.loopky.ui.signup.PhoneVerificationRoute
 import com.github.jvsena42.loopky.ui.signup.SignupHandoffRoute
 import com.github.jvsena42.loopky.ui.signup.SignupStartRoute
@@ -78,7 +85,7 @@ internal fun LoopkyNavHost(
     NavHost(navController = navController, startDestination = Routes.ONBOARDING) {
         composable(Routes.ONBOARDING) {
             OnboardingRoute(
-                onCreatePubky = { navController.navigateTo(Routes.SIGNUP_START) },
+                onCreatePubky = { navController.navigateTo(Routes.signupStart()) },
                 onRestore = { navController.navigateTo(Routes.RESTORE_START) },
                 onNavigateHome = {
                     navController.navigateTo(Routes.MAIN) {
@@ -141,6 +148,7 @@ internal fun LoopkyNavHost(
                         popUpTo(Routes.MAIN) { inclusive = true }
                     }
                 },
+                onBackUpNow = { navController.navigateTo(Routes.BACKUP_START) },
                 focus = entry.arguments?.getString("focus"),
             )
         }
@@ -261,6 +269,7 @@ internal fun LoopkyNavHost(
         }
         signupDestinations(navController)
         restoreDestinations(navController)
+        backupDestinations(navController)
         cardEditorDestinations(navController)
         composable(
             route = Routes.STUDY,
@@ -327,6 +336,76 @@ internal fun LoopkyNavHost(
  * Grouped like [cardEditorDestinations] and flat like the import flow — the token in flight lives
  * in `SignupRepository`, so no step needs a nav argument and every back press is a plain pop.
  */
+/**
+ * Where a finished verification goes: Ring's deeplink handoff, or Loopky's own redemption.
+ *
+ * Read off the back stack rather than passed down through the three method screens, so those stay
+ * byte-identical between the two spenders.
+ */
+private fun NavHostController.navigateToRedemption() {
+    val entry = currentBackStack.value.firstOrNull { it.destination.route == Routes.SIGNUP_START }
+    val redeemer = TokenRedeemer.fromNameOrRing(entry?.arguments?.getString("with"))
+    val target = when (redeemer) {
+        TokenRedeemer.PubkyRing -> Routes.SIGNUP_HANDOFF
+        TokenRedeemer.Loopky -> Routes.SIGNUP_LOCAL
+    }
+    navigateTo(target)
+}
+
+private fun NavGraphBuilder.backupDestinations(navController: NavHostController) {
+    composable(Routes.BACKUP_START) {
+        BackupStartRoute(
+            onBack = { navController.popBackStack() },
+            onDone = {
+                navController.navigateTo(Routes.MAIN) {
+                    popUpTo(Routes.BACKUP_START) { inclusive = true }
+                }
+            },
+            onPhrase = { navController.navigateTo(Routes.BACKUP_PHRASE) },
+            onFile = { navController.navigateTo(Routes.BACKUP_FILE) },
+            onRing = { navController.navigateTo(Routes.BACKUP_RING) },
+        )
+    }
+    composable(Routes.BACKUP_PHRASE) {
+        BackupPhraseRoute(
+            onBack = { navController.popBackStack() },
+            onConfirm = { navController.navigateTo(Routes.BACKUP_QUIZ) },
+        )
+    }
+    composable(Routes.BACKUP_QUIZ) {
+        BackupQuizRoute(
+            onBack = { navController.popBackStack() },
+            // Back to the menu, not out: having done one method is not a reason to stop offering
+            // the others, and the menu now shows this one ticked.
+            onDone = {
+                navController.navigateTo(Routes.BACKUP_START) {
+                    popUpTo(Routes.BACKUP_START) { inclusive = true }
+                }
+            },
+        )
+    }
+    composable(Routes.BACKUP_FILE) {
+        BackupFileRoute(
+            onBack = { navController.popBackStack() },
+            onDone = {
+                navController.navigateTo(Routes.BACKUP_START) {
+                    popUpTo(Routes.BACKUP_START) { inclusive = true }
+                }
+            },
+        )
+    }
+    composable(Routes.BACKUP_RING) {
+        BackupRingRoute(
+            onBack = { navController.popBackStack() },
+            onDone = {
+                navController.navigateTo(Routes.BACKUP_START) {
+                    popUpTo(Routes.BACKUP_START) { inclusive = true }
+                }
+            },
+        )
+    }
+}
+
 private fun NavGraphBuilder.restoreDestinations(navController: NavHostController) {
     composable(Routes.RESTORE_START) {
         RestoreStartRoute(
@@ -360,32 +439,70 @@ private fun NavGraphBuilder.restoreDestinations(navController: NavHostController
 }
 
 private fun NavGraphBuilder.signupDestinations(navController: NavHostController) {
-    composable(Routes.SIGNUP_START) {
+    composable(
+        route = Routes.SIGNUP_START,
+        arguments = listOf(
+            navArgument("with") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            },
+        ),
+    ) { entry ->
+        // Unknown values fall back to Ring — the recommended path — rather than silently choosing
+        // the one that puts a key on the device.
+        val redeemer = TokenRedeemer.fromNameOrRing(entry.arguments?.getString("with"))
         SignupStartRoute(
+            redeemer = redeemer,
             onBack = { navController.popBackStack() },
             onSms = { navController.navigateTo(Routes.SIGNUP_PHONE) },
             onLightning = { navController.navigateTo(Routes.SIGNUP_LIGHTNING) },
             onInviteCode = { navController.navigateTo(Routes.SIGNUP_INVITE) },
+            onCreateLocally = {
+                navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky)) {
+                    popUpTo(Routes.SIGNUP_START) { inclusive = true }
+                }
+            },
         )
     }
+    composable(Routes.SIGNUP_LOCAL) {
+        LocalSignupRoute(
+            onBack = { navController.popBackStack() },
+            // Straight to backup, not home: this is the only moment in the app where a key exists
+            // that nobody has a copy of.
+            onCreated = {
+                navController.navigateTo(Routes.BACKUP_START) {
+                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                }
+            },
+        )
+    }
+    // The three verification screens are identical for both spenders and are deliberately
+    // untouched; only where their "done" lands differs, and that is nav-layer code. The redeemer
+    // is read off the back stack rather than threaded through them.
     composable(Routes.SIGNUP_PHONE) {
         PhoneVerificationRoute(
             onBack = { navController.popBackStack() },
-            onDone = { navController.navigateTo(Routes.SIGNUP_HANDOFF) },
+            onDone = { navController.navigateToRedemption() },
         )
     }
     composable(Routes.SIGNUP_LIGHTNING) {
         LightningVerificationRoute(
             onBack = { navController.popBackStack() },
-            onDone = { navController.navigateTo(Routes.SIGNUP_HANDOFF) },
+            onDone = { navController.navigateToRedemption() },
         )
     }
     composable(Routes.SIGNUP_INVITE) {
         InviteCodeRoute(
             onBack = { navController.popBackStack() },
-            onDone = { navController.navigateTo(Routes.SIGNUP_HANDOFF) },
+            onDone = { navController.navigateToRedemption() },
         )
     }
+    signupRedemptionDestinations(navController)
+}
+
+/** The two terminal steps: Ring's deeplink handoff, and Loopky's own redemption. */
+private fun NavGraphBuilder.signupRedemptionDestinations(navController: NavHostController) {
     composable(Routes.SIGNUP_HANDOFF) {
         SignupHandoffRoute(
             onBack = { navController.popBackStack() },

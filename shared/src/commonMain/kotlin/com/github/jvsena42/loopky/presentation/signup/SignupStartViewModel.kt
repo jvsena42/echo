@@ -21,10 +21,15 @@ import kotlinx.coroutines.launch
  *
  * Two gates, and they are deliberately opposite:
  *
- * - **Pubky Ring is a hard gate, checked first.** Every method here ends in a token that only Ring
- *   can redeem, and getting one costs an SMS attempt (two per week) or sats. So nothing is asked
- *   of Homegate — not even [SignupRepository.availability] — until Ring is on the device. The
- *   alternative is charging someone for a token they cannot spend and telling them so afterwards.
+ * - **Pubky Ring is a hard gate for the Ring redeemer, checked first.** A token redeemed through
+ *   Ring can only be spent with Ring installed, and getting one costs an SMS attempt (two per
+ *   week) or sats. So nothing is asked of Homegate — not even [SignupRepository.availability] —
+ *   until Ring is on the device. The alternative is charging someone for a token they cannot spend
+ *   and telling them so afterwards.
+ *
+ *   It is **not** a gate for [TokenRedeemer.Loopky], which redeems with `signUp(secretKey, …)` and
+ *   needs nothing installed. Same token, same cost, different spender — so the check follows the
+ *   spender rather than the flow. Ring stays the default and the recommendation (#147).
  * - **Method availability is a courtesy, not a gate.** A method Homegate could not be asked about
  *   stays **enabled**: locking someone out of the only route into the app because a probe timed
  *   out is worse than letting that method's own screen explain itself.
@@ -32,6 +37,11 @@ import kotlinx.coroutines.launch
 class SignupStartViewModel(
     private val signupRepository: SignupRepository,
     private val ringPresence: PubkyRingPresence,
+    /**
+     * Who will spend the token this flow produces. Defaults to Ring, so every existing caller —
+     * and every existing test — keeps the behaviour it had.
+     */
+    private val redeemer: TokenRedeemer = TokenRedeemer.PubkyRing,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SignupStartUiState())
     val state: StateFlow<SignupStartUiState> = _state.asStateFlow()
@@ -47,9 +57,11 @@ class SignupStartViewModel(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
 
-            if (!ringPresence.isInstalled()) {
+            // Only the Ring redeemer needs Ring. Gating the Loopky one on it would refuse to
+            // quote a price for a token this device can spend perfectly well by itself.
+            if (redeemer == TokenRedeemer.PubkyRing && !ringPresence.isInstalled()) {
                 Log.w(TAG, "load: Pubky Ring is not installed — not minting a token that cannot be spent")
-                _state.update { it.copy(isLoading = false, isRingInstalled = false) }
+                _state.update { it.copy(isLoading = false, isRingInstalled = false, hasRedeemer = false) }
                 return@launch
             }
 
@@ -60,6 +72,7 @@ class SignupStartViewModel(
                 it.copy(
                     isLoading = false,
                     isRingInstalled = true,
+                    hasRedeemer = true,
                     sms = availability?.sms ?: MethodAvailability.Unknown,
                     lightning = availability?.lightning ?: MethodAvailability.Unknown,
                 )
@@ -80,12 +93,31 @@ class SignupStartViewModel(
         load()
     }
 
+    /** Which spender this flow was entered for, so the screen can route its "done" step. */
+    val tokenRedeemer: TokenRedeemer get() = redeemer
+
     fun onInstallRingClick() {
         viewModelScope.launch { _effects.emit(SignupStartEffect.OpenInstallPage(ringPresence.installUrl)) }
     }
 
     private companion object {
         const val TAG = "Loopky/SignupStartVM"
+    }
+}
+
+/** Who spends the signup token this flow produces. */
+enum class TokenRedeemer {
+    /** Pubky Ring mints the key and redeems the token; Loopky never holds a secret key. */
+    PubkyRing,
+
+    /** Loopky mints the key and redeems the token itself with `signUp(secretKey, …)`. */
+    Loopky,
+    ;
+
+    companion object {
+        /** Parse a nav argument, defaulting to Ring — the recommended path — for anything unknown. */
+        fun fromNameOrRing(name: String?): TokenRedeemer =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: PubkyRing
     }
 }
 
@@ -98,10 +130,16 @@ data class SignupStartUiState(
     val isRingInstalled: Boolean = true,
     val sms: MethodAvailability = MethodAvailability.Unknown,
     val lightning: MethodAvailability = MethodAvailability.Unknown,
+    /**
+     * Whether a spender for the token exists on this device at all.
+     *
+     * Always true for [TokenRedeemer.Loopky]: it is its own spender.
+     */
+    val hasRedeemer: Boolean = true,
 ) {
     /** Disabled only when Homegate positively said no — never merely because we could not ask. */
-    val isSmsEnabled: Boolean get() = isRingInstalled && sms !is MethodAvailability.Unavailable
-    val isLightningEnabled: Boolean get() = isRingInstalled && lightning !is MethodAvailability.Unavailable
+    val isSmsEnabled: Boolean get() = hasRedeemer && sms !is MethodAvailability.Unavailable
+    val isLightningEnabled: Boolean get() = hasRedeemer && lightning !is MethodAvailability.Unavailable
 
     /** Sats for the Lightning route, when known. */
     val lightningPriceSat: Long? get() = (lightning as? MethodAvailability.Available)?.priceSat

@@ -69,3 +69,20 @@ enum class BackupMethod {
      */
     PubkyRing,
 }
+
+/**
+ * A freshly minted, freshly registered account, with the phrase that recovers it.
+ *
+ * The mnemonic travels back to the caller exactly once, so the backup step can show it. It is
+ * already in the keystore by then; this is not the only copy.
+ */
+data class LocalAccount(val pubky: String, val mnemonic: String)
+
+/**
+ * Signing out would destroy the only copy of a key nobody has backed up.
+ *
+ * Thrown by `IdentityRepository.signOut` rather than returned as a state, because the caller has
+ * to *stop* — the point is that the UI raises a confirm before the key is gone.
+ */
+class UnbackedUpLocalKey(val pubky: String) :
+    RuntimeException("The local key for $pubky has never been backed up")

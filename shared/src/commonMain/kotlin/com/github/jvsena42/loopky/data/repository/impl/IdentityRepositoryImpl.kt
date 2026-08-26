@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.data.pubky.asSignupUrl
 import com.github.jvsena42.loopky.data.pubky.isNoHomeserverRecord
 import com.github.jvsena42.loopky.data.pubky.keypairFromMnemonic
 import com.github.jvsena42.loopky.data.pubky.keypairFromSecretKey
+import com.github.jvsena42.loopky.data.pubky.mintValidatedKeypair
 import com.github.jvsena42.loopky.data.pubky.parseSessionPayload
 import com.github.jvsena42.loopky.data.pubky.redactAuthUrl
 import com.github.jvsena42.loopky.data.pubky.redactSessionPayload
@@ -24,10 +25,12 @@ import com.github.jvsena42.loopky.domain.model.BackupMethod
 import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.KeySource
+import com.github.jvsena42.loopky.domain.model.LocalAccount
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Session
+import com.github.jvsena42.loopky.domain.model.UnbackedUpLocalKey
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.encodeUriComponent
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -75,7 +78,15 @@ internal class IdentityRepositoryImpl(
         return handle.complete()
     }
 
-    override suspend fun signOut(): Result<Unit> = runSuspendCatching {
+    override suspend fun signOut(force: Boolean): Result<Unit> = runSuspendCatching {
+        // Refused rather than warned-about-in-the-dialog, so no future caller can sign out
+        // silently and take the only copy of an identity with it. The UI catches this, raises a
+        // confirm, and calls back with force = true.
+        val held = localKeyStore.current()
+        if (!force && held != null && held.backedUpBy.isEmpty()) {
+            throw UnbackedUpLocalKey(held.pubky)
+        }
+
         val current = sessionProvider.current()
         if (current != null) {
             pubky.signOut(current.sessionSecret)
@@ -234,6 +245,65 @@ internal class IdentityRepositoryImpl(
             }
         }
 
+    override suspend fun createLocalAccount(
+        homeserverPubky: String,
+        signupToken: String,
+    ): Result<LocalAccount> = runSuspendCatching {
+        // Minting validates the key against its own phrase before we ever see it; a failure here
+        // is terminal and is never retried with a weaker source.
+        val minted = withContext(Dispatchers.Default) { pubky.mintValidatedKeypair() }.getOrThrow()
+        val mnemonic = requireNotNull(minted.mnemonic) { "a minted keypair must carry its phrase" }
+
+        // Stored *before* signUp. If the registration fails halfway the key still exists, so the
+        // retry registers the same pubky rather than minting a second identity and stranding the
+        // first — which is the Pubky Ring failure mode this whole path exists to avoid.
+        localKeyStore.save(
+            LocalKey(secretKeyHex = minted.secretKeyHex, pubky = minted.pubky, mnemonic = mnemonic),
+        )
+
+        registerKey(minted.secretKeyHex, minted.pubky, homeserverPubky, signupToken)
+        LocalAccount(pubky = minted.pubky, mnemonic = mnemonic)
+    }.onFailure {
+        Log.e(TAG, "createLocalAccount: FAILED — ${it::class.simpleName}: ${it.message}", it)
+    }
+
+    override suspend fun registerHeldKey(
+        homeserverPubky: String,
+        signupToken: String,
+    ): Result<Session> = runSuspendCatching {
+        val held = requireNotNull(localKeyStore.current()) { "No local key to register" }
+        registerKey(held.secretKeyHex, held.pubky, homeserverPubky, signupToken)
+    }.onFailure {
+        Log.e(TAG, "registerHeldKey: FAILED — ${it::class.simpleName}: ${it.message}", it)
+    }
+
+    /**
+     * `signUp` for [secretKeyHex], then verify the account we actually landed on.
+     *
+     * The assertion is not paranoia. A session coming back is not proof the token was spent on the
+     * key we meant: Architecture.md §7.8 records Pubky Ring quietly authorising a *different*
+     * already-signed-up pubky when its own signup fails. The same shape is possible here, and a
+     * pubky we did not set out to register is a failure to surface rather than a session to keep.
+     */
+    private suspend fun registerKey(
+        secretKeyHex: String,
+        expectedPubky: String,
+        homeserverPubky: String,
+        signupToken: String,
+    ): Session {
+        Log.d(TAG, "registerKey: registering ${expectedPubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+        val payload = pubky.signUp(secretKeyHex, homeserverPubky, signupToken).getOrThrow()
+        val session = parseSessionPayload(payload, loopkyJson)
+
+        check(session.identity.pubky == expectedPubky) {
+            "signUp returned a different pubky than the key we registered"
+        }
+
+        // The grant flow's session JSON has no `homeserver` field, so it is filled from the value
+        // we registered against rather than left blank for Settings to render as "Unknown".
+        return persistSession(session.copy(homeserver = session.homeserver.ifBlank { homeserverPubky }))
+    }
+
     /** What restoring from [this] proves the user already has a copy of. */
     private fun KeySource.backupMethod(): BackupMethod = when (this) {
         is KeySource.Phrase -> BackupMethod.RecoveryPhrase
@@ -373,7 +443,11 @@ internal class IdentityRepositoryImpl(
         // So a later sign-in on this same process announces the account again rather than
         // believing it already did.
         selfTaggedThisProcess = false
-        signOut().getOrThrow()
+        // Forced: the account's records are already gone, so refusing here would strand a
+        // half-deleted account behind a backup prompt. The confirm that matters happens before
+        // deletion starts — after the sweep, the phrase is the only thing that could ever reach
+        // this identity again.
+        signOut(force = true).getOrThrow()
         Log.d(TAG, "deleteAccount: done")
     }.onFailure {
         Log.e(TAG, "deleteAccount: FAILED — ${it::class.simpleName}: ${it.message}", it)

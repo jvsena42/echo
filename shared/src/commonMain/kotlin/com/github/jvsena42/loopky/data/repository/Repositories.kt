@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.data.homegate.LnInvoice
 import com.github.jvsena42.loopky.data.homegate.MethodAvailability
 import com.github.jvsena42.loopky.data.storage.PendingSignup
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
+import com.github.jvsena42.loopky.domain.model.BackupMethod
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
 import com.github.jvsena42.loopky.domain.model.Deck
@@ -17,6 +18,7 @@ import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.KeySource
+import com.github.jvsena42.loopky.domain.model.LocalAccount
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
@@ -37,7 +39,19 @@ interface IdentityRepository {
     suspend fun currentSession(): Session?
     suspend fun loadPersistedSession(): Session?
     suspend fun signIn(): Result<Session>
-    suspend fun signOut(): Result<Unit>
+
+    /**
+     * Sign out, clearing the session **and** any key Loopky holds — a signed-out device holding a
+     * secret key is a credential nobody is watching.
+     *
+     * Fails with [UnbackedUpLocalKey] when the key has never been backed up, so the UI is forced
+     * to raise a confirm before destroying the only copy of an identity. Pass [force] once the
+     * user has said yes. Backed-up keys and Ring-held keys sign out with no prompt.
+     *
+     * The guard lives here rather than only in the dialog so no future caller can sign out
+     * silently and take an un-backed-up account with it.
+     */
+    suspend fun signOut(force: Boolean = false): Result<Unit>
 
     /**
      * Who holds the key for the account we are signed in as, and whether it has been backed up.
@@ -83,6 +97,30 @@ interface IdentityRepository {
      *   back into the app for someone locked out.
      */
     suspend fun signInWithKey(source: KeySource, knownHomeserver: String? = null): Result<Session>
+
+    /**
+     * Mint a key inside the FFI, register it against [homeserverPubky] with [signupToken], and
+     * sign in — the local alternative to handing the token to Pubky Ring.
+     *
+     * Never falls back to weaker entropy: a key that fails its own round-trip validation is a
+     * terminal failure, and the screen offers Ring rather than trying again (see `KeyMinting`).
+     *
+     * The returned session's pubky is asserted to be the key we minted **before** this returns.
+     * A homeserver that answers about a different account is a failure to surface, not a session
+     * to accept.
+     */
+    suspend fun createLocalAccount(homeserverPubky: String, signupToken: String): Result<LocalAccount>
+
+    /**
+     * Register the key Loopky **already holds** — from a restore, or from a mint whose `signUp`
+     * failed after the key was stored.
+     *
+     * Never mints. That distinction is the whole point: Pubky Ring's signup deeplink hardcodes
+     * minting and keys reuse only on the signup token, so redeeming through it for a pubky the
+     * user already has silently registers a *different* identity and leaves theirs account-less
+     * forever. This registers exactly the key in hand, and asserts the pubky that comes back.
+     */
+    suspend fun registerHeldKey(homeserverPubky: String, signupToken: String): Result<Session>
 
     /**
      * Two-step Pubky Ring sign-in that hands control of "open the deeplink" back to the caller
@@ -172,6 +210,67 @@ interface IdentityRepository {
         const val DEFAULT_CAPABILITIES = "/pub/loopky/:rw,/pub/pubky.app/:rw"
     }
 }
+
+/**
+ * Getting a locally-held key somewhere that survives losing this device.
+ *
+ * Separate from [IdentityRepository] because nothing here produces or consumes a [Session] — these
+ * are read-and-export operations over a key that already exists. Every one of them touches the
+ * secret, so nothing here logs and nothing returns key material that is not immediately destined
+ * for a `FLAG_SECURE` screen or the platform's own share/save sheet.
+ */
+interface KeyBackupRepository {
+
+    /** Who holds the key and what has been done about it. Carries no secret. */
+    val custody: Flow<KeyCustody>
+
+    /**
+     * The twelve words, for a screenshot-blocked screen.
+     *
+     * Fails when Loopky holds no key, or holds one restored from a recovery file — BIP-39 runs one
+     * way, so those genuinely have no phrase and the UI must not offer to show one.
+     */
+    suspend fun revealRecoveryPhrase(): Result<String>
+
+    /**
+     * A quiz over the phrase: a few positions, four candidates each, the right word among them.
+     *
+     * Derived fresh each time rather than stored, so the answers cannot be read out of anything.
+     */
+    suspend fun buildPhraseQuiz(): Result<PhraseQuiz>
+
+    /**
+     * An encrypted recovery file for [passphrase].
+     *
+     * Returns the FFI's Base64. The bytes written to disk must be the **decoded** form — that is
+     * what pubky-app writes as `recovery.pkarr` and what Pubky Ring reads — so the platform layer
+     * doing the saving owns that step.
+     */
+    suspend fun createRecoveryFile(passphrase: String): Result<RecoveryFileBlob>
+
+    /**
+     * A `pubkyring://` deeplink that imports this key into Pubky Ring.
+     *
+     * Never log this and never stage it in a clipboard: it carries the phrase in a URL, where
+     * recents snapshots and IME clipboard history can see it. Hand it straight to the OS.
+     */
+    suspend fun ringExportUrl(): Result<String>
+
+    /** Record that a method is done. Additive; having written the words down does not retire the file. */
+    suspend fun markBackedUp(method: BackupMethod)
+}
+
+/** One question in the confirm quiz: which word belongs at [position] (1-based, as displayed). */
+data class PhraseQuizQuestion(
+    val position: Int,
+    val options: List<String>,
+    val answer: String,
+)
+
+data class PhraseQuiz(val questions: List<PhraseQuizQuestion>)
+
+/** An encrypted recovery file, Base64 as the FFI returns it, plus the name to offer for it. */
+data class RecoveryFileBlob(val base64: String, val fileName: String)
 
 /**
  * How far a [DeckRepository.publish] has got. [chunksWritten] counts card chunks only; the

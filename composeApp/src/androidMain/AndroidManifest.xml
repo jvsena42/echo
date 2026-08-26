@@ -16,6 +16,14 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="pubkyauth" />
         </intent>
+        <!-- Ring's *import* scheme, which is a different question from its auth scheme: a device
+             can handle one and not the other, and each needs its own entry here. Without it the
+             "export to Pubky Ring" backup option reports Ring missing on every device that has
+             it — on the one screen whose entire job is getting the key into Ring. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="pubkyring" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
@@ -35,8 +43,16 @@
          device-local by design — AppPreferences says so on the interface, and replaying a restored
          review journal onto a second device would re-flush reviews that already landed.
 
-         The data that matters lives elsewhere: the identity in Pubky Ring, the decks and review state
-         on the homeserver. Signing in on a new device is the restore path.
+         The data that matters lives elsewhere: the decks and review state on the homeserver, and the
+         identity either in Pubky Ring or — for an account created or restored in Loopky — in the
+         `loopky.secrets` vault above. That second case makes this setting *more* important, not
+         less: the vault is exactly the file Auto Backup would copy, and it is exactly the file a
+         restore cannot decrypt. Backing it up would produce a device that looks signed in and
+         throws on every read.
+
+         Signing in on a new device is the restore path, and for a locally-held key that means the
+         recovery phrase or recovery file the user was prompted to save (#147) — which is a backup
+         they control, not one Android makes silently.
 
          `false` also disables Android 12+ D2D transfer, which is the same exposure by another route. -->
     <application

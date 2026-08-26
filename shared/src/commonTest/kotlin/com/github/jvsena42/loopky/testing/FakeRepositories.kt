@@ -43,6 +43,7 @@ import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.KeySource
+import com.github.jvsena42.loopky.domain.model.LocalAccount
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.ParsedRow
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
@@ -138,10 +139,40 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
     override suspend fun signIn(): Result<Session> =
         session?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no session"))
 
-    override suspend fun signOut(): Result<Unit> {
+    /** When set, a non-forced sign-out is refused, as an un-backed-up local key makes it. */
+    var signOutRefusal: Throwable? = null
+    val forcedSignOuts = mutableListOf<Boolean>()
+
+    override suspend fun signOut(force: Boolean): Result<Unit> {
+        forcedSignOuts.add(force)
+        signOutRefusal?.takeIf { !force }?.let { return Result.failure(it) }
         signOutCount++
         session = null
         return Result.success(Unit)
+    }
+
+    /** Records what [createLocalAccount] was asked for, and how many keys were minted. */
+    val createLocalAccountCalls = mutableListOf<Pair<String, String>>()
+    var createLocalAccountResult: Result<LocalAccount> =
+        Result.success(LocalAccount(pubky = "pkminted", mnemonic = VALID_TEST_MNEMONIC))
+
+    val registerHeldKeyCalls = mutableListOf<Pair<String, String>>()
+    var registerHeldKeyResult: Result<Session> = Result.success(fakeSession())
+
+    override suspend fun createLocalAccount(
+        homeserverPubky: String,
+        signupToken: String,
+    ): Result<LocalAccount> {
+        createLocalAccountCalls.add(homeserverPubky to signupToken)
+        return createLocalAccountResult
+    }
+
+    override suspend fun registerHeldKey(
+        homeserverPubky: String,
+        signupToken: String,
+    ): Result<Session> {
+        registerHeldKeyCalls.add(homeserverPubky to signupToken)
+        return registerHeldKeyResult
     }
 
     var deleteAccountCount = 0

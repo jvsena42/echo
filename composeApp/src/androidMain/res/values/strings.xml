@@ -591,6 +591,58 @@
          dismissed. Deliberately no heuristic detection: a false negative would read as an
          all-clear, which is worse than saying nothing. -->
     <string name="restore_seed_warning">Only enter a phrase created for Pubky. Never enter a Bitcoin or other crypto wallet recovery phrase here.</string>
+    <!-- Local key creation + backup (#147). -->
+    <string name="onboarding_create_local">Create an account in Loopky</string>
+    <string name="signup_local_title">Creating your account</string>
+    <string name="signup_local_subtitle">Making your key and registering it. This takes a moment.</string>
+    <string name="signup_local_retry">Try again</string>
+    <string name="signup_ring_recommended_title">Pubky Ring is the safest place for your key</string>
+    <string name="signup_ring_recommended_body">Pubky Ring keeps your key in a separate app, so signing in to Loopky never exposes it. Install it, or create your key in Loopky instead.</string>
+    <string name="signup_create_locally">Create the key in Loopky instead</string>
+    <string name="backup_start_title">Back up your account</string>
+    <string name="backup_start_subtitle">Your key lives only on this device. Save it somewhere you can reach if you lose your phone. You can also do this later.</string>
+    <string name="backup_later">I\'ll do this later</string>
+    <string name="backup_done_label">Done</string>
+    <string name="backup_method_phrase">Recovery phrase</string>
+    <string name="backup_method_phrase_detail">Write down twelve words and confirm them.</string>
+    <string name="backup_method_file">Encrypted file</string>
+    <string name="backup_method_file_detail">Save a passphrase-protected file to Drive or Files.</string>
+    <string name="backup_method_ring">Export to Pubky Ring</string>
+    <string name="backup_method_ring_detail">Copy your key into Pubky Ring. Loopky keeps its copy too.</string>
+    <string name="backup_phrase_title">Your recovery phrase</string>
+    <string name="backup_phrase_subtitle">Write these twelve words down, in order, and keep them somewhere safe.</string>
+    <string name="backup_phrase_reveal">Tap to reveal</string>
+    <string name="backup_phrase_continue">I\'ve written them down</string>
+    <!-- The inverted seed warning: prevents someone sending sats to a Pubky account. -->
+    <string name="backup_phrase_warning">This phrase is for your Pubky account only. It is not a Bitcoin wallet and holds no funds.</string>
+    <string name="backup_quiz_title">Confirm your phrase</string>
+    <string name="backup_quiz_subtitle">Pick the right word for each position.</string>
+    <string name="backup_quiz_position">Word %1$d</string>
+    <string name="backup_quiz_submit">Confirm</string>
+    <string name="backup_quiz_wrong">That\'s not quite right. Check your written copy and try again.</string>
+    <string name="backup_file_title">Encrypted recovery file</string>
+    <string name="backup_file_subtitle">Choose a passphrase. You will need it — and the file — to restore.</string>
+    <string name="backup_file_passphrase">Passphrase</string>
+    <string name="backup_file_create">Create and save file</string>
+    <string name="backup_file_failed">Couldn\'t create the file. Please try again.</string>
+    <string name="backup_strength_too_short">Too short</string>
+    <string name="backup_strength_weak">Weak — 16 characters or more is much stronger</string>
+    <string name="backup_strength_fair">Fair — 16 characters or more is much stronger</string>
+    <string name="backup_strength_strong">Strong</string>
+    <string name="backup_ring_title">Export to Pubky Ring</string>
+    <!-- Never implies the key moved. Ring imports it; Loopky keeps its copy and its session, and
+         the words the user wrote down are still valid. -->
+    <string name="backup_ring_subtitle">This copies your key into Pubky Ring. Loopky keeps its own copy, and your recovery phrase still works.</string>
+    <string name="backup_ring_open">Open Pubky Ring</string>
+    <string name="backup_ring_missing">Pubky Ring isn\'t installed on this device.</string>
+    <string name="backup_ring_confirm">I imported it into Pubky Ring</string>
+    <string name="backup_nag_title">Back up your account</string>
+    <string name="backup_nag_body">Your key lives only on this device. If you lose it, your decks go with it.</string>
+    <string name="backup_nag_action">Back up now</string>
+    <string name="settings_signout_unbacked_title">Signing out will erase your key</string>
+    <string name="settings_signout_unbacked_body">Loopky holds the only copy of the key for %1$s, and you haven\'t backed it up. Signing out deletes it, and this account can never be recovered.</string>
+    <string name="settings_signout_unbacked_confirm">Sign out and erase</string>
+    <string name="settings_signout_unbacked_backup">Back up first</string>
     <string name="restore_method_file">Encrypted recovery file</string>
     <string name="restore_method_file_detail">A recovery.pkarr file and its passphrase.</string>
     <string name="restore_file_title">Open your recovery file</string>

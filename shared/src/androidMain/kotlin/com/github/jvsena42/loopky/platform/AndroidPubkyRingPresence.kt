@@ -15,8 +15,12 @@ class AndroidPubkyRingPresence(
     private val context: Context,
     override val installUrl: String,
 ) : PubkyRingPresence {
-    override fun isInstalled(): Boolean {
-        val intent = Intent(Intent.ACTION_VIEW, PUBKY_RING_PROBE_URL.toUri())
+    override fun canImportKey(): Boolean = canOpen(PUBKY_RING_IMPORT_PROBE_URL)
+
+    override fun isInstalled(): Boolean = canOpen(PUBKY_RING_PROBE_URL)
+
+    private fun canOpen(url: String): Boolean {
+        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
         return intent.resolveActivity(context.packageManager) != null
     }
 }

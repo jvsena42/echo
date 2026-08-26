@@ -135,4 +135,43 @@ class SignupStartViewModelTest {
             effects,
         )
     }
+
+    @Test
+    fun theLoopkyRedeemerAsksHomegateEvenWithNoRingInstalled() = runTest {
+        // The gate follows the *spender*, not the flow. Loopky redeems with signUp(secretKey, …)
+        // and needs nothing installed, so refusing to even quote a price would block a token this
+        // device can spend perfectly well by itself (#147).
+        ring.installed = false
+        val vm = SignupStartViewModel(
+            signupRepository = signupRepo,
+            ringPresence = ring,
+            redeemer = TokenRedeemer.Loopky,
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, signupRepo.availabilityCount)
+    }
+
+    @Test
+    fun everyMethodStaysEnabledForTheLoopkyRedeemerWithoutRing() = runTest {
+        ring.installed = false
+        val vm = SignupStartViewModel(
+            signupRepository = signupRepo,
+            ringPresence = ring,
+            redeemer = TokenRedeemer.Loopky,
+        )
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.isSmsEnabled)
+        assertTrue(vm.state.value.isLightningEnabled)
+    }
+
+    @Test
+    fun anUnknownRedeemerArgumentFallsBackToRingRatherThanToLocalKeys() = runTest {
+        // A typo in a deeplink must not silently choose the path that puts a secret key on the
+        // device. Ring is the recommendation, so it is the default.
+        assertEquals(TokenRedeemer.PubkyRing, TokenRedeemer.fromNameOrRing("nonsense"))
+        assertEquals(TokenRedeemer.PubkyRing, TokenRedeemer.fromNameOrRing(null))
+        assertEquals(TokenRedeemer.Loopky, TokenRedeemer.fromNameOrRing("loopky"))
+    }
 }

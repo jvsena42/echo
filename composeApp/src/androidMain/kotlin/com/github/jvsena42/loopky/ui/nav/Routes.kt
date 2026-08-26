@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.ui.nav
 
 import android.net.Uri
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
+import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
 
 object Routes {
     const val ONBOARDING = "onboarding"
@@ -32,11 +33,24 @@ object Routes {
     const val RESTORE_PHRASE = "restore/phrase"
     const val RESTORE_FILE = "restore/file"
 
-    const val SIGNUP_START = "signup"
+    /**
+     * Signup, parameterised by who will spend the token: `ring` (default) or `loopky`.
+     *
+     * A nav argument rather than repository state because it is a property of *this journey*, and
+     * the same three verification screens serve both spenders unchanged.
+     */
+    const val SIGNUP_START = "signup?with={with}"
+    const val SIGNUP_LOCAL = "signup/local"
     const val SIGNUP_PHONE = "signup/phone"
     const val SIGNUP_LIGHTNING = "signup/lightning"
     const val SIGNUP_INVITE = "signup/invite"
     const val SIGNUP_HANDOFF = "signup/handoff"
+
+    const val BACKUP_START = "backup"
+    const val BACKUP_PHRASE = "backup/phrase"
+    const val BACKUP_QUIZ = "backup/phrase/confirm"
+    const val BACKUP_FILE = "backup/file"
+    const val BACKUP_RING = "backup/ring"
 
     const val IMPORT_PASTE = "import/paste"
 
@@ -86,4 +100,8 @@ object Routes {
     fun newCard(deckId: String) = "deck/$deckId/card/new"
     fun study(deckId: String?) = if (deckId != null) "study?deckId=$deckId" else "study"
     fun triageEditCard(rowIndex: Int) = "import/triage/edit/$rowIndex"
+
+    /** Signup for a given spender. Ring is the default and the recommendation. */
+    fun signupStart(redeemer: TokenRedeemer = TokenRedeemer.PubkyRing): String =
+        "signup?with=${redeemer.name.lowercase()}"
 }

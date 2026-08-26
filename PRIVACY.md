@@ -35,21 +35,37 @@ Questions about this policy: open an issue at
 - **No crash reporting.** Nothing is transmitted when the app fails.
 - **No advertising**, and no sale or sharing of personal information for advertising.
 - **No account with Loopky.** There is no email address, password, or profile held by us. Your
-  account is a Pubky account, held by Pubky Ring and hosted on a homeserver.
+  account is a Pubky account, held either by Pubky Ring or by Loopky on your own device, and
+  hosted on a homeserver. See section 3.
 
 ---
 
 ## 3. Your identity
 
-Your identity is a Pubky keypair held by **[Pubky Ring](https://pubky.app)**, a separate app. Loopky
-never sees your private key or your recovery phrase.
+Your identity is a Pubky keypair. There are two ways to hold it, and which one you chose changes
+what is on your device.
 
-When you sign in, Ring grants Loopky a **session secret** scoped to Loopky's own storage area. That
-secret is kept in your device's own secure storage — the Android Keystore on Android, the Keychain
-on iOS — and is sent only to your homeserver, to authorise your own reads and writes. Signing out
-deletes it.
+**If you use Pubky Ring** (the recommended option), your key lives in that separate app and Loopky
+never sees your private key or your recovery phrase. When you sign in, Ring grants Loopky a
+**session secret** scoped to Loopky's own storage area.
 
-Deleting your Loopky data does not delete your Pubky identity. That is managed in Pubky Ring.
+**If you created or restored your account inside Loopky**, then Loopky holds your private key
+itself. It is stored in your device's own secure storage — the Android Keystore on Android, the
+Keychain on iOS — and is used to sign your own reads and writes. It is never sent to us (we run no
+server), never sent to any third party, and never written to a log.
+
+In both cases the session secret is kept in that same secure storage and is sent only to your
+homeserver. **Signing out deletes both the session secret and any key Loopky is holding.** If
+Loopky holds the only copy of your key, it warns you before doing that, because the account cannot
+be recovered afterwards.
+
+Backing up is your choice and your action. Loopky can show you a recovery phrase, create a
+passphrase-encrypted recovery file for you to save wherever you like, or hand your key to Pubky
+Ring. Anything that leaves the app — a file you save to Drive or Files, a phrase you write down —
+is outside Loopky's control from that moment, and is covered by the terms of wherever you put it.
+Exporting to Pubky Ring copies the key into Ring; Loopky keeps its copy too.
+
+Deleting your Loopky data does not delete your Pubky identity.
 
 ---
 
@@ -154,7 +170,8 @@ cannot be recalled. This is a property of publishing to a public network.
 Loopky is not directed at children under 13, and we do not knowingly collect information from them.
 The Loopky project holds no user data, so there is nothing for us to delete on request. Data on a
 homeserver is removed with **Delete account** in Settings, or by contacting that homeserver's
-operator. The account itself is created in Pubky Ring, whose own terms apply.
+operator. The account itself is created either in Pubky Ring, whose own terms apply, or in Loopky
+on your own device.
 
 ---
 

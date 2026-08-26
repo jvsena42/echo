@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
+import com.github.jvsena42.loopky.data.repository.KeyBackupRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SignupRepository
@@ -19,6 +20,7 @@ import com.github.jvsena42.loopky.data.repository.impl.DeckRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.DiscoveryRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.IdentityRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.ImportRepositoryImpl
+import com.github.jvsena42.loopky.data.repository.impl.KeyBackupRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.MediaRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.SessionRevalidatorImpl
 import com.github.jvsena42.loopky.data.repository.impl.SettingsRepositoryImpl
@@ -26,6 +28,11 @@ import com.github.jvsena42.loopky.data.repository.impl.SignupRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.SrsRepositoryImpl
 import com.github.jvsena42.loopky.data.repository.impl.TagRepositoryImpl
 import com.github.jvsena42.loopky.domain.model.Tag
+import com.github.jvsena42.loopky.presentation.backup.BackupFileViewModel
+import com.github.jvsena42.loopky.presentation.backup.BackupPhraseViewModel
+import com.github.jvsena42.loopky.presentation.backup.BackupQuizViewModel
+import com.github.jvsena42.loopky.presentation.backup.BackupRingViewModel
+import com.github.jvsena42.loopky.presentation.backup.BackupStartViewModel
 import com.github.jvsena42.loopky.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.DecksLibraryViewModel
@@ -48,9 +55,11 @@ import com.github.jvsena42.loopky.presentation.restore.RestorePhraseViewModel
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
 import com.github.jvsena42.loopky.presentation.signup.InviteCodeViewModel
 import com.github.jvsena42.loopky.presentation.signup.LightningVerificationViewModel
+import com.github.jvsena42.loopky.presentation.signup.LocalSignupViewModel
 import com.github.jvsena42.loopky.presentation.signup.PhoneVerificationViewModel
 import com.github.jvsena42.loopky.presentation.signup.SignupHandoffViewModel
 import com.github.jvsena42.loopky.presentation.signup.SignupStartViewModel
+import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
 import com.github.jvsena42.loopky.util.epochMillis
 import org.koin.core.module.dsl.viewModel
@@ -91,6 +100,7 @@ val sharedModule = module {
             localKeyStore = get(),
         )
     }
+    single<KeyBackupRepository> { KeyBackupRepositoryImpl(pubky = get(), keyStore = get()) }
 
     single<SessionRevalidator> { SessionRevalidatorImpl(get(), get(), get()) }
 
@@ -137,7 +147,19 @@ val sharedModule = module {
     viewModel { OnboardingViewModel(identityRepository = get(), ringPresence = get()) }
     viewModel { RestorePhraseViewModel(identityRepository = get()) }
     viewModel { RestoreFileViewModel(identityRepository = get()) }
-    viewModel { SignupStartViewModel(signupRepository = get(), ringPresence = get()) }
+    viewModel { LocalSignupViewModel(signupRepository = get(), identityRepository = get()) }
+    viewModel { BackupStartViewModel(keyBackup = get(), ringPresence = get()) }
+    viewModel { BackupPhraseViewModel(keyBackup = get()) }
+    viewModel { BackupQuizViewModel(keyBackup = get()) }
+    viewModel { BackupFileViewModel(keyBackup = get()) }
+    viewModel { BackupRingViewModel(keyBackup = get(), ringPresence = get()) }
+    viewModel { params ->
+        SignupStartViewModel(
+            signupRepository = get(),
+            ringPresence = get(),
+            redeemer = params.getOrNull() ?: TokenRedeemer.PubkyRing,
+        )
+    }
     viewModel { InviteCodeViewModel(signupRepository = get()) }
     viewModel { PhoneVerificationViewModel(signupRepository = get()) }
     viewModel { LightningVerificationViewModel(signupRepository = get()) }
