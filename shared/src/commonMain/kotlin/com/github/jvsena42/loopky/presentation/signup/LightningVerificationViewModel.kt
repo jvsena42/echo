@@ -3,7 +3,9 @@ package com.github.jvsena42.loopky.presentation.signup
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.homegate.LnInvoice
+import com.github.jvsena42.loopky.data.price.PriceSource
 import com.github.jvsena42.loopky.data.repository.SignupRepository
+import com.github.jvsena42.loopky.domain.model.formatSatsAsUsd
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -26,6 +28,7 @@ import kotlinx.coroutines.launch
  */
 class LightningVerificationViewModel(
     private val signupRepository: SignupRepository,
+    private val priceSource: PriceSource,
 ) : ViewModel() {
     private val _state = MutableStateFlow(LightningVerificationUiState())
     val state: StateFlow<LightningVerificationUiState> = _state.asStateFlow()
@@ -53,6 +56,9 @@ class LightningVerificationViewModel(
             if (resumed != null) {
                 Log.d(TAG, "start: resuming an invoice that may already have been paid")
                 _state.update { it.copy(isLoading = false, invoice = resumed, isAwaitingPayment = true, isResumed = true) }
+                // A resumed invoice is the commitment point too, so it gets a fresh quote rather
+                // than none — and a fresh one, not a cached stale figure.
+                loadFiatQuote(resumed)
                 awaitPayment(resumed)
             } else {
                 createInvoice()
@@ -70,7 +76,21 @@ class LightningVerificationViewModel(
                 return@launch
             }
             _state.update { it.copy(isLoading = false, invoice = invoice, isAwaitingPayment = true) }
+            loadFiatQuote(invoice)
             awaitPayment(invoice)
+        }
+    }
+
+    /**
+     * Quote the invoice in dollars, once per invoice.
+     *
+     * Explicitly *not* driven by the expiry countdown, which ticks every second — that would be a
+     * network request per second and a money format per frame.
+     */
+    private fun loadFiatQuote(invoice: LnInvoice) {
+        viewModelScope.launch {
+            val rate = priceSource.usdPerBtc()
+            _state.update { it.copy(fiatPrice = formatSatsAsUsd(invoice.amountSat, rate)) }
         }
     }
 
@@ -114,6 +134,8 @@ data class LightningVerificationUiState(
     /** True when this invoice was picked up again after the app was killed mid-payment. */
     val isResumed: Boolean = false,
     val error: SignupError? = null,
+    /** Pre-formatted dollar approximation, or null — see [SignupStartUiState.fiatPrice]. */
+    val fiatPrice: String? = null,
 ) {
     /** An expired invoice is recoverable by asking for another, so the screen offers exactly that. */
     val canRetry: Boolean get() = error != null

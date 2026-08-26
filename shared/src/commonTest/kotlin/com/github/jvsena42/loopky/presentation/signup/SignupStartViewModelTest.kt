@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.signup
 
 import com.github.jvsena42.loopky.data.homegate.MethodAvailability
 import com.github.jvsena42.loopky.data.repository.SignupAvailability
+import com.github.jvsena42.loopky.testing.FakePriceSource
 import com.github.jvsena42.loopky.testing.FakePubkyRingPresence
 import com.github.jvsena42.loopky.testing.FakeSignupRepository
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +19,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -29,6 +31,7 @@ class SignupStartViewModelTest {
 
     private val signupRepo = FakeSignupRepository()
     private val ring = FakePubkyRingPresence()
+    private val priceSource = FakePriceSource()
     private val mainDispatcher = StandardTestDispatcher()
 
     @BeforeTest
@@ -44,6 +47,7 @@ class SignupStartViewModelTest {
     private fun viewModel() = SignupStartViewModel(
         signupRepository = signupRepo,
         ringPresence = ring,
+        priceSource = priceSource,
     )
 
     @Test
@@ -146,6 +150,7 @@ class SignupStartViewModelTest {
             signupRepository = signupRepo,
             ringPresence = ring,
             redeemer = TokenRedeemer.Loopky,
+            priceSource = priceSource,
         )
         advanceUntilIdle()
 
@@ -159,6 +164,7 @@ class SignupStartViewModelTest {
             signupRepository = signupRepo,
             ringPresence = ring,
             redeemer = TokenRedeemer.Loopky,
+            priceSource = priceSource,
         )
         advanceUntilIdle()
 
@@ -173,5 +179,68 @@ class SignupStartViewModelTest {
         assertEquals(TokenRedeemer.PubkyRing, TokenRedeemer.fromNameOrRing("nonsense"))
         assertEquals(TokenRedeemer.PubkyRing, TokenRedeemer.fromNameOrRing(null))
         assertEquals(TokenRedeemer.Loopky, TokenRedeemer.fromNameOrRing("loopky"))
+    }
+
+    @Test
+    fun aFailedRateLookupLeavesTheSatsOnlyPriceInPlace() = runTest {
+        // The path that actually runs for anyone offline or geoblocked, and the one that would
+        // regress in silence. No rate must mean no fiat string at all — never "$0.00", never a
+        // spinner, never an error.
+        signupRepo.availability = SignupAvailability(
+            sms = MethodAvailability.Available(),
+            lightning = MethodAvailability.Available(priceSat = 2_000),
+        )
+        priceSource.rate = null
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.fiatPrice)
+        assertEquals(2_000L, vm.state.value.lightningPriceSat)
+    }
+
+    @Test
+    fun aRateIsFormattedOnceIntoTheStateRatherThanInTheComposable() = runTest {
+        signupRepo.availability = SignupAvailability(
+            sms = MethodAvailability.Available(),
+            lightning = MethodAvailability.Available(priceSat = 2_000),
+        )
+        priceSource.rate = 100_000.0
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals("≈ US\$2.00", vm.state.value.fiatPrice)
+    }
+
+    @Test
+    fun theLightningMethodStaysEnabledWhileTheQuoteIsUnavailable() = runTest {
+        // This is the screen where someone is trying to get *into* the app. The sats figure is the
+        // price; the dollar figure is a courtesy, and a courtesy must never gate a CTA.
+        signupRepo.availability = SignupAvailability(
+            sms = MethodAvailability.Available(),
+            lightning = MethodAvailability.Available(priceSat = 2_000),
+        )
+        priceSource.rate = null
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.isLightningEnabled)
+    }
+
+    @Test
+    fun noRateIsFetchedWhenHomegateQuotedNoPrice() = runTest {
+        // Keeps the third-party request on the Lightning branch rather than making it for
+        // everyone who opens onboarding.
+        signupRepo.availability = SignupAvailability(
+            sms = MethodAvailability.Available(),
+            lightning = MethodAvailability.Unknown,
+        )
+
+        viewModel()
+        advanceUntilIdle()
+
+        assertEquals(0, priceSource.calls)
     }
 }

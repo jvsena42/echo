@@ -126,8 +126,15 @@ private fun SignupStartScreen(
         Spacer(Modifier.height(16.dp))
         MethodCard(
             title = stringResource(R.string.signup_lightning_card_title),
+            // Two strings rather than concatenation: the parenthetical belongs elsewhere in
+            // other languages. No quote — in flight, failed, or geoblocked — renders exactly the
+            // sats-only string it always did.
             price = state.lightningPriceSat
-                ?.let { stringResource(R.string.signup_lightning_card_price, it) }
+                ?.let { sats ->
+                    state.fiatPrice
+                        ?.let { stringResource(R.string.signup_lightning_card_price_fiat, sats, it) }
+                        ?: stringResource(R.string.signup_lightning_card_price, sats)
+                }
                 ?: stringResource(R.string.signup_lightning_card_price_unknown),
             note = stringResource(R.string.signup_lightning_card_note),
             enabled = state.isLightningEnabled,

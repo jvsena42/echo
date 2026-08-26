@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.di
 
+import com.github.jvsena42.loopky.data.price.PriceClient
+import com.github.jvsena42.loopky.data.price.PriceSource
 import com.github.jvsena42.loopky.data.pubky.MutableSessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionProvider
 import com.github.jvsena42.loopky.data.pubky.SessionRevalidator
@@ -102,6 +104,7 @@ val sharedModule = module {
         )
     }
     single<KeyBackupRepository> { KeyBackupRepositoryImpl(pubky = get(), keyStore = get()) }
+    single<PriceSource> { PriceClient(http = get(), nowMillis = ::epochMillis) }
 
     single<SessionRevalidator> { SessionRevalidatorImpl(get(), get(), get()) }
 
@@ -167,11 +170,12 @@ val sharedModule = module {
             signupRepository = get(),
             ringPresence = get(),
             redeemer = params.getOrNull() ?: TokenRedeemer.PubkyRing,
+            priceSource = get(),
         )
     }
     viewModel { InviteCodeViewModel(signupRepository = get()) }
     viewModel { PhoneVerificationViewModel(signupRepository = get()) }
-    viewModel { LightningVerificationViewModel(signupRepository = get()) }
+    viewModel { LightningVerificationViewModel(signupRepository = get(), priceSource = get()) }
     viewModel {
         SignupHandoffViewModel(signupRepository = get(), identityRepository = get())
     }

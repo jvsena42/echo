@@ -596,6 +596,10 @@
          all-clear, which is worse than saying nothing. -->
     <string name="restore_seed_warning">Only enter a phrase created for Pubky. Never enter a Bitcoin or other crypto wallet recovery phrase here.</string>
     <!-- Local key creation + backup (#147). -->
+    <!-- Separate strings rather than appending "(≈ US$0.85)" onto a translated sentence: the
+         parenthetical belongs in a different place in half the languages we will ship. -->
+    <string name="signup_lightning_card_price_fiat">Pay ₿ %1$d (%2$s) once</string>
+    <string name="signup_lightning_amount_fiat">Pay ₿ %1$d (%2$s) to continue.</string>
     <string name="onboarding_create_local">Create an account in Loopky</string>
     <string name="signup_local_title">Creating your account</string>
     <string name="signup_local_subtitle">Making your key and registering it. This takes a moment.</string>

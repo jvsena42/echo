@@ -3,7 +3,9 @@ package com.github.jvsena42.loopky.presentation.signup
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.homegate.MethodAvailability
+import com.github.jvsena42.loopky.data.price.PriceSource
 import com.github.jvsena42.loopky.data.repository.SignupRepository
+import com.github.jvsena42.loopky.domain.model.formatSatsAsUsd
 import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -42,6 +44,7 @@ class SignupStartViewModel(
      * and every existing test — keeps the behaviour it had.
      */
     private val redeemer: TokenRedeemer = TokenRedeemer.PubkyRing,
+    private val priceSource: PriceSource,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SignupStartUiState())
     val state: StateFlow<SignupStartUiState> = _state.asStateFlow()
@@ -77,6 +80,7 @@ class SignupStartViewModel(
                     lightning = availability?.lightning ?: MethodAvailability.Unknown,
                 )
             }
+            loadFiatQuote()
         }
     }
 
@@ -91,6 +95,22 @@ class SignupStartViewModel(
     fun onScreenResumed() {
         if (_state.value.isRingInstalled) return
         load()
+    }
+
+    /**
+     * A courtesy figure beside the sats price, fetched once per screen entry.
+     *
+     * Never gates anything: this is the screen where someone is trying to get *into* the app, so
+     * the button stays enabled while the quote is in flight and after it fails. Only asked for when
+     * Homegate actually quoted a price, so the request comes from users already on the Lightning
+     * branch rather than everyone who opens onboarding.
+     */
+    private fun loadFiatQuote() {
+        val sats = _state.value.lightningPriceSat ?: return
+        viewModelScope.launch {
+            val rate = priceSource.usdPerBtc()
+            _state.update { it.copy(fiatPrice = formatSatsAsUsd(sats, rate)) }
+        }
     }
 
     /** Which spender this flow was entered for, so the screen can route its "done" step. */
@@ -136,6 +156,14 @@ data class SignupStartUiState(
      * Always true for [TokenRedeemer.Loopky]: it is its own spender.
      */
     val hasRedeemer: Boolean = true,
+    /**
+     * Pre-formatted, e.g. `"≈ US$0.85"`. Null whenever no rate is known — the screen then renders
+     * the sats-only string, unchanged.
+     *
+     * Formatted here rather than in the composable because the invoice screen recomposes on a
+     * countdown tick, and money formatting has no business running once a second.
+     */
+    val fiatPrice: String? = null,
 ) {
     /** Disabled only when Homegate positively said no — never merely because we could not ask. */
     val isSmsEnabled: Boolean get() = hasRedeemer && sms !is MethodAvailability.Unavailable
