@@ -73,6 +73,7 @@ import com.github.jvsena42.loopky.ui.components.ExpandableLinkedText
 import com.github.jvsena42.loopky.ui.components.LoopkyLoadingScreen
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.SharePromptDialog
+import com.github.jvsena42.loopky.ui.components.SignInPromptDialog
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.layout.PaneWidth
@@ -96,9 +97,13 @@ fun DeckDetailRoute(
     onEditDeck: (String) -> Unit = {},
     onEditCard: (String, String) -> Unit = { _, _ -> },
     onStudy: (String) -> Unit = {},
+    /** Flip through a deck the reader has not kept — no grading, no session. */
+    onPreview: (String) -> Unit = {},
     onOpenTag: (String) -> Unit = {},
     onOpenProfile: (String) -> Unit = {},
     onOpenClone: (String) -> Unit = {},
+    /** Leave for the sign-in flow, when a signed-out visitor reaches for Follow or Clone. */
+    onSignIn: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<DeckDetailViewModel> { parametersOf(deckId, authorPubky) }
 
@@ -107,6 +112,7 @@ fun DeckDetailRoute(
     val currentEditDeck by rememberUpdatedState(onEditDeck)
     val currentEditCard by rememberUpdatedState(onEditCard)
     val currentStudy by rememberUpdatedState(onStudy)
+    val currentPreview by rememberUpdatedState(onPreview)
     val currentOpenTag by rememberUpdatedState(onOpenTag)
     val currentOpenProfile by rememberUpdatedState(onOpenProfile)
     val currentOpenClone by rememberUpdatedState(onOpenClone)
@@ -117,6 +123,7 @@ fun DeckDetailRoute(
                 DeckDetailEffect.NavigateBack -> currentBack()
                 is DeckDetailEffect.NavigateEditDeck -> currentEditDeck(effect.deckId)
                 DeckDetailEffect.NavigateStudy -> currentStudy(deckId)
+                DeckDetailEffect.NavigateStudyPreview -> currentPreview(deckId)
                 is DeckDetailEffect.Share -> context.shareText(
                     text = context.getString(R.string.share_deck_body, effect.title, effect.uri),
                     chooserTitle = context.getString(R.string.share_deck_chooser_title),
@@ -149,6 +156,19 @@ fun DeckDetailRoute(
         onDismissError = viewModel::onDismissError,
         onRetry = viewModel::onRefresh,
     )
+
+    // Over the loaded deck, which stays fully readable: the manifest and the cards are public
+    // records, and only Follow and Clone need somewhere to write.
+    (state as? DeckDetailUiState.Content)?.signInPrompt?.let { reason ->
+        SignInPromptDialog(
+            reason = reason,
+            onSignIn = {
+                viewModel.onDismissSignInPrompt()
+                onSignIn()
+            },
+            onDismiss = viewModel::onDismissSignInPrompt,
+        )
+    }
 
     // Raised by a follow or a clone, over the loaded deck. A clone's navigation waits on it: the
     // screen would otherwise move to the copy and take the unanswered offer with it (#39).
@@ -325,18 +345,24 @@ private fun DeckDetailContent(
     Scaffold(
         containerColor = colors.surfacePrimary,
         bottomBar = {
-            // Study is offered only for a deck you have kept. Grading a deck you are merely
+            // *Study* is offered only for a deck you have kept. Grading a deck you are merely
             // browsing would strand review state under something that never reaches your
             // library or your due queue — progress you can neither see nor resume. Keeping the
             // deck is what earns it, so Follow and Clone sit up in the header instead, next to
             // the stats they act on, and the bottom bar stays a single unambiguous action.
-            if (state.isOwned || state.isFollowing) {
+            //
+            // On a deck nobody has kept, that same bar offers a *preview* instead: a handful of
+            // its cards, graded nowhere. It is what makes the deck worth opening for someone who
+            // has not signed in — and for a signed-in reader looking at a stranger's deck it is
+            // the honest version of the button, since there is nothing of theirs to be due.
+            if (state.isOwned || state.isFollowing || state.canPreview) {
                 LoopkyPrimaryButton(
                     label = studyCtaLabel(state),
                     onClick = onStudyClick,
                     // Nothing due and nothing unseen means this button leads straight to
                     // "All done!" — a primary CTA whose only outcome is a dead end (#101 §8).
-                    enabled = state.canStudy,
+                    // A preview always has cards, or canPreview would be false.
+                    enabled = state.canStudy || state.canPreview,
                     modifier = Modifier
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(horizontal = 20.dp, vertical = 16.dp)

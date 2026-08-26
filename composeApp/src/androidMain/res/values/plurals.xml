@@ -93,4 +93,8 @@
         <item quantity="one">Publishing %1$d of %2$d card…</item>
         <item quantity="other">Publishing %1$d of %2$d cards…</item>
     </plurals>
+    <plurals name="cards_tried">
+        <item quantity="one">You tried %1$d card.</item>
+        <item quantity="other">You tried %1$d cards.</item>
+    </plurals>
 </resources>

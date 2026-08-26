@@ -110,7 +110,6 @@ import com.github.jvsena42.loopky.ui.layout.WindowWidthClass
 import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.layout.windowWidthClass
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
-import com.github.jvsena42.loopky.ui.util.relativeFromNow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -121,9 +120,20 @@ import org.koin.core.parameter.parametersOf
 @Composable
 fun StudySessionRoute(
     deckId: String?,
+    /**
+     * Sample [deckId] rather than study it: a fixed handful of cards, graded and stored nowhere.
+     * How a signed-out visitor — or anyone looking at a deck they have not kept — gets to try it.
+     */
+    isPreview: Boolean = false,
+    /** Whose homeserver holds the previewed deck. Only a preview needs it; see the ViewModel. */
+    previewAuthorPubky: String? = null,
     onClose: () -> Unit = {},
+    /** Leave for the sign-in flow, from the offer at the end of a guest's preview. */
+    onSignIn: () -> Unit = {},
 ) {
-    val viewModel = koinViewModel<StudySessionViewModel> { parametersOf(deckId) }
+    val viewModel = koinViewModel<StudySessionViewModel> {
+        parametersOf(deckId, isPreview, previewAuthorPubky)
+    }
     val speaker = koinInject<Speaker>()
     val speechRecognizer = koinInject<SpeechRecognizer>()
 
@@ -182,6 +192,8 @@ fun StudySessionRoute(
         state = state,
         onReveal = viewModel::onReveal,
         onGrade = viewModel::onGrade,
+        onNextCard = viewModel::onNextCard,
+        onSignIn = onSignIn,
         onSpeak = viewModel::onSpeak,
         onSpeakTest = requestSpeak,
         onSpeakContinue = viewModel::onSpeakDismiss,
@@ -205,6 +217,10 @@ fun StudySessionScreen(
     onSpeak: () -> Unit,
     onClose: () -> Unit,
     onDone: () -> Unit,
+    /** Advance a preview. Stands where the four grade buttons would — there is nothing to grade. */
+    onNextCard: () -> Unit = {},
+    /** The offer at the end of a guest's preview. */
+    onSignIn: () -> Unit = {},
     onSpeakTest: () -> Unit = {},
     onSpeakContinue: () -> Unit = {},
     onSpeakRetry: () -> Unit = {},
@@ -245,29 +261,17 @@ fun StudySessionScreen(
                 onAction = onClose,
             )
 
-            is StudySessionUiState.Complete -> CenteredMessage(
-                title = stringResource(R.string.study_complete_title),
-                subtitle = pluralStringResource(R.plurals.cards_reviewed, state.reviewed, state.reviewed),
-                actionLabel = stringResource(R.string.study_back),
-                onAction = onDone,
-                details = listOfNotNull(
-                    // Saying when the next review lands is what makes an empty queue read as
-                    // earned rather than as a dead end (#101 §5).
-                    state.nextDueAtMillis
-                        ?.let { stringResource(R.string.home_caught_up_next_due, relativeFromNow(it)) },
-                    // The day's tally, which is the number that actually accumulates.
-                    if (state.newCardsToday >= state.newCardsGoal) {
-                        stringResource(R.string.home_new_cards_goal_reached, state.newCardsGoal)
-                    } else {
-                        stringResource(R.string.home_new_cards_goal, state.newCardsToday, state.newCardsGoal)
-                    },
-                ),
+            is StudySessionUiState.Complete -> CompleteMessage(
+                state = state,
+                onDone = onDone,
+                onSignIn = onSignIn,
             )
 
             is StudySessionUiState.Reviewing -> ReviewingContent(
                 state = state,
                 onReveal = onReveal,
                 onGrade = onGrade,
+                onNextCard = onNextCard,
                 onSpeak = onSpeak,
                 onSpeakTest = onSpeakTest,
                 onAnswerChange = onAnswerChange,
@@ -315,6 +319,7 @@ private fun ReviewingContent(
     state: StudySessionUiState.Reviewing,
     onReveal: () -> Unit,
     onGrade: (SrsGrade) -> Unit,
+    onNextCard: () -> Unit,
     onSpeak: () -> Unit,
     onSpeakTest: () -> Unit,
     onAnswerChange: (String) -> Unit,
@@ -328,7 +333,10 @@ private fun ReviewingContent(
     // are the only content that can spend width without being stretched by it — and moving them
     // out gives the card back the ~110dp they were taking off its height.
     val widthClass = windowWidthClass()
-    val wide = widthClass.isExpanded
+    // A preview has no grade column to stand anywhere: what replaces the four buttons is a single
+    // "Next", which is the wrong shape for a 120dp column beside the card and belongs in the row
+    // under it at every width. So the wide branch is about the *grades*, not about the window.
+    val wide = widthClass.isExpanded && !state.isPreview
     // How tall the card is allowed to get. The cap exists so a one-word prompt doesn't stretch
     // into a near-full-screen rectangle — but a phone's ceiling on a portrait tablet left a third
     // of the screen as empty cream above and below the card, which is the same mistake in the
@@ -410,6 +418,11 @@ private fun ReviewingContent(
             gapSize = 0.dp,
             drawStopIndicator = {},
         )
+
+        // On screen for the whole preview, not only at the end of it. "None of this is being
+        // saved" is the one thing a preview must never let someone discover afterwards, and the
+        // header above says which deck rather than what kind of session this is.
+        PreviewBadge(visible = state.isPreview, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -532,18 +545,12 @@ private fun ReviewingContent(
                     // typing card is later than the flip. (Listen/Speak, by contrast, are on both faces —
                     // they live inside the card, not here.)
                     if (!wide) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().height(72.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (state.gradesAvailable) {
-                                SrsRow(
-                                    intervals = state.intervals,
-                                    onGrade = onGrade,
-                                    reduceMotion = reduceMotion,
-                                )
-                            }
-                        }
+                        GradeOrNextRow(
+                            state = state,
+                            onGrade = onGrade,
+                            onNextCard = onNextCard,
+                            reduceMotion = reduceMotion,
+                        )
 
                         Spacer(modifier = Modifier.height(20.dp))
                     }
@@ -742,63 +749,6 @@ private fun FlipHint(modifier: Modifier = Modifier) {
             fontWeight = FontWeight.W500,
             color = colors.foregroundMuted,
         )
-    }
-}
-
-@Composable
-private fun BoxScope.CenteredMessage(
-    title: String,
-    subtitle: String,
-    actionLabel: String,
-    onAction: () -> Unit,
-    /** Quieter lines below the subtitle. Their own Texts rather than appended prose, so each wraps. */
-    details: List<String> = emptyList(),
-) {
-    val colors = LoopkyTheme.colors
-    Column(
-        modifier = Modifier
-            .align(Alignment.Center)
-            .fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            text = title,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.W800,
-            color = colors.foregroundPrimary,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = subtitle,
-            fontSize = 15.sp,
-            color = colors.foregroundMuted,
-            textAlign = TextAlign.Center,
-        )
-        details.forEach { line ->
-            Text(
-                text = line,
-                fontSize = 14.sp,
-                color = colors.foregroundMuted,
-                textAlign = TextAlign.Center,
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = onAction,
-            shape = RoundedCornerShape(50),
-            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = colors.accentPrimary,
-                contentColor = colors.foregroundOnAccent,
-            ),
-        ) {
-            Text(
-                text = actionLabel,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.W700,
-            )
-        }
     }
 }
 

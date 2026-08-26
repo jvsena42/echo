@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Tag
+import com.github.jvsena42.loopky.presentation.auth.SignInReason
 import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.RecordingTagRepository
@@ -444,4 +445,46 @@ class DiscoverViewModelTest {
         // as its title initial here and on the tag-browse screen that reuses the same row.
         assertEquals(cover, vm.state.value.browse.items.single().coverImage)
     }
+    // ── Browsing without an account (#150) ───────────────────────────────────
+
+    /**
+     * Discover is the whole app for a signed-out visitor, so it has to work: global browse and
+     * the people strip read public records and need no session. The followed strip is the one
+     * thing that cannot — there is no follow graph — so it settles empty rather than spinning.
+     */
+    @Test
+    fun `browse loads with nobody signed in and the followed strip does not`() =
+        runTest(mainDispatcher) {
+            identity.session = null
+            seedFeed()
+            seedGlobal()
+
+            val vm = viewModel()
+            advanceUntilIdle()
+
+            val state = vm.state.value
+            assertFalse(state.isSignedIn)
+            assertEquals(2, state.browse.items.size)
+            assertTrue(state.following.items.isEmpty())
+            assertFalse(state.following.isLoading)
+        }
+
+    @Test
+    fun `following a person with no account raises the prompt instead of writing`() =
+        runTest(mainDispatcher) {
+            identity.session = null
+            seedGlobal()
+
+            val vm = viewModel()
+            val effects = mutableListOf<DiscoverEffect>()
+            val job = launch { vm.effects.collect { effects.add(it) } }
+            advanceUntilIdle()
+
+            vm.onFollowToggle("stranger1")
+            advanceUntilIdle()
+            job.cancel()
+
+            assertEquals(listOf<DiscoverEffect>(DiscoverEffect.RequireSignIn(SignInReason.FollowPerson)), effects)
+            assertTrue(discovery.follows.isEmpty())
+        }
 }

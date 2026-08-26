@@ -21,6 +21,7 @@ import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
+import com.github.jvsena42.loopky.presentation.auth.SignInReason
 import com.github.jvsena42.loopky.presentation.share.DeckSharePrompt
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -158,10 +159,17 @@ class DeckDetailViewModel(
 
     fun onStudyClick() {
         // Keeping the deck is what earns review state, so browsing someone else's deck is not
-        // enough to study it. The UI hides the button; this stops a stale click getting through.
+        // enough to *study* it. What it is enough for is a look through the cards: a preview
+        // grades nothing and writes nothing, so it needs neither the deck nor an account — which
+        // is the whole point, since it is the only thing a signed-out visitor can do with a deck
+        // beyond reading the rows. The UI picks the label; this decides which one it gets.
         val current = _state.value as? DeckDetailUiState.Content ?: return
-        if (!current.isOwned && !current.isFollowing) return
-        viewModelScope.launch { _effects.emit(DeckDetailEffect.NavigateStudy) }
+        val effect = when {
+            current.isOwned || current.isFollowing -> DeckDetailEffect.NavigateStudy
+            current.canPreview -> DeckDetailEffect.NavigateStudyPreview
+            else -> return
+        }
+        viewModelScope.launch { _effects.emit(effect) }
     }
 
     fun onEditClick() {
@@ -203,6 +211,14 @@ class DeckDetailViewModel(
         if (followJob?.isActive == true) return
         val current = _state.value as? DeckDetailUiState.Content ?: return
         if (current.isOwned) return
+        // The subscription is a record written under the reader's own pubky, so there is nothing
+        // for a guest to write it to. Asked here rather than only where the pill is drawn: the
+        // pill stays live on purpose — reaching for it is exactly the moment the account is worth
+        // explaining, and a greyed-out button explains nothing.
+        if (!current.isSignedIn) {
+            _state.update { current.copy(signInPrompt = SignInReason.FollowDeck) }
+            return
+        }
 
         followJob = viewModelScope.launch {
             val wasFollowing = current.isFollowing
@@ -252,7 +268,20 @@ class DeckDetailViewModel(
     /** Confirmed rather than immediate: a clone is N+1 writes, and the card count says how many. */
     fun onCloneClick() {
         val current = _state.value as? DeckDetailUiState.Content ?: return
+        // N+1 writes under a pubky the visitor does not have yet. The prompt replaces the confirm
+        // dialog rather than preceding it — there is nothing to confirm the size of until there
+        // is somewhere to put it.
+        if (!current.isSignedIn) {
+            _state.update { current.copy(signInPrompt = SignInReason.CloneDeck) }
+            return
+        }
         _state.update { current.copy(showCloneConfirm = true) }
+    }
+
+    /** The visitor read the prompt and stayed. Nothing was written either way. */
+    fun onDismissSignInPrompt() {
+        val current = _state.value as? DeckDetailUiState.Content ?: return
+        _state.update { current.copy(signInPrompt = null) }
     }
 
     fun onDismissClone() {
@@ -517,6 +546,7 @@ class DeckDetailViewModel(
     ): DeckDetailUiState.Content {
         val isOwned = authorPubky == myIdentity?.pubky
         return DeckDetailUiState.Content(
+            isSignedIn = myIdentity != null,
             isFollowing = isFollowing,
             deckId = id,
             title = title,
@@ -536,6 +566,11 @@ class DeckDetailViewModel(
             // Unknown counts must not disable Study — the queue is the repository's to build, and
             // refusing to open it because a count failed strands the user with no way in.
             canStudy = counts == null || counts.total > 0,
+            // A deck nobody has kept can still be sampled, as long as it has cards to sample.
+            // Deliberately not limited to guests: a signed-in reader looking at a stranger's deck
+            // is in exactly the same position — no review state, nothing to be due — and giving
+            // them a way to try it before following is the point of the button.
+            canPreview = !isOwned && !isFollowing && cards.isNotEmpty(),
             masteredPercent = mastered,
             cardPreviews = cards.map { it.toPreview() },
         )
@@ -575,6 +610,12 @@ sealed interface DeckDetailUiState {
         /** Ownership is a separate concern from identity — the author row shows both. */
         val isOwned: Boolean,
         /**
+         * Whether anyone is signed in. Deck detail is fully readable without an account — the
+         * manifest and cards are public records — so this gates only the actions that write:
+         * Follow and Clone. Always true alongside [isOwned], which needs a session to establish.
+         */
+        val isSignedIn: Boolean = true,
+        /**
          * The deck was claimed by a publish that never finished, so some of its cards are missing.
          * Surfaced rather than hidden: the count comes from the manifest, so the deck would
          * otherwise look complete while silently holding fewer cards than it claims.
@@ -611,6 +652,18 @@ sealed interface DeckDetailUiState {
         val newCards: Int = 0,
         /** Whether Study can do anything. False for a deck with no reviews *and* no unseen cards. */
         val canStudy: Boolean = true,
+        /**
+         * This deck can be *tried* without being kept: flip through its cards, grading nothing.
+         * True only when [isOwned] and [isFollowing] are both false — otherwise there is real
+         * study to be had and a preview would be the worse of two buttons.
+         */
+        val canPreview: Boolean = false,
+        /**
+         * A guest reached for Follow or Clone. Holds the prompt over the loaded deck rather than
+         * replacing it: the deck is still perfectly readable, and dismissing must leave them
+         * exactly where they were.
+         */
+        val signInPrompt: SignInReason? = null,
         val masteredPercent: String,
         val cardPreviews: List<CardPreviewModel>,
         val showDeleteConfirm: Boolean = false,
@@ -643,6 +696,9 @@ sealed interface DeckDetailEffect {
     data object NavigateBack : DeckDetailEffect
     data class NavigateEditDeck(val deckId: String) : DeckDetailEffect
     data object NavigateStudy : DeckDetailEffect
+
+    /** Flip through the deck's cards without grading them — see [DeckDetailUiState.Content.canPreview]. */
+    data object NavigateStudyPreview : DeckDetailEffect
     data class Share(val title: String, val uri: String) : DeckDetailEffect
     data object Deleted : DeckDetailEffect
 

@@ -4,9 +4,22 @@ import android.net.Uri
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
 
+// One entry per destination, so the count climbs with the app rather than with any one screen's
+// complexity — splitting it would put half the route table somewhere else for no reader's benefit.
+@Suppress("TooManyFunctions")
 object Routes {
     const val ONBOARDING = "onboarding"
-    const val MAIN = "main"
+
+    /**
+     * The tabbed app. `guest` is set for someone who came in through onboarding's "Look around
+     * first" — no account, no key, nothing signed in.
+     *
+     * A nav argument rather than a session lookup because it decides the *shell*: a guest gets
+     * Discover alone, since Today, Decks and Profile are all views onto a library that does not
+     * exist yet. Every screen below the shell asks the repository instead, so a deck opened from
+     * a deeplink gates itself correctly however it was reached.
+     */
+    const val MAIN = "main?guest={guest}"
 
     /**
      * Settings. `focus` names a row to open and focus on arrival — the image sheet's "Add key"
@@ -63,8 +76,15 @@ object Routes {
     const val IMPORT_TRIAGE_EDIT = "import/triage/edit/{rowIndex}"
     const val IMPORT_PUBLISH = "import/publish"
 
-    /** Study session. `deckId` omitted = study all due cards across owned decks. */
-    const val STUDY = "study?deckId={deckId}"
+    /**
+     * Study session. `deckId` omitted = study all due cards across owned decks.
+     *
+     * `preview` samples one deck instead: a fixed handful of its cards, graded and stored
+     * nowhere, for a deck the reader has neither published nor followed. `author` is whose
+     * homeserver to fetch it from, and only a preview needs it — a real session studies decks
+     * that are already in the cache.
+     */
+    const val STUDY = "study?deckId={deckId}&preview={preview}&author={author}"
 
     /** Another user's public profile (their decks + follow button). */
     const val FRIEND_PROFILE = "profile/{pubky}"
@@ -101,7 +121,13 @@ object Routes {
     fun deckEditor(deckId: String) = "deck/editor/$deckId"
     fun editCard(deckId: String, cardId: String) = "deck/$deckId/card/$cardId/edit"
     fun newCard(deckId: String) = "deck/$deckId/card/new"
+    fun main(guest: Boolean = false) = "main?guest=$guest"
+
     fun study(deckId: String?) = if (deckId != null) "study?deckId=$deckId" else "study"
+
+    /** Sample [deckId] without keeping it. [author] is whose homeserver holds the manifest. */
+    fun studyPreview(deckId: String, author: String?): String =
+        "study?deckId=$deckId&preview=true" + (author?.let { "&author=" + Uri.encode(it) } ?: "")
     fun triageEditCard(rowIndex: Int) = "import/triage/edit/$rowIndex"
 
     /** Signup for a given spender. Ring is the default and the recommendation. */

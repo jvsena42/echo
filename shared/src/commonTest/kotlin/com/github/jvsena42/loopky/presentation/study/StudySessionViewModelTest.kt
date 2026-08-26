@@ -3,7 +3,9 @@ package com.github.jvsena42.loopky.presentation.study
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.StudySettings
+import com.github.jvsena42.loopky.testing.FakeCardRepository
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
+import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.FakeSettingsRepository
 import com.github.jvsena42.loopky.testing.FakeSrsRepository
 import com.github.jvsena42.loopky.testing.testCard
@@ -52,7 +54,9 @@ class StudySessionViewModelTest {
         deckId = deckId,
         srsRepository = srsRepo,
         deckRepository = deckRepo,
+        cardRepository = FakeCardRepository(),
         settingsRepository = settingsRepo,
+        identityRepository = FakeIdentityRepository(),
     )
 
     private suspend fun seedDeck() {

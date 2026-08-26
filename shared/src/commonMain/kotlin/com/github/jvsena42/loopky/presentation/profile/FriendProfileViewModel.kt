@@ -12,6 +12,7 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.presentation.auth.SignInReason
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -88,6 +89,7 @@ class FriendProfileViewModel(
                     isRefreshing = false,
                     identity = identity,
                     isFollowing = isFollowing,
+                    isSignedIn = myPubky != null,
                     isSelf = isSelf,
                     decks = decks.map { it.toCard() },
                     deckCount = decks.size,
@@ -124,6 +126,13 @@ class FriendProfileViewModel(
 
     fun onToggleFollow() {
         if (followJob?.isActive == true || _state.value.isSelf) return
+        // A follow is a record under the reader's own pubky, so a guest has nowhere to write it.
+        // The button stays live rather than greyed: reaching for it is the moment worth
+        // explaining what an account is for.
+        if (!_state.value.isSignedIn) {
+            _state.update { it.copy(signInPrompt = SignInReason.FollowPerson) }
+            return
+        }
         followJob = viewModelScope.launch {
             val wasFollowing = _state.value.isFollowing
             // Optimistic flip; revert on failure. The previous attempt's error goes with it —
@@ -147,6 +156,11 @@ class FriendProfileViewModel(
                     _state.update { it.copy(errorReason = err.toErrorReason()) }
                 }
         }
+    }
+
+    /** The visitor read the prompt and stayed. Nothing was written either way. */
+    fun onDismissSignInPrompt() {
+        _state.update { it.copy(signInPrompt = null) }
     }
 
     fun onCopyPubky() {
@@ -205,6 +219,13 @@ data class FriendProfileUiState(
     val identity: PubkyIdentity,
     val isFollowing: Boolean = false,
     val isProcessingFollow: Boolean = false,
+    /**
+     * Whether anyone is signed in. A profile and its decks are public records, so this screen
+     * reads in full without an account; only Follow needs one.
+     */
+    val isSignedIn: Boolean = true,
+    /** A guest reached for Follow. Held over the profile, which stays readable underneath. */
+    val signInPrompt: SignInReason? = null,
     /** True when this is the signed-in user's own profile — no Follow button. */
     val isSelf: Boolean = false,
     /** Set when a follow/unfollow fails; rendered inline. */

@@ -87,6 +87,11 @@ internal fun LoopkyNavHost(
     NavHost(navController = navController, startDestination = Routes.ONBOARDING) {
         composable(Routes.ONBOARDING) {
             OnboardingRoute(
+                // Browsing, not an account. Discover, deck detail, profiles and a deck's cards
+                // are all public records, so a visitor can be shown the app before being asked
+                // for the most expensive thing on this screen. Every write past that point
+                // raises a sign-in prompt from the action itself.
+                onExplore = { navController.navigateTo(Routes.main(guest = true)) },
                 onCreatePubky = { navController.navigateTo(Routes.signupStart()) },
                 onRestore = { navController.navigateTo(Routes.RESTORE_START) },
                 // Ring holds this key, so Loopky cannot register it — the screen offers the two
@@ -94,15 +99,26 @@ internal fun LoopkyNavHost(
                 onUnregistered = { pubky ->
                     navController.navigateTo(Routes.unregisteredKey(pubky, loopkyHoldsKey = false))
                 },
-                onNavigateHome = {
-                    navController.navigateTo(Routes.MAIN) {
-                        popUpTo(Routes.ONBOARDING) { inclusive = true }
-                    }
-                },
+                onNavigateHome = { navController.goHomeSignedIn() },
             )
         }
-        composable(Routes.MAIN) {
+        composable(
+            route = Routes.MAIN,
+            arguments = listOf(
+                navArgument("guest") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = "false"
+                },
+            ),
+        ) { entry ->
             MainScreen(
+                isGuest = entry.arguments?.getString("guest").toBoolean(),
+                // Pushed rather than replacing, so "Not now" and the back gesture both land the
+                // visitor back where they were browsing. Everything that *completes* a sign-in
+                // clears the whole stack — see [goHomeSignedIn] — so the guest shell underneath
+                // can never be returned to once there is an account.
+                onSignIn = { navController.navigateTo(Routes.ONBOARDING) },
                 onNavigateDeckDetail = { deckId, author ->
                     navController.navigateTo(Routes.deckDetail(deckId, author))
                 },
@@ -179,6 +195,8 @@ internal fun LoopkyNavHost(
                 onEditDeck = { id -> navController.navigateTo(Routes.deckEditor(id)) },
                 onEditCard = { dId, cId -> navController.navigateTo(Routes.editCard(dId, cId)) },
                 onStudy = { id -> navController.navigateTo(Routes.study(id)) },
+                onPreview = { id -> navController.navigateTo(Routes.studyPreview(id, author)) },
+                onSignIn = { navController.navigateTo(Routes.ONBOARDING) },
                 onOpenTag = { tag -> navController.navigateTo(Routes.tagBrowse(tag)) },
                 onOpenProfile = { pubky -> navController.navigateTo(Routes.friendProfile(pubky)) },
                 // The clone is what the user now owns, so replace the source in the back stack
@@ -192,6 +210,7 @@ internal fun LoopkyNavHost(
         composable(Routes.SEARCH) {
             SearchRoute(
                 onBack = { navController.popBackStack() },
+                onSignIn = { navController.navigateTo(Routes.ONBOARDING) },
                 onOpenProfile = { pubky -> navController.navigateTo(Routes.friendProfile(pubky)) },
                 onOpenDeck = { deckId, deckAuthor ->
                     navController.navigateTo(Routes.deckDetail(deckId, deckAuthor))
@@ -286,12 +305,25 @@ internal fun LoopkyNavHost(
                     nullable = true
                     defaultValue = null
                 },
+                navArgument("preview") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = "false"
+                },
+                navArgument("author") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
             ),
         ) { backStackEntry ->
             val deckId = backStackEntry.arguments?.getString("deckId")
             StudySessionRoute(
                 deckId = deckId,
+                isPreview = backStackEntry.arguments?.getString("preview").toBoolean(),
+                previewAuthorPubky = backStackEntry.arguments?.getString("author"),
                 onClose = { navController.popBackStack() },
+                onSignIn = { navController.navigateTo(Routes.ONBOARDING) },
             )
         }
         composable(
@@ -302,6 +334,7 @@ internal fun LoopkyNavHost(
             FriendProfileRoute(
                 pubky = pubky,
                 onBack = { navController.popBackStack() },
+                onSignIn = { navController.navigateTo(Routes.ONBOARDING) },
                 onOpenDeck = { deckId -> navController.navigateTo(Routes.deckDetail(deckId, author = pubky)) },
                 onOpenFollows = { person, source ->
                     navController.navigateTo(Routes.followList(person, source))
@@ -349,6 +382,19 @@ internal fun LoopkyNavHost(
  * Read off the back stack rather than passed down through the three method screens, so those stay
  * byte-identical between the two spenders.
  */
+/**
+ * Land on the tabbed app with nothing behind it.
+ *
+ * Every path that ends in a session goes through here. `popUpTo(ONBOARDING)` is not enough on its
+ * own any more: a visitor who signed in from inside the guest shell has a browsing `MAIN` *below*
+ * the onboarding screen they signed in on, and popping to the nearest onboarding entry would
+ * leave it there — signed in, one back gesture from a shell with no library in it. Clearing the
+ * graph is also what makes the tab screens rebuild, which is how they pick up the new session.
+ */
+private fun NavHostController.goHomeSignedIn() {
+    navigateTo(Routes.main()) { popUpTo(graph.id) { inclusive = true } }
+}
+
 private fun NavHostController.navigateToRedemption() {
     val entry = currentBackStack.value.firstOrNull { it.destination.route == Routes.SIGNUP_START }
     val redeemer = TokenRedeemer.fromNameOrRing(entry?.arguments?.getString("with"))
@@ -464,7 +510,7 @@ private fun NavGraphBuilder.unregisteredKeyDestination(navController: NavHostCon
             },
             onRegistered = {
                 navController.navigateTo(Routes.BACKUP_START) {
-                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    popUpTo(navController.graph.id) { inclusive = true }
                 }
             },
             onRestoreWithPhrase = { navController.navigateTo(Routes.RESTORE_PHRASE) },
@@ -486,7 +532,7 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
             // restoring has usually just lost or replaced a device. The menu is skippable.
             onRestored = {
                 navController.navigateTo(Routes.BACKUP_START) {
-                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    popUpTo(navController.graph.id) { inclusive = true }
                 }
             },
         )
@@ -508,7 +554,7 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
             // restoring has usually just lost or replaced a device. The menu is skippable.
             onRestored = {
                 navController.navigateTo(Routes.BACKUP_START) {
-                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    popUpTo(navController.graph.id) { inclusive = true }
                 }
             },
         )
@@ -569,7 +615,7 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
             // that nobody has a copy of.
             onCreated = {
                 navController.navigateTo(Routes.BACKUP_START) {
-                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    popUpTo(navController.graph.id) { inclusive = true }
                 }
             },
         )
@@ -610,14 +656,10 @@ private fun NavGraphBuilder.signupRedemptionDestinations(navController: NavHostC
             onBack = { navController.popBackStack() },
             // The whole signup stack is dropped: coming "back" into a spent flow would offer to
             // redeem a token that no longer exists.
-            onSignedUp = {
-                navController.navigateTo(Routes.MAIN) {
-                    popUpTo(Routes.ONBOARDING) { inclusive = true }
-                }
-            },
+            onSignedUp = { navController.goHomeSignedIn() },
             onSignIn = {
                 navController.navigateTo(Routes.ONBOARDING) {
-                    popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    popUpTo(navController.graph.id) { inclusive = true }
                 }
             },
         )

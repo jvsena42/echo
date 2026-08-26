@@ -3,7 +3,9 @@ package com.github.jvsena42.loopky.presentation.study
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
+import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.AnswerMatcher
@@ -33,13 +35,31 @@ import kotlinx.coroutines.launch
  * [deckId] `null` studies every due card across owned decks (Home "Start studying"); a non-null
  * value studies one deck (DeckDetail). Grading delegates to [SrsRepository.review], which owns the
  * SM-2-lite scheduler — the VM only sequences the queue and tracks reveal/progress.
+ *
+ * [isPreview] is the other mode: a sample of a deck nobody has kept, for a visitor with no account
+ * or a reader looking at a stranger's deck. It shares this whole class — the flip, the images,
+ * Listen, Speak and typing are the thing worth trying, and reimplementing them beside a
+ * cut-down copy is how the two drift apart. What it does not share is the scheduler: nothing is
+ * graded, nothing is buffered and nothing is flushed, so it needs no session. Every
+ * [SrsRepository] call below is therefore behind this flag, and the four grade buttons are
+ * replaced by a plain "Next" — offering a difficulty for a review that will not be stored is a
+ * button that lies about what it did.
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LongParameterList")
 class StudySessionViewModel(
     private val deckId: String?,
     private val srsRepository: SrsRepository,
     private val deckRepository: DeckRepository,
+    private val cardRepository: CardRepository,
     private val settingsRepository: SettingsRepository,
+    private val identityRepository: IdentityRepository,
+    private val isPreview: Boolean = false,
+    /**
+     * Whose homeserver the previewed deck lives on. Only a preview needs it: a real session
+     * studies decks that are already in the cache, while a preview is routinely the very first
+     * thing that touches this deck.
+     */
+    private val previewAuthorPubky: String? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow<StudySessionUiState>(StudySessionUiState.Loading)
     val state: StateFlow<StudySessionUiState> = _state.asStateFlow()
@@ -76,6 +96,15 @@ class StudySessionViewModel(
      */
     private var syncError: ErrorReason? = null
 
+    /**
+     * Whether anyone is signed in, resolved once for a preview and unused otherwise.
+     *
+     * It decides what the end of a preview *offers*, not whether the preview runs: a guest is
+     * asked for an account, while a signed-in reader sampling a stranger's deck is told to follow
+     * or clone it. Both are true statements about how to keep the progress they just made.
+     */
+    private var isSignedIn = false
+
     /** id → title, warmed lazily from [DeckRepository.listOwned] so multi-deck sessions can label each card. */
     private var deckTitles: Map<String, String> = emptyMap()
     private var gradeJob: Job? = null
@@ -107,9 +136,18 @@ class StudySessionViewModel(
     private fun load() {
         viewModelScope.launch {
             _state.update { StudySessionUiState.Loading }
-            deckTitle = deckId?.let { resolveDeckTitle(it) }.orEmpty()
+            // Skipped for a preview: resolveDeckTitle falls back to listOwned(), which needs a
+            // session, and previewQueue reads the title off the manifest it fetches anyway.
+            deckTitle = if (isPreview) "" else deckId?.let { resolveDeckTitle(it) }.orEmpty()
+            if (isPreview) {
+                isSignedIn = runSuspendCatching { identityRepository.currentSession() }.getOrNull() != null
+            }
             runSuspendCatching {
-                if (deckId == null) srsRepository.dueToday() else srsRepository.dueForDeck(deckId)
+                when {
+                    isPreview -> previewQueue()
+                    deckId == null -> srsRepository.dueToday()
+                    else -> srsRepository.dueForDeck(deckId)
+                }
             }
                 .onSuccess { cards ->
                     queue = cards
@@ -126,6 +164,23 @@ class StudySessionViewModel(
         }
     }
 
+    /**
+     * The first [PREVIEW_CARDS] cards of one deck, in the author's own study order.
+     *
+     * A fetch rather than a cache read, and remote-capable: a preview is usually the first thing
+     * that has ever touched this deck on this device. Capped because a preview is a sample — the
+     * point is to reach the end and be asked, not to hand someone a 400-card deck they cannot
+     * keep their place in.
+     */
+    private suspend fun previewQueue(): List<Card> {
+        val id = requireNotNull(deckId) { "A preview is always of a single deck" }
+        val deck = deckRepository.getLocal(id)
+            ?: previewAuthorPubky?.let { deckRepository.fetchRemote(it, id).getOrThrow() }
+            ?: error("Deck $id is not available to preview")
+        deckTitle = deck.title
+        return cardRepository.fetchByDeck(deck).getOrThrow().take(PREVIEW_CARDS)
+    }
+
     fun onReveal() {
         if (!revealed) {
             revealed = true
@@ -133,8 +188,19 @@ class StudySessionViewModel(
         }
     }
 
+    /**
+     * Move on in a preview. The counterpart to [onGrade] — same advance, no scheduling — because
+     * there is no review to record and no difficulty worth asking about.
+     */
+    fun onNextCard() {
+        if (!isPreview || gradeJob?.isActive == true) return
+        reviewedCount++
+        advanceIndex()
+        emitCurrent()
+    }
+
     fun onGrade(grade: SrsGrade) {
-        if (gradeJob?.isActive == true) return
+        if (isPreview || gradeJob?.isActive == true) return
         val card = queue.getOrNull(index) ?: return
         gradeJob = viewModelScope.launch {
             srsRepository.review(card, grade)
@@ -147,13 +213,20 @@ class StudySessionViewModel(
                     syncError = err.toErrorReason()
                 }
             reviewedCount++
-            index++
-            revealed = false
-            speakPhase = SpeakPhase.Idle
-            resetTyping()
+            // Ordered as it always was: the celebration asks whether there is a card *behind* it
+            // to keep studying, so it has to run once the index has already moved on.
+            advanceIndex()
             celebrateGoalIfOwed()
             emitCurrent()
         }
+    }
+
+    /** Point at the next card and clear everything the current one accumulated. */
+    private fun advanceIndex() {
+        index++
+        revealed = false
+        speakPhase = SpeakPhase.Idle
+        resetTyping()
     }
 
     /**
@@ -357,14 +430,15 @@ class StudySessionViewModel(
     fun onClose() {
         // flushAsync, not a launch here: viewModelScope is cancelled in onCleared(), so a flush
         // started as this screen goes away would be killed before it finished — losing exactly
-        // the reviews it was meant to save.
-        srsRepository.flushAsync()
+        // the reviews it was meant to save. A preview has graded nothing, and flushing under a
+        // visitor with no session would fail on "Not signed in".
+        if (!isPreview) srsRepository.flushAsync()
         viewModelScope.launch { _effects.emit(StudySessionEffect.Close) }
     }
 
     /** Buffered reviews must reach the homeserver even if the process is about to be backgrounded. */
     override fun onCleared() {
-        srsRepository.flushAsync()
+        if (!isPreview) srsRepository.flushAsync()
         super.onCleared()
     }
 
@@ -399,36 +473,20 @@ class StudySessionViewModel(
         }
         val card = queue.getOrNull(index)
         if (card == null) {
-            // Queue exhausted — persist the session's reviews.
-            srsRepository.flushAsync()
-            _state.update { StudySessionUiState.Complete(reviewedCount, syncError) }
-            // After the state, not before: the congrats screen must not wait on a lookup, and
-            // nextDueAt is cache-only but still suspending.
-            viewModelScope.launch {
-                val nextDue = runSuspendCatching { srsRepository.nextDueAt() }
-                    .onFailure { Log.e(TAG, "nextDueAt: FAILED — ${it.message}", it) }
-                    .getOrNull()
-                val progress = srsRepository.dailyProgress.value
-                _state.update { current ->
-                    (current as? StudySessionUiState.Complete)?.copy(
-                        nextDueAtMillis = nextDue,
-                        newCardsToday = progress.newCards,
-                        newCardsGoal = settingsRepository.studySettings.value.settings.newCardsPerDayGoal,
-                    ) ?: current
-                }
-            }
+            emitComplete()
             return
         }
         viewModelScope.launch {
             // The repository owns this: the first-review intervals are a user setting, so labels
             // computed here would need a SettingsRepository of their own and could drift from what
             // grading actually writes.
-            val labels = srsRepository.previewIntervals(card)
+            val labels = if (isPreview) emptyMap() else srsRepository.previewIntervals(card)
             val title = deckTitle.ifBlank { resolveDeckTitle(card.deckId) }.ifBlank { card.deckId }
             val deck = deckRepository.getLocal(card.deckId)
             typePhase = typePhaseFor(card, deck)
             _state.update { StudySessionUiState.Reviewing(
                 deckTitle = title,
+                isPreview = isPreview,
                 goalCelebration = goalCelebration.takeIf { goalReached },
                 position = index + 1,
                 total = queue.size,
@@ -450,6 +508,40 @@ class StudySessionViewModel(
                 backImageRef = card.back.imageRef,
                 syncError = syncError,
             ) }
+        }
+    }
+
+    /**
+     * The queue is exhausted.
+     *
+     * A preview stops here: nothing was graded, so there is nothing to flush, no next-due date to
+     * name and no daily tally to add to. What it says instead is how to keep the progress it did
+     * not — which is the whole reason the preview exists.
+     */
+    private fun emitComplete() {
+        if (isPreview) {
+            _state.update {
+                StudySessionUiState.Complete(reviewedCount, isPreview = true, isSignedIn = isSignedIn)
+            }
+            return
+        }
+        // Queue exhausted — persist the session's reviews.
+        srsRepository.flushAsync()
+        _state.update { StudySessionUiState.Complete(reviewedCount, syncError = syncError) }
+        // After the state, not before: the congrats screen must not wait on a lookup, and
+        // nextDueAt is cache-only but still suspending.
+        viewModelScope.launch {
+            val nextDue = runSuspendCatching { srsRepository.nextDueAt() }
+                .onFailure { Log.e(TAG, "nextDueAt: FAILED — ${it.message}", it) }
+                .getOrNull()
+            val progress = srsRepository.dailyProgress.value
+            _state.update { current ->
+                (current as? StudySessionUiState.Complete)?.copy(
+                    nextDueAtMillis = nextDue,
+                    newCardsToday = progress.newCards,
+                    newCardsGoal = settingsRepository.studySettings.value.settings.newCardsPerDayGoal,
+                ) ?: current
+            }
         }
     }
 
@@ -498,6 +590,12 @@ class StudySessionViewModel(
 
     companion object {
         private const val TAG = "Loopky/StudyVM"
+
+        /**
+         * How many cards a preview serves. A sample, not a session: the end of it is where the
+         * offer to keep going lives, so it has to be reachable in a couple of minutes.
+         */
+        internal const val PREVIEW_CARDS = 10
     }
 }
 
@@ -509,6 +607,12 @@ sealed interface StudySessionUiState {
 
     data class Reviewing(
         val deckTitle: String,
+        /**
+         * A sample of a deck nobody has kept: nothing here is graded or stored. The four SRS
+         * buttons are replaced by a plain "Next", and the screen says so — see
+         * [StudySessionViewModel].
+         */
+        val isPreview: Boolean = false,
         /**
          * Today's new-card goal has just been met, so the celebration is on screen.
          *
@@ -580,11 +684,18 @@ sealed interface StudySessionUiState {
          * [revealed] alone is not enough once the answer can be revealed-but-masked: grading a
          * card you have not been shown the answer to is not a judgement about anything.
          */
-        val gradesAvailable: Boolean get() = revealed && !answerHidden
+        val gradesAvailable: Boolean get() = revealed && !answerHidden && !isPreview
+
+        /** "Next" stands where the grades would: the card is legible and there is nothing to grade. */
+        val previewAdvanceAvailable: Boolean get() = isPreview && revealed && !answerHidden
     }
 
     data class Complete(
         val reviewed: Int,
+        /** The session was a preview, so [reviewed] is cards *tried* and nothing was recorded. */
+        val isPreview: Boolean = false,
+        /** Only consulted for a preview: it decides whether the offer is an account or a follow. */
+        val isSignedIn: Boolean = false,
         val syncError: ErrorReason? = null,
         /**
          * When the next card comes up. "All done! 🎊 / You reviewed 4 cards." said nothing about

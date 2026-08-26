@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.profile
 
 import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.presentation.auth.SignInReason
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
@@ -222,5 +223,34 @@ class FriendProfileViewModelTest {
         val card = vm.state.value.decks.single()
         assertEquals(cover, card.coverImage)
         assertEquals(stranger, card.authorPubky)
+    }
+    // ── Browsing without an account (#150) ───────────────────────────────────
+
+    /**
+     * A public profile and the decks on it are public records: the screen reads in full with no
+     * session, and only Follow is out of reach.
+     */
+    @Test
+    fun `renders with nobody signed in and gates only follow`() = runTest(mainDispatcher) {
+        identity.session = null
+        decks.decks["d1"] = testDeck(id = "d1", authorPubky = stranger)
+
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.isSignedIn)
+        assertFalse(vm.state.value.isSelf)
+        assertEquals(1, vm.state.value.decks.size)
+
+        vm.onToggleFollow()
+        advanceUntilIdle()
+
+        // The optimistic flip must not have run: nothing was written, so nothing changed.
+        assertEquals(SignInReason.FollowPerson, vm.state.value.signInPrompt)
+        assertFalse(vm.state.value.isFollowing)
+        assertTrue(discovery.follows.isEmpty())
+
+        vm.onDismissSignInPrompt()
+        assertNull(vm.state.value.signInPrompt)
     }
 }

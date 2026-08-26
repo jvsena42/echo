@@ -49,12 +49,15 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.Tag
+import com.github.jvsena42.loopky.presentation.auth.SignInReason
 import com.github.jvsena42.loopky.presentation.discover.DiscoverDeck
 import com.github.jvsena42.loopky.presentation.discover.DiscoverEffect
 import com.github.jvsena42.loopky.presentation.discover.DiscoverUiState
 import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.loopky.presentation.discover.SectionState
+import com.github.jvsena42.loopky.ui.components.GuestSignInBanner
 import com.github.jvsena42.loopky.ui.components.LoopkyErrorBlock
+import com.github.jvsena42.loopky.ui.components.SignInPromptDialog
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.layout.PaneWidth
 import com.github.jvsena42.loopky.ui.layout.contentPane
@@ -68,10 +71,18 @@ fun DiscoverRoute(
     onOpenProfile: (String) -> Unit = {},
     onOpenDeck: (deckId: String, author: String?) -> Unit = { _, _ -> },
     onOpenSearch: () -> Unit = {},
+    /**
+     * Discover is the whole app for a signed-out visitor, so it carries the standing offer to
+     * sign in. Passed down rather than read off the state because the *shell* decides it: only
+     * the guest shell has no tab bar to hold that offer somewhere else.
+     */
+    isGuest: Boolean = false,
+    onSignIn: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<DiscoverViewModel>()
 
     val context = LocalContext.current
+    var signInPrompt by remember { mutableStateOf<SignInReason?>(null) }
     val currentOpenProfile by rememberUpdatedState(onOpenProfile)
     val currentOpenDeck by rememberUpdatedState(onOpenDeck)
     val currentOpenSearch by rememberUpdatedState(onOpenSearch)
@@ -84,6 +95,7 @@ fun DiscoverRoute(
                 is DiscoverEffect.OpenProfile -> currentOpenProfile(effect.pubky)
                 is DiscoverEffect.OpenDeck -> currentOpenDeck(effect.deckId, effect.authorPubky)
                 is DiscoverEffect.ShowFollowError -> followError = effect.reason
+                is DiscoverEffect.RequireSignIn -> signInPrompt = effect.reason
             }
         }
     }
@@ -97,9 +109,22 @@ fun DiscoverRoute(
         }
     }
 
+    signInPrompt?.let { reason ->
+        SignInPromptDialog(
+            reason = reason,
+            onSignIn = {
+                signInPrompt = null
+                onSignIn()
+            },
+            onDismiss = { signInPrompt = null },
+        )
+    }
+
     val state by viewModel.state.collectAsStateWithLifecycle()
     DiscoverScreen(
         state = state,
+        isGuest = isGuest,
+        onSignIn = onSignIn,
         onTagSelected = viewModel::onTagSelected,
         onSearch = viewModel::onSearch,
         onOpenAuthor = viewModel::onOpenAuthor,
@@ -114,6 +139,8 @@ fun DiscoverRoute(
 @Composable
 private fun DiscoverScreen(
     state: DiscoverUiState,
+    isGuest: Boolean,
+    onSignIn: () -> Unit,
     onTagSelected: (Tag?) -> Unit,
     onSearch: () -> Unit,
     onOpenAuthor: (String) -> Unit,
@@ -148,6 +175,13 @@ private fun DiscoverScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 item(key = "header") { DiscoverHeader(onSearch = onSearch) }
+
+                // Above the topics, below the search bar: first thing on the page, and it scrolls
+                // away with everything else rather than pinning itself over the content a visitor
+                // came to look at.
+                if (isGuest) {
+                    item(key = "guest_banner") { GuestSignInBanner(onSignIn = onSignIn) }
+                }
 
                 topicsSection(state, onTagSelected)
                 // Picking a topic is an explicit question, so its answer leads. Unfiltered, browse
@@ -388,6 +422,8 @@ private fun DiscoverScreenPreview() {
                     items = listOf(previewDeck("3", "Chess openings", "♟️", "ghi789jkl012mno", "Alan")),
                 ),
             ),
+            isGuest = false,
+            onSignIn = {},
             onTagSelected = {},
             onSearch = {},
             onOpenAuthor = {},
@@ -406,6 +442,34 @@ private fun DiscoverScreenEmptyBrowsePreview() {
     LoopkyTheme {
         DiscoverScreen(
             state = DiscoverUiState(),
+            isGuest = false,
+            onSignIn = {},
+            onTagSelected = {},
+            onSearch = {},
+            onOpenAuthor = {},
+            onOpenDeck = { _, _ -> },
+            onFollowToggle = {},
+            onRefresh = {},
+            onRetryFollowing = {},
+        )
+    }
+}
+
+/** Discover as a signed-out visitor sees it: the same content, plus the way in. */
+@Preview
+@Composable
+private fun DiscoverScreenGuestPreview() {
+    LoopkyTheme {
+        DiscoverScreen(
+            state = DiscoverUiState(
+                isSignedIn = false,
+                topics = SectionState(items = listOf(Tag("spanish"), Tag("biology"))),
+                browse = SectionState(
+                    items = listOf(previewDeck("1", "Spanish basics", "📚", "abc123def456ghi", "Ada")),
+                ),
+            ),
+            isGuest = true,
+            onSignIn = {},
             onTagSelected = {},
             onSearch = {},
             onOpenAuthor = {},
