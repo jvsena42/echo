@@ -210,28 +210,134 @@ class FakePubkyClient : PubkyClient {
         return failNextSessionCallWith?.also { failNextSessionCallWith = null }
     }
 
-    // --- Surface unused by the repositories under test -------------------------
+    // --- Keys, mnemonics & recovery files --------------------------------------
+    //
+    // Modelled on the fork rather than invented: derivation is deterministic and one-way,
+    // `validateMnemonicPhrase` answers through its *payload* and never fails, and `signUp`/`signIn`
+    // return a grant-flow session carrying `grant_secret` and **no** `homeserver` — which is what
+    // the real FFI does, and what makes the "fill the homeserver in yourself" bug reproducible.
 
-    override fun generateSecretKey(): Result<String> = unused()
-    override fun getPublicKeyFromSecretKey(secretKey: String): Result<String> = unused()
-    override fun generateMnemonicPhrase(): Result<String> = unused()
-    override fun generateMnemonicPhraseAndKeypair(): Result<String> = unused()
-    override fun mnemonicPhraseToKeypair(mnemonicPhrase: String): Result<String> = unused()
-    override fun validateMnemonicPhrase(mnemonicPhrase: String): Result<String> = unused()
-    override fun createRecoveryFile(secretKey: String, passphrase: String): Result<String> = unused()
-    override fun decryptRecoveryFile(recoveryFile: String, passphrase: String): Result<String> = unused()
+    /** Phrase handed back by [generateMnemonicPhraseAndKeypair]. Deterministic per instance. */
+    var mintedMnemonic: String = VALID_TEST_MNEMONIC
+
+    /** When set, minting fails — the terminal, never-retried entropy failure. */
+    var mintFailure: Throwable? = null
+
+    /**
+     * Phrases [validateMnemonicPhrase] answers `"true"` for. Anything else answers `"false"`,
+     * still as a *success*, exactly as the FFI does.
+     */
+    val validMnemonics: MutableSet<String> = mutableSetOf(VALID_TEST_MNEMONIC, SECOND_TEST_MNEMONIC)
+
+    /**
+     * Forces [generateMnemonicPhraseAndKeypair] *alone* to hand back a key the phrase does not
+     * derive, modelling the one failure a user cannot detect: valid-looking material that is wrong.
+     */
+    var mintedSecretKeyOverride: String? = null
+
+    /**
+     * Forces **both** generation and derivation to return this key.
+     *
+     * This is what a broken seed derivation actually looks like: the fork derives the keypair
+     * *from* the mnemonic in both directions, so the two agree with each other and only the bytes
+     * themselves give it away. Overriding generation alone would trip the round-trip check first
+     * and never reach the degeneracy check at all.
+     */
+    var secretKeyOverride: String? = null
+
+    /** Per-pubky answers for [getHomeserver]. Absent pubkys fall through to [defaultHomeserverLookup]. */
+    val homeserverLookups: MutableMap<String, Result<String>> = mutableMapOf()
+
+    /** Answer for a pubky with no entry in [homeserverLookups]. Defaults to "never registered". */
+    var defaultHomeserverLookup: Result<String> = Result.failure(noHomeserverRecord())
+
+    val signUpCalls = mutableListOf<SignUpCall>()
+    val signInCalls = mutableListOf<String>()
+
+    /** When set, [signUp] fails with this instead of registering. */
+    var signUpFailure: Throwable? = null
+
+    /**
+     * Makes [signUp] return a session for a *different* pubky than the key it was handed —
+     * the Pubky Ring behaviour where a failed signup quietly authorises another account.
+     */
+    var signUpReturnsPubky: String? = null
+
+    /** When set, [signIn] fails with this. */
+    var signInFailure: Throwable? = null
+
+    override fun generateSecretKey(): Result<String> =
+        Result.success(fakeSecretKeyFor("generated-secret"))
+
+    override fun getPublicKeyFromSecretKey(secretKey: String): Result<String> =
+        Result.success(fakePubkyFor(secretKey))
+
+    override fun generateMnemonicPhrase(): Result<String> =
+        mintFailure?.let { Result.failure(it) } ?: Result.success(mintedMnemonic)
+
+    override fun generateMnemonicPhraseAndKeypair(): Result<String> {
+        mintFailure?.let { return Result.failure(it) }
+        val secret = mintedSecretKeyOverride ?: secretKeyOverride ?: fakeSecretKeyFor(mintedMnemonic)
+        return Result.success(keypairJson(secret, mintedMnemonic))
+    }
+
+    override fun mnemonicPhraseToKeypair(mnemonicPhrase: String): Result<String> {
+        if (mnemonicPhrase !in validMnemonics) {
+            return Result.failure(PubkyError("Invalid mnemonic phrase"))
+        }
+        val secret = secretKeyOverride ?: fakeSecretKeyFor(mnemonicPhrase)
+        return Result.success(keypairJson(secret, mnemonic = null))
+    }
+
+    // Never a failure, and the answer is the payload — mirroring `validate_mnemonic_phrase`, which
+    // returns ["false", "true"] / ["false", "false"]. A caller reading isSuccess validates nothing.
+    override fun validateMnemonicPhrase(mnemonicPhrase: String): Result<String> =
+        Result.success((mnemonicPhrase in validMnemonics).toString())
+
+    override fun createRecoveryFile(secretKey: String, passphrase: String): Result<String> {
+        if (secretKey.isEmpty() || passphrase.isEmpty()) {
+            return Result.failure(PubkyError("Secret key and passphrase must not be empty"))
+        }
+        // Base64 out, as the FFI does — the caller has to decode before writing a file that
+        // pubky-app or Pubky Ring can read.
+        return Result.success(Base64.encode("$RECOVERY_SPEC_LINE\n$passphrase:$secretKey".encodeToByteArray()))
+    }
+
+    override fun decryptRecoveryFile(recoveryFile: String, passphrase: String): Result<String> {
+        if (recoveryFile.isEmpty() || passphrase.isEmpty()) {
+            return Result.failure(PubkyError("Recovery file and passphrase must not be empty"))
+        }
+        val decoded = runCatching { Base64.decode(recoveryFile).decodeToString() }.getOrNull()
+            ?: return Result.failure(PubkyError("Failed to decode recovery file: invalid base64"))
+        val body = decoded.substringAfter('\n', missingDelimiterValue = "")
+        val storedPassphrase = body.substringBefore(':', missingDelimiterValue = "")
+        if (!decoded.startsWith(RECOVERY_SPEC_LINE) || storedPassphrase != passphrase) {
+            return Result.failure(PubkyError("Failed to decrypt recovery file"))
+        }
+        return Result.success(body.substringAfter(':'))
+    }
+
     override suspend fun signUp(
         secretKey: String,
         homeserver: String,
         signupToken: String?,
-    ): Result<String> = unused()
+    ): Result<String> {
+        signUpCalls.add(SignUpCall(secretKey, homeserver, signupToken))
+        signUpFailure?.let { return Result.failure(it) }
+        val pubky = signUpReturnsPubky ?: fakePubkyFor(secretKey)
+        return Result.success(grantSessionJson(pubky))
+    }
 
     override suspend fun getSignupToken(
         homeserverPubky: String,
         adminPassword: String,
     ): Result<String> = unused()
 
-    override suspend fun signIn(secretKey: String): Result<String> = unused()
+    override suspend fun signIn(secretKey: String): Result<String> {
+        signInCalls.add(secretKey)
+        signInFailure?.let { return Result.failure(it) }
+        return Result.success(grantSessionJson(fakePubkyFor(secretKey)))
+    }
     override suspend fun signOut(sessionSecret: String): Result<String> {
         signOuts.add(sessionSecret)
         return Result.success("ok")
@@ -269,9 +375,74 @@ class FakePubkyClient : PubkyClient {
     override suspend fun republishHomeserver(secretKey: String, homeserver: String): Result<String> = unused()
     override suspend fun resolve(publicKey: String): Result<String> = unused()
     override suspend fun resolveHttps(publicKey: String): Result<String> = unused()
-    override suspend fun getHomeserver(pubky: String): Result<String> = unused()
+    override suspend fun getHomeserver(pubky: String): Result<String> =
+        homeserverLookups[pubky] ?: defaultHomeserverLookup
     override fun switchNetwork(useTestnet: Boolean): Result<String> = unused()
+
+    private fun keypairJson(secretKeyHex: String, mnemonic: String?): String {
+        val pubky = fakePubkyFor(secretKeyHex)
+        val mnemonicField = mnemonic?.let { ",\"mnemonic\":\"$it\"" }.orEmpty()
+        return "{\"secret_key\":\"$secretKeyHex\",\"public_key\":\"$pubky\"," +
+            "\"uri\":\"pubky://$pubky\"$mnemonicField}"
+    }
+
+    /**
+     * A grant-flow session, shaped exactly as `session_to_json_with_grant_secret` builds it:
+     * `grant_secret` rather than `session_secret`, and **no `homeserver` field at all**. Callers
+     * that rely on the payload to tell them which homeserver they landed on get an empty string,
+     * which is the real behaviour and the reason local signup has to fill it in itself.
+     */
+    private fun grantSessionJson(pubky: String): String =
+        """{"pubky":"$pubky","capabilities":["/pub/loopky/:rw"],"grant_secret":"grant-${pubky.take(8)}"}"""
 
     private fun unused(): Nothing =
         throw UnsupportedOperationException("Not used by the code under test")
 }
+
+/** A recorded [FakePubkyClient.signUp] call. */
+data class SignUpCall(val secretKey: String, val homeserver: String, val signupToken: String?)
+
+/**
+ * The error the fork returns for `Ok(None)` — a pubky that has never published a homeserver
+ * record. Verbatim, because the classifier that reads it matches on this wording.
+ */
+fun noHomeserverRecord(): Throwable = PubkyError("No homeserver found for this public key")
+
+/**
+ * The error the fork returns when the DHT itself could not be reached.
+ *
+ * Contains "failed to resolve" on purpose: that substring is in `isNetworkFailure`'s list, so this
+ * is the string that proves the ordering in `toErrorReason` puts the specific classifier first.
+ */
+fun homeserverLookupUnreachable(): Throwable =
+    PubkyError("Failed to get homeserver: pkarr: failed to resolve packet for key")
+
+/** Deterministic stand-in for BIP-39 derivation: same phrase in, same 32-byte key out. */
+fun fakeSecretKeyFor(seed: String): String {
+    var acc = FNV_OFFSET
+    return buildString(SECRET_KEY_HEX_LENGTH) {
+        repeat(SECRET_KEY_BYTES) { i ->
+            for (c in seed) {
+                acc = (acc xor c.code.toUInt()) * FNV_PRIME
+            }
+            acc = (acc xor (i.toUInt() + 1u)) * FNV_PRIME
+            append(((acc shr 16) and 0xFFu).toString(16).padStart(2, '0'))
+        }
+    }
+}
+
+/** Deterministic stand-in for the z32 public key. One-way and unique per secret, like the real one. */
+fun fakePubkyFor(secretKeyHex: String): String = "pk" + fakeSecretKeyFor("public:$secretKeyHex").take(50)
+
+/** Twelve real BIP-39 words, so tests read like the thing they model. */
+const val VALID_TEST_MNEMONIC =
+    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+
+const val SECOND_TEST_MNEMONIC =
+    "legal winner thank year wave sausage worth useful legal winner thank yellow"
+
+private const val RECOVERY_SPEC_LINE = "pubky.org/recovery"
+private const val SECRET_KEY_BYTES = 32
+private const val SECRET_KEY_HEX_LENGTH = 64
+private const val FNV_OFFSET = 2166136261u
+private const val FNV_PRIME = 16777619u

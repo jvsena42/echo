@@ -106,6 +106,27 @@ style:
     active: true
     maxLineLength: 140
     excludeCommentStatements: true
+  # Key material comes from the FFI or it does not exist. `generate_mnemonic`/`Keypair::random`
+  # draw from the OS CSPRNG and panic rather than degrade; a hand-rolled Random anywhere near a
+  # key, passphrase or salt would silently produce a valid-looking account nobody can recover.
+  # Scoped to the packages that touch keys — SessionRetry's backoff jitter and the confetti keep
+  # their Random. `maxIssues: 0` above makes this a build failure, which is the intended severity.
+  ForbiddenImport:
+    active: true
+    includes:
+      - '**/data/pubky/**'
+      - '**/data/storage/LocalKeyStore.kt'
+      - '**/data/repository/impl/KeyBackupRepositoryImpl.kt'
+      - '**/presentation/backup/**'
+      - '**/presentation/restore/**'
+    excludes:
+      # Backoff jitter, not key material — it decides how long to sleep before retrying a write.
+      # It sits in data/pubky only because that is where session retry lives.
+      - '**/data/pubky/SessionRetry.kt'
+    imports:
+      - 'kotlin.random.Random'
+      - 'java.util.Random'
+      - 'java.security.SecureRandom'
   ForbiddenComment:
     active: false
 
