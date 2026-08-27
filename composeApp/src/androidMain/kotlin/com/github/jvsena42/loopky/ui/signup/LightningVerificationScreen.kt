@@ -97,13 +97,28 @@ private fun LightningVerificationScreen(
     onNewInvoice: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
+    // Resuming is not the same errand as paying: the invoice is gone, so the page stops asking for
+    // a payment it cannot take and reports on the one that may already be in flight.
+    val checkingEarlier = state.isCheckingEarlierPayment
     SignupScaffold(
-        title = stringResource(R.string.signup_lightning_title),
+        title = stringResource(
+            if (checkingEarlier) R.string.signup_lightning_resumed_title else R.string.signup_lightning_title,
+        ),
         subtitle = state.invoice
             ?.let { invoice ->
-                state.fiatPrice
-                    ?.let { stringResource(R.string.signup_lightning_amount_fiat, invoice.amountSat, it) }
-                    ?: stringResource(R.string.signup_lightning_amount, invoice.amountSat)
+                val fiat = state.fiatPrice
+                when {
+                    checkingEarlier && fiat != null ->
+                        stringResource(R.string.signup_lightning_resumed_subtitle_fiat, invoice.amountSat, fiat)
+
+                    checkingEarlier ->
+                        stringResource(R.string.signup_lightning_resumed_subtitle, invoice.amountSat)
+
+                    fiat != null ->
+                        stringResource(R.string.signup_lightning_amount_fiat, invoice.amountSat, fiat)
+
+                    else -> stringResource(R.string.signup_lightning_amount, invoice.amountSat)
+                }
             }
             .orEmpty(),
         onBack = onBack,
@@ -163,7 +178,17 @@ private fun LightningVerificationScreen(
             Spacer(Modifier.height(16.dp))
             CircularProgressIndicator(color = colors.accentPrimary, modifier = Modifier.testTag("signup_lightning_waiting"))
             Spacer(Modifier.height(8.dp))
-            Text(stringResource(R.string.signup_lightning_waiting), color = colors.foregroundMuted, fontSize = 13.sp)
+            Text(
+                text = stringResource(
+                    if (checkingEarlier) {
+                        R.string.signup_lightning_resumed_waiting
+                    } else {
+                        R.string.signup_lightning_waiting
+                    },
+                ),
+                color = colors.foregroundMuted,
+                fontSize = 13.sp,
+            )
         }
 
         if (state.canRetry) {

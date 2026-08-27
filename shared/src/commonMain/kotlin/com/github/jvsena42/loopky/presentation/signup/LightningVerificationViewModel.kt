@@ -138,6 +138,17 @@ data class LightningVerificationUiState(
 ) {
     /** An expired invoice is recoverable by asking for another, so the screen offers exactly that. */
     val canRetry: Boolean get() = error != null
+
+    /**
+     * True while the screen is waiting on a payment it can no longer show.
+     *
+     * A resumed invoice carries no BOLT11 — it may already have been paid in the other app, so
+     * [SignupRepository.resumableInvoice] keeps only the claim. There is nothing to scan, tap or
+     * copy, and the screen has to say so: asking someone to pay while showing them no invoice
+     * reads as a bug, and inviting a second payment for a token they may already own is worse.
+     */
+    val isCheckingEarlierPayment: Boolean
+        get() = isResumed && invoice?.bolt11.isNullOrEmpty() && error == null
 }
 
 sealed interface LightningVerificationEffect {
