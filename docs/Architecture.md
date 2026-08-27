@@ -570,8 +570,16 @@ That is gone. It cost a Ring install gate in front of the only way into the app,
 spender was a route argument — an "create an account in Loopky instead" link that navigated to a
 byte-identical second copy of the same screen. Ring is now reached from the **backup step**
 (`BackupRingViewModel`, straight after the account is created) and the Settings nag, where it is a
-custody change on an identity that already exists rather than a prerequisite to satisfy. If the
-Ring redemption path is ever wanted back, it belongs behind that offer, not in front of Homegate.
+*second copy* of a key that already exists rather than a prerequisite to satisfy.
+
+**That offer is a backup, not a custody transfer, and the distinction is load-bearing.**
+`ringExportUrl` builds a `pubkyring://` import link and `onExportConfirmed` records
+`BackupMethod.PubkyRing`; the key stays in `LocalKeyStore` and custody stays `KeyCustody.Loopky`,
+which is what `backup_ring_subtitle` tells the user ("Loopky keeps its own copy, and your recovery
+phrase still works"). What it buys over a written phrase is a live copy in an app the user can
+sign other Pubky apps in with. Calling it a custody change would describe the Ring-custody option
+this section just removed — nothing anywhere in the app moves a key *out* of Loopky. If the Ring
+redemption path is ever wanted back, it belongs behind that offer, not in front of Homegate.
 
 `platform/PubkyRingPresence` survives for those callers: a Koin-bound platform interface (like
 `BackgroundTasks`) that owns the install URL, since that differs per platform. It probes

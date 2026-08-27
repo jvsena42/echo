@@ -47,8 +47,8 @@ what is on your device.
 
 **If you sign in with Pubky Ring**, your key lives in that separate app and Loopky never sees your
 private key or your recovery phrase. When you sign in, Ring grants Loopky a **session secret**
-scoped to Loopky's own storage area. Moving an existing Loopky key into Ring is offered as a backup
-option, described below.
+scoped to Loopky's own storage area. Copying an existing Loopky key *into* Ring is offered as a
+backup option, described below — Loopky keeps its own copy either way.
 
 **If you created or restored your account inside Loopky** — which is what "Create account" does —
 then Loopky holds your private key itself. It is stored in your device's own secure storage — the Android Keystore on Android, the

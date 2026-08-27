@@ -21,9 +21,9 @@ import kotlinx.coroutines.launch
  * screen used to be parameterised by who would spend the token — Pubky Ring or Loopky — which put
  * a Ring install gate in front of every method and offered a "create it in Loopky instead" link
  * that re-entered this same screen with a different argument. Two identical screens for one
- * decision. Ring is now offered *after* the account exists, as a custody change, from the backup
- * step and the Settings nag — by which point the user has something to move rather than a
- * prerequisite to satisfy.
+ * decision. Ring is now offered *after* the account exists, as a backup — a second copy of the
+ * key, which stays in `LocalKeyStore` either way — from the backup step and the Settings nag, by
+ * which point the user has something to copy rather than a prerequisite to satisfy.
  *
  * **Method availability is a courtesy, not a gate.** A method Homegate could not be asked about
  * stays **enabled**: locking someone out of the only route into the app because a probe timed out

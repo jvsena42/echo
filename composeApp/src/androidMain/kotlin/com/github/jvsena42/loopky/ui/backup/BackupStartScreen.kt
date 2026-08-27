@@ -78,7 +78,8 @@ private fun BackupStartScreen(
         title = stringResource(R.string.backup_start_title),
         // A restored key is already backed up, so the default copy — "your key lives only on this
         // device" — would be describing a risk the user does not have. What is still worth
-        // offering them is Ring, which is a custody change rather than a backup.
+        // offering them is Ring — a live second copy in an app they can sign other Pubky apps in
+        // with, which a phrase on paper is not. It does not move the key: Loopky keeps its own.
         subtitle = stringResource(
             if (state.isBackedUp) {
                 R.string.backup_start_subtitle_backed_up
