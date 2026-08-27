@@ -18,7 +18,6 @@ import androidx.navigation.navArgument
 import com.github.jvsena42.loopky.data.pubky.PubkyLink
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
-import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
 import com.github.jvsena42.loopky.ui.backup.BackupFileRoute
 import com.github.jvsena42.loopky.ui.backup.BackupPhraseRoute
 import com.github.jvsena42.loopky.ui.backup.BackupQuizRoute
@@ -45,7 +44,6 @@ import com.github.jvsena42.loopky.ui.signup.InviteCodeRoute
 import com.github.jvsena42.loopky.ui.signup.LightningVerificationRoute
 import com.github.jvsena42.loopky.ui.signup.LocalSignupRoute
 import com.github.jvsena42.loopky.ui.signup.PhoneVerificationRoute
-import com.github.jvsena42.loopky.ui.signup.SignupHandoffRoute
 import com.github.jvsena42.loopky.ui.signup.SignupStartRoute
 import com.github.jvsena42.loopky.ui.study.StudySessionRoute
 import com.github.jvsena42.loopky.ui.tagbrowse.TagBrowseRoute
@@ -434,15 +432,10 @@ private fun NavHostController.goHomeSignedIn() {
 
 private fun NavHostController.navigateToRedemption() {
     val entry = currentBackStack.value.firstOrNull { it.destination.route == Routes.SIGNUP_START }
-    val redeemer = TokenRedeemer.fromNameOrRing(entry?.arguments?.getString("with"))
     // Carried from the door the user came through, so the terminal step knows whether it is
     // registering a key they confirmed or minting a new one.
     val adoptHeldKey = entry?.arguments?.getString("adopt").toBoolean()
-    val target = when (redeemer) {
-        TokenRedeemer.PubkyRing -> Routes.SIGNUP_HANDOFF
-        TokenRedeemer.Loopky -> Routes.signupLocal(adoptHeldKey = adoptHeldKey)
-    }
-    navigateTo(target)
+    navigateTo(Routes.signupLocal(adoptHeldKey = adoptHeldKey))
 }
 
 private fun NavGraphBuilder.backupDestinations(navController: NavHostController) {
@@ -543,7 +536,7 @@ private fun NavGraphBuilder.unregisteredKeyDestination(navController: NavHostCon
             // `adopt`: the verification that follows must register *this* key, not mint a new
             // one. The user has just confirmed this pubky by name.
             onNeedsVerification = {
-                navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky, adoptHeldKey = true))
+                navController.navigateTo(Routes.signupStart(adoptHeldKey = true))
             },
             onRegistered = {
                 navController.navigateTo(Routes.BACKUP_START) {
@@ -602,32 +595,18 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
     composable(
         route = Routes.SIGNUP_START,
         arguments = listOf(
-            navArgument("with") {
-                type = NavType.StringType
-                nullable = true
-                defaultValue = null
-            },
             navArgument("adopt") {
                 type = NavType.StringType
                 nullable = true
                 defaultValue = "false"
             },
         ),
-    ) { entry ->
-        // Unknown values fall back to Ring — the recommended path — rather than silently choosing
-        // the one that puts a key on the device.
-        val redeemer = TokenRedeemer.fromNameOrRing(entry.arguments?.getString("with"))
+    ) {
         SignupStartRoute(
-            redeemer = redeemer,
             onBack = { navController.popBackStack() },
             onSms = { navController.navigateTo(Routes.SIGNUP_PHONE) },
             onLightning = { navController.navigateTo(Routes.SIGNUP_LIGHTNING) },
             onInviteCode = { navController.navigateTo(Routes.SIGNUP_INVITE) },
-            onCreateLocally = {
-                navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky)) {
-                    popUpTo(Routes.SIGNUP_START) { inclusive = true }
-                }
-            },
         )
     }
     composable(
@@ -644,7 +623,7 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
             registerHeldKey = entry.arguments?.getString("adopt").toBoolean(),
             onBack = { navController.popBackStack() },
             onStartOver = {
-                navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky)) {
+                navController.navigateTo(Routes.signupStart()) {
                     popUpTo(Routes.SIGNUP_LOCAL) { inclusive = true }
                 }
             },
@@ -657,14 +636,10 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
             },
         )
     }
-    // The three verification screens are identical for both spenders and are deliberately
-    // untouched; only where their "done" lands differs, and that is nav-layer code. The redeemer
-    // is read off the back stack rather than threaded through them.
     signupMethodDestinations(navController)
-    signupRedemptionDestinations(navController)
 }
 
-/** The three ways to prove you are not a robot. Identical for both spenders. */
+/** The three ways to prove you are not a robot. All three land on the same terminal step. */
 private fun NavGraphBuilder.signupMethodDestinations(navController: NavHostController) {
     composable(Routes.SIGNUP_PHONE) {
         PhoneVerificationRoute(
@@ -682,23 +657,6 @@ private fun NavGraphBuilder.signupMethodDestinations(navController: NavHostContr
         InviteCodeRoute(
             onBack = { navController.popBackStack() },
             onDone = { navController.navigateToRedemption() },
-        )
-    }
-}
-
-/** The two terminal steps: Ring's deeplink handoff, and Loopky's own redemption. */
-private fun NavGraphBuilder.signupRedemptionDestinations(navController: NavHostController) {
-    composable(Routes.SIGNUP_HANDOFF) {
-        SignupHandoffRoute(
-            onBack = { navController.popBackStack() },
-            // The whole signup stack is dropped: coming "back" into a spent flow would offer to
-            // redeem a token that no longer exists.
-            onSignedUp = { navController.goHomeSignedIn() },
-            onSignIn = {
-                navController.navigateTo(Routes.ONBOARDING) {
-                    popUpTo(navController.graph.id) { inclusive = true }
-                }
-            },
         )
     }
 }

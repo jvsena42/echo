@@ -107,8 +107,6 @@ fun signupErrorTitle(error: SignupError): String = stringResource(
         SignupError.CodeIncorrect -> R.string.signup_error_code_incorrect_title
         SignupError.InvoiceExpired -> R.string.signup_error_invoice_expired_title
         SignupError.VerificationLost -> R.string.signup_error_verification_lost_title
-        SignupError.RingFailed -> R.string.signup_error_ring_failed_title
-        SignupError.RingNotInstalled -> R.string.signup_error_ring_missing_title
         SignupError.Unavailable -> R.string.signup_error_unavailable_title
         SignupError.TokenRejected -> R.string.signup_error_token_rejected_title
     },
@@ -125,8 +123,6 @@ fun signupErrorMessage(error: SignupError): String = stringResource(
         SignupError.CodeIncorrect -> R.string.signup_error_code_incorrect_message
         SignupError.InvoiceExpired -> R.string.signup_error_invoice_expired_message
         SignupError.VerificationLost -> R.string.signup_error_verification_lost_message
-        SignupError.RingFailed -> R.string.signup_error_ring_failed_message
-        SignupError.RingNotInstalled -> R.string.signup_error_ring_missing_message
         SignupError.Unavailable -> R.string.signup_error_unavailable_message
         SignupError.TokenRejected -> R.string.signup_error_token_rejected_message
     },

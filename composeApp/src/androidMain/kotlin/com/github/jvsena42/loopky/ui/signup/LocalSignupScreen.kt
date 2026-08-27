@@ -28,8 +28,7 @@ import org.koin.core.parameter.parametersOf
 /**
  * Redeem the signup token in Loopky: mint a key here, register it, sign in.
  *
- * The terminal step of the local route, and the sibling of [SignupHandoffRoute] — everything
- * before it (the human check and its three methods) is the identical flow.
+ * The terminal step of signup, reached from all three human checks.
  */
 @Composable
 fun LocalSignupRoute(
