@@ -371,7 +371,11 @@ internal fun LoopkyNavHost(
                 pubky = pubky,
                 onBack = { navController.popBackStack() },
                 onSignIn = { navController.navigateTo(Routes.ONBOARDING) },
-                onOpenDeck = { deckId -> navController.navigateTo(Routes.deckDetail(deckId, author = pubky)) },
+                // The author comes from the tile: this profile's followed grid holds other
+                // people's decks, and opening one against `pubky` reads a manifest that is not there.
+                onOpenDeck = { author, deckId ->
+                    navController.navigateTo(Routes.deckDetail(deckId, author = author))
+                },
                 onOpenFollows = { person, source ->
                     navController.navigateTo(Routes.followList(person, source))
                 },

@@ -48,6 +48,12 @@
         <item quantity="one">Public deck · %1$d</item>
         <item quantity="other">Public decks · %1$d</item>
     </plurals>
+    <!-- A profile's grid mixes decks they wrote with decks they follow, so it is not "public
+         decks of theirs" any more — the author caption under each tile says whose it is. -->
+    <plurals name="profile_decks_count">
+        <item quantity="one">Deck · %1$d</item>
+        <item quantity="other">Decks · %1$d</item>
+    </plurals>
     <plurals name="bulk_cards_parsed">
         <item quantity="one">%1$d card parsed</item>
         <item quantity="other">%1$d cards parsed</item>

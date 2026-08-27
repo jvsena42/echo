@@ -16,6 +16,9 @@ import com.github.jvsena42.loopky.presentation.auth.SignInReason
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -26,9 +29,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Another user's public profile: their pubky.app profile (display name, bio, avatar initial), a grid
- * of their published decks, and a Follow / Unfollow toggle. Reads are public; the follow toggle
- * writes to the current user's pubky.app follows via [DiscoveryRepository].
+ * Another user's public profile: their pubky.app profile (display name, bio, avatar initial), one
+ * grid of decks, and a Follow / Unfollow toggle. Reads are public; the follow toggle writes to the
+ * current user's pubky.app follows via [DiscoveryRepository].
+ *
+ * The grid holds what they wrote *and* what they follow, in one list. Both belong on a profile —
+ * on a network this young most people have published nothing, so a grid of authored decks alone
+ * was empty for almost everyone it described — and splitting them into two sections asked the
+ * reader to care about a distinction the author caption already makes. What tells them apart is
+ * the name under each tile, which is why it is a name rather than a tag.
  */
 class FriendProfileViewModel(
     private val targetPubky: String,
@@ -70,9 +79,24 @@ class FriendProfileViewModel(
             }
 
             val profile = identityRepository.fetchProfile(targetPubky, forceRefresh).getOrNull()
-            val decks = runSuspendCatching { deckRepository.listByAuthor(targetPubky) }.getOrElse {
-                Log.e(TAG, "load: listByAuthor failed — ${it.message}", it)
-                emptyList()
+            // Concurrent: each is a directory listing plus a manifest fetch per deck, so running
+            // them one after the other would double the wait before anything renders. Each
+            // degrades to empty on its own failure — a grid that could not be read is a strip
+            // this profile does without, not a screen-wide error.
+            val (decks, followed) = coroutineScope {
+                val authored = async {
+                    runSuspendCatching { deckRepository.listByAuthor(targetPubky) }.getOrElse {
+                        Log.e(TAG, "load: listByAuthor failed — ${it.message}", it)
+                        emptyList()
+                    }
+                }
+                val subscribed = async {
+                    runSuspendCatching { deckRepository.listFollowedBy(targetPubky) }.getOrElse {
+                        Log.e(TAG, "load: listFollowedBy failed — ${it.message}", it)
+                        emptyList()
+                    }
+                }
+                authored.await() to subscribed.await()
             }
             val isFollowing = runSuspendCatching { discoveryRepository.isFollowing(targetPubky) }
                 .getOrDefault(false)
@@ -82,7 +106,11 @@ class FriendProfileViewModel(
                 .getOrNull()
             val isSelf = myPubky != null && myPubky == targetPubky
 
-            val identity = profile ?: PubkyIdentity(targetPubky, displayName = null, avatarUrl = null, bio = null)
+            val identity = profile ?: bareIdentity(targetPubky)
+            // Theirs first, then what they follow. A deck they wrote *and* follow would otherwise
+            // appear twice; authorship is the more specific claim, so it keeps the entry.
+            val merged = decks + followed.filterNot { deck -> decks.any { it.id == deck.id } }
+            authors[targetPubky] = identity
             _state.update {
                 it.copy(
                     isLoading = false,
@@ -91,14 +119,43 @@ class FriendProfileViewModel(
                     isFollowing = isFollowing,
                     isSignedIn = myPubky != null,
                     isSelf = isSelf,
-                    decks = decks.map { it.toCard() },
+                    decks = merged.map { it.toCard() },
+                    // Counted off the authored list alone: "Decks" and "Cards" are a claim about
+                    // what this person published, and somebody else's deck must not inflate it.
                     deckCount = decks.size,
                     cardCount = decks.sumOf { deck -> deck.cardCount },
                 )
             }
-            Log.d(TAG, "load: decks=${decks.size} following=$isFollowing")
+            Log.d(TAG, "load: decks=${decks.size} followed=${followed.size} following=$isFollowing")
+            loadAuthorProfiles(merged)
             loadFollowCounts()
         }
+    }
+
+    /** Resolved author profiles, so a re-render reuses names already in hand. */
+    private val authors = mutableMapOf<String, PubkyIdentity>()
+
+    /**
+     * Names for the authors of the decks they follow, after first paint.
+     *
+     * A followed deck belongs to somebody this screen has never fetched, and its caption is the
+     * only thing separating it from a deck they wrote — so the name matters, but not enough to
+     * hold the whole profile behind one round-trip per stranger. Until it lands the tile shows a
+     * truncated pubky, and an author with no published profile simply keeps it.
+     */
+    private suspend fun loadAuthorProfiles(decks: List<Deck>) {
+        val pending = decks.map { it.authorPubky }.distinct().filterNot { it in authors }
+        if (pending.isEmpty()) return
+        val resolved = coroutineScope {
+            pending.map { pubky -> async { identityRepository.fetchProfile(pubky).getOrNull() } }
+                .awaitAll()
+        }
+        resolved.filterNotNull().forEach { authors[it.pubky] = it }
+        if (resolved.all { it == null }) return
+        _state.update { current ->
+            current.copy(decks = current.decks.map { it.copy(author = authors[it.authorPubky] ?: it.author) })
+        }
+        Log.d(TAG, "loadAuthorProfiles: resolved=${resolved.count { it != null }}/${pending.size}")
     }
 
     /**
@@ -192,8 +249,13 @@ class FriendProfileViewModel(
         }
     }
 
-    fun onOpenDeck(deckId: String) {
-        viewModelScope.launch { _effects.emit(FriendProfileEffect.OpenDeck(targetPubky, deckId)) }
+    /**
+     * [authorPubky] comes from the tile, not from [targetPubky]: a followed deck belongs to
+     * somebody else, and opening it against this profile's owner reads a manifest that is not
+     * there.
+     */
+    fun onOpenDeck(authorPubky: String, deckId: String) {
+        viewModelScope.launch { _effects.emit(FriendProfileEffect.OpenDeck(authorPubky, deckId)) }
     }
 
     private fun Deck.toCard(): FriendDeck = FriendDeck(
@@ -203,7 +265,7 @@ class FriendProfileViewModel(
         cardCount = cardCount,
         coverEmoji = coverEmoji ?: title.firstOrNull()?.toString() ?: "📚",
         coverImage = coverImageRef,
-        tags = tags.map { it.value },
+        author = authors[authorPubky] ?: bareIdentity(authorPubky),
     )
 
     companion object {
@@ -230,8 +292,12 @@ data class FriendProfileUiState(
     val isSelf: Boolean = false,
     /** Set when a follow/unfollow fails; rendered inline. */
     val errorReason: ErrorReason? = null,
+    /** What they wrote and what they follow, one list, theirs first. */
     val decks: List<FriendDeck> = emptyList(),
-    /** Derived from [decks] here rather than in the UI, so the screen stays a dumb renderer. */
+    /**
+     * Counted off their *authored* decks only — not [decks], which also holds decks they follow.
+     * Derived here rather than in the UI, so the screen stays a dumb renderer.
+     */
     val deckCount: Int = 0,
     val cardCount: Int = 0,
     /** Null until the follow graph resolves, and after it fails — never a stand-in zero. */
@@ -248,8 +314,16 @@ data class FriendDeck(
     val coverEmoji: String,
     /** The deck's cover art, when it has one. Renders over [coverEmoji]; null falls back to it. */
     val coverImage: MediaRef.Image? = null,
-    val tags: List<String>,
+    /**
+     * Who wrote it, for the caption under the title. This is what tells a deck they follow from
+     * one they wrote now that both share a grid — a tag could not, since it says nothing about
+     * whose deck it is.
+     */
+    val author: PubkyIdentity,
 )
+
+private fun bareIdentity(pubky: String) =
+    PubkyIdentity(pubky, displayName = null, avatarUrl = null, bio = null)
 
 sealed interface FriendProfileEffect {
     data class CopyToClipboard(val text: String) : FriendProfileEffect

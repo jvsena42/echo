@@ -154,6 +154,108 @@ class FriendProfileViewModelTest {
     }
 
     @Test
+    fun oneGridHoldsWhatTheyWroteAndWhatTheyFollowTheirsFirst() = runTest {
+        givenStrangerHasDecks(18)
+        decks.followedDecksByOwner[stranger] =
+            listOf(testDeck(id = "borrowed", authorPubky = "authorpk", cardCount = 120))
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        assertEquals(listOf("d0", "borrowed"), vm.state.value.decks.map { it.id })
+        // The tile has to carry the real author: opening it against this profile's owner would
+        // read a manifest that is not on their homeserver.
+        assertEquals("authorpk", vm.state.value.decks.last().authorPubky)
+    }
+
+    @Test
+    fun eachTileNamesItsOwnAuthorSoAFollowedDeckIsTellable() = runTest {
+        givenStrangerHasDecks(18)
+        decks.followedDecksByOwner[stranger] =
+            listOf(testDeck(id = "borrowed", authorPubky = "authorpk", cardCount = 120))
+        identity.profiles[stranger] = PubkyIdentity(stranger, "Grace Hopper", null, null)
+        identity.profiles["authorpk"] = PubkyIdentity("authorpk", "Ada Lovelace", null, null)
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        // The caption is the only thing separating the two now that they share a grid.
+        assertEquals(
+            listOf("Grace Hopper", "Ada Lovelace"),
+            vm.state.value.decks.map { it.author.displayName },
+        )
+    }
+
+    @Test
+    fun anAuthorWithNoProfileKeepsABarePubkyRatherThanEmptyingTheTile() = runTest {
+        decks.followedDecksByOwner[stranger] =
+            listOf(testDeck(id = "borrowed", authorPubky = "ghostpk", cardCount = 3))
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        val tile = vm.state.value.decks.single()
+        assertEquals("ghostpk", tile.author.pubky)
+        assertNull(tile.author.displayName)
+    }
+
+    @Test
+    fun theStatsCardCountsOnlyWhatTheyWrote() = runTest {
+        givenStrangerHasDecks(18)
+        decks.followedDecksByOwner[stranger] =
+            listOf(testDeck(id = "borrowed", authorPubky = "authorpk", cardCount = 120))
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        // "Decks" and "Cards" are a claim about what this person published. A deck they follow is
+        // somebody else's work and must not inflate either number.
+        assertEquals(1, vm.state.value.deckCount)
+        assertEquals(18, vm.state.value.cardCount)
+    }
+
+    @Test
+    fun aDeckTheyBothWroteAndFollowIsDrawnOnceUnderTheirOwn() = runTest {
+        givenStrangerHasDecks(18)
+        decks.followedDecksByOwner[stranger] =
+            listOf(testDeck(id = "d0", authorPubky = stranger, cardCount = 18))
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        assertEquals(listOf("d0"), vm.state.value.decks.map { it.id })
+    }
+
+    @Test
+    fun aFollowedListThatCannotBeReadLeavesTheRestOfTheProfileIntact() = runTest {
+        givenStrangerHasDecks(18)
+        decks.listFollowedByError = IllegalStateException("homeserver unreachable")
+        val vm = viewModel()
+
+        advanceUntilIdle()
+
+        // One read failing is not a screen-wide error — the profile and its authored decks stay.
+        assertFalse(vm.state.value.isLoading)
+        assertEquals(listOf("d0"), vm.state.value.decks.map { it.id })
+    }
+
+    @Test
+    fun openingAFollowedDeckCarriesItsOwnAuthor() = runTest {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<FriendProfileEffect>()
+        val collector = launch { vm.effects.toList(effects) }
+        vm.onOpenDeck("authorpk", "borrowed")
+        advanceUntilIdle()
+        collector.cancel()
+
+        val opened = effects.filterIsInstance<FriendProfileEffect.OpenDeck>().single()
+        assertEquals("authorpk", opened.authorPubky)
+        assertEquals("borrowed", opened.deckId)
+    }
+
+    @Test
     fun keepsTheProfileOnScreenWhileARefreshRuns() = runTest {
         givenStrangerHasDecks(5)
         val vm = viewModel()

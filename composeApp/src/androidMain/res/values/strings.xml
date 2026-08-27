@@ -343,7 +343,7 @@
     <!-- Friend profile -->
     <string name="friend_profile_back_content_description">Back</string>
     <string name="friend_profile_copy_pubky">Copy pubky</string>
-    <string name="friend_profile_no_public_decks">No public decks yet.</string>
+    <string name="friend_profile_no_decks">No decks yet.</string>
     <string name="friend_profile_share">Share profile</string>
 
     <!-- Follow lists -->
