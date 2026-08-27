@@ -22,7 +22,7 @@
     <action>Verify logcat shows no second Homegate request: the stored token is reused, not re-bought</action>
 
     <action>BACKUP. Tap "backup_method_phrase", reveal the words, continue, and pass the quiz</action>
-    <action>Verify "backup_method_phrase_done" now shows on the menu, and that the Settings nag ("settings_backup_nag") is GONE</action>
+    <action>Verify "backup_method_phrase_done" now shows on the menu, and that the Profile card above sign-out ("profile_backup_nag") is GONE</action>
     <action>Verify the phrase screen blocks screenshots in a RELEASE build (debug deliberately allows them so these journeys can capture)</action>
 
     <action>SIGN-OUT GUARD. Create a second local account and skip backup. Settings → Sign out</action>

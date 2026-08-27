@@ -3,6 +3,8 @@ package com.github.jvsena42.loopky.presentation.settings
 import com.github.jvsena42.loopky.data.nexus.HttpError
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.data.unsplash.UnsplashError
+import com.github.jvsena42.loopky.domain.model.BackupMethod
+import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeHttpFetcher
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
@@ -309,5 +311,40 @@ class SettingsViewModelTest {
 
         advanceUntilIdle()
         assertNull(vm.state.value.deletion, "the dialog closes once the sweep finishes")
+    }
+
+    @Test
+    fun `the backup door opens only for the signed-in account's own key`() = runTest(mainDispatcher) {
+        // An abandoned local signup leaves a minted key in the vault, and a later Pubky Ring
+        // sign-in never clears it. Offering "Back up account" then walks a Ring user into the
+        // backup flow for an identity that is not theirs.
+        identityRepo.custodyFlow.value = KeyCustody.Loopky(pubky = "someone-elses-abandoned-signup")
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.holdsOwnKey)
+    }
+
+    @Test
+    fun `the backup door stays open for a key this account owns`() = runTest(mainDispatcher) {
+        // Open regardless of whether it is already backed up: methods accumulate, and a restored
+        // account — marked backed-up the moment it signs in — would otherwise have no route at all.
+        val pubky = identityRepo.session!!.identity.pubky
+        identityRepo.custodyFlow.value = KeyCustody.Loopky(
+            pubky = pubky,
+            backedUpBy = setOf(BackupMethod.RecoveryPhrase),
+        )
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.holdsOwnKey)
+    }
+
+    @Test
+    fun `a Ring-held key offers no backup door`() = runTest(mainDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.holdsOwnKey, "there is nothing on this device to lose")
     }
 }

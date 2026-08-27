@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
+import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -41,6 +42,14 @@ class ProfileViewModel(
 
     init {
         load()
+        // Custody drives the backup card above sign-out, and it is watched here rather than only
+        // in Settings because this is the screen that signs you out — the warning belongs next to
+        // the button that can destroy the key it is warning about.
+        viewModelScope.launch {
+            identityRepository.keyCustody.collect { custody ->
+                _state.update { it.copy(keyCustody = custody) }
+            }
+        }
         // The deck/card counters shown here go stale the moment a deck is published or deleted.
         viewModelScope.launch {
             deckRepository.changes.collect { load(silent = true) }
@@ -281,11 +290,35 @@ data class ProfileUiState(
      */
     val followingCount: Int? = null,
     val followerCount: Int? = null,
+    /**
+     * What key this *device* holds — not necessarily the signed-in account's. Read it through
+     * [needsBackup] rather than directly. [KeyCustody.External] is the safe default: a Ring-held
+     * key has nothing on this device to lose, so nothing must flash while custody resolves.
+     */
+    val keyCustody: KeyCustody = KeyCustody.External,
     val showEditSheet: Boolean = false,
     val editName: String = "",
     val editBio: String = "",
     val isSaving: Boolean = false,
-)
+) {
+    /**
+     * Whether to warn that **the account on screen** has no copy of its key anywhere else.
+     *
+     * Three conditions, and the pubky comparison is the one that is easy to miss. [keyCustody]
+     * answers "what key is in the vault", which is not the same question: `createLocalAccount`
+     * stores a minted key before `signUp`, an interrupted registration deliberately leaves it
+     * there so the signup can be resumed, and signing in with Pubky Ring afterwards never touches
+     * the key store. Without the comparison, that stranded key raises a warning on a Ring
+     * account's profile about an identity the reader does not hold — and offers to back up
+     * somebody else's key.
+     *
+     * False while [identity] is still null, which is the safe direction: a nag that has not
+     * resolved yet is better than one aimed at the wrong account.
+     */
+    val needsBackup: Boolean
+        get() = (keyCustody as? KeyCustody.Loopky)
+            ?.let { !it.isBackedUp && it.pubky == identity?.pubky } == true
+}
 
 sealed interface ProfileEffect {
     data object NavigateToOnboarding : ProfileEffect

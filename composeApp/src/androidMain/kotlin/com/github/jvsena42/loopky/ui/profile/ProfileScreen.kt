@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -47,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -88,6 +90,8 @@ fun ProfileRoute(
     onSignedOut: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenFollows: (pubky: String, source: FollowSource) -> Unit = { _, _ -> },
+    /** Opens the backup menu, from the card that sits above sign-out. */
+    onBackUpNow: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<ProfileViewModel>()
 
@@ -129,6 +133,7 @@ fun ProfileRoute(
         onShareClick = viewModel::onShareClick,
         onOpenOnPubkyApp = viewModel::onOpenOnPubkyApp,
         onCopyPubky = viewModel::onCopyPubky,
+        onBackUpNow = onBackUpNow,
         onSignOutClick = viewModel::onSignOutClick,
         onDismissEditSheet = viewModel::onDismissEditSheet,
         onEditNameChanged = viewModel::onEditNameChanged,
@@ -149,6 +154,7 @@ private fun ProfileScreen(
     onShareClick: () -> Unit,
     onOpenOnPubkyApp: () -> Unit,
     onCopyPubky: () -> Unit,
+    onBackUpNow: () -> Unit,
     onSignOutClick: () -> Unit,
     onDismissEditSheet: () -> Unit,
     onEditNameChanged: (String) -> Unit,
@@ -263,6 +269,7 @@ private fun ProfileScreen(
                     state = state,
                     onOpenFollows = onOpenFollows,
                     onOpenOnPubkyApp = onOpenOnPubkyApp,
+                    onBackUpNow = onBackUpNow,
                     onSignOutRequest = { confirmSignOut = true },
                     modifier = Modifier.weight(1f),
                 )
@@ -278,6 +285,7 @@ private fun ProfileScreen(
                 state = state,
                 onOpenFollows = onOpenFollows,
                 onOpenOnPubkyApp = onOpenOnPubkyApp,
+                onBackUpNow = onBackUpNow,
                 onSignOutRequest = { confirmSignOut = true },
             )
         }
@@ -513,6 +521,7 @@ private fun ProfileDetailsPane(
     state: ProfileUiState,
     onOpenFollows: (FollowSource) -> Unit,
     onOpenOnPubkyApp: () -> Unit,
+    onBackUpNow: () -> Unit,
     onSignOutRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -568,6 +577,16 @@ private fun ProfileDetailsPane(
         // the screen rather than the first, because it is context, not a task.
         PubkyAppProfileCta(onClick = onOpenOnPubkyApp)
 
+        // --- Backup ---
+        // Directly above sign-out, because that is the button that can destroy the key it warns
+        // about: signing out of an un-backed-up local key ends the account. It disappears the
+        // moment any one backup method is done, and never shows for a Ring-held key — there is
+        // nothing on this device to lose. See [ProfileUiState.needsBackup] for why this is not a
+        // bare custody check.
+        if (state.needsBackup) {
+            BackupNagCard(onBackUpNow = onBackUpNow)
+        }
+
         // --- Sign out ---
         FilledTonalButton(
             onClick = onSignOutRequest,
@@ -590,6 +609,48 @@ private fun ProfileDetailsPane(
             Text(
                 text = stringResource(R.string.profile_sign_out),
                 fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+/**
+ * "Back up your account", shown until at least one method is done.
+ *
+ * Deliberately persistent rather than dismissible: the risk it describes does not go away by being
+ * acknowledged, and a "don't show again" here would silence the only warning standing between a
+ * lost phone and a lost identity.
+ */
+@Composable
+private fun BackupNagCard(onBackUpNow: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = LoopkyTheme.colors
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(colors.accentPrimarySoft)
+            .padding(16.dp)
+            .testTag("profile_backup_nag"),
+    ) {
+        Text(
+            text = stringResource(R.string.backup_nag_title),
+            color = colors.foregroundPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.backup_nag_body),
+            color = colors.foregroundSecondary,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+        )
+        Spacer(Modifier.height(12.dp))
+        TextButton(onClick = onBackUpNow, modifier = Modifier.testTag("profile_backup_nag_action")) {
+            Text(
+                text = stringResource(R.string.backup_nag_action),
+                color = colors.accentSecondary,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -623,6 +684,7 @@ private fun ProfileScreenPreview() {
             onShareClick = {},
             onOpenOnPubkyApp = {},
             onCopyPubky = {},
+            onBackUpNow = {},
             onSignOutClick = {},
             onDismissEditSheet = {},
             onEditNameChanged = {},

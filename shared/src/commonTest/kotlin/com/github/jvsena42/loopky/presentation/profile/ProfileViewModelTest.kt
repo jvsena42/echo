@@ -1,6 +1,8 @@
 package com.github.jvsena42.loopky.presentation.profile
 
 import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
+import com.github.jvsena42.loopky.domain.model.BackupMethod
+import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
@@ -191,5 +193,63 @@ class ProfileViewModelTest {
         assertEquals(1, vm.state.value.dueCount)
         assertEquals(profileFetches, identity.fetchedProfiles.size, "re-fetched the profile")
         assertEquals(lists, decks.listOwnedCount, "re-listed the decks")
+    }
+
+    @Test
+    fun theBackupCardWarnsAboutTheAccountOnScreenAndNoOther() = runTest {
+        // The stranded-key case: `createLocalAccount` stores a minted key before `signUp`, an
+        // interrupted registration deliberately leaves it behind so the signup can be resumed, and
+        // a Pubky Ring sign-in afterwards never touches the key store. Custody then reports a
+        // Loopky key for a pubky nobody is signed into — and the card used to offer to back it up
+        // from the Ring account's profile.
+        identity.profiles[TEST_PUBKY] = PubkyIdentity(TEST_PUBKY, "Ada", null, null)
+        identity.custodyFlow.value = KeyCustody.Loopky(pubky = "someone-elses-abandoned-signup")
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.needsBackup, "warned about a key the signed-in account does not own")
+    }
+
+    @Test
+    fun anUnbackedUpKeyForThisAccountStillRaisesTheCard() = runTest {
+        identity.profiles[TEST_PUBKY] = PubkyIdentity(TEST_PUBKY, "Ada", null, null)
+        identity.custodyFlow.value = KeyCustody.Loopky(pubky = TEST_PUBKY)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.needsBackup)
+    }
+
+    @Test
+    fun anAccountRestoredFromItsPhraseIsNeverNagged() = runTest {
+        // Signing in with the phrase *is* the demonstration that a copy exists — the repository
+        // records the method the key was restored from, and nagging would describe a risk that
+        // does not exist.
+        identity.profiles[TEST_PUBKY] = PubkyIdentity(TEST_PUBKY, "Ada", null, null)
+        identity.custodyFlow.value = KeyCustody.Loopky(
+            pubky = TEST_PUBKY,
+            backedUpBy = setOf(BackupMethod.RecoveryPhrase),
+        )
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.needsBackup)
+    }
+
+    @Test
+    fun backingUpMidSessionTakesTheCardAwayWithoutAReload() = runTest {
+        identity.profiles[TEST_PUBKY] = PubkyIdentity(TEST_PUBKY, "Ada", null, null)
+        identity.custodyFlow.value = KeyCustody.Loopky(pubky = TEST_PUBKY)
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.needsBackup)
+
+        identity.custodyFlow.value = KeyCustody.Loopky(
+            pubky = TEST_PUBKY,
+            backedUpBy = setOf(BackupMethod.RecoveryPhrase),
+        )
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.needsBackup, "the card outlived the backup that answered it")
     }
 }

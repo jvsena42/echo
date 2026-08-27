@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -72,7 +71,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.data.unsplash.UNSPLASH_DEVELOPER_URL
 import com.github.jvsena42.loopky.data.unsplash.UnsplashError
-import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.presentation.settings.DeletionState
 import com.github.jvsena42.loopky.presentation.settings.SettingsEffect
@@ -245,14 +243,6 @@ private fun SettingsScreen(
         }
 
         // --- Identity section ---
-        // Above IDENTITY on purpose: while it is showing, it is the most important thing on this
-        // screen. It disappears the moment any one backup method is done, and never shows for a
-        // Ring-held key — there is nothing on this device to lose.
-        (state.keyCustody as? KeyCustody.Loopky)?.takeIf { !it.isBackedUp }?.let {
-            BackupNagCard(onBackUpNow = onBackUpNow)
-            Spacer(Modifier.height(16.dp))
-        }
-
         SettingsSectionLabel(text = stringResource(R.string.settings_section_identity))
         Column(
             modifier = Modifier
@@ -321,12 +311,15 @@ private fun SettingsScreen(
             )
             // A permanent way back into the backup flow, for as long as Loopky holds the key.
             //
-            // The nag card above is not enough on its own: it disappears the moment one method is
+            // The card on Profile is not enough on its own: it disappears the moment one method is
             // done, which made the whole flow unreachable afterwards — no second method, no
             // encrypted file to add later, and no route at all for a restored account, which is
             // marked backed-up the moment it signs in. Backup methods accumulate deliberately, so
             // the door has to stay open.
-            (state.keyCustody as? KeyCustody.Loopky)?.let {
+            //
+            // [SettingsUiState.holdsOwnKey], not a bare custody check: the key in the vault is not
+            // always the signed-in account's.
+            if (state.holdsOwnKey) {
                 SettingsDivider()
                 SettingsLinkRow(
                     label = stringResource(R.string.settings_back_up_account),
@@ -1081,47 +1074,5 @@ private fun SettingsScreenPreview() {
             onConfirmDeleteAccount = {},
             onDeleteAccountDismissed = {},
         )
-    }
-}
-
-/**
- * "Back up your account", shown until at least one method is done.
- *
- * Deliberately persistent rather than dismissible: the risk it describes does not go away by being
- * acknowledged, and a "don't show again" here would silence the only warning standing between a
- * lost phone and a lost identity.
- */
-@Composable
-private fun BackupNagCard(onBackUpNow: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = LoopkyTheme.colors
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(colors.accentPrimarySoft)
-            .padding(16.dp)
-            .testTag("settings_backup_nag"),
-    ) {
-        Text(
-            text = stringResource(R.string.backup_nag_title),
-            color = colors.foregroundPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = stringResource(R.string.backup_nag_body),
-            color = colors.foregroundSecondary,
-            fontSize = 13.sp,
-            lineHeight = 19.sp,
-        )
-        Spacer(Modifier.height(12.dp))
-        TextButton(onClick = onBackUpNow, modifier = Modifier.testTag("settings_backup_nag_action")) {
-            Text(
-                text = stringResource(R.string.backup_nag_action),
-                color = colors.accentSecondary,
-                fontWeight = FontWeight.Bold,
-            )
-        }
     }
 }

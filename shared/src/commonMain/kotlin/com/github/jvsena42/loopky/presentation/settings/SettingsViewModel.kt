@@ -350,7 +350,11 @@ data class SettingsUiState(
      * raises a confirm; only [SettingsViewModel.onConfirmSignOutWithoutBackup] proceeds.
      */
     val unbackedUpPubky: String? = null,
-    /** Custody of the signed-in account's key, driving the "back up your account" nag. */
+    /**
+     * What key this *device* holds — not necessarily the signed-in account's. Read it through
+     * [holdsOwnKey] rather than directly: an abandoned local signup leaves a key behind for a
+     * pubky nobody is signed into.
+     */
     val keyCustody: KeyCustody = KeyCustody.External,
     val pubky: String = "",
     val displayName: String? = null,
@@ -373,7 +377,19 @@ data class SettingsUiState(
     val canEditStudySettings: Boolean = false,
     /** Null when the delete-account dialog is closed, which is almost always. */
     val deletion: DeletionState? = null,
-)
+) {
+    /**
+     * Whether this device holds the key for **the account on screen**.
+     *
+     * The pubky comparison is the whole point. [keyCustody] answers "what key is in the vault",
+     * which is not the same question: `createLocalAccount` stores a minted key before `signUp`,
+     * an interrupted registration deliberately leaves it there so the signup can be resumed, and
+     * signing in with Pubky Ring afterwards never touches the key store. Without the comparison
+     * that stranded key offers a Ring user a backup door into an identity that is not theirs.
+     */
+    val holdsOwnKey: Boolean
+        get() = (keyCustody as? KeyCustody.Loopky)?.pubky == pubky && pubky.isNotBlank()
+}
 
 /**
  * Where the delete-account flow has got to.
