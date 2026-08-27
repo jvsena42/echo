@@ -3,12 +3,7 @@ package com.github.jvsena42.loopky.ui.backup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -23,8 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,6 +28,7 @@ import com.github.jvsena42.loopky.presentation.backup.BackupEffect
 import com.github.jvsena42.loopky.presentation.backup.BackupFileUiState
 import com.github.jvsena42.loopky.presentation.backup.BackupFileViewModel
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
+import com.github.jvsena42.loopky.ui.components.PassphraseField
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.SecureScreen
@@ -118,21 +112,13 @@ private fun BackupFileScreen(
             fontSize = 11.sp,
         )
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
+        // Revealable: this is the one and only time this passphrase is typed, and every later use
+        // is a comparison against it. A typo made here cannot be detected here — only much later,
+        // by a file that will not open.
+        PassphraseField(
             value = state.passphrase,
             onValueChange = onPassphraseChange,
-            modifier = Modifier.fillMaxWidth().testTag("backup_file_passphrase"),
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            // Masking is only the visual half. The password *input type* is what stops the IME
-            // learning the passphrase into its shared dictionary.
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = colors.accentPrimary,
-                unfocusedBorderColor = colors.borderSubtle,
-                cursorColor = colors.accentPrimary,
-            ),
+            testTag = "backup_file_passphrase",
         )
         Spacer(Modifier.height(8.dp))
         // A nudge, never a gate: locking someone out of exporting their own key over a strength
