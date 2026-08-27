@@ -291,16 +291,34 @@ data class ProfileUiState(
     val followingCount: Int? = null,
     val followerCount: Int? = null,
     /**
-     * Who holds the key — [KeyCustody.Loopky] with nothing backed up is what raises the card above
-     * sign-out. [KeyCustody.External] is the safe default: a Ring-held key has nothing on this
-     * device to lose, so the card must not flash while custody is still resolving.
+     * What key this *device* holds — not necessarily the signed-in account's. Read it through
+     * [needsBackup] rather than directly. [KeyCustody.External] is the safe default: a Ring-held
+     * key has nothing on this device to lose, so nothing must flash while custody resolves.
      */
     val keyCustody: KeyCustody = KeyCustody.External,
     val showEditSheet: Boolean = false,
     val editName: String = "",
     val editBio: String = "",
     val isSaving: Boolean = false,
-)
+) {
+    /**
+     * Whether to warn that **the account on screen** has no copy of its key anywhere else.
+     *
+     * Three conditions, and the pubky comparison is the one that is easy to miss. [keyCustody]
+     * answers "what key is in the vault", which is not the same question: `createLocalAccount`
+     * stores a minted key before `signUp`, an interrupted registration deliberately leaves it
+     * there so the signup can be resumed, and signing in with Pubky Ring afterwards never touches
+     * the key store. Without the comparison, that stranded key raises a warning on a Ring
+     * account's profile about an identity the reader does not hold — and offers to back up
+     * somebody else's key.
+     *
+     * False while [identity] is still null, which is the safe direction: a nag that has not
+     * resolved yet is better than one aimed at the wrong account.
+     */
+    val needsBackup: Boolean
+        get() = (keyCustody as? KeyCustody.Loopky)
+            ?.let { !it.isBackedUp && it.pubky == identity?.pubky } == true
+}
 
 sealed interface ProfileEffect {
     data object NavigateToOnboarding : ProfileEffect

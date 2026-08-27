@@ -64,7 +64,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
-import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.presentation.profile.ProfileEffect
@@ -582,8 +581,9 @@ private fun ProfileDetailsPane(
         // Directly above sign-out, because that is the button that can destroy the key it warns
         // about: signing out of an un-backed-up local key ends the account. It disappears the
         // moment any one backup method is done, and never shows for a Ring-held key — there is
-        // nothing on this device to lose.
-        (state.keyCustody as? KeyCustody.Loopky)?.takeIf { !it.isBackedUp }?.let {
+        // nothing on this device to lose. See [ProfileUiState.needsBackup] for why this is not a
+        // bare custody check.
+        if (state.needsBackup) {
             BackupNagCard(onBackUpNow = onBackUpNow)
         }
 

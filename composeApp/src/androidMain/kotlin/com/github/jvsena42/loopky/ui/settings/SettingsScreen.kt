@@ -71,7 +71,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.data.unsplash.UNSPLASH_DEVELOPER_URL
 import com.github.jvsena42.loopky.data.unsplash.UnsplashError
-import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.presentation.settings.DeletionState
 import com.github.jvsena42.loopky.presentation.settings.SettingsEffect
@@ -312,12 +311,15 @@ private fun SettingsScreen(
             )
             // A permanent way back into the backup flow, for as long as Loopky holds the key.
             //
-            // The nag card above is not enough on its own: it disappears the moment one method is
+            // The card on Profile is not enough on its own: it disappears the moment one method is
             // done, which made the whole flow unreachable afterwards — no second method, no
             // encrypted file to add later, and no route at all for a restored account, which is
             // marked backed-up the moment it signs in. Backup methods accumulate deliberately, so
             // the door has to stay open.
-            (state.keyCustody as? KeyCustody.Loopky)?.let {
+            //
+            // [SettingsUiState.holdsOwnKey], not a bare custody check: the key in the vault is not
+            // always the signed-in account's.
+            if (state.holdsOwnKey) {
                 SettingsDivider()
                 SettingsLinkRow(
                     label = stringResource(R.string.settings_back_up_account),
