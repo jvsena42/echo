@@ -810,8 +810,8 @@
       on the sign-in screen. These strings cover the two places that changes what is on screen —
       the banner offering the way in, and the prompt raised by an action that writes.
     -->
-    <string name="guest_banner_title">You\'re just looking around</string>
-    <string name="guest_banner_body">Create an account to keep decks, track what you\'ve learned and follow people. No email needed.</string>
+    <string name="guest_banner_title">Just looking around</string>
+    <string name="guest_banner_body">Keep decks and track progress.</string>
     <string name="guest_banner_cta">Get started</string>
 
     <string name="sign_in_prompt_cta">Create account or sign in</string>
