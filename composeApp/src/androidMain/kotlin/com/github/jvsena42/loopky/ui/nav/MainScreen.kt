@@ -42,6 +42,8 @@ fun MainScreen(
     onNavigateSettings: () -> Unit = {},
     onNavigateSearch: () -> Unit = {},
     onNavigateFollows: (pubky: String, source: FollowSource) -> Unit = { _, _ -> },
+    /** Opens the backup menu from the card Profile raises above sign-out. */
+    onBackUpNow: () -> Unit = {},
     onSignOut: () -> Unit = {},
 ) {
     if (isGuest) {
@@ -130,6 +132,7 @@ fun MainScreen(
                         onSignedOut = onSignOut,
                         onOpenSettings = onNavigateSettings,
                         onOpenFollows = onNavigateFollows,
+                        onBackUpNow = onBackUpNow,
                     )
                 }
             }

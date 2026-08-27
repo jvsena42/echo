@@ -182,6 +182,7 @@ internal fun LoopkyNavHost(
                 onNavigateFollows = { pubky, source ->
                     navController.navigateTo(Routes.followList(pubky, source))
                 },
+                onBackUpNow = { navController.navigateTo(Routes.BACKUP_START) },
                 onSignOut = {
                     navController.navigateTo(Routes.ONBOARDING) {
                         popUpTo(Routes.MAIN) { inclusive = true }

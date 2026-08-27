@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
+import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -41,6 +42,14 @@ class ProfileViewModel(
 
     init {
         load()
+        // Custody drives the backup card above sign-out, and it is watched here rather than only
+        // in Settings because this is the screen that signs you out — the warning belongs next to
+        // the button that can destroy the key it is warning about.
+        viewModelScope.launch {
+            identityRepository.keyCustody.collect { custody ->
+                _state.update { it.copy(keyCustody = custody) }
+            }
+        }
         // The deck/card counters shown here go stale the moment a deck is published or deleted.
         viewModelScope.launch {
             deckRepository.changes.collect { load(silent = true) }
@@ -281,6 +290,12 @@ data class ProfileUiState(
      */
     val followingCount: Int? = null,
     val followerCount: Int? = null,
+    /**
+     * Who holds the key — [KeyCustody.Loopky] with nothing backed up is what raises the card above
+     * sign-out. [KeyCustody.External] is the safe default: a Ring-held key has nothing on this
+     * device to lose, so the card must not flash while custody is still resolving.
+     */
+    val keyCustody: KeyCustody = KeyCustody.External,
     val showEditSheet: Boolean = false,
     val editName: String = "",
     val editBio: String = "",
