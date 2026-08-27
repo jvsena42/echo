@@ -12,6 +12,12 @@ internal data class RawCollection(
     val deckName: String?,
     val deckDescription: String?,
     val fieldNamesByOrd: List<String>,
+    /**
+     * The dominant note type generates more than one card per note — Anki's "Basic (and reversed
+     * card)" and its relatives. Loopky still imports one card per note; what this carries is the
+     * hint that the deck's author meant it to be drilled both ways.
+     */
+    val reversible: Boolean,
     /** Held notes, but every one of them was Anki's compatibility placeholder. */
     val stubOnly: Boolean,
 ) {
@@ -55,6 +61,7 @@ internal fun SQLiteDatabase.readRawNotes(): RawCollection {
         deckName = deck?.name,
         deckDescription = deck?.description?.let(::readableDescription),
         fieldNamesByOrd = readFieldNames(),
+        reversible = readTemplateCount() >= REVERSIBLE_TEMPLATE_COUNT,
         stubOnly = rows.isNotEmpty() && stubOnly,
     )
 }
@@ -185,6 +192,34 @@ private fun SQLiteDatabase.readLegacyFieldNames(): List<String> {
     return (0 until fields.length()).map { fields.getJSONObject(it).optString("name") }
 }
 
+/**
+ * How many cards the deck's dominant note type generates per note.
+ *
+ * The same two schemas as [readFieldNames], read the same way round: a `templates` table on modern
+ * collections, the `tmpls` array of `col.models` on older ones. Two or more means a reverse (or
+ * some other second card), which is all the import needs to know — Loopky reads the two mapped
+ * fields either way, and the count only decides how the deck arrives set up to be studied.
+ *
+ * Zero on anything unreadable, which lands on "not reversible": a deck that arrives without the
+ * opt-in has a toggle on the publish screen, while one that arrives with it wrongly on does not
+ * announce itself.
+ */
+private fun SQLiteDatabase.readTemplateCount(): Int {
+    val dominant = dominantNoteTypeId() ?: return 0
+    val modern = runCatching {
+        rawQuery("SELECT COUNT(*) FROM templates WHERE ntid = ?", arrayOf(dominant)).use { c ->
+            if (c.moveToFirst()) c.getInt(0) else 0
+        }
+    }.getOrNull() ?: 0
+    if (modern > 0) return modern
+    return runCatching {
+        val models = rawQuery("SELECT models FROM col LIMIT 1", null).use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        } ?: return 0
+        JSONObject(models).optJSONObject(dominant)?.optJSONArray("tmpls")?.length() ?: 0
+    }.getOrNull() ?: 0
+}
+
 private fun SQLiteDatabase.dominantNoteTypeId(): String? =
     rawQuery("SELECT mid FROM notes GROUP BY mid ORDER BY COUNT(*) DESC LIMIT 1", null).use { c ->
         if (c.moveToFirst()) c.getString(0) else null
@@ -223,3 +258,6 @@ private const val WIRE_FIXED32 = 5
 private const val VARINT_PAYLOAD_MASK = 0x7F
 private const val VARINT_PAYLOAD_BITS = 7
 private const val VARINT_CONTINUATION = 0x80
+
+/** Templates per note type at which a deck is taken to be meant for both directions. */
+private const val REVERSIBLE_TEMPLATE_COUNT = 2

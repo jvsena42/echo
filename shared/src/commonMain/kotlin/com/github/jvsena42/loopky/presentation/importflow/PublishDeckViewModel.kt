@@ -87,6 +87,7 @@ class PublishDeckViewModel(
                     tags = draft.suggestedTags.mapNotNull(::normalizeTag).distinct(),
                     cardCount = kept,
                     discardedCount = draft.rows.size - kept,
+                    reverseEnabled = draft.suggestsReverse,
                 )
             }
         }

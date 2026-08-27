@@ -109,6 +109,13 @@ data class ApkgImport(
     /** Notes read from the collection, before any were dropped or a cloze note expanded. */
     val noteCount: Int = 0,
     val dropped: ApkgDropped = ApkgDropped(),
+    /**
+     * The deck's dominant note type generates more than one card per note, i.e. it is a reversed
+     * note type. Loopky still emits one card per note — a reverse is a way of studying a card, not
+     * a second card — so what this does is arrive the publish screen with the both-directions
+     * opt-in already on, as a suggestion the user can turn off.
+     */
+    val reversible: Boolean = false,
     /** Distinct pictures pulled out of the archive and attached to a card side. */
     val imagesImported: Int = 0,
     /** Pictures left behind at the importer's per-deck ceiling. Reported, never silent. */

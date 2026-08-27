@@ -28,6 +28,12 @@ data class ImportDraft(
      */
     val suggestedTags: List<String> = emptyList(),
     /**
+     * The source said this deck is meant to be drilled in both directions — an `.apkg` built on a
+     * reversed note type. Prefills the commit screen's opt-in the way [suggestedTags] prefills its
+     * chips: a starting point, editable before anything is published.
+     */
+    val suggestsReverse: Boolean = false,
+    /**
      * True when this draft came from a source that knew its own fields, so the text was never
      * split by a separator. The summary offers a field picker instead of a separator override —
      * a separator is not a thing an `.apkg` has.
