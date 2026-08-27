@@ -109,7 +109,11 @@ private fun LightningVerificationScreen(
         onBack = onBack,
         error = state.error,
     ) {
-        val invoice = state.invoice
+        // A *resumed* invoice carries no BOLT11 — it may already have been paid, so there is
+        // nothing left to hand over (see SignupRepository.resumableInvoice). Without this the
+        // screen paints an empty QR plate, a blank invoice card and a wallet button that opens
+        // `lightning:` with nothing after it.
+        val invoice = state.invoice?.takeIf { it.bolt11.isNotEmpty() }
         if (invoice != null) {
             // A white plate in both themes: a QR inverted for dark mode is not a QR any scanner
             // will read, and the quiet zone is this padding rather than encoded margin.
