@@ -100,10 +100,21 @@ internal fun PubkyClient.keypairFromMnemonic(mnemonic: String): Result<MintedKey
         .map { it.copy(mnemonic = normalised) }
 }
 
-/** Derive the pubky for a bare secret key — the recovery-file path, which has no phrase. */
+/**
+ * Derive the pubky for a bare secret key — the recovery-file path, which has no phrase.
+ *
+ * **The FFI answers with JSON here, exactly as it does for the two mnemonic calls.**
+ * `get_public_key_from_secret_key` returns `{"public_key":…,"uri":…}`, so the payload has to be
+ * parsed rather than trimmed. Taking it verbatim is what broke recovery-file sign-in outright: the
+ * whole JSON object travelled on as the pubky, and the DHT lookup it was handed to could only ever
+ * fail — the user got "Something went wrong" for a file that had decrypted perfectly.
+ *
+ * [parseKeypairJson] is not reusable here: it demands a `secret_key` field, and this response
+ * carries only the public half. The secret is the one the caller already holds.
+ */
 internal fun PubkyClient.keypairFromSecretKey(secretKeyHex: String): Result<MintedKeypair> =
-    getPublicKeyFromSecretKey(secretKeyHex).map { pubky ->
-        MintedKeypair(secretKeyHex = secretKeyHex, pubky = pubky.trim(), mnemonic = null)
+    getPublicKeyFromSecretKey(secretKeyHex).mapCatching { payload ->
+        MintedKeypair(secretKeyHex = secretKeyHex, pubky = payload.parsePublicKey(), mnemonic = null)
     }
 
 /** The phrase is not twelve valid BIP-39 words. Distinct from "valid, but no account exists". */
@@ -164,6 +175,22 @@ private fun String.parseKeypairJson(): MintedKeypair {
     val secret = field("secret_key") ?: throw WeakKeyMaterial("the FFI returned no secret_key")
     val pubky = field("public_key") ?: throw WeakKeyMaterial("the FFI returned no public_key")
     return MintedKeypair(secretKeyHex = secret, pubky = pubky, mnemonic = field("mnemonic"))
+}
+
+/**
+ * The `public_key` out of a `{"public_key":…,"uri":…}` FFI response.
+ *
+ * Falls back to the trimmed payload when it does not parse as an object, so a build against an FFI
+ * that answers with a bare key still signs in rather than failing on a shape that is, in itself,
+ * usable. What must never happen again is the reverse — JSON travelling on as if it were a pubky.
+ */
+private fun String.parsePublicKey(): String {
+    val parsed = runCatching { keypairJson.parseToJsonElement(this).jsonObject }.getOrNull()
+        ?: return trim().also {
+            if (it.startsWith("{")) throw WeakKeyMaterial("the FFI returned an unreadable public key")
+        }
+    return parsed["public_key"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotEmpty() }
+        ?: throw WeakKeyMaterial("the FFI returned no public_key")
 }
 
 private val keypairJson: Json = Json { ignoreUnknownKeys = true }

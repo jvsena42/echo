@@ -3,12 +3,7 @@ package com.github.jvsena42.loopky.ui.restore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -20,8 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,8 +23,10 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.presentation.restore.RestoreEffect
 import com.github.jvsena42.loopky.presentation.restore.RestoreFileUiState
 import com.github.jvsena42.loopky.presentation.restore.RestoreFileViewModel
+import com.github.jvsena42.loopky.presentation.restore.RestoreOutcome
 import com.github.jvsena42.loopky.ui.components.LoopkyOutlinedButton
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
+import com.github.jvsena42.loopky.ui.components.PassphraseField
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.SecureScreen
@@ -122,30 +117,14 @@ private fun RestoreFileScreen(
                 fontSize = 11.sp,
             )
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
+            PassphraseField(
                 value = state.passphrase,
                 onValueChange = onPassphraseChange,
-                modifier = Modifier.fillMaxWidth().testTag("restore_file_passphrase"),
                 // Locked while checking, for the same reason the phrase field is.
                 enabled = !state.isChecking,
-                placeholder = {
-                    Text(
-                        text = stringResource(R.string.restore_file_passphrase_placeholder),
-                        color = colors.foregroundMuted,
-                    )
-                },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                // Masking is only the visual half. The password *input type* is what stops the IME
-                // learning the passphrase into its shared dictionary.
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = colors.accentPrimary,
-                    unfocusedBorderColor = colors.borderSubtle,
-                    cursorColor = colors.accentPrimary,
-                    errorBorderColor = colors.danger,
-                ),
+                isError = state.outcome is RestoreOutcome.WrongPassphrase,
+                placeholder = stringResource(R.string.restore_file_passphrase_placeholder),
+                testTag = "restore_file_passphrase",
             )
             Spacer(Modifier.height(24.dp))
             LoopkyPrimaryButton(

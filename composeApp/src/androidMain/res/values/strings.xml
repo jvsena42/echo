@@ -630,6 +630,8 @@
     <string name="backup_file_title">Encrypted recovery file</string>
     <string name="backup_file_subtitle">Choose a passphrase. You will need it — and the file — to restore.</string>
     <string name="backup_file_passphrase">Passphrase</string>
+    <string name="passphrase_reveal">Show passphrase</string>
+    <string name="passphrase_hide">Hide passphrase</string>
     <string name="backup_file_create">Create and save file</string>
     <string name="backup_file_failed">Couldn\'t create the file. Please try again.</string>
     <string name="backup_strength_too_short">Too short</string>
