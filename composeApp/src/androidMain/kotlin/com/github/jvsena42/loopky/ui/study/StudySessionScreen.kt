@@ -49,7 +49,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledIconButton
@@ -79,7 +78,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -386,14 +384,7 @@ private fun ReviewingContent(
                     .weight(1f)
                     .padding(horizontal = 8.dp),
             )
-            // Holds the close button's width even when empty, so the title stays centred; grows
-            // to fit the badge, which the weighted title column gives way to.
-            Box(
-                modifier = Modifier.widthIn(min = 40.dp),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                if (state.reversed) ReversedBadge()
-            }
+            StudyHeaderTrailing(reversed = state.reversed)
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -613,71 +604,6 @@ private fun studyCardMaxHeight(widthClass: WindowWidthClass): Dp = when (widthCl
     WindowWidthClass.Compact -> COMPACT_CARD_MAX_HEIGHT
     WindowWidthClass.Medium -> MEDIUM_CARD_MAX_HEIGHT
     WindowWidthClass.Expanded -> EXPANDED_CARD_MAX_HEIGHT
-}
-
-/** Deck name over "3 / 12". The reversed badge sits at the row's trailing edge, not here. */
-@Composable
-private fun StudyHeaderTitle(
-    deckTitle: String,
-    position: Int,
-    total: Int,
-    modifier: Modifier = Modifier,
-) {
-    val colors = LoopkyTheme.colors
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = deckTitle.uppercase(),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.W700,
-            letterSpacing = 1.sp,
-            color = colors.foregroundMuted,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Text(
-            text = stringResource(R.string.study_position_of_total, position, total),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.W700,
-            color = colors.foregroundPrimary,
-        )
-    }
-}
-
-/**
- * This card is being asked backwards.
- *
- * Worth saying out loud: a deck whose two sides look alike — two words in the same script, a pair
- * of dates — gives no other sign that the question turned round, and answering the wrong direction
- * without knowing it is a card lost to a misunderstanding rather than to not knowing it.
- */
-@Composable
-private fun ReversedBadge() {
-    val colors = LoopkyTheme.colors
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(colors.accentSecondarySoft)
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-            .testTag("study_reversed_badge"),
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.SwapHoriz,
-            contentDescription = null,
-            tint = colors.accentSecondary,
-            modifier = Modifier.size(13.dp),
-        )
-        Text(
-            text = stringResource(R.string.study_reversed_badge),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.W700,
-            letterSpacing = 0.5.sp,
-            color = colors.accentSecondary,
-        )
-    }
 }
 
 /**
