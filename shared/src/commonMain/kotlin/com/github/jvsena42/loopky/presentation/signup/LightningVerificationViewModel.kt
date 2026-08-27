@@ -21,10 +21,9 @@ import kotlinx.coroutines.launch
 /**
  * Pay a small Lightning invoice for a signup token.
  *
- * No QR is rendered. On a phone the wallet is on the same device, so the invoice is offered as
- * copyable text and a `lightning:` link that opens whatever wallet is installed — which is both
- * fewer taps than scanning your own screen and one less dependency. Paying from a second device
- * would want a QR, and that can follow.
+ * The invoice is offered three ways, because the wallet may not be on this device: as a QR to
+ * scan from another phone, as copyable text, and as a `lightning:` link that opens whatever wallet
+ * is installed here — the last being fewer taps than scanning your own screen when it applies.
  */
 class LightningVerificationViewModel(
     private val signupRepository: SignupRepository,
@@ -139,6 +138,17 @@ data class LightningVerificationUiState(
 ) {
     /** An expired invoice is recoverable by asking for another, so the screen offers exactly that. */
     val canRetry: Boolean get() = error != null
+
+    /**
+     * True while the screen is waiting on a payment it can no longer show.
+     *
+     * A resumed invoice carries no BOLT11 — it may already have been paid in the other app, so
+     * [SignupRepository.resumableInvoice] keeps only the claim. There is nothing to scan, tap or
+     * copy, and the screen has to say so: asking someone to pay while showing them no invoice
+     * reads as a bug, and inviting a second payment for a token they may already own is worse.
+     */
+    val isCheckingEarlierPayment: Boolean
+        get() = isResumed && invoice?.bolt11.isNullOrEmpty() && error == null
 }
 
 sealed interface LightningVerificationEffect {

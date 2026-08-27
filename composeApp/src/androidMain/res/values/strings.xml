@@ -496,6 +496,13 @@
 
     <string name="signup_lightning_title">Scan or tap to pay.</string>
     <string name="signup_lightning_amount">Pay ₿ %1$d to continue.</string>
+    <string name="signup_lightning_qr_content_description">QR code containing this Lightning invoice</string>
+    <!-- Shown when Loopky comes back to an invoice it issued before being killed, which may
+         already have been paid. There is nothing left to show or pay, so the copy stops asking. -->
+    <string name="signup_lightning_resumed_title">Checking your earlier payment.</string>
+    <string name="signup_lightning_resumed_subtitle">You may already have paid ₿ %1$d. Hold on while we confirm — no need to pay again.</string>
+    <string name="signup_lightning_resumed_subtitle_fiat">You may already have paid ₿ %1$d (%2$s). Hold on while we confirm — no need to pay again.</string>
+    <string name="signup_lightning_resumed_waiting">Confirming with the server…</string>
     <string name="signup_lightning_open_wallet">Open in wallet</string>
     <string name="signup_lightning_copy">Copy invoice</string>
     <string name="signup_lightning_copied">Invoice copied</string>
