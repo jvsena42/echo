@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.testing.fakePubkyFor
 import com.github.jvsena42.loopky.testing.fakeSecretKeyFor
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -121,5 +122,22 @@ class KeyMintingTest {
 
         assertNull(derived.mnemonic)
         assertEquals(fakePubkyFor(secret), derived.pubky)
+    }
+
+    @Test
+    fun aRecoveryFileKeyParsesTheFfiJsonRatherThanCarryingItAsThePubky() {
+        // The regression: `get_public_key_from_secret_key` answers `{"public_key":…,"uri":…}`, and
+        // reading it verbatim sent the whole object downstream as a pubky. Nothing threw — the DHT
+        // lookup simply failed, so a recovery file that had decrypted perfectly reported
+        // "Something went wrong" and the file-restore path could never succeed.
+        val secret = fakeSecretKeyFor(VALID_TEST_MNEMONIC)
+
+        val derived = pubky.keypairFromSecretKey(secret).getOrThrow()
+
+        assertFalse(derived.pubky.startsWith("{"), "the pubky is raw FFI JSON")
+        assertFalse(derived.pubky.contains("public_key"), "the pubky is raw FFI JSON")
+        // The same pubky the phrase path derives for this key: a file and a phrase for one account
+        // must land on one identity, or a restore silently opens a different account.
+        assertEquals(pubky.keypairFromMnemonic(VALID_TEST_MNEMONIC).getOrThrow().pubky, derived.pubky)
     }
 }

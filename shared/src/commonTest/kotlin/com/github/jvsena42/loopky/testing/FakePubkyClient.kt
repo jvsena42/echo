@@ -272,8 +272,15 @@ class FakePubkyClient : PubkyClient {
     override fun generateSecretKey(): Result<String> =
         Result.success(fakeSecretKeyFor("generated-secret"))
 
+    /**
+     * **JSON, like every other key call.** This used to answer a bare pubky, and that single
+     * inaccuracy is what let a real bug ship: production read the payload verbatim, so
+     * recovery-file sign-in carried `{"public_key":…}` where a pubky belonged and could never
+     * succeed, while the suite went green because the fake handed it the one shape that works.
+     * A fake that is kinder than the FFI tests nothing.
+     */
     override fun getPublicKeyFromSecretKey(secretKey: String): Result<String> =
-        Result.success(fakePubkyFor(secretKey))
+        Result.success(publicKeyJson(fakePubkyFor(secretKey)))
 
     override fun generateMnemonicPhrase(): Result<String> =
         mintFailure?.let { Result.failure(it) } ?: Result.success(mintedMnemonic)
@@ -383,6 +390,10 @@ class FakePubkyClient : PubkyClient {
         return homeserverLookups[pubky] ?: defaultHomeserverLookup
     }
     override fun switchNetwork(useTestnet: Boolean): Result<String> = unused()
+
+    /** `get_public_key_from_secret_key`'s shape: the public half only, never a `secret_key`. */
+    private fun publicKeyJson(pubky: String): String =
+        "{\"public_key\":\"$pubky\",\"uri\":\"pubky://$pubky\"}"
 
     private fun keypairJson(secretKeyHex: String, mnemonic: String?): String {
         val pubky = fakePubkyFor(secretKeyHex)
