@@ -562,16 +562,13 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
             onUnregistered = { pubky ->
                 navController.navigateTo(Routes.unregisteredKey(pubky, loopkyHoldsKey = true))
             },
-            // Via the backup menu, not straight home. A restored key is already backed up, so
-            // nothing nags about it later — which meant Pubky Ring, the one thing still worth
-            // offering, sat behind a Settings row the user had no reason to open. Ring is a live
-            // second copy — Loopky keeps its own key — and this is the moment to offer it:
-            // someone restoring has usually just lost or replaced a device. The menu is skippable.
-            onRestored = {
-                navController.navigateTo(Routes.BACKUP_START) {
-                    popUpTo(navController.graph.id) { inclusive = true }
-                }
-            },
+            // Straight home. Someone who just typed in a passphrase and opened their recovery file
+            // has this second demonstrated that they hold a backup, and answering that with "Back
+            // up your account" is a screen arguing with what the user just did. The menu used to
+            // sit here to surface Pubky Ring, which was then reachable only from a Settings row
+            // nobody opens — but the backup card now sits on Profile, directly above Sign out, so
+            // Ring is one deliberate tap away whenever the user actually wants it.
+            onRestored = { navController.goHomeSignedIn() },
         )
     }
     composable(Routes.RESTORE_PHRASE) {
@@ -584,16 +581,11 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
             },
             // The whole restore stack goes: coming "back" into it after signing in would offer to
             // restore an account the user is already using.
-            // Via the backup menu, not straight home. A restored key is already backed up, so
-            // nothing nags about it later — which meant Pubky Ring, the one thing still worth
-            // offering, sat behind a Settings row the user had no reason to open. Ring is a live
-            // second copy — Loopky keeps its own key — and this is the moment to offer it:
-            // someone restoring has usually just lost or replaced a device. The menu is skippable.
-            onRestored = {
-                navController.navigateTo(Routes.BACKUP_START) {
-                    popUpTo(navController.graph.id) { inclusive = true }
-                }
-            },
+            //
+            // Home rather than the backup menu, for the reason given on the file route above: the
+            // twelve words the user just typed *are* the backup, and Ring now lives on the Profile
+            // backup card rather than behind an unopened Settings row.
+            onRestored = { navController.goHomeSignedIn() },
         )
     }
 }
