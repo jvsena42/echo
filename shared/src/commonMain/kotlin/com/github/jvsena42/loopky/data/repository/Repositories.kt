@@ -174,6 +174,14 @@ interface IdentityRepository {
      * Retrying with the *same* token is safe and is the intended recovery: Ring stores the pubky
      * it minted against the token, so a repeat re-uses that key rather than creating a second
      * identity, and skips signup entirely if the token was already redeemed.
+     *
+     * **No production caller.** Signup redeems its token locally now
+     * (`IdentityRepository.createLocalAccount`); Ring is offered afterwards as a *backup*, which
+     * uses `KeyBackupRepository.ringExportUrl` and never this. Kept because bringing the Ring
+     * redemption path back is a live option — see Architecture.md §7.8 — but nothing has driven
+     * it against a real Ring since that changed, so treat it as unproven rather than working. It
+     * builds an auth URL carrying a single-use signup token: verify end to end before shipping a
+     * caller, and do not assume the tests below it prove more than the string it produces.
      */
     suspend fun beginSignUp(
         homeserverPubky: String,

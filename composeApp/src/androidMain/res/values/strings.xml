@@ -472,11 +472,6 @@
     <string name="signup_lightning_card_price">Pay ₿ %1$d once</string>
     <string name="signup_lightning_card_price_unknown">Pay once</string>
     <string name="signup_card_unavailable">Not available in your country</string>
-    <string name="signup_card_needs_ring">Needs Pubky Ring</string>
-    <string name="signup_ring_required_title">First, install Pubky Ring</string>
-    <string name="signup_ring_required_body">Pubky Ring holds your keys and creates your account — Loopky never sees them. Verifying here gives you a one-time code that only Ring can use, so get Ring first and nothing is spent before it can be.</string>
-    <string name="signup_ring_required_install">Install Pubky Ring</string>
-    <string name="signup_ring_required_return">Come back to Loopky when it\'s installed and this page will carry on.</string>
     <string name="signup_invite_link">Have an invite code?</string>
 
     <string name="signup_invite_title">Enter your invite code.</string>
@@ -508,15 +503,6 @@
     <string name="signup_lightning_waiting">Waiting for payment…</string>
     <string name="signup_lightning_new_invoice">New invoice</string>
 
-    <string name="signup_handoff_title">Finishing in Pubky Ring…</string>
-    <string name="signup_handoff_subtitle">Pubky Ring is creating your key and claiming your account. Approve it there, then come back.</string>
-    <string name="signup_handoff_retry">Try again</string>
-    <string name="signup_handoff_copy_code">Copy my code</string>
-    <string name="signup_handoff_code_copied">Code copied — keep it somewhere safe</string>
-    <string name="signup_handoff_use_existing">I already have a Pubky</string>
-    <!-- Shown under the retry button: the reason a retry is safe, in the user\'s terms. -->
-    <string name="signup_handoff_token_safe">Your code hasn\'t been used yet, so trying again won\'t cost you anything.</string>
-
     <string name="signup_error_geoblocked_title">Not available here</string>
     <string name="signup_error_geoblocked_message">This method isn\'t offered in your country. Try another one, or use an invite code.</string>
     <string name="signup_error_phone_blocked_title">Number can\'t be used</string>
@@ -533,10 +519,6 @@
     <string name="signup_error_invoice_expired_message">That invoice timed out before it was paid. Ask for a new one.</string>
     <string name="signup_error_verification_lost_title">Let\'s start over</string>
     <string name="signup_error_verification_lost_message">We lost track of this verification. Starting again is safe.</string>
-    <string name="signup_error_ring_failed_title">Pubky Ring didn\'t finish</string>
-    <string name="signup_error_ring_failed_message">The setup didn\'t complete. Your code is untouched, so you can try again.</string>
-    <string name="signup_error_ring_missing_title">Pubky Ring not found</string>
-    <string name="signup_error_ring_missing_message">Loopky creates your account through Pubky Ring. Install it to continue.</string>
     <string name="signup_error_unavailable_title">Couldn\'t reach the service</string>
     <string name="signup_error_unavailable_message">Check your connection and try again.</string>
 
@@ -602,7 +584,6 @@
          parenthetical belongs in a different place in half the languages we will ship. -->
     <string name="signup_lightning_card_price_fiat">Pay ₿ %1$d (%2$s) once</string>
     <string name="signup_lightning_amount_fiat">Pay ₿ %1$d (%2$s) to continue.</string>
-    <string name="onboarding_create_local">Create an account in Loopky</string>
     <!-- Terminal: retrying re-sends the same dead token. The copy has to send the user back to
          get a new one rather than at a button that cannot work. -->
     <string name="signup_error_token_rejected_title">That signup code was refused</string>
@@ -654,6 +635,7 @@
     <string name="backup_ring_subtitle">This copies your key into Pubky Ring. Loopky keeps its own copy, and your recovery phrase still works.</string>
     <string name="backup_ring_open">Open Pubky Ring</string>
     <string name="backup_ring_missing">Pubky Ring isn\'t installed on this device.</string>
+    <string name="backup_ring_install">Install Pubky Ring</string>
     <string name="backup_ring_confirm">I imported it into Pubky Ring</string>
     <string name="settings_back_up_account">Back up your account</string>
     <string name="backup_nag_title">Back up your account</string>

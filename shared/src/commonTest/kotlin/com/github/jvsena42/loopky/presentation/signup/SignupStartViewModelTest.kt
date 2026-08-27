@@ -3,12 +3,9 @@ package com.github.jvsena42.loopky.presentation.signup
 import com.github.jvsena42.loopky.data.homegate.MethodAvailability
 import com.github.jvsena42.loopky.data.repository.SignupAvailability
 import com.github.jvsena42.loopky.testing.FakePriceSource
-import com.github.jvsena42.loopky.testing.FakePubkyRingPresence
 import com.github.jvsena42.loopky.testing.FakeSignupRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -23,14 +20,16 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * These are all about one thing: never minting a token the device cannot spend. A token costs an
- * SMS attempt or sats, is single-use, and only Pubky Ring can redeem it.
+ * These are all about one thing: nothing may stand between a user and the only way into the app.
+ *
+ * The screen used to gate every method on Pubky Ring being installed, because Ring was the one
+ * thing that could spend the token. Loopky redeems it itself now, so the only reason a method is
+ * ever disabled is Homegate positively saying no.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SignupStartViewModelTest {
 
     private val signupRepo = FakeSignupRepository()
-    private val ring = FakePubkyRingPresence()
     private val priceSource = FakePriceSource()
     private val mainDispatcher = StandardTestDispatcher()
 
@@ -46,39 +45,11 @@ class SignupStartViewModelTest {
 
     private fun viewModel() = SignupStartViewModel(
         signupRepository = signupRepo,
-        ringPresence = ring,
         priceSource = priceSource,
     )
 
     @Test
-    fun homegateIsNeverAskedAnythingWhileRingIsMissing() = runTest {
-        ring.installed = false
-
-        val vm = viewModel()
-        advanceUntilIdle()
-
-        assertEquals(0, signupRepo.availabilityCount, "availability is a Homegate call — it must wait for Ring")
-        assertFalse(vm.state.value.isRingInstalled)
-    }
-
-    @Test
-    fun everyMethodIsDisabledWhileRingIsMissing() = runTest {
-        ring.installed = false
-        signupRepo.availability = SignupAvailability(
-            sms = MethodAvailability.Available(priceSat = 0),
-            lightning = MethodAvailability.Available(priceSat = 500),
-        )
-
-        val vm = viewModel()
-        advanceUntilIdle()
-
-        // Not merely cosmetic: each of these leads to a screen that mints a token on entry.
-        assertFalse(vm.state.value.isSmsEnabled)
-        assertFalse(vm.state.value.isLightningEnabled)
-    }
-
-    @Test
-    fun availabilityIsFetchedOnceRingIsThere() = runTest {
+    fun availabilityIsFetchedOnceOnEntry() = runTest {
         signupRepo.availability = SignupAvailability(
             sms = MethodAvailability.Unavailable,
             lightning = MethodAvailability.Available(priceSat = 500),
@@ -88,97 +59,23 @@ class SignupStartViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, signupRepo.availabilityCount)
-        assertTrue(vm.state.value.isRingInstalled)
         assertFalse(vm.state.value.isSmsEnabled, "Homegate positively said no to SMS")
         assertTrue(vm.state.value.isLightningEnabled)
         assertEquals(500, vm.state.value.lightningPriceSat)
     }
 
     @Test
-    fun installingRingAndComingBackUnblocksTheFlow() = runTest {
-        ring.installed = false
+    fun aMethodHomegateCouldNotBeAskedAboutStaysEnabled() = runTest {
+        // Availability is a courtesy, not a gate. Locking someone out of the only route into the
+        // app because a probe timed out is worse than letting that method's screen explain itself.
+        signupRepo.availabilityError = IllegalStateException("Homegate unreachable")
+
         val vm = viewModel()
         advanceUntilIdle()
 
-        ring.installed = true
-        vm.onScreenResumed()
-        advanceUntilIdle()
-
-        assertTrue(vm.state.value.isRingInstalled)
-        assertEquals(1, signupRepo.availabilityCount, "the gate lifting is what releases the first Homegate call")
-    }
-
-    @Test
-    fun aResumeWithRingAlreadyThereDoesNotReAskHomegate() = runTest {
-        val vm = viewModel()
-        advanceUntilIdle()
-
-        vm.onScreenResumed()
-        vm.onScreenResumed()
-        advanceUntilIdle()
-
-        assertEquals(1, signupRepo.availabilityCount, "one request per entry, not one per resume")
-    }
-
-    @Test
-    fun theInstallActionCarriesThePlatformsOwnUrl() = runTest {
-        ring.installed = false
-        ring.installUrl = "https://play.google.com/store/apps/details?id=to.pubky.ring"
-        val vm = viewModel()
-        advanceUntilIdle()
-
-        val effects = mutableListOf<SignupStartEffect>()
-        val collector = launch { vm.effects.toList(effects) }
-
-        vm.onInstallRingClick()
-        advanceUntilIdle()
-        collector.cancel()
-
-        assertEquals(
-            listOf<SignupStartEffect>(SignupStartEffect.OpenInstallPage(ring.installUrl)),
-            effects,
-        )
-    }
-
-    @Test
-    fun theLoopkyRedeemerAsksHomegateEvenWithNoRingInstalled() = runTest {
-        // The gate follows the *spender*, not the flow. Loopky redeems with signUp(secretKey, …)
-        // and needs nothing installed, so refusing to even quote a price would block a token this
-        // device can spend perfectly well by itself (#147).
-        ring.installed = false
-        val vm = SignupStartViewModel(
-            signupRepository = signupRepo,
-            ringPresence = ring,
-            redeemer = TokenRedeemer.Loopky,
-            priceSource = priceSource,
-        )
-        advanceUntilIdle()
-
-        assertEquals(1, signupRepo.availabilityCount)
-    }
-
-    @Test
-    fun everyMethodStaysEnabledForTheLoopkyRedeemerWithoutRing() = runTest {
-        ring.installed = false
-        val vm = SignupStartViewModel(
-            signupRepository = signupRepo,
-            ringPresence = ring,
-            redeemer = TokenRedeemer.Loopky,
-            priceSource = priceSource,
-        )
-        advanceUntilIdle()
-
+        assertFalse(vm.state.value.isLoading)
         assertTrue(vm.state.value.isSmsEnabled)
         assertTrue(vm.state.value.isLightningEnabled)
-    }
-
-    @Test
-    fun anUnknownRedeemerArgumentFallsBackToRingRatherThanToLocalKeys() = runTest {
-        // A typo in a deeplink must not silently choose the path that puts a secret key on the
-        // device. Ring is the recommendation, so it is the default.
-        assertEquals(TokenRedeemer.PubkyRing, TokenRedeemer.fromNameOrRing("nonsense"))
-        assertEquals(TokenRedeemer.PubkyRing, TokenRedeemer.fromNameOrRing(null))
-        assertEquals(TokenRedeemer.Loopky, TokenRedeemer.fromNameOrRing("loopky"))
     }
 
     @Test

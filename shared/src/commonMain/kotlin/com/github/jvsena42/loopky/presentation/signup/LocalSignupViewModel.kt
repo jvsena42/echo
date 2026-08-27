@@ -22,11 +22,12 @@ import kotlinx.coroutines.launch
 /**
  * Redeem a signup token **in Loopky**, minting the key here rather than handing it to Pubky Ring.
  *
- * The sibling of [SignupHandoffViewModel]: same stored token, same "a session is not proof"
- * discipline, no deeplink. Everything before this step — the human check and its three methods —
- * is the identical flow, which is why those ViewModels are untouched.
+ * The single terminal step of signup: whichever of the three human checks the user passed, this is
+ * where the token is spent. Pubky Ring used to have a deeplink handoff beside this one, chosen by
+ * a custody question asked before verification; Ring is now offered *after* the account exists,
+ * from the backup step, so there is one path through here.
  *
- * Three rules carried over from the Ring path, for the same reasons:
+ * Three rules, carried over from when Ring did the redeeming, for the same reasons:
  *
  * 1. **Reuse the stored token; never mint a second one.** By the time anyone is here the user has
  *    spent an SMS attempt or paid sats. [onRetryClick] re-reads what is stored rather than going
@@ -44,8 +45,8 @@ class LocalSignupViewModel(
      *
      * True only when the user arrived from the unregistered-key screen, which showed them the
      * pubky and asked them to confirm it. Stated as an intent rather than inferred from what
-     * happens to be in the keystore: inferring it meant "Create an account in Loopky" could adopt
-     * a key left behind by an abandoned restore, and the user got an identity they never asked for.
+     * happens to be in the keystore: inferring it meant an ordinary signup could adopt a key left
+     * behind by an abandoned restore, and the user got an identity they never asked for.
      */
     private val registerHeldKey: Boolean = false,
 ) : ViewModel() {

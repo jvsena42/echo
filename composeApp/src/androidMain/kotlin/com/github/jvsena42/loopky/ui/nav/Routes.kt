@@ -2,7 +2,6 @@ package com.github.jvsena42.loopky.ui.nav
 
 import android.net.Uri
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
-import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
 
 // One entry per destination, so the count climbs with the app rather than with any one screen's
 // complexity — splitting it would put half the route table somewhere else for no reader's benefit.
@@ -50,17 +49,15 @@ object Routes {
     const val ACCOUNT_UNREGISTERED = "account/unregistered/{pubky}?local={local}"
 
     /**
-     * Signup, parameterised by who will spend the token: `ring` (default) or `loopky`.
-     *
-     * A nav argument rather than repository state because it is a property of *this journey*, and
-     * the same three verification screens serve both spenders unchanged.
+     * The human check. `adopt` says the terminal step must register the key already on the
+     * device — set by the unregistered-key screen, where the user confirmed that pubky by name —
+     * rather than minting a new one.
      */
-    const val SIGNUP_START = "signup?with={with}&adopt={adopt}"
+    const val SIGNUP_START = "signup?adopt={adopt}"
     const val SIGNUP_LOCAL = "signup/local?adopt={adopt}"
     const val SIGNUP_PHONE = "signup/phone"
     const val SIGNUP_LIGHTNING = "signup/lightning"
     const val SIGNUP_INVITE = "signup/invite"
-    const val SIGNUP_HANDOFF = "signup/handoff"
 
     const val BACKUP_START = "backup"
     const val BACKUP_PHRASE = "backup/phrase"
@@ -130,11 +127,8 @@ object Routes {
         "study?deckId=$deckId&preview=true" + (author?.let { "&author=" + Uri.encode(it) } ?: "")
     fun triageEditCard(rowIndex: Int) = "import/triage/edit/$rowIndex"
 
-    /** Signup for a given spender. Ring is the default and the recommendation. */
-    fun signupStart(
-        redeemer: TokenRedeemer = TokenRedeemer.PubkyRing,
-        adoptHeldKey: Boolean = false,
-    ): String = "signup?with=${redeemer.name.lowercase()}&adopt=$adoptHeldKey"
+    /** The human check. [adoptHeldKey] carries through to [signupLocal]. */
+    fun signupStart(adoptHeldKey: Boolean = false): String = "signup?adopt=$adoptHeldKey"
 
     /** [ACCOUNT_UNREGISTERED] for a pubky, saying whether Loopky can register it itself. */
     fun unregisteredKey(pubky: String, loopkyHoldsKey: Boolean): String =

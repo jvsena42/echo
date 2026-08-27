@@ -18,7 +18,6 @@ import androidx.navigation.navArgument
 import com.github.jvsena42.loopky.data.pubky.PubkyLink
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
-import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
 import com.github.jvsena42.loopky.ui.backup.BackupFileRoute
 import com.github.jvsena42.loopky.ui.backup.BackupPhraseRoute
 import com.github.jvsena42.loopky.ui.backup.BackupQuizRoute
@@ -45,7 +44,6 @@ import com.github.jvsena42.loopky.ui.signup.InviteCodeRoute
 import com.github.jvsena42.loopky.ui.signup.LightningVerificationRoute
 import com.github.jvsena42.loopky.ui.signup.LocalSignupRoute
 import com.github.jvsena42.loopky.ui.signup.PhoneVerificationRoute
-import com.github.jvsena42.loopky.ui.signup.SignupHandoffRoute
 import com.github.jvsena42.loopky.ui.signup.SignupStartRoute
 import com.github.jvsena42.loopky.ui.study.StudySessionRoute
 import com.github.jvsena42.loopky.ui.tagbrowse.TagBrowseRoute
@@ -432,17 +430,18 @@ private fun NavHostController.goHomeSignedIn() {
     navigateTo(Routes.main()) { popUpTo(graph.id) { inclusive = true } }
 }
 
+/**
+ * Hand off to the terminal step, carrying the `adopt` intent from the door the user came through
+ * so it knows whether it is registering a key they confirmed or minting a new one.
+ *
+ * **`lastOrNull`, not `firstOrNull`.** This is the only place that decision is made, and a
+ * start-over pushes a fresh `SIGNUP_START` — reading the oldest entry would let an abandoned one
+ * outvote the screen the user is actually standing on.
+ */
 private fun NavHostController.navigateToRedemption() {
-    val entry = currentBackStack.value.firstOrNull { it.destination.route == Routes.SIGNUP_START }
-    val redeemer = TokenRedeemer.fromNameOrRing(entry?.arguments?.getString("with"))
-    // Carried from the door the user came through, so the terminal step knows whether it is
-    // registering a key they confirmed or minting a new one.
+    val entry = currentBackStack.value.lastOrNull { it.destination.route == Routes.SIGNUP_START }
     val adoptHeldKey = entry?.arguments?.getString("adopt").toBoolean()
-    val target = when (redeemer) {
-        TokenRedeemer.PubkyRing -> Routes.SIGNUP_HANDOFF
-        TokenRedeemer.Loopky -> Routes.signupLocal(adoptHeldKey = adoptHeldKey)
-    }
-    navigateTo(target)
+    navigateTo(Routes.signupLocal(adoptHeldKey = adoptHeldKey))
 }
 
 private fun NavGraphBuilder.backupDestinations(navController: NavHostController) {
@@ -543,7 +542,7 @@ private fun NavGraphBuilder.unregisteredKeyDestination(navController: NavHostCon
             // `adopt`: the verification that follows must register *this* key, not mint a new
             // one. The user has just confirmed this pubky by name.
             onNeedsVerification = {
-                navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky, adoptHeldKey = true))
+                navController.navigateTo(Routes.signupStart(adoptHeldKey = true))
             },
             onRegistered = {
                 navController.navigateTo(Routes.BACKUP_START) {
@@ -564,9 +563,9 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
             },
             // Via the backup menu, not straight home. A restored key is already backed up, so
             // nothing nags about it later — which meant Pubky Ring, the one thing still worth
-            // offering, sat behind a Settings row the user had no reason to open. Ring is a
-            // custody change rather than a backup, and this is the moment to offer it: someone
-            // restoring has usually just lost or replaced a device. The menu is skippable.
+            // offering, sat behind a Settings row the user had no reason to open. Ring is a live
+            // second copy — Loopky keeps its own key — and this is the moment to offer it:
+            // someone restoring has usually just lost or replaced a device. The menu is skippable.
             onRestored = {
                 navController.navigateTo(Routes.BACKUP_START) {
                     popUpTo(navController.graph.id) { inclusive = true }
@@ -586,9 +585,9 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
             // restore an account the user is already using.
             // Via the backup menu, not straight home. A restored key is already backed up, so
             // nothing nags about it later — which meant Pubky Ring, the one thing still worth
-            // offering, sat behind a Settings row the user had no reason to open. Ring is a
-            // custody change rather than a backup, and this is the moment to offer it: someone
-            // restoring has usually just lost or replaced a device. The menu is skippable.
+            // offering, sat behind a Settings row the user had no reason to open. Ring is a live
+            // second copy — Loopky keeps its own key — and this is the moment to offer it:
+            // someone restoring has usually just lost or replaced a device. The menu is skippable.
             onRestored = {
                 navController.navigateTo(Routes.BACKUP_START) {
                     popUpTo(navController.graph.id) { inclusive = true }
@@ -602,32 +601,18 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
     composable(
         route = Routes.SIGNUP_START,
         arguments = listOf(
-            navArgument("with") {
-                type = NavType.StringType
-                nullable = true
-                defaultValue = null
-            },
             navArgument("adopt") {
                 type = NavType.StringType
                 nullable = true
                 defaultValue = "false"
             },
         ),
-    ) { entry ->
-        // Unknown values fall back to Ring — the recommended path — rather than silently choosing
-        // the one that puts a key on the device.
-        val redeemer = TokenRedeemer.fromNameOrRing(entry.arguments?.getString("with"))
+    ) {
         SignupStartRoute(
-            redeemer = redeemer,
             onBack = { navController.popBackStack() },
             onSms = { navController.navigateTo(Routes.SIGNUP_PHONE) },
             onLightning = { navController.navigateTo(Routes.SIGNUP_LIGHTNING) },
             onInviteCode = { navController.navigateTo(Routes.SIGNUP_INVITE) },
-            onCreateLocally = {
-                navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky)) {
-                    popUpTo(Routes.SIGNUP_START) { inclusive = true }
-                }
-            },
         )
     }
     composable(
@@ -640,12 +625,21 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
             },
         ),
     ) { entry ->
+        val adoptHeldKey = entry.arguments?.getString("adopt").toBoolean()
         LocalSignupRoute(
-            registerHeldKey = entry.arguments?.getString("adopt").toBoolean(),
+            registerHeldKey = adoptHeldKey,
             onBack = { navController.popBackStack() },
+            // Pops the whole spent attempt — the old `SIGNUP_START` included — rather than just
+            // this screen. Popping to `SIGNUP_LOCAL` left the verification screen the dead token
+            // came from *and* the original start entry underneath the fresh one, so "back" walked
+            // into a spent flow and `navigateToRedemption` had two start entries to choose from.
+            //
+            // `adoptHeldKey` is carried, not defaulted away: the refused token says nothing about
+            // the key, which is still held and still the pubky the user confirmed by name. Losing
+            // it here would let the retry mint a *different* identity than the one they approved.
             onStartOver = {
-                navController.navigateTo(Routes.signupStart(TokenRedeemer.Loopky)) {
-                    popUpTo(Routes.SIGNUP_LOCAL) { inclusive = true }
+                navController.navigateTo(Routes.signupStart(adoptHeldKey = adoptHeldKey)) {
+                    popUpTo(Routes.SIGNUP_START) { inclusive = true }
                 }
             },
             // Straight to backup, not home: this is the only moment in the app where a key exists
@@ -657,14 +651,10 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
             },
         )
     }
-    // The three verification screens are identical for both spenders and are deliberately
-    // untouched; only where their "done" lands differs, and that is nav-layer code. The redeemer
-    // is read off the back stack rather than threaded through them.
     signupMethodDestinations(navController)
-    signupRedemptionDestinations(navController)
 }
 
-/** The three ways to prove you are not a robot. Identical for both spenders. */
+/** The three ways to prove you are not a robot. All three land on the same terminal step. */
 private fun NavGraphBuilder.signupMethodDestinations(navController: NavHostController) {
     composable(Routes.SIGNUP_PHONE) {
         PhoneVerificationRoute(
@@ -682,23 +672,6 @@ private fun NavGraphBuilder.signupMethodDestinations(navController: NavHostContr
         InviteCodeRoute(
             onBack = { navController.popBackStack() },
             onDone = { navController.navigateToRedemption() },
-        )
-    }
-}
-
-/** The two terminal steps: Ring's deeplink handoff, and Loopky's own redemption. */
-private fun NavGraphBuilder.signupRedemptionDestinations(navController: NavHostController) {
-    composable(Routes.SIGNUP_HANDOFF) {
-        SignupHandoffRoute(
-            onBack = { navController.popBackStack() },
-            // The whole signup stack is dropped: coming "back" into a spent flow would offer to
-            // redeem a token that no longer exists.
-            onSignedUp = { navController.goHomeSignedIn() },
-            onSignIn = {
-                navController.navigateTo(Routes.ONBOARDING) {
-                    popUpTo(navController.graph.id) { inclusive = true }
-                }
-            },
         )
     }
 }

@@ -7,7 +7,7 @@ import com.github.jvsena42.loopky.data.homegate.HomegateException
  * Why a step of the signup flow failed, in terms its screen can act on.
  *
  * Kept out of `ErrorReason` on purpose, following the same reasoning as `BulkImportError`: these
- * only ever occur on five screens that exist solely for this flow, and folding them in would give
+ * only ever occur on the handful of screens that exist solely for this flow, and folding them in would give
  * the eight unrelated screens that render an `ErrorReason` a branch for "your invite code was
  * already used".
  */
@@ -35,12 +35,6 @@ enum class SignupError {
 
     /** Homegate forgot this verification; the flow has to restart. */
     VerificationLost,
-
-    /** Pubky Ring could not complete the signup. The token is untouched and can be retried. */
-    RingFailed,
-
-    /** Pubky Ring is not installed, so the deeplink has nowhere to go. */
-    RingNotInstalled,
 
     /** Offline, or Homegate answered with something we could not use. */
     Unavailable,

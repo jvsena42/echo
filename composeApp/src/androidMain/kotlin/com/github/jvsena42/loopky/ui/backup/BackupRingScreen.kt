@@ -124,7 +124,7 @@ private fun BackupRingScreen(
             // button leaves the user stuck on the one screen whose whole job is getting their key
             // into Ring.
             LoopkyPrimaryButton(
-                label = stringResource(R.string.signup_ring_required_install),
+                label = stringResource(R.string.backup_ring_install),
                 onClick = onInstallRing,
                 modifier = Modifier.testTag("backup_ring_install"),
             )

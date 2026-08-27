@@ -36,6 +36,9 @@ private const val SIGNUP_INTENT = "signup"
  * @throws IllegalArgumentException if [this] is not a `pubkyauth://` URL with a query string.
  *   Deliberately loud: a half-built URL would send the user to Ring with a token that cannot be
  *   redeemed, and the token is single-use.
+ *
+ * Reached only from `IdentityRepository.beginSignUp`, which itself has no production caller any
+ * more — see the note there before wiring one up.
  */
 internal fun String.asSignupUrl(homeserverPubky: String, signupToken: String): String {
     require(startsWith(SCHEME)) { "Not a pubkyauth URL" }

@@ -60,9 +60,7 @@ import com.github.jvsena42.loopky.presentation.signup.InviteCodeViewModel
 import com.github.jvsena42.loopky.presentation.signup.LightningVerificationViewModel
 import com.github.jvsena42.loopky.presentation.signup.LocalSignupViewModel
 import com.github.jvsena42.loopky.presentation.signup.PhoneVerificationViewModel
-import com.github.jvsena42.loopky.presentation.signup.SignupHandoffViewModel
 import com.github.jvsena42.loopky.presentation.signup.SignupStartViewModel
-import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
 import com.github.jvsena42.loopky.util.epochMillis
 import org.koin.core.module.dsl.viewModel
@@ -171,20 +169,10 @@ val sharedModule = module {
     viewModel { BackupQuizViewModel(keyBackup = get()) }
     viewModel { BackupFileViewModel(keyBackup = get()) }
     viewModel { BackupRingViewModel(keyBackup = get(), ringPresence = get()) }
-    viewModel { params ->
-        SignupStartViewModel(
-            signupRepository = get(),
-            ringPresence = get(),
-            redeemer = params.getOrNull() ?: TokenRedeemer.PubkyRing,
-            priceSource = get(),
-        )
-    }
+    viewModel { SignupStartViewModel(signupRepository = get(), priceSource = get()) }
     viewModel { InviteCodeViewModel(signupRepository = get()) }
     viewModel { PhoneVerificationViewModel(signupRepository = get()) }
     viewModel { LightningVerificationViewModel(signupRepository = get(), priceSource = get()) }
-    viewModel {
-        SignupHandoffViewModel(signupRepository = get(), identityRepository = get())
-    }
     viewModel {
         HomeViewModel(
             identityRepository = get(),

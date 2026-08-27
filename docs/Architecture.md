@@ -147,7 +147,7 @@ The shipped set, one package per surface under `presentation/`:
 | Package | ViewModels |
 |---|---|
 | `onboarding/` | `OnboardingViewModel` |
-| `signup/` | `SignupStartViewModel`, `PhoneVerificationViewModel`, `LightningVerificationViewModel`, `InviteCodeViewModel`, `SignupHandoffViewModel` |
+| `signup/` | `SignupStartViewModel`, `PhoneVerificationViewModel`, `LightningVerificationViewModel`, `InviteCodeViewModel`, `LocalSignupViewModel` |
 | `home/` | `HomeViewModel` |
 | `decks/` | `DecksLibraryViewModel`, `DeckDetailViewModel`, `DeckEditorViewModel`, `EditCardViewModel` |
 | `importflow/` | `PasteImportViewModel`, `TriageViewModel`, `PublishDeckViewModel`, `BulkImportViewModel` |
@@ -549,62 +549,60 @@ suspend call that received it — before any UI sees it — because by then the 
 an SMS attempt or paid sats. It lives in the **secrets** vault, not the session one: a token is
 spent before there is a session and must survive signing out.
 
-**Redemption has two spenders, and Ring is the recommended one.** `IdentityRepository.beginSignUp`
-rewrites the sign-in deeplink the FFI mints into its signup form (`asSignupUrl`), because
-`start_auth_flow` hardcodes `AuthFlowKind::SignIn` and the fork exposes no override — the same
-workaround pubky-app uses. Ring mints the key, redeems the token, and authorises back over the same
-relay, so Loopky never holds a secret key and the post-approval path is the one sign-in already
-uses.
+**Loopky redeems the token itself, and that is the only path.**
+`IdentityRepository.createLocalAccount` mints a key inside the FFI and calls
+`signUp(secretKey, homeserver, token)` directly, so the token is redeemed here and Loopky holds the
+key (`LocalKeyStore`, §7.5). **This overturns the invariant this section used to state** — "Loopky
+never holds a secret key" no longer describes signup at all. It was always a design choice rather
+than an FFI limit: `sign_up` has taken a secret key all along.
 
-Since #147 that is no longer the *only* way. `IdentityRepository.createLocalAccount` mints a key
-inside the FFI and calls `signUp(secretKey, homeserver, token)` directly, so the token is redeemed
-here and Loopky holds the key (`LocalKeyStore`, §7.5). **This overturns the invariant this section
-used to state** — "Loopky never holds a secret key" is now true only of the Ring path. It was
-always a design choice rather than an FFI limit: `sign_up` has taken a secret key all along.
+Signup is therefore one screen deep: the human check (`SignupStartViewModel` + the three method
+screens `PhoneVerificationViewModel`, `LightningVerificationViewModel`, `InviteCodeViewModel`) and
+one terminal step, `LocalSignupViewModel`. **Nothing has to be installed to get through it**, and
+nothing is gated on Pubky Ring.
 
-Which spender is in play travels as a nav argument, `TokenRedeemer`, decided at the door the user
-came through. The three verification screens (`PhoneVerificationViewModel`,
-`LightningVerificationViewModel`, `InviteCodeViewModel`) are **identical for both** and were not
-changed; only the terminal step differs — `SignupHandoffViewModel` for Ring,
-`LocalSignupViewModel` for Loopky.
+**Pubky Ring is offered after the account exists, not before it.** #147 introduced the local path
+beside a Ring one, chosen by a `TokenRedeemer` nav argument decided at the door the user came
+through: Ring minted the key and redeemed the token over the auth relay (`beginSignUp` rewriting
+the sign-in deeplink into its signup form via `asSignupUrl`), Loopky did it locally, and
+`SignupStartViewModel` gated every method on `PubkyRingPresence` whenever Ring was the spender.
+That is gone. It cost a Ring install gate in front of the only way into the app, and — because the
+spender was a route argument — an "create an account in Loopky instead" link that navigated to a
+byte-identical second copy of the same screen. Ring is now reached from the **backup step**
+(`BackupRingViewModel`, straight after the account is created) and the Settings nag, where it is a
+*second copy* of a key that already exists rather than a prerequisite to satisfy.
 
-**Ring is checked before Homegate is asked anything — for the Ring spender.** Because a token
-redeemed through Ring can only be spent with Ring installed, and because getting one costs an SMS
-attempt or sats, `SignupStartViewModel` consults `platform/PubkyRingPresence` *before*
-`SignupRepository.availability()` — the first Homegate call of the flow. With Ring missing the
-screen offers an install prompt and every method is disabled, so nothing is ever minted that the
-device cannot spend.
+**That offer is a backup, not a custody transfer, and the distinction is load-bearing.**
+`ringExportUrl` builds a `pubkyring://` import link and `onExportConfirmed` records
+`BackupMethod.PubkyRing`; the key stays in `LocalKeyStore` and custody stays `KeyCustody.Loopky`,
+which is what `backup_ring_subtitle` tells the user ("Loopky keeps its own copy, and your recovery
+phrase still works"). What it buys over a written phrase is a live copy in an app the user can
+sign other Pubky apps in with. Calling it a custody change would describe the Ring-custody option
+this section just removed — nothing anywhere in the app moves a key *out* of Loopky. If the Ring
+redemption path is ever wanted back, it belongs behind that offer, not in front of Homegate.
 
-That check is now **conditional on the redeemer**, not on the flow: `TokenRedeemer.Loopky` is its
-own spender, so gating it on Ring would refuse to quote a price for a token this device can spend
-perfectly well by itself. The default is `PubkyRing`, and an unrecognised argument falls back to it
-— a typo in a deeplink must not silently choose the path that puts a secret key on the device.
-
-The presence check is a Koin-bound platform interface (like `BackgroundTasks`), and it owns the
-install URL too, since that also differs per platform. It probes `pubkyauth://signin`, which makes
-it dependent on two pieces of manifest configuration that report "not installed" on *every* device
-when missing: the Android `<queries>` entry for the `pubkyauth` scheme, and `pubkyauth` in the iOS
-`LSApplicationQueriesSchemes`. **`canImportKey()` is a second, separate probe** against
-`pubkyring://` — Ring registers both schemes, a device can answer yes to one and no to the other,
-and each needs its own manifest entry. Answering the export screen's question with the auth probe
-would report Ring missing on a device that has it. `SignupHandoffViewModel` keeps its own check —
-Ring can be removed mid-flow — but it is now the backstop rather than the place users find out.
+`platform/PubkyRingPresence` survives for those callers: a Koin-bound platform interface (like
+`BackgroundTasks`) that owns the install URL, since that differs per platform. It probes
+`pubkyauth://signin`, which makes it dependent on two pieces of manifest configuration that report
+"not installed" on *every* device when missing: the Android `<queries>` entry for the `pubkyauth`
+scheme, and `pubkyauth` in the iOS `LSApplicationQueriesSchemes`. **`canImportKey()` is a second,
+separate probe** against `pubkyring://` — Ring registers both schemes, a device can answer yes to
+one and no to the other, and each needs its own manifest entry. Answering the export screen's
+question with the auth probe would report Ring missing on a device that has it.
 
 Two consequences worth knowing before touching this:
 
-- **Retrying is safe and is the intended recovery.** Ring keys the pubky it minted off the token,
-  so re-sending the same token reuses that key. Going back to Homegate instead would create a
-  second identity and charge the user twice.
-- **A session coming back does not prove the token was spent.** If Ring's signup fails while it
-  holds another already-signed-up pubky, it quietly authorises that one and returns a valid
-  session with the token unredeemed. So the token is cleared only when the homeserver we landed on
-  is the one the signup targeted. The local path has the stronger version of the same guard: it
+- **Retrying is safe and is the intended recovery.** `LocalSignupViewModel.onRetryClick` re-reads
+  the *stored* token rather than asking Homegate for another; going back to Homegate would charge
+  the user twice for something they already hold.
+- **A session coming back does not prove the token was spent on the right key.** The repository
   asserts the pubky that comes back **is the key it registered**, and a mismatch is a failure to
-  surface rather than a session to keep.
-- **The local path stores the key before it registers it.** If `signUp` fails half way, the key is
-  still there, so a retry registers the *same* pubky. Minting again on retry is precisely the
-  Pubky Ring behaviour (`signupAction.ts` reuses a key only when the signup token matches) that
-  strands a user's first identity — and `registerHeldKey` exists so that path never mints at all.
+  surface rather than a session to keep. Only then is the token cleared.
+- **The key is stored before it is registered.** If `signUp` fails half way, the key is still
+  there, so a retry registers the *same* pubky. Minting again on retry is precisely the Pubky Ring
+  behaviour (`signupAction.ts` reuses a key only when the signup token matches) that strands a
+  user's first identity — and `registerHeldKey` exists so the adopt-a-held-key path never mints at
+  all.
 
 ## 8. Data model & persistence
 

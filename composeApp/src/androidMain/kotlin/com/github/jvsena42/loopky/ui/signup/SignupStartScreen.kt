@@ -1,6 +1,5 @@
 package com.github.jvsena42.loopky.ui.signup
 
-import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,33 +9,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
-import com.github.jvsena42.loopky.presentation.signup.SignupStartEffect
 import com.github.jvsena42.loopky.presentation.signup.SignupStartUiState
 import com.github.jvsena42.loopky.presentation.signup.SignupStartViewModel
-import com.github.jvsena42.loopky.presentation.signup.TokenRedeemer
-import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
-import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
-import org.koin.core.parameter.parametersOf
 
 @Composable
 fun SignupStartRoute(
@@ -44,35 +33,9 @@ fun SignupStartRoute(
     onSms: () -> Unit,
     onLightning: () -> Unit,
     onInviteCode: () -> Unit,
-    onCreateLocally: () -> Unit,
-    redeemer: TokenRedeemer = TokenRedeemer.PubkyRing,
 ) {
-    // Keyed on the redeemer so switching spender rebuilds the ViewModel rather than reusing one
-    // that already decided Ring was required.
-    val viewModel: SignupStartViewModel = koinViewModel(key = redeemer.name) { parametersOf(redeemer) }
+    val viewModel: SignupStartViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-
-    LaunchedEffect(viewModel) {
-        viewModel.effects.collectLatest { effect ->
-            when (effect) {
-                is SignupStartEffect.OpenInstallPage -> {
-                    runCatching {
-                        val intent = Intent(Intent.ACTION_VIEW, effect.url.toUri())
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
-                    }
-                }
-            }
-        }
-    }
-
-    // Installing Ring happens in the Play Store, so the answer to "is it there yet" can only
-    // change while this screen is away. The ViewModel no-ops unless it is currently blocked.
-    LifecycleResumeEffect(viewModel) {
-        viewModel.onScreenResumed()
-        onPauseOrDispose { }
-    }
 
     SignupStartScreen(
         state = state,
@@ -80,13 +43,14 @@ fun SignupStartRoute(
         onSms = onSms,
         onLightning = onLightning,
         onInviteCode = onInviteCode,
-        onCreateLocally = onCreateLocally,
-        // The local flow must not offer itself.
-        showCreateLocally = redeemer == TokenRedeemer.PubkyRing,
-        onInstallRing = viewModel::onInstallRingClick,
     )
 }
 
+/**
+ * The one and only human check. Loopky creates the account itself once a method here succeeds, so
+ * there is nothing to install first and no second copy of this screen behind a custody choice —
+ * moving the key to Pubky Ring is offered later, from the backup step.
+ */
 @Composable
 private fun SignupStartScreen(
     state: SignupStartUiState,
@@ -94,9 +58,6 @@ private fun SignupStartScreen(
     onSms: () -> Unit,
     onLightning: () -> Unit,
     onInviteCode: () -> Unit,
-    onCreateLocally: () -> Unit,
-    showCreateLocally: Boolean,
-    onInstallRing: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     SignupScaffold(
@@ -104,18 +65,7 @@ private fun SignupStartScreen(
         subtitle = stringResource(R.string.signup_start_subtitle),
         onBack = onBack,
     ) {
-        if (!state.isRingInstalled) {
-            RingRequiredCard(onInstallRing = onInstallRing)
-            Spacer(Modifier.height(24.dp))
-        }
-
-        // Every method below ends in a token only Pubky Ring can spend, so while it is missing
-        // they all say the same thing rather than each screen discovering it separately.
-        val unavailableLabel = if (state.hasRedeemer) {
-            stringResource(R.string.signup_card_unavailable)
-        } else {
-            stringResource(R.string.signup_card_needs_ring)
-        }
+        val unavailableLabel = stringResource(R.string.signup_card_unavailable)
 
         MethodCard(
             title = stringResource(R.string.signup_sms_card_title),
@@ -146,89 +96,14 @@ private fun SignupStartScreen(
             onClick = onLightning,
         )
         Spacer(Modifier.height(20.dp))
-        TextButton(
-            onClick = onInviteCode,
-            enabled = state.hasRedeemer,
-            modifier = Modifier.testTag("signup_method_invite"),
-        ) {
+        TextButton(onClick = onInviteCode, modifier = Modifier.testTag("signup_method_invite")) {
             Text(
                 text = stringResource(R.string.signup_invite_link),
-                // Explicit rather than inherited: a coloured `Text` overrides the button's own
-                // disabled tint, and a link that looks live but does nothing is worse than none.
-                color = if (state.hasRedeemer) colors.accentSecondary else colors.foregroundMuted,
+                color = colors.accentSecondary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
             )
         }
-
-        // Offered whether or not Ring is installed. It used to live only inside RingRequiredCard,
-        // which meant the local route existed *only* for users who did not have Ring — someone who
-        // has it could never choose to keep the key here, and the choice this issue is about was
-        // invisible to them.
-        if (showCreateLocally) {
-            Spacer(Modifier.height(8.dp))
-            TextButton(
-                onClick = onCreateLocally,
-                modifier = Modifier.testTag("signup_create_locally_option"),
-                colors = ButtonDefaults.textButtonColors(contentColor = colors.foregroundSecondary),
-            ) {
-                Text(
-                    text = stringResource(R.string.onboarding_create_local),
-                    fontSize = 13.sp,
-                )
-            }
-        }
-    }
-}
-
-/**
- * The gate that has to come before Homegate is asked anything.
- *
- * A token is single-use and costs an SMS attempt or sats, and only Pubky Ring can redeem one — so
- * this is stated *here*, on the way in, rather than at the hand-off after the user has paid.
- */
-@Composable
-// The local-key route is *not* offered here any more: the screen now shows it unconditionally
-// below the method list, and rendering both put two buttons for the same thing on one screen.
-private fun RingRequiredCard(onInstallRing: () -> Unit) {
-    val colors = LoopkyTheme.colors
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, colors.accentPrimary, RoundedCornerShape(16.dp))
-            .background(colors.accentPrimarySoft, RoundedCornerShape(16.dp))
-            .padding(20.dp)
-            .testTag("signup_ring_required"),
-    ) {
-        Text(
-            text = stringResource(R.string.signup_ring_required_title),
-            modifier = Modifier.testTag("signup_ring_required_title"),
-            color = colors.foregroundPrimary,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.signup_ring_required_body),
-            color = colors.foregroundSecondary,
-            fontSize = 13.sp,
-            lineHeight = 19.sp,
-        )
-        Spacer(Modifier.height(16.dp))
-        LoopkyPrimaryButton(
-            label = stringResource(R.string.signup_ring_required_install),
-            onClick = onInstallRing,
-            modifier = Modifier.testTag("signup_ring_install"),
-        )
-        Spacer(Modifier.height(8.dp))
-        // No "I've installed it" button: coming back from the Play Store resumes the screen, and
-        // the check runs again then.
-        Text(
-            text = stringResource(R.string.signup_ring_required_return),
-            color = colors.foregroundMuted,
-            fontSize = 12.sp,
-            lineHeight = 17.sp,
-        )
     }
 }
 
@@ -282,17 +157,14 @@ private fun MethodCard(
 
 @Preview
 @Composable
-private fun SignupStartRingMissingPreview() {
+private fun SignupStartPreview() {
     LoopkyTheme {
         SignupStartScreen(
-            state = SignupStartUiState(isLoading = false, isRingInstalled = false, hasRedeemer = false),
+            state = SignupStartUiState(isLoading = false),
             onBack = {},
             onSms = {},
             onLightning = {},
             onInviteCode = {},
-            onCreateLocally = {},
-            showCreateLocally = true,
-            onInstallRing = {},
         )
     }
 }
