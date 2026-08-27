@@ -389,7 +389,7 @@ fun DeckEditorScreen(
                     onToggleListen = onToggleListen,
                     onToggleSpeak = onToggleSpeak,
                     onToggleType = onToggleType,
-                onToggleReverse = onToggleReverse,
+                    onToggleReverse = onToggleReverse,
                     onFrontLangSelected = onFrontLangSelected,
                     onBackLangSelected = onBackLangSelected,
                 )

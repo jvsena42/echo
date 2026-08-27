@@ -44,3 +44,12 @@ data class CardSide(
     val isEmpty: Boolean
         get() = text.isNullOrBlank() && imageRef == null && audioRef == null
 }
+
+/**
+ * Whether this card can be asked the other way round, with its back as the prompt.
+ *
+ * Both sides have to carry something: a card whose back is empty has nothing to ask *from*, and
+ * one whose front is empty has nothing to answer *with*. Such a card stays forward-only and
+ * silently — the same fallback typing takes for a back no answer could match.
+ */
+val Card.isReversible: Boolean get() = !front.isEmpty && !back.isEmpty

@@ -216,4 +216,47 @@ class SrsSchedulerTest {
         val p = DailyStudyProgress(dayIndex = 100, newCards = 3, reviews = 12)
         assertEquals(DailyStudyProgress(dayIndex = 101), p.forToday(101))
     }
+
+    // --- capped interval labels (the reverse half of a paired card) ------------------------
+
+    @Test
+    fun anUncappedPreviewIsWhatItAlwaysWas() {
+        val base = state(intervalDays = 10, repetitions = 4)
+
+        assertEquals(
+            base.previewIntervals("c1", now),
+            base.previewIntervals("c1", now, cap = null),
+        )
+    }
+
+    @Test
+    fun aCappedPreviewShowsWhatTheButtonWillActuallySchedule() {
+        // The pair lands on its weaker direction, so on the reverse of a card already graded Hard,
+        // tapping Easy schedules the Hard interval. Two buttons reading the same is the honest
+        // outcome; a label promising more than its button delivers would not be.
+        val base = state(intervalDays = 10, repetitions = 4)
+        val capped = base.previewIntervals("c1", now, cap = SrsGrade.Hard)
+        val hard = base.previewIntervals("c1", now)[SrsGrade.Hard]
+
+        assertEquals(hard, capped[SrsGrade.Hard])
+        assertEquals(hard, capped[SrsGrade.Good])
+        assertEquals(hard, capped[SrsGrade.Easy])
+    }
+
+    @Test
+    fun aCappedPreviewLeavesGradesBelowTheCapSpeakingForThemselves() {
+        val base = state(intervalDays = 10, repetitions = 4)
+        val capped = base.previewIntervals("c1", now, cap = SrsGrade.Good)
+
+        assertEquals("<10m", capped[SrsGrade.Again])
+        assertEquals(base.previewIntervals("c1", now)[SrsGrade.Hard], capped[SrsGrade.Hard])
+    }
+
+    @Test
+    fun cappingAtAgainMakesEveryButtonSayTenMinutes() {
+        val base = state(intervalDays = 10, repetitions = 4)
+        val capped = base.previewIntervals("c1", now, cap = SrsGrade.Again)
+
+        assertTrue(capped.values.all { it == "<10m" }, "got $capped")
+    }
 }

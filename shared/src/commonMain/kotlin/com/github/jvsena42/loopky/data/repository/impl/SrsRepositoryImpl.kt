@@ -326,6 +326,25 @@ class SrsRepositoryImpl(
         next
     }
 
+    /**
+     * The reverse half of a pair: re-schedule from where the pair started, not from the forward
+     * result already written. No [recordStudied] — one card studied both ways is one review, and
+     * the forward half already counted it.
+     */
+    override suspend fun reviewFrom(
+        card: Card,
+        base: SrsState?,
+        grade: SrsGrade,
+    ): Result<SrsState> = runSuspendCatching {
+        require(isStudiable(card.deckId)) {
+            "Deck ${card.deckId} is neither owned nor followed — follow or clone it to study it"
+        }
+        settingsRepository.ensureLoaded()
+        val next = base.review(card.id, grade, epochMillis(), currentSettings())
+        upsert(card.deckId, next).getOrThrow()
+        next
+    }
+
     private val _dailyProgress = MutableStateFlow(DailyStudyProgress())
     override val dailyProgress: StateFlow<DailyStudyProgress> = _dailyProgress.asStateFlow()
 
@@ -415,6 +434,15 @@ class SrsRepositoryImpl(
         val author = authorFor(card.deckId)
         return stateOf(author, card.deckId, card.id)
             .previewIntervals(card.id, epochMillis(), currentSettings())
+    }
+
+    override suspend fun previewIntervalsFrom(
+        card: Card,
+        base: SrsState?,
+        cap: SrsGrade?,
+    ): Map<SrsGrade, String> {
+        settingsRepository.ensureLoaded()
+        return base.previewIntervals(card.id, epochMillis(), currentSettings(), cap)
     }
 
     /** No suspension, no network: [SettingsRepository.studySettings] is warmed, then simply read. */

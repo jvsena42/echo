@@ -740,8 +740,30 @@ class FakeSrsRepository : SrsRepository {
         return Result.success(next)
     }
 
+    /** The reverse half of a pair: schedules from [base], and never touches the daily tally. */
+    override suspend fun reviewFrom(
+        card: Card,
+        base: SrsState?,
+        grade: SrsGrade,
+    ): Result<SrsState> {
+        reviewsFrom.add(Triple(card, base, grade))
+        val next = base.review(card.id, grade, now = 0L, settings = studySettings)
+        upsert(card.deckId, next)
+        return Result.success(next)
+    }
+
+    /** Every [reviewFrom] call, so a test can assert what the pair was re-scheduled from. */
+    val reviewsFrom = mutableListOf<Triple<Card, SrsState?, SrsGrade>>()
+
     override suspend fun previewIntervals(card: Card): Map<SrsGrade, String> =
         states[card.id].previewIntervals(card.id, now = 0L, settings = studySettings)
+
+    override suspend fun previewIntervalsFrom(
+        card: Card,
+        base: SrsState?,
+        cap: SrsGrade?,
+    ): Map<SrsGrade, String> =
+        base.previewIntervals(card.id, now = 0L, settings = studySettings, cap = cap)
 
     var flushes = 0
         private set

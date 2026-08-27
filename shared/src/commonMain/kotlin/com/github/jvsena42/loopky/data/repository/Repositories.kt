@@ -1242,6 +1242,20 @@ interface SrsRepository {
     suspend fun review(card: Card, grade: SrsGrade): Result<SrsState>
 
     /**
+     * [review], but scheduled from [base] rather than from the card's current state.
+     *
+     * For the second half of a card studied both ways. The forward direction is graded and written
+     * as it happens, so a session abandoned mid-pair keeps it; when the reverse then comes back
+     * worse, the card has to be re-scheduled from where the pair *started* — applying the worse
+     * grade on top of the forward result would compound two reviews out of one.
+     *
+     * Deliberately does not touch the daily tally: the pair is one review of one card, and
+     * counting it twice would double the day's count and mis-classify the card as new a second
+     * time.
+     */
+    suspend fun reviewFrom(card: Card, base: SrsState?, grade: SrsGrade): Result<SrsState>
+
+    /**
      * The interval each grade would produce for [card], already formatted for the grade buttons.
      *
      * Here rather than in the study ViewModel because the first-review intervals are the user's own
@@ -1249,6 +1263,17 @@ interface SrsRepository {
      * buttons, and the labels could drift from what [review] actually writes.
      */
     suspend fun previewIntervals(card: Card): Map<SrsGrade, String>
+
+    /**
+     * [previewIntervals] for what [reviewFrom] would write: computed from [base], with every grade
+     * ceilinged at [cap]. Labels the four buttons on the reverse half of a pair, where the grade
+     * that lands is the worse of the two directions.
+     */
+    suspend fun previewIntervalsFrom(
+        card: Card,
+        base: SrsState?,
+        cap: SrsGrade?,
+    ): Map<SrsGrade, String>
 
     /**
      * Persist a review state. Buffered in memory rather than written immediately — grading 100
