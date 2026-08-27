@@ -396,7 +396,16 @@ class DiscoveryRepositoryImpl(
     override suspend fun loopkyUsers(limit: Int): List<PubkyIdentity> {
         val me = session.current()?.identity?.pubky
         val candidates = directoryCandidates(limit).filterNot { it == me }.take(limit)
-        val kept = candidates.mapConcurrently { pubky -> verifiedUser(pubky) }.filterNotNull()
+        // keepUnresolved, for the same reason every other caller passes it: the self-tag has
+        // already proved this is a real Loopky account, and a missing `pubky.app/profile.json` is
+        // a 404 on a record signing up never had to write. Dropping on it silently emptied the
+        // directory of exactly the accounts it exists to surface — someone who has published no
+        // deck has no second way in, whereas a deck author is picked up again by
+        // [suggestedPeople]'s deck branch, which does keep an unresolved profile. Measured on
+        // staging: 4 kept of 10 candidates, all six drops a profile 404.
+        val kept = candidates
+            .mapConcurrently { pubky -> verifiedUser(pubky, keepUnresolved = true) }
+            .filterNotNull()
         Log.d(TAG, "loopkyUsers: ${kept.size} verified of ${candidates.size} candidates")
         return kept
     }

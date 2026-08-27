@@ -428,9 +428,25 @@ class DiscoveryRepositoryImplTest {
     }
 
     @Test
-    fun loopkyUsersDropsAccountsWithNoProfileAndTheSignedInUser() = runTest {
-        tagRepo.usersByTag = mapOf(ReservedTags.USER to listOf("ghostpk", TEST_PUBKY))
-        tagRepo.selfTaggers = setOf("ghostpk", TEST_PUBKY)
+    fun loopkyUsersKeepsASelfTaggedAccountThatPublishedNoProfile() = runTest {
+        // The account this directory exists for: signed up, self-tagged, published nothing — no
+        // deck to be inferred from, and no `pubky.app/profile.json`, which signing up to Loopky
+        // never had to write. Dropping on that 404 made every such person invisible on Discover
+        // while deck authors, whose unresolved profiles are kept by suggestedPeople, stayed.
+        tagRepo.usersByTag = mapOf(ReservedTags.USER to listOf("ghostpk"))
+        tagRepo.selfTaggers = setOf("ghostpk")
+
+        val users = repo.loopkyUsers()
+
+        assertEquals(listOf("ghostpk"), users.map { it.pubky })
+        // Under a bare pubky — the screen renders a truncated key rather than a name.
+        assertNull(users.single().displayName)
+    }
+
+    @Test
+    fun loopkyUsersDropsTheSignedInUser() = runTest {
+        tagRepo.usersByTag = mapOf(ReservedTags.USER to listOf(TEST_PUBKY))
+        tagRepo.selfTaggers = setOf(TEST_PUBKY)
 
         assertEquals(emptyList(), repo.loopkyUsers())
     }
