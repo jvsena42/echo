@@ -23,6 +23,7 @@ import com.github.jvsena42.loopky.data.storage.LocalKey
 import com.github.jvsena42.loopky.data.storage.LocalKeyStore
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.BackupMethod
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.KeySource
@@ -191,7 +192,17 @@ internal class IdentityRepositoryImpl(
                     HomeserverLookup.NoRecord
                 } else {
                     Log.w(TAG, "lookupHomeserver: could not check — ${error::class.simpleName}")
-                    HomeserverLookup.CouldNotCheck(error.toErrorReason())
+                    // An unclassified failure here is still a *known* failure: the one call this
+                    // function makes is the DHT lookup, so "we couldn't check that" is the honest
+                    // answer and "Something went wrong. Please try again." is not — it tells a
+                    // user staring at their own recovery file nothing about what to try, and the
+                    // remedy (a network that does not block peer-to-peer traffic) is one the
+                    // lookup copy already gives. Specific reasons still win where the classifier
+                    // has one.
+                    val reason = error.toErrorReason()
+                        .takeUnless { it == ErrorReason.Unknown }
+                        ?: ErrorReason.HomeserverLookupFailed
+                    HomeserverLookup.CouldNotCheck(reason)
                 }
             },
         )
