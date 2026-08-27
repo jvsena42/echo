@@ -42,15 +42,16 @@ Questions about this policy: open an issue at
 
 ## 3. Your identity
 
-Your identity is a Pubky keypair. There are two ways to hold it, and which one you chose changes
+Your identity is a Pubky keypair. There are two ways to hold it, and which one you have changes
 what is on your device.
 
-**If you use Pubky Ring** (the recommended option), your key lives in that separate app and Loopky
-never sees your private key or your recovery phrase. When you sign in, Ring grants Loopky a
-**session secret** scoped to Loopky's own storage area.
+**If you sign in with Pubky Ring**, your key lives in that separate app and Loopky never sees your
+private key or your recovery phrase. When you sign in, Ring grants Loopky a **session secret**
+scoped to Loopky's own storage area. Moving an existing Loopky key into Ring is offered as a backup
+option, described below.
 
-**If you created or restored your account inside Loopky**, then Loopky holds your private key
-itself. It is stored in your device's own secure storage — the Android Keystore on Android, the
+**If you created or restored your account inside Loopky** — which is what "Create account" does —
+then Loopky holds your private key itself. It is stored in your device's own secure storage — the Android Keystore on Android, the
 Keychain on iOS — and is used to sign your own reads and writes. It is never sent to us (we run no
 server), never sent to any third party, and never written to a log.
 
@@ -106,7 +107,7 @@ has its own operator and its own privacy practices.
 | **Pubky Nexus indexer** (`nexus.pubky.app`) | Search, discovery, trending topics, profile pictures | Your search terms, the public keys and decks you look up, your IP address |
 | **Homegate** (`homegate.pubky.app`) | Signing up for a new homeserver account only | Your phone number if you verify by SMS, or Lightning payment details if you pay. Your phone number is handled by Homegate and is never stored by Loopky |
 | **Unsplash** (`api.unsplash.com`) | Only when you search for a picture from the web | Your search terms and your IP address, under [Unsplash's privacy policy](https://unsplash.com/privacy) |
-| **Google Play** | Only if you tap to install Pubky Ring | Standard Play Store request |
+| **Google Play** | Only if you tap to install Pubky Ring from the backup screen | Standard Play Store request |
 
 Loopky does not contact any of these to report on you. It contacts them to do the thing you asked
 for.
@@ -170,8 +171,8 @@ cannot be recalled. This is a property of publishing to a public network.
 Loopky is not directed at children under 13, and we do not knowingly collect information from them.
 The Loopky project holds no user data, so there is nothing for us to delete on request. Data on a
 homeserver is removed with **Delete account** in Settings, or by contacting that homeserver's
-operator. The account itself is created either in Pubky Ring, whose own terms apply, or in Loopky
-on your own device.
+operator. An account created with Loopky's **Create account** is created on your own device; one
+you already had in Pubky Ring stays governed by Ring's own terms.
 
 ---
 
