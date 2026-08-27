@@ -376,6 +376,7 @@ internal fun LoopkyNavHost(
                 onOpenDeck = { author, deckId ->
                     navController.navigateTo(Routes.deckDetail(deckId, author = author))
                 },
+                onOpenProfile = { person -> navController.navigateTo(Routes.friendProfile(person)) },
                 onOpenFollows = { person, source ->
                     navController.navigateTo(Routes.followList(person, source))
                 },

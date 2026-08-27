@@ -256,6 +256,39 @@ class FriendProfileViewModelTest {
     }
 
     @Test
+    fun tappingAFollowedDecksAuthorOpensThatPerson() = runTest {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<FriendProfileEffect>()
+        val collector = launch { vm.effects.toList(effects) }
+        vm.onOpenAuthor("authorpk")
+        advanceUntilIdle()
+        collector.cancel()
+
+        assertEquals(
+            "authorpk",
+            effects.filterIsInstance<FriendProfileEffect.OpenProfile>().single().pubky,
+        )
+    }
+
+    @Test
+    fun tappingTheProfileOwnersOwnNameGoesNowhere() = runTest {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<FriendProfileEffect>()
+        val collector = launch { vm.effects.toList(effects) }
+        // Their own decks are captioned with the profile already on screen; honouring the tap
+        // would push a second copy of this screen onto the back stack.
+        vm.onOpenAuthor(stranger)
+        advanceUntilIdle()
+        collector.cancel()
+
+        assertTrue(effects.filterIsInstance<FriendProfileEffect.OpenProfile>().isEmpty())
+    }
+
+    @Test
     fun keepsTheProfileOnScreenWhileARefreshRuns() = runTest {
         givenStrangerHasDecks(5)
         val vm = viewModel()

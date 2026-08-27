@@ -258,6 +258,18 @@ class FriendProfileViewModel(
         viewModelScope.launch { _effects.emit(FriendProfileEffect.OpenDeck(authorPubky, deckId)) }
     }
 
+    /**
+     * The name under a followed deck's tile is the way on to whoever wrote it — the same hop
+     * Discover's tiles offer, and the reason the caption is a name rather than a tag.
+     *
+     * Refuses [targetPubky]: their own decks are captioned with the profile you are already
+     * reading, so honouring that tap would push a second copy of this screen onto the back stack.
+     */
+    fun onOpenAuthor(authorPubky: String) {
+        if (authorPubky == targetPubky) return
+        viewModelScope.launch { _effects.emit(FriendProfileEffect.OpenProfile(authorPubky)) }
+    }
+
     private fun Deck.toCard(): FriendDeck = FriendDeck(
         id = id,
         authorPubky = authorPubky,
@@ -328,6 +340,9 @@ private fun bareIdentity(pubky: String) =
 sealed interface FriendProfileEffect {
     data class CopyToClipboard(val text: String) : FriendProfileEffect
     data class OpenDeck(val authorPubky: String, val deckId: String) : FriendProfileEffect
+
+    /** Another person's profile — the author of a deck this one follows. */
+    data class OpenProfile(val pubky: String) : FriendProfileEffect
 
     /** Hand [url] to the browser — the pubky.app profile, never an in-app destination. */
     data class OpenUrl(val url: String) : FriendProfileEffect

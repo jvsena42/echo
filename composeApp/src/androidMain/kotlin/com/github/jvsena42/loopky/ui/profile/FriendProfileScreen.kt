@@ -78,6 +78,8 @@ fun FriendProfileRoute(
     pubky: String,
     onBack: () -> Unit = {},
     onOpenDeck: (authorPubky: String, deckId: String) -> Unit = { _, _ -> },
+    /** Another person's profile, reached from the author caption on a deck they follow. */
+    onOpenProfile: (pubky: String) -> Unit = {},
     onOpenFollows: (pubky: String, source: FollowSource) -> Unit = { _, _ -> },
     /** Leave for the sign-in flow, when a signed-out visitor reaches for Follow. */
     onSignIn: () -> Unit = {},
@@ -86,6 +88,7 @@ fun FriendProfileRoute(
 
     val context = LocalContext.current
     val currentOpenDeck by rememberUpdatedState(onOpenDeck)
+    val currentOpenProfile by rememberUpdatedState(onOpenProfile)
     val currentOpenFollows by rememberUpdatedState(onOpenFollows)
     val clipboard = LocalClipboardManager.current
 
@@ -94,6 +97,7 @@ fun FriendProfileRoute(
             when (effect) {
                 is FriendProfileEffect.CopyToClipboard -> clipboard.setText(AnnotatedString(effect.text))
                 is FriendProfileEffect.OpenDeck -> currentOpenDeck(effect.authorPubky, effect.deckId)
+                is FriendProfileEffect.OpenProfile -> currentOpenProfile(effect.pubky)
                 is FriendProfileEffect.OpenUrl -> context.openUrl(effect.url)
                 is FriendProfileEffect.ShareProfile -> context.shareText(
                     // Named, not a bare key: a recipient sees who it is before tapping.
@@ -133,6 +137,7 @@ fun FriendProfileRoute(
         onOpenOnPubkyApp = viewModel::onOpenOnPubkyApp,
         onOpenFollows = { source -> currentOpenFollows(state.identity.pubky, source) },
         onOpenDeck = viewModel::onOpenDeck,
+        onOpenAuthor = viewModel::onOpenAuthor,
     )
 }
 
@@ -147,6 +152,7 @@ private fun FriendProfileScreen(
     onOpenOnPubkyApp: () -> Unit,
     onOpenFollows: (FollowSource) -> Unit,
     onOpenDeck: (authorPubky: String, deckId: String) -> Unit,
+    onOpenAuthor: (String) -> Unit,
 ) {
     val colors = LoopkyTheme.colors
 
@@ -308,7 +314,14 @@ private fun FriendProfileScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
                 )
             } else {
-                DeckGrid(decks = state.decks, onOpenDeck = onOpenDeck)
+                DeckGrid(
+                    decks = state.decks,
+                    // Their own decks are captioned with the profile already on screen, so only
+                    // a followed deck's author is somewhere to go.
+                    isOwnerOfProfile = { it == state.identity.pubky },
+                    onOpenDeck = onOpenDeck,
+                    onOpenAuthor = onOpenAuthor,
+                )
             }
         }
     }
@@ -388,7 +401,9 @@ private fun ProfileActionRow(
 @Composable
 private fun DeckGrid(
     decks: List<FriendDeck>,
+    isOwnerOfProfile: (String) -> Boolean,
     onOpenDeck: (authorPubky: String, deckId: String) -> Unit,
+    onOpenAuthor: (String) -> Unit,
 ) {
     val columns = deckGridColumns()
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -409,6 +424,13 @@ private fun DeckGrid(
                         // follow, whose deck it is is the caption that carries information.
                         authorLabel = deck.author.label(),
                         onClick = { onOpenDeck(deck.authorPubky, deck.id) },
+                        // Null leaves the caption inert rather than a tap that reopens the
+                        // screen you are on — DeckTile only makes it clickable when given one.
+                        onAuthorClick = if (isOwnerOfProfile(deck.authorPubky)) {
+                            null
+                        } else {
+                            { onOpenAuthor(deck.authorPubky) }
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("friend_profile_deck_tile"),
@@ -438,6 +460,7 @@ private fun FriendProfileScreenPreview() {
             onOpenOnPubkyApp = {},
             onOpenFollows = {},
             onOpenDeck = { _, _ -> },
+            onOpenAuthor = {},
         )
     }
 }
@@ -456,6 +479,7 @@ private fun FriendProfileScreenFollowingPreview() {
             onOpenOnPubkyApp = {},
             onOpenFollows = {},
             onOpenDeck = { _, _ -> },
+            onOpenAuthor = {},
         )
     }
 }
@@ -474,6 +498,7 @@ private fun FriendProfileScreenSelfPreview() {
             onOpenOnPubkyApp = {},
             onOpenFollows = {},
             onOpenDeck = { _, _ -> },
+            onOpenAuthor = {},
         )
     }
 }
