@@ -126,6 +126,7 @@ class DeckEditorViewModel(
                     // Not folded through speechReady: typing works without a declared pair, so
                     // what the deck says is what the deck does.
                     typeEnabled = deck.typeEnabled,
+                    reverseEnabled = deck.reverseEnabled,
                     frontLang = deck.frontLang,
                     backLang = deck.backLang,
                 )
@@ -376,6 +377,11 @@ class DeckEditorViewModel(
     /** No `languagesError` to clear: typing needs no language pair. See `Deck.speechReady`. */
     fun onToggleType() {
         _state.update { it.copy(typeEnabled = !it.typeEnabled) }
+    }
+
+    /** Nor does asking the card backwards — swapping two sides needs no declared language. */
+    fun onToggleReverse() {
+        _state.update { it.copy(reverseEnabled = !it.reverseEnabled) }
     }
 
     /**
@@ -653,6 +659,7 @@ private fun buildDeck(
     listenEnabled = s.listenEnabled,
     speakEnabled = s.speakEnabled,
     typeEnabled = s.typeEnabled,
+    reverseEnabled = s.reverseEnabled,
     frontLang = s.frontLang,
     backLang = s.backLang,
     mediaRehostCursor = existing?.mediaRehostCursor ?: 0,
@@ -682,6 +689,9 @@ data class DeckEditorUiState(
     val speakEnabled: Boolean = false,
     /** Off until asked for as well, though for its own reason — see `Deck.typeEnabled`. */
     val typeEnabled: Boolean = false,
+    /** Same again — see `Deck.reverseEnabled`. Editable here so a deck published before the
+     * opt-in existed can still be given it. */
+    val reverseEnabled: Boolean = false,
     /** BCP-47 tags for the two card sides; required once either speech opt-in above is on. */
     val frontLang: String? = null,
     val backLang: String? = null,
