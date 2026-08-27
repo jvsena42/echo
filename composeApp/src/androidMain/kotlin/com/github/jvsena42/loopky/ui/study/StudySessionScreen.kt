@@ -382,12 +382,18 @@ private fun ReviewingContent(
                 deckTitle = state.deckTitle,
                 position = state.position,
                 total = state.total,
-                reversed = state.reversed,
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 8.dp),
             )
-            Spacer(modifier = Modifier.size(40.dp))
+            // Holds the close button's width even when empty, so the title stays centred; grows
+            // to fit the badge, which the weighted title column gives way to.
+            Box(
+                modifier = Modifier.widthIn(min = 40.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                if (state.reversed) ReversedBadge()
+            }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -609,13 +615,12 @@ private fun studyCardMaxHeight(widthClass: WindowWidthClass): Dp = when (widthCl
     WindowWidthClass.Expanded -> EXPANDED_CARD_MAX_HEIGHT
 }
 
-/** Deck name over "3 / 12", with the reversed badge beside the counter when one is owed. */
+/** Deck name over "3 / 12". The reversed badge sits at the row's trailing edge, not here. */
 @Composable
 private fun StudyHeaderTitle(
     deckTitle: String,
     position: Int,
     total: Int,
-    reversed: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
@@ -631,18 +636,12 @@ private fun StudyHeaderTitle(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.study_position_of_total, position, total),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.W700,
-                color = colors.foregroundPrimary,
-            )
-            if (reversed) ReversedBadge()
-        }
+        Text(
+            text = stringResource(R.string.study_position_of_total, position, total),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.W700,
+            color = colors.foregroundPrimary,
+        )
     }
 }
 
