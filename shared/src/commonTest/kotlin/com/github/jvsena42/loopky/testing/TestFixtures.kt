@@ -156,6 +156,7 @@ fun testDeck(
     frontLang: String? = null,
     backLang: String? = null,
     typeEnabled: Boolean = false,
+    reverseEnabled: Boolean = false,
 ): Deck = Deck(
     id = id,
     authorPubky = authorPubky,
@@ -171,6 +172,7 @@ fun testDeck(
     frontLang = frontLang,
     backLang = backLang,
     typeEnabled = typeEnabled,
+    reverseEnabled = reverseEnabled,
 )
 
 /**

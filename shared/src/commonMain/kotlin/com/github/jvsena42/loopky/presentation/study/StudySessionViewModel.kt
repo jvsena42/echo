@@ -10,12 +10,14 @@ import com.github.jvsena42.loopky.data.repository.SettingsRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
 import com.github.jvsena42.loopky.domain.model.AnswerMatcher
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.DEFAULT_NEW_CARDS_PER_DAY
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.SpeakMatcher
 import com.github.jvsena42.loopky.domain.model.SrsGrade
+import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.domain.model.TypedAnswerOutcome
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -67,10 +69,15 @@ class StudySessionViewModel(
     private val _effects = MutableSharedFlow<StudySessionEffect>(extraBufferCapacity = 4)
     val effects: SharedFlow<StudySessionEffect> = _effects.asSharedFlow()
 
-    private var queue: List<Card> = emptyList()
+    private var queue: List<StudyPresentation> = emptyList()
     private var index = 0
     private var revealed = false
-    private var reviewedCount = 0
+
+    /**
+     * Cards graded this session, not presentations shown. A deck studied both ways puts each card
+     * in the queue twice, and "You reviewed 24 cards" for twelve cards would be a plain miscount.
+     */
+    private val gradedCardIds = mutableSetOf<String>()
     private var deckTitle = ""
     private var speakPhase: SpeakPhase = SpeakPhase.Idle
     private var typePhase: TypePhase = TypePhase.Off
@@ -85,6 +92,35 @@ class StudySessionViewModel(
      * rather than [revealed], or Listen would read out the very answer the mask is hiding.
      */
     private val answerVisible: Boolean get() = revealed && typePhase !is TypePhase.Answering
+
+    /** The card being shown, and which way round. Null once the queue is exhausted. */
+    private val current: StudyPresentation? get() = queue.getOrNull(index)
+
+    /**
+     * The two faces as this presentation shows them.
+     *
+     * Every question about "the front" or "the back" of the card on screen has to come through
+     * here, because on a reversed presentation they are the other way round. Reading
+     * `card.front` / `card.back` directly is how a reversed card ends up graded against the side
+     * it just showed you, or read aloud in the wrong language.
+     */
+    private val promptSide: CardSide?
+        get() = current?.let { if (it.reversed) it.card.back else it.card.front }
+
+    private val answerSide: CardSide?
+        get() = current?.let { if (it.reversed) it.card.front else it.card.back }
+
+    /**
+     * The forward half of a card whose reverse is still ahead in this session.
+     *
+     * [base] is the review state the pair started from — where the reverse has to be scheduled
+     * from if it goes worse, since the forward grade is already written and applying a second one
+     * on top of it would compound two reviews out of one.
+     */
+    private data class PairInFlight(val base: SrsState?, val forwardGrade: SrsGrade)
+
+    /** cardId → its forward half, dropped as soon as the reverse is graded. */
+    private val pairs = mutableMapOf<String, PairInFlight>()
 
     /** What the in-flight pronunciation attempt grades against. See [targetFor]. */
     private var speakTarget: SpeakTarget? = null
@@ -143,17 +179,19 @@ class StudySessionViewModel(
                 isSignedIn = runSuspendCatching { identityRepository.currentSession() }.getOrNull() != null
             }
             runSuspendCatching {
-                when {
+                val cards = when {
                     isPreview -> previewQueue()
                     deckId == null -> srsRepository.dueToday()
                     else -> srsRepository.dueForDeck(deckId)
                 }
+                sequence(cards)
             }
-                .onSuccess { cards ->
-                    queue = cards
+                .onSuccess { presentations ->
+                    queue = presentations
                     index = 0
                     revealed = false
-                    reviewedCount = 0
+                    gradedCardIds.clear()
+                    pairs.clear()
                     resetTyping()
                     emitCurrent()
                 }
@@ -162,6 +200,32 @@ class StudySessionViewModel(
                     _state.update { StudySessionUiState.Error(err.toErrorReason()) }
                 }
         }
+    }
+
+    /**
+     * Lay [cards] out as the presentations this session will show.
+     *
+     * Ordinarily one apiece. A deck opted into both directions gets each card a second time,
+     * reversed, a few presentations behind itself — "shortly after, in the same session" rather
+     * than a stored date, because review state is keyed by card id and a per-direction due time
+     * would mean a direction-aware key (see `docs/Architecture.md §8.7`).
+     *
+     * A preview never pairs: nothing there is graded, and doubling a ten-card sample only makes
+     * the offer at the end take twice as long to reach.
+     */
+    private suspend fun sequence(cards: List<Card>): List<StudyPresentation> {
+        if (isPreview || cards.isEmpty()) return cards.map { StudyPresentation(it) }
+        // Resolved per deck, not from `deckId`: a session started from Home spans every studiable
+        // deck, and each author opted in — or did not — for their own.
+        val reversing = cards.map { it.deckId }.distinct()
+            .filter { deckRepository.getLocal(it)?.reverseEnabled == true }
+            .toSet()
+        if (reversing.isEmpty()) return cards.map { StudyPresentation(it) }
+        // The goal decides how far back a reverse sits, not how many cards are served: the queue
+        // below is still every card. See reverseGapFor.
+        settingsRepository.ensureLoaded()
+        val goal = settingsRepository.studySettings.value.settings.newCardsPerDayGoal
+        return expandWithReverses(cards, reverseGapFor(goal)) { it.deckId in reversing }
     }
 
     /**
@@ -194,16 +258,16 @@ class StudySessionViewModel(
      */
     fun onNextCard() {
         if (!isPreview || gradeJob?.isActive == true) return
-        reviewedCount++
+        current?.let { gradedCardIds += it.card.id }
         advanceIndex()
         emitCurrent()
     }
 
     fun onGrade(grade: SrsGrade) {
         if (isPreview || gradeJob?.isActive == true) return
-        val card = queue.getOrNull(index) ?: return
+        val presentation = current ?: return
         gradeJob = viewModelScope.launch {
-            srsRepository.review(card, grade)
+            gradeResultFor(presentation, grade)
                 .onFailure { err ->
                     Log.e(TAG, "grade: FAILED — ${err.message}", err)
                     // The automatic every-FLUSH_EVERY flush comes back through here, so this is
@@ -212,7 +276,7 @@ class StudySessionViewModel(
                     // advances, and the banner says the writing is what stopped (#91).
                     syncError = err.toErrorReason()
                 }
-            reviewedCount++
+            gradedCardIds += presentation.card.id
             // Ordered as it always was: the celebration asks whether there is a card *behind* it
             // to keep studying, so it has to run once the index has already moved on.
             advanceIndex()
@@ -220,6 +284,41 @@ class StudySessionViewModel(
             emitCurrent()
         }
     }
+
+    /**
+     * Write the grade for one presentation, which for a paired card is not one write per tap.
+     *
+     * Both directions of a card share its single review state, so the pair is scheduled from
+     * whichever direction went worse. The forward half is written as it happens — a session
+     * abandoned before the reverse keeps it, which is the whole reason it is not deferred. When
+     * the reverse then comes back **worse**, the card is re-scheduled from where the pair started;
+     * when it comes back equal or better there is nothing to write, because the forward result
+     * already says what the pair is worth.
+     */
+    private suspend fun gradeResultFor(
+        presentation: StudyPresentation,
+        grade: SrsGrade,
+    ): Result<Unit> {
+        val card = presentation.card
+        if (!presentation.reversed) {
+            // Captured before the write, so the reverse half can schedule from where this started.
+            val base = runSuspendCatching { srsRepository.stateFor(card.deckId, card.id) }
+                .getOrNull()
+            val result = srsRepository.review(card, grade)
+            if (hasReverseAhead(card.id)) pairs[card.id] = PairInFlight(base, grade)
+            return result.map { }
+        }
+        // No pair recorded means no forward half was graded — defensive only, since a reverse is
+        // always emitted behind its own card. Grading it as an ordinary review is the honest
+        // fallback: the card was answered, and something has to schedule it.
+        val pair = pairs.remove(card.id) ?: return srsRepository.review(card, grade).map { }
+        if (grade >= pair.forwardGrade) return Result.success(Unit)
+        return srsRepository.reviewFrom(card, pair.base, grade).map { }
+    }
+
+    /** Whether this card's reverse is still to come, so a forward grade is worth pairing. */
+    private fun hasReverseAhead(cardId: String): Boolean =
+        queue.drop(index + 1).any { it.reversed && it.card.id == cardId }
 
     /** Point at the next card and clear everything the current one accumulated. */
     private fun advanceIndex() {
@@ -292,7 +391,7 @@ class StudySessionViewModel(
         // A check landing after the queue advanced would otherwise grade the next card's text.
         if (gradeJob?.isActive == true) return
         if (typePhase !is TypePhase.Answering) return
-        val expected = queue.getOrNull(index)?.back?.text
+        val expected = answerSide?.text
             ?.takeIf { AnswerMatcher.isTypable(it) } ?: return
         val typed = typedAnswer.trim()
         if (typed.isEmpty()) return
@@ -372,8 +471,9 @@ class StudySessionViewModel(
      * which is why `speakEnabled` folds in `speechReady`.
      */
     private fun targetFor(s: StudySessionUiState.Reviewing): SpeakTarget? {
-        val card = queue.getOrNull(index) ?: return null
-        val side = if (answerVisible) card.back else card.front
+        // promptSide/answerSide, not card.front/card.back: on a reversed presentation the face in
+        // front of the reader is the card's back, and its language is the deck's back language.
+        val side = (if (answerVisible) answerSide else promptSide) ?: return null
         val expected = side.text?.takeIf { it.isNotBlank() } ?: return null
         val languageTag = (if (answerVisible) s.backLang else s.frontLang) ?: return null
         return SpeakTarget(expected, languageTag)
@@ -414,12 +514,11 @@ class StudySessionViewModel(
     fun onSpeak() {
         val s = _state.value
         if (s !is StudySessionUiState.Reviewing || !s.listenEnabled) return
-        val card = queue.getOrNull(index) ?: return
         // answerVisible, not revealed: on a flipped-but-masked typing card the back is on screen
         // but hidden, and reading it aloud would hand over the answer the mask is withholding.
         // Parenthesized asides are dropped for the same reason the matchers drop them: "(formal)"
         // is a note about the card, and an engine handed it reads the note out as a word.
-        val text = (if (answerVisible) card.back.text else card.front.text)
+        val text = (if (answerVisible) answerSide?.text else promptSide?.text)
             ?.let(AnswerMatcher::stripParentheticals)
             ?.takeIf { it.isNotBlank() }
             ?: return
@@ -471,28 +570,33 @@ class StudySessionViewModel(
             _state.update { StudySessionUiState.Empty(deckTitle) }
             return
         }
-        val card = queue.getOrNull(index)
-        if (card == null) {
+        val presentation = current
+        if (presentation == null) {
             emitComplete()
             return
         }
+        val card = presentation.card
+        val reversed = presentation.reversed
+        val prompt = if (reversed) card.back else card.front
+        val answer = if (reversed) card.front else card.back
         viewModelScope.launch {
             // The repository owns this: the first-review intervals are a user setting, so labels
             // computed here would need a SettingsRepository of their own and could drift from what
             // grading actually writes.
-            val labels = if (isPreview) emptyMap() else srsRepository.previewIntervals(card)
+            val labels = intervalLabelsFor(presentation)
             val title = deckTitle.ifBlank { resolveDeckTitle(card.deckId) }.ifBlank { card.deckId }
             val deck = deckRepository.getLocal(card.deckId)
-            typePhase = typePhaseFor(card, deck)
+            typePhase = typePhaseFor(prompt, answer, deck)
             _state.update { StudySessionUiState.Reviewing(
                 deckTitle = title,
                 isPreview = isPreview,
                 goalCelebration = goalCelebration.takeIf { goalReached },
                 position = index + 1,
                 total = queue.size,
-                frontText = card.front.text.orEmpty(),
-                backText = card.back.text.orEmpty(),
-                backLabel = card.front.text,
+                reversed = reversed,
+                frontText = prompt.text.orEmpty(),
+                backText = answer.text.orEmpty(),
+                backLabel = prompt.text,
                 revealed = revealed,
                 intervals = labels,
                 listenEnabled = deck?.listenEnabled == true && deck.speechReady,
@@ -500,12 +604,15 @@ class StudySessionViewModel(
                 speakPhase = speakPhase,
                 typePhase = typePhase,
                 typedAnswer = typedAnswer,
-                frontLang = deck?.frontLang,
-                backLang = deck?.backLang,
+                // Swapped with the sides: the language belongs to the face, not to the slot, and a
+                // reversed Spanish card read with the front's English voice is the exact failure
+                // the declared pair exists to prevent.
+                frontLang = if (reversed) deck?.backLang else deck?.frontLang,
+                backLang = if (reversed) deck?.frontLang else deck?.backLang,
                 deckId = card.deckId,
                 authorPubky = deck?.authorPubky.orEmpty(),
-                frontImageRef = card.front.imageRef,
-                backImageRef = card.back.imageRef,
+                frontImageRef = prompt.imageRef,
+                backImageRef = answer.imageRef,
                 syncError = syncError,
             ) }
         }
@@ -521,13 +628,17 @@ class StudySessionViewModel(
     private fun emitComplete() {
         if (isPreview) {
             _state.update {
-                StudySessionUiState.Complete(reviewedCount, isPreview = true, isSignedIn = isSignedIn)
+                StudySessionUiState.Complete(
+                    gradedCardIds.size,
+                    isPreview = true,
+                    isSignedIn = isSignedIn,
+                )
             }
             return
         }
         // Queue exhausted — persist the session's reviews.
         srsRepository.flushAsync()
-        _state.update { StudySessionUiState.Complete(reviewedCount, syncError = syncError) }
+        _state.update { StudySessionUiState.Complete(gradedCardIds.size, syncError = syncError) }
         // After the state, not before: the congrats screen must not wait on a lookup, and
         // nextDueAt is cache-only but still suspending.
         viewModelScope.launch {
@@ -546,12 +657,32 @@ class StudySessionViewModel(
     }
 
     /**
-     * Where [card] should sit in the typing flow, given what the deck opted into.
+     * What the four grade buttons should say they will do.
+     *
+     * On the reverse half of a pair that is not simply "what would this grade schedule": the pair
+     * lands on the worse of its two directions, so every grade above the forward one would in
+     * fact write the forward one's interval. Capping the labels keeps the buttons honest, at the
+     * cost of two of them sometimes reading the same.
+     */
+    private suspend fun intervalLabelsFor(
+        presentation: StudyPresentation,
+    ): Map<SrsGrade, String> {
+        if (isPreview) return emptyMap()
+        val pair = pairs[presentation.card.id]?.takeIf { presentation.reversed }
+            ?: return srsRepository.previewIntervals(presentation.card)
+        return srsRepository.previewIntervalsFrom(presentation.card, pair.base, pair.forwardGrade)
+    }
+
+    /**
+     * Where the presented card should sit in the typing flow, given what the deck opted into.
      *
      * A card with nothing typable on the back has nothing to type against, and one with no prompt
      * at all has nothing to type *from*. Either way it silently falls back to the ordinary
      * tap-to-reveal — an image-only answer, which Anki imports produce, must never put up an
      * input with nothing to match.
+     *
+     * Asked about the sides as *presented*, so a reversed card is judged on the face the reader
+     * will actually be typing towards rather than on the card's own back.
      *
      * The back test is [AnswerMatcher.isTypable], deliberately not `isNotBlank()`. A back of
      * `"—"`, `"..."` or a lone emoji is not blank but normalizes to nothing, so no answer can
@@ -561,10 +692,10 @@ class StudySessionViewModel(
      * Otherwise the phase already in progress is kept; [TypePhase.Off] doubles as the fresh-card
      * state, so that is where a new card starts answering.
      */
-    private fun typePhaseFor(card: Card, deck: Deck?): TypePhase {
+    private fun typePhaseFor(prompt: CardSide, answer: CardSide, deck: Deck?): TypePhase {
         val eligible = deck?.typeEnabled == true &&
-            AnswerMatcher.isTypable(card.back.text.orEmpty()) &&
-            (!card.front.text.isNullOrBlank() || card.front.imageRef != null)
+            AnswerMatcher.isTypable(answer.text.orEmpty()) &&
+            (!prompt.text.isNullOrBlank() || prompt.imageRef != null)
         return when {
             !eligible -> TypePhase.Off
             typePhase is TypePhase.Off -> TypePhase.Answering()
@@ -623,6 +754,15 @@ sealed interface StudySessionUiState {
         val goalCelebration: GoalCelebration? = null,
         val position: Int,
         val total: Int,
+        /**
+         * This presentation is the card the other way round: its back is the prompt.
+         *
+         * Not a different card and not a different review state — the deck opted into being
+         * studied both ways, and the pair is graded once (see [StudySessionViewModel]). The screen
+         * says so, because a deck whose two sides look alike gives no other signal that the
+         * question changed direction.
+         */
+        val reversed: Boolean = false,
         val frontText: String,
         val backText: String,
         /**

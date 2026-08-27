@@ -121,15 +121,23 @@ fun SrsState?.review(
 /**
  * Short, human-readable interval each grade would produce, keyed by grade — used to label the
  * SRSRow buttons live per card (the design's "each shows the next interval").
+ *
+ * [cap] ceilings every grade at that one, for the reverse half of a card being studied both ways:
+ * the pair is scheduled from whichever direction went worse, so tapping Easy after a Hard on the
+ * way out really does schedule the Hard interval. Grades above the cap therefore show the cap's
+ * label, and two buttons reading the same is the honest outcome — a label promising more than its
+ * button delivers would not be. Null, the default, leaves every grade speaking for itself.
  */
 fun SrsState?.previewIntervals(
     cardId: String,
     now: Long,
     settings: StudySettings = StudySettings.Default,
+    cap: SrsGrade? = null,
 ): Map<SrsGrade, String> =
     SrsGrade.entries.associateWith { grade ->
-        val next = review(cardId, grade, now, settings)
-        if (grade == SrsGrade.Again) "<10m" else formatInterval(next.intervalDays)
+        val effective = if (cap == null) grade else minOf(grade, cap)
+        val next = review(cardId, effective, now, settings)
+        if (effective == SrsGrade.Again) "<10m" else formatInterval(next.intervalDays)
     }
 
 /**
