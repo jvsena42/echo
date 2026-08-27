@@ -107,8 +107,15 @@ private val SignInReason.bodyRes: Int
  * this is the one always-visible way in, and it has to earn its place rather than nag: it says
  * what an account *does*, scrolls away with the content, and is never modal.
  *
- * It wraps to two lines on a phone and sits on one on a tablet, which is why the CTA is a trailing
- * button in a [Row] rather than a third line under the text.
+ * The copy is deliberately a heading plus one short line. It used to spend three lines on the
+ * full pitch — keeping decks, tracking progress, following people, no email needed — which made
+ * a permanent banner the tallest thing above the decks the visitor came to browse. The pitch
+ * belongs on the screen behind "Get started", which states it in full; this only has to name the
+ * state and give one reason to leave it. Nothing sets `maxLines`, so a longer translation wraps
+ * rather than truncating.
+ *
+ * The text sits beside the CTA rather than above it, so the button is a trailing element in a
+ * [Row] rather than a third line under the text.
  */
 @Composable
 fun GuestSignInBanner(

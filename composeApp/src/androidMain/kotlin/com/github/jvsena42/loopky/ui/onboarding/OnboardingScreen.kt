@@ -89,6 +89,7 @@ fun OnboardingRoute(
     onRestore: () -> Unit,
     onUnregistered: (String) -> Unit,
     onExplore: () -> Unit = {},
+    autoExplore: Boolean = false,
 ) {
     val viewModel = koinViewModel<OnboardingViewModel>()
     OnboardingScreen(
@@ -98,6 +99,7 @@ fun OnboardingRoute(
         onRestore = onRestore,
         onUnregistered = onUnregistered,
         onExplore = onExplore,
+        autoExplore = autoExplore,
     )
 }
 
@@ -109,11 +111,31 @@ fun OnboardingScreen(
     onRestore: () -> Unit,
     onUnregistered: (String) -> Unit,
     onExplore: () -> Unit = {},
+    /**
+     * Hand a signed-out visitor straight to the browsing shell instead of drawing this screen.
+     *
+     * Set only for the cold start that lands here as the app's first destination: without an
+     * account there is nothing to restore, and the public half of Loopky is a better first
+     * impression than a wall of three unfamiliar words. Every *deliberate* arrival — the guest
+     * shell's "Get started", a sign-in prompt raised by a write, signing out — passes false, or
+     * the screen would bounce back to browsing the instant it was asked for.
+     */
+    autoExplore: Boolean = false,
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentOnNavigateHome by rememberUpdatedState(onNavigateHome)
     val currentOnUnregistered by rememberUpdatedState(onUnregistered)
+    val currentOnExplore by rememberUpdatedState(onExplore)
+
+    // Driven off the state rather than an effect on purpose. `effects` is a zero-replay SharedFlow,
+    // so anything emitted from the ViewModel's init can be dropped if this collector has not
+    // attached yet — and "no persisted session" is decided in exactly that window. Idle is the
+    // ViewModel's word for it, and a StateFlow cannot lose it.
+    val noSession = state is OnboardingUiState.Idle
+    LaunchedEffect(autoExplore, noSession) {
+        if (autoExplore && noSession) currentOnExplore()
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
@@ -152,9 +174,9 @@ fun OnboardingScreen(
         onSignInClick = viewModel::onSignInClick,
         onCreatePubky = onCreatePubky,
         onRestore = onRestore,
-        onExplore = onExplore,
         onOpenRingHere = viewModel::onOpenRingOnThisDevice,
         onCancelSignIn = viewModel::onCancelSignIn,
+        leaving = autoExplore && noSession,
     )
 }
 
@@ -166,9 +188,11 @@ private fun OnboardingContent(
     onRestore: () -> Unit,
     onOpenRingHere: () -> Unit,
     onCancelSignIn: () -> Unit,
-    onExplore: () -> Unit = {},
+    /** This screen is about to hand off to the browsing shell — hold the splash rather than
+     * flashing a call to action nobody is going to be given the chance to tap. */
+    leaving: Boolean = false,
 ) {
-    if (state is OnboardingUiState.Restoring) {
+    if (leaving || state is OnboardingUiState.Restoring) {
         SplashContent()
         return
     }
@@ -226,7 +250,6 @@ private fun OnboardingContent(
                     onSignInClick = { onSignInClick(handoff) },
                     onCreatePubky = onCreatePubky,
                     onRestore = onRestore,
-                    onExplore = onExplore,
                     onOpenRingHere = onOpenRingHere,
                     onCancelSignIn = onCancelSignIn,
                     // Scrollable, because this Row bounds the panel to the window height and a
@@ -257,7 +280,6 @@ private fun OnboardingContent(
                 onSignInClick = { onSignInClick(handoff) },
                 onCreatePubky = onCreatePubky,
                 onRestore = onRestore,
-                onExplore = onExplore,
                 onOpenRingHere = onOpenRingHere,
                 onCancelSignIn = onCancelSignIn,
                 modifier = Modifier.contentPane(PaneWidth.Focused),
@@ -329,7 +351,6 @@ private fun SignInPanel(
     onSignInClick: () -> Unit,
     onCreatePubky: () -> Unit,
     onRestore: () -> Unit,
-    onExplore: () -> Unit,
     onOpenRingHere: () -> Unit,
     onCancelSignIn: () -> Unit,
     modifier: Modifier = Modifier,
@@ -354,7 +375,6 @@ private fun SignInPanel(
                 onSignInClick = onSignInClick,
                 onCreatePubky = onCreatePubky,
                 onRestore = onRestore,
-                onExplore = onExplore,
             )
             // Under the calls to action: the gate has to be visible before the buttons are usable,
             // but it is fine print rather than a step, and putting it between the hero and the
@@ -490,7 +510,6 @@ private fun CtaBlock(
     onSignInClick: () -> Unit,
     onCreatePubky: () -> Unit,
     onRestore: () -> Unit,
-    onExplore: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
     Column(
@@ -587,26 +606,10 @@ private fun CtaBlock(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        // The one way off this screen that is not a way *in*, and the only control here the
-        // consent tick deliberately does not gate: browsing creates no account and writes nothing,
-        // so there is nothing for the policy to govern — gating it would leave a declined visitor
-        // with a screen where nothing at all works.
-        //
-        // Muted and last, under the three real doors, because it is a detour and not the
-        // recommendation. It is still a button rather than a line of prose: for someone who has
-        // never heard of Pubky, the three options above are three unfamiliar words, and this is
-        // the one that lets them find out what the app is before deciding.
-        TextButton(
-            onClick = onExplore,
-            modifier = Modifier.testTag("onboarding_explore"),
-            colors = ButtonDefaults.textButtonColors(contentColor = colors.foregroundMuted),
-        ) {
-            Text(
-                text = stringResource(R.string.onboarding_explore),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
+        // There is deliberately no "Look around first" here any more. Browsing is not one option
+        // among four on this screen — it is where a signed-out launch lands in the first place,
+        // and this screen is what the visitor asks for once they want an account. Offering the
+        // detour again on the way in would point back at the screen they came from.
     }
 }
 
@@ -753,7 +756,6 @@ private fun OnboardingContentPreview() {
             onSignInClick = {},
             onCreatePubky = {},
             onRestore = {},
-            onExplore = {},
             onOpenRingHere = {},
             onCancelSignIn = {},
         )

@@ -3,7 +3,10 @@ package com.github.jvsena42.loopky.ui.nav
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -63,6 +66,22 @@ internal fun LoopkyNavHost(
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val currentPendingHandled by rememberUpdatedState(onPendingOpenHandled)
 
+    /**
+     * Whether the launch has already been routed off the onboarding screen.
+     *
+     * Onboarding is the start destination because the persisted session can only be read
+     * asynchronously, so every launch lands here first and then steps aside — to the tabbed app
+     * if a session came back, to the browsing shell if none did. This flips as soon as either
+     * happens, and it is what tells the *second* and later arrivals apart from the first: those
+     * are all deliberate (the guest banner, a sign-in prompt raised by a write, signing out), and
+     * a screen that steps aside when it is asked for is a screen that cannot be reached.
+     *
+     * Held here rather than as a nav argument on the route so the existing
+     * `navigateTo(Routes.ONBOARDING)` call sites keep their duplicate-destination guard, which
+     * compares against the bare route pattern.
+     */
+    var launchRouted by rememberSaveable { mutableStateOf(false) }
+
     LaunchedEffect(pendingOpen, currentRoute) {
         if (pendingOpen == null || currentRoute == null || currentRoute == Routes.ONBOARDING) {
             return@LaunchedEffect
@@ -88,10 +107,21 @@ internal fun LoopkyNavHost(
         composable(Routes.ONBOARDING) {
             OnboardingRoute(
                 // Browsing, not an account. Discover, deck detail, profiles and a deck's cards
-                // are all public records, so a visitor can be shown the app before being asked
-                // for the most expensive thing on this screen. Every write past that point
-                // raises a sign-in prompt from the action itself.
-                onExplore = { navController.navigateTo(Routes.main(guest = true)) },
+                // are all public records, so a visitor is shown the app before being asked for
+                // the most expensive thing on this screen. Every write past that point raises a
+                // sign-in prompt from the action itself.
+                //
+                // Automatic on the launch that finds no session, which is the only time this
+                // screen is reached without being asked for — see [launchRouted]. The onboarding
+                // entry is popped rather than left underneath: it would hand off again the moment
+                // a back gesture returned to it.
+                autoExplore = !launchRouted,
+                onExplore = {
+                    launchRouted = true
+                    navController.navigateTo(Routes.main(guest = true)) {
+                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    }
+                },
                 onCreatePubky = { navController.navigateTo(Routes.signupStart()) },
                 onRestore = { navController.navigateTo(Routes.RESTORE_START) },
                 // Ring holds this key, so Loopky cannot register it — the screen offers the two
@@ -99,7 +129,14 @@ internal fun LoopkyNavHost(
                 onUnregistered = { pubky ->
                     navController.navigateTo(Routes.unregisteredKey(pubky, loopkyHoldsKey = false))
                 },
-                onNavigateHome = { navController.goHomeSignedIn() },
+                // Also marks the launch routed, so a later sign-out lands on this screen rather
+                // than being handed off to browsing: it is the one arrival here that follows an
+                // explicit "sign me out", and answering it with the browsing shell would leave no
+                // way back to an account short of finding the banner.
+                onNavigateHome = {
+                    launchRouted = true
+                    navController.goHomeSignedIn()
+                },
             )
         }
         composable(

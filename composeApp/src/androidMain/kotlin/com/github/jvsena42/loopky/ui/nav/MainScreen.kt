@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun MainScreen(
     /**
-     * Nobody is signed in — the visitor came in through onboarding's "Look around first".
+     * Nobody is signed in — this is where a launch with no session lands, ahead of onboarding.
      *
      * Discover is the whole shell in that case, with no tab bar at all. Today, Decks and Profile
      * are each a view onto a library, a review queue and an identity that do not exist yet, so a
