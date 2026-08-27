@@ -140,6 +140,24 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   would accept `"10"` back and stop testing anything. And a form the word list lacks
   (`"ventotto"`, `"einundzwanzig"`, CJK numerals) is left as written — a miss, never a wrong fold.
   Adding a language means adding a table, not a grammar.
+- **A reverse card is a second *presentation*, never a second card record — and the pair is graded
+  once.** `Deck.reverseEnabled` is the fourth study opt-in (off by default, ungated by the language
+  pair, since swapping two sides has no engine to substitute a locale into). It leaves the card list
+  alone: `StudySessionViewModel` expands it into `StudyPresentation`s and asks each card again,
+  reversed, about five presentations later. Four things not to undo. There is **no reverse due
+  date** — review state is keyed by `card_id` alone, so scheduling the directions apart means a
+  direction-aware key across `SrsStateDto`, `PendingReview` and `StateKey`, and a stored "+1 minute"
+  is overdue forever the moment the app closes; the pairing is session-local and persisted nowhere.
+  Both directions share **one** review state, so the pair lands on its **weaker** direction: the
+  forward grade is written as it happens (an abandoned session keeps it), and a worse reverse
+  re-schedules through `SrsRepository.reviewFrom` **from where the pair started** — never on top of
+  the forward result, which would compound two reviews out of one — while `reviewFrom` skips
+  `recordStudied` because one card studied twice is one review. Anything asking "which side is
+  this?" must go through `promptSide`/`answerSide`, languages included: reading `card.front`/`.back`
+  directly is how a reversed card gets typed-checked against the side it just showed you. And the
+  gap **shrinks to the daily goal** (`reverseGapFor`) — that is placement, not the capping §8.6
+  forbids, because the queue is still every card. Read Architecture.md §8.7 before touching any of
+  it.
 - **Paste-to-Import is the v1 primary import flow.** The implemented spine is `PasteImportViewModel` (parse + live preview) → `PublishDeckViewModel` (commit to Pubky). Every other import source (AI, OCR, URL) listed in spec §14 must reuse this same spine. Don't build parallel commit flows.
 - **Parser rules are prescriptive.** The paste parser (on `ImportRepository`) must follow the exact rule order in spec §6 and the edge-case table in spec §9. Use them as the test matrix.
 - **No use-case layer.** Don't introduce `*UseCase` interfaces or a `domain/usecase/` package. If a piece of logic doesn't fit any existing repo, extend the most relevant repo or add a new one — keep the surface area flat.

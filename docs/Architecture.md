@@ -918,6 +918,63 @@ second half, setting Easy to 30 days would mark a brand-new card fully mastered 
 i.e. a progress bar you move by editing a preference. "Fully mastered" is the exact
 every-card-is-mature test, never `share == 1f`: summing thirds of 21 lands on 0.99999994.
 
+### 8.7 Studying a deck both ways
+
+`Deck.reverseEnabled` (#46 §2). A fourth study opt-in beside Listen, Speak and Type, off by
+default, ungated by the language pair — swapping two sides has no engine to substitute a locale
+into. What it changes is the *session*, and the constraint that shapes all of it is below.
+
+**One card, one review state, two presentations.** A reverse is never a second card record.
+Importing one would double a deck's storage and chunk count for content already present and leave
+two records that drift apart the moment either is edited. So the card list is unchanged and
+`StudySessionViewModel` expands it into `StudyPresentation`s, each naming a card and which way
+round it is asked.
+
+**There is no reverse due date, and there cannot be a cheap one.** Review state is keyed by
+`card_id` alone inside the `srs/{author}/{deckId}/{n}.json` chunks (§8.0), so scheduling the two
+directions apart would mean a direction-aware key across `SrsStateDto`, `PendingReview` **and**
+`SrsRepositoryImpl.StateKey`. A stored "show the reverse in a minute" is also wrong on its own
+terms: close the app before it comes round and it is overdue forever. "Shortly after" is therefore
+a position in the queue — roughly five presentations behind the card — and nothing about the
+pairing is persisted.
+
+**The pair is graded once, from its weaker direction.** Both directions share the one state, so
+something has to decide what the pair is worth, and "a card is only as learned as its weaker
+direction" is the same rule an Anki import takes for a note with two scheduled rows. Mechanically:
+
+- the forward half is written as it happens, so a session abandoned before the reverse keeps it —
+  this is why the grade is not deferred;
+- a reverse graded **worse** re-schedules the card through `SrsRepository.reviewFrom`, from the
+  state the pair *started* at. Applying it on top of the forward result would compound two reviews
+  out of one;
+- a reverse graded equal or better writes nothing; the forward result already stands;
+- `reviewFrom` deliberately skips `recordStudied`. The pair is one review of one card, and counting
+  it twice would double the day's tally and mis-classify the card as new a second time.
+
+`previewIntervals` takes a matching `cap`, so on the reverse half the four buttons say what they
+will actually schedule. Two of them reading the same interval is the honest outcome; a label
+promising more than its button delivers is not.
+
+**Everything that asks "which side is this?" has to ask the presentation.** `promptSide` /
+`answerSide` on the ViewModel exist for that, and the language tags swap with them. Reading
+`card.front` / `card.back` directly is how a reversed card gets typed-checked against the side it
+just showed you, or read aloud in the wrong language — the exact failure `speechReady` exists to
+prevent, arriving by another route.
+
+**The gap shrinks to the daily goal, and that is not the capping §8.6 forbids.** At a
+`newCardsPerDayGoal` of 2, a five-card gap puts every reverse past the point the reader stops, so
+they drill one direction only. `reverseGapFor` clamps it. The goal decides **placement**; the queue
+is still every card, uncapped, and nothing is withheld.
+
+**Cards that cannot be asked backwards are skipped silently** (`Card.isReversible` — both sides
+must carry something), the same fallback typing takes for a back no answer could match. Session
+length therefore is not always double, and `position` stays unique per presentation, which the
+study screen's advance transition keys on.
+
+An `.apkg` whose dominant note type has two or more templates arrives with the opt-in on — a
+suggestion at the commit screen, like the title and tags, not a schema change. See §7.4 for how
+the collection is read.
+
 ## 9. Cross-cutting concerns
 
 ### 9.1 Dependency injection
