@@ -37,6 +37,7 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 fun QrCode(
     content: String,
     modifier: Modifier = Modifier,
+    contentDescription: String = stringResource(R.string.onboarding_qr_content_description),
     size: Dp = DEFAULT_SIZE,
     foreground: Color = Color.Black,
     background: Color = Color.White,
@@ -48,7 +49,7 @@ fun QrCode(
 
     Image(
         bitmap = bitmap,
-        contentDescription = stringResource(R.string.onboarding_qr_content_description),
+        contentDescription = contentDescription,
         modifier = modifier.size(size),
         // The bitmap is already exactly `sizePx` square, so this scales by 1 and keeps the
         // modules on pixel boundaries.

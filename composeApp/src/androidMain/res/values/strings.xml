@@ -496,6 +496,7 @@
 
     <string name="signup_lightning_title">Scan or tap to pay.</string>
     <string name="signup_lightning_amount">Pay ₿ %1$d to continue.</string>
+    <string name="signup_lightning_qr_content_description">QR code containing this Lightning invoice</string>
     <string name="signup_lightning_open_wallet">Open in wallet</string>
     <string name="signup_lightning_copy">Copy invoice</string>
     <string name="signup_lightning_copied">Invoice copied</string>

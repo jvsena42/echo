@@ -21,10 +21,9 @@ import kotlinx.coroutines.launch
 /**
  * Pay a small Lightning invoice for a signup token.
  *
- * No QR is rendered. On a phone the wallet is on the same device, so the invoice is offered as
- * copyable text and a `lightning:` link that opens whatever wallet is installed — which is both
- * fewer taps than scanning your own screen and one less dependency. Paying from a second device
- * would want a QR, and that can follow.
+ * The invoice is offered three ways, because the wallet may not be on this device: as a QR to
+ * scan from another phone, as copyable text, and as a `lightning:` link that opens whatever wallet
+ * is installed here — the last being fewer taps than scanning your own screen when it applies.
  */
 class LightningVerificationViewModel(
     private val signupRepository: SignupRepository,
