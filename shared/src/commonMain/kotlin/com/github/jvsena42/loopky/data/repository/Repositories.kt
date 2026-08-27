@@ -528,6 +528,21 @@ interface DeckRepository {
      */
     suspend fun listFollowed(): List<Deck>
 
+    /**
+     * The decks [ownerPubky] follows, read off their own `subscriptions/` records.
+     *
+     * Subscriptions are public records like everything else Loopky writes, so a visitor's profile
+     * can show what that person is studying and not only what they wrote — which on a young
+     * network is most of what anybody has. Same drop rule as [listFollowed]: a subscription whose
+     * deck no longer resolves is skipped rather than failing the call, but a set where *nothing*
+     * resolved still throws.
+     *
+     * Delegates to [listFollowed] for the signed-in user, so their own profile keeps the session
+     * subscription cache — and a follow made a moment ago that the homeserver listing has not
+     * caught up with.
+     */
+    suspend fun listFollowedBy(ownerPubky: String): List<Deck>
+
     /** True when [deckId] is followed and its author has published changes since you last opened it. */
     suspend fun hasUpdate(deckId: String): Boolean
 
@@ -954,8 +969,12 @@ interface DiscoveryRepository {
      * Accounts that announced themselves as Loopky users, excluding the signed-in one — the
      * suggested-people source for someone who follows nobody.
      *
-     * Verified the same way: kept only if the account self-tagged (tagger == subject) and its
-     * profile resolves.
+     * Verified the same way: kept only if the account self-tagged (tagger == subject). A profile
+     * that does not resolve downgrades the entry to a bare pubky rather than dropping it — the
+     * self-tag is the proof, and `pubky.app/profile.json` is a record signing up to Loopky never
+     * had to write. Requiring it kept 4 of 10 staging candidates and threw away exactly the
+     * accounts this directory exists for: an author who published a deck is picked up again by
+     * [suggestedPeople], while someone with no decks has no second way in.
      *
      * Candidates come from three indexer reads, unioned, because no single one of them sees every
      * Loopky account (#134):
@@ -1017,9 +1036,8 @@ interface DiscoveryRepository {
      * second browse.
      *
      * The seed authors are not redundant with the directory. [loopkyUsers] keeps only accounts
-     * that self-tagged with [ReservedTags.USER] *and* resolve a profile, so a published author who
-     * never got the self-tag written — or whose profile is missing — is dropped there and picked
-     * up here, under a bare pubky.
+     * that self-tagged with [ReservedTags.USER], so a published author who never got the self-tag
+     * written is dropped there and picked up here, under a bare pubky.
      *
      * A directory entry has only its own claim behind it, so it still has to verify. A deck author
      * is already corroborated — global browse fetched and parsed their manifest — so an author with

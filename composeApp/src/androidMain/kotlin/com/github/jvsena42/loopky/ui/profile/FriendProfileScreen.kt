@@ -64,6 +64,7 @@ import com.github.jvsena42.loopky.ui.components.SignInPromptDialog
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.layout.PaneWidth
 import com.github.jvsena42.loopky.ui.layout.contentPane
+import com.github.jvsena42.loopky.ui.layout.deckGridColumns
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
 import com.github.jvsena42.loopky.ui.util.openUrl
@@ -76,7 +77,9 @@ import org.koin.core.parameter.parametersOf
 fun FriendProfileRoute(
     pubky: String,
     onBack: () -> Unit = {},
-    onOpenDeck: (String) -> Unit = {},
+    onOpenDeck: (authorPubky: String, deckId: String) -> Unit = { _, _ -> },
+    /** Another person's profile, reached from the author caption on a deck they follow. */
+    onOpenProfile: (pubky: String) -> Unit = {},
     onOpenFollows: (pubky: String, source: FollowSource) -> Unit = { _, _ -> },
     /** Leave for the sign-in flow, when a signed-out visitor reaches for Follow. */
     onSignIn: () -> Unit = {},
@@ -85,6 +88,7 @@ fun FriendProfileRoute(
 
     val context = LocalContext.current
     val currentOpenDeck by rememberUpdatedState(onOpenDeck)
+    val currentOpenProfile by rememberUpdatedState(onOpenProfile)
     val currentOpenFollows by rememberUpdatedState(onOpenFollows)
     val clipboard = LocalClipboardManager.current
 
@@ -92,7 +96,8 @@ fun FriendProfileRoute(
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 is FriendProfileEffect.CopyToClipboard -> clipboard.setText(AnnotatedString(effect.text))
-                is FriendProfileEffect.OpenDeck -> currentOpenDeck(effect.deckId)
+                is FriendProfileEffect.OpenDeck -> currentOpenDeck(effect.authorPubky, effect.deckId)
+                is FriendProfileEffect.OpenProfile -> currentOpenProfile(effect.pubky)
                 is FriendProfileEffect.OpenUrl -> context.openUrl(effect.url)
                 is FriendProfileEffect.ShareProfile -> context.shareText(
                     // Named, not a bare key: a recipient sees who it is before tapping.
@@ -132,6 +137,7 @@ fun FriendProfileRoute(
         onOpenOnPubkyApp = viewModel::onOpenOnPubkyApp,
         onOpenFollows = { source -> currentOpenFollows(state.identity.pubky, source) },
         onOpenDeck = viewModel::onOpenDeck,
+        onOpenAuthor = viewModel::onOpenAuthor,
     )
 }
 
@@ -145,7 +151,8 @@ private fun FriendProfileScreen(
     onShare: () -> Unit,
     onOpenOnPubkyApp: () -> Unit,
     onOpenFollows: (FollowSource) -> Unit,
-    onOpenDeck: (String) -> Unit,
+    onOpenDeck: (authorPubky: String, deckId: String) -> Unit,
+    onOpenAuthor: (String) -> Unit,
 ) {
     val colors = LoopkyTheme.colors
 
@@ -290,23 +297,31 @@ private fun FriendProfileScreen(
                 ),
             )
 
-            // Decks
+            // One grid, holding what they wrote and what they follow. The author caption under
+            // each tile is what separates the two, so a second heading would only repeat it.
             Text(
-                text = pluralStringResource(R.plurals.public_decks_count, state.decks.size, state.decks.size),
+                text = pluralStringResource(R.plurals.profile_decks_count, state.decks.size, state.decks.size),
                 color = colors.foregroundPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.W700,
             )
             if (state.decks.isEmpty()) {
                 Text(
-                    text = stringResource(R.string.friend_profile_no_public_decks),
+                    text = stringResource(R.string.friend_profile_no_decks),
                     color = colors.foregroundMuted,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
                 )
             } else {
-                DeckGrid(decks = state.decks, onOpenDeck = onOpenDeck)
+                DeckGrid(
+                    decks = state.decks,
+                    // Their own decks are captioned with the profile already on screen, so only
+                    // a followed deck's author is somewhere to go.
+                    isOwnerOfProfile = { it == state.identity.pubky },
+                    onOpenDeck = onOpenDeck,
+                    onOpenAuthor = onOpenAuthor,
+                )
             }
         }
     }
@@ -379,11 +394,20 @@ private fun ProfileActionRow(
     }
 }
 
+/**
+ * The column count comes from the window, never from a fixed 2 — this grid sits inside a scrolling
+ * Column, so a hardcoded pair produced 600dp-wide tiles on a landscape tablet.
+ */
 @Composable
-private fun DeckGrid(decks: List<FriendDeck>, onOpenDeck: (String) -> Unit) {
-    val rows = decks.chunked(2)
+private fun DeckGrid(
+    decks: List<FriendDeck>,
+    isOwnerOfProfile: (String) -> Boolean,
+    onOpenDeck: (authorPubky: String, deckId: String) -> Unit,
+    onOpenAuthor: (String) -> Unit,
+) {
+    val columns = deckGridColumns()
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        rows.forEach { row ->
+        decks.chunked(columns).forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -396,14 +420,25 @@ private fun DeckGrid(decks: List<FriendDeck>, onOpenDeck: (String) -> Unit) {
                         cardCount = deck.cardCount,
                         coverEmoji = deck.coverEmoji,
                         coverImage = deck.coverImage,
-                        authorLabel = deck.tags.firstOrNull()?.let { "#$it" } ?: "",
-                        onClick = { onOpenDeck(deck.id) },
+                        // The author, not a tag: on a grid mixing their decks with ones they
+                        // follow, whose deck it is is the caption that carries information.
+                        authorLabel = deck.author.label(),
+                        onClick = { onOpenDeck(deck.authorPubky, deck.id) },
+                        // Null leaves the caption inert rather than a tap that reopens the
+                        // screen you are on — DeckTile only makes it clickable when given one.
+                        onAuthorClick = if (isOwnerOfProfile(deck.authorPubky)) {
+                            null
+                        } else {
+                            { onOpenAuthor(deck.authorPubky) }
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("friend_profile_deck_tile"),
                     )
                 }
-                if (row.size == 1) {
+                // Keeps the last row's tiles the width of every other row's rather than letting
+                // one or two stretch across the pane.
+                repeat(columns - row.size) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
             }
@@ -424,7 +459,8 @@ private fun FriendProfileScreenPreview() {
             onShare = {},
             onOpenOnPubkyApp = {},
             onOpenFollows = {},
-            onOpenDeck = {},
+            onOpenDeck = { _, _ -> },
+            onOpenAuthor = {},
         )
     }
 }
@@ -442,7 +478,8 @@ private fun FriendProfileScreenFollowingPreview() {
             onShare = {},
             onOpenOnPubkyApp = {},
             onOpenFollows = {},
-            onOpenDeck = {},
+            onOpenDeck = { _, _ -> },
+            onOpenAuthor = {},
         )
     }
 }
@@ -460,7 +497,8 @@ private fun FriendProfileScreenSelfPreview() {
             onShare = {},
             onOpenOnPubkyApp = {},
             onOpenFollows = {},
-            onOpenDeck = {},
+            onOpenDeck = { _, _ -> },
+            onOpenAuthor = {},
         )
     }
 }
@@ -474,6 +512,7 @@ private fun previewState(isFollowing: Boolean) = FriendProfileUiState(
         bio = "Compiler pioneer. Decks on debugging and history.",
     ),
     isFollowing = isFollowing,
+    // Two of hers and one she follows, in the one grid — the captions are what tell them apart.
     decks = listOf(
         FriendDeck(
             id = "1",
@@ -481,7 +520,7 @@ private fun previewState(isFollowing: Boolean) = FriendProfileUiState(
             title = "Debugging 101",
             cardCount = 18,
             coverEmoji = "🐛",
-            tags = listOf("engineering"),
+            author = PubkyIdentity("grace1xqz9", "Grace Hopper", null, null),
         ),
         FriendDeck(
             id = "2",
@@ -489,7 +528,15 @@ private fun previewState(isFollowing: Boolean) = FriendProfileUiState(
             title = "Naval history",
             cardCount = 30,
             coverEmoji = "⚓",
-            tags = listOf("history"),
+            author = PubkyIdentity("grace1xqz9", "Grace Hopper", null, null),
+        ),
+        FriendDeck(
+            id = "3",
+            authorPubky = "ada9qwe4",
+            title = "Spanish verbs",
+            cardCount = 120,
+            coverEmoji = "🇪🇸",
+            author = PubkyIdentity("ada9qwe4", "Ada Lovelace", null, null),
         ),
     ),
     deckCount = 2,
