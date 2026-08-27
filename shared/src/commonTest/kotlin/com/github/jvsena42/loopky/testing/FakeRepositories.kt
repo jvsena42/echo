@@ -433,6 +433,18 @@ class FakeDeckRepository : DeckRepository {
         return followedDecks.values.toList()
     }
 
+    /**
+     * What each pubky follows, for [listFollowedBy]. Kept apart from [followedDecks] — that one is
+     * the signed-in user's, and a test needs to give a stranger a different set.
+     */
+    val followedDecksByOwner = mutableMapOf<String, List<Deck>>()
+    var listFollowedByError: Throwable? = null
+
+    override suspend fun listFollowedBy(ownerPubky: String): List<Deck> {
+        listFollowedByError?.let { throw it }
+        return followedDecksByOwner[ownerPubky] ?: emptyList()
+    }
+
     override suspend fun hasUpdate(deckId: String): Boolean = deckId in updatedDecks
 
     override suspend fun markSeen(deck: Deck) {

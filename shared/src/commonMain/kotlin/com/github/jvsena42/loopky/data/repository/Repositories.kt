@@ -528,6 +528,21 @@ interface DeckRepository {
      */
     suspend fun listFollowed(): List<Deck>
 
+    /**
+     * The decks [ownerPubky] follows, read off their own `subscriptions/` records.
+     *
+     * Subscriptions are public records like everything else Loopky writes, so a visitor's profile
+     * can show what that person is studying and not only what they wrote — which on a young
+     * network is most of what anybody has. Same drop rule as [listFollowed]: a subscription whose
+     * deck no longer resolves is skipped rather than failing the call, but a set where *nothing*
+     * resolved still throws.
+     *
+     * Delegates to [listFollowed] for the signed-in user, so their own profile keeps the session
+     * subscription cache — and a follow made a moment ago that the homeserver listing has not
+     * caught up with.
+     */
+    suspend fun listFollowedBy(ownerPubky: String): List<Deck>
+
     /** True when [deckId] is followed and its author has published changes since you last opened it. */
     suspend fun hasUpdate(deckId: String): Boolean
 

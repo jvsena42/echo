@@ -859,8 +859,25 @@ class DeckRepositoryImpl(
     override suspend fun isFollowingDeck(deckId: String): Boolean =
         loadSubscriptions().containsKey(deckId)
 
-    override suspend fun listFollowed(): List<Deck> {
-        val subs = loadSubscriptions().values.toList()
+    override suspend fun listFollowed(): List<Deck> =
+        resolveSubscriptions(loadSubscriptions().values.toList())
+
+    override suspend fun listFollowedBy(ownerPubky: String): List<Deck> {
+        // The signed-in user's own answer comes from the session cache, which also holds a follow
+        // made a moment ago — reading their homeserver here would sometimes be a step behind it.
+        if (ownerPubky == session.current()?.identity?.pubky) return listFollowed()
+        return resolveSubscriptions(readSubscriptions(ownerPubky))
+    }
+
+    /**
+     * Fetch the deck each of [subs] points at, dropping the ones that have gone.
+     *
+     * A deck its author deleted is gone, not a failure — the subscription simply outlived it.
+     * Anything else may be transient, so one unreachable deck must not hide the rest while a set
+     * where nothing at all could be read still throws: that is a connectivity failure, not an
+     * empty library — the same rule [listByAuthor] follows, and for the same reason.
+     */
+    private suspend fun resolveSubscriptions(subs: List<SubscriptionDto>): List<Deck> {
         if (subs.isEmpty()) return emptyList()
 
         val results = subs.mapConcurrently { sub ->
@@ -872,15 +889,10 @@ class DeckRepositoryImpl(
             result
                 .onSuccess { decks.add(it) }
                 .onFailure { err ->
-                    Log.e(TAG, "listFollowed: ${sub.deck_id} unreadable — ${err.message}", err)
-                    // A deck its author deleted is gone, not a failure — the subscription simply
-                    // outlived it. Anything else may be transient, so it still counts as a failure.
+                    Log.e(TAG, "resolveSubscriptions: ${sub.deck_id} unreadable — ${err.message}", err)
                     if (firstFailure == null && !err.isNotFound()) firstFailure = err
                 }
         }
-        // One unreachable deck must not hide the rest, but a set of subscriptions where nothing at
-        // all could be read is a connectivity failure, not an empty library — same rule as
-        // listByAuthor, and for the same reason.
         if (decks.isEmpty() && firstFailure != null) throw requireNotNull(firstFailure)
         return decks
     }
@@ -992,23 +1004,35 @@ class DeckRepositoryImpl(
         }?.let { return it.toMap() }
         val owner = session.current()?.identity?.pubky ?: return emptyMap()
 
-        val loaded = mutableMapOf<String, SubscriptionDto>()
-        // Deep, and it must stay deep: subscriptions nest as `subscriptions/{author}/{deckId}.json`,
-        // so a shallow listing here would return author directories rather than records.
-        for (path in pubky.listAllEntriesOrEmpty(PubkyPaths.subscriptionsRoot(owner))) {
-            val json = pubky.get(path).getOrElse {
-                Log.e(TAG, "loadSubscriptions: $path unreadable — ${it.message}", it)
-                continue
-            }
-            runCatching { loopkyJson.decodeFromString<SubscriptionDto>(json) }
-                .onSuccess { loaded[it.deck_id] = it }
-                .onFailure { Log.e(TAG, "loadSubscriptions: $path is not a subscription", it) }
-        }
+        val loaded = readSubscriptions(owner).associateByTo(mutableMapOf()) { it.deck_id }
         subscriptionLock.withLock {
             subscriptions = loaded
             subscriptionAccount.mark()
         }
         return loaded.toMap()
+    }
+
+    /**
+     * [owner]'s subscription records straight off their homeserver, uncached.
+     *
+     * Uncached on purpose: the session cache is the *signed-in* account's, and this also answers
+     * for strangers ([listFollowedBy]). A record that will not read or parse is skipped — one
+     * corrupt entry is not a reason to report that somebody follows nothing.
+     */
+    private suspend fun readSubscriptions(owner: String): List<SubscriptionDto> {
+        val loaded = mutableListOf<SubscriptionDto>()
+        // Deep, and it must stay deep: subscriptions nest as `subscriptions/{author}/{deckId}.json`,
+        // so a shallow listing here would return author directories rather than records.
+        for (path in pubky.listAllEntriesOrEmpty(PubkyPaths.subscriptionsRoot(owner))) {
+            val json = pubky.get(path).getOrElse {
+                Log.e(TAG, "readSubscriptions: $path unreadable — ${it.message}", it)
+                continue
+            }
+            runCatching { loopkyJson.decodeFromString<SubscriptionDto>(json) }
+                .onSuccess { loaded.add(it) }
+                .onFailure { Log.e(TAG, "readSubscriptions: $path is not a subscription", it) }
+        }
+        return loaded
     }
 
     /**
