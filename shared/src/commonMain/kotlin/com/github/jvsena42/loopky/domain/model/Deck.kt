@@ -40,6 +40,20 @@ data class Deck(
      * see that property.
      */
     val typeEnabled: Boolean = false,
+    /**
+     * Opt-in: study every card in both directions, back-to-front as well as front-to-back.
+     *
+     * Not a second set of cards, and it must never become one — a reverse is a way of *studying* a
+     * card, not another card. Both directions therefore share the card's one review state, which
+     * is why the pair is graded once, from whichever direction went worse (see
+     * `StudySessionViewModel`).
+     *
+     * Defaults **off**, like [typeEnabled] and for the same reason: a manifest written before the
+     * field says nothing about its author's intent, and silently doubling how long a deck takes to
+     * get through is a bigger surprise than a missing toggle. Deliberately outside [speechReady] —
+     * swapping two sides needs no declared language.
+     */
+    val reverseEnabled: Boolean = false,
     /** BCP-47 tag for the card front's language, e.g. `"en-US"`. See [speechReady]. */
     val frontLang: String? = null,
     /** BCP-47 tag for the card back's language, e.g. `"es-ES"`. See [speechReady]. */

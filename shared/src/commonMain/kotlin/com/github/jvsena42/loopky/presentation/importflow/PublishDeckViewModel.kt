@@ -119,6 +119,11 @@ class PublishDeckViewModel(
         _state.update { it.copy(typeEnabled = !it.typeEnabled) }
     }
 
+    /** Nor does asking the card backwards — swapping two sides needs no declared language. */
+    fun onToggleReverse() {
+        _state.update { it.copy(reverseEnabled = !it.reverseEnabled) }
+    }
+
     /**
      * Picking a language also labels the deck with it — `"spanish"`, an ordinary tag the author
      * can still remove — so a stranger learning that language can find the deck. The label the
@@ -307,6 +312,7 @@ class PublishDeckViewModel(
         listenEnabled = listenEnabled,
         speakEnabled = speakEnabled,
         typeEnabled = typeEnabled,
+        reverseEnabled = reverseEnabled,
         frontLang = frontLang,
         backLang = backLang,
     )
@@ -646,6 +652,12 @@ data class PublishDeckUiState(
     val speakEnabled: Boolean = false,
     /** Off until asked for as well, though for its own reason — see `Deck.typeEnabled`. */
     val typeEnabled: Boolean = false,
+    /**
+     * Prefilled from the import when the source said so — an `.apkg` built on a reversed note type
+     * arrives with this on. A suggestion like the title and tags beside it, not a decision: the
+     * toggle is right there to turn off.
+     */
+    val reverseEnabled: Boolean = false,
     /** BCP-47 tags for the two card sides; required once either speech opt-in above is on. */
     val frontLang: String? = null,
     val backLang: String? = null,

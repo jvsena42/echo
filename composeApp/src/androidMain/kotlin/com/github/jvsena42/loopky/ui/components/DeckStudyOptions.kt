@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -46,8 +47,8 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import java.util.Locale
 
 /**
- * The deck's study opt-ins — Listen, Speak and Type — and, when a *speech* one is on, the language
- * of each card side.
+ * The deck's study opt-ins — Listen, Speak, Type and both directions — and, when a *speech* one is
+ * on, the language of each card side.
  *
  * Shared by the publish flow and the deck editor so an already-published deck can be given the
  * pair it was written without — before this, the opt-ins were set at publish and never editable.
@@ -57,12 +58,14 @@ fun DeckStudyOptions(
     listenEnabled: Boolean,
     speakEnabled: Boolean,
     typeEnabled: Boolean,
+    reverseEnabled: Boolean,
     frontLang: String?,
     backLang: String?,
     availableLanguages: List<String>,
     onToggleListen: () -> Unit,
     onToggleSpeak: () -> Unit,
     onToggleType: () -> Unit,
+    onToggleReverse: () -> Unit,
     onFrontLangSelected: (String) -> Unit,
     onBackLangSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -107,6 +110,18 @@ fun DeckStudyOptions(
             icon = Icons.Default.Keyboard,
             iconColor = colors.accentPrimary,
             iconBackground = colors.accentPrimarySoft,
+        )
+        // Above the languages for the same reason Type is: asking a card backwards swaps two sides
+        // and needs no declared pair, so it must not read as something the pickers gate.
+        OptionToggleRow(
+            title = stringResource(R.string.publish_reverse_title),
+            subtitle = stringResource(R.string.publish_reverse_subtitle),
+            checked = reverseEnabled,
+            onToggle = onToggleReverse,
+            testTag = "publish_reverse_toggle",
+            icon = Icons.Default.SwapHoriz,
+            iconColor = colors.accentSecondary,
+            iconBackground = colors.accentSecondarySoft,
         )
 
         if (listenEnabled || speakEnabled) {

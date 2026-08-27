@@ -52,6 +52,12 @@ internal data class ManifestDto(
      */
     val type_enabled: Boolean = false,
     /**
+     * Additive and defaulted like the three above. Off rather than on for the same reason
+     * `type_enabled` is: a manifest written before both directions existed says nothing about
+     * whether its author meant the deck to be drilled that way.
+     */
+    val reverse_enabled: Boolean = false,
+    /**
      * BCP-47 tag for the language of the card front / back, e.g. `"en-US"`, `"es-ES"`. Absent on
      * manifests written before the pair existed, which is why listen/speak go inert without them
      * rather than falling back to the reader's device locale — see `Deck.speechReady`.
@@ -147,6 +153,7 @@ internal fun Deck.toDto() = ManifestDto(
     listen_enabled = listenEnabled,
     speak_enabled = speakEnabled,
     type_enabled = typeEnabled,
+    reverse_enabled = reverseEnabled,
     front_lang = frontLang,
     back_lang = backLang,
     media_rehost_cursor = mediaRehostCursor,
@@ -170,6 +177,7 @@ internal fun ManifestDto.toDomain() = Deck(
     listenEnabled = listen_enabled,
     speakEnabled = speak_enabled,
     typeEnabled = type_enabled,
+    reverseEnabled = reverse_enabled,
     frontLang = front_lang,
     backLang = back_lang,
     mediaRehostCursor = media_rehost_cursor,
