@@ -14,7 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -40,7 +40,11 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
  * typed is what makes the difference checkable, and the exposure it trades against — a shoulder
  * over the phone, opt-in and momentary — is far smaller than being locked out of your own account.
  *
- * Defaults to hidden, and never persists the revealed state beyond the screen.
+ * Defaults to hidden, and re-masks whenever the screen is rebuilt — a rotation, a return from the
+ * background, a process restart. `remember` rather than `rememberSaveable` is what guarantees that:
+ * saving the flag would restore a *visible* passphrase onto a screen the user is coming back to
+ * rather than looking at, which is the one moment nobody chose to expose it. Revealing is a
+ * deliberate act, so it should have to be repeated.
  *
  * [KeyboardType.Password] survives the toggle deliberately: it is what keeps the IME from learning
  * the passphrase into its shared dictionary, and that has nothing to do with whether the *user* can
@@ -58,7 +62,7 @@ fun PassphraseField(
     testTag: String? = null,
 ) {
     val colors = LoopkyTheme.colors
-    var revealed by rememberSaveable { mutableStateOf(false) }
+    var revealed by remember { mutableStateOf(false) }
 
     OutlinedTextField(
         value = value,
