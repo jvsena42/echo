@@ -745,6 +745,7 @@ interface ImportRepository {
         suggestedTitle: String? = null,
         suggestedDescription: String? = null,
         suggestedTags: List<String> = emptyList(),
+        suggestsReverse: Boolean = false,
     ): Result<ImportDraft>
 
     /** Per-row keep/discard decisions made during triage (default [TriageDecision.Keep]). */

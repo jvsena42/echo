@@ -97,6 +97,7 @@ class BulkImportViewModel(
                     suggestedTitle = suggestedTitleFor(apkg.deckName, fileName),
                     suggestedDescription = suggestedDescriptionFor(apkg.deckDescription),
                     suggestedTags = apkg.suggestedTags,
+                    suggestsReverse = apkg.reversible,
                 ).getOrThrow()
                 apkg to draft
             }

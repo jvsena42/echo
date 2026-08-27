@@ -158,6 +158,7 @@ actual object ApkgReader {
             mapping = mapping,
             notes = notes,
             noteCount = raw.rows.size,
+            reversible = raw.reversible,
             dropped = dropped,
             imagesImported = media.imported,
             imagesSkipped = media.skipped,

@@ -550,6 +550,53 @@ class PublishDeckViewModelTest {
     }
 
     @Test
+    fun bothDirectionsIsOffUntilAskedForAndNeedsNoLanguagePair() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        runCurrent()
+
+        assertFalse(vm.state.value.reverseEnabled)
+
+        vm.onToggleReverse()
+        runCurrent()
+
+        assertTrue(vm.state.value.reverseEnabled)
+        // Swapping two sides has no engine to substitute a locale into, so no pair is demanded.
+        assertNull(vm.state.value.frontLang)
+        assertTrue(vm.state.value.canPublish, "both directions demanded a language pair")
+    }
+
+    @Test
+    fun theBothDirectionsOptInReachesThePublishedManifest() = runTest {
+        val vm = viewModel()
+        vm.onTitleChanged("Spanish")
+        vm.onToggleReverse()
+        vm.onPublishClick()
+        runCurrent()
+
+        assertTrue(deckRepo.published.single().first.reverseEnabled)
+    }
+
+    @Test
+    fun anImportThatKnowsItIsReversibleArrivesWithTheOptInOn() = runTest {
+        // A suggestion like the title and tags beside it, not a decision — an `.apkg` built on a
+        // reversed note type says so, and the toggle is right there to turn off.
+        importRepo.draft = testDraft("hola" to "hello").copy(suggestsReverse = true)
+        val vm = viewModel()
+        runCurrent()
+
+        assertTrue(vm.state.value.reverseEnabled)
+    }
+
+    @Test
+    fun anOrdinaryImportArrivesWithTheOptInOff() = runTest {
+        val vm = viewModel()
+        runCurrent()
+
+        assertFalse(vm.state.value.reverseEnabled)
+    }
+
+    @Test
     fun turningOnListenWithoutLanguagesBlocksThePublish() = runTest {
         val vm = viewModel()
         vm.onTitleChanged("Spanish")

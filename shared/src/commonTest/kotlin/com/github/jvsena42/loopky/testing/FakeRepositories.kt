@@ -1033,6 +1033,7 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
         suggestedTitle: String?,
         suggestedDescription: String?,
         suggestedTags: List<String>,
+        suggestsReverse: Boolean,
     ): Result<ImportDraft> {
         bulkNotes = notes
         val built = ImportDraft(
@@ -1048,6 +1049,7 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
             duplicatesCollapsed = 0,
             suggestedTitle = suggestedTitle,
             suggestedDescription = suggestedDescription,
+            suggestsReverse = suggestsReverse,
             suggestedTags = suggestedTags,
             structured = true,
         )

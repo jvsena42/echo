@@ -89,6 +89,7 @@ class ImportRepositoryImpl : ImportRepository {
         suggestedTitle: String?,
         suggestedDescription: String?,
         suggestedTags: List<String>,
+        suggestsReverse: Boolean,
     ): Result<ImportDraft> = withContext(Dispatchers.Default) {
         parseLock.withLock {
             runSuspendCatching {
@@ -134,6 +135,7 @@ class ImportRepositoryImpl : ImportRepository {
                     suggestedTitle = suggestedTitle,
                     suggestedDescription = suggestedDescription,
                     suggestedTags = suggestedTags,
+                    suggestsReverse = suggestsReverse,
                     structured = true,
                 ).also {
                     draft = it

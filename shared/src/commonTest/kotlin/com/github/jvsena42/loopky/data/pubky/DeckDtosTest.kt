@@ -21,6 +21,7 @@ class DeckDtosTest {
         listenEnabled: Boolean = true,
         speakEnabled: Boolean = true,
         typeEnabled: Boolean = false,
+        reverseEnabled: Boolean = false,
         frontLang: String? = null,
         backLang: String? = null,
         cover: MediaRef.Image? = null,
@@ -39,6 +40,7 @@ class DeckDtosTest {
         listenEnabled = listenEnabled,
         speakEnabled = speakEnabled,
         typeEnabled = typeEnabled,
+        reverseEnabled = reverseEnabled,
         frontLang = frontLang,
         backLang = backLang,
     )
@@ -136,6 +138,29 @@ class DeckDtosTest {
         """.trimIndent()
         val back = loopkyJson.decodeFromString<ManifestDto>(legacy).toDomain()
         assertFalse(back.typeEnabled)
+    }
+
+    @Test
+    fun manifestRoundTripPreservesReverseEnabled() {
+        val deck = deck(reverseEnabled = true)
+        val json = loopkyJson.encodeToString(deck.toDto())
+        assertTrue(json.contains("\"reverse_enabled\":true"), "reverse_enabled missing from $json")
+        val back = loopkyJson.decodeFromString<ManifestDto>(json).toDomain()
+        assertTrue(back.reverseEnabled)
+        // Additive, so the schema does not move.
+        assertEquals(1, loopkyJson.decodeFromString<ManifestDto>(json).schema_version)
+    }
+
+    @Test
+    fun legacyManifestWithoutReverseEnabledDecodesAsOff() {
+        // Same reading as type_enabled: a manifest written before both directions existed says
+        // nothing about whether its author meant the deck to be drilled that way.
+        val legacy = """
+            {"schema_version":1,"deck_id":"d","author_pubky":"pk","title":"T",
+             "created_at":1,"updated_at":2}
+        """.trimIndent()
+        val back = loopkyJson.decodeFromString<ManifestDto>(legacy).toDomain()
+        assertFalse(back.reverseEnabled)
     }
 
     @Test
