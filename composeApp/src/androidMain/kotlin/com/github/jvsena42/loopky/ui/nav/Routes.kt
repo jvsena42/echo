@@ -11,8 +11,8 @@ object Routes {
     const val ONBOARDING = "onboarding"
 
     /**
-     * The tabbed app. `guest` is set for someone who came in through onboarding's "Look around
-     * first" — no account, no key, nothing signed in.
+     * The tabbed app. `guest` is set for a visitor with no account, no key and nothing signed in
+     * — where a launch that finds no session lands, before the sign-in screen is ever shown.
      *
      * A nav argument rather than a session lookup because it decides the *shell*: a guest gets
      * Discover alone, since Today, Decks and Profile are all views onto a library that does not

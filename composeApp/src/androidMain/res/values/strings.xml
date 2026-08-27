@@ -806,10 +806,10 @@
       Browsing without an account (#150).
 
       Loopky is readable signed out: Discover, deck detail, profiles and a sample of any deck's
-      cards are all public records. These strings cover the two places that changes what is on
-      screen — the banner offering the way in, and the prompt raised by an action that writes.
+      cards are all public records, so a signed-out launch lands in the browsing shell rather than
+      on the sign-in screen. These strings cover the two places that changes what is on screen —
+      the banner offering the way in, and the prompt raised by an action that writes.
     -->
-    <string name="onboarding_explore">Look around first</string>
     <string name="guest_banner_title">You\'re just looking around</string>
     <string name="guest_banner_body">Create an account to keep decks, track what you\'ve learned and follow people. No email needed.</string>
     <string name="guest_banner_cta">Get started</string>
