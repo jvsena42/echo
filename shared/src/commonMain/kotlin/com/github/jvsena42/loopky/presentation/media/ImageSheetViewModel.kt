@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.data.unsplash.UnsplashError
 import com.github.jvsena42.loopky.data.unsplash.UnsplashException
 import com.github.jvsena42.loopky.data.unsplash.UnsplashPhoto
+import com.github.jvsena42.loopky.domain.model.ImageLink
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,9 @@ import kotlinx.coroutines.launch
  * Failures are surfaced as a typed [UnsplashError] rather than a message string: the platform layer
  * picks the copy (shared has no string resources), and the three key-related errors get an
  * "add your own key" call to action instead of a bland "no results".
+ *
+ * The same field also takes a link ([ImageLink]) — see [onQueryChange]. Search is only one of the
+ * two things a person does with a text box holding an image address.
  */
 class ImageSheetViewModel(
     private val unsplashClient: UnsplashClient,
@@ -59,8 +63,24 @@ class ImageSheetViewModel(
         }
     }
 
+    /**
+     * Takes the field's text as either a search term or a link, whichever it is.
+     *
+     * A link cancels the search rather than running alongside it: "cat.jpg" is not a query any
+     * image API answers usefully, and leaving a grid of results under a pasted address would offer
+     * two answers to one input. The highlighted photo goes with it, so [ImageSheetUiState.link] and
+     * [ImageSheetUiState.selectedPhoto] can never both be waiting to be committed.
+     */
     fun onQueryChange(query: String) {
-        _state.update { it.copy(query = query) }
+        val link = ImageLink.parse(query)
+        if (link != null) {
+            searchJob?.cancel()
+            _state.update {
+                it.copy(query = query, link = link, selectedPhoto = null, isLoading = false, error = null)
+            }
+            return
+        }
+        _state.update { it.copy(query = query, link = null) }
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             delay(DEBOUNCE_MS)
@@ -75,6 +95,11 @@ class ImageSheetViewModel(
      *  button both see the whole photo, not just its URL. */
     fun onPhotoSelected(photo: UnsplashPhoto) {
         _state.update { it.copy(selectedPhoto = photo) }
+    }
+
+    /** Empties the field, dropping the link with it and putting the grid back. */
+    fun onLinkCleared() {
+        onQueryChange("")
     }
 
     /**
@@ -107,6 +132,8 @@ class ImageSheetViewModel(
 
 data class ImageSheetUiState(
     val query: String = "",
+    /** Set when [query] holds an address rather than a search term; the grid gives way to it. */
+    val link: ImageLink? = null,
     val photos: List<UnsplashPhoto> = emptyList(),
     val isLoading: Boolean = false,
     val selectedPhoto: UnsplashPhoto? = null,

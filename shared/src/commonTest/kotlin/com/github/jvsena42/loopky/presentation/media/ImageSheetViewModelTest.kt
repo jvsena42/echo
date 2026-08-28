@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.data.nexus.HttpError
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.data.unsplash.UnsplashError
 import com.github.jvsena42.loopky.data.unsplash.UnsplashPhoto
+import com.github.jvsena42.loopky.domain.model.ImageLink
 import com.github.jvsena42.loopky.testing.FakeHttpFetcher
 import com.github.jvsena42.loopky.testing.FakeUnsplashKeyStore
 import kotlinx.coroutines.Dispatchers
@@ -138,6 +139,73 @@ class ImageSheetViewModelTest {
         assertNull(vm.state.value.selectedPhoto)
     }
 
+    @Test
+    fun `a pasted link is taken as a link rather than searched for`() = runTest {
+        http.respond(RANDOM_URL, PHOTO_JSON)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onQueryChange(CAT_URL)
+        advanceUntilIdle()
+
+        assertEquals(ImageLink.Remote(CAT_URL), vm.state.value.link)
+        // Searching Unsplash for a URL answers nothing; the request must not be made at all.
+        assertEquals(expected = 0, actual = http.requestedUrls.count { it.contains("/search/photos") })
+    }
+
+    @Test
+    fun `a link drops the highlighted photo so only one pick is ever pending`() = runTest {
+        http.respond(RANDOM_URL, PHOTO_JSON)
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onPhotoSelected(photo())
+
+        vm.onQueryChange(CAT_URL)
+
+        assertNull(vm.state.value.selectedPhoto)
+    }
+
+    @Test
+    fun `clearing the link searches again and puts the grid back`() = runTest {
+        http.respond(RANDOM_URL, PHOTO_JSON)
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onQueryChange(CAT_URL)
+        advanceUntilIdle()
+
+        vm.onLinkCleared()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.link)
+        assertEquals(expected = "", actual = vm.state.value.query)
+        assertEquals(expected = 1, actual = vm.state.value.photos.size)
+    }
+
+    @Test
+    fun `an ordinary term is still a search`() = runTest {
+        http.respond("$BASE/search/photos?per_page=30&query=cats", SEARCH_JSON)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onQueryChange("cats")
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.link)
+        assertEquals(expected = 1, actual = vm.state.value.photos.size)
+    }
+
+    @Test
+    fun `a link clears a standing error since it needs no key to work`() = runTest {
+        val vm = viewModel(client(keyStore = FakeUnsplashKeyStore()))
+        advanceUntilIdle()
+        assertEquals(UnsplashError.MissingKey, vm.state.value.error)
+
+        vm.onQueryChange(CAT_URL)
+
+        assertNull(vm.state.value.error)
+        assertEquals(ImageLink.Remote(CAT_URL), vm.state.value.link)
+    }
+
     private fun photo() = UnsplashPhoto(
         id = "abc",
         thumbUrl = "t.jpg",
@@ -153,5 +221,7 @@ class ImageSheetViewModelTest {
         const val DOWNLOAD_URL = "$BASE/photos/abc/download?ixid=xyz"
         const val RANDOM_URL = "$BASE/photos/random?count=30"
         const val PHOTO_JSON = """[{"id":"abc","urls":{"small":"s.jpg"},"user":{"name":"Ana"}}]"""
+        const val SEARCH_JSON = """{"results":$PHOTO_JSON}"""
+        const val CAT_URL = "https://example.com/cat.jpg"
     }
 }
