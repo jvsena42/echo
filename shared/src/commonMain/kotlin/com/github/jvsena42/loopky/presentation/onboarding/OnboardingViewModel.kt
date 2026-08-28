@@ -86,21 +86,26 @@ class OnboardingViewModel(
             }
             Log.d(TAG, "onSignInClick: got authUrl=${handle.authUrl.redactAuthUrl()}")
 
+            // Asked here rather than in the UI so both platforms answer it the same way: the same
+            // probe already gates signup, and iOS's `canOpenURL` needs the `pubkyauth` entry in
+            // LSApplicationQueriesSchemes that this object documents. Read once and reused below,
+            // because `update` may run its lambda more than once and this is a package-manager
+            // round trip, not a field.
+            val ringInstalledHere = ringPresence.isInstalled()
             _state.update {
                 OnboardingUiState.AwaitingApproval(
                     authUrl = handle.authUrl,
                     handoff = handoff,
-                    // Asked here rather than in the UI so both platforms answer it the same way:
-                    // the same probe already gates signup, and iOS's `canOpenURL` needs the
-                    // `pubkyauth` entry in LSApplicationQueriesSchemes that this object documents.
-                    ringInstalledHere = ringPresence.isInstalled(),
+                    ringInstalledHere = ringInstalledHere,
                 )
             }
-            Log.d(TAG, "onSignInClick: state=AwaitingApproval, handoff=$handoff")
-            // Only when Ring is meant to be on this device. Firing the deeplink for the QR path
-            // would bounce the user out to whatever claims `pubkyauth://` — or to nothing at all,
-            // which is the case the QR exists to serve.
-            if (handoff == RingHandoff.ThisDevice) {
+            Log.d(TAG, "onSignInClick: state=AwaitingApproval, handoff=$handoff, ring=$ringInstalledHere")
+            // Only when Ring is meant to be on this device *and* actually is. Firing it for the QR
+            // path would bounce the user out to whatever claims `pubkyauth://`; firing it with
+            // nothing installed used to end the flow on "Pubky Ring isn't installed", which is a
+            // dead end for someone whose key is in Ring on another phone — the authorisation is
+            // live either way, so the UI can offer it as a code to scan instead.
+            if (handoff == RingHandoff.ThisDevice && ringInstalledHere) {
                 _effects.emit(OnboardingEffect.OpenDeeplink(handle.authUrl))
             }
 

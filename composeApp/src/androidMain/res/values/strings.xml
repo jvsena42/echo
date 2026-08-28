@@ -313,9 +313,7 @@
     <string name="onboarding_qr_cancel">Cancel</string>
     <string name="onboarding_qr_copy">Copy sign-in link</string>
     <string name="onboarding_qr_copied">Sign-in link copied</string>
-    <string name="onboarding_qr_sheet_title">Approve in Pubky Ring</string>
-    <string name="onboarding_qr_sheet_body">Pubky Ring should be open — tap Authorize there. If it didn\'t open, use the button below, or scan this code with Pubky Ring on another device.</string>
-    <string name="onboarding_qr_sheet_open_here">Open Pubky Ring again</string>
+    <string name="onboarding_qr_sheet_body">Pubky Ring isn\'t on this device. Open it on the phone that holds your key, tap Authorize, and scan this code.</string>
     <string name="onboarding_app_version">Version %1$s</string>
 
     <!-- pubky.app — the web client the same account already exists on. -->
