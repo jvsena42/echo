@@ -58,6 +58,28 @@ confirm the edit persisted. Scripted; drive with adb.
 picker and is a manual check. Sheet test-tags surface correctly (the sheet content sets
 `testTagsAsResourceId` since `ModalBottomSheet` renders in a separate window).
 
+Re-run on `emulator-5554` 2026-08-28 for the pasted-link/pasted-image work, with a key
+configured this time:
+
+| Step | Result |
+| --- | --- |
+| Sheet shows the field, "From gallery" **and** "Paste" (`image_paste`) | PASSED |
+| Typed address → grid replaced by `image_link_preview`, credit line gone, Done enabled once drawn | PASSED — `images.unsplash.com/photo-…` rendered in the pane |
+| Typed address that is not an image (`example.com/not-an-image`) | PASSED — `image_link_error` shown, `image_sheet_done` stayed disabled |
+| `image_link_clear` → field empties, grid and credit line come back | PASSED |
+| Paste with an address on the clipboard | PASSED — address landed in the field and previewed; Done committed it as the card's front image |
+| Paste with plain text on the clipboard | PASSED — stayed a search term, grid kept, no preview |
+| Front pick must not carry into the back sheet | PASSED after the fix — back sheet opens empty, grid back, Done disabled. It failed before it: the sheet's ViewModel is the screen's, and the front's address was still there, committable |
+
+**Pasting an image as bytes is out of scope for now — issue #168.** Reading a Chrome "Copy
+image" clip froze the app: `ClipData.Item.coerceToText` on a `content:` uri opens and reads the
+stream rather than formatting the uri, and it was being called on the main thread. Such a clip
+is now identified from local clip metadata alone and refused with a message, with no provider
+call at all. The bytes path itself could not be exercised here in any case — Chrome's "Copy
+image" wedged this emulator four times, including once with Loopky not in the foreground and
+Paste never pressed, so the AVD and not the app is what fails there. The empty-clipboard notice
+is also unverified: `cmd clipboard clear` does not exist on this image.
+
 Re-run on `emulator-5554` 2026-08-14 **with a real `UNSPLASH_ACCESS_KEY`** — the first time the
 web grid path has actually been exercised. The grid populates, every cell shows its photographer
 over a gradient scrim, and `image_credit` reads "Photos from Unsplash" before a selection and
