@@ -25,6 +25,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -32,6 +34,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -39,13 +42,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -63,15 +70,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.data.unsplash.UNSPLASH_DEVELOPER_URL
 import com.github.jvsena42.loopky.data.unsplash.UNSPLASH_HOME_URL
 import com.github.jvsena42.loopky.data.unsplash.UnsplashError
 import com.github.jvsena42.loopky.data.unsplash.UnsplashPhoto
+import com.github.jvsena42.loopky.domain.model.ImageLink
 import com.github.jvsena42.loopky.platform.MediaProcessor
 import com.github.jvsena42.loopky.presentation.media.ImageSheetViewModel
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.ClipboardImage
 import com.github.jvsena42.loopky.ui.util.openUrl
+import com.github.jvsena42.loopky.ui.util.readClipboardImage
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,8 +92,19 @@ import org.koin.compose.viewmodel.koinViewModel
 
 /**
  * Reusable bottom sheet for choosing an image — web search (Unsplash) + a 3-column grid, plus a
- * "From gallery" button using the system photo picker (no storage permission). Backs both the
- * card-image sheet (cEXuT) and the cover sheet (OQ2QL).
+ * "From gallery" button using the system photo picker (no storage permission) and a Paste button
+ * for an image or address already on the clipboard. Backs both the card-image sheet (cEXuT) and
+ * the cover sheet (OQ2QL).
+ *
+ * The search field doubles as the address field: text that parses as an [ImageLink] takes the
+ * grid's place with a preview of itself. Which is why **Done is gated on that preview loading**
+ * for a link, where a grid photo needs only to be highlighted. The load runs through the same
+ * Coil stack that will later draw the card, so an address that cannot be shown here — a results
+ * page copied instead of an image, a host that refuses to serve the app — is one that would have
+ * been saved as a permanently blank card face.
+ *
+ * A picked or pasted *image* commits immediately, as the gallery pick always has; only an address
+ * waits for Done, because only an address can be wrong in a way the user cannot see.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Suppress("CyclomaticComplexMethod", "LongMethod") // Single sheet; grid/gallery/states read top-to-bottom.
@@ -103,18 +126,62 @@ fun ImagePickerSheet(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val selectedPhoto = state.selectedPhoto
+    val link = state.link
+
+    // Keyed on the link: a new address is a new load, and the last one's verdict must not stand.
+    var linkPreview by remember(link) { mutableStateOf(LinkPreview.Loading) }
+    // The one line of feedback the sheet gives about a paste or a picked file, as a string res.
+    var notice by remember { mutableStateOf<Int?>(null) }
+
+    // Compression can fail on bytes that are not a decodable image — a clipboard blob wearing an
+    // image mime type, a truncated download. It throws, and an uncaught throw here takes the app
+    // down, so the failure is reported in the sheet instead.
+    suspend fun commitBytes(raw: ByteArray) {
+        val processed = runSuspendCatching { mediaProcessor.compressImage(raw) }.getOrNull()
+        if (processed == null) {
+            notice = R.string.image_sheet_image_unreadable
+        } else {
+            onSelected(ImageSelection.Gallery(processed.bytes, processed.mime))
+        }
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                val processed = withContext(Dispatchers.IO) {
-                    val raw = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: return@withContext null
-                    mediaProcessor.compressImage(raw)
+                val raw = withContext(Dispatchers.IO) {
+                    runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
+                        .getOrNull()
                 }
-                if (processed != null) onSelected(ImageSelection.Gallery(processed.bytes, processed.mime))
+                if (raw == null) notice = R.string.image_sheet_image_unreadable else commitBytes(raw)
+            }
+        }
+    }
+
+    fun onPaste() {
+        notice = null
+        scope.launch {
+            when (val clip = context.readClipboardImage()) {
+                is ClipboardImage.Bytes -> commitBytes(clip.bytes)
+                // Not necessarily a link: pasted words are a perfectly good search, and the field
+                // sorts out which it is.
+                is ClipboardImage.Text -> viewModel.onQueryChange(clip.text)
+                ClipboardImage.Empty -> notice = R.string.image_sheet_paste_empty
+            }
+        }
+    }
+
+    fun onDone() {
+        notice = null
+        when (link) {
+            is ImageLink.Remote -> onSelected(ImageSelection.Web(link.url))
+            is ImageLink.Inline -> scope.launch { commitBytes(link.bytes) }
+            null -> selectedPhoto?.let {
+                // Unsplash counts this as a "download"; report it before we hand the
+                // pick back and the sheet goes away.
+                viewModel.onPhotoUsed()
+                onSelected(ImageSelection.Web(it.fullUrl))
             }
         }
     }
@@ -140,15 +207,8 @@ fun ImagePickerSheet(
             ) {
                 Text(text = title, fontSize = 20.sp, fontWeight = FontWeight.W800, color = colors.foregroundPrimary)
                 Button(
-                    onClick = {
-                        selectedPhoto?.let {
-                            // Unsplash counts this as a "download"; report it before we hand the
-                            // pick back and the sheet goes away.
-                            viewModel.onPhotoUsed()
-                            onSelected(ImageSelection.Web(it.fullUrl))
-                        }
-                    },
-                    enabled = selectedPhoto != null,
+                    onClick = ::onDone,
+                    enabled = if (link != null) linkPreview == LinkPreview.Ready else selectedPhoto != null,
                     modifier = Modifier.testTag("image_sheet_done"),
                     shape = RoundedCornerShape(50),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
@@ -180,6 +240,22 @@ fun ImagePickerSheet(
                     .testTag("image_search_input"),
                 placeholder = { Text(stringResource(R.string.image_sheet_search_placeholder), color = colors.foregroundMuted) },
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = colors.foregroundMuted) },
+                trailingIcon = if (link == null) {
+                    null
+                } else {
+                    {
+                        IconButton(
+                            onClick = viewModel::onLinkCleared,
+                            modifier = Modifier.testTag("image_link_clear"),
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = stringResource(R.string.image_sheet_link_clear),
+                                tint = colors.foregroundMuted,
+                            )
+                        }
+                    }
+                },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -189,30 +265,41 @@ fun ImagePickerSheet(
                 ),
             )
 
-            // From gallery
+            // From gallery / Paste. Paste is the only route for an image copied off a web page:
+            // Chrome's "Copy image" writes bytes no picker can see, and its "Copy image address"
+            // writes a URL the field then takes as a link.
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, colors.borderSubtle, RoundedCornerShape(12.dp))
-                    .background(colors.surfaceCard)
-                    .clickable {
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SourceButton(
+                    icon = Icons.Default.Image,
+                    label = stringResource(R.string.image_sheet_from_gallery),
+                    onClick = {
                         galleryLauncher.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
                         )
-                    }
-                    .testTag("image_pick_gallery")
-                    .padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Default.Image, null, tint = colors.foregroundSecondary, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("image_pick_gallery"),
+                )
+                SourceButton(
+                    icon = Icons.Default.ContentPaste,
+                    label = stringResource(R.string.image_sheet_paste),
+                    onClick = ::onPaste,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("image_paste"),
+                )
+            }
+
+            notice?.let {
                 Text(
-                    stringResource(R.string.image_sheet_from_gallery),
+                    text = stringResource(it),
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.W600,
                     color = colors.foregroundSecondary,
+                    modifier = Modifier.testTag("image_sheet_notice"),
                 )
             }
 
@@ -220,6 +307,14 @@ fun ImagePickerSheet(
             Box(modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 360.dp)) {
                 val error = state.error
                 when {
+                    // Ahead of everything else: with an address in the field, a grid of search
+                    // results is answering a question the user has stopped asking.
+                    link != null -> LinkPreviewPane(
+                        link = link,
+                        preview = linkPreview,
+                        onPreviewChange = { linkPreview = it },
+                    )
+
                     state.isLoading && state.photos.isEmpty() ->
                         CircularProgressIndicator(
                             color = colors.accentPrimary,
@@ -261,11 +356,104 @@ fun ImagePickerSheet(
                 }
             }
 
-            // Required by the Unsplash API guidelines whenever their photos are on screen.
-            if (state.photos.isNotEmpty()) {
+            // Required by the Unsplash API guidelines whenever their photos are on screen — and
+            // wrong when they are not: crediting a photographer under someone's pasted link
+            // attributes an image that is not theirs.
+            if (link == null && state.photos.isNotEmpty()) {
                 UnsplashCredit(photo = selectedPhoto, onOpenUrl = context::openUrl)
             }
         }
+    }
+}
+
+/** Whether the address in the field has proved itself an image yet. */
+private enum class LinkPreview { Loading, Ready, Failed }
+
+/**
+ * The pasted address, drawn. This is the check as much as the preview: it loads through the same
+ * Coil stack that will later draw the card, so whatever fails here would have failed there.
+ */
+@Composable
+private fun LinkPreviewPane(
+    link: ImageLink,
+    preview: LinkPreview,
+    onPreviewChange: (LinkPreview) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(240.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surfaceCard),
+        contentAlignment = Alignment.Center,
+    ) {
+        AsyncImage(
+            model = when (link) {
+                is ImageLink.Remote -> link.url
+                is ImageLink.Inline -> link.bytes
+            },
+            contentDescription = stringResource(R.string.image_sheet_link_preview),
+            // Fit, not Crop: this is the image being vouched for, so it is shown whole.
+            contentScale = ContentScale.Fit,
+            onState = { loadState ->
+                onPreviewChange(
+                    when (loadState) {
+                        is AsyncImagePainter.State.Success -> LinkPreview.Ready
+                        is AsyncImagePainter.State.Error -> LinkPreview.Failed
+                        else -> LinkPreview.Loading
+                    },
+                )
+            },
+            modifier = Modifier
+                .matchParentSize()
+                .testTag("image_link_preview"),
+        )
+        when (preview) {
+            LinkPreview.Loading -> CircularProgressIndicator(color = colors.accentPrimary)
+            LinkPreview.Failed -> Text(
+                text = stringResource(R.string.image_sheet_link_failed),
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                color = colors.foregroundSecondary,
+                modifier = Modifier
+                    .padding(16.dp)
+                    .testTag("image_link_error"),
+            )
+
+            LinkPreview.Ready -> Unit
+        }
+    }
+}
+
+/** One of the two "bring your own image" buttons under the field. */
+@Composable
+private fun SourceButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, colors.borderSubtle, RoundedCornerShape(12.dp))
+            .background(colors.surfaceCard)
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = colors.foregroundSecondary, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.W600,
+            color = colors.foregroundSecondary,
+        )
     }
 }
 

@@ -258,8 +258,15 @@
     <string name="image_sheet_back_title">Back image</string>
     <string name="image_sheet_back_subtitle">Choose an image for the back of the card</string>
     <string name="image_sheet_done">Done</string>
-    <string name="image_sheet_search_placeholder">Search images…</string>
+    <string name="image_sheet_search_placeholder">Search images, or paste a link…</string>
     <string name="image_sheet_from_gallery">From gallery</string>
+    <string name="image_sheet_paste">Paste</string>
+    <!-- Pasting: the field takes an address, the Paste button also takes a copied image itself. -->
+    <string name="image_sheet_paste_empty">Nothing to paste. Copy an image, or its address, first.</string>
+    <string name="image_sheet_image_unreadable">That image couldn\'t be read. Try another one.</string>
+    <string name="image_sheet_link_preview">Pasted image</string>
+    <string name="image_sheet_link_clear">Clear link</string>
+    <string name="image_sheet_link_failed">That link didn\'t load as an image. From a results page, copy the image itself or its image address — not the page\'s.</string>
     <string name="image_sheet_no_results">No images found</string>
     <!-- Web-search failures. The first three are fixed by setting a key; the last one is not. -->
     <string name="image_sheet_error_missing_key">Web image search needs an Unsplash API key. It\'s free and takes about two minutes.</string>
