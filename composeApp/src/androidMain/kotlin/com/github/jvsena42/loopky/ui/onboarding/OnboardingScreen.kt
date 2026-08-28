@@ -28,8 +28,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +42,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -48,6 +52,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -219,6 +225,11 @@ private fun OnboardingContent(
     val handoff = if (widthClass.isAtLeastMedium) RingHandoff.AnotherDevice else RingHandoff.ThisDevice
     val awaitingScan = (state as? OnboardingUiState.AwaitingApproval)
         ?.takeIf { it.handoff == RingHandoff.AnotherDevice }
+    // The phone's half of the same wait. It goes in a sheet rather than replacing the panel
+    // because Ring is expected to be in the foreground here — this is the surface behind it, the
+    // thing the user lands back on if Ring never came up or is holding a different key.
+    val awaitingHere = (state as? OnboardingUiState.AwaitingApproval)
+        ?.takeIf { it.handoff == RingHandoff.ThisDevice }
 
     Column(
         modifier = Modifier
@@ -294,6 +305,18 @@ private fun OnboardingContent(
             color = colors.foregroundMuted,
             fontSize = 11.sp,
             textAlign = TextAlign.Center,
+        )
+    }
+
+    // Outside the Column on purpose: a ModalBottomSheet lives in its own window and contributes no
+    // layout here, so nesting it in a `spacedBy` Column would add a phantom gap to the screen
+    // underneath it.
+    if (awaitingHere != null) {
+        RingScanSheet(
+            authUrl = awaitingHere.authUrl,
+            ringInstalledHere = awaitingHere.ringInstalledHere,
+            onOpenRingHere = onOpenRingHere,
+            onCancel = onCancelSignIn,
         )
     }
 }
@@ -405,28 +428,116 @@ private fun RingScanPanel(
     modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
+    RingScanContent(
+        authUrl = authUrl,
+        title = stringResource(R.string.onboarding_qr_title),
+        body = stringResource(R.string.onboarding_qr_body),
+        openHereLabel = stringResource(R.string.onboarding_qr_open_here),
+        ringInstalledHere = ringInstalledHere,
+        onOpenRingHere = onOpenRingHere,
+        onCancel = onCancel,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(colors.surfaceCard)
+            .padding(horizontal = 24.dp, vertical = 28.dp),
+    )
+}
+
+/**
+ * The phone way in: the same pending authorisation, in a sheet over the sign-in screen.
+ *
+ * On a phone the deeplink has already fired and Ring is expected to be in the foreground, so this
+ * is what the user comes back to — not a spinner on a button, which says nothing about what is
+ * being waited for and offers no way on if Ring never came up. It carries the same QR as the
+ * tablet panel because the second device is the other half of the story: someone whose key lives
+ * in Ring on a *different* phone has no deeplink that can reach it, and until now the compact
+ * layout gave them nothing at all.
+ *
+ * Dismissing it cancels the authorisation, exactly like the panel's Cancel — a sheet swiped away
+ * with the relay still polling would leave a live flow with no surface to complete or abandon it.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@Composable
+private fun RingScanSheet(
+    authUrl: String,
+    ringInstalledHere: Boolean,
+    onOpenRingHere: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    ModalBottomSheet(
+        onDismissRequest = onCancel,
+        modifier = modifier,
+        // Straight to full height. The half-height resting position is for a sheet you peek at
+        // while the screen behind still matters; this one is the whole task, and partially
+        // expanded it opened with the QR mid-scroll and every button below the fold.
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = colors.surfaceCard,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+    ) {
+        RingScanContent(
+            authUrl = authUrl,
+            title = stringResource(R.string.onboarding_qr_sheet_title),
+            body = stringResource(R.string.onboarding_qr_sheet_body),
+            openHereLabel = stringResource(R.string.onboarding_qr_sheet_open_here),
+            ringInstalledHere = ringInstalledHere,
+            onOpenRingHere = onOpenRingHere,
+            onCancel = onCancel,
+            modifier = Modifier
+                .fillMaxWidth()
+                // A sheet is its own window, so the activity's setting does not reach it and the
+                // test tags below are invisible to `android layout` without this.
+                .semantics { testTagsAsResourceId = true }
+                .testTag("onboarding_ring_qr_sheet")
+                // A QR big enough to scan plus three controls does not fit a short phone even
+                // fully expanded, and a Column that overflows clips in silence — the first cut of
+                // this sheet lost "open Ring again", "copy" and "cancel" below the fold with
+                // nothing to say they were there.
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
+        )
+    }
+}
+
+/**
+ * The handoff itself, shared by the tablet panel and the phone sheet so the two cannot drift.
+ *
+ * Only the words differ between them — on a phone Ring is expected to have opened already, on a
+ * tablet it is expected to be on another device entirely — so the copy is passed in rather than
+ * branched on a window size this composable has no business knowing about.
+ */
+@Composable
+private fun RingScanContent(
+    authUrl: String,
+    title: String,
+    body: String,
+    openHereLabel: String,
+    ringInstalledHere: Boolean,
+    onOpenRingHere: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("onboarding_ring_qr")
-            .clip(RoundedCornerShape(28.dp))
-            .background(colors.surfaceCard)
-            .padding(horizontal = 24.dp, vertical = 28.dp),
+        modifier = modifier.testTag("onboarding_ring_qr"),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
-            text = stringResource(R.string.onboarding_qr_title),
+            text = title,
             color = colors.foregroundPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = stringResource(R.string.onboarding_qr_body),
+            text = body,
             color = colors.foregroundSecondary,
             fontSize = 14.sp,
             lineHeight = 20.sp,
@@ -453,7 +564,7 @@ private fun RingScanPanel(
         // get into the app at all.
         if (ringInstalledHere) {
             LoopkySecondaryButton(
-                text = stringResource(R.string.onboarding_qr_open_here),
+                text = openHereLabel,
                 onClick = onOpenRingHere,
                 modifier = Modifier.testTag("onboarding_qr_open_here"),
             )
