@@ -71,12 +71,14 @@ configured this time:
 | Paste with plain text on the clipboard | PASSED — stayed a search term, grid kept, no preview |
 | Front pick must not carry into the back sheet | PASSED after the fix — back sheet opens empty, grid back, Done disabled. It failed before it: the sheet's ViewModel is the screen's, and the front's address was still there, committable |
 
-**Not automated here.** Chrome's "Copy image" (the clipboard *bytes* path) wedged this
-emulator twice — the device stopped answering `adb shell` mid-copy and had to be killed, with
-Loopky not in the foreground either time. The path is unchanged in shape from the gallery pick
-(read bytes → `MediaProcessor.compressImage` → commit), but it wants a manual run on real
-hardware, along with the empty-clipboard notice (`cmd clipboard clear` does not exist on this
-image, so the clipboard could not be emptied from the shell).
+**Pasting an image as bytes is out of scope for now — issue #168.** Reading a Chrome "Copy
+image" clip froze the app: `ClipData.Item.coerceToText` on a `content:` uri opens and reads the
+stream rather than formatting the uri, and it was being called on the main thread. Such a clip
+is now identified from local clip metadata alone and refused with a message, with no provider
+call at all. The bytes path itself could not be exercised here in any case — Chrome's "Copy
+image" wedged this emulator four times, including once with Loopky not in the foreground and
+Paste never pressed, so the AVD and not the app is what fails there. The empty-clipboard notice
+is also unverified: `cmd clipboard clear` does not exist on this image.
 
 Re-run on `emulator-5554` 2026-08-14 **with a real `UNSPLASH_ACCESS_KEY`** — the first time the
 web grid path has actually been exercised. The grid populates, every cell shows its photographer

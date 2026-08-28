@@ -262,7 +262,8 @@
     <string name="image_sheet_from_gallery">From gallery</string>
     <string name="image_sheet_paste">Paste</string>
     <!-- Pasting: the field takes an address, the Paste button also takes a copied image itself. -->
-    <string name="image_sheet_paste_empty">Nothing to paste. Copy an image, or its address, first.</string>
+    <string name="image_sheet_paste_empty">Nothing to paste. Copy an image address first.</string>
+    <string name="image_sheet_paste_image_clip">That\'s a copied image. Paste its address instead, or pick it from your gallery.</string>
     <string name="image_sheet_image_unreadable">That image couldn\'t be read. Try another one.</string>
     <string name="image_sheet_link_preview">Pasted image</string>
     <string name="image_sheet_link_clear">Clear link</string>

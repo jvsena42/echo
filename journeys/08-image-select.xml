@@ -1,4 +1,4 @@
-<journey name="Image select — cover from web (Unsplash), gallery, a pasted link and a pasted image">
+<journey name="Image select — cover from web (Unsplash), gallery and a pasted address">
   <description>
     Choosing a card/cover image: open the image sheet from the Publish
     cover, search the web grid, and select a photo. The web grid needs an Unsplash access key —
@@ -10,13 +10,12 @@
     The sheet's one field is both the search box and the address box: text that parses as a link
     replaces the grid with a preview of that image, and Done stays disabled until the preview
     actually loads — the check that stops a copied *page* address being saved as a card face that
-    can never render. The Paste button covers what the field cannot: an image copied as bytes
-    ("Copy image" in Chrome), which no picker can see.
+    can never render. The Paste button puts a copied address into that field. An image copied as
+    *bytes* ("Copy image" in Chrome) is refused with a message for now — taking it is issue #168.
 
-    The clipboard can be primed from the shell, so most of this is automatable:
-    `adb shell am broadcast -a clipper.set -e text "&lt;url&gt;"` needs a helper app, so prefer typing
-    the URL into the field directly for the link steps, and use Chrome's own "Copy image" for the
-    bytes step.
+    To prime the clipboard without a helper app: type the URL into `image_search_input`, select it
+    with `adb shell input keycombination 113 29` and copy it with `113 31`, then clear the field
+    with `image_link_clear` before testing Paste.
   </description>
   <actions>
     <action>Launch the Loopky app and verify the Home screen is shown</action>
@@ -35,9 +34,11 @@
     <action>Link — a typed address: reopen the sheet with "publish_cover_change" and type "https://images.unsplash.com/photo-1574158622682-e40e69881006?w=600" into "image_search_input". Verify the grid is replaced by the preview (resource-id: image_link_preview), the credit line disappears (nothing on screen is an Unsplash photo any more), and Done becomes enabled once the image is drawn. Tap "image_sheet_done" and verify the cover updates.</action>
     <action>Link — Done is gated on the preview: reopen the sheet and type "https://example.com/not-an-image" into "image_search_input". Verify the preview area shows the failure text (resource-id: image_link_error) and that "image_sheet_done" stays DISABLED — a link that will not render here must never be saved onto a card.</action>
     <action>Link — clearing: with a link in the field, tap "image_link_clear" and verify the field empties, the preview goes away and the Unsplash grid (or the key panel) comes back.</action>
-    <action>Link — a Google Images result address: open Chrome, search Google Images for "sunflower", long-press a result and choose "Copy image address"; back in the sheet, tap "image_paste" and verify the address lands in the field and previews as the image. If Chrome hands over a "google.com/imgres?imgurl=…" viewer address instead, this is the case the parser unwraps: it must still preview the image itself, NOT fail.</action>
-    <action>Paste — an image copied as bytes: in Chrome, long-press an image and choose "Copy image", then tap "image_paste" in the sheet. Verify the image is compressed and committed straight away (the sheet closes and the cover updates) without going through the field — Chrome writes bytes here, not an address.</action>
-    <action>Paste — nothing usable: clear the clipboard (copy an empty selection, or use a fresh emulator boot) and tap "image_paste". Verify the sheet reports it in one line (resource-id: image_sheet_notice) rather than doing nothing.</action>
+    <action>Paste — an address on the clipboard: with an image URL copied, tap "image_paste" and verify the address lands in the field and previews as the image, exactly as typing it does.</action>
+    <action>Paste — plain text on the clipboard: copy a word, tap "image_paste", and verify it stays a search term — the grid keeps its place and no preview appears.</action>
+    <action>Paste — a Google Images result address: open Chrome, search Google Images for "sunflower", long-press a result and choose "Copy image address"; back in the sheet, tap "image_paste". If Chrome hands over a "google.com/imgres?imgurl=…" viewer address, this is the case the parser unwraps: it must preview the image itself, NOT fail.</action>
+    <action>Paste — an image copied as bytes: in Chrome, long-press an image and choose "Copy image", then tap "image_paste". Verify the sheet says so in one line (resource-id: image_sheet_notice) and points at the address and the gallery, and — the actual regression guard — that the app stays responsive: reading such a clip through the provider is what froze it (issue #168).</action>
+    <action>Paste — nothing usable: clear the clipboard (a fresh emulator boot) and tap "image_paste". Verify the sheet reports it in one line (resource-id: image_sheet_notice) rather than doing nothing.</action>
     <action>The same field/Paste/preview behaviour must hold in the card image sheets, which are the same composable: check one of them via "triage_edit" → "triage_edit_front_image_add"</action>
     <action>A pick belongs to the sheet that made it: in "triage_edit", set a front image (any source) and commit it, then open the BACK sheet with "triage_edit_back_image_add". The field must be empty, no "image_link_preview" may be showing, the grid and credit line must be back, and "image_sheet_done" must be DISABLED. The ViewModel is the screen's, not the sheet's, so a regression here is one tap of Done away from putting the front's picture on the back without anyone choosing it.</action>
 

@@ -81,9 +81,9 @@ import com.github.jvsena42.loopky.domain.model.ImageLink
 import com.github.jvsena42.loopky.platform.MediaProcessor
 import com.github.jvsena42.loopky.presentation.media.ImageSheetViewModel
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
-import com.github.jvsena42.loopky.ui.util.ClipboardImage
+import com.github.jvsena42.loopky.ui.util.ClipboardContent
 import com.github.jvsena42.loopky.ui.util.openUrl
-import com.github.jvsena42.loopky.ui.util.readClipboardImage
+import com.github.jvsena42.loopky.ui.util.readClipboard
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -94,8 +94,8 @@ import org.koin.compose.viewmodel.koinViewModel
 /**
  * Reusable bottom sheet for choosing an image — web search (Unsplash) + a 3-column grid, plus a
  * "From gallery" button using the system photo picker (no storage permission) and a Paste button
- * for an image or address already on the clipboard. Backs both the card-image sheet (cEXuT) and
- * the cover sheet (OQ2QL).
+ * for an image address already on the clipboard. Backs both the card-image sheet (cEXuT) and the
+ * cover sheet (OQ2QL).
  *
  * The search field doubles as the address field: text that parses as an [ImageLink] takes the
  * grid's place with a preview of itself. Which is why **Done is gated on that preview loading**
@@ -104,8 +104,8 @@ import org.koin.compose.viewmodel.koinViewModel
  * page copied instead of an image, a host that refuses to serve the app — is one that would have
  * been saved as a permanently blank card face.
  *
- * A picked or pasted *image* commits immediately, as the gallery pick always has; only an address
- * waits for Done, because only an address can be wrong in a way the user cannot see.
+ * A picked image commits immediately, as the gallery pick always has; only an address waits for
+ * Done, because only an address can be wrong in a way the user cannot see.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Suppress("CyclomaticComplexMethod", "LongMethod") // Single sheet; grid/gallery/states read top-to-bottom.
@@ -134,6 +134,10 @@ fun ImagePickerSheet(
     // The one line of feedback the sheet gives about a paste or a picked file, as a string res.
     var notice by remember { mutableStateOf<Int?>(null) }
 
+    // Reading someone else's clipboard provider and compressing what comes back are both slow
+    // enough to be seen. Without this the sheet looks frozen and gets tapped again.
+    var isBusy by remember { mutableStateOf(false) }
+
     // Compression can fail on bytes that are not a decodable image — a clipboard blob wearing an
     // image mime type, a truncated download. It throws, and an uncaught throw here takes the app
     // down, so the failure is reported in the sheet instead.
@@ -155,24 +159,37 @@ fun ImagePickerSheet(
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                val raw = withContext(Dispatchers.IO) {
-                    runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
-                        .getOrNull()
+                isBusy = true
+                try {
+                    val raw = withContext(Dispatchers.IO) {
+                        runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
+                            .getOrNull()
+                    }
+                    if (raw == null) notice = R.string.image_sheet_image_unreadable else commitBytes(raw)
+                } finally {
+                    isBusy = false
                 }
-                if (raw == null) notice = R.string.image_sheet_image_unreadable else commitBytes(raw)
             }
         }
     }
 
     fun onPaste() {
+        if (isBusy) return
         notice = null
         scope.launch {
-            when (val clip = context.readClipboardImage()) {
-                is ClipboardImage.Bytes -> commitBytes(clip.bytes)
-                // Not necessarily a link: pasted words are a perfectly good search, and the field
-                // sorts out which it is.
-                is ClipboardImage.Text -> viewModel.onQueryChange(clip.text)
-                ClipboardImage.Empty -> notice = R.string.image_sheet_paste_empty
+            isBusy = true
+            try {
+                when (val clip = context.readClipboard()) {
+                    // Not necessarily a link: pasted words are a perfectly good search, and the
+                    // field sorts out which it is.
+                    is ClipboardContent.Text -> viewModel.onQueryChange(clip.text)
+                    // An image copied as bytes is a whole path of its own and is not taken yet;
+                    // say so, and point at the two routes that do work.
+                    ClipboardContent.ImageClip -> notice = R.string.image_sheet_paste_image_clip
+                    ClipboardContent.Empty -> notice = R.string.image_sheet_paste_empty
+                }
+            } finally {
+                isBusy = false
             }
         }
     }
@@ -270,9 +287,8 @@ fun ImagePickerSheet(
                 ),
             )
 
-            // From gallery / Paste. Paste is the only route for an image copied off a web page:
-            // Chrome's "Copy image" writes bytes no picker can see, and its "Copy image address"
-            // writes a URL the field then takes as a link.
+            // From gallery / Paste. Paste is how an address copied off a web page — Chrome's
+            // "Copy image address" — reaches the field, which then takes it as a link.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -285,6 +301,7 @@ fun ImagePickerSheet(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
                         )
                     },
+                    busy = isBusy,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("image_pick_gallery"),
@@ -293,6 +310,7 @@ fun ImagePickerSheet(
                     icon = Icons.Default.ContentPaste,
                     label = stringResource(R.string.image_sheet_paste),
                     onClick = ::onPaste,
+                    busy = isBusy,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("image_paste"),
@@ -432,13 +450,18 @@ private fun LinkPreviewPane(
     }
 }
 
-/** One of the two "bring your own image" buttons under the field. */
+/**
+ * One of the two "bring your own image" buttons under the field. [busy] swaps the icon for a
+ * spinner and stops taking taps — reading another app's clipboard provider and compressing what
+ * comes back both take long enough that a dead-looking button gets pressed again.
+ */
 @Composable
 private fun SourceButton(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    busy: Boolean = false,
 ) {
     val colors = LoopkyTheme.colors
     Row(
@@ -446,18 +469,26 @@ private fun SourceButton(
             .clip(RoundedCornerShape(12.dp))
             .border(1.dp, colors.borderSubtle, RoundedCornerShape(12.dp))
             .background(colors.surfaceCard)
-            .clickable(onClick = onClick)
+            .clickable(enabled = !busy, onClick = onClick)
             .padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = colors.foregroundSecondary, modifier = Modifier.size(16.dp))
+        if (busy) {
+            CircularProgressIndicator(
+                color = colors.accentPrimary,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(16.dp),
+            )
+        } else {
+            Icon(icon, null, tint = colors.foregroundSecondary, modifier = Modifier.size(16.dp))
+        }
         Spacer(Modifier.width(6.dp))
         Text(
             text = label,
             fontSize = 12.sp,
             fontWeight = FontWeight.W600,
-            color = colors.foregroundSecondary,
+            color = if (busy) colors.foregroundMuted else colors.foregroundSecondary,
         )
     }
 }
