@@ -103,6 +103,21 @@ class ImageSheetViewModel(
     }
 
     /**
+     * Puts the sheet back to "nothing picked yet", and must be called every time one opens.
+     *
+     * This ViewModel outlives any single sheet — it is scoped to the screen that raises it — so
+     * the front image's pick was still sitting there, committable, when the *back* image sheet
+     * opened: one tap of Done away from putting the same picture on both sides without anyone
+     * choosing it. A pick belongs to the sheet that made it.
+     */
+    fun onSheetOpened() {
+        val current = _state.value
+        if (current.query.isEmpty() && current.link == null && current.selectedPhoto == null) return
+        _state.update { it.copy(selectedPhoto = null) }
+        onQueryChange("")
+    }
+
+    /**
      * Reports the selected photo to Unsplash as used — call this when the pick is committed, not
      * when it is merely highlighted. Fire-and-forget: a failed ping must never block the user, so
      * it is neither awaited nor surfaced as an error.

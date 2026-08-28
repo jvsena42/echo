@@ -39,6 +39,7 @@
     <action>Paste — an image copied as bytes: in Chrome, long-press an image and choose "Copy image", then tap "image_paste" in the sheet. Verify the image is compressed and committed straight away (the sheet closes and the cover updates) without going through the field — Chrome writes bytes here, not an address.</action>
     <action>Paste — nothing usable: clear the clipboard (copy an empty selection, or use a fresh emulator boot) and tap "image_paste". Verify the sheet reports it in one line (resource-id: image_sheet_notice) rather than doing nothing.</action>
     <action>The same field/Paste/preview behaviour must hold in the card image sheets, which are the same composable: check one of them via "triage_edit" → "triage_edit_front_image_add"</action>
+    <action>A pick belongs to the sheet that made it: in "triage_edit", set a front image (any source) and commit it, then open the BACK sheet with "triage_edit_back_image_add". The field must be empty, no "image_link_preview" may be showing, the grid and credit line must be back, and "image_sheet_done" must be DISABLED. The ViewModel is the screen's, not the sheet's, so a regression here is one tap of Done away from putting the front's picture on the back without anyone choosing it.</action>
 
     <action>Manual check (system picker not automatable): tap "From gallery" (resource-id: image_pick_gallery), choose an image, and verify it is compressed and shown as the cover</action>
   </actions>

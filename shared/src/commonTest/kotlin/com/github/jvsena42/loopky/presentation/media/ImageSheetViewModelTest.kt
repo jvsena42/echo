@@ -206,6 +206,35 @@ class ImageSheetViewModelTest {
         assertEquals(ImageLink.Remote(CAT_URL), vm.state.value.link)
     }
 
+    @Test
+    fun `opening the sheet again starts with nothing picked`() = runTest {
+        http.respond(RANDOM_URL, PHOTO_JSON)
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onQueryChange(CAT_URL)
+        vm.onPhotoSelected(photo())
+
+        // The same ViewModel backs the front sheet and then the back one.
+        vm.onSheetOpened()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.link)
+        assertNull(vm.state.value.selectedPhoto)
+        assertEquals(expected = "", actual = vm.state.value.query)
+    }
+
+    @Test
+    fun `opening an untouched sheet does not reload the grid`() = runTest {
+        http.respond(RANDOM_URL, PHOTO_JSON)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onSheetOpened()
+        advanceUntilIdle()
+
+        assertEquals(expected = 1, actual = http.requestedUrls.count { it == RANDOM_URL })
+    }
+
     private fun photo() = UnsplashPhoto(
         id = "abc",
         thumbUrl = "t.jpg",

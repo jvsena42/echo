@@ -41,6 +41,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -144,6 +145,10 @@ fun ImagePickerSheet(
             onSelected(ImageSelection.Gallery(processed.bytes, processed.mime))
         }
     }
+
+    // The ViewModel is the screen's, not the sheet's: without this the next sheet opens holding
+    // the last one's pick.
+    LaunchedEffect(Unit) { viewModel.onSheetOpened() }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia(),
