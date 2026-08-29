@@ -12,6 +12,578 @@
         }
       }
     },
+    "bulk_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "bulk_cards_parsed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld cards parsed"
+          }
+        }
+      }
+    },
+    "bulk_detected_separator": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Separator: %1$s"
+          }
+        }
+      }
+    },
+    "bulk_dropped_notes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld notes had no front and back to use"
+          }
+        }
+      }
+    },
+    "bulk_duplicates": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld duplicates merged"
+          }
+        }
+      }
+    },
+    "bulk_error_legacy_stub_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file only holds Anki's compatibility placeholder. Re-export the deck from Anki 2.1.50 or newer."
+          }
+        }
+      }
+    },
+    "bulk_error_legacy_stub_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This deck needs a newer Anki"
+          }
+        }
+      }
+    },
+    "bulk_error_no_cards_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky read the file but found nothing card-shaped. Each line needs a front and a back."
+          }
+        }
+      }
+    },
+    "bulk_error_no_cards_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No cards in that file"
+          }
+        }
+      }
+    },
+    "bulk_error_not_text_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick an Anki .apkg, or a deck exported as plain text. Photos and PDFs can't become cards."
+          }
+        }
+      }
+    },
+    "bulk_error_not_text_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's not a text file"
+          }
+        }
+      }
+    },
+    "bulk_error_too_large_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky can import files up to %1$d MB. That's larger than any deck on AnkiWeb, so this is likely not an Anki export."
+          }
+        }
+      }
+    },
+    "bulk_error_too_large_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That file is too big"
+          }
+        }
+      }
+    },
+    "bulk_error_unknown_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something went wrong reading that file. Try another one."
+          }
+        }
+      }
+    },
+    "bulk_error_unknown_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That import didn't work"
+          }
+        }
+      }
+    },
+    "bulk_error_unreadable_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky couldn't read it. Try picking it again, or copy it somewhere else first."
+          }
+        }
+      }
+    },
+    "bulk_error_unreadable_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't open that file"
+          }
+        }
+      }
+    },
+    "bulk_error_unsupported_apkg_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Newer Anki decks use a format Loopky doesn't read yet. In Anki, export the deck as “Notes in Plain Text” instead."
+          }
+        }
+      }
+    },
+    "bulk_error_unsupported_apkg_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky can't open this .apkg"
+          }
+        }
+      }
+    },
+    "bulk_fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fields: %1$s → %2$s"
+          }
+        }
+      }
+    },
+    "bulk_fields_changeable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fields: %1$s → %2$s · tap to change"
+          }
+        }
+      }
+    },
+    "bulk_fields_sheet_back": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Which field is the back?"
+          }
+        }
+      }
+    },
+    "bulk_fields_sheet_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "bulk_fields_sheet_front": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Which field is the front?"
+          }
+        }
+      }
+    },
+    "bulk_fields_sheet_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anki decks often start with id or ranking fields. Pick the two you want to study."
+          }
+        }
+      }
+    },
+    "bulk_fields_sheet_step": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step %1$d of 2"
+          }
+        }
+      }
+    },
+    "bulk_fields_unnamed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Field %1$d"
+          }
+        }
+      }
+    },
+    "bulk_format_apkg_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your cards, the deck's name and its pictures come across. Audio doesn't — those cards import as text."
+          }
+        }
+      }
+    },
+    "bulk_format_apkg_ext": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ".apkg"
+          }
+        }
+      }
+    },
+    "bulk_format_apkg_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anki deck export"
+          }
+        }
+      }
+    },
+    "bulk_format_text_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Anki: File → Export → “Notes in Plain Text”. Any tab- or comma-separated list works too."
+          }
+        }
+      }
+    },
+    "bulk_format_text_ext": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ".txt · .csv"
+          }
+        }
+      }
+    },
+    "bulk_format_text_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plain text export"
+          }
+        }
+      }
+    },
+    "bulk_formats_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHAT WORKS"
+          }
+        }
+      }
+    },
+    "bulk_idle_browse_ankiweb": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse shared decks on AnkiWeb"
+          }
+        }
+      }
+    },
+    "bulk_idle_limit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files up to %1$d MB"
+          }
+        }
+      }
+    },
+    "bulk_idle_no_deck": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't have a deck yet?"
+          }
+        }
+      }
+    },
+    "bulk_idle_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import from Anki, or any two-column list you already have."
+          }
+        }
+      }
+    },
+    "bulk_idle_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bring your deck over"
+          }
+        }
+      }
+    },
+    "bulk_images_skipped": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld pictures past the limit were not imported"
+          }
+        }
+      }
+    },
+    "bulk_import_button": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import %1$s"
+          }
+        }
+      }
+    },
+    "bulk_import_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import %1$lld cards"
+          }
+        }
+      }
+    },
+    "bulk_parsing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading %1$s…"
+          }
+        }
+      }
+    },
+    "bulk_pick_another": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a different file"
+          }
+        }
+      }
+    },
+    "bulk_pick_file": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a file"
+          }
+        }
+      }
+    },
+    "bulk_reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading your file…"
+          }
+        }
+      }
+    },
+    "bulk_sample_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SAMPLE"
+          }
+        }
+      }
+    },
+    "bulk_sample_picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Picture"
+          }
+        }
+      }
+    },
+    "bulk_skipped": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld skipped (missing a front or back)"
+          }
+        }
+      }
+    },
+    "bulk_summary_heading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready to import"
+          }
+        }
+      }
+    },
+    "bulk_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import file"
+          }
+        }
+      }
+    },
+    "bulk_truncated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld rows past the limit were not imported"
+          }
+        }
+      }
+    },
     "common_coming_soon": {
       "extractionState": "manual",
       "localizations": {
@@ -679,6 +1251,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Something went wrong"
+          }
+        }
+      }
+    },
+    "decks_import_file_cta": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import from Anki or a file"
           }
         }
       }
@@ -4408,6 +4991,116 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not quite — try again"
+          }
+        }
+      }
+    },
+    "triage_approve_all": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve all"
+          }
+        }
+      }
+    },
+    "triage_back_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BACK"
+          }
+        }
+      }
+    },
+    "triage_discard": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard"
+          }
+        }
+      }
+    },
+    "triage_edit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit"
+          }
+        }
+      }
+    },
+    "triage_front_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "FRONT"
+          }
+        }
+      }
+    },
+    "triage_keep": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep"
+          }
+        }
+      }
+    },
+    "triage_progress": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "triage_stats": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld kept · %2$lld discarded"
+          }
+        }
+      }
+    },
+    "triage_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review cards"
+          }
+        }
+      }
+    },
+    "triage_undo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo last card"
           }
         }
       }

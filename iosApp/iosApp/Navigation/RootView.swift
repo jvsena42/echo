@@ -7,6 +7,8 @@ enum DeckRoute: Hashable, Identifiable {
     case editorNew
     case editCard(String, String)
     case importPaste
+    case importBulk
+    case importTriage
     case importPublish
     /// `nil` means everything due across the library, which is what Home asks for.
     case study(String?)
@@ -21,6 +23,8 @@ enum DeckRoute: Hashable, Identifiable {
         case .editorNew: return "editor-new"
         case .editCard(let deckId, let cardId): return "edit-\(deckId)-\(cardId)"
         case .importPaste: return "import-paste"
+        case .importBulk: return "import-bulk"
+        case .importTriage: return "import-triage"
         case .importPublish: return "import-publish"
         case .study(let id): return "study-\(id ?? "all")"
         case .settings: return "settings"
@@ -47,6 +51,7 @@ struct RootView: View {
                 MainView(
                     onDeckTap: { deckId, author in deckRoute = .detail(deckId, author) },
                     onImportTap: { deckRoute = .importPaste },
+                    onImportFileTap: { deckRoute = .importBulk },
                     onCreateDeckTap: { deckRoute = .editorNew },
                     onSignedOut: { isSignedIn = false },
                     onStartStudy: { deckRoute = .study(nil) },
@@ -87,7 +92,17 @@ struct RootView: View {
                     case .importPaste:
                         PasteScreen(
                             onCancel: { deckRoute = nil },
-                            onNext: { deckRoute = .importPublish }
+                            onNext: { deckRoute = .importTriage }
+                        )
+                    case .importBulk:
+                        BulkImportScreen(
+                            onCancel: { deckRoute = nil },
+                            onContinue: { deckRoute = .importTriage }
+                        )
+                    case .importTriage:
+                        TriageScreen(
+                            onBack: { deckRoute = nil },
+                            onPublish: { deckRoute = .importPublish }
                         )
                     case .friendProfile(let pubky):
                         FriendProfileScreen(

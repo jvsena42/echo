@@ -15,6 +15,16 @@
 			</array>
 		</dict>
 	</array>
+	<!--
+	  Makes Loopky's Documents folder visible in Files and over Finder, so an .apkg can be dropped
+	  in and imported without going through a share sheet — the same way Anki's own iOS app works.
+	  `OpeningDocumentsInPlace` means the picker hands back the original file rather than a copy,
+	  which is why the reader takes a security-scoped URL.
+	-->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.github.jvsena42.loopky.media-rehost</string>

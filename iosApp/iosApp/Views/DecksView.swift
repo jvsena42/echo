@@ -21,6 +21,7 @@ struct DecksView: View {
     var state: DecksViewState = .loading
     var onDeckTap: (String) -> Void = { _ in }
     var onImportTap: () -> Void = {}
+    var onImportFileTap: () -> Void = {}
     var onCreateDeckTap: () -> Void = {}
 
     private let columns = [
@@ -74,6 +75,23 @@ struct DecksView: View {
                     .shadow(color: LoopkyColor.shadowAccent, radius: 32, x: 0, y: 12)
                 }
                 .buttonStyle(.plain)
+
+                // Deliberately quieter than the paste CTA: pasting is the v1 primary flow, and a
+                // file import is the path for people arriving from Anki.
+                Button(action: onImportFileTap) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "doc.badge.plus").font(.system(size: 14))
+                        Text("decks_import_file_cta").font(.system(size: 14, weight: .semibold))
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(LoopkyColor.accentPrimary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(LoopkyColor.accentPrimarySoft))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("decks_import_file")
 
                 switch state {
                 case .loading:

@@ -7,6 +7,7 @@ struct MainView: View {
     /// `(deckId, authorPubky)`; the author is `nil` for a deck you own.
     var onDeckTap: (String, String?) -> Void = { _, _ in }
     var onImportTap: () -> Void = {}
+    var onImportFileTap: () -> Void = {}
     var onCreateDeckTap: () -> Void = {}
     var onSignedOut: () -> Void = {}
     var onStartStudy: () -> Void = {}
@@ -35,6 +36,7 @@ struct MainView: View {
             DecksScreen(
                 onDeckTap: { onDeckTap($0, nil) },
                 onImportTap: onImportTap,
+                onImportFileTap: onImportFileTap,
                 onCreateDeckTap: onCreateDeckTap
             )
             .tabItem { Label(LoopkyTab.decks.title, systemImage: LoopkyTab.decks.iconName) }

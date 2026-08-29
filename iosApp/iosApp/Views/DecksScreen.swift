@@ -5,6 +5,7 @@ import Shared
 struct DecksScreen: View {
     var onDeckTap: (String) -> Void = { _ in }
     var onImportTap: () -> Void = {}
+    var onImportFileTap: () -> Void = {}
     var onCreateDeckTap: () -> Void = {}
 
     @State private var viewModel: DecksLibraryViewModel?
@@ -17,6 +18,9 @@ struct DecksScreen: View {
             state: viewState,
             onDeckTap: { viewModel?.onDeckClick(deckId: $0) },
             onImportTap: { viewModel?.onImportClick() },
+            // Straight to the route: file import has no ViewModel step of its own, unlike paste
+            // which goes through `onImportClick` so the draft is reset first.
+            onImportFileTap: onImportFileTap,
             onCreateDeckTap: { viewModel?.onCreateDeckClick() }
         )
         .onAppear { attach() }
