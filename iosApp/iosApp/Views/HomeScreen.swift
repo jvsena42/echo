@@ -49,9 +49,16 @@ struct HomeScreen: View {
         case is HomeUiStateEmpty:
             return .empty
         case let content as HomeUiStateContent:
-            return .content(
-                dueToday: Int(content.dueToday),
+            return .content(HomeContentData(
+                // `studyTarget`, not `dueToday`: today's intent is everything overdue plus
+                // whatever room the new-cards goal has left. Showing the bare due count put
+                // "0 cards to review" above Start studying while an unseen card was waiting.
+                dueToday: Int(content.studyTarget),
                 doneToday: Int(content.doneToday),
+                newToday: Int(content.newToday),
+                newCardsToday: Int(content.newCardsToday),
+                newCardsGoal: Int(content.newCardsGoal),
+                nextDueAtMillis: content.nextDueAtMillis?.int64Value,
                 decks: content.decks.map { deck in
                     HomeDeckSummary(
                         id: deck.id,
@@ -63,7 +70,7 @@ struct HomeScreen: View {
                         authorPubky: deck.authorPubky
                     )
                 }
-            )
+            ))
         case let error as HomeUiStateError:
             return .error(ErrorCopy.message(for: error.reason))
         default:

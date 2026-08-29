@@ -2741,6 +2741,39 @@
         }
       }
     },
+    "home_caught_up_next_due": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next review in %1$@."
+          }
+        }
+      }
+    },
+    "home_caught_up_no_next_due": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing scheduled yet — study ahead from any deck."
+          }
+        }
+      }
+    },
+    "home_caught_up_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're all caught up"
+          }
+        }
+      }
+    },
     "home_create_first_deck": {
       "extractionState": "manual",
       "localizations": {
@@ -2825,6 +2858,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ 👋"
+          }
+        }
+      }
+    },
+    "home_new_cards_goal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld new cards today"
+          }
+        }
+      }
+    },
+    "home_new_cards_goal_reached": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily goal reached · %1$lld new cards 🎉"
           }
         }
       }
