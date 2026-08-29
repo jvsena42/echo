@@ -6,6 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Loopky is a Kotlin Multiplatform flashcards app (iOS + Android) that fuses TinyCards-style playfulness, Anki-style spaced repetition, and Pubky-based decentralized identity/social graph. See `docs/specs.md` (the deck-import spec) and `docs/Architecture.md` (technical architecture — this is the source of truth for module layout, layering, and open questions).
 
+## Session start
+
+A fresh session has none of this in context, so establish it before the first edit:
+
+- **Both device toolchains are set up — use them, don't shell out to raw tooling.** Android is
+  `android-cli` (`android run`, `android layout`, `android screen capture`, `adb shell input tap`);
+  iOS is the XcodeBuildMCP CLI / `xcodebuildmcp` MCP server (see Build & run below), never bare
+  `xcodebuild`, `xcrun` or `simctl`. Their skills — `android-cli` and `xcodebuildmcp-cli` — are
+  installed; invoke the relevant one rather than reconstructing commands from memory.
+- **`journeys/` is the end-to-end suite, and it is how UI work is verified.** 23 numbered
+  `journeys/*.xml` scripts (onboarding, import, study, discovery, signup/restore …) driven by hand
+  on a device, with dated outcomes in `journeys/RESULTS.md`. Read `RESULTS.md` first for the current
+  known-good/known-broken state — it records blockers a green build says nothing about — then
+  re-run the journeys your change touches and update it with the result and the date.
+
 ## Build & run
 
 ```shell
@@ -16,7 +31,23 @@ Loopky is a Kotlin Multiplatform flashcards app (iOS + Android) that fuses TinyC
 ./gradlew lintSwift                     # lint iOS Swift (SwiftLint; needs `brew install swiftlint`)
 ```
 
-iOS: open `iosApp/` in Xcode and run. The `shared` module is consumed as a static framework (`baseName = "Shared"`, `isStatic = true`) — see `shared/build.gradle.kts`. **iOS is wired but unverified end-to-end**: `iOSApp.swift` starts Koin via `doInitKoin(rawPubkyClient:)`, handing in the Swift `IosPubkyClient` — a dumb `[status, payload]` pass-through, since `kotlin.Result` and suspend functions cannot be implemented from Swift — which `IosPubkyClientAdapter` wraps into the shared `PubkyClient` contract on the Kotlin side. The SwiftUI screens and the `IosFlowWatcher`/`FlowObserver` state bridge are in place; what is missing is anyone having run the thing against a real homeserver, so treat iOS behaviour as unproven rather than blocked.
+iOS goes through the **XcodeBuildMCP CLI** (`xcodebuildmcp`, Homebrew: `brew tap getsentry/xcodebuildmcp
+&& brew install xcodebuildmcp`), never raw `xcodebuild`/`xcrun simctl`. It is enabled for this repo as a
+project MCP server in `.mcp.json`, and the same binary works straight from the shell. The project has a
+single scheme, `iosApp`:
+
+```shell
+xcodebuildmcp simulator build-and-run --project-path iosApp/iosApp.xcodeproj --scheme iosApp \
+  --simulator-name 'iPhone 17'                       # build + install + launch
+xcodebuildmcp simulator build --project-path iosApp/iosApp.xcodeproj --scheme iosApp \
+  --simulator-name 'iPhone 17'                       # compile-only check
+xcodebuildmcp ui-automation snapshot-ui              # semantic UI tree (the iOS `android layout`)
+xcodebuildmcp ui-automation tap --element-ref e1     # drive it; also type-text, swipe, screenshot
+xcodebuildmcp <workflow> --help                      # discover everything else; don't memorise flags
+```
+
+Xcode still works for hands-on debugging (open `iosApp/`), but prefer the CLI so a session can see the
+result. The `shared` module is consumed as a static framework (`baseName = "Shared"`, `isStatic = true`) — see `shared/build.gradle.kts`. **iOS is wired but unverified end-to-end**: `iOSApp.swift` starts Koin via `doInitKoin(rawPubkyClient:)`, handing in the Swift `IosPubkyClient` — a dumb `[status, payload]` pass-through, since `kotlin.Result` and suspend functions cannot be implemented from Swift — which `IosPubkyClientAdapter` wraps into the shared `PubkyClient` contract on the Kotlin side. The SwiftUI screens and the `IosFlowWatcher`/`FlowObserver` state bridge are in place; what is missing is anyone having run the thing against a real homeserver, so treat iOS behaviour as unproven rather than blocked. **The iOS UI does not match Android yet** — the SwiftUI screens lag the Compose ones in layout and polish. That is known and deliberate; a follow-up PR brings them into line, so don't treat a mismatch you find as a fresh bug to fix in passing.
 
 Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `detekt-compose-rules`); run `./gradlew detektAll` (use `--auto-correct` to fix formatting findings). Swift lint is SwiftLint (`iosApp/.swiftlint.yml`, generated `pubkycore.swift` excluded); run `./gradlew lintSwift` or `swiftlint` from `iosApp/`. `shared/src/commonTest` holds a real suite (~680 tests across targets): repository tests over a `FakePubkyClient`, ViewModel tests over `FakeRepositories`, and parser/scheduler tests. Run `./gradlew :shared:allTests`.
 
@@ -271,6 +302,15 @@ points here rather than restating them.
   screenshot; `user_rotation` sometimes does not apply on the first try. Anything gated on width —
   the nav rail, the two-pane layouts, the QR sign-in panel — simply does not exist on a phone, so a
   phone-only pass cannot regress-test it at all.
+- **iOS UI changes get the same treatment, through `xcodebuildmcp`.** `simulator build-and-run` to
+  install and launch, `ui-automation snapshot-ui` to read the screen (the iOS `android layout`),
+  `ui-automation tap`/`type-text`/`swipe` to drive it, `ui-automation screenshot` for the look. A
+  compiling Swift file proves nothing about the screen, and iOS has no equivalent of the tablet AVD
+  pass — check a compact and a regular size class (an iPhone and an iPad simulator) when the change
+  touches layout.
+- **Re-run the affected `journeys/*.xml` before opening the PR, and record the outcome.** Add the
+  run's date and result to `journeys/RESULTS.md` in the same PR; a journey whose steps your change
+  invalidated gets its XML updated too, not left describing a screen that no longer exists.
 - Write focused, descriptive commit messages that explain the change and its rationale.
 - **Use commit history as context when investigating why a change was made.** Before changing or
   reverting code, check `git log`/`git blame` (e.g. `git log -p <file>`, `git blame -L`) — the commit
@@ -280,3 +320,5 @@ points here rather than restating them.
 
 - `docs/Architecture.md` — always. §4 (shared layering), §7 (Pubky, Nexus tag indexing, Homegate signup), §8 (homeserver layout, chunking, quota, SRS), §12 (what is still open).
 - `docs/specs.md` §5–§10 — for any import/triage/commit work; §6 and §9 are the parser test matrix.
+- `journeys/RESULTS.md` — before any UI or flow work, for what currently passes on a device and what
+  is a known blocker; the matching `journeys/*.xml` is the script to re-run afterwards.
