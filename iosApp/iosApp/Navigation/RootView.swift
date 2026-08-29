@@ -7,7 +7,7 @@ enum DeckRoute: Hashable, Identifiable {
     case editorNew
     case editCard(String, String)
     case importPaste
-    case importBulk
+    case importBulk(URL?)
     case importTriage
     case importPublish
     /// `nil` means everything due across the library, which is what Home asks for.
@@ -23,7 +23,7 @@ enum DeckRoute: Hashable, Identifiable {
         case .editorNew: return "editor-new"
         case .editCard(let deckId, let cardId): return "edit-\(deckId)-\(cardId)"
         case .importPaste: return "import-paste"
-        case .importBulk: return "import-bulk"
+        case .importBulk(let url): return "import-bulk-\(url?.lastPathComponent ?? "picker")"
         case .importTriage: return "import-triage"
         case .importPublish: return "import-publish"
         case .study(let id): return "study-\(id ?? "all")"
@@ -51,7 +51,7 @@ struct RootView: View {
                 MainView(
                     onDeckTap: { deckId, author in deckRoute = .detail(deckId, author) },
                     onImportTap: { deckRoute = .importPaste },
-                    onImportFileTap: { deckRoute = .importBulk },
+                    onImportFileTap: { deckRoute = .importBulk(nil) },
                     onCreateDeckTap: { deckRoute = .editorNew },
                     onSignedOut: { isSignedIn = false },
                     onStartStudy: { deckRoute = .study(nil) },
@@ -94,8 +94,9 @@ struct RootView: View {
                             onCancel: { deckRoute = nil },
                             onNext: { deckRoute = .importTriage }
                         )
-                    case .importBulk:
+                    case .importBulk(let incoming):
                         BulkImportScreen(
+                            incomingFile: incoming,
                             onCancel: { deckRoute = nil },
                             onContinue: { deckRoute = .importTriage }
                         )
@@ -140,9 +141,15 @@ struct RootView: View {
             }
         }
         .onOpenURL { url in
-            // The auth flow completes via the FFI's awaitAuthApproval (relay polling), so the
-            // callback deeplink only needs to bring Loopky back to the foreground.
-            print("[Loopky] received deeplink: \(url.absoluteString)")
+            // Two kinds of URL arrive here. A deck file opened from Files, Mail or a chat app —
+            // Android's equivalent is ACTION_VIEW / ACTION_SEND — goes straight to the import
+            // screen with the file already in hand. Anything else is the auth callback, which
+            // completes over the relay poll and only needs to bring Loopky back to the front.
+            if url.isFileURL {
+                deckRoute = .importBulk(url)
+            } else {
+                print("[Loopky] received deeplink: \(url.absoluteString)")
+            }
         }
     }
 }

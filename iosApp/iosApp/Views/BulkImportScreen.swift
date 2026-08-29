@@ -10,6 +10,9 @@ import UniformTypeIdentifiers
 struct BulkImportScreen: View {
     @Environment(\.openURL) private var openURL
 
+    /// A file the system handed us via "Open with", read on appear instead of showing the picker.
+    var incomingFile: URL?
+
     var onCancel: () -> Void = {}
     var onContinue: () -> Void = {}
 
@@ -19,6 +22,7 @@ struct BulkImportScreen: View {
     @State private var effectSink: FlowEffectSink?
     @State private var isPicking = false
     @State private var isChoosingFields = false
+    @State private var didReadIncoming = false
 
     var body: some View {
         BulkImportView(
@@ -53,11 +57,26 @@ struct BulkImportScreen: View {
                 )
             }
         }
-        .onAppear { attach() }
+        .onAppear {
+            attach()
+            if let incomingFile, !didReadIncoming {
+                didReadIncoming = true
+                read(incomingFile)
+            }
+        }
         .onDisappear { detach() }
     }
 
     private var readyState: BulkImportUiStateReady? { uiState as? BulkImportUiStateReady }
+
+    /// Anki decks routinely carry fields with no name at all, so the picker's fallback is used
+    /// here too rather than showing an empty arrow.
+    private func fieldName(_ fields: ApkgFields, _ ord: Int) -> String {
+        let raw = fields.names.indices.contains(ord) ? fields.names[ord] : ""
+        return raw.isEmpty
+            ? String(format: NSLocalizedString("bulk_fields_unnamed", comment: ""), ord + 1)
+            : raw
+    }
 
     private var viewState: BulkImportViewState {
         if uiState is BulkImportUiStateReading { return BulkImportViewState(phase: .reading) }
@@ -82,7 +101,13 @@ struct BulkImportScreen: View {
             truncatedCount: Int(ready.truncatedCount),
             droppedNoteCount: Int(ready.droppedNoteCount),
             imagesSkippedCount: Int(ready.imagesSkippedCount),
-            hasFields: ready.fields != nil,
+            fieldsLabel: ready.fields.map { fields in
+                String(
+                    format: NSLocalizedString("bulk_fields_changeable", comment: ""),
+                    fieldName(fields, Int(fields.mapping.frontOrd)),
+                    fieldName(fields, Int(fields.mapping.backOrd))
+                )
+            },
             canImport: ready.canImport,
             sample: ready.sample.map {
                 BulkSampleCard(front: $0.front, back: $0.back,
@@ -91,18 +116,22 @@ struct BulkImportScreen: View {
         )
     }
 
-    /// A security-scoped URL: the picker grants access to the file, and it has to be released.
     private func handle(_ result: Result<[URL], Error>) {
         guard let url = try? result.get().first else {
             viewModel?.onFileReadFailed(reason: BulkImportError.unreadable)
             return
         }
+        read(url)
+    }
+
+    /// A security-scoped URL: the system grants access to the file, and it has to be released.
+    ///
+    /// Shared by the picker and by "Open with", which hand over the same kind of URL — the second
+    /// simply arrives without anyone tapping through Files.
+    private func read(_ url: URL) {
         viewModel?.onFileReadStarted()
-        guard url.startAccessingSecurityScopedResource() else {
-            viewModel?.onFileReadFailed(reason: BulkImportError.unreadable)
-            return
-        }
-        defer { url.stopAccessingSecurityScopedResource() }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
 
         // Size first, before any read: the check exists precisely because reading is what costs.
         let declaredSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
@@ -159,15 +188,21 @@ struct BulkImportScreen: View {
         }
     }
 
-    private static func errorMessage(_ reason: BulkImportError) -> LocalizedStringKey {
+    /// Returns a formatted `String` rather than a `LocalizedStringKey`, because the too-large
+    /// message carries the ceiling — rendered as a key it would show a literal "%1$lld MB".
+    private static func errorMessage(_ reason: BulkImportError) -> String {
         switch reason {
-        case BulkImportError.toolarge: return "bulk_error_too_large_message"
-        case BulkImportError.nottext: return "bulk_error_not_text_message"
-        case BulkImportError.unsupportedapkg: return "bulk_error_unsupported_apkg_message"
-        case BulkImportError.legacystubonly: return "bulk_error_legacy_stub_message"
-        case BulkImportError.nocardsfound: return "bulk_error_no_cards_message"
-        case BulkImportError.unreadable: return "bulk_error_unreadable_message"
-        default: return "bulk_error_unknown_message"
+        case BulkImportError.toolarge:
+            return String(
+                format: NSLocalizedString("bulk_error_too_large_message", comment: ""),
+                maxImportFileBytes / bytesPerMegabyte
+            )
+        case BulkImportError.nottext: return NSLocalizedString("bulk_error_not_text_message", comment: "")
+        case BulkImportError.unsupportedapkg: return NSLocalizedString("bulk_error_unsupported_apkg_message", comment: "")
+        case BulkImportError.legacystubonly: return NSLocalizedString("bulk_error_legacy_stub_message", comment: "")
+        case BulkImportError.nocardsfound: return NSLocalizedString("bulk_error_no_cards_message", comment: "")
+        case BulkImportError.unreadable: return NSLocalizedString("bulk_error_unreadable_message", comment: "")
+        default: return NSLocalizedString("bulk_error_unknown_message", comment: "")
         }
     }
 
@@ -204,6 +239,9 @@ private let zipMagicByteCount = 4
 /// looks at it, so the guard has to come first.
 let maxImportFileBytes = 500 * 1024 * 1024
 
+/// Bytes in a megabyte, for the size copy.
+let bytesPerMegabyte = 1024 * 1024
+
 /// Where someone with no deck yet can find one.
 private let ankiWebSharedDecksUrl = "https://ankiweb.net/shared/decks"
 
@@ -227,9 +265,9 @@ struct BulkImportViewState {
     var truncatedCount: Int = 0
     var droppedNoteCount: Int = 0
     var imagesSkippedCount: Int = 0
-    var hasFields: Bool = false
+    var fieldsLabel: String?
     var canImport: Bool = false
     var errorTitle: LocalizedStringKey?
-    var errorMessage: LocalizedStringKey?
+    var errorMessage: String?
     var sample: [BulkSampleCard] = []
 }

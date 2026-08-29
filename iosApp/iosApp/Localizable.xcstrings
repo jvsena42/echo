@@ -40,7 +40,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Separator: %1$s"
+            "value": "Separator: %1$@"
           }
         }
       }
@@ -139,7 +139,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loopky can import files up to %1$d MB. That's larger than any deck on AnkiWeb, so this is likely not an Anki export."
+            "value": "Loopky can import files up to %1$lld MB. That's larger than any deck on AnkiWeb, so this is likely not an Anki export."
           }
         }
       }
@@ -227,7 +227,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fields: %1$s → %2$s"
+            "value": "Fields: %1$@ → %2$@"
           }
         }
       }
@@ -238,7 +238,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fields: %1$s → %2$s · tap to change"
+            "value": "Fields: %1$@ → %2$@ · tap to change"
           }
         }
       }
@@ -293,7 +293,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Step %1$d of 2"
+            "value": "Step %1$lld of 2"
           }
         }
       }
@@ -304,7 +304,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Field %1$d"
+            "value": "Field %1$lld"
           }
         }
       }
@@ -403,7 +403,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Files up to %1$d MB"
+            "value": "Files up to %1$lld MB"
           }
         }
       }
@@ -458,7 +458,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Import %1$s"
+            "value": "Import %1$@"
           }
         }
       }
@@ -480,7 +480,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reading %1$s…"
+            "value": "Reading %1$@…"
           }
         }
       }
@@ -2251,7 +2251,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photo by %1$s on %2$s"
+            "value": "Photo by %1$@ on %2$@"
           }
         }
       }
@@ -2262,7 +2262,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Photos from %1$s"
+            "value": "Photos from %1$@"
           }
         }
       }
@@ -3923,7 +3923,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Delete account (%1$d)"
+            "value": "Delete account (%1$lld)"
           }
         }
       }
@@ -3989,7 +3989,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d of %2$d removed"
+            "value": "%1$lld of %2$lld removed"
           }
         }
       }
@@ -4308,7 +4308,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loopky holds the only copy of the key for %1$s, and you haven't backed it up. Signing out deletes it, and this account can never be recovered."
+            "value": "Loopky holds the only copy of the key for %1$@, and you haven't backed it up. Signing out deletes it, and this account can never be recovered."
           }
         }
       }
@@ -4539,7 +4539,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Key set · ••••%1$s"
+            "value": "Key set · ••••%1$@"
           }
         }
       }

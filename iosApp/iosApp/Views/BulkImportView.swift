@@ -1,8 +1,5 @@
 import SwiftUI
 
-/// Bytes in a megabyte, for the size copy.
-private let bytesPerMegabyte = 1024 * 1024
-
 /// Pick a file and see what it holds before committing. Pure layout.
 struct BulkImportView: View {
     var state: BulkImportViewState = BulkImportViewState()
@@ -181,7 +178,7 @@ struct BulkImportView: View {
                     .foregroundStyle(LoopkyColor.danger)
             }
             if let errorMessage = state.errorMessage {
-                Text(errorMessage)
+                Text(verbatim: errorMessage)
                     .font(.system(size: 14))
                     .foregroundStyle(LoopkyColor.foregroundSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -210,8 +207,8 @@ struct BulkImportView: View {
             // invisible, so an import of 1,458 notes yielding 1,338 cards looked like a bug.
             notes
 
-            if state.hasFields {
-                Button("bulk_fields", action: onChooseFields)
+            if let fieldsLabel = state.fieldsLabel {
+                Button(action: onChooseFields) { Text(verbatim: fieldsLabel) }
                     .buttonStyle(.loopkyOutline)
                     .accessibilityIdentifier("bulk_fields")
             }

@@ -53,6 +53,12 @@ result. The `shared` module is consumed as a static framework (`baseName = "Shar
 
 **Still Android-only:** Speak (needs a `SpeechRecognizer` binding plus `Info.plist` usage strings), bulk import and triage, tag browse, and — per #149 — the signup, backup and restore screens. `IosSpeechRecognizer` does not exist, so Speak stays hidden on iOS. `IosMediaProcessor` **does** now, so `BulkImportViewModel` resolves and image attachment works. iPad and any width but a phone is #173.
 
+**Strings ported from Android need their format specifiers converted.** Java's `%1$s` is a **C
+string** on iOS — a Swift `String` handed to it faults inside `strlen` — so it must become `%1$@`.
+A Swift `Int` is 64-bit, so `%1$d` must become `%1$lld`. And the *argument order* is part of the
+string: `edit_card_context` reads `Card %1$lld of %2$lld · %3$@`, counts before title. None of the
+three is visible to the compiler or to SwiftLint; all three segfault at render time.
+
 **Four bridge traps worth knowing before touching Swift here.** Kotlin enum entries export lowercased with no separators (`ErrorReason.sessionexpired`, `RingHandoff.thisdevice`), and getting one wrong produces a misleading error pointing at the enclosing view. Kotlin's `description` property exports as `description_`; plain `.description` compiles and returns the object dump. A sealed interface crosses as an ObjC *protocol*, so casting an erased value to a generic parameter bound to it silently yields `nil` — hold state as `Any?` and match the concrete classes. And a text field must own its own `@State` while typing: binding `get` to state that round-trips through a ViewModel drops characters.
 
 Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `detekt-compose-rules`); run `./gradlew detektAll` (use `--auto-correct` to fix formatting findings). Swift lint is SwiftLint (`iosApp/.swiftlint.yml`, generated `pubkycore.swift` excluded); run `./gradlew lintSwift` or `swiftlint` from `iosApp/`. `shared/src/commonTest` holds a real suite (~680 tests across targets): repository tests over a `FakePubkyClient`, ViewModel tests over `FakeRepositories`, and parser/scheduler tests. Run `./gradlew :shared:allTests`.
