@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Bytes in a megabyte, for the size copy.
+private let bytesPerMegabyte = 1024 * 1024
+
 /// Pick a file and see what it holds before committing. Pure layout.
 struct BulkImportView: View {
     var state: BulkImportViewState = BulkImportViewState()
@@ -8,6 +11,7 @@ struct BulkImportView: View {
     var onChooseFields: () -> Void = {}
     var onConfirm: () -> Void = {}
     var onCancel: () -> Void = {}
+    var onBrowseSharedDecks: () -> Void = {}
 
     var body: some View {
         ScrollView {
@@ -42,23 +46,93 @@ struct BulkImportView: View {
                 .font(.system(size: 18, weight: .heavy))
                 .foregroundStyle(LoopkyColor.foregroundPrimary)
             Spacer()
-            Button(importLabel, action: onConfirm)
-                .buttonStyle(LoopkyCompactFilledButtonStyle(
-                    fill: state.canImport ? LoopkyColor.accentPrimary : LoopkyColor.borderSubtle,
-                    foreground: state.canImport ? .white : LoopkyColor.foregroundMuted
-                ))
-                .disabled(!state.canImport)
+            // Absent rather than disabled before a file is parsed: "Import 0 cards" over an
+            // empty screen describes nothing the user has done yet.
+            if state.phase == .ready {
+                Button(importLabel, action: onConfirm)
+                    .buttonStyle(LoopkyCompactFilledButtonStyle(
+                        fill: state.canImport ? LoopkyColor.accentPrimary : LoopkyColor.borderSubtle,
+                        foreground: state.canImport ? .white : LoopkyColor.foregroundMuted
+                    ))
+                    .disabled(!state.canImport)
+                    .accessibilityIdentifier("bulk_import")
+            }
         }
     }
 
+    /// The empty state, which is where most of this screen's job gets done.
+    ///
+    /// Mirrors Android's: a hero, the two formats that work and what each brings over, and — since
+    /// the spec pitches Loopky at Anki refugees (§1) — a way out for someone who has no deck yet.
+    /// Prose over blank space says nothing about what a "file" means here.
     private var formats: some View {
         VStack(alignment: .leading, spacing: 12) {
+            illustration
+
+            Text("bulk_formats_label")
+                .font(.system(size: 10, weight: .bold))
+                .kerning(0.8)
+                .foregroundStyle(LoopkyColor.foregroundMuted)
+
             formatCard("bulk_format_apkg_title", "bulk_format_apkg_detail", "bulk_format_apkg_ext")
             formatCard("bulk_format_text_title", "bulk_format_text_detail", "bulk_format_text_ext")
+
             Button("bulk_pick_file", action: onPickFile)
                 .buttonStyle(.loopkyFilled)
                 .accessibilityIdentifier("bulk_pick_file")
+
+            // Formatted from the same ceiling the picker enforces, so the copy cannot drift.
+            Text(String(
+                format: NSLocalizedString("bulk_idle_limit", comment: ""),
+                maxImportFileBytes / bytesPerMegabyte
+            ))
+            .font(.system(size: 12))
+            .foregroundStyle(LoopkyColor.foregroundMuted)
+            .frame(maxWidth: .infinity)
+
+            ankiWebRow
         }
+    }
+
+    /// The screen assumes you already have a file, which an Anki refugee does and a new user does
+    /// not. AnkiWeb's shared decks are the shortest route from empty to something to import.
+    private var ankiWebRow: some View {
+        HStack(spacing: 6) {
+            Text("bulk_idle_no_deck")
+                .font(.system(size: 13))
+                .foregroundStyle(LoopkyColor.foregroundMuted)
+            Button("bulk_idle_browse_ankiweb", action: onBrowseSharedDecks)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(LoopkyColor.accentPrimary)
+                .underline()
+                .accessibilityIdentifier("bulk_browse_ankiweb")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 6)
+    }
+
+    /// The same idiom as the paste screen's fox and Home's book stack: an emoji on the brand
+    /// plate rather than a bitmap, so it needs no asset and scales with Dynamic Type.
+    private var illustration: some View {
+        VStack(spacing: 12) {
+            Text("📦")
+                .font(.system(size: 44))
+                .frame(width: 96, height: 96)
+                .background(Circle().fill(LoopkyColor.accentPrimarySoft))
+                .accessibilityHidden(true)
+            Text("bulk_idle_title")
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+                .multilineTextAlignment(.center)
+            Text("bulk_idle_subtitle")
+                .font(.system(size: 14))
+                .foregroundStyle(LoopkyColor.foregroundMuted)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 20)
+        .padding(.bottom, 8)
     }
 
     private func formatCard(

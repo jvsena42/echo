@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.data.anki
 import cnames.structs.sqlite3
 import cnames.structs.sqlite3_stmt
 import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CPointerVar
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -40,29 +41,41 @@ import sqlite3.sqlite3_step
  * shared reader walks a result more than once, and a `sqlite3_stmt` cannot be rewound.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal class IosAnkiDb private constructor(private val handle: CPointerVar<sqlite3>) : AnkiDb {
+internal class IosAnkiDb private constructor(private val db: CPointer<sqlite3>) : AnkiDb {
 
     companion object {
-        /** Opens [path], or null when SQLite refuses it — a corrupt or non-SQLite file. */
+        /**
+         * Opens [path], or null when SQLite refuses it — a corrupt or non-SQLite file.
+         *
+         * The connection is held as the raw `CPointer` sqlite3 handed back, **not** as the
+         * `CPointerVar` it was written into. That variable is allocated in the `memScoped` block
+         * and freed when the block exits, so keeping it would leave every later call — including
+         * `close` — reading freed memory. It segfaulted on the first real `.apkg`.
+         */
         fun open(path: String): IosAnkiDb? = memScoped {
-            val handle = alloc<CPointerVar<sqlite3>>()
-            val status = sqlite3_open_v2(path, handle.ptr, SQLITE_OPEN_READONLY, null)
-            if (status != SQLITE_OK) {
-                sqlite3_close(handle.value)
-                null
-            } else {
-                IosAnkiDb(handle)
+            val out = alloc<CPointerVar<sqlite3>>()
+            val status = sqlite3_open_v2(path, out.ptr, SQLITE_OPEN_READONLY, null)
+            val handle = out.value
+            when {
+                // sqlite3_open_v2 allocates a handle even for most failures, and it still has to
+                // be closed or the connection leaks.
+                status != SQLITE_OK -> {
+                    handle?.let { sqlite3_close(it) }
+                    null
+                }
+                handle == null -> null
+                else -> IosAnkiDb(handle)
             }
         }
     }
 
     fun close() {
-        sqlite3_close(handle.value)
+        sqlite3_close(db)
     }
 
     override fun query(sql: String, args: List<String>): List<AnkiRow> = memScoped {
         val statement = alloc<CPointerVar<sqlite3_stmt>>()
-        if (sqlite3_prepare_v2(handle.value, sql, -1, statement.ptr, null) != SQLITE_OK) {
+        if (sqlite3_prepare_v2(db, sql, -1, statement.ptr, null) != SQLITE_OK) {
             // A table this schema does not have. The shared reader tries both schemas and takes
             // whichever answers, so an absent table is an expected outcome, not a failure.
             return emptyList()
@@ -84,7 +97,7 @@ internal class IosAnkiDb private constructor(private val handle: CPointerVar<sql
         }
     }
 
-    private fun readRow(statement: kotlinx.cinterop.CPointer<sqlite3_stmt>?, columns: Int): AnkiRow {
+    private fun readRow(statement: CPointer<sqlite3_stmt>?, columns: Int): AnkiRow {
         val values = (0 until columns).map { index ->
             ColumnValue(
                 text = sqlite3_column_text(statement, index)?.reinterpret<ByteVar>()?.toKString(),
@@ -95,7 +108,7 @@ internal class IosAnkiDb private constructor(private val handle: CPointerVar<sql
         return MaterialisedRow(values)
     }
 
-    private fun readBlob(statement: kotlinx.cinterop.CPointer<sqlite3_stmt>?, index: Int): ByteArray? {
+    private fun readBlob(statement: CPointer<sqlite3_stmt>?, index: Int): ByteArray? {
         val size = sqlite3_column_bytes(statement, index)
         if (size <= 0) return null
         val pointer = sqlite3_column_blob(statement, index) ?: return null

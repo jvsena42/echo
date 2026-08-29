@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
 /// by the same paste parser, `.apkg` by `ApkgReader`, which on iOS reads the zip with the system
 /// zlib and the collection through a SQLite cinterop.
 struct BulkImportScreen: View {
+    @Environment(\.openURL) private var openURL
+
     var onCancel: () -> Void = {}
     var onContinue: () -> Void = {}
 
@@ -25,7 +27,10 @@ struct BulkImportScreen: View {
             onPickAnother: { viewModel?.onPickAnother() },
             onChooseFields: { isChoosingFields = true },
             onConfirm: { viewModel?.onConfirm() },
-            onCancel: { viewModel?.onCancel() }
+            onCancel: { viewModel?.onCancel() },
+            onBrowseSharedDecks: {
+                if let url = URL(string: ankiWebSharedDecksUrl) { openURL(url) }
+            }
         )
         .fileImporter(
             isPresented: $isPicking,
@@ -99,8 +104,20 @@ struct BulkImportScreen: View {
         }
         defer { url.stopAccessingSecurityScopedResource() }
 
+        // Size first, before any read: the check exists precisely because reading is what costs.
+        let declaredSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        if declaredSize > maxImportFileBytes {
+            viewModel?.onFileReadFailed(reason: BulkImportError.toolarge)
+            return
+        }
+
         guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
             viewModel?.onFileReadFailed(reason: BulkImportError.unreadable)
+            return
+        }
+        // The declared size can be absent or wrong; the real length is the one that binds.
+        if data.count > maxImportFileBytes {
+            viewModel?.onFileReadFailed(reason: BulkImportError.toolarge)
             return
         }
         let name = url.lastPathComponent
@@ -178,6 +195,17 @@ struct BulkImportScreen: View {
 
 /// Enough of the file for `ApkgReader.canRead` to recognise a zip signature.
 private let zipMagicByteCount = 4
+
+/// Ceiling on a picked file, mirroring Android's `MAX_IMPORT_FILE_BYTES`.
+///
+/// Kept in the UI layer on both platforms, as Android does — the reader's own per-entry limits
+/// (`ApkgLimits`) bound what an entry *inflates* to, which is a different question from how big a
+/// file a user may hand over. Without this the whole file is read into memory before anything
+/// looks at it, so the guard has to come first.
+let maxImportFileBytes = 500 * 1024 * 1024
+
+/// Where someone with no deck yet can find one.
+private let ankiWebSharedDecksUrl = "https://ankiweb.net/shared/decks"
 
 enum BulkImportPhase { case idle, reading, parsing, ready, failed }
 
