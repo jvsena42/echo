@@ -59,6 +59,7 @@ struct FriendProfileScreen: View {
             decks: state.decks.map {
                 FriendDeckData(
                     id: $0.id,
+                    coverImage: $0.coverImage,
                     authorPubky: $0.authorPubky,
                     title: $0.title,
                     cardCount: Int($0.cardCount),
@@ -102,6 +103,7 @@ struct FriendProfileScreen: View {
 
 struct FriendDeckData: Identifiable {
     let id: String
+    var coverImage: MediaRef.Image?
     let authorPubky: String
     let title: String
     let cardCount: Int

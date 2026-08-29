@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 // TODO(iOS Koin + SKIE): wire the shared `HomeViewModel` once the Kotlin framework is
 // bootstrapped on iOS. Until then this view renders the empty-state fallback so the
@@ -65,6 +66,16 @@ struct HomeDeckSummary: Equatable, Identifiable {
     let cardCount: Int
     let dueCount: Int
     let coverInitial: String
+    var coverImage: MediaRef.Image?
+    var authorPubky: String = ""
+
+    // `MediaRef.Image` is a Kotlin class, so identity comparison is what `Equatable` can offer
+    // here — enough for SwiftUI to notice a deck's cover arriving.
+    static func == (lhs: HomeDeckSummary, rhs: HomeDeckSummary) -> Bool {
+        lhs.id == rhs.id && lhs.title == rhs.title && lhs.cardCount == rhs.cardCount
+            && lhs.dueCount == rhs.dueCount && lhs.coverInitial == rhs.coverInitial
+            && lhs.coverImage === rhs.coverImage && lhs.authorPubky == rhs.authorPubky
+    }
 }
 
 #if DEBUG

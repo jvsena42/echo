@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 struct DeckTileView: View {
     let title: String
@@ -8,6 +9,14 @@ struct DeckTileView: View {
     let authorLabel: String
     var showYouBadge: Bool = false
     var coverColor: Color = LoopkyColor.accentPrimarySoft
+    /// The deck's cover art, drawn over [coverEmoji]. Every list state carries one — Discover, the
+    /// library, Home and a friend's grid — and iOS dropped all four, so no tile anywhere showed a
+    /// cover while deck detail did.
+    var coverImage: MediaRef.Image?
+    /// Whose homeserver the cover blob lives on. A blob on a deck you do not own is under *their*
+    /// pubky, so this is the deck's author, not the signed-in user.
+    var authorPubky: String = ""
+    var deckId: String = ""
     var onTap: () -> Void = {}
 
     var body: some View {
@@ -15,10 +24,20 @@ struct DeckTileView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Cover area
                 ZStack {
+                    // The emoji is the fallback, drawn underneath: a deck always has one, a
+                    // picture is optional — the same order Android's `DeckCover` uses.
                     Rectangle()
                         .fill(coverColor)
                     Text(coverEmoji)
                         .font(.system(size: 48))
+                    if coverImage != nil {
+                        CardMediaImage(
+                            ref: coverImage,
+                            authorPubky: authorPubky,
+                            deckId: deckId,
+                            contentMode: .fill
+                        )
+                    }
                 }
                 .frame(height: 120)
                 .clipShape(

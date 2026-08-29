@@ -58,7 +58,9 @@ struct HomeScreen: View {
                         title: deck.title,
                         cardCount: Int(deck.cardCount),
                         dueCount: Int(deck.dueCount),
-                        coverInitial: KotlinInterop.charToString(deck.coverInitial)
+                        coverInitial: KotlinInterop.charToString(deck.coverInitial),
+                        coverImage: deck.coverImage,
+                        authorPubky: deck.authorPubky
                     )
                 }
             )

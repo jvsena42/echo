@@ -7,6 +7,7 @@ struct SearchPersonData: Identifiable {
     let label: String
     let shortPubky: String
     let initial: String
+    var avatarUrl: String?
     let isFollowing: Bool
     let isFollowPending: Bool
 }
@@ -19,6 +20,7 @@ struct SearchDeckData: Identifiable {
     let cardCount: Int
     let coverEmoji: String
     let authorLabel: String
+    var coverImage: MediaRef.Image?
 }
 
 /// What a pasted address already names, before anything is asked of the network.
@@ -144,12 +146,7 @@ struct SearchView: View {
 
     private func personRow(_ person: SearchPersonData) -> some View {
         HStack(spacing: 10) {
-            ZStack {
-                Circle().fill(LoopkyColor.accentSecondarySoft).frame(width: 40, height: 40)
-                Text(person.initial)
-                    .font(.system(size: 17, weight: .heavy))
-                    .foregroundColor(LoopkyColor.accentSecondary)
-            }
+            PubkyAvatarView(initial: person.initial, avatarUrl: person.avatarUrl)
             VStack(alignment: .leading, spacing: 2) {
                 Text(person.label)
                     .font(.system(size: 13, weight: .bold))
@@ -191,6 +188,9 @@ struct SearchView: View {
                         cardCount: deck.cardCount,
                         coverEmoji: deck.coverEmoji,
                         authorLabel: deck.authorLabel,
+                        coverImage: deck.coverImage,
+                        authorPubky: deck.authorPubky,
+                        deckId: deck.id,
                         onTap: { onDeckTap(deck.authorPubky, deck.id) }
                     )
                 }

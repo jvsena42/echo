@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 enum DecksViewState {
     case loading
@@ -14,6 +15,8 @@ struct DeckTileData: Identifiable {
     let coverEmoji: String
     let authorLabel: String
     var isOwned: Bool = false
+    var coverImage: MediaRef.Image?
+    var authorPubky: String = ""
 }
 
 /// Pure layout — state comes from the shared `DecksLibraryViewModel` via `DecksScreen`.
@@ -121,6 +124,9 @@ struct DecksView: View {
                                 coverEmoji: deck.coverEmoji,
                                 authorLabel: deck.authorLabel,
                                 showYouBadge: deck.isOwned,
+                                coverImage: deck.coverImage,
+                                authorPubky: deck.authorPubky,
+                                deckId: deck.id,
                                 onTap: { onDeckTap(deck.id) }
                             )
                         }

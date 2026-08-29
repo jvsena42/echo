@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 struct GreetingHeader: View {
     let name: String
@@ -141,14 +142,27 @@ struct DeckRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 14) {
+                // Initial first, cover over it: the letter is the fallback, so a deck with a
+                // picture must not show both. The image is sized to the tile rather than left to
+                // grow, or the row with a cover stands taller than the row without.
                 ZStack {
                     RoundedRectangle(cornerRadius: 14)
                         .fill(LoopkyColor.accentPrimarySoft)
-                        .frame(width: 56, height: 56)
                     Text(deck.coverInitial)
                         .font(.system(size: 22, weight: .heavy))
                         .foregroundColor(LoopkyColor.accentPrimary)
+                    if deck.coverImage != nil {
+                        CardMediaImage(
+                            ref: deck.coverImage,
+                            authorPubky: deck.authorPubky,
+                            deckId: deck.id,
+                            contentMode: .fill
+                        )
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
                 }
+                .frame(width: 56, height: 56)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(deck.title)
                         .font(.system(size: 16, weight: .bold))
