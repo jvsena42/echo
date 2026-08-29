@@ -262,7 +262,11 @@ object IosDependencies {
      * resolved. Cancelling `viewModelScope` is the part that matters: it is what stops in-flight
      * repository work, and it is what `clear()` does before invoking `onCleared()`.
      *
-     * Call it from `.onDisappear`. Swift screens must not reuse the instance afterwards.
+     * Cancelling is only half of androidx's `clear()`; the other half is `onCleared()`, which
+     * cannot be called from here — it is `protected` in Kotlin. Swift can reach it, so screens go
+     * through `ViewModel.release()` (`ViewModelRelease.swift`) rather than calling this directly.
+     *
+     * Swift screens must not reuse the instance afterwards.
      */
     fun clear(viewModel: ViewModel) {
         viewModel.viewModelScope.cancel()
