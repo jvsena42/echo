@@ -27,8 +27,10 @@ import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.IosBackgroundTasks
+import com.github.jvsena42.loopky.platform.IosMediaProcessor
 import com.github.jvsena42.loopky.platform.IosPubkyRingPresence
 import com.github.jvsena42.loopky.platform.IosSpeaker
+import com.github.jvsena42.loopky.platform.MediaProcessor
 import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.presentation.decks.DeckDetailViewModel
@@ -39,8 +41,11 @@ import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.loopky.presentation.discover.SearchViewModel
 import com.github.jvsena42.loopky.presentation.discover.TagBrowseViewModel
 import com.github.jvsena42.loopky.presentation.home.HomeViewModel
+import com.github.jvsena42.loopky.presentation.importflow.BulkImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PasteImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
+import com.github.jvsena42.loopky.presentation.importflow.TriageViewModel
+import com.github.jvsena42.loopky.presentation.media.ImageSheetViewModel
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingViewModel
 import com.github.jvsena42.loopky.presentation.profile.FollowListViewModel
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
@@ -113,6 +118,7 @@ private fun iosPlatformModule(
     single<LocalKeyStore> { IosLocalKeyStore() }
     single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }
     single<Speaker> { IosSpeaker() }
+    single<MediaProcessor> { IosMediaProcessor() }
     single<PubkyRingPresence> { IosPubkyRingPresence() }
     single<BackgroundTasks> { IosBackgroundTasks(identityProvider = { get() }, decksProvider = { get() }) }
 }
@@ -163,6 +169,13 @@ object IosDependencies {
         koin.get { parametersOf(appVersion) }
 
     fun pasteImportViewModel(): PasteImportViewModel = koin.get()
+
+    /** Bulk file import. Resolvable now that `MediaProcessor` has an iOS binding. */
+    fun bulkImportViewModel(): BulkImportViewModel = koin.get()
+
+    fun triageViewModel(): TriageViewModel = koin.get()
+
+    fun imageSheetViewModel(): ImageSheetViewModel = koin.get()
 
     fun publishDeckViewModel(): PublishDeckViewModel = koin.get()
 
