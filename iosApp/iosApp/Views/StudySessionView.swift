@@ -125,7 +125,10 @@ struct StudySessionView: View {
     private var gradeArea: some View {
         if state.gradesAvailable {
             gradeRow
-        } else if state.answerHidden {
+        } else if state.answerHidden && state.revealed {
+            // A flipped typing card is answering with the keyboard up: the card needs the height
+            // more than the hint does. On the *front* face the hint still belongs — the card is
+            // waiting to be turned, exactly as it would be without typing enabled.
             EmptyView()
         } else {
             // A real control, not a caption. The card itself is tappable, but a tap gesture on a

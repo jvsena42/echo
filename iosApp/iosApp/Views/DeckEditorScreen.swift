@@ -47,7 +47,22 @@ struct DeckEditorScreen: View {
             onCardTap: { viewModel?.onCardClick(cardId: $0) },
             onLoadMoreCards: { viewModel?.onLoadMoreCards() },
             onClose: { viewModel?.onCloseClick() },
-            onSave: { viewModel?.onSaveClick() }
+            onSave: { viewModel?.onSaveClick() },
+            studyOptions: DeckStudyOptions(
+                listenEnabled: uiState?.listenEnabled ?? false,
+                speakEnabled: uiState?.speakEnabled ?? false,
+                typeEnabled: uiState?.typeEnabled ?? false,
+                reverseEnabled: uiState?.reverseEnabled ?? false,
+                frontLang: uiState?.frontLang,
+                backLang: uiState?.backLang,
+                languagesRequired: uiState?.speechLanguagesMissing ?? false,
+                onToggleListen: { viewModel?.onToggleListen() },
+                onToggleSpeak: { viewModel?.onToggleSpeak() },
+                onToggleType: { viewModel?.onToggleType() },
+                onToggleReverse: { viewModel?.onToggleReverse() },
+                onFrontLangSelected: { viewModel?.onFrontLangSelected(tag: $0) },
+                onBackLangSelected: { viewModel?.onBackLangSelected(tag: $0) }
+            )
         )
         .onAppear { attach() }
         .onDisappear { detach() }
