@@ -131,11 +131,13 @@ class SrsSchedulerTest {
     }
 
     @Test
-    fun intervalLabelsStayInDaysAcrossTheMaturityLine() {
-        // 21d used to render "3w", hiding the number the mastery threshold is built on (#101 §6).
-        assertEquals("21d", (null as SrsState?).previewIntervals("c", now, StudySettings(goodDays = 21))[SrsGrade.Good])
-        assertEquals("29d", (null as SrsState?).previewIntervals("c", now, StudySettings(goodDays = 29))[SrsGrade.Good])
-        assertEquals("4w", (null as SrsState?).previewIntervals("c", now, StudySettings(goodDays = 30))[SrsGrade.Good])
+    fun intervalLabelsAreAlwaysDaysSoTheyEchoTheSetting() {
+        // The button prints the number typed in Settings, at every size. 21d used to render "3w"
+        // and 30d "4w" — both disagreeing with the setting they are supposed to be showing.
+        listOf(1, 21, 29, 30, 60, 365).forEach { days ->
+            val labels = (null as SrsState?).previewIntervals("c", now, StudySettings(goodDays = days))
+            assertEquals("${days}d", labels[SrsGrade.Good])
+        }
     }
 
     // --- mastery ---------------------------------------------------------------------------

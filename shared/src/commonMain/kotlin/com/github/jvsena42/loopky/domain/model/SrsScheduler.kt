@@ -2,7 +2,6 @@ package com.github.jvsena42.loopky.domain.model
 
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 
 /**
  * Fixed-interval spaced-repetition scheduler. Pure functions over [SrsState] — no clock, no I/O;
@@ -36,20 +35,6 @@ internal const val MIN_EASE = 1.3
 private const val EASE_PENALTY_AGAIN = 0.20
 private const val EASE_PENALTY_HARD = 0.15
 private const val EASE_BONUS_EASY = 0.15
-
-// formatInterval bucket thresholds (days).
-private const val DAYS_IN_WEEK = 7.0
-private const val DAYS_IN_MONTH = 30.0
-private const val DAYS_IN_YEAR = 365.0
-
-/**
- * Days are kept up to 30 rather than switching to weeks at 21. Flipping there meant the SRS row
- * read `Good 19d` / `Easy 3w` — the label stopped printing the number that decides maturity at
- * precisely the boundary it decides (#101 §6). Anki keeps days to 30 for the same reason.
- */
-private const val MAX_DAYS_LABEL = 30
-private const val MAX_WEEKS_LABEL = 60
-private const val MAX_MONTHS_LABEL = 365
 
 /**
  * A card that has never been graded.
@@ -157,10 +142,12 @@ fun masteryShare(cardIds: List<String>, states: Map<String, SrsState>, threshold
 fun isFullyMastered(cardIds: List<String>, states: Map<String, SrsState>, thresholdDays: Int): Boolean =
     cardIds.isNotEmpty() && cardIds.all { (states[it]?.intervalDays ?: 0) >= thresholdDays }
 
-private fun formatInterval(days: Int): String = when {
-    days <= 0 -> "<10m"
-    days < MAX_DAYS_LABEL -> "${days}d"
-    days < MAX_WEEKS_LABEL -> "${(days / DAYS_IN_WEEK).roundToInt()}w"
-    days < MAX_MONTHS_LABEL -> "${(days / DAYS_IN_MONTH).roundToInt()}mo"
-    else -> "${(days / DAYS_IN_YEAR).roundToInt()}y"
-}
+/**
+ * Always days, never weeks/months/years.
+ *
+ * The label's whole job is now to echo the setting, and the setting is entered in days: rounding
+ * an Easy of 30 to `4w` made the button disagree with the number the user typed two screens away,
+ * which is the bug this scheduler exists to remove — in a smaller form. It also used to round away
+ * the number maturity is measured against (#101 §6), and that reason still stands.
+ */
+private fun formatInterval(days: Int): String = if (days <= 0) "<10m" else "${days}d"
