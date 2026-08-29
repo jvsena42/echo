@@ -26,6 +26,7 @@ import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.StudyProgressStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
+import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.IosBackgroundTasks
@@ -35,6 +36,11 @@ import com.github.jvsena42.loopky.platform.IosSpeaker
 import com.github.jvsena42.loopky.platform.MediaProcessor
 import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.platform.Speaker
+import com.github.jvsena42.loopky.presentation.backup.BackupFileViewModel
+import com.github.jvsena42.loopky.presentation.backup.BackupPhraseViewModel
+import com.github.jvsena42.loopky.presentation.backup.BackupQuizViewModel
+import com.github.jvsena42.loopky.presentation.backup.BackupRingViewModel
+import com.github.jvsena42.loopky.presentation.backup.BackupStartViewModel
 import com.github.jvsena42.loopky.presentation.decks.DeckDetailViewModel
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.DecksLibraryViewModel
@@ -43,6 +49,7 @@ import com.github.jvsena42.loopky.presentation.discover.DiscoverViewModel
 import com.github.jvsena42.loopky.presentation.discover.SearchViewModel
 import com.github.jvsena42.loopky.presentation.discover.TagBrowseViewModel
 import com.github.jvsena42.loopky.presentation.home.HomeViewModel
+import com.github.jvsena42.loopky.presentation.identity.UnregisteredKeyViewModel
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PasteImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
@@ -53,7 +60,14 @@ import com.github.jvsena42.loopky.presentation.profile.FollowListViewModel
 import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
+import com.github.jvsena42.loopky.presentation.restore.RestoreFileViewModel
+import com.github.jvsena42.loopky.presentation.restore.RestorePhraseViewModel
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
+import com.github.jvsena42.loopky.presentation.signup.InviteCodeViewModel
+import com.github.jvsena42.loopky.presentation.signup.LightningVerificationViewModel
+import com.github.jvsena42.loopky.presentation.signup.LocalSignupViewModel
+import com.github.jvsena42.loopky.presentation.signup.PhoneVerificationViewModel
+import com.github.jvsena42.loopky.presentation.signup.SignupStartViewModel
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
 import kotlinx.coroutines.cancel
 import org.koin.core.Koin
@@ -201,6 +215,44 @@ object IosDependencies {
      */
     fun followListViewModel(pubky: String, source: FollowSource): FollowListViewModel =
         koin.get { parametersOf(pubky, source) }
+
+    // ---- Identity: signup, backup, restore (#149) ----
+
+    fun signupStartViewModel(): SignupStartViewModel = koin.get()
+
+    fun inviteCodeViewModel(): InviteCodeViewModel = koin.get()
+
+    fun phoneVerificationViewModel(): PhoneVerificationViewModel = koin.get()
+
+    fun lightningVerificationViewModel(): LightningVerificationViewModel = koin.get()
+
+    /**
+     * @param registerHeldKey true when the account is being minted for a key Loopky *already*
+     *   holds — the unregistered-key path — rather than a fresh one.
+     */
+    fun localSignupViewModel(registerHeldKey: Boolean): LocalSignupViewModel =
+        koin.get { parametersOf(registerHeldKey) }
+
+    fun backupStartViewModel(): BackupStartViewModel = koin.get()
+
+    fun backupPhraseViewModel(): BackupPhraseViewModel = koin.get()
+
+    fun backupQuizViewModel(): BackupQuizViewModel = koin.get()
+
+    fun backupFileViewModel(): BackupFileViewModel = koin.get()
+
+    fun backupRingViewModel(): BackupRingViewModel = koin.get()
+
+    fun restorePhraseViewModel(): RestorePhraseViewModel = koin.get()
+
+    fun restoreFileViewModel(): RestoreFileViewModel = koin.get()
+
+    /**
+     * @param custody what holds this key — a `KeyCustody`, which decides whether the screen offers
+     *   to register it or only to check the phrase again.
+     */
+    fun unregisteredKeyViewModel(pubky: String, custody: KeyCustody): UnregisteredKeyViewModel =
+        koin.get { parametersOf(pubky, custody) }
 
     /**
      * Tear a ViewModel down when its SwiftUI view goes away.
