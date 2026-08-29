@@ -648,3 +648,66 @@ walk the catalog for values containing `%`, then grep for bare `Text("key")` use
 The previous audit recorded search "sat spinning and never returned" against the staging indexer.
 It was not reproduced: "spanish" returns deck results in a couple of seconds. Treat the earlier
 note as fixed by something in between rather than as an open blocker.
+
+## iPad — adaptive layouts (#173) — 2026-08-29
+
+Three width classes driven on three simulators, all iOS 26.5, via `xcodebuildmcp`. Signed in
+against the real staging homeserver — the iPad by QR scanned from a phone, the iPhone from the
+session it already held.
+
+| Simulator | Window | Class | What it exercises |
+| --- | --- | --- | --- |
+| iPad Pro 13-inch (M5), landscape | 1366pt | expanded | every two-pane layout, the sidebar, the grade column |
+| iPad mini (A17 Pro), portrait | 744pt | medium | 3-column grids, no two-pane, the QR **sheet** |
+| iPhone 17 | 393pt | compact | the regression pass — nothing may have changed |
+
+### Expanded — iPad Pro 13" landscape
+
+| Screen | Result |
+| --- | --- |
+| Navigation | ✅ PASS — `.sidebarAdaptable` renders the four destinations as a Liquid Glass sidebar, and the toggle collapses it to the floating top tab bar. Order and identifiers unchanged. |
+| Home | ✅ PASS — the due-today hero in a 340pt column beside "Today's decks" two across, greeting spanning both. |
+| Deck detail | ✅ PASS — cover/title/author/tags/stats in a 360pt column, the card list beside it, the header bar drawn once across the top, Study capped at 520pt and centred. |
+| Profile | ✅ PASS — avatar/name/Edit on the left; stats, people chips, pubky.app CTA and Sign out on the right. |
+| Decks | ✅ PASS — 4-column grid, content capped at 1160pt and centred. |
+| Discover | ✅ PASS — 4-column grid, topic strip, guest banner. |
+| Study session | ✅ PASS — card held at 640pt with the four grades standing in a 200pt column beside it, each still thumb-sized and each keeping its `study_*` identifier. |
+| Onboarding | ✅ PASS — hero left, sign-in right, both vertically centred. |
+| Sign-in handoff | ✅ PASS — picked `AnotherDevice` from the window and rendered the QR **inline in the sign-in column**, not as a sheet. Scanned from a phone; the relay poll completed and the session landed on Home. |
+
+### Medium — iPad mini portrait
+
+| Screen | Result |
+| --- | --- |
+| Discover | ✅ PASS — 3 columns, not 2 and not 4. |
+| Onboarding | ✅ PASS — stacked, and the QR arrives as a **sheet**: the handoff is still `AnotherDevice` (an iPad's key lives on its owner's phone at any width) but there is no second column to render it in. |
+
+### Compact — iPhone 17, the regression pass
+
+Home, Decks, Profile, deck detail and the study loop are pixel-unchanged: stacked layouts,
+2-column grid, grades in a row under the card, tab bar at the bottom. Every ceiling added by this
+work is above the phone's window, so none of them binds there.
+
+### Two things worth knowing
+
+**In sidebar mode the tab rows are invisible to `ui-automation snapshot-ui`.** The system sidebar
+exposes only its `ToggleSidebar` button to the runtime snapshot; collapse it to the tab bar and all
+four destinations appear as `tab` targets. Nothing in Loopky controls this — it is how SwiftUI
+renders the sidebar — but a script driving the tabs on an iPad has to collapse the sidebar first.
+VoiceOver reads the sidebar rows normally.
+
+**The QR gate had a latent hole this exposed.** It asked only `!ringInstalledHere`, which was right
+while every sign-in was `ThisDevice`. An iPad now hands off to another device, so the ViewModel
+deliberately fires no deeplink — and on an iPad *with* Ring installed the old condition would have
+left the screen waiting forever with nothing on it. The question is whether the deeplink was fired,
+which is both halves of the ViewModel's own rule.
+
+### Not exercised
+
+- **Slide Over and Split View** — the simulator cannot be driven into either from the automation,
+  and the rotation keystroke does not reach it either. The code path is the same one the iPhone
+  proves: a narrow pane reports a `.compact` size class, which pins the width class to compact
+  ahead of any width reading.
+- **The stale iOS test-account phrase.** The recovery phrase recorded for the disposable simulator
+  account is rejected by the local BIP39 checksum, so restore-from-phrase could not be used to sign
+  the iPad in. The QR scan was used instead.
