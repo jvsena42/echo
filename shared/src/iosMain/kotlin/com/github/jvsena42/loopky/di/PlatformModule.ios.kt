@@ -128,8 +128,13 @@ object IosDependencies {
 
     fun decksLibraryViewModel(): DecksLibraryViewModel = koin.get()
 
-    fun deckDetailViewModel(deckId: String): DeckDetailViewModel =
-        koin.get { parametersOf(deckId) }
+    /**
+     * @param authorPubky the deck's author when it is someone else's, `null` for your own.
+     *   `DeckDetailViewModel` only fetches a remote deck when this is non-null, so dropping it
+     *   makes every deck opened from Discover fail as `NotFound`.
+     */
+    fun deckDetailViewModel(deckId: String, authorPubky: String?): DeckDetailViewModel =
+        koin.get { parametersOf(deckId, authorPubky) }
 
     fun deckEditorViewModel(deckId: String?): DeckEditorViewModel =
         koin.get { parametersOf(deckId) }

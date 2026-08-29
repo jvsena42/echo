@@ -75,7 +75,10 @@ struct DeckDetailScreen: View {
 
     private func attach() {
         guard viewModel == nil else { return }
-        let vm = IosDependencies.shared.deckDetailViewModel(deckId: deckId)
+        let vm = IosDependencies.shared.deckDetailViewModel(
+            deckId: deckId,
+            authorPubky: authorPubky
+        )
         viewModel = vm
         stateSink = FlowEffectSink(vm.state) { uiState = $0 as? DeckDetailUiState }
         guard effectSink == nil else { return }

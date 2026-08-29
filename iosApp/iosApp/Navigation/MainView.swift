@@ -3,7 +3,8 @@ import SwiftUI
 struct MainView: View {
     @State private var selectedTab: LoopkyTab = .study
 
-    var onDeckTap: (String) -> Void = { _ in }
+    /// `(deckId, authorPubky)`; the author is `nil` for a deck you own.
+    var onDeckTap: (String, String?) -> Void = { _, _ in }
     var onImportTap: () -> Void = {}
     var onCreateDeckTap: () -> Void = {}
     var onSignedOut: () -> Void = {}
@@ -17,7 +18,7 @@ struct MainView: View {
         // with Loopky's accent, rather than rebuilding the chrome from primitives.
         TabView(selection: $selectedTab) {
             HomeScreen(
-                onOpenDeck: onDeckTap,
+                onOpenDeck: { onDeckTap($0, nil) },
                 onCreateDeck: onCreateDeckTap,
                 onBrowseExamples: onImportTap,
                 onStartStudy: {},
@@ -27,7 +28,7 @@ struct MainView: View {
             .tag(LoopkyTab.study)
 
             DecksScreen(
-                onDeckTap: onDeckTap,
+                onDeckTap: { onDeckTap($0, nil) },
                 onImportTap: onImportTap,
                 onCreateDeckTap: onCreateDeckTap
             )
@@ -35,7 +36,7 @@ struct MainView: View {
             .tag(LoopkyTab.decks)
 
             DiscoverScreen(
-                onOpenDeck: { _, deckId in onDeckTap(deckId) },
+                onOpenDeck: { deckId, author in onDeckTap(deckId, author) },
                 onSearch: { isSearching = true }
             )
             .tabItem { Label(LoopkyTab.discover.title, systemImage: LoopkyTab.discover.iconName) }
@@ -54,9 +55,9 @@ struct MainView: View {
         .sheet(isPresented: $isSearching) {
             SearchScreen(
                 onOpenProfile: { _ in isSearching = false },
-                onOpenDeck: { _, deckId in
+                onOpenDeck: { deckId, author in
                     isSearching = false
-                    onDeckTap(deckId)
+                    onDeckTap(deckId, author)
                 }
             )
         }

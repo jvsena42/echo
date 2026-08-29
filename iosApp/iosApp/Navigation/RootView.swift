@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum DeckRoute: Hashable, Identifiable {
-    case detail(String)
+    case detail(String, String?)
     case editor(String)
     case editorNew
     case editCard(String, String)
@@ -10,7 +10,7 @@ enum DeckRoute: Hashable, Identifiable {
 
     var id: String {
         switch self {
-        case .detail(let id): return "detail-\(id)"
+        case .detail(let id, let author): return "detail-\(id)-\(author ?? "self")"
         case .editor(let id): return "editor-\(id)"
         case .editorNew: return "editor-new"
         case .editCard(let deckId, let cardId): return "edit-\(deckId)-\(cardId)"
@@ -35,16 +35,17 @@ struct RootView: View {
         NavigationStack {
             if isSignedIn {
                 MainView(
-                    onDeckTap: { deckId in deckRoute = .detail(deckId) },
+                    onDeckTap: { deckId, author in deckRoute = .detail(deckId, author) },
                     onImportTap: { deckRoute = .importPaste },
                     onCreateDeckTap: { deckRoute = .editorNew },
                     onSignedOut: { isSignedIn = false }
                 )
                 .navigationDestination(item: $deckRoute) { route in
                     switch route {
-                    case .detail(let deckId):
+                    case .detail(let deckId, let author):
                         DeckDetailScreen(
                             deckId: deckId,
+                            authorPubky: author,
                             onBack: { deckRoute = nil },
                             onEditDeck: { id in deckRoute = .editor(id) },
                             onStudy: {},
@@ -57,7 +58,7 @@ struct RootView: View {
                             onEditCard: { d, c in deckRoute = .editCard(d, c) },
                             // Blank card id: the card editor mints one and appends on save.
                             onNewCard: { d in deckRoute = .editCard(d, "") },
-                            onSaved: { id in deckRoute = .detail(id) }
+                            onSaved: { id in deckRoute = .detail(id, nil) }
                         )
                     case .editorNew:
                         DeckEditorScreen(
@@ -65,7 +66,7 @@ struct RootView: View {
                             onBack: { deckRoute = nil },
                             onEditCard: { d, c in deckRoute = .editCard(d, c) },
                             onNewCard: { d in deckRoute = .editCard(d, "") },
-                            onSaved: { id in deckRoute = .detail(id) }
+                            onSaved: { id in deckRoute = .detail(id, nil) }
                         )
                     case .editCard(let deckId, let cardId):
                         EditCardView(deckId: deckId, cardId: cardId, onBack: { deckRoute = nil })
@@ -77,7 +78,7 @@ struct RootView: View {
                     case .importPublish:
                         PublishDeckView(
                             onBack: { deckRoute = .importPaste },
-                            onPublished: { deckId in deckRoute = .detail(deckId) }
+                            onPublished: { deckId in deckRoute = .detail(deckId, nil) }
                         )
                     }
                 }
