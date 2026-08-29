@@ -133,6 +133,17 @@
         }
       }
     },
+    "deck_back_language_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back language"
+          }
+        }
+      }
+    },
     "deck_detail_back": {
       "extractionState": "manual",
       "localizations": {
@@ -580,6 +591,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "Untitled deck"
+          }
+        }
+      }
+    },
+    "deck_front_language_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Front language"
+          }
+        }
+      }
+    },
+    "deck_language_unset": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a language"
+          }
+        }
+      }
+    },
+    "deck_languages_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listen and Speak need to know what language each side is in, or the phone reads the card in your own accent. Picking one also tags the deck with that language."
+          }
+        }
+      }
+    },
+    "deck_languages_required": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick a front and back language to use Listen or Speak."
           }
         }
       }
@@ -1097,6 +1152,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Edit card"
+          }
+        }
+      }
+    },
+    "form_error_description_too_long": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That description is too long."
+          }
+        }
+      }
+    },
+    "form_error_title_required": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Give the deck a title."
+          }
+        }
+      }
+    },
+    "form_error_title_too_long": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That title is too long."
           }
         }
       }
@@ -2069,6 +2157,28 @@
         }
       }
     },
+    "publish_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "publish_card_options_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CARD OPTIONS"
+          }
+        }
+      }
+    },
     "publish_cards_ready": {
       "extractionState": "manual",
       "localizations": {
@@ -2146,6 +2256,72 @@
         }
       }
     },
+    "publish_error_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't clean up the cancelled deck. Part of it is still on your homeserver."
+          }
+        }
+      }
+    },
+    "publish_error_no_draft": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There's nothing to publish — the import was lost. Go back and paste your list again."
+          }
+        }
+      }
+    },
+    "publish_error_undo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't undo the publish. The deck is still on your homeserver."
+          }
+        }
+      }
+    },
+    "publish_listen_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play audio pronunciation on card back"
+          }
+        }
+      }
+    },
+    "publish_listen_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listen"
+          }
+        }
+      }
+    },
+    "publish_progress_count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d of %2$d cards"
+          }
+        }
+      }
+    },
     "publish_public_subtitle": {
       "extractionState": "manual",
       "localizations": {
@@ -2197,6 +2373,61 @@
           "stringUnit": {
             "state": "translated",
             "value": "Deck published!"
+          }
+        }
+      }
+    },
+    "publish_publishing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publishing…"
+          }
+        }
+      }
+    },
+    "publish_reverse_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Also ask each card back to front"
+          }
+        }
+      }
+    },
+    "publish_reverse_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Both directions"
+          }
+        }
+      }
+    },
+    "publish_speak_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test your pronunciation"
+          }
+        }
+      }
+    },
+    "publish_speak_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak"
           }
         }
       }
@@ -2274,6 +2505,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Deck title"
+          }
+        }
+      }
+    },
+    "publish_type_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write the answer instead of just reading it"
+          }
+        }
+      }
+    },
+    "publish_type_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type the answer"
           }
         }
       }
@@ -2582,6 +2835,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "Settings"
+          }
+        }
+      }
+    },
+    "share_prompt_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share"
+          }
+        }
+      }
+    },
+    "share_prompt_dismiss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not now"
+          }
+        }
+      }
+    },
+    "share_prompt_never": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't ask again"
+          }
+        }
+      }
+    },
+    "share_prompt_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share this on Pubky?"
           }
         }
       }

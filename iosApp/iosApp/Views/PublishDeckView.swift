@@ -1,300 +1,250 @@
 import SwiftUI
+import Shared
 
+/// Publish step of Paste-to-Import. Pure layout; `PublishDeckScreen` owns the ViewModel.
 struct PublishDeckView: View {
+    var state: PublishViewState = PublishViewState()
+    @Binding var title: String
+    @Binding var description: String
     var onBack: () -> Void = {}
-    var onPublished: (String) -> Void = { _ in }
+    var onPublish: () -> Void = {}
+    var onCancelPublish: () -> Void = {}
+    var onUndo: () -> Void = {}
+    var onDone: () -> Void = {}
+    var onAddTag: (String) -> Void = { _ in }
+    var onRemoveTag: (String) -> Void = { _ in }
+    var options: DeckStudyOptions
+    var onShareConfirm: () -> Void = {}
+    var onShareDismiss: () -> Void = {}
+    var onShareNeverAsk: () -> Void = {}
 
-    @State private var title = ""
-    @State private var description = ""
-    @State private var coverEmoji = "📚"
-    @State private var tags: [String] = []
-    @State private var showTagSheet = false
-    @State private var tagInput = ""
-    private let cardCount = 42
+    @State private var isAddingTag = false
 
     var body: some View {
+        Group {
+            if state.isPublished {
+                publishedState
+            } else {
+                form
+            }
+        }
+        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
+        .navigationBarHidden(true)
+        .sheet(isPresented: $isAddingTag) {
+            AddTagSheet(
+                tags: state.tags,
+                onAdd: { onAddTag($0); isAddingTag = false },
+                onRemove: onRemoveTag
+            )
+        }
+        // Announcing is opt-in per action: off means never asked and never posted.
+        .confirmationDialog(
+            Text("share_prompt_title"),
+            isPresented: Binding(get: { state.sharePromptPreview != nil }, set: { if !$0 { onShareDismiss() } }),
+            titleVisibility: .visible
+        ) {
+            Button("share_prompt_confirm", action: onShareConfirm).disabled(state.isSharing)
+            Button("share_prompt_never", role: .destructive, action: onShareNeverAsk)
+            Button("share_prompt_dismiss", role: .cancel, action: onShareDismiss)
+        } message: {
+            if let preview = state.sharePromptPreview { Text(preview) }
+        }
+    }
+
+    private var form: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                // Header
-                HStack {
-                    Button(action: onBack) {
-                        ZStack {
-                            Circle()
-                                .fill(LoopkyColor.surfaceCard)
-                                .frame(width: 40, height: 40)
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(LoopkyColor.foregroundPrimary)
-                        }
-                    }
-                    Spacer()
-                    Text("publish_title")
-                        .font(.system(size: 18, weight: .heavy))
-                        .foregroundColor(LoopkyColor.foregroundPrimary)
-                    Spacer()
-                    Spacer().frame(width: 40)
-                }
-
-                // Cards ready badge
-                HStack(spacing: 10) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(LoopkyColor.srsGood)
-                    VStack(alignment: .leading) {
-                        Text(String(format: NSLocalizedString("publish_cards_ready", comment: ""), cardCount))
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(LoopkyColor.foregroundPrimary)
-                    }
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(LoopkyColor.srsGood.opacity(0.15))
-                )
-
-                // Cover
-                HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(LoopkyColor.accentPrimarySoft)
-                            .frame(width: 64, height: 64)
-                        Text(coverEmoji).font(.system(size: 32))
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("publish_cover_label")
-                            .font(.system(size: 10, weight: .bold))
-                            .kerning(0.8)
-                            .foregroundColor(LoopkyColor.foregroundMuted)
-                        HStack(spacing: 4) {
-                            Text("🖼️").font(.system(size: 14))
-                            Text("publish_cover_change")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(LoopkyColor.foregroundPrimary)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(LoopkyColor.borderSubtle, lineWidth: 1)
-                        )
-                    }
-                }
-
-                // Title
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("publish_title_label")
-                        .font(.system(size: 10, weight: .bold))
-                        .kerning(0.8)
-                        .foregroundColor(LoopkyColor.foregroundMuted)
-                    TextField("publish_title_placeholder", text: $title)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(LoopkyColor.foregroundPrimary)
-                        .padding(14)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(LoopkyColor.borderSubtle, lineWidth: 1)
-                        )
-                }
-
-                // Description
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("publish_description_label")
-                        .font(.system(size: 10, weight: .bold))
-                        .kerning(0.8)
-                        .foregroundColor(LoopkyColor.foregroundMuted)
-                    TextField("publish_description_placeholder", text: $description)
-                        .font(.system(size: 14))
-                        .foregroundColor(LoopkyColor.foregroundSecondary)
-                        .padding(14)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(LoopkyColor.borderSubtle, lineWidth: 1)
-                        )
-                }
-
-                // Tags
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("publish_tags_label")
-                        .font(.system(size: 10, weight: .bold))
-                        .kerning(0.8)
-                        .foregroundColor(LoopkyColor.foregroundMuted)
-                    HStack(spacing: 6) {
-                        ForEach(tags, id: \.self) { tag in
-                            TagChipView(tag: tag, onRemove: {
-                                tags.removeAll { $0 == tag }
-                            })
-                        }
-                        Button(action: { showTagSheet = true }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "plus")
-                                Text("publish_add")
-                            }
-                        }
-                        .buttonStyle(LoopkyOutlineButtonStyle(
-                            stroke: LoopkyColor.borderSubtle,
-                            foreground: LoopkyColor.foregroundMuted,
-                            cornerRadius: 50,
-                            lineWidth: 1.5,
-                            fontSize: 12,
-                            fillWidth: false
-                        ))
-                    }
-                }
-
-                // Public notice
-                HStack(spacing: 10) {
-                    Text("🌐").font(.system(size: 18))
-                    VStack(alignment: .leading) {
-                        Text("publish_public_title")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(LoopkyColor.foregroundPrimary)
-                        Text("publish_public_subtitle")
-                            .font(.system(size: 12))
-                            .foregroundColor(LoopkyColor.foregroundSecondary)
-                    }
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(LoopkyColor.accentSecondarySoft)
-                )
-
-                // Publish button
-                Button(action: { onPublished("preview-deck-id") }) {
-                    HStack(spacing: 8) {
-                        Text("🔗")
-                        Text("publish_button")
-                    }
-                }
-                .buttonStyle(LoopkyFilledButtonStyle(fill: title.isEmpty ? Color.gray : LoopkyColor.accentPrimary))
-                .shadow(color: LoopkyColor.shadowAccent, radius: 24, x: 0, y: 8)
-                .disabled(title.isEmpty)
+                header
+                cardsReady
+                field("publish_title_label", placeholder: "publish_title_placeholder",
+                      text: $title, error: state.titleError)
+                field("publish_description_label", placeholder: "publish_description_placeholder",
+                      text: $description, error: state.descriptionError, axis: .vertical)
+                tagsSection
+                options
+                if let errorMessage = state.errorMessage { errorRow(errorMessage) }
+                if state.isPublishing { progressBlock }
+                publicNotice
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 40)
         }
-        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
-        .navigationBarHidden(true)
-        .sheet(isPresented: $showTagSheet) {
-            PublishAddTagSheet(tags: $tags, tagInput: $tagInput)
+    }
+
+    private var header: some View {
+        HStack {
+            Button(action: onBack) {
+                Text("publish_back")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(LoopkyColor.accentPrimary)
+            }
+            .disabled(state.isPublishing)
+            Spacer()
+            Text("publish_title")
+                .font(.system(size: 18, weight: .heavy))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+            Spacer()
+            Button("publish_button", action: onPublish)
+                .buttonStyle(LoopkyCompactFilledButtonStyle(
+                    fill: state.canPublish ? LoopkyColor.accentPrimary : LoopkyColor.borderSubtle,
+                    foreground: state.canPublish ? .white : LoopkyColor.foregroundMuted
+                ))
+                .disabled(!state.canPublish)
         }
     }
-}
 
-private struct PublishAddTagSheet: View {
-    @Binding var tags: [String]
-    @Binding var tagInput: String
-    @Environment(\.dismiss) private var dismiss
-
-    private let suggestedOptions = ["language", "beginner", "travel", "daily"]
-
-    private var suggestedTags: [String] {
-        suggestedOptions.filter { !tags.contains($0) }
+    private var cardsReady: some View {
+        HStack(spacing: 8) {
+            Text(state.coverEmoji.isEmpty ? "📚" : state.coverEmoji).font(.system(size: 22))
+            Text(String(format: NSLocalizedString("publish_cards_ready", comment: ""), state.cardCount))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(LoopkyColor.foregroundSecondary)
+            Spacer()
+        }
     }
 
-    var body: some View {
-        VStack(spacing: 20) {
-            // Handle
-            RoundedRectangle(cornerRadius: 2)
-                .fill(LoopkyColor.borderSubtle)
-                .frame(width: 36, height: 4)
-                .padding(.top, 12)
-
-            VStack(alignment: .leading, spacing: 20) {
-                // Title
-                Text("publish_tag_sheet_title")
-                    .font(.system(size: 20, weight: .heavy))
-                    .foregroundColor(LoopkyColor.foregroundPrimary)
-
-                // Input row
-                HStack(spacing: 10) {
-                    Text("#")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(LoopkyColor.accentSecondary)
-                    TextField("publish_tag_input_placeholder", text: $tagInput)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(LoopkyColor.foregroundPrimary)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(LoopkyColor.surfacePrimary)
-                )
+    private func field(
+        _ label: LocalizedStringKey,
+        placeholder: LocalizedStringKey,
+        text: Binding<String>,
+        error: String?,
+        axis: Axis = .horizontal
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.system(size: 10, weight: .bold))
+                .kerning(0.8)
+                .foregroundStyle(LoopkyColor.foregroundMuted)
+            TextField(placeholder, text: text, axis: axis)
+                .font(.system(size: 15))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+                .lineLimit(axis == .vertical ? 2...5 : 1...1)
+                .padding(14)
+                .background(RoundedRectangle(cornerRadius: 14).fill(LoopkyColor.surfaceCard))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .stroke(LoopkyColor.borderSubtle, lineWidth: 1.5)
+                        .stroke(error == nil ? LoopkyColor.borderSubtle : LoopkyColor.danger, lineWidth: 1)
                 )
-
-                // Suggested
-                if !suggestedTags.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("publish_suggested_label")
-                            .font(.system(size: 10, weight: .bold))
-                            .kerning(1)
-                            .foregroundColor(LoopkyColor.foregroundMuted)
-                        HStack(spacing: 6) {
-                            ForEach(suggestedTags, id: \.self) { tag in
-                                TagChipView(tag: tag, onTap: {
-                                    let trimmed = tag.trimmingCharacters(in: .whitespaces).lowercased()
-                                    if !trimmed.isEmpty && !tags.contains(trimmed) {
-                                        tags.append(trimmed)
-                                    }
-                                })
-                            }
-                        }
-                    }
-                }
-
-                // Current tags
-                if !tags.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("publish_current_tags_label")
-                            .font(.system(size: 10, weight: .bold))
-                            .kerning(1)
-                            .foregroundColor(LoopkyColor.foregroundMuted)
-                        HStack(spacing: 6) {
-                            ForEach(tags, id: \.self) { tag in
-                                TagChipView(tag: tag, onRemove: {
-                                    tags.removeAll { $0 == tag }
-                                })
-                            }
-                        }
-                    }
-                }
-
-                // Add Tag button
-                Button(action: {
-                    let trimmed = tagInput.trimmingCharacters(in: .whitespaces).lowercased()
-                    if !trimmed.isEmpty && !tags.contains(trimmed) {
-                        tags.append(trimmed)
-                        tagInput = ""
-                    }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "plus")
-                        Text("publish_add_tag_button")
-                    }
-                }
-                .buttonStyle(LoopkyFilledButtonStyle(
-                    fill: tagInput.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : LoopkyColor.accentPrimary,
-                    fontSize: 16
-                ))
-                .shadow(color: LoopkyColor.shadowAccent, radius: 24, x: 0, y: 8)
-                .disabled(tagInput.trimmingCharacters(in: .whitespaces).isEmpty)
+            if let error {
+                Text(error).font(.system(size: 12)).foregroundStyle(LoopkyColor.danger)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 32)
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.hidden)
-        .presentationBackground(.white)
+    }
+
+    private var tagsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("publish_tags_label")
+                .font(.system(size: 10, weight: .bold))
+                .kerning(0.8)
+                .foregroundStyle(LoopkyColor.foregroundMuted)
+            FlowTags(tags: state.tags, onRemove: onRemoveTag) { isAddingTag = true }
+        }
+    }
+
+    private var progressBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let progress = state.publishProgress {
+                ProgressView(value: progress).tint(LoopkyColor.accentPrimary)
+                Text(String(
+                    format: NSLocalizedString("publish_progress_count", comment: ""),
+                    state.publishedCardCount, state.cardCount
+                ))
+                .font(.system(size: 12))
+                .foregroundStyle(LoopkyColor.foregroundMuted)
+            } else {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("publish_publishing")
+                        .font(.system(size: 13))
+                        .foregroundStyle(LoopkyColor.foregroundMuted)
+                }
+            }
+            Button("publish_cancel", action: onCancelPublish)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(LoopkyColor.danger)
+                .disabled(state.isCancelling)
+        }
+    }
+
+    private var publishedState: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Text("🎉")
+                .font(.system(size: 56))
+                .accessibilityLabel(Text("publish_published_icon_desc"))
+            Text("publish_published_title")
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+            Text("publish_published_subtitle")
+                .font(.system(size: 14))
+                .foregroundStyle(LoopkyColor.foregroundMuted)
+                .multilineTextAlignment(.center)
+            if let errorMessage = state.errorMessage { errorRow(errorMessage) }
+            Spacer()
+            VStack(spacing: 10) {
+                Button("publish_done", action: onDone).buttonStyle(.loopkyFilled)
+                if state.undoSecondsRemaining > 0 {
+                    Button(String(
+                        format: NSLocalizedString("publish_undo", comment: ""),
+                        state.undoSecondsRemaining
+                    ), action: onUndo)
+                    .buttonStyle(.loopkyOutline)
+                }
+            }
+        }
+        .padding(24)
+    }
+
+    private func errorRow(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.circle.fill").font(.system(size: 13))
+            Text(message).font(.system(size: 13, weight: .medium))
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(LoopkyColor.danger)
+    }
+
+    private var publicNotice: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("publish_public_title")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(LoopkyColor.accentSecondary)
+            Text("publish_public_subtitle")
+                .font(.system(size: 12))
+                .foregroundStyle(LoopkyColor.foregroundMuted)
+        }
     }
 }
 
-#Preview {
-    PublishDeckView()
+/// Tag chips that wrap, with a trailing "add" chip.
+private struct FlowTags: View {
+    let tags: [String]
+    let onRemove: (String) -> Void
+    let onAdd: () -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            row
+            ScrollView(.horizontal, showsIndicators: false) { row }
+        }
+    }
+
+    private var row: some View {
+        HStack(spacing: 8) {
+            ForEach(tags, id: \.self) { tag in
+                TagChipView(tag: tag, onRemove: { onRemove(tag) })
+            }
+            Button(action: onAdd) {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus").font(.system(size: 10, weight: .bold))
+                    Text("publish_add_tag_button").font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(LoopkyColor.accentPrimary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(LoopkyColor.accentPrimarySoft))
+            }
+        }
+    }
 }

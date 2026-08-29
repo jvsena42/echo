@@ -76,7 +76,7 @@ struct RootView: View {
                             onNext: { deckRoute = .importPublish }
                         )
                     case .importPublish:
-                        PublishDeckView(
+                        PublishDeckScreen(
                             onBack: { deckRoute = .importPaste },
                             onPublished: { deckId in deckRoute = .detail(deckId, nil) }
                         )
