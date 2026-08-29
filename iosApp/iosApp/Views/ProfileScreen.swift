@@ -79,7 +79,7 @@ struct ProfileScreen: View {
             label: identity?.label ?? "",
             shortPubky: identity?.shortPubky ?? "",
             initial: identity?.initial ?? "?",
-            avatarUrl: state.identity?.avatarUrl,
+            avatarUrl: identity?.avatarUrl,
             needsBackup: state.needsBackup,
             bio: state.identity?.bio,
             deckCount: Int(state.deckCount),

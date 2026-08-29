@@ -46,7 +46,7 @@ struct FriendProfileScreen: View {
             label: identity.label,
             shortPubky: identity.shortPubky,
             initial: identity.initial,
-            avatarUrl: state.identity.avatarUrl,
+            avatarUrl: identity.avatarUrl,
             bio: state.identity.bio,
             isFollowing: state.isFollowing,
             isProcessingFollow: state.isProcessingFollow,
