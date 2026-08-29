@@ -7,7 +7,6 @@ struct OnboardingView: View {
     var isWorking: Bool = false
     var errorMessage: String?
     var onSignInTapped: () -> Void = {}
-    var onInstallTapped: () -> Void = {}
     var onRestoreTapped: () -> Void = {}
     var onCreatePubkyTapped: () -> Void = {}
 
@@ -85,12 +84,6 @@ struct OnboardingView: View {
                 Text(error)
                     .font(.system(size: 13))
                     .foregroundColor(Color(red: 0.85, green: 0.17, blue: 0.17))
-            }
-
-            Button(action: onInstallTapped) {
-                Text("onboarding_get_ring")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Color(red: 0.48, green: 0.3, blue: 1.0))
             }
 
             // Deliberately a text link, not a third button — Android does the same. Creating a

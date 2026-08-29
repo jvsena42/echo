@@ -45,7 +45,6 @@ struct OnboardingScreen: View {
                     isWorking: isWorking,
                     errorMessage: errorMessage,
                     onSignInTapped: { viewModel?.onSignInClick(handoff: RingHandoff.thisdevice) },
-                    onInstallTapped: { viewModel?.onGetRingClick() },
                     onRestoreTapped: onRestore,
                     onCreatePubkyTapped: onCreatePubky
                 )
@@ -59,6 +58,7 @@ struct OnboardingScreen: View {
                     authUrl: awaiting.authUrl,
                     ringInstalledHere: awaiting.ringInstalledHere,
                     onOpenRingHere: { viewModel?.onOpenRingOnThisDevice() },
+                    onGetRing: { viewModel?.onGetRingClick() },
                     onCancel: { viewModel?.onCancelSignIn() }
                 )
             }
