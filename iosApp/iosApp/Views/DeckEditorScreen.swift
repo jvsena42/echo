@@ -20,6 +20,8 @@ struct DeckEditorScreen: View {
         DeckEditorView(
             isNew: uiState?.isNew ?? (deckId == nil),
             coverEmoji: uiState?.coverEmoji ?? "",
+            coverImageUrl: uiState?.coverImageUrl,
+            coverPendingBytes: uiState?.coverPendingBytes?.toData(),
             title: uiState?.title ?? "",
             description: uiState?.description_ ?? "",
             tags: uiState?.tags ?? [],
@@ -62,7 +64,15 @@ struct DeckEditorScreen: View {
                 onToggleReverse: { viewModel?.onToggleReverse() },
                 onFrontLangSelected: { viewModel?.onFrontLangSelected(tag: $0) },
                 onBackLangSelected: { viewModel?.onBackLangSelected(tag: $0) }
-            )
+            ),
+            onCoverSelected: { selection in
+                switch selection {
+                case .web(let url):
+                    viewModel?.onCoverWebSelected(url: url)
+                case .gallery(let bytes, let mime):
+                    viewModel?.onCoverGallerySelected(bytes: bytes.toKotlinByteArray(), mime: mime)
+                }
+            }
         )
         .onAppear { attach() }
         .onDisappear { detach() }

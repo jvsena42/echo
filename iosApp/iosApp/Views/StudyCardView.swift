@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 /// The flashcard. One of the few places Loopky builds something custom rather than reaching for a
 /// native control — there is no system equivalent of a card that turns over.
@@ -49,6 +50,7 @@ struct StudyCardView: View {
 
     private var frontFace: some View {
         VStack(spacing: 14) {
+            picture(state.frontImageRef)
             Text(state.frontText)
                 .font(.system(size: 26, weight: .bold))
                 .foregroundStyle(LoopkyColor.foregroundPrimary)
@@ -70,6 +72,9 @@ struct StudyCardView: View {
             if state.answerHidden {
                 answerInput
             } else {
+                // The back's picture is withheld with its text while a typing card is answering —
+                // an image answer handed over early is the same giveaway as the words.
+                picture(state.backImageRef)
                 Text(state.backText)
                     .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(LoopkyColor.foregroundPrimary)
@@ -123,6 +128,19 @@ struct StudyCardView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(LoopkyColor.foregroundMuted)
                 .accessibilityIdentifier("study_type_give_up")
+        }
+    }
+
+    @ViewBuilder
+    private func picture(_ ref: MediaRef.Image?) -> some View {
+        if ref != nil {
+            CardMediaImage(
+                ref: ref,
+                authorPubky: state.authorPubky,
+                deckId: state.deckId
+            )
+            .frame(maxHeight: 180)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
         }
     }
 

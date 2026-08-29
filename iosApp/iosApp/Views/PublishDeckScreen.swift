@@ -54,6 +54,14 @@ struct PublishDeckScreen: View {
                 onFrontLangSelected: { viewModel?.onFrontLangSelected(tag: $0) },
                 onBackLangSelected: { viewModel?.onBackLangSelected(tag: $0) }
             ),
+            onCoverSelected: { selection in
+                switch selection {
+                case .web(let url):
+                    viewModel?.onCoverWebSelected(url: url)
+                case .gallery(let bytes, let mime):
+                    viewModel?.onCoverGallerySelected(bytes: bytes.toKotlinByteArray(), mime: mime)
+                }
+            },
             onShareConfirm: { viewModel?.onShareConfirm() },
             onShareDismiss: { viewModel?.onShareDismiss() },
             onShareNeverAsk: { viewModel?.onShareNeverAsk() }
@@ -70,6 +78,7 @@ struct PublishDeckScreen: View {
             tags: state.tags,
             coverEmoji: state.coverEmoji,
             coverImageUrl: state.coverImageUrl,
+            coverPendingBytes: state.coverPendingBytes?.toData(),
             isPublishing: state.isPublishing,
             isCancelling: state.isCancelling,
             publishProgress: state.publishProgress.map { Double(truncating: $0) },
@@ -143,6 +152,7 @@ struct PublishViewState {
     var tags: [String] = []
     var coverEmoji: String = ""
     var coverImageUrl: String?
+    var coverPendingBytes: Data?
     var isPublishing: Bool = false
     var isCancelling: Bool = false
     var publishProgress: Double?
