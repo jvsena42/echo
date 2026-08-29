@@ -8,6 +8,7 @@ struct MainView: View {
     var onImportTap: () -> Void = {}
     var onCreateDeckTap: () -> Void = {}
     var onSignedOut: () -> Void = {}
+    var onStartStudy: () -> Void = {}
 
     /// Search is presented over the tabs rather than pushed: it is a way to reach a screen, not a
     /// place in the tab hierarchy, and dismissing it must return to whatever tab asked for it.
@@ -21,7 +22,7 @@ struct MainView: View {
                 onOpenDeck: { onDeckTap($0, nil) },
                 onCreateDeck: onCreateDeckTap,
                 onBrowseExamples: onImportTap,
-                onStartStudy: {},
+                onStartStudy: onStartStudy,
                 onSignedOut: onSignedOut
             )
             .tabItem { Label(LoopkyTab.study.title, systemImage: LoopkyTab.study.iconName) }

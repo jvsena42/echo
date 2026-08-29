@@ -3136,6 +3136,83 @@
         }
       }
     },
+    "study_flip_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap card to reveal answer"
+          }
+        }
+      }
+    },
+    "study_goal_done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to home"
+          }
+        }
+      }
+    },
+    "study_goal_keep_studying": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep studying"
+          }
+        }
+      }
+    },
+    "study_goal_reached_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's your target for today. Nothing is locked, so keep going if you're on a roll."
+          }
+        }
+      }
+    },
+    "study_goal_reached_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily goal reached!"
+          }
+        }
+      }
+    },
+    "study_listen": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listen"
+          }
+        }
+      }
+    },
+    "study_loading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dealing your cards…"
+          }
+        }
+      }
+    },
     "study_position_of_total": {
       "extractionState": "manual",
       "localizations": {
@@ -3143,6 +3220,94 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "study_preview_action_guest": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create account"
+          }
+        }
+      }
+    },
+    "study_preview_back": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to deck"
+          }
+        }
+      }
+    },
+    "study_preview_badge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview · progress isn't saved"
+          }
+        }
+      }
+    },
+    "study_preview_complete_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's the preview 👋"
+          }
+        }
+      }
+    },
+    "study_preview_guest_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create an account and this deck remembers what you got right — and asks again on the day you're about to forget it."
+          }
+        }
+      }
+    },
+    "study_preview_member_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow or clone this deck to keep your progress on it."
+          }
+        }
+      }
+    },
+    "study_preview_next": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next card"
+          }
+        }
+      }
+    },
+    "study_reversed_badge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reversed"
           }
         }
       }
@@ -3158,6 +3323,28 @@
         }
       }
     },
+    "study_sync_error_dismiss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Got it"
+          }
+        }
+      }
+    },
+    "study_sync_error_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your reviews aren't saving"
+          }
+        }
+      }
+    },
     "study_tap_to_reveal": {
       "extractionState": "manual",
       "localizations": {
@@ -3165,6 +3352,72 @@
           "stringUnit": {
             "state": "translated",
             "value": "TAP TO REVEAL"
+          }
+        }
+      }
+    },
+    "study_type_check": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check"
+          }
+        }
+      }
+    },
+    "study_type_correct": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct!"
+          }
+        }
+      }
+    },
+    "study_type_give_up": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Give up · show me"
+          }
+        }
+      }
+    },
+    "study_type_near_miss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Almost — check the accents"
+          }
+        }
+      }
+    },
+    "study_type_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type the answer"
+          }
+        }
+      }
+    },
+    "study_type_wrong": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not quite — try again"
           }
         }
       }

@@ -7,6 +7,8 @@ enum DeckRoute: Hashable, Identifiable {
     case editCard(String, String)
     case importPaste
     case importPublish
+    /// `nil` means everything due across the library, which is what Home asks for.
+    case study(String?)
 
     var id: String {
         switch self {
@@ -16,6 +18,7 @@ enum DeckRoute: Hashable, Identifiable {
         case .editCard(let deckId, let cardId): return "edit-\(deckId)-\(cardId)"
         case .importPaste: return "import-paste"
         case .importPublish: return "import-publish"
+        case .study(let id): return "study-\(id ?? "all")"
         }
     }
 }
@@ -38,7 +41,8 @@ struct RootView: View {
                     onDeckTap: { deckId, author in deckRoute = .detail(deckId, author) },
                     onImportTap: { deckRoute = .importPaste },
                     onCreateDeckTap: { deckRoute = .editorNew },
-                    onSignedOut: { isSignedIn = false }
+                    onSignedOut: { isSignedIn = false },
+                    onStartStudy: { deckRoute = .study(nil) }
                 )
                 .navigationDestination(item: $deckRoute) { route in
                     switch route {
@@ -48,7 +52,7 @@ struct RootView: View {
                             authorPubky: author,
                             onBack: { deckRoute = nil },
                             onEditDeck: { id in deckRoute = .editor(id) },
-                            onStudy: {},
+                            onStudy: { deckRoute = .study(deckId) },
                             onDeleted: { deckRoute = nil }
                         )
                     case .editor(let deckId):
@@ -74,6 +78,15 @@ struct RootView: View {
                         PasteScreen(
                             onCancel: { deckRoute = nil },
                             onNext: { deckRoute = .importPublish }
+                        )
+                    case .study(let deckId):
+                        StudySessionScreen(
+                            deckId: deckId,
+                            onClose: {
+                                // Back to the deck it came from, or to the tabs when studying
+                                // everything due.
+                                deckRoute = deckId.map { .detail($0, nil) }
+                            }
                         )
                     case .importPublish:
                         PublishDeckScreen(
