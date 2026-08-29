@@ -16,6 +16,10 @@ import Shared
 struct StudySessionScreen: View {
     /// `nil` studies everything due across the library.
     let deckId: String?
+    /// A sample of a deck nobody has kept: the cards flip, nothing is graded, and no session is
+    /// needed — so the deck's author comes along, to read the cards off *their* homeserver.
+    var isPreview: Bool = false
+    var previewAuthorPubky: String?
     var onClose: () -> Void = {}
 
     @State private var viewModel: StudySessionViewModel?
@@ -118,7 +122,11 @@ struct StudySessionScreen: View {
 
     private func attach() {
         guard viewModel == nil else { return }
-        let vm = IosDependencies.shared.studySessionViewModel(deckId: deckId)
+        let vm = IosDependencies.shared.studySessionViewModel(
+            deckId: deckId,
+            isPreview: isPreview,
+            previewAuthorPubky: previewAuthorPubky
+        )
         viewModel = vm
         stateSink = FlowEffectSink(vm.state) { value in
             uiState = value

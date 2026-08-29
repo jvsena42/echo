@@ -12,9 +12,12 @@ enum DeckRoute: Hashable, Identifiable {
     case importPublish
     /// `nil` means everything due across the library, which is what Home asks for.
     case study(String?)
+    /// Flip through a deck nobody has kept, grading nothing — `(deckId, authorPubky)`.
+    case studyPreview(String, String?)
     case settings
     case friendProfile(String)
     case followList(String, FollowSource)
+    case tagBrowse(String)
 
     var id: String {
         switch self {
@@ -27,9 +30,11 @@ enum DeckRoute: Hashable, Identifiable {
         case .importTriage: return "import-triage"
         case .importPublish: return "import-publish"
         case .study(let id): return "study-\(id ?? "all")"
+        case .studyPreview(let id, let author): return "preview-\(id)-\(author ?? "self")"
         case .settings: return "settings"
         case .friendProfile(let pubky): return "friend-\(pubky)"
         case .followList(let pubky, let source): return "follows-\(pubky)-\(source.name)"
+        case .tagBrowse(let tag): return "tag-\(tag)"
         }
     }
 }
@@ -144,6 +149,20 @@ struct RootView: View {
                         onBack: { deckRoute = nil },
                         onOpenDeck: { deckId, author in deckRoute = .detail(deckId, author) },
                         onOpenAuthor: { deckRoute = .friendProfile($0) }
+                    )
+                case .studyPreview(let deckId, let author):
+                    StudySessionScreen(
+                        deckId: deckId,
+                        isPreview: true,
+                        previewAuthorPubky: author,
+                        onClose: { deckRoute = .detail(deckId, author) }
+                    )
+                case .tagBrowse(let tag):
+                    TagBrowseScreen(
+                        tag: tag,
+                        onBack: { deckRoute = nil },
+                        onOpenDeck: { id, author in deckRoute = .detail(id, author) },
+                        onOpenProfile: { deckRoute = .friendProfile($0) }
                     )
                 case .followList(let pubky, let source):
                     FollowListScreen(

@@ -1200,6 +1200,84 @@
         }
       }
     },
+    "deck_detail_clone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clone deck"
+          }
+        }
+      }
+    },
+    "deck_detail_clone_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "deck_detail_clone_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clone"
+          }
+        }
+      }
+    },
+    "deck_detail_clone_dialog_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "“%1$@” and its %2$lld card will be copied to your homeserver as a deck you own and can edit. It won't receive the author's later changes."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "“%1$@” and its %2$lld cards will be copied to your homeserver as a deck you own and can edit. It won't receive the author's later changes."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "deck_detail_clone_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clone deck"
+          }
+        }
+      }
+    },
+    "deck_detail_cloned_from": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloned from %1$@"
+          }
+        }
+      }
+    },
     "deck_detail_delete": {
       "extractionState": "manual",
       "localizations": {
@@ -1255,6 +1333,17 @@
         }
       }
     },
+    "deck_detail_dismiss_error": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        }
+      }
+    },
     "deck_detail_edit": {
       "extractionState": "manual",
       "localizations": {
@@ -1273,6 +1362,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Something went wrong"
+          }
+        }
+      }
+    },
+    "deck_detail_follow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow deck"
+          }
+        }
+      }
+    },
+    "deck_detail_followers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld following"
+          }
+        }
+      }
+    },
+    "deck_detail_following": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following"
           }
         }
       }
@@ -1350,6 +1472,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Study this deck"
+          }
+        }
+      }
+    },
+    "deck_detail_try_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try these cards"
           }
         }
       }
@@ -1614,6 +1747,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Front language"
+          }
+        }
+      }
+    },
+    "deck_incomplete_warning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This deck didn't finish uploading — some cards are missing. Import it again to complete it, or delete it."
           }
         }
       }
@@ -5391,6 +5535,17 @@
         }
       }
     },
+    "share_prompt_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Posts to your Pubky feed so the people following you see it. The deck is public either way."
+          }
+        }
+      }
+    },
     "share_prompt_confirm": {
       "extractionState": "manual",
       "localizations": {
@@ -5413,6 +5568,17 @@
         }
       }
     },
+    "share_prompt_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't post to Pubky. The deck is unaffected."
+          }
+        }
+      }
+    },
     "share_prompt_never": {
       "extractionState": "manual",
       "localizations": {
@@ -5424,6 +5590,17 @@
         }
       }
     },
+    "share_prompt_posted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared on Pubky"
+          }
+        }
+      }
+    },
     "share_prompt_title": {
       "extractionState": "manual",
       "localizations": {
@@ -5431,6 +5608,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Share this on Pubky?"
+          }
+        }
+      }
+    },
+    "share_prompt_title_cloned": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share this copy on Pubky?"
+          }
+        }
+      }
+    },
+    "share_prompt_title_created": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share this deck on Pubky?"
+          }
+        }
+      }
+    },
+    "share_prompt_title_followed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share this follow on Pubky?"
           }
         }
       }
@@ -6696,6 +6906,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not quite — try again"
+          }
+        }
+      }
+    },
+    "tag_browse_back": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "tag_browse_empty_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody on Loopky has used this tag yet. Publish a deck with it and it shows up here."
+          }
+        }
+      }
+    },
+    "tag_browse_empty_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No decks tagged “%1$@” yet"
+          }
+        }
+      }
+    },
+    "tag_browse_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "#%1$@"
           }
         }
       }

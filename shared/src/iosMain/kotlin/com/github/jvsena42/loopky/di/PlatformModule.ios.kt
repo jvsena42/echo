@@ -166,8 +166,18 @@ object IosDependencies {
     fun editCardViewModel(deckId: String, cardId: String): EditCardViewModel =
         koin.get { parametersOf(deckId, cardId) }
 
-    fun studySessionViewModel(deckId: String?): StudySessionViewModel =
-        koin.get { parametersOf(deckId) }
+    /**
+     * The study loop, and — with [isPreview] — the sample of a deck nobody has kept.
+     *
+     * A preview grades nothing and needs no session, so it carries the deck's author: its cards
+     * are read from *their* homeserver rather than from a library the reader does not have.
+     */
+    fun studySessionViewModel(
+        deckId: String?,
+        isPreview: Boolean = false,
+        previewAuthorPubky: String? = null,
+    ): StudySessionViewModel =
+        koin.get { parametersOf(deckId, isPreview, previewAuthorPubky) }
 
     fun discoverViewModel(): DiscoverViewModel = koin.get()
 
