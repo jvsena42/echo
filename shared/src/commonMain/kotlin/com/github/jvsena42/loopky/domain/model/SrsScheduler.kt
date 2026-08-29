@@ -5,12 +5,22 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Simplified SM-2 spaced-repetition scheduler. Pure functions over [SrsState] — no clock, no I/O;
+ * Fixed-interval spaced-repetition scheduler. Pure functions over [SrsState] — no clock, no I/O;
  * the caller supplies `now` (see `com.github.jvsena42.loopky.util.epochMillis`). Business logic for
  * grading lives in `SrsRepositoryImpl`, which calls these.
  *
- * First-review intervals default to Again `<10m` / Hard `1d` / Good `3d` / Easy `7d`, and are
- * overridable per user through [StudySettings].
+ * A grade schedules the card for `now + the days configured for that grade`, **every** review and
+ * not only the first: Hard, Good and Easy each mean one number, the one the user set in
+ * [StudySettings]. Again is the exception and is not configurable — it is `<10m`, a same-session
+ * retry rather than a date.
+ *
+ * This deliberately replaces SM-2's compounding growth (interval × ease). Under the old rule a
+ * card graded Good at a 3-day setting came back in 8 days the second time, 20 the third, and the
+ * settings screen printed numbers the buttons then disagreed with from the second review onwards.
+ * The trade is real and worth stating: intervals no longer lengthen as a card is learned, so a
+ * well-known card keeps coming back on its Easy interval instead of drifting out to months.
+ * [SrsState.easeFactor] and [SrsState.repetitions] are still tracked — they record how a card has
+ * gone, and growth cannot return without them — but nothing here reads them for an interval.
  */
 private const val MINUTE_MS = 60_000L
 private const val DAY_MS = 86_400_000L
@@ -20,22 +30,12 @@ internal const val AGAIN_DELAY_MS = MINUTES_AGAIN * MINUTE_MS
 internal const val DEFAULT_EASE = 2.5
 internal const val MIN_EASE = 1.3
 
-/**
- * SM-2's convention: a card whose interval has reached 21 days is mature.
- *
- * The floor, not the whole rule — a user who lengthens their first intervals pushes the line out
- * with them. See [StudySettings.maturityThresholdDays], which is what callers should ask.
- */
-const val MATURE_INTERVAL_DAYS = 21
-
-// Ease adjustments per grade.
+// Ease adjustments per grade. Recorded on the card, not read back for scheduling — see the file
+// header. They are what a return to compounding growth would need, and dropping them would freeze
+// every card at [DEFAULT_EASE] with no way to tell an easy card from a hard one.
 private const val EASE_PENALTY_AGAIN = 0.20
 private const val EASE_PENALTY_HARD = 0.15
 private const val EASE_BONUS_EASY = 0.15
-
-// Interval growth multipliers.
-private const val HARD_MULTIPLIER = 1.2
-private const val EASY_MULTIPLIER = 1.3
 
 // formatInterval bucket thresholds (days).
 private const val DAYS_IN_WEEK = 7.0
@@ -43,10 +43,9 @@ private const val DAYS_IN_MONTH = 30.0
 private const val DAYS_IN_YEAR = 365.0
 
 /**
- * Days are kept up to 30, past the 21-day maturity line, rather than switching to weeks at exactly
- * 21. Flipping there meant the SRS row read `Good 19d` / `Easy 3w` — the label stopped printing the
- * number that decides maturity at precisely the boundary it decides (#101 §6). Anki keeps days to
- * 30 for the same reason.
+ * Days are kept up to 30 rather than switching to weeks at 21. Flipping there meant the SRS row
+ * read `Good 19d` / `Easy 3w` — the label stopped printing the number that decides maturity at
+ * precisely the boundary it decides (#101 §6). Anki keeps days to 30 for the same reason.
  */
 private const val MAX_DAYS_LABEL = 30
 private const val MAX_WEEKS_LABEL = 60
@@ -68,10 +67,12 @@ fun SrsState?.isDue(now: Long): Boolean = this != null && dueAt <= now
  * Compute the next [SrsState] after grading. Receiver is the card's current state, or `null` for a
  * card reviewed for the first time. [cardId] is required so a fresh state can be created.
  *
- * [settings] supplies the first-review intervals only. Growth multipliers, ease penalties and the
- * `Again` delay are fixed, and nothing here rewrites an already-scheduled card — so changing a
- * setting is never retroactive. One consequence worth knowing: `Again` resets `repetitions` to 0,
- * so a lapsed card is treated as new again and picks up the *current* first interval next time.
+ * The due date is `now` plus the days [settings] gives that grade — the card's current interval is
+ * not an input, so the number on the button is the number the card gets on its first review and on
+ * its fiftieth. Two consequences worth knowing. Changing a setting is **not** retroactive: an
+ * already-scheduled card keeps the date it was given and picks the new number up at its next
+ * grade. And `Again` is a 10-minute retry that resets `repetitions` and zeroes `intervalDays`,
+ * which is what makes a lapsed card count as unlearned again for mastery.
  */
 fun SrsState?.review(
     cardId: String,
@@ -81,7 +82,16 @@ fun SrsState?.review(
 ): SrsState {
     val ease = this?.easeFactor ?: DEFAULT_EASE
     val reps = this?.repetitions ?: 0
-    val interval = this?.intervalDays ?: 0
+
+    /** A card put [days] out from `now`. The one place a due date is computed from an interval. */
+    fun scheduled(days: Int, nextEase: Double) = SrsState(
+        cardId = cardId,
+        dueAt = now + days * DAY_MS,
+        intervalDays = days,
+        easeFactor = nextEase,
+        repetitions = reps + 1,
+        lastGrade = grade,
+    )
 
     return when (grade) {
         SrsGrade.Again -> SrsState(
@@ -93,28 +103,9 @@ fun SrsState?.review(
             lastGrade = grade,
         )
 
-        SrsGrade.Hard -> {
-            val next = if (reps == 0) {
-                settings.firstHardDays
-            } else {
-                max(interval + 1, (interval * HARD_MULTIPLIER).roundToInt())
-            }
-            SrsState(cardId, now + next * DAY_MS, next, max(MIN_EASE, ease - EASE_PENALTY_HARD), reps + 1, grade)
-        }
-
-        SrsGrade.Good -> {
-            val next = if (reps == 0) settings.firstGoodDays else max(interval + 1, (interval * ease).roundToInt())
-            SrsState(cardId, now + next * DAY_MS, next, ease, reps + 1, grade)
-        }
-
-        SrsGrade.Easy -> {
-            val next = if (reps == 0) {
-                settings.firstEasyDays
-            } else {
-                max(interval + 1, (interval * ease * EASY_MULTIPLIER).roundToInt())
-            }
-            SrsState(cardId, now + next * DAY_MS, next, ease + EASE_BONUS_EASY, reps + 1, grade)
-        }
+        SrsGrade.Hard -> scheduled(settings.hardDays, max(MIN_EASE, ease - EASE_PENALTY_HARD))
+        SrsGrade.Good -> scheduled(settings.goodDays, ease)
+        SrsGrade.Easy -> scheduled(settings.easyDays, ease + EASE_BONUS_EASY)
     }
 }
 
@@ -143,11 +134,10 @@ fun SrsState?.previewIntervals(
 /**
  * How far [cardIds] have been carried toward maturity, `0f..1f`.
  *
- * Each card contributes its own share of [thresholdDays] rather than a yes/no. A binary count of
- * mature cards cannot move until the eighth day of study — the scheduler caps a new card's first
- * interval well below the threshold, so two sessions ≥8 days apart are the minimum — which left the
- * only progress number in the app frozen at 0% through exactly the window it had to work in
- * (#101 §1). Partial credit moves on day one and still means the same thing at 100%.
+ * Each card contributes its own share of [thresholdDays] rather than a yes/no, so the number moves
+ * on day one. A binary count of mature cards was what left the only progress number in the app
+ * frozen at 0% through exactly the window it had to work in (#101 §1), and partial credit still
+ * means the same thing at 100%.
  *
  * A card lapsed by `Again` has `intervalDays = 0` and contributes nothing, which is honest.
  *

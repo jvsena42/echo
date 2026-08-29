@@ -148,11 +148,11 @@ class SettingsViewModel(
     fun onNewCardsGoalChange(goal: Int) =
         updateStudySettings { it.copy(newCardsPerDayGoal = goal) }
 
-    fun onFirstIntervalChange(grade: SrsGrade, days: Int) = updateStudySettings {
+    fun onIntervalChange(grade: SrsGrade, days: Int) = updateStudySettings {
         when (grade) {
-            SrsGrade.Hard -> it.copy(firstHardDays = days)
-            SrsGrade.Good -> it.copy(firstGoodDays = days)
-            SrsGrade.Easy -> it.copy(firstEasyDays = days)
+            SrsGrade.Hard -> it.copy(hardDays = days)
+            SrsGrade.Good -> it.copy(goodDays = days)
+            SrsGrade.Easy -> it.copy(easyDays = days)
             // Again is a fixed ten-minute relearn step, not an interval the user picks.
             SrsGrade.Again -> it
         }

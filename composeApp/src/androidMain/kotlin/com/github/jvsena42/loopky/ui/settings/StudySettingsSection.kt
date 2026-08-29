@@ -34,13 +34,16 @@ import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 private const val MAX_DIGITS = 3
 
 /**
- * The Studying section: today's new-card goal, and the interval each grade gives a brand-new card.
+ * The Studying section: today's new-card goal, and the interval each grade gives a card.
  *
  * Two things this deliberately does *not* say. The goal is never described as a limit — nothing
  * withholds cards once it is met, and copy promising otherwise would describe a feature Loopky does
- * not have. And the intervals carry the note that lengthening one raises the mastery bar, because
- * Mastered % is measured against the longest of them: without that, a user who sets Easy to 30 days
- * would watch their progress drop and have no way to know why.
+ * not have. And the intervals are never described as first-review-only: they are what the card
+ * gets on every grade, and the previous copy ("cards already in rotation keep their own schedule")
+ * described the compounding scheduler these replaced.
+ *
+ * The mastery note stays, because Mastered % is measured against the longest of the three: without
+ * it, a user who sets Easy to 30 days would watch their progress drop and have no way to know why.
  */
 @Composable
 internal fun StudySettingsSection(
@@ -77,32 +80,32 @@ internal fun StudySettingsSection(
         )
         SettingsSectionDivider()
         SettingsNumberRow(
-            label = stringResource(R.string.settings_first_interval_hard_label),
-            description = stringResource(R.string.settings_first_interval_description),
-            value = settings.firstHardDays,
-            range = StudySettings.FIRST_INTERVAL_RANGE,
+            label = stringResource(R.string.settings_interval_hard_label),
+            description = stringResource(R.string.settings_interval_description),
+            value = settings.hardDays,
+            range = StudySettings.INTERVAL_RANGE,
             enabled = enabled,
-            testTag = "settings_first_interval_hard",
+            testTag = "settings_interval_hard",
             onValueChange = { onIntervalChange(SrsGrade.Hard, it) },
         )
         SettingsSectionDivider()
         SettingsNumberRow(
-            label = stringResource(R.string.settings_first_interval_good_label),
+            label = stringResource(R.string.settings_interval_good_label),
             description = null,
-            value = settings.firstGoodDays,
-            range = StudySettings.FIRST_INTERVAL_RANGE,
+            value = settings.goodDays,
+            range = StudySettings.INTERVAL_RANGE,
             enabled = enabled,
-            testTag = "settings_first_interval_good",
+            testTag = "settings_interval_good",
             onValueChange = { onIntervalChange(SrsGrade.Good, it) },
         )
         SettingsSectionDivider()
         SettingsNumberRow(
-            label = stringResource(R.string.settings_first_interval_easy_label),
-            description = stringResource(R.string.settings_first_interval_mastery_note),
-            value = settings.firstEasyDays,
-            range = StudySettings.FIRST_INTERVAL_RANGE,
+            label = stringResource(R.string.settings_interval_easy_label),
+            description = stringResource(R.string.settings_interval_mastery_note),
+            value = settings.easyDays,
+            range = StudySettings.INTERVAL_RANGE,
             enabled = enabled,
-            testTag = "settings_first_interval_easy",
+            testTag = "settings_interval_easy",
             onValueChange = { onIntervalChange(SrsGrade.Easy, it) },
         )
     }

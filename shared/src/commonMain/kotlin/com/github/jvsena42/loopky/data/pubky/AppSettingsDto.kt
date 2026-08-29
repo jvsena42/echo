@@ -17,25 +17,30 @@ internal data class AppSettingsDto(
     val updated_at: Long = 0,
 )
 
+/**
+ * The `first_*` key names are a historical spelling, kept deliberately: they were written when the
+ * three values were first-review-only intervals, and renaming them would silently reset every
+ * existing record to the defaults on read. The values are now every review's interval.
+ */
 @Serializable
 internal data class StudySettingsDto(
     val new_cards_per_day: Int = StudySettings.Default.newCardsPerDayGoal,
-    val first_hard_days: Int = StudySettings.Default.firstHardDays,
-    val first_good_days: Int = StudySettings.Default.firstGoodDays,
-    val first_easy_days: Int = StudySettings.Default.firstEasyDays,
+    val first_hard_days: Int = StudySettings.Default.hardDays,
+    val first_good_days: Int = StudySettings.Default.goodDays,
+    val first_easy_days: Int = StudySettings.Default.easyDays,
 )
 
 internal fun StudySettings.toDto() = StudySettingsDto(
     new_cards_per_day = newCardsPerDayGoal,
-    first_hard_days = firstHardDays,
-    first_good_days = firstGoodDays,
-    first_easy_days = firstEasyDays,
+    first_hard_days = hardDays,
+    first_good_days = goodDays,
+    first_easy_days = easyDays,
 )
 
 /** Sanitized on the way in: a record written by a future client must not break the scheduler. */
 internal fun StudySettingsDto.toDomain() = StudySettings(
     newCardsPerDayGoal = new_cards_per_day,
-    firstHardDays = first_hard_days,
-    firstGoodDays = first_good_days,
-    firstEasyDays = first_easy_days,
+    hardDays = first_hard_days,
+    goodDays = first_good_days,
+    easyDays = first_easy_days,
 ).sanitized()

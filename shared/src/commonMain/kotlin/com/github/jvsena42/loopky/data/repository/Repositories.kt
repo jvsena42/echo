@@ -1175,7 +1175,7 @@ interface SrsRepository {
      * could not be read.
      *
      * Lives here rather than in the ViewModel because the maturity threshold is a *setting* — a
-     * user who lengthens their first intervals moves the line (see
+     * user who lengthens their intervals moves the line (see
      * [com.github.jvsena42.loopky.domain.model.maturityThresholdDays]) — and this repository is the
      * one place holding both the states and the settings.
      *
@@ -1248,7 +1248,9 @@ interface SrsRepository {
      * For the second half of a card studied both ways. The forward direction is graded and written
      * as it happens, so a session abandoned mid-pair keeps it; when the reverse then comes back
      * worse, the card has to be re-scheduled from where the pair *started* — applying the worse
-     * grade on top of the forward result would compound two reviews out of one.
+     * grade on top of the forward result would make two reviews out of one, bumping `repetitions`
+     * twice and taking the ease penalty twice. The due date itself now follows only from the grade,
+     * but the state it is written into still must not count the pair as two.
      *
      * Deliberately does not touch the daily tally: the pair is one review of one card, and
      * counting it twice would double the day's count and mis-classify the card as new a second
@@ -1259,7 +1261,7 @@ interface SrsRepository {
     /**
      * The interval each grade would produce for [card], already formatted for the grade buttons.
      *
-     * Here rather than in the study ViewModel because the first-review intervals are the user's own
+     * Here rather than in the study ViewModel because the intervals are the user's own
      * setting: the VM would otherwise need a [SettingsRepository] of its own purely to label four
      * buttons, and the labels could drift from what [review] actually writes.
      */
