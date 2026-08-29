@@ -23,6 +23,21 @@ struct DeckDetailContent {
     let canStudy: Bool
     let masteredPercent: String
     let cards: [CardPreviewData]
+    /// Whether anyone is signed in. Deck detail reads fine without an account — the manifest and
+    /// cards are public — so this gates only Follow and Clone, which write.
+    var isSignedIn: Bool = true
+    /// Claimed by a publish that never finished, so some cards are missing. Surfaced rather than
+    /// hidden: the count comes from the manifest, so the deck otherwise looks complete.
+    var isIncomplete: Bool = false
+    var isFollowing: Bool = false
+    var isFollowPending: Bool = false
+    var isCloning: Bool = false
+    /// The author this deck was cloned from, when it carries clone provenance.
+    var clonedFromLabel: String?
+    /// Distinct taggers per the indexer — approximate by nature, so display only.
+    var followerCount: Int = 0
+    /// This deck can be *tried* without being kept: flip its cards, grading nothing.
+    var canPreview: Bool = false
 }
 
 struct CardPreviewData: Identifiable {
@@ -39,6 +54,10 @@ struct DeckDetailView: View {
     var onDelete: () -> Void = {}
     var onShare: () -> Void = {}
     var onStudy: () -> Void = {}
+    var onOpenTag: (String) -> Void = { _ in }
+    var onToggleFollow: () -> Void = {}
+    var onClone: () -> Void = {}
+    var onRefresh: () async -> Void = {}
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -117,14 +136,11 @@ struct DeckDetailView: View {
 
                 // Author
                 HStack(spacing: 10) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(LoopkyColor.accentSecondarySoft)
-                            .frame(width: 32, height: 32)
-                        Text(content.author.initial)
-                            .font(.system(size: 14, weight: .heavy))
-                            .foregroundColor(LoopkyColor.accentSecondary)
-                    }
+                    PubkyAvatarView(
+                        initial: content.author.initial,
+                        avatarUrl: content.author.avatarUrl,
+                        size: 32
+                    )
                     VStack(alignment: .leading) {
                         HStack(spacing: 6) {
                             Text(content.author.label)
@@ -142,12 +158,15 @@ struct DeckDetailView: View {
                     Spacer()
                 }
 
+                if !content.isOwned { foreignDeckActions(content) }
+                deckNotes(content)
+
                 // Tags
                 if !content.tags.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(content.tags, id: \.self) { tag in
-                                TagChipView(tag: tag)
+                                TagChipView(tag: tag, onTap: { onOpenTag(tag) })
                             }
                         }
                     }
@@ -198,19 +217,90 @@ struct DeckDetailView: View {
             .padding(.top, 8)
             .padding(.bottom, 100)
         }
+        .refreshable { await onRefresh() }
 
         // Bottom CTA
-        Button(action: onStudy) {
-            HStack(spacing: 8) {
-                Image(systemName: "play.fill")
-                Text(studyLabel)
+        if showsStudyCta {
+            Button(action: onStudy) {
+                HStack(spacing: 8) {
+                    Image(systemName: "play.fill")
+                    Text(studyLabel)
+                }
             }
+            .buttonStyle(.loopkyFilled)
+            .disabled(!canStudy)
+            .shadow(color: LoopkyColor.shadowAccent, radius: 24, x: 0, y: 8)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
         }
-        .buttonStyle(.loopkyFilled)
-        .disabled(!canStudy)
-        .shadow(color: LoopkyColor.shadowAccent, radius: 24, x: 0, y: 8)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 20)
+    }
+
+    /// Follow and Clone, for a deck that is not yours.
+    ///
+    /// Both write under your pubky, so both raise the sign-in prompt for a guest rather than being
+    /// hidden — the action is what someone came to do, and a missing button explains nothing.
+    private func foreignDeckActions(_ content: DeckDetailContent) -> some View {
+        HStack(spacing: 10) {
+            // Dimmed while the write is in flight rather than greyed out: the pill has already
+            // flipped optimistically, so it must still read as the state it is claiming.
+            Group {
+                if content.isFollowing {
+                    Button(action: onToggleFollow) {
+                        Label("deck_detail_following", systemImage: "checkmark")
+                    }
+                    .buttonStyle(.loopkySoft)
+                } else {
+                    Button(action: onToggleFollow) {
+                        Label("deck_detail_follow", systemImage: "plus")
+                    }
+                    .buttonStyle(.loopkyFilled)
+                }
+            }
+            .opacity(content.isFollowPending ? 0.6 : 1)
+            .disabled(content.isFollowPending)
+            .accessibilityIdentifier("deck_follow")
+
+            Button(action: onClone) {
+                if content.isCloning {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("deck_detail_clone", systemImage: "doc.on.doc")
+                }
+            }
+            .buttonStyle(.loopkyOutline)
+            .disabled(content.isCloning)
+            .accessibilityIdentifier("deck_clone")
+        }
+    }
+
+    /// The lines under the actions: an unfinished publish, clone provenance, and how many people
+    /// keep this deck.
+    @ViewBuilder
+    private func deckNotes(_ content: DeckDetailContent) -> some View {
+        // Surfaced rather than hidden: the count comes from the manifest, so a deck claimed by a
+        // publish that never finished otherwise looks complete while holding fewer cards.
+        if content.isIncomplete {
+            Text("deck_incomplete_warning")
+                .font(.system(size: 13))
+                .foregroundColor(LoopkyColor.danger)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if let clonedFrom = content.clonedFromLabel {
+            Text(verbatim: String(
+                format: NSLocalizedString("deck_detail_cloned_from", comment: ""), clonedFrom
+            ))
+            .font(.system(size: 12))
+            .foregroundColor(LoopkyColor.foregroundMuted)
+        }
+        // Distinct taggers per the indexer — approximate by nature, so shown and never gated on.
+        if content.followerCount > 0 {
+            Text(verbatim: String(
+                format: NSLocalizedString("deck_detail_followers", comment: ""),
+                content.followerCount
+            ))
+            .font(.system(size: 12))
+            .foregroundColor(LoopkyColor.foregroundMuted)
+        }
     }
 
     private func cardsHeading(count: Int) -> some View {
@@ -267,7 +357,13 @@ struct DeckDetailView: View {
     /// Reviews take precedence; with none, the count that matters is the unseen one, so a freshly
     /// imported deck says how much is waiting instead of reading "0 due".
     private var studyLabel: String {
-        guard case .content(let content) = state, content.isOwned else {
+        guard case .content(let content) = state else {
+            return NSLocalizedString("deck_detail_study_this_deck", comment: "")
+        }
+        // First, because it is a different button: a deck nobody has kept can only be sampled, and
+        // "Study this deck" over a session that grades nothing promises progress it discards.
+        if content.canPreview { return NSLocalizedString("deck_detail_try_cards", comment: "") }
+        guard content.isOwned else {
             return NSLocalizedString("deck_detail_study_this_deck", comment: "")
         }
         if content.dueLabel == "0" && content.newCards > 0 {
@@ -277,9 +373,16 @@ struct DeckDetailView: View {
     }
 
     /// False when there is neither a review nor an unseen card — Study would land on "All done!".
+    /// A preview always has cards, or `canPreview` would be false.
     private var canStudy: Bool {
-        if case .content(let content) = state { return content.canStudy }
+        if case .content(let content) = state { return content.canStudy || content.canPreview }
         return true
+    }
+
+    /// Nothing to offer on a stranger's deck you have not kept and cannot preview.
+    private var showsStudyCta: Bool {
+        guard case .content(let content) = state else { return true }
+        return content.isOwned || content.isFollowing || content.canPreview
     }
 
     private var isOwnedContent: Bool {

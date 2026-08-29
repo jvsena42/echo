@@ -63,6 +63,10 @@ struct HomeCtaButtons: View {
 struct DueTodayHeroCard: View {
     let dueToday: Int
     let doneToday: Int
+    /// The day's tally against the goal. **Announced, never enforced** — the queue behind this
+    /// serves every due card and every unseen one regardless, so this reports, it does not cap.
+    var newCardsToday: Int = 0
+    var newCardsGoal: Int = 0
     let onStartStudy: () -> Void
 
     private var progress: CGFloat {
@@ -98,6 +102,17 @@ struct DueTodayHeroCard: View {
                 Text(String(format: NSLocalizedString("home_progress_done", comment: ""), doneToday, dueToday))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(LoopkyColor.accentPrimarySoft)
+                Text(verbatim: newCardsToday >= newCardsGoal
+                     ? String(
+                        format: NSLocalizedString("home_new_cards_goal_reached", comment: ""),
+                        newCardsGoal
+                     )
+                     : String(
+                        format: NSLocalizedString("home_new_cards_goal", comment: ""),
+                        newCardsToday, newCardsGoal
+                     ))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(LoopkyColor.accentPrimarySoft)
             }
             Button(action: onStartStudy) {
                 HStack(spacing: 8) {
@@ -215,4 +230,44 @@ private let sampleHomeDecks = [
         .padding()
     }
     .background(LoopkyColor.surfacePrimary)
+}
+
+/// Nothing due and nothing unseen.
+///
+/// Says *when* the next review lands, which is what makes an empty queue read as earned rather
+/// than as a dead end. The interval comes from `RelativeDateTimeFormatter` rather than a ported
+/// helper — the system already words this, in the reader's own language.
+struct CaughtUpCard: View {
+    let nextDueAtMillis: Int64?
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Text("🎉").font(.system(size: 40))
+            Text("home_caught_up_title")
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundColor(LoopkyColor.foregroundPrimary)
+                .multilineTextAlignment(.center)
+            Text(verbatim: subtitle)
+                .font(.system(size: 14))
+                .foregroundColor(LoopkyColor.foregroundMuted)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(28)
+        .background(RoundedRectangle(cornerRadius: 28).fill(LoopkyColor.accentPrimarySoft))
+        .accessibilityIdentifier("home_caught_up")
+    }
+
+    private var subtitle: String {
+        guard let millis = nextDueAtMillis else {
+            return NSLocalizedString("home_caught_up_no_next_due", comment: "")
+        }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        let relative = formatter.localizedString(
+            for: Date(timeIntervalSince1970: Double(millis) / 1000),
+            relativeTo: Date()
+        )
+        return String(format: NSLocalizedString("home_caught_up_next_due", comment: ""), relative)
+    }
 }

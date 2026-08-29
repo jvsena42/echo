@@ -41,6 +41,8 @@ struct DeckEditorView: View {
     var onRemoveTag: (String) -> Void = { _ in }
     var onAddCard: () -> Void = {}
     var onCardTap: (String) -> Void = { _ in }
+    /// `(from, to)` indices into the loaded prefix — the deck's own order, persisted immediately.
+    var onMoveCard: (Int, Int) -> Void = { _, _ in }
     var onLoadMoreCards: () -> Void = {}
     var onClose: () -> Void = {}
     var onSave: () -> Void = {}
@@ -194,51 +196,50 @@ struct DeckEditorView: View {
                     .font(.system(size: 16, weight: .heavy))
                     .foregroundColor(LoopkyColor.foregroundPrimary)
 
-                // Card list
-                VStack(spacing: 10) {
-                    ForEach(cards) { card in
-                        Button(action: { onCardTap(card.id) }) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "line.3.horizontal")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(LoopkyColor.foregroundMuted)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Group {
-                                        if card.front.isEmpty {
-                                            Text("deck_editor_card_new")
-                                        } else {
-                                            Text(verbatim: card.front)
-                                        }
+                // Card list. The handle on each row is a real drag target now — it has been a
+                // glyph promising a gesture that did nothing since the screen was written.
+                ReorderableVStack(items: cards, onMove: onMoveCard) { card in
+                    Button(action: { onCardTap(card.id) }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "line.3.horizontal")
+                                .font(.system(size: 14))
+                                .foregroundColor(LoopkyColor.foregroundMuted)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Group {
+                                    if card.front.isEmpty {
+                                        Text("deck_editor_card_new")
+                                    } else {
+                                        Text(verbatim: card.front)
                                     }
-                                    .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(LoopkyColor.foregroundPrimary)
-                                    Text(card.back)
-                                        .font(.system(size: 13))
-                                        .foregroundColor(LoopkyColor.foregroundMuted)
                                 }
-                                Spacer()
-                                HStack(spacing: 6) {
-                                    if card.hasImage {
-                                        Image(systemName: "photo")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(LoopkyColor.accentSecondary)
-                                    }
-                                    if card.hasAudio {
-                                        Image(systemName: "mic")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(LoopkyColor.accentSecondary)
-                                    }
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(LoopkyColor.foregroundPrimary)
+                                Text(card.back)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(LoopkyColor.foregroundMuted)
+                            }
+                            Spacer()
+                            HStack(spacing: 6) {
+                                if card.hasImage {
+                                    Image(systemName: "photo")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(LoopkyColor.accentSecondary)
+                                }
+                                if card.hasAudio {
+                                    Image(systemName: "mic")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(LoopkyColor.accentSecondary)
                                 }
                             }
-                            .padding(14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(LoopkyColor.surfaceCard)
-                            )
-                            .shadow(color: LoopkyColor.shadowElevationLow, radius: 8, x: 0, y: 2)
                         }
-                        .buttonStyle(.plain)
-                    }
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(LoopkyColor.surfaceCard)
+                        )
+                        .shadow(color: LoopkyColor.shadowElevationLow, radius: 8, x: 0, y: 2)
+                }
+                    .buttonStyle(.plain)
                 }
 
                 // The tail of the deck arrives a chunk record at a time (#52): a 20k-card deck

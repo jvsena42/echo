@@ -216,7 +216,10 @@ struct PublishDeckView: View {
             Text("publish_published_title")
                 .font(.system(size: 22, weight: .heavy))
                 .foregroundStyle(LoopkyColor.foregroundPrimary)
-            Text("publish_published_subtitle")
+            Text(verbatim: String(
+                format: NSLocalizedString("publish_published_subtitle", comment: ""),
+                state.cardCount
+            ))
                 .font(.system(size: 14))
                 .foregroundStyle(LoopkyColor.foregroundMuted)
                 .multilineTextAlignment(.center)

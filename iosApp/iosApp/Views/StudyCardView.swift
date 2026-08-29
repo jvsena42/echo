@@ -9,6 +9,7 @@ struct StudyCardView: View {
     var answerFocused: FocusState<Bool>.Binding
     var onFlip: () -> Void = {}
     var onListen: () -> Void = {}
+    var onSpeak: () -> Void = {}
     var onCheckAnswer: () -> Void = {}
     var onGiveUp: () -> Void = {}
 
@@ -25,9 +26,10 @@ struct StudyCardView: View {
         .rotation3DEffect(.degrees(state.revealed ? 180 : 0), axis: (x: 0, y: 1, z: 0))
         .animation(.easeInOut(duration: 0.35), value: state.revealed)
         .frame(maxWidth: .infinity)
-        // Capped rather than free to grow. A flashcard stretched to a full screen is a wall of
-        // white around one word, and it pushes the grade row off the thumb's reach.
-        .frame(minHeight: 260, maxHeight: 440)
+        // Capped rather than free to grow — a flashcard stretched to a full screen is a wall of
+        // white around one word, and it pushes the grade row off the thumb's reach — but the cap
+        // is Android's 560, not the 440 that left a third of the screen empty below the card.
+        .frame(minHeight: 320, maxHeight: 560)
         // The whole card is the flip target, and it stays live while answering: what a typing card
         // withholds is the answer, never the gesture.
         .contentShape(RoundedRectangle(cornerRadius: 24))
@@ -57,7 +59,7 @@ struct StudyCardView: View {
                 .multilineTextAlignment(.center)
             // Listen practises the side that is showing, so it belongs on both faces — but see
             // `backFace`, where it comes off a masked answer.
-            if state.listenEnabled { listenButton }
+            practiceRow
         }
     }
 
@@ -84,9 +86,9 @@ struct StudyCardView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(LoopkyColor.srsGood)
                 }
-                // Only once the answer is actually on the card — reading a masked back aloud
-                // would hand over the thing the card is withholding.
-                if state.listenEnabled { listenButton }
+                // Only once the answer is actually on the card — reading a masked back aloud, or
+                // asking it to be pronounced, would hand over the thing the card is withholding.
+                practiceRow
             }
         }
     }
@@ -139,9 +141,39 @@ struct StudyCardView: View {
                 authorPubky: state.authorPubky,
                 deckId: state.deckId
             )
-            .frame(maxHeight: 180)
+            .frame(maxHeight: 240)
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
+    }
+
+    /// Listen and Speak, both practising the side that is showing.
+    ///
+    /// Neither appears unless the deck declared its language pair: given no language the engines
+    /// fall back to the *reader's* locale, so an undeclared Spanish deck would be read in an
+    /// English accent and graded by an English model — a wrong answer that looks like a feature.
+    @ViewBuilder
+    private var practiceRow: some View {
+        if state.listenEnabled || state.speakEnabled {
+            HStack(spacing: 8) {
+                if state.listenEnabled { listenButton }
+                if state.speakEnabled { speakButton }
+            }
+        }
+    }
+
+    private var speakButton: some View {
+        Button(action: onSpeak) {
+            HStack(spacing: 6) {
+                Image(systemName: "mic.fill").font(.system(size: 12))
+                Text("study_speak").font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(LoopkyColor.accentSecondary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(LoopkyColor.accentSecondarySoft))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("study_speak")
     }
 
     private var listenButton: some View {

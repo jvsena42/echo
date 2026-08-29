@@ -24,6 +24,9 @@ struct ProfileView: View {
     var onBackUpNow: () -> Void = {}
 
     @State private var isConfirmingSignOut = false
+    @State private var isConfirmingUnbackedSignOut = false
+    /// Enough of the pubky to recognise the account being erased.
+    private let pubkyPreviewLength = 12
 
     var body: some View {
         ScrollView {
@@ -33,10 +36,17 @@ struct ProfileView: View {
                     ProgressView().padding(.top, 60)
                 } else {
                     hero
-                    if state.needsBackup { backupNag }
+                    Button("profile_edit_profile", action: onEditProfile)
+                        .buttonStyle(.loopkySoft)
                     stats
                     peopleRow
-                    actions
+                    // Context, not a task, so it sits below the numbers rather than above them.
+                    PubkyAppProfileCta(action: onOpenOnPubkyApp)
+                    // Directly above sign-out, because that is the button that can destroy the
+                    // key it warns about: signing out of an un-backed-up local key ends the
+                    // account. Under the hero it was a notice; here it is a last chance.
+                    if state.needsBackup { backupNag }
+                    signOutButton
                 }
             }
             .padding(.horizontal, 20)
@@ -57,6 +67,27 @@ struct ProfileView: View {
             Button("profile_sign_out_cancel", role: .cancel) {}
         } message: {
             Text("profile_sign_out_dialog_message")
+        }
+        // Sign-out lives only here now, so the warning Settings used to raise travels with it:
+        // this device holds the only copy of a key nobody has backed up, and signing out deletes
+        // it. A sterner prompt than the ordinary confirm, because losing it loses the account.
+        .alert(
+            Text("settings_signout_unbacked_title"),
+            isPresented: $isConfirmingUnbackedSignOut
+        ) {
+            // Backing up is the safe action and the one almost everyone here wants; the
+            // destructive one is deliberately the quiet option beside it.
+            Button("settings_signout_unbacked_backup") {
+                isConfirmingUnbackedSignOut = false
+                onBackUpNow()
+            }
+            Button("settings_signout_unbacked_confirm", role: .destructive, action: onSignOut)
+            Button("profile_sign_out_cancel", role: .cancel) {}
+        } message: {
+            Text(verbatim: String(
+                format: NSLocalizedString("settings_signout_unbacked_body", comment: ""),
+                String(state.shortPubky.prefix(pubkyPreviewLength))
+            ))
         }
     }
 
@@ -105,26 +136,7 @@ struct ProfileView: View {
     }
 
     private var avatar: some View {
-        ZStack {
-            Circle().fill(LoopkyColor.accentSecondarySoft)
-            if let avatarUrl = state.avatarUrl, let url = URL(string: avatarUrl) {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    initialText
-                }
-                .clipShape(Circle())
-            } else {
-                initialText
-            }
-        }
-        .frame(width: 88, height: 88)
-    }
-
-    private var initialText: some View {
-        Text(state.initial)
-            .font(.system(size: 34, weight: .heavy))
-            .foregroundStyle(LoopkyColor.accentSecondary)
+        PubkyAvatarView(initial: state.initial, avatarUrl: state.avatarUrl, size: 88)
     }
 
     private var stats: some View {
@@ -201,15 +213,29 @@ struct ProfileView: View {
         .background(RoundedRectangle(cornerRadius: 16).fill(LoopkyColor.danger.opacity(0.12)))
     }
 
-    private var actions: some View {
-        VStack(spacing: 10) {
-            Button("profile_edit_profile", action: onEditProfile).buttonStyle(.loopkySoft)
-            Button("profile_open_on_pubky_app", action: onOpenOnPubkyApp).buttonStyle(.loopkyOutline)
-            Button("profile_sign_out") { isConfirmingSignOut = true }
-                .font(.system(size: 15, weight: .semibold))
+    /// A full-width tonal button in the danger tint, as on Android — not a text link.
+    ///
+    /// It is the one control on this screen that can end an account, and a quiet line of red text
+    /// under a card read as a footnote next to the backup warning it follows.
+    private var signOutButton: some View {
+        Button {
+            // Which prompt depends on what is at stake: an unbacked local key makes this
+            // irreversible, and the ordinary confirm does not say so.
+            if state.needsBackup {
+                isConfirmingUnbackedSignOut = true
+            } else {
+                isConfirmingSignOut = true
+            }
+        } label: {
+            Label("profile_sign_out", systemImage: "rectangle.portrait.and.arrow.right")
+                .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(LoopkyColor.danger)
-                .padding(.top, 6)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(RoundedRectangle(cornerRadius: 20).fill(LoopkyColor.dangerSoft))
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("profile_signout")
     }
 
     private var editSheet: some View {

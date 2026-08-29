@@ -53,6 +53,8 @@ struct DiscoverView: View {
     var onFollowTap: (String) -> Void = { _ in }
     var onDeckTap: (String, String) -> Void = { _, _ in }
     var onRetryFollowing: () -> Void = {}
+    var isGuest: Bool = false
+    var onSignIn: () -> Void = {}
 
     private let columns = [
         GridItem(.flexible(), spacing: 14),
@@ -63,6 +65,7 @@ struct DiscoverView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
+                if isGuest { guestBanner }
                 if !state.topics.isEmpty { topicRow }
                 // Picking a topic is an explicit question, so its answer leads. Unfiltered, browse
                 // is the fallback firehose and sits under the people and decks you chose — which
@@ -79,6 +82,26 @@ struct DiscoverView: View {
             .padding(.bottom, 24)
         }
         .background(LoopkyColor.surfacePrimary)
+    }
+
+    /// What replaces the three tabs a guest does not have: a way *in*, not a wall.
+    private var guestBanner: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("guest_banner_title")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(LoopkyColor.foregroundPrimary)
+            Text("guest_banner_body")
+                .font(.system(size: 13))
+                .foregroundColor(LoopkyColor.foregroundSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("guest_banner_cta", action: onSignIn)
+                .buttonStyle(.loopkyCompactFilled)
+                .padding(.top, 4)
+                .accessibilityIdentifier("guest_banner_cta")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 18).fill(LoopkyColor.accentPrimarySoft))
     }
 
     private var header: some View {

@@ -11,6 +11,7 @@ struct FriendProfileView: View {
     var onRefresh: () -> Void = {}
     var onOpenDeck: (String, String) -> Void = { _, _ in }
     var onDismissSignInPrompt: () -> Void = {}
+    var onSignIn: () -> Void = {}
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
@@ -23,7 +24,7 @@ struct FriendProfileView: View {
                 } else {
                     hero
                     stats
-                    if !state.isSelf { followButton }
+                    actionRow
                     if let errorMessage = state.errorMessage {
                         Text(errorMessage)
                             .font(.system(size: 13))
@@ -39,13 +40,13 @@ struct FriendProfileView: View {
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
         .refreshable { onRefresh() }
-        // A guest can read the whole profile; only Follow needs an account.
-        .alert(
-            Text("sign_in_prompt_title"),
-            isPresented: Binding(get: { state.requiresSignIn }, set: { if !$0 { onDismissSignInPrompt() } })
-        ) {
-            Button("profile_dismiss", role: .cancel, action: onDismissSignInPrompt)
-        }
+        // A guest can read the whole profile; only Follow needs an account. The prompt used to
+        // name no reason and offer only Dismiss — a wall with no door in it.
+        .signInPrompt(
+            reason: state.signInReason,
+            onSignIn: { onDismissSignInPrompt(); onSignIn() },
+            onDismiss: onDismissSignInPrompt
+        )
     }
 
     private var toolbar: some View {
@@ -55,9 +56,6 @@ struct FriendProfileView: View {
             }
             .accessibilityLabel(Text("friend_profile_back_content_description"))
             Spacer()
-            Button(action: onOpenOnPubkyApp) {
-                Image(systemName: "globe").foregroundStyle(LoopkyColor.accentPrimary)
-            }
             Button(action: onShare) {
                 Image(systemName: "square.and.arrow.up").foregroundStyle(LoopkyColor.accentPrimary)
             }
@@ -67,16 +65,7 @@ struct FriendProfileView: View {
 
     private var hero: some View {
         VStack(spacing: 10) {
-            ZStack {
-                Circle().fill(LoopkyColor.accentSecondarySoft)
-                if let avatarUrl = state.avatarUrl, let url = URL(string: avatarUrl) {
-                    AsyncImage(url: url) { $0.resizable().scaledToFill() } placeholder: { initialText }
-                        .clipShape(Circle())
-                } else {
-                    initialText
-                }
-            }
-            .frame(width: 88, height: 88)
+            PubkyAvatarView(initial: state.initial, avatarUrl: state.avatarUrl, size: 88)
 
             Text(state.label)
                 .font(.system(size: 22, weight: .heavy))
@@ -94,12 +83,6 @@ struct FriendProfileView: View {
                     .multilineTextAlignment(.center)
             }
         }
-    }
-
-    private var initialText: some View {
-        Text(state.initial)
-            .font(.system(size: 34, weight: .heavy))
-            .foregroundStyle(LoopkyColor.accentSecondary)
     }
 
     private var stats: some View {
@@ -124,6 +107,20 @@ struct FriendProfileView: View {
                 .foregroundStyle(LoopkyColor.foregroundMuted)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Follow, with the way out to pubky.app beside it.
+    ///
+    /// The mark sits next to the action rather than up in the toolbar: this is the row about
+    /// *this person*, and "see them on pubky.app" belongs with "follow them" rather than with
+    /// back and share. It stays for your own profile too, where there is no Follow to sit beside.
+    private var actionRow: some View {
+        HStack(spacing: 10) {
+            if !state.isSelf { followButton }
+            // The mark, not a generic globe: this leads to *their* pubky.app profile, and the
+            // shape is what says so.
+            PubkyAppIconButton(action: onOpenOnPubkyApp)
+        }
     }
 
     private var followButton: some View {

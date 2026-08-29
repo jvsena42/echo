@@ -222,16 +222,26 @@ class DeckDetailViewModel(
 
         followJob = viewModelScope.launch {
             val wasFollowing = current.isFollowing
+            // `canPreview` travels with the flip, or the optimistic update leaves it stale: a deck
+            // you have just kept still offered "Try these cards" — a session that grades nothing —
+            // over the study it now has. Restored, not recomputed, so a revert is exact.
+            val wasCanPreview = current.canPreview
             _state.update { s ->
-                (s as? DeckDetailUiState.Content)
-                    ?.copy(isFollowing = !wasFollowing, isFollowPending = true) ?: s
+                (s as? DeckDetailUiState.Content)?.copy(
+                    isFollowing = !wasFollowing,
+                    isFollowPending = true,
+                    canPreview = if (wasFollowing) wasCanPreview else false,
+                ) ?: s
             }
 
             val deck = deckRepository.getLocal(deckId)
             if (deck == null) {
                 _state.update { s ->
-                    (s as? DeckDetailUiState.Content)
-                        ?.copy(isFollowing = wasFollowing, isFollowPending = false) ?: s
+                    (s as? DeckDetailUiState.Content)?.copy(
+                        isFollowing = wasFollowing,
+                        isFollowPending = false,
+                        canPreview = wasCanPreview,
+                    ) ?: s
                 }
                 return@launch
             }
@@ -258,6 +268,7 @@ class DeckDetailViewModel(
                         (s as? DeckDetailUiState.Content)?.copy(
                             isFollowing = wasFollowing,
                             isFollowPending = false,
+                            canPreview = wasCanPreview,
                             errorReason = err.toErrorReason(),
                         ) ?: s
                     }

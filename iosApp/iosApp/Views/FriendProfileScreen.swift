@@ -10,6 +10,7 @@ struct FriendProfileScreen: View {
     var onBack: () -> Void = {}
     var onOpenDeck: (String, String) -> Void = { _, _ in }
     var onOpenAuthor: (String) -> Void = { _ in }
+    var onSignIn: () -> Void = {}
 
     @Environment(\.openURL) private var openURL
 
@@ -29,7 +30,8 @@ struct FriendProfileScreen: View {
             onOpenOnPubkyApp: { viewModel?.onOpenOnPubkyApp() },
             onRefresh: { viewModel?.onRefresh() },
             onOpenDeck: { deckId, author in viewModel?.onOpenDeck(authorPubky: author, deckId: deckId) },
-            onDismissSignInPrompt: { viewModel?.onDismissSignInPrompt() }
+            onDismissSignInPrompt: { viewModel?.onDismissSignInPrompt() },
+            onSignIn: onSignIn
         )
         .sheet(item: $shareItem) { ShareSheet(items: [$0.text]) }
         .onAppear { attach() }
@@ -44,13 +46,13 @@ struct FriendProfileScreen: View {
             label: identity.label,
             shortPubky: identity.shortPubky,
             initial: identity.initial,
-            avatarUrl: state.identity.avatarUrl,
+            avatarUrl: identity.avatarUrl,
             bio: state.identity.bio,
             isFollowing: state.isFollowing,
             isProcessingFollow: state.isProcessingFollow,
             isSelf: state.isSelf,
             isSignedIn: state.isSignedIn,
-            requiresSignIn: state.signInPrompt != nil,
+            signInReason: state.signInPrompt,
             deckCount: Int(state.deckCount),
             cardCount: Int(state.cardCount),
             followingCount: state.followingCount.map { Int(truncating: $0) },
@@ -122,7 +124,8 @@ struct FriendProfileViewState {
     var isProcessingFollow: Bool = false
     var isSelf: Bool = false
     var isSignedIn: Bool = true
-    var requiresSignIn: Bool = false
+    /// Which action ran into the wall, so the prompt can say what signing in unlocks.
+    var signInReason: SignInReason?
     var deckCount: Int = 0
     var cardCount: Int = 0
     var followingCount: Int?

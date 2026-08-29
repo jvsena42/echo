@@ -23,7 +23,10 @@ struct StudySessionView: View {
     var onCheckAnswer: () -> Void = {}
     var onGiveUp: () -> Void = {}
     var onListen: () -> Void = {}
+    var onSpeak: () -> Void = {}
     var onNextCard: () -> Void = {}
+    /// The end of a guest's preview offers an account. Nothing else on this screen does.
+    var onSignIn: () -> Void = {}
     var onDismissSyncError: () -> Void = {}
     var onContinueAfterGoal: () -> Void = {}
 
@@ -34,6 +37,14 @@ struct StudySessionView: View {
             LoopkyColor.surfacePrimary.ignoresSafeArea()
             content
             if let syncErrorMessage = state.syncErrorMessage { syncBanner(syncErrorMessage) }
+            // Over everything, including the sync banner: it is the one modal moment in a session.
+            if state.goalReached {
+                GoalCelebrationView(
+                    newCardsToday: state.newCardsToday,
+                    onKeepStudying: onContinueAfterGoal,
+                    onDone: onClose
+                )
+            }
         }
         .navigationBarHidden(true)
     }
@@ -48,7 +59,7 @@ struct StudySessionView: View {
         case .failed:
             centered(title: "study_error_title", message: state.errorMessage, emoji: "😕", showsClose: true)
         case .complete:
-            completeView
+            if state.isPreview { previewCompleteView } else { completeView }
         case .reviewing:
             reviewingView
         }
@@ -66,6 +77,7 @@ struct StudySessionView: View {
                 answerFocused: $answerFocused,
                 onFlip: onReveal,
                 onListen: onListen,
+                onSpeak: onSpeak,
                 onCheckAnswer: onCheckAnswer,
                 onGiveUp: onGiveUp
             )
@@ -125,6 +137,12 @@ struct StudySessionView: View {
     private var gradeArea: some View {
         if state.gradesAvailable {
             gradeRow
+        } else if state.previewAdvanceAvailable {
+            // What stands in for the four grade buttons in a preview: move on, decide nothing.
+            Button("study_preview_next", action: onNextCard)
+                .buttonStyle(.loopkyFilled)
+                .padding(.horizontal, 20)
+                .accessibilityIdentifier("study_preview_next")
         } else if state.answerHidden && state.revealed {
             // A flipped typing card is answering with the keyboard up: the card needs the height
             // more than the hint does. On the *front* face the hint still belongs — the card is
@@ -162,6 +180,49 @@ struct StudySessionView: View {
             }
         }
         .padding(.horizontal, 20)
+    }
+
+    /// The end of a preview has nothing to report — no reviews were stored, so there is no
+    /// next-due date and no tally. What it owes the reader instead is how to keep the progress it
+    /// did not: an account for a visitor, or the deck itself for someone who already has one.
+    private var previewCompleteView: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Text("👀").font(.system(size: 56))
+            Text("study_preview_complete_title")
+                .font(.system(size: 22, weight: .heavy))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+            Text(String(
+                format: NSLocalizedString(
+                    state.reviewed == 1 ? "study_preview_subtitle_one" : "study_preview_subtitle_many",
+                    comment: ""
+                ),
+                state.reviewed
+            ))
+            .font(.system(size: 14))
+            .foregroundStyle(LoopkyColor.foregroundMuted)
+            Text(state.isSignedIn ? "study_preview_member_detail" : "study_preview_guest_detail")
+                .font(.system(size: 13))
+                .foregroundStyle(LoopkyColor.foregroundSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 28)
+            Spacer()
+            if state.isSignedIn {
+                Button("study_preview_back", action: onClose)
+                    .buttonStyle(.loopkyFilled)
+                    .padding(.horizontal, 20)
+            } else {
+                Button("study_preview_action_guest", action: onSignIn)
+                    .buttonStyle(.loopkyFilled)
+                    .padding(.horizontal, 20)
+                // Simply leaving has to stay available beside the offer.
+                Button("study_preview_back", action: onClose)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(LoopkyColor.foregroundMuted)
+            }
+        }
+        .padding(.bottom, 20)
     }
 
     private var completeView: some View {

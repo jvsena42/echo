@@ -738,6 +738,17 @@
         }
       }
     },
+    "bulk_fields_sheet_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose fields"
+          }
+        }
+      }
+    },
     "bulk_fields_unnamed": {
       "extractionState": "manual",
       "localizations": {
@@ -1200,6 +1211,84 @@
         }
       }
     },
+    "deck_detail_clone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clone deck"
+          }
+        }
+      }
+    },
+    "deck_detail_clone_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "deck_detail_clone_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clone"
+          }
+        }
+      }
+    },
+    "deck_detail_clone_dialog_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "“%1$@” and its %2$lld card will be copied to your homeserver as a deck you own and can edit. It won't receive the author's later changes."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "“%1$@” and its %2$lld cards will be copied to your homeserver as a deck you own and can edit. It won't receive the author's later changes."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "deck_detail_clone_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clone deck"
+          }
+        }
+      }
+    },
+    "deck_detail_cloned_from": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloned from %1$@"
+          }
+        }
+      }
+    },
     "deck_detail_delete": {
       "extractionState": "manual",
       "localizations": {
@@ -1255,6 +1344,17 @@
         }
       }
     },
+    "deck_detail_dismiss_error": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        }
+      }
+    },
     "deck_detail_edit": {
       "extractionState": "manual",
       "localizations": {
@@ -1273,6 +1373,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Something went wrong"
+          }
+        }
+      }
+    },
+    "deck_detail_follow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow deck"
+          }
+        }
+      }
+    },
+    "deck_detail_followers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld following"
+          }
+        }
+      }
+    },
+    "deck_detail_following": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following"
           }
         }
       }
@@ -1350,6 +1483,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Study this deck"
+          }
+        }
+      }
+    },
+    "deck_detail_try_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try these cards"
           }
         }
       }
@@ -1530,6 +1674,28 @@
         }
       }
     },
+    "deck_editor_move_down": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move card down"
+          }
+        }
+      }
+    },
+    "deck_editor_move_up": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move card up"
+          }
+        }
+      }
+    },
     "deck_editor_reorder": {
       "extractionState": "manual",
       "localizations": {
@@ -1614,6 +1780,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Front language"
+          }
+        }
+      }
+    },
+    "deck_incomplete_warning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This deck didn't finish uploading — some cards are missing. Import it again to complete it, or delete it."
           }
         }
       }
@@ -1779,6 +1956,61 @@
           "stringUnit": {
             "state": "translated",
             "value": "Search"
+          }
+        }
+      }
+    },
+    "decks_search_no_results": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No decks match “%1$@”."
+          }
+        }
+      }
+    },
+    "decks_search_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search your decks"
+          }
+        }
+      }
+    },
+    "decks_sort_alphabetical": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A–Z"
+          }
+        }
+      }
+    },
+    "decks_sort_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Most cards"
+          }
+        }
+      }
+    },
+    "decks_sort_recent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent"
           }
         }
       }
@@ -2454,6 +2686,39 @@
         }
       }
     },
+    "guest_banner_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep decks and track progress."
+          }
+        }
+      }
+    },
+    "guest_banner_cta": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get started"
+          }
+        }
+      }
+    },
+    "guest_banner_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Just looking around"
+          }
+        }
+      }
+    },
     "home_browse_examples": {
       "extractionState": "manual",
       "localizations": {
@@ -2472,6 +2737,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "cards"
+          }
+        }
+      }
+    },
+    "home_caught_up_next_due": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next review in %1$@."
+          }
+        }
+      }
+    },
+    "home_caught_up_no_next_due": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing scheduled yet — study ahead from any deck."
+          }
+        }
+      }
+    },
+    "home_caught_up_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're all caught up"
           }
         }
       }
@@ -2560,6 +2858,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ 👋"
+          }
+        }
+      }
+    },
+    "home_new_cards_goal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld new cards today"
+          }
+        }
+      }
+    },
+    "home_new_cards_goal_reached": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily goal reached · %1$lld new cards 🎉"
           }
         }
       }
@@ -3466,6 +3786,61 @@
         }
       }
     },
+    "permission_camera_denied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky needs the camera to read a QR code. You can turn it on in Settings."
+          }
+        }
+      }
+    },
+    "permission_mic_denied_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak needs microphone access, and Android won't ask again. You can turn it on in Settings."
+          }
+        }
+      }
+    },
+    "permission_mic_denied_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone is off"
+          }
+        }
+      }
+    },
+    "permission_mic_rationale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak listens while you say the word and tells you how close you were. Audio is processed on your device and never leaves it."
+          }
+        }
+      }
+    },
+    "permission_mic_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Practise your pronunciation"
+          }
+        }
+      }
+    },
     "profile_copied": {
       "extractionState": "manual",
       "localizations": {
@@ -3748,6 +4123,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Profile"
+          }
+        }
+      }
+    },
+    "pubky_app_cta_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key you signed in with is a Pubky account. See your profile and posts on the web."
+          }
+        }
+      }
+    },
+    "pubky_app_cta_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're on pubky.app too"
+          }
+        }
+      }
+    },
+    "pubky_app_open_profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open on pubky.app"
           }
         }
       }
@@ -5039,6 +5447,17 @@
         }
       }
     },
+    "settings_section_account": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ACCOUNT"
+          }
+        }
+      }
+    },
     "settings_section_identity": {
       "extractionState": "manual",
       "localizations": {
@@ -5391,6 +5810,17 @@
         }
       }
     },
+    "share_prompt_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Posts to your Pubky feed so the people following you see it. The deck is public either way."
+          }
+        }
+      }
+    },
     "share_prompt_confirm": {
       "extractionState": "manual",
       "localizations": {
@@ -5413,6 +5843,17 @@
         }
       }
     },
+    "share_prompt_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't post to Pubky. The deck is unaffected."
+          }
+        }
+      }
+    },
     "share_prompt_never": {
       "extractionState": "manual",
       "localizations": {
@@ -5424,6 +5865,17 @@
         }
       }
     },
+    "share_prompt_posted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared on Pubky"
+          }
+        }
+      }
+    },
     "share_prompt_title": {
       "extractionState": "manual",
       "localizations": {
@@ -5431,6 +5883,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Share this on Pubky?"
+          }
+        }
+      }
+    },
+    "share_prompt_title_cloned": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share this copy on Pubky?"
+          }
+        }
+      }
+    },
+    "share_prompt_title_created": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share this deck on Pubky?"
+          }
+        }
+      }
+    },
+    "share_prompt_title_followed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share this follow on Pubky?"
           }
         }
       }
@@ -6304,6 +6789,127 @@
         }
       }
     },
+    "speak_continue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        }
+      }
+    },
+    "speak_correct_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct"
+          }
+        }
+      }
+    },
+    "speak_correct_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perfect!"
+          }
+        }
+      }
+    },
+    "speak_listening_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to cancel"
+          }
+        }
+      }
+    },
+    "speak_listening_prompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say the word"
+          }
+        }
+      }
+    },
+    "speak_permission_denied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone permission is needed to practice speaking."
+          }
+        }
+      }
+    },
+    "speak_try_again": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        }
+      }
+    },
+    "speak_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speech recognition is unavailable on this device."
+          }
+        }
+      }
+    },
+    "speak_wrong_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not quite right"
+          }
+        }
+      }
+    },
+    "speak_you_said": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You said"
+          }
+        }
+      }
+    },
+    "speak_you_said_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "YOU SAID"
+          }
+        }
+      }
+    },
     "study_back": {
       "extractionState": "manual",
       "localizations": {
@@ -6458,6 +7064,28 @@
         }
       }
     },
+    "study_goal_reached_count_many": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld new cards today"
+          }
+        }
+      }
+    },
+    "study_goal_reached_count_one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld new card today"
+          }
+        }
+      }
+    },
     "study_goal_reached_title": {
       "extractionState": "manual",
       "localizations": {
@@ -6579,6 +7207,28 @@
         }
       }
     },
+    "study_preview_subtitle_many": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You tried %1$lld cards."
+          }
+        }
+      }
+    },
+    "study_preview_subtitle_one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You tried %1$lld card."
+          }
+        }
+      }
+    },
     "study_reversed_badge": {
       "extractionState": "manual",
       "localizations": {
@@ -6696,6 +7346,50 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not quite — try again"
+          }
+        }
+      }
+    },
+    "tag_browse_back": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "tag_browse_empty_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody on Loopky has used this tag yet. Publish a deck with it and it shows up here."
+          }
+        }
+      }
+    },
+    "tag_browse_empty_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No decks tagged “%1$@” yet"
+          }
+        }
+      }
+    },
+    "tag_browse_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "#%1$@"
           }
         }
       }

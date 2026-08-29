@@ -9,12 +9,20 @@ struct DeckDetailScreen: View {
     var onEditDeck: (String) -> Void = { _ in }
     var onStudy: () -> Void = {}
     var onDeleted: () -> Void = {}
+    var onOpenTag: (String) -> Void = { _ in }
+    /// A guest reached for Follow or Clone and chose to sign in.
+    var onSignIn: () -> Void = {}
+    /// The clone is what the user now owns, so the caller replaces this screen with it.
+    var onOpenClone: (String) -> Void = { _ in }
+    /// Flip through a deck nobody has kept, grading nothing.
+    var onPreview: () -> Void = {}
 
     @State private var viewModel: DeckDetailViewModel?
     @State private var uiState: DeckDetailUiState?
     @State private var stateSink: FlowEffectSink?
     @State private var effectSink: FlowEffectSink?
     @State private var shareItem: ShareItem?
+    @State private var toast: String?
 
     var body: some View {
         DeckDetailView(
@@ -23,7 +31,11 @@ struct DeckDetailScreen: View {
             onEdit: { viewModel?.onEditClick() },
             onDelete: { viewModel?.onDeleteDeck() },
             onShare: { viewModel?.onShareClick() },
-            onStudy: { viewModel?.onStudyClick() }
+            onStudy: { viewModel?.onStudyClick() },
+            onOpenTag: onOpenTag,
+            onToggleFollow: { viewModel?.onToggleFollow() },
+            onClone: { viewModel?.onCloneClick() },
+            onRefresh: { viewModel?.onRefresh() }
         )
         .alert("deck_detail_delete_dialog_title", isPresented: deleteConfirmBinding) {
             Button("deck_detail_delete_cancel", role: .cancel) { viewModel?.onDismissDelete() }
@@ -34,6 +46,39 @@ struct DeckDetailScreen: View {
         .sheet(item: $shareItem) { item in
             ShareSheet(items: [item.text])
         }
+        .alert("deck_detail_clone_dialog_title", isPresented: cloneConfirmBinding) {
+            Button("deck_detail_clone_cancel", role: .cancel) { viewModel?.onDismissClone() }
+            Button("deck_detail_clone_confirm") { viewModel?.onConfirmClone() }
+        } message: {
+            // Names the card count: a clone is one write per chunk plus the manifest, and the user
+            // should know whether they are copying 20 cards or 20,000 before they wait for it.
+            Text(cloneMessage)
+        }
+        .signInPrompt(
+            reason: content?.signInPrompt,
+            onSignIn: { viewModel?.onDismissSignInPrompt(); onSignIn() },
+            onDismiss: { viewModel?.onDismissSignInPrompt() }
+        )
+        .sharePrompt(
+            prompt: content?.sharePrompt,
+            onConfirm: { viewModel?.onShareConfirm() },
+            onDismiss: { viewModel?.onShareDismiss() },
+            onNeverAsk: { viewModel?.onShareNeverAsk() }
+        )
+        // A recoverable failure — a follow that did not land, say — shown without tearing down the
+        // deck underneath it.
+        .alert(
+            Text(verbatim: content?.errorReason.map(ErrorCopy.title(for:)) ?? ""),
+            isPresented: Binding(
+                get: { content?.errorReason != nil },
+                set: { if !$0 { viewModel?.onDismissError() } }
+            )
+        ) {
+            Button("deck_detail_dismiss_error", role: .cancel) { viewModel?.onDismissError() }
+        } message: {
+            Text(verbatim: content?.errorReason.map(ErrorCopy.message(for:)) ?? "")
+        }
+        .overlay(alignment: .bottom) { toastView }
         .onAppear { attach() }
         .onDisappear { detach() }
     }
@@ -57,13 +102,60 @@ struct DeckDetailScreen: View {
                 masteredPercent: content.masteredPercent,
                 cards: content.cardPreviews.map {
                     CardPreviewData(id: $0.id, front: $0.frontText, back: $0.backText)
-                }
+                },
+                isSignedIn: content.isSignedIn,
+                isIncomplete: content.isIncomplete,
+                isFollowing: content.isFollowing,
+                isFollowPending: content.isFollowPending,
+                isCloning: content.isCloning,
+                clonedFromLabel: content.clonedFrom.map { IdentityData($0).label },
+                followerCount: Int(content.followerCount),
+                canPreview: content.canPreview
             ))
         case let error as DeckDetailUiStateError:
             return .error(ErrorCopy.message(for: error.reason))
         default:
             return .loading
         }
+    }
+
+    private var content: DeckDetailUiStateContent? { uiState as? DeckDetailUiStateContent }
+
+    private var cloneMessage: String {
+        guard let content else { return "" }
+        return String(
+            format: NSLocalizedString("deck_detail_clone_dialog_message", comment: ""),
+            content.title,
+            content.totalCards
+        )
+    }
+
+    @ViewBuilder
+    private var toastView: some View {
+        if let toast {
+            Text(verbatim: toast)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(LoopkyColor.foregroundOnAccent)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Capsule().fill(LoopkyColor.foregroundPrimary.opacity(0.9)))
+                .padding(.bottom, 90)
+        }
+    }
+
+    private func flash(_ key: String) {
+        withAnimation { toast = NSLocalizedString(key, comment: "") }
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation { toast = nil }
+        }
+    }
+
+    private var cloneConfirmBinding: Binding<Bool> {
+        Binding(
+            get: { content?.showCloneConfirm == true },
+            set: { if !$0 { viewModel?.onDismissClone() } }
+        )
     }
 
     private var deleteConfirmBinding: Binding<Bool> {
@@ -95,6 +187,15 @@ struct DeckDetailScreen: View {
                 shareItem = ShareItem(text: "\(share.title) on Loopky\n\(share.uri)")
             case is DeckDetailEffectDeleted:
                 onDeleted()
+            case is DeckDetailEffectNavigateStudyPreview:
+                onPreview()
+            case let cloned as DeckDetailEffectCloned:
+                onOpenClone(cloned.deckId)
+            case is DeckDetailEffectShared:
+                flash("share_prompt_posted")
+            case is DeckDetailEffectShareFailed:
+                // Cosmetic: the follow or clone stands whether or not the post went out.
+                flash("share_prompt_failed")
             default:
                 break
             }

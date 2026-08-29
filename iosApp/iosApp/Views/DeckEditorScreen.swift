@@ -47,6 +47,7 @@ struct DeckEditorScreen: View {
             onRemoveTag: { viewModel?.onRemoveTag(tag: $0) },
             onAddCard: { viewModel?.onAddCard() },
             onCardTap: { viewModel?.onCardClick(cardId: $0) },
+            onMoveCard: { from, to in viewModel?.onMoveCard(from: Int32(from), to: Int32(to)) },
             onLoadMoreCards: { viewModel?.onLoadMoreCards() },
             onClose: { viewModel?.onCloseClick() },
             onSave: { viewModel?.onSaveClick() },

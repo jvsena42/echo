@@ -77,19 +77,17 @@ rail in place of the tab bar — not a stretched phone column.
 Type, deck library and editor, paste import and bulk file import (`.txt` / `.csv` / `.apkg`),
 publishing, discovery and tag browse, profiles and follows, and settings.
 
-**iOS covers the core loop and the whole identity flow.** Sign in with Pubky Ring — by deeplink,
-or by scanning a QR from the phone that holds your key — or create an account on a homeserver
-(SMS, Lightning or invite code), restore one from a recovery phrase or file, and back a key up
-three ways — a recovery phrase, an encrypted file, or Pubky Ring. Then browse and search, the
-deck library and editor, paste import and `.apkg` import, publishing, the SRS study loop with
-Type the answer and Listen, profiles and follows, and settings including the synced study
-intervals. Driven against a real homeserver on the iPhone 17 simulator;
-see the iOS section of [`journeys/RESULTS.md`](./journeys/RESULTS.md), which also records what
-could not be reached there and why.
+**iOS is at feature parity.** Browse without an account, then sign in with Pubky Ring — by
+deeplink, or by scanning a QR from the phone that holds your key — or create an account on a
+homeserver (SMS, Lightning or invite code), restore one from a recovery phrase or file, and back a
+key up three ways. Then the daily study queue, the SRS study loop with Listen / Speak / Type and
+reverse cards, the deck library and editor, paste import and bulk file import
+(`.txt` / `.csv` / `.apkg`), publishing, discovery and tag browse, profiles and follows, and
+settings including the synced study intervals. Driven against a real homeserver on the iPhone 17
+simulator; see the iOS sections of [`journeys/RESULTS.md`](./journeys/RESULTS.md), which also
+record what could not be reached there and why.
 
-Still Android-only: Speak (pronunciation practice) and tag browse — tracked in
-[#113](https://github.com/jvsena42/loopky/issues/113). iPad layouts are
-[#173](https://github.com/jvsena42/loopky/issues/173).
+iPad and every width but a phone is [#173](https://github.com/jvsena42/loopky/issues/173).
 
 Roughly 680 shared tests run on every PR. Two known blockers before a Play release: the native
 Pubky libraries fail 16 KB page-size alignment, and release packaging is still an unsigned

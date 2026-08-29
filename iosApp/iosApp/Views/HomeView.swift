@@ -29,13 +29,22 @@ struct HomeView: View {
                             onCreateDeck: onCreateDeck,
                             onBrowseExamples: onBrowseExamples
                         )
-                    case .content(let due, let done, let decks):
-                        DueTodayHeroCard(
-                            dueToday: due,
-                            doneToday: done,
-                            onStartStudy: onStartStudy
-                        )
-                        TodaysDecksSection(decks: decks, onOpenDeck: onOpenDeck)
+                    case .content(let content):
+                        // Nothing due *and* nothing unseen is a different screen, not a hero
+                        // reading zero: a primary CTA whose only outcome is "All done!" is a dead
+                        // end dressed as an action.
+                        if content.dueToday == 0 && content.newToday == 0 {
+                            CaughtUpCard(nextDueAtMillis: content.nextDueAtMillis)
+                        } else {
+                            DueTodayHeroCard(
+                                dueToday: content.dueToday,
+                                doneToday: content.doneToday,
+                                newCardsToday: content.newCardsToday,
+                                newCardsGoal: content.newCardsGoal,
+                                onStartStudy: onStartStudy
+                            )
+                        }
+                        TodaysDecksSection(decks: content.decks, onOpenDeck: onOpenDeck)
                     case .error(let message):
                         Text("home_error_title")
                             .font(.system(size: 20, weight: .heavy))
@@ -56,8 +65,23 @@ struct HomeView: View {
 enum HomeViewState: Equatable {
     case loading
     case empty
-    case content(dueToday: Int, doneToday: Int, decks: [HomeDeckSummary])
+    case content(HomeContentData)
     case error(String)
+}
+
+/// Everything the loaded Today screen renders.
+///
+/// A struct rather than four associated values on the case: the hero grew a goal tally and the
+/// screen grew a caught-up state, and a five-tuple stops being readable at the call site.
+struct HomeContentData: Equatable {
+    var dueToday: Int = 0
+    var doneToday: Int = 0
+    /// Cards never studied. Separate from due, because nothing about an unseen card is late.
+    var newToday: Int = 0
+    var newCardsToday: Int = 0
+    var newCardsGoal: Int = 0
+    var nextDueAtMillis: Int64?
+    var decks: [HomeDeckSummary] = []
 }
 
 struct HomeDeckSummary: Equatable, Identifiable {
@@ -86,7 +110,7 @@ struct HomeView_Previews: PreviewProvider {
                 .previewDisplayName("Empty")
             HomeView(
                 greetingName: "Maria",
-                state: .content(
+                state: .content(HomeContentData(
                     dueToday: 24,
                     doneToday: 8,
                     decks: [
@@ -94,7 +118,7 @@ struct HomeView_Previews: PreviewProvider {
                         HomeDeckSummary(id: "2", title: "Bio 101: Cells", cardCount: 28, dueCount: 7, coverInitial: "B"),
                         HomeDeckSummary(id: "3", title: "Guitar Chords", cardCount: 18, dueCount: 5, coverInitial: "G"),
                     ]
-                )
+                ))
             )
             .previewDisplayName("Content")
         }

@@ -31,7 +31,9 @@ struct ApkgFieldPickerSheet: View {
                     Text("bulk_fields_sheet_hint")
                 }
             }
-            .navigationTitle(Text("bulk_fields"))
+            // Not `bulk_fields`: that key is the "Fields: front → back" summary and takes two
+            // arguments, so as a bare title it rendered its own format specifiers.
+            .navigationTitle(Text("bulk_fields_sheet_title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

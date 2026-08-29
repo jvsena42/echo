@@ -67,13 +67,11 @@ struct FollowListScreen: View {
     private func personRow(_ identity: IdentityData, pubky: String) -> some View {
         Button { onOpenProfile(pubky) } label: {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(LoopkyColor.accentSecondarySoft)
-                    Text(identity.initial)
-                        .font(.system(size: 16, weight: .heavy))
-                        .foregroundStyle(LoopkyColor.accentSecondary)
-                }
-                .frame(width: 40, height: 40)
+                PubkyAvatarView(
+                    initial: identity.initial,
+                    avatarUrl: identity.avatarUrl,
+                    size: 40
+                )
                 VStack(alignment: .leading, spacing: 2) {
                     Text(identity.label)
                         .font(.system(size: 15, weight: .semibold))

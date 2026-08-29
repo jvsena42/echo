@@ -16,6 +16,12 @@ import Shared
 struct StudySessionScreen: View {
     /// `nil` studies everything due across the library.
     let deckId: String?
+    /// A sample of a deck nobody has kept: the cards flip, nothing is graded, and no session is
+    /// needed — so the deck's author comes along, to read the cards off *their* homeserver.
+    var isPreview: Bool = false
+    var previewAuthorPubky: String?
+    /// The end of a guest's preview offers an account.
+    var onSignIn: () -> Void = {}
     var onClose: () -> Void = {}
 
     @State private var viewModel: StudySessionViewModel?
@@ -26,6 +32,9 @@ struct StudySessionScreen: View {
     /// The typed answer is owned here while the user types, like every other field in the app: a
     /// binding that round-trips through Kotlin drops characters.
     @State private var typed = ""
+    /// Why a listen could not start — no recogniser for the deck's language, or a refused
+    /// permission. Shown as an alert rather than swallowed, since the button did nothing visible.
+    @State private var speakError: String?
 
     var body: some View {
         StudySessionView(
@@ -40,12 +49,32 @@ struct StudySessionScreen: View {
             onCheckAnswer: { viewModel?.onCheckAnswer() },
             onGiveUp: { viewModel?.onGiveUp() },
             onListen: { viewModel?.onSpeak() },
+            onSpeak: { viewModel?.onSpeakTest() },
             onNextCard: { viewModel?.onNextCard() },
+            onSignIn: onSignIn,
             onDismissSyncError: { viewModel?.onDismissSyncError() },
             onContinueAfterGoal: { viewModel?.onContinueAfterGoal() }
         )
+        .sheet(isPresented: speakSheetBinding) {
+            SpeakSheet(
+                phase: (uiState as? StudySessionUiStateReviewing)?.speakPhase,
+                onRetry: { viewModel?.onSpeakRetry() },
+                onContinue: { viewModel?.onSpeakDismiss() },
+                onDismiss: { viewModel?.onSpeakDismiss() }
+            )
+        }
+        .alert(
+            Text(verbatim: speakError ?? ""),
+            isPresented: Binding(get: { speakError != nil }, set: { if !$0 { speakError = nil } })
+        ) {
+            Button("deck_detail_dismiss_error", role: .cancel) { speakError = nil }
+        }
         .onAppear { attach() }
-        .onDisappear { detach() }
+        .onDisappear {
+            // The microphone stops with the screen, whatever phase the sheet was in.
+            SpeechListener.shared.stop()
+            detach()
+        }
     }
 
     private var viewState: StudyViewState {
@@ -60,7 +89,9 @@ struct StudySessionScreen: View {
             return StudyViewState(
                 phase: .complete,
                 syncErrorMessage: done.syncError.map { ErrorCopy.message(for: $0) },
-                reviewed: Int(done.reviewed)
+                reviewed: Int(done.reviewed),
+                isPreview: done.isPreview,
+                isSignedIn: done.isSignedIn
             )
         }
         guard let card = uiState as? StudySessionUiStateReviewing else { return StudyViewState() }
@@ -78,6 +109,8 @@ struct StudySessionScreen: View {
             gradesAvailable: card.gradesAvailable,
             intervals: Self.intervals(card.intervals),
             listenEnabled: card.listenEnabled,
+            speakEnabled: card.speakEnabled,
+            speakPhase: card.speakPhase,
             typePhase: Self.typePhase(card.typePhase),
             typeMissMessage: Self.missMessage(card.typePhase),
             promptLanguage: card.reversed ? card.backLang : card.frontLang,
@@ -86,7 +119,10 @@ struct StudySessionScreen: View {
             frontImageRef: card.frontImageRef,
             backImageRef: card.backImageRef,
             syncErrorMessage: card.syncError.map { ErrorCopy.message(for: $0) },
-            goalReached: card.goalCelebration != nil
+            goalReached: card.goalCelebration != nil,
+            newCardsToday: Int(card.goalCelebration?.newCardsToday ?? 0),
+            isPreview: card.isPreview,
+            previewAdvanceAvailable: card.previewAdvanceAvailable
         )
     }
 
@@ -118,7 +154,11 @@ struct StudySessionScreen: View {
 
     private func attach() {
         guard viewModel == nil else { return }
-        let vm = IosDependencies.shared.studySessionViewModel(deckId: deckId)
+        let vm = IosDependencies.shared.studySessionViewModel(
+            deckId: deckId,
+            isPreview: isPreview,
+            previewAuthorPubky: previewAuthorPubky
+        )
         viewModel = vm
         stateSink = FlowEffectSink(vm.state) { value in
             uiState = value
@@ -131,14 +171,48 @@ struct StudySessionScreen: View {
             switch effect {
             case let speak as StudySessionEffectSpeak:
                 SpeechSpeaker.shared.speak(speak.text, languageTag: speak.languageTag)
+            case let listen as StudySessionEffectStartSpeechRecognition:
+                startListening(languageTag: listen.languageTag, vm: vm)
             case is StudySessionEffectClose:
                 onClose()
             default:
-                // `StartSpeechRecognition` lands here until iOS has a recognizer. The button that
-                // would emit it is hidden, so nothing reaches this in practice.
                 break
             }
         }
+    }
+
+    /// The sheet is presented by the ViewModel's own phase — `Idle` means nothing to show — so
+    /// there is no second copy of "is the speak sheet up" to fall out of step with it.
+    private var speakSheetBinding: Binding<Bool> {
+        Binding(
+            get: {
+                let phase = (uiState as? StudySessionUiStateReviewing)?.speakPhase
+                return phase != nil && !(phase is SpeakPhaseIdle)
+            },
+            set: { if !$0 { viewModel?.onSpeakDismiss() } }
+        )
+    }
+
+    /// Speak needs no Kotlin binding, exactly as Listen does not: the ViewModel asks, the platform
+    /// answers through `onSpeechResult` / `onSpeechError`.
+    private func startListening(languageTag: String, vm: StudySessionViewModel) {
+        SpeechListener.shared.listen(
+            languageTag: languageTag,
+            onResult: { text in vm.onSpeechResult(text: text) },
+            onFailure: { failure in
+                switch failure {
+                case .permission:
+                    speakError = NSLocalizedString("speak_permission_denied", comment: "")
+                case .unavailable:
+                    speakError = NSLocalizedString("speak_unavailable", comment: "")
+                case .noMatch:
+                    // Ordinary: nothing was said, or nothing matched. The sheet closes and the
+                    // card is still there to try again from.
+                    break
+                }
+                vm.onSpeechError()
+            }
+        )
     }
 
     private func detach() {
@@ -193,6 +267,10 @@ struct StudyViewState {
     var gradesAvailable: Bool = false
     var intervals: [StudyGrade: String] = [:]
     var listenEnabled: Bool = false
+    var speakEnabled: Bool = false
+    /// Erased: `SpeakPhase` is a sealed interface, so it crosses as a protocol and a typed cast
+    /// silently yields nil. The sheet matches the concrete classes.
+    var speakPhase: Any?
     var typePhase: StudyTypePhase = .off
     var typeMissMessage: String?
     var promptLanguage: String?
@@ -202,8 +280,14 @@ struct StudyViewState {
     var backImageRef: MediaRef.Image?
     var syncErrorMessage: String?
     var goalReached: Bool = false
+    var newCardsToday: Int = 0
     var reviewed: Int = 0
     var errorMessage: String?
+    /// A sample of a deck nobody has kept: no grading, no scheduling, and a different ending.
+    var isPreview: Bool = false
+    var isSignedIn: Bool = true
+    /// Move on without deciding anything — the preview's stand-in for the grade row.
+    var previewAdvanceAvailable: Bool = false
 
     /// What the card is currently showing. Distinct from `revealed`: a typing card can be flipped
     /// while its answer is still withheld, which is exactly the state `answerHidden` describes.

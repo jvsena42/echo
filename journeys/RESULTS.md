@@ -599,3 +599,52 @@ and the failure is downstream of it. Not reproduced since; do not assume it is f
   copy of" state that the Profile nag and the unbacked sign-out warning are written for.
 - The **confirmed-write** halves of file backup and file restore, and the **Ring-installed** half
   of Ring export: all three end in an out-of-process system UI the automation cannot reach.
+
+## #113 — closing the iOS parity audit (2026-08-29)
+
+The last of what #113 listed as Android-only. Driven on the **iPhone 17 simulator (iOS 26.5)**
+against the real staging homeserver, signed in by restoring a recovery phrase — no Pubky Ring scan
+needed any more, which is what made a sign-out cheap enough to test guest mode at all.
+
+| Flow | Result |
+| --- | --- |
+| Cold start with no session | ✅ PASS — lands in the browsing shell: Discover, no tab bar, trending tags and decks loading |
+| Guest → deck detail | ✅ PASS — Follow, Clone and "Try these cards" all present without an account |
+| Guest → Follow | ✅ PASS — "Keep this deck" prompt, naming what signing in unlocks, with a real CTA |
+| Guest → study preview | ✅ PASS — 10 sampled cards, images, "Next card" in place of the grade row |
+| Explicit sign out | ✅ PASS — lands on onboarding, **not** the browsing shell |
+| Tag chip → tag browse | ✅ PASS — `#brasil` lists six decks with covers, counts and authors |
+| Follow a deck (signed in) | ✅ PASS — pill flips, announce prompt offers Share / Don't ask again / Not now, post goes out |
+| Speak | ✅ PASS to the microphone — button appears only on a deck with a declared pair, permission prompts read correctly, the sheet listens. A simulator has no useful audio in, so no transcription was graded |
+| Deck library search + sort | ✅ PASS — filtering hides non-matches and says so; the header echoes the chosen sort |
+| Today | ✅ PASS — headlines the study target, shows the goal tally, and the caught-up card replaces the hero when nothing is due or unseen |
+| Avatars | ✅ PASS — real profile pictures on Discover, initials where none is set |
+| QR scan in search | ⚪ NOT REACHED — a simulator has no camera |
+| Drag-to-reorder | ⚪ NOT REACHED — the automation cannot express a long-press drag; the VoiceOver move actions beside it are the reachable half |
+
+### Six bugs found by driving it, none visible to a build
+
+1. **Every push on the signed-in side was dropped.** `navigationDestination(item:)` drives one
+   destination at a time, so assigning a new route while one was on screen left it in place —
+   deck detail → study, → preview and → clone all did nothing, silently. It is a path now.
+2. **Tag chips were not controls.** An `onTapGesture` is invisible to VoiceOver *and* to the
+   automation snapshot, so the chips were reachable by a finger and by nothing else.
+3. **Avatars never resolved.** A pubky.app profile stores its picture as a `pubky://` file URI
+   that `AsyncImage` cannot fetch and fails silently on. `avatarDisplayUrl` has been sitting in
+   `commonMain` for exactly this, with a KDoc naming `AsyncImage`, and iOS never called it.
+4. **Today told you to stop.** The hero showed the bare due count, so a library with nothing
+   overdue and unseen cards left read "0 cards to review" above a Start studying button.
+5. **The announce prompt had no "Not now"** — a `confirmationDialog`'s cancel button is detached
+   from the action list and did not render.
+6. **Following a deck left `canPreview` stale**, in shared code, so a deck you had just kept still
+   offered "Try these cards". Android had this too.
+
+Plus three strings handed to `Text(_:)` as bare keys while their catalog values take arguments, so
+the screen showed the specifier itself. Worth re-running that check whenever strings are ported:
+walk the catalog for values containing `%`, then grep for bare `Text("key")` uses of them.
+
+### Search does not hang
+
+The previous audit recorded search "sat spinning and never returned" against the staging indexer.
+It was not reproduced: "spanish" returns deck results in a couple of seconds. Treat the earlier
+note as fixed by something in between rather than as an open blocker.

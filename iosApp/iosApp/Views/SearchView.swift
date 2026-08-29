@@ -46,6 +46,8 @@ struct SearchView: View {
     var state = SearchViewState()
     var onQueryChange: (String) -> Void = { _ in }
     var onSubmit: () -> Void = {}
+    /// Read a pubky off a QR code rather than typing 52 characters of base32.
+    var onScan: () -> Void = {}
     var onOpenDirectHit: () -> Void = {}
     var onPersonTap: (String) -> Void = { _ in }
     var onFollowTap: (String) -> Void = { _ in }
@@ -109,6 +111,13 @@ struct SearchView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("search_clear"))
             }
+            Button(action: onScan) {
+                Image(systemName: "qrcode.viewfinder")
+                    .foregroundColor(LoopkyColor.accentSecondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("search_scan_qr"))
+            .accessibilityIdentifier("search_scan")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

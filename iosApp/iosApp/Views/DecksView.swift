@@ -26,6 +26,12 @@ struct DecksView: View {
     var onImportTap: () -> Void = {}
     var onImportFileTap: () -> Void = {}
     var onCreateDeckTap: () -> Void = {}
+    /// Filtering and sorting run over the already-loaded list in the shared ViewModel — the
+    /// library is small and Pubky has no query API, so there is nothing to gain from a round trip.
+    var query: String = ""
+    var onQueryChanged: (String) -> Void = { _ in }
+    var sort: DeckSort = .recent
+    var onSortChanged: (DeckSort) -> Void = { _ in }
 
     private let columns = [
         GridItem(.flexible(), spacing: 14),
@@ -41,10 +47,9 @@ struct DecksView: View {
                         .font(.system(size: 28, weight: .heavy))
                         .foregroundColor(LoopkyColor.foregroundPrimary)
                     Spacer()
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 20))
-                        .foregroundColor(LoopkyColor.foregroundPrimary)
+                    sortMenu
                 }
+                searchField
 
                 // Paste CTA
                 Button(action: onImportTap) {
@@ -110,9 +115,20 @@ struct DecksView: View {
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(LoopkyColor.foregroundPrimary)
                         Spacer()
-                        Text("decks_recent")
+                        Text(sortLabel)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(LoopkyColor.accentPrimary)
+                    }
+
+                    // Says so, rather than leaving a blank where the grid was: a library that
+                    // has decks but none matching reads as a library that lost them.
+                    if decks.isEmpty && !query.isEmpty {
+                        Text(verbatim: String(
+                            format: NSLocalizedString("decks_search_no_results", comment: ""), query
+                        ))
+                            .font(.system(size: 14))
+                            .foregroundColor(LoopkyColor.foregroundMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     // Deck grid
@@ -150,6 +166,60 @@ struct DecksView: View {
             .padding(.bottom, 100)
         }
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
+    }
+
+    /// A plain field rather than `.searchable`: the library is a scrolling column inside a tab,
+    /// and `.searchable` would put the field in a navigation bar this screen deliberately hides.
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14))
+                .foregroundColor(LoopkyColor.foregroundMuted)
+            TextField(
+                "decks_search_placeholder",
+                text: Binding(get: { query }, set: onQueryChanged)
+            )
+            .font(.system(size: 15))
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .accessibilityIdentifier("decks_search")
+            if !query.isEmpty {
+                Button { onQueryChanged("") } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundColor(LoopkyColor.foregroundMuted)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 12).fill(LoopkyColor.surfaceCard))
+    }
+
+    /// The header echoes the chosen sort. It read a hardcoded "Recent" before, which became
+    /// wrong the moment the menu below it did anything.
+    private var sortLabel: LocalizedStringKey {
+        switch sort {
+        case .alphabetical: return "decks_sort_alphabetical"
+        case .cardcount: return "decks_sort_cards"
+        default: return "decks_sort_recent"
+        }
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("decks_sort_recent", selection: Binding(get: { sort }, set: onSortChanged)) {
+                Text("decks_sort_recent").tag(DeckSort.recent)
+                Text("decks_sort_alphabetical").tag(DeckSort.alphabetical)
+                Text("decks_sort_cards").tag(DeckSort.cardcount)
+            }
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.system(size: 18))
+                .foregroundColor(LoopkyColor.foregroundPrimary)
+        }
+        .accessibilityIdentifier("decks_sort")
     }
 
     private var emptyBlock: some View {

@@ -21,10 +21,18 @@ struct DecksScreen: View {
             // Straight to the route: file import has no ViewModel step of its own, unlike paste
             // which goes through `onImportClick` so the draft is reset first.
             onImportFileTap: onImportFileTap,
-            onCreateDeckTap: { viewModel?.onCreateDeckClick() }
+            onCreateDeckTap: { viewModel?.onCreateDeckClick() },
+            query: content?.query ?? "",
+            onQueryChanged: { viewModel?.onQueryChanged(query: $0) },
+            sort: content?.sort ?? .recent,
+            onSortChanged: { viewModel?.onSortChanged(sort: $0) }
         )
         .onAppear { attach() }
         .onDisappear { detach() }
+    }
+
+    private var content: DecksLibraryUiStateContent? {
+        uiState as? DecksLibraryUiStateContent
     }
 
     private var viewState: DecksViewState {
@@ -34,7 +42,9 @@ struct DecksScreen: View {
         case let content as DecksLibraryUiStateContent:
             return .content(
                 count: Int(content.deckCount),
-                decks: content.decks.map { deck in
+                // `visibleDecks`, not `decks`: the shared state does the filtering and sorting,
+                // and mapping the raw list ignored both.
+                decks: content.visibleDecks.map { deck in
                     DeckTileData(
                         id: deck.id,
                         title: deck.title,

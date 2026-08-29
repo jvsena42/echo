@@ -28,6 +28,8 @@ import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.MediaRef
+import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.domain.model.avatarDisplayUrl
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.IosBackgroundTasks
 import com.github.jvsena42.loopky.platform.IosMediaProcessor
@@ -166,14 +168,36 @@ object IosDependencies {
     fun editCardViewModel(deckId: String, cardId: String): EditCardViewModel =
         koin.get { parametersOf(deckId, cardId) }
 
-    fun studySessionViewModel(deckId: String?): StudySessionViewModel =
-        koin.get { parametersOf(deckId) }
+    /**
+     * The study loop, and — with [isPreview] — the sample of a deck nobody has kept.
+     *
+     * A preview grades nothing and needs no session, so it carries the deck's author: its cards
+     * are read from *their* homeserver rather than from a library the reader does not have.
+     */
+    fun studySessionViewModel(
+        deckId: String?,
+        isPreview: Boolean = false,
+        previewAuthorPubky: String? = null,
+    ): StudySessionViewModel =
+        koin.get { parametersOf(deckId, isPreview, previewAuthorPubky) }
 
     fun discoverViewModel(): DiscoverViewModel = koin.get()
 
     fun searchViewModel(): SearchViewModel = koin.get()
 
     fun tagBrowseViewModel(tag: String): TagBrowseViewModel = koin.get { parametersOf(tag) }
+
+    /**
+     * A person's picture as something `AsyncImage` can actually fetch.
+     *
+     * A pubky.app profile stores its avatar as a `pubky://` URI pointing at a *file record*, and
+     * handing that to an image loader fails silently — which is why no avatar appeared anywhere on
+     * iOS but the two profile heroes, which had the same bug and the same blank result. The
+     * indexer serves the decoded blob, so this is a URL translation; the identity keeps its
+     * canonical `pubky://` value, because that is what gets written back when a profile is saved.
+     */
+    fun avatarDisplayUrl(identity: PubkyIdentity): String? =
+        identity.avatarDisplayUrl(koin.get<NexusClient>().baseUrl)
 
     fun profileViewModel(): ProfileViewModel = koin.get()
 
