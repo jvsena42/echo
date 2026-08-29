@@ -4127,6 +4127,39 @@
         }
       }
     },
+    "pubky_app_cta_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key you signed in with is a Pubky account. See your profile and posts on the web."
+          }
+        }
+      }
+    },
+    "pubky_app_cta_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're on pubky.app too"
+          }
+        }
+      }
+    },
+    "pubky_app_open_profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open on pubky.app"
+          }
+        }
+      }
+    },
     "publish_add": {
       "extractionState": "manual",
       "localizations": {
@@ -5410,6 +5443,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "ABOUT"
+          }
+        }
+      }
+    },
+    "settings_section_account": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ACCOUNT"
           }
         }
       }

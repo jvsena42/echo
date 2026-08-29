@@ -33,10 +33,17 @@ struct ProfileView: View {
                     ProgressView().padding(.top, 60)
                 } else {
                     hero
-                    if state.needsBackup { backupNag }
+                    Button("profile_edit_profile", action: onEditProfile)
+                        .buttonStyle(.loopkySoft)
                     stats
                     peopleRow
-                    actions
+                    // Context, not a task, so it sits below the numbers rather than above them.
+                    PubkyAppProfileCta(action: onOpenOnPubkyApp)
+                    // Directly above sign-out, because that is the button that can destroy the
+                    // key it warns about: signing out of an un-backed-up local key ends the
+                    // account. Under the hero it was a notice; here it is a last chance.
+                    if state.needsBackup { backupNag }
+                    signOutButton
                 }
             }
             .padding(.horizontal, 20)
@@ -201,15 +208,21 @@ struct ProfileView: View {
         .background(RoundedRectangle(cornerRadius: 16).fill(LoopkyColor.danger.opacity(0.12)))
     }
 
-    private var actions: some View {
-        VStack(spacing: 10) {
-            Button("profile_edit_profile", action: onEditProfile).buttonStyle(.loopkySoft)
-            Button("profile_open_on_pubky_app", action: onOpenOnPubkyApp).buttonStyle(.loopkyOutline)
-            Button("profile_sign_out") { isConfirmingSignOut = true }
-                .font(.system(size: 15, weight: .semibold))
+    /// A full-width tonal button in the danger tint, as on Android — not a text link.
+    ///
+    /// It is the one control on this screen that can end an account, and a quiet line of red text
+    /// under a card read as a footnote next to the backup warning it follows.
+    private var signOutButton: some View {
+        Button { isConfirmingSignOut = true } label: {
+            Label("profile_sign_out", systemImage: "rectangle.portrait.and.arrow.right")
+                .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(LoopkyColor.danger)
-                .padding(.top, 6)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(RoundedRectangle(cornerRadius: 20).fill(LoopkyColor.dangerSoft))
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("profile_signout")
     }
 
     private var editSheet: some View {

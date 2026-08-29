@@ -219,10 +219,17 @@ struct SettingsView: View {
         }
     }
 
+    /// The only section with a header on iOS and not on Android.
+    ///
+    /// Without one it is two red links appended after ABOUT, four screens down, and someone
+    /// scanning the headers for a way out finds nothing that mentions their account — which is
+    /// exactly how it was reported missing. Android has the same gap.
     private var dangerSection: some View {
         Section {
             Button("settings_sign_out", role: .destructive) { isConfirmingSignOut = true }
             Button("settings_delete_account", role: .destructive, action: onDeleteAccount)
+        } header: {
+            Text("settings_section_account")
         }
     }
 }

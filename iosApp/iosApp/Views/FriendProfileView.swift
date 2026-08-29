@@ -56,9 +56,9 @@ struct FriendProfileView: View {
             }
             .accessibilityLabel(Text("friend_profile_back_content_description"))
             Spacer()
-            Button(action: onOpenOnPubkyApp) {
-                Image(systemName: "globe").foregroundStyle(LoopkyColor.accentPrimary)
-            }
+            // The mark, not a generic globe: this leads to *their* pubky.app profile, and the
+            // shape is what says so.
+            PubkyAppIconButton(action: onOpenOnPubkyApp)
             Button(action: onShare) {
                 Image(systemName: "square.and.arrow.up").foregroundStyle(LoopkyColor.accentPrimary)
             }
