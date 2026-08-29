@@ -59,10 +59,12 @@ extension View {
         onDismiss: @escaping () -> Void,
         onNeverAsk: @escaping () -> Void
     ) -> some View {
-        confirmationDialog(
+        // An alert, not a confirmationDialog: the dialog's cancel button is detached from the
+        // action list and did not render here at all, leaving "Not now" — the safe, common choice
+        // — reachable only by guessing that a tap outside dismisses.
+        alert(
             Text(verbatim: SharePromptCopy.title(for: prompt)),
-            isPresented: Binding(get: { prompt != nil }, set: { if !$0 { onDismiss() } }),
-            titleVisibility: .visible
+            isPresented: Binding(get: { prompt != nil }, set: { if !$0 { onDismiss() } })
         ) {
             Button("share_prompt_confirm", action: onConfirm)
             Button("share_prompt_never", role: .destructive, action: onNeverAsk)
