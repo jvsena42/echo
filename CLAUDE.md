@@ -51,13 +51,33 @@ result. The `shared` module is consumed as a static framework (`baseName = "Shar
 
 **A simulator signs in by QR, not by deeplink.** Pubky Ring cannot be installed on one, so `pubkyauth://` is a dead end there; the QR sheet is raised automatically because `ringInstalledHere` is false, and you scan it from a real phone. The relay poll underneath is the same either way.
 
-**Still Android-only:** Speak (needs a `SpeechRecognizer` binding plus `Info.plist` usage strings), bulk import and triage, tag browse, and — per #149 — the signup, backup and restore screens. `IosSpeechRecognizer` does not exist, so Speak stays hidden on iOS. `IosMediaProcessor` **does** now, so `BulkImportViewModel` resolves and image attachment works. iPad and any width but a phone is #173.
+**iOS is at feature parity as of #113.** Guest browsing, signup, restore, backup, tag browse,
+bulk import, Speak — all present. Two things worth knowing about how the assisted study modes got
+there: **Listen and Speak need no Kotlin binding**. The shared ViewModel emits `Speak` and
+`StartSpeechRecognition` effects and takes speech back through `onSpeechResult`/`onSpeechError`, so
+both platform halves live in Swift (`SpeechSpeaker`, `SpeechListener`) — `IosSpeaker` exists for
+the deck editor's voice list, nothing more, and there is no `IosSpeechRecognizer` because nothing
+needs one. Speak's two `Info.plist` usage strings are **not** optional: iOS terminates the app on
+the first request without them. iPad and any width but a phone is #173.
 
 **Strings ported from Android need their format specifiers converted.** Java's `%1$s` is a **C
 string** on iOS — a Swift `String` handed to it faults inside `strlen` — so it must become `%1$@`.
 A Swift `Int` is 64-bit, so `%1$d` must become `%1$lld`. And the *argument order* is part of the
 string: `edit_card_context` reads `Card %1$lld of %2$lld · %3$@`, counts before title. None of the
 three is visible to the compiler or to SwiftLint; all three segfault at render time.
+
+**Three SwiftUI traps that fail silently, all found by driving the app rather than building it.**
+`navigationDestination(item:)` drives **one** destination at a time: assigning a new value while
+one is on screen leaves it there, so a screen-to-screen hop does nothing at all. Both stacks in
+`RootView` are path-based for this reason — push, never reassign. A bare `.onTapGesture` is not a
+control: VoiceOver does not announce it and `snapshot-ui` cannot find it, so anything tappable that
+is not a `Button` is reachable by a finger and by nothing else. And a `confirmationDialog`'s
+`.cancel` button is detached from its action list and may not render at all — use `.alert` when the
+safe option has to be visible.
+
+**A string whose catalog value contains `%` must never be passed to `Text(_:)` as a bare key** —
+it renders the specifier. After porting strings, walk the catalog for values containing `%` and
+grep for bare `Text("key")` uses of them; that check has caught three separate instances.
 
 **Four bridge traps worth knowing before touching Swift here.** Kotlin enum entries export lowercased with no separators (`ErrorReason.sessionexpired`, `RingHandoff.thisdevice`), and getting one wrong produces a misleading error pointing at the enclosing view. Kotlin's `description` property exports as `description_`; plain `.description` compiles and returns the object dump. A sealed interface crosses as an ObjC *protocol*, so casting an erased value to a generic parameter bound to it silently yields `nil` — hold state as `Any?` and match the concrete classes. And a text field must own its own `@State` while typing: binding `get` to state that round-trips through a ViewModel drops characters.
 
