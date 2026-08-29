@@ -119,7 +119,7 @@ actual object ApkgReader {
         compressImage: suspend (ByteArray, String) -> DraftCardImage,
     ): ApkgImport {
         val db = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
-        val raw = db.use { it.readRawNotes() }
+        val raw = db.use { AndroidAnkiDb(it).readRawNotes() }
         if (raw.rows.isEmpty()) {
             return ApkgImport(deckName = raw.deckName, isLegacyStub = raw.stubOnly)
         }
@@ -128,7 +128,7 @@ actual object ApkgReader {
         val fieldCount = parsed.maxOf { it.size }
         val mapping = requested ?: chooseDefaultFields(parsed, fieldCount)
 
-        val media = MediaIndex(this)
+        val media = MediaIndex(ZipFileArchive(this))
         var dropped = ApkgDropped()
         val notes = mutableListOf<BulkNote>()
         // Only the notes that became cards suggest tags: a tag on a note this deck dropped

@@ -2,8 +2,22 @@ package com.github.jvsena42.loopky.data.anki
 
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.util.Log
-import org.json.JSONObject
-import java.util.zip.ZipFile
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+/**
+ * The archive an `.apkg` reader pulls entries out of.
+ *
+ * Abstracted so the index below — the part that knows what an `.apkg` *means* — is written once.
+ * Android streams entries out of `java.util.zip.ZipFile`; iOS inflates them from an in-memory
+ * archive with the system zlib. What both must guarantee is the bound: an entry over `limit`
+ * inflated reads as absent, because that is already the "missing blob" case the caller handles.
+ */
+internal interface ApkgArchive {
+    /** Entry bytes, or null when it is absent, empty, or over [limit] inflated. */
+    fun read(name: String, limit: Long): ByteArray?
+}
 
 /**
  * The archive's pictures, resolved by the filename an `<img src=…>` names.
@@ -15,7 +29,7 @@ import java.util.zip.ZipFile
  * Blobs are pulled one at a time, on demand, and compressed before the next is touched: a deck can
  * carry hundreds of megabytes of media and only a handful of cards are ever image-only.
  */
-internal class MediaIndex(private val zip: ZipFile) {
+internal class MediaIndex(private val archive: ApkgArchive) {
 
     private val entriesByName: Map<String, String> by lazy { readManifest() }
     private val cache = mutableMapOf<String, DraftCardImage>()
@@ -62,11 +76,11 @@ internal class MediaIndex(private val zip: ZipFile) {
         compressImage: suspend (ByteArray, String) -> DraftCardImage,
     ): DraftCardImage? {
         cache[src]?.let { return it }
-        val entry = entriesByName[src]?.let(zip::getEntry) ?: return null
+        val entry = entriesByName[src] ?: return null
         // Bounded: this blob goes straight into heap, so an unbounded read is where a crafted
         // archive OOMs the app. Over budget reads as a missing blob, which the caller already
         // handles by dropping the note — the same outcome as a picture the archive never had.
-        val bytes = zip.readEntryBounded(entry, ApkgLimits.MAX_MEDIA_BYTES)
+        val bytes = archive.read(entry, ApkgLimits.MAX_MEDIA_BYTES)
         if (bytes == null) {
             Log.d(TAG, "apkg: '$src' is over ${ApkgLimits.MAX_MEDIA_BYTES} bytes inflated — skipped")
             return null
@@ -83,14 +97,13 @@ internal class MediaIndex(private val zip: ZipFile) {
      * the entry.
      */
     private fun readManifest(): Map<String, String> = runCatching {
-        val entry = zip.getEntry(MEDIA_ENTRY) ?: return emptyMap()
         // Bounded like every other entry: the manifest is a flat name map, so anything approaching
         // MAX_MEDIA_BYTES of it is not a manifest. Over budget costs the deck its pictures, which
         // is what an unparseable manifest already costs.
-        val bytes = zip.readEntryBounded(entry, ApkgLimits.MAX_MEDIA_BYTES) ?: return emptyMap()
-        val json = JSONObject(bytes.decodeToString())
+        val bytes = archive.read(MEDIA_ENTRY, ApkgLimits.MAX_MEDIA_BYTES) ?: return emptyMap()
+        val json = mediaJson.parseToJsonElement(bytes.decodeToString()).jsonObject
         buildMap {
-            json.keys().forEach { key -> put(json.getString(key), key) }
+            json.forEach { (key, value) -> put(value.jsonPrimitive.content, key) }
         }
     }.onFailure {
         // A media manifest this reader cannot parse costs the deck its pictures, not its cards.
@@ -111,6 +124,9 @@ internal class MediaIndex(private val zip: ZipFile) {
         const val MAX_IMPORT_IMAGES = 500
     }
 }
+
+/** Anki writes this manifest; unknown keys and loose quoting are its business, not ours. */
+private val mediaJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
 private fun String.mimeFromExtension(): String = when (substringAfterLast('.', "").lowercase()) {
     "png" -> "image/png"

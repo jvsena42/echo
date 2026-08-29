@@ -1,7 +1,32 @@
+@file:Suppress("TooManyFunctions")
+// The function count tracks the number of Anki schema variants this has to read — modern tables
+// and legacy JSON, for decks, fields and templates — not complexity. Each one is a few lines.
+
 package com.github.jvsena42.loopky.data.anki
 
-import android.database.sqlite.SQLiteDatabase
-import org.json.JSONObject
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+/**
+ * Reads an Anki collection through whatever SQLite the platform has.
+ *
+ * The queries and every bit of interpretation live here rather than per platform. Android has
+ * `android.database.sqlite` and iOS a cinterop over the system `libsqlite3`; what differs between
+ * them is how a row is fetched, which is all [AnkiDb] abstracts. Everything downstream — which
+ * schema a collection uses, where a description hides, which note type dominates — is one
+ * implementation, and is now testable without a database.
+ */
+internal interface AnkiDb {
+    fun query(sql: String, args: List<String> = emptyList()): List<AnkiRow>
+}
+
+internal interface AnkiRow {
+    fun text(index: Int): String?
+    fun blob(index: Int): ByteArray?
+    fun int(index: Int): Int
+}
 
 /** One row of Anki's `notes` table, before any of it is interpreted. */
 internal data class RawNote(val fields: List<String>, val tags: String)
@@ -40,20 +65,15 @@ internal data class RawCollection(
     }
 }
 
-internal fun SQLiteDatabase.readRawNotes(): RawCollection {
+internal fun AnkiDb.readRawNotes(): RawCollection {
     val rows = mutableListOf<RawNote>()
     var stubOnly = true
     // `flds` holds the note's fields joined by 0x1F. One row per note, so a 20k-card deck is one
-    // cursor walk rather than 20k reads.
-    rawQuery("SELECT flds, tags FROM notes", null).use { cursor ->
-        while (cursor.moveToNext()) {
-            val flds = cursor.getString(0) ?: continue
-            if (!isLegacyStubNote(flds)) stubOnly = false
-            rows += RawNote(
-                fields = flds.split(ANKI_FIELD_SEPARATOR),
-                tags = cursor.getString(1).orEmpty(),
-            )
-        }
+    // query rather than 20k reads.
+    query("SELECT flds, tags FROM notes").forEach { row ->
+        val flds = row.text(0) ?: return@forEach
+        if (!isLegacyStubNote(flds)) stubOnly = false
+        rows += RawNote(fields = flds.split(ANKI_FIELD_SEPARATOR), tags = row.text(1).orEmpty())
     }
     val deck = readDeck()
     return RawCollection(
@@ -69,7 +89,7 @@ internal fun SQLiteDatabase.readRawNotes(): RawCollection {
 private fun readableDescription(raw: String): String? =
     parseAnkiField(raw).text.takeIf { it.isNotBlank() }?.take(MAX_DESCRIPTION_CHARS)
 
-private data class AnkiDeck(val name: String?, val description: String?)
+internal data class AnkiDeck(val name: String?, val description: String?)
 
 /**
  * Name and description of the deck, used only to prefill the commit screen.
@@ -79,38 +99,37 @@ private data class AnkiDeck(val name: String?, val description: String?)
  * keep every deck as JSON in `col.decks`. Both are best-effort — a default the user can edit is not
  * worth failing an import over — so anything unexpected gives up quietly and leaves the field blank.
  */
-private fun SQLiteDatabase.readDeck(): AnkiDeck? =
+private fun AnkiDb.readDeck(): AnkiDeck? =
     runCatching { readModernDeck() }.getOrNull()
         ?: runCatching { readLegacyDeck() }.getOrNull()
 
-private fun SQLiteDatabase.readModernDeck(): AnkiDeck? =
-    rawQuery("SELECT name, kind FROM decks WHERE id != 1 ORDER BY id LIMIT 1", null).use { c ->
-        if (!c.moveToFirst()) return null
-        AnkiDeck(
-            name = c.getString(0)?.rootDeckName(ANKI_FIELD_SEPARATOR.toString()),
-            description = c.getBlob(1)?.let(::normalDeckDescription),
-        )
-    }
+private fun AnkiDb.readModernDeck(): AnkiDeck? {
+    val row = query("SELECT name, kind FROM decks WHERE id != 1 ORDER BY id LIMIT 1").firstOrNull()
+        ?: return null
+    return AnkiDeck(
+        name = row.text(0)?.rootDeckName(ANKI_FIELD_SEPARATOR.toString()),
+        description = row.blob(1)?.let(::normalDeckDescription),
+    )
+}
 
-private fun SQLiteDatabase.readLegacyDeck(): AnkiDeck? =
-    rawQuery("SELECT decks FROM col LIMIT 1", null).use { c ->
-        if (!c.moveToFirst()) return null
-        val decks = JSONObject(c.getString(0) ?: return null)
-        // The *shallowest* deck, not the first one listed. A deck with subdecks stores one JSON
-        // object per subdeck, in no useful order, and only the root carries the description —
-        // taking whichever came first landed on "Biochemistry::First Year::Mechanistic::Random"
-        // with an empty `desc` while the real one sat on "Biochemistry".
-        val deck = decks.keys().asSequence()
-            .filter { it != DEFAULT_DECK_ID }
-            .mapNotNull { decks.optJSONObject(it) }
-            .filter { it.optString("name").isNotBlank() }
-            .minByOrNull { it.optString("name").depth() }
-            ?: return null
-        AnkiDeck(
-            name = deck.optString("name").rootDeckName(LEGACY_NESTING),
-            description = deck.optString("desc").takeIf { it.isNotBlank() },
-        )
-    }
+private fun AnkiDb.readLegacyDeck(): AnkiDeck? {
+    val raw = query("SELECT decks FROM col LIMIT 1").firstOrNull()?.text(0) ?: return null
+    val decks = ankiJson.parseToJsonElement(raw).jsonObject
+    // The *shallowest* deck, not the first one listed. A deck with subdecks stores one JSON object
+    // per subdeck, in no useful order, and only the root carries the description — taking whichever
+    // came first landed on "Biochemistry::First Year::Mechanistic::Random" with an empty `desc`
+    // while the real one sat on "Biochemistry".
+    val deck = decks.entries.asSequence()
+        .filter { it.key != DEFAULT_DECK_ID }
+        .mapNotNull { runCatching { it.value.jsonObject }.getOrNull() }
+        .filter { it.stringOrEmpty("name").isNotBlank() }
+        .minByOrNull { it.stringOrEmpty("name").depth() }
+        ?: return null
+    return AnkiDeck(
+        name = deck.stringOrEmpty("name").rootDeckName(LEGACY_NESTING),
+        description = deck.stringOrEmpty("desc").takeIf { it.isNotBlank() },
+    )
+}
 
 private fun String.depth(): Int = split(LEGACY_NESTING).size
 
@@ -123,7 +142,7 @@ private fun String.depth(): Int = split(LEGACY_NESTING).size
  * fields, skip past anything that is not [DESCRIPTION_FIELD], and read that one as UTF-8. Anything
  * malformed returns null — this is a prefill, not a contract.
  */
-private fun normalDeckDescription(blob: ByteArray): String? = runCatching {
+internal fun normalDeckDescription(blob: ByteArray): String? = runCatching {
     var offset = 0
     while (offset < blob.size) {
         val (tag, afterTag) = blob.readVarint(offset) ?: return null
@@ -171,25 +190,22 @@ private fun ByteArray.readVarint(start: Int): Pair<Long, Int>? {
  * When a deck mixes note types the names come from the one used by the most notes — the picker
  * describes the deck's shape, and a deck whose notes disagree about that has no single answer.
  */
-private fun SQLiteDatabase.readFieldNames(): List<String> =
+private fun AnkiDb.readFieldNames(): List<String> =
     runCatching { readModernFieldNames() }.getOrNull()?.takeIf { it.isNotEmpty() }
         ?: runCatching { readLegacyFieldNames() }.getOrNull().orEmpty()
 
-private fun SQLiteDatabase.readModernFieldNames(): List<String> {
+private fun AnkiDb.readModernFieldNames(): List<String> {
     val dominant = dominantNoteTypeId() ?: return emptyList()
-    return rawQuery("SELECT name FROM fields WHERE ntid = ? ORDER BY ord", arrayOf(dominant)).use { c ->
-        buildList { while (c.moveToNext()) add(c.getString(0).orEmpty()) }
-    }
+    return query("SELECT name FROM fields WHERE ntid = ? ORDER BY ord", listOf(dominant))
+        .map { it.text(0).orEmpty() }
 }
 
-private fun SQLiteDatabase.readLegacyFieldNames(): List<String> {
+private fun AnkiDb.readLegacyFieldNames(): List<String> {
     val dominant = dominantNoteTypeId() ?: return emptyList()
-    val models = rawQuery("SELECT models FROM col LIMIT 1", null).use { c ->
-        if (c.moveToFirst()) c.getString(0) else null
-    } ?: return emptyList()
-    val fields = JSONObject(models).optJSONObject(dominant)?.optJSONArray("flds")
-        ?: return emptyList()
-    return (0 until fields.length()).map { fields.getJSONObject(it).optString("name") }
+    val models = query("SELECT models FROM col LIMIT 1").firstOrNull()?.text(0) ?: return emptyList()
+    val fields = ankiJson.parseToJsonElement(models).jsonObject[dominant]
+        ?.jsonObject?.get("flds")?.jsonArray ?: return emptyList()
+    return fields.map { it.jsonObject.stringOrEmpty("name") }
 }
 
 /**
@@ -204,26 +220,23 @@ private fun SQLiteDatabase.readLegacyFieldNames(): List<String> {
  * opt-in has a toggle on the publish screen, while one that arrives with it wrongly on does not
  * announce itself.
  */
-private fun SQLiteDatabase.readTemplateCount(): Int {
+private fun AnkiDb.readTemplateCount(): Int {
     val dominant = dominantNoteTypeId() ?: return 0
     val modern = runCatching {
-        rawQuery("SELECT COUNT(*) FROM templates WHERE ntid = ?", arrayOf(dominant)).use { c ->
-            if (c.moveToFirst()) c.getInt(0) else 0
-        }
+        query("SELECT COUNT(*) FROM templates WHERE ntid = ?", listOf(dominant))
+            .firstOrNull()?.int(0) ?: 0
     }.getOrNull() ?: 0
     if (modern > 0) return modern
     return runCatching {
-        val models = rawQuery("SELECT models FROM col LIMIT 1", null).use { c ->
-            if (c.moveToFirst()) c.getString(0) else null
-        } ?: return 0
-        JSONObject(models).optJSONObject(dominant)?.optJSONArray("tmpls")?.length() ?: 0
+        val models = query("SELECT models FROM col LIMIT 1").firstOrNull()?.text(0) ?: return 0
+        ankiJson.parseToJsonElement(models).jsonObject[dominant]
+            ?.jsonObject?.get("tmpls")?.jsonArray?.size ?: 0
     }.getOrNull() ?: 0
 }
 
-private fun SQLiteDatabase.dominantNoteTypeId(): String? =
-    rawQuery("SELECT mid FROM notes GROUP BY mid ORDER BY COUNT(*) DESC LIMIT 1", null).use { c ->
-        if (c.moveToFirst()) c.getString(0) else null
-    }
+private fun AnkiDb.dominantNoteTypeId(): String? =
+    query("SELECT mid FROM notes GROUP BY mid ORDER BY COUNT(*) DESC LIMIT 1")
+        .firstOrNull()?.text(0)
 
 /**
  * The top of a nested deck's path, which is the deck the user thinks they are importing.
@@ -235,6 +248,12 @@ private fun SQLiteDatabase.dominantNoteTypeId(): String? =
  */
 private fun String.rootDeckName(separator: String): String? =
     substringBefore(separator).trim().takeIf { it.isNotBlank() }
+
+private fun kotlinx.serialization.json.JsonObject.stringOrEmpty(key: String): String =
+    runCatching { get(key)?.jsonPrimitive?.content }.getOrNull().orEmpty()
+
+/** Anki's JSON is written by Anki, not by us — unknown keys are the norm. */
+private val ankiJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
 private const val LEGACY_NESTING = "::"
 
