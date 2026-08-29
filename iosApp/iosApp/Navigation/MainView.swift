@@ -59,48 +59,54 @@ struct MainView: View {
     }
 
     private var tabs: some View {
-        // Native `TabView` → system `UITabBar` (Liquid Glass on the iOS 26 SDK). We only tint it
-        // with Loopky's accent, rather than rebuilding the chrome from primitives.
+        // A native `TabView`, and on the iOS 26 SDK that is already Liquid Glass — the tab bar
+        // floats over the content and samples it, so Loopky only tints it and never repaints it.
+        //
+        // `.sidebarAdaptable` is the iPad half of #173, and the counterpart of the navigation rail
+        // #140 gave Android on expanded windows: at a regular width the same four destinations
+        // become a sidebar, with the tab-bar morph and the drag-to-reorder iPad users expect, and
+        // at a compact width — an iPhone, or this app in Slide Over — it is an ordinary tab bar.
+        // The destinations, their order and their tags are unchanged, so every deeplink and every
+        // journey step still lands where it did.
         TabView(selection: $selectedTab) {
-            HomeScreen(
-                onOpenDeck: { onDeckTap($0, nil) },
-                onCreateDeck: onCreateDeckTap,
-                onBrowseExamples: onImportTap,
-                onStartStudy: onStartStudy,
-                onSignedOut: onSignedOut
-            )
-            .tabItem { Label(LoopkyTab.study.title, systemImage: LoopkyTab.study.iconName) }
-            .tag(LoopkyTab.study)
+            Tab(LoopkyTab.study.title, systemImage: LoopkyTab.study.iconName, value: LoopkyTab.study) {
+                HomeScreen(
+                    onOpenDeck: { onDeckTap($0, nil) },
+                    onCreateDeck: onCreateDeckTap,
+                    onBrowseExamples: onImportTap,
+                    onStartStudy: onStartStudy,
+                    onSignedOut: onSignedOut
+                )
+            }
 
-            DecksScreen(
-                onDeckTap: { onDeckTap($0, nil) },
-                onImportTap: onImportTap,
-                onImportFileTap: onImportFileTap,
-                onCreateDeckTap: onCreateDeckTap
-            )
-            .tabItem { Label(LoopkyTab.decks.title, systemImage: LoopkyTab.decks.iconName) }
-            .tag(LoopkyTab.decks)
+            Tab(LoopkyTab.decks.title, systemImage: LoopkyTab.decks.iconName, value: LoopkyTab.decks) {
+                DecksScreen(
+                    onDeckTap: { onDeckTap($0, nil) },
+                    onImportTap: onImportTap,
+                    onImportFileTap: onImportFileTap,
+                    onCreateDeckTap: onCreateDeckTap
+                )
+            }
 
-            DiscoverScreen(
-                onOpenProfile: onOpenProfile,
-                onOpenDeck: { deckId, author in onDeckTap(deckId, author) },
-                onSearch: { isSearching = true }
-            )
-            .tabItem { Label(LoopkyTab.discover.title, systemImage: LoopkyTab.discover.iconName) }
-            .tag(LoopkyTab.discover)
+            Tab(LoopkyTab.discover.title, systemImage: LoopkyTab.discover.iconName, value: LoopkyTab.discover) {
+                DiscoverScreen(
+                    onOpenProfile: onOpenProfile,
+                    onOpenDeck: { deckId, author in onDeckTap(deckId, author) },
+                    onSearch: { isSearching = true }
+                )
+            }
 
-            ProfileScreen(
-                onSignedOut: onSignedOut,
-                onOpenFollows: onOpenFollows,
-                onOpenSettings: onOpenSettings,
-                onBackUpNow: onBackUpNow
-            )
-                .tabItem { Label(LoopkyTab.profile.title, systemImage: LoopkyTab.profile.iconName) }
-                .tag(LoopkyTab.profile)
+            Tab(LoopkyTab.profile.title, systemImage: LoopkyTab.profile.iconName, value: LoopkyTab.profile) {
+                ProfileScreen(
+                    onSignedOut: onSignedOut,
+                    onOpenFollows: onOpenFollows,
+                    onOpenSettings: onOpenSettings,
+                    onBackUpNow: onBackUpNow
+                )
+            }
         }
+        .tabViewStyle(.sidebarAdaptable)
         .tint(LoopkyColor.accentPrimary)
-        .toolbarBackground(LoopkyColor.navBarBackground, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
         // Tab screens render their own in-content titles, so hide the NavigationStack's empty
         // navigation bar — otherwise it reserves space above each page title.
         .navigationBarHidden(true)
