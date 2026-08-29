@@ -32,13 +32,9 @@ struct BackupPhraseScreen: View {
                 if uiState?.isLoading ?? true {
                     ProgressView().controlSize(.regular).tint(LoopkyColor.accentPrimary)
                 } else {
+                    // Reveal is on the words themselves, as on Android — a second full-width
+                    // primary beside Continue gives two equally loud buttons and no hierarchy.
                     wordGrid
-                    if !isRevealed {
-                        SignupPrimaryButton(title: "backup_phrase_reveal") {
-                            viewModel?.onRevealClick()
-                        }
-                        .accessibilityIdentifier("backup_phrase_reveal")
-                    }
                     // Continue only once the words have actually been shown: the quiz behind it
                     // asks for words nobody has seen otherwise.
                     SignupPrimaryButton(
@@ -55,29 +51,47 @@ struct BackupPhraseScreen: View {
         .onDisappear { detach() }
     }
 
+    /// The words, blurred until asked for, with the reveal as its own control on top.
+    ///
+    /// The grid is `.accessibilityHidden` while blurred — otherwise the guard is visual only and
+    /// VoiceOver reads the phrase out to whoever is listening — so the reveal has to be a separate
+    /// element, or it would be unreachable to exactly the users the blur hides the words from.
     private var wordGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            ForEach(Array(words.enumerated()), id: \.offset) { index, word in
-                HStack(spacing: 8) {
-                    Text(verbatim: "\(index + 1)")
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundStyle(LoopkyColor.foregroundMuted)
-                        .frame(width: 18, alignment: .trailing)
-                    Text(verbatim: word)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(LoopkyColor.foregroundPrimary)
-                    Spacer(minLength: 0)
+        ZStack {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                ForEach(Array(words.enumerated()), id: \.offset) { index, word in
+                    HStack(spacing: 8) {
+                        Text(verbatim: "\(index + 1)")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundStyle(LoopkyColor.foregroundMuted)
+                            .frame(width: 18, alignment: .trailing)
+                        Text(verbatim: word)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(LoopkyColor.foregroundPrimary)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(LoopkyColor.surfaceCard))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(RoundedRectangle(cornerRadius: 10).fill(LoopkyColor.surfaceCard))
+            }
+            .blur(radius: isRevealed ? 0 : 8)
+            .accessibilityHidden(!isRevealed)
+            .accessibilityIdentifier("backup_phrase_words")
+
+            // On the words themselves, as on Android — a second full-width primary beside Continue
+            // gives two equally loud buttons and no hierarchy.
+            if !isRevealed {
+                Button("backup_phrase_reveal") { viewModel?.onRevealClick() }
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(LoopkyColor.accentPrimary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(Capsule().fill(LoopkyColor.surfaceCard))
+                    .shadow(color: LoopkyColor.shadowElevationMedium, radius: 8, y: 2)
+                    .accessibilityIdentifier("backup_phrase_reveal")
             }
         }
-        .blur(radius: isRevealed ? 0 : 8)
-        // Hidden from VoiceOver while blurred, or the guard is visual only and the words are read
-        // out to whoever is listening.
-        .accessibilityHidden(!isRevealed)
-        .accessibilityIdentifier("backup_phrase_words")
     }
 
     private func leave() {
