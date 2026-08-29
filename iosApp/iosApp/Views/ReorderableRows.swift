@@ -26,6 +26,15 @@ struct ReorderableVStack<Item: Identifiable, Row: View>: View {
                     // Dimmed rather than removed: taking the row out of the stack while it is held
                     // collapses everything below it and the drop target moves under the finger.
                     .opacity(draggingId == item.id ? 0.35 : 1)
+                    // A drag is unreachable with VoiceOver on, so the same move is offered as two
+                    // rotor actions. Without them, turning the screen reader on removes the
+                    // feature outright rather than changing how it is reached.
+                    .accessibilityAction(named: Text("deck_editor_move_up")) {
+                        if index > 0 { onMove(index, index - 1) }
+                    }
+                    .accessibilityAction(named: Text("deck_editor_move_down")) {
+                        if index < items.count - 1 { onMove(index, index + 1) }
+                    }
                     .onDrag {
                         draggingId = item.id
                         // The id, so a drop into another app carries something meaningful rather

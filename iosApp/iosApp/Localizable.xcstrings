@@ -738,6 +738,17 @@
         }
       }
     },
+    "bulk_fields_sheet_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose fields"
+          }
+        }
+      }
+    },
     "bulk_fields_unnamed": {
       "extractionState": "manual",
       "localizations": {
@@ -1663,6 +1674,28 @@
         }
       }
     },
+    "deck_editor_move_down": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move card down"
+          }
+        }
+      }
+    },
+    "deck_editor_move_up": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move card up"
+          }
+        }
+      }
+    },
     "deck_editor_reorder": {
       "extractionState": "manual",
       "localizations": {
@@ -1923,6 +1956,61 @@
           "stringUnit": {
             "state": "translated",
             "value": "Search"
+          }
+        }
+      }
+    },
+    "decks_search_no_results": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No decks match “%1$@”."
+          }
+        }
+      }
+    },
+    "decks_search_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search your decks"
+          }
+        }
+      }
+    },
+    "decks_sort_alphabetical": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A–Z"
+          }
+        }
+      }
+    },
+    "decks_sort_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Most cards"
+          }
+        }
+      }
+    },
+    "decks_sort_recent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent"
           }
         }
       }
