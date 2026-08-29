@@ -35,6 +35,8 @@ struct DeckEditorView: View {
     var onLoadMoreCards: () -> Void = {}
     var onClose: () -> Void = {}
     var onSave: () -> Void = {}
+    /// The four study opt-ins and the language pair, built by `DeckEditorScreen`.
+    var studyOptions: DeckStudyOptions?
 
     @State private var showTagSheet = false
 
@@ -145,6 +147,10 @@ struct DeckEditorView: View {
                 if let error {
                     FieldErrorText(message: error)
                 }
+
+                // The editor is the only place a deck published before the language pair existed
+                // can ever gain one — without this block such a deck can never be un-silenced.
+                if let studyOptions { studyOptions }
 
                 // Cards header
                 Text(String(format: NSLocalizedString("deck_editor_cards_count", comment: ""), totalCards))

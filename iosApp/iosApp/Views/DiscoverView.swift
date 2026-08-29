@@ -161,7 +161,15 @@ struct DiscoverView: View {
         .frame(width: 120)
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 20).fill(LoopkyColor.surfaceCard))
+        .contentShape(RoundedRectangle(cornerRadius: 20))
         .onTapGesture { onPersonTap(person.id) }
+        // A tap gesture on a stack is not a control: without this the tile is invisible to
+        // VoiceOver and unreachable by UI automation, and opening a person's profile is the
+        // whole point of the strip. The Follow button inside keeps its own action.
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onPersonTap(person.id) }
+        .accessibilityIdentifier("discover_person")
     }
 
     private var browseStrip: some View {

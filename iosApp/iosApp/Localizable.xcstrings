@@ -1,310 +1,255 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "home_greeting_hello": {
+    "brand_tagline": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hello,"
+            "value": "Learn anything,\nremember everything."
           }
         }
       }
     },
-    "home_greeting_name": {
+    "common_coming_soon": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ 👋"
+            "value": "Coming soon"
           }
         }
       }
     },
-    "home_error_title": {
+    "component_author_row_follow": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Something went wrong"
+            "value": "Follow"
           }
         }
       }
     },
-    "home_retry": {
+    "component_author_row_following": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retry"
+            "value": "Following"
           }
         }
       }
     },
-    "home_due_today": {
+    "component_deck_tile_card_count": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "DUE TODAY"
+            "value": "%1$lld cards"
           }
         }
       }
     },
-    "home_cards": {
+    "component_stats_bar_cards": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "cards"
+            "value": "Cards"
           }
         }
       }
     },
-    "home_to_review": {
+    "component_stats_bar_due": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "to review"
+            "value": "Due"
           }
         }
       }
     },
-    "home_progress_done": {
+    "component_stats_bar_mastered": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld of %2$lld done · keep going!"
+            "value": "Mastered"
           }
         }
       }
     },
-    "home_start_studying": {
+    "component_stats_bar_new": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Start studying"
+            "value": "New"
           }
         }
       }
     },
-    "home_todays_decks": {
+    "component_stats_bar_total": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Today's decks"
+            "value": "Total"
           }
         }
       }
     },
-    "home_see_all": {
+    "component_tag_chip_label": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "See all"
+            "value": "#%1$@"
           }
         }
       }
     },
-    "home_deck_due_cards": {
+    "component_tag_chip_remove": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld due · %2$lld cards"
+            "value": "Remove tag"
           }
         }
       }
     },
-    "home_empty_title": {
+    "deck_back_language_label": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No decks yet"
+            "value": "Back language"
           }
         }
       }
     },
-    "home_empty_subtitle": {
+    "deck_detail_back": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Paste a list, import from a file, or start from scratch — your first deck is one tap away."
+            "value": "Back"
           }
         }
       }
     },
-    "home_create_first_deck": {
+    "deck_detail_cards_empty_foreign": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Create your first deck"
+            "value": "This deck doesn't have any cards yet."
           }
         }
       }
     },
-    "home_browse_examples": {
+    "deck_detail_cards_empty_owned": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Browse examples"
+            "value": "No cards yet. Tap Edit to add your first one."
           }
         }
       }
     },
-    "decks_title": {
+    "deck_detail_cards_heading": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your decks"
+            "value": "Cards"
           }
         }
       }
     },
-    "decks_search": {
+    "deck_detail_delete": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Search"
+            "value": "Delete deck"
           }
         }
       }
     },
-    "decks_paste_cta_title": {
+    "deck_detail_delete_cancel": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Paste to import"
+            "value": "Cancel"
           }
         }
       }
     },
-    "decks_paste_cta_subtitle": {
+    "deck_detail_delete_confirm": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Turn any list into a deck"
+            "value": "Delete"
           }
         }
       }
     },
-    "decks_paste_cta_go": {
+    "deck_detail_delete_dialog_message": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Go"
+            "value": "This removes the deck and its cards from your homeserver."
           }
         }
       }
     },
-    "decks_library_count": {
+    "deck_detail_delete_dialog_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Library · %1$lld"
+            "value": "Delete deck?"
           }
         }
       }
     },
-    "decks_recent": {
+    "deck_detail_edit": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recent"
-          }
-        }
-      }
-    },
-    "decks_empty_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No decks yet"
-          }
-        }
-      }
-    },
-    "decks_empty_subtitle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paste a list or create your first deck from scratch."
-          }
-        }
-      }
-    },
-    "decks_empty_create": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Create a deck"
-          }
-        }
-      }
-    },
-    "decks_error_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Something went wrong"
-          }
-        }
-      }
-    },
-    "decks_retry": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Retry"
+            "value": "Edit deck"
           }
         }
       }
@@ -320,6 +265,28 @@
         }
       }
     },
+    "deck_detail_in_your_library": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IN YOUR LIBRARY"
+          }
+        }
+      }
+    },
+    "deck_detail_last_studied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last studied..."
+          }
+        }
+      }
+    },
     "deck_detail_retry": {
       "extractionState": "manual",
       "localizations": {
@@ -327,6 +294,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Retry"
+          }
+        }
+      }
+    },
+    "deck_detail_share": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share"
           }
         }
       }
@@ -364,255 +342,13 @@
         }
       }
     },
-    "deck_detail_back": {
+    "deck_editor_add_card": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Back"
-          }
-        }
-      }
-    },
-    "deck_detail_edit": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit deck"
-          }
-        }
-      }
-    },
-    "deck_detail_delete": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete deck"
-          }
-        }
-      }
-    },
-    "deck_detail_share": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Share"
-          }
-        }
-      }
-    },
-    "deck_detail_delete_dialog_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete deck?"
-          }
-        }
-      }
-    },
-    "deck_detail_delete_dialog_message": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This removes the deck and its cards from your homeserver."
-          }
-        }
-      }
-    },
-    "deck_detail_delete_confirm": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete"
-          }
-        }
-      }
-    },
-    "deck_detail_delete_cancel": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancel"
-          }
-        }
-      }
-    },
-    "deck_detail_cards_heading": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cards"
-          }
-        }
-      }
-    },
-    "deck_detail_cards_empty_owned": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No cards yet. Tap Edit to add your first one."
-          }
-        }
-      }
-    },
-    "deck_detail_cards_empty_foreign": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This deck doesn't have any cards yet."
-          }
-        }
-      }
-    },
-    "deck_detail_in_your_library": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "IN YOUR LIBRARY"
-          }
-        }
-      }
-    },
-    "deck_detail_last_studied": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last studied..."
-          }
-        }
-      }
-    },
-    "deck_editor_title_new": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New Deck"
-          }
-        }
-      }
-    },
-    "deck_editor_title_edit": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Deck"
-          }
-        }
-      }
-    },
-    "deck_editor_close": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close"
-          }
-        }
-      }
-    },
-    "deck_editor_save": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Save"
-          }
-        }
-      }
-    },
-    "deck_editor_cover": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cover"
-          }
-        }
-      }
-    },
-    "deck_editor_label_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "DECK TITLE"
-          }
-        }
-      }
-    },
-    "deck_editor_title_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enter deck title..."
-          }
-        }
-      }
-    },
-    "deck_editor_label_description": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "DESCRIPTION"
-          }
-        }
-      }
-    },
-    "deck_editor_description_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add a description..."
-          }
-        }
-      }
-    },
-    "deck_editor_label_tags": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TAGS (PUBKY)"
+            "value": "Add card"
           }
         }
       }
@@ -628,35 +364,13 @@
         }
       }
     },
-    "deck_editor_cards_count": {
+    "deck_editor_card_back_placeholder": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cards (%1$lld)"
-          }
-        }
-      }
-    },
-    "deck_editor_add_card": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add card"
-          }
-        }
-      }
-    },
-    "deck_editor_reorder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reorder"
+            "value": "Back"
           }
         }
       }
@@ -672,24 +386,57 @@
         }
       }
     },
-    "deck_editor_card_back_placeholder": {
+    "deck_editor_card_new": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Back"
+            "value": "New card"
           }
         }
       }
     },
-    "deck_editor_has_image": {
+    "deck_editor_cards_count": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Has image"
+            "value": "Cards (%1$lld)"
+          }
+        }
+      }
+    },
+    "deck_editor_close": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "deck_editor_cover": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cover"
+          }
+        }
+      }
+    },
+    "deck_editor_description_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a description..."
           }
         }
       }
@@ -705,6 +452,94 @@
         }
       }
     },
+    "deck_editor_has_image": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Has image"
+          }
+        }
+      }
+    },
+    "deck_editor_label_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DESCRIPTION"
+          }
+        }
+      }
+    },
+    "deck_editor_label_tags": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TAGS (PUBKY)"
+          }
+        }
+      }
+    },
+    "deck_editor_label_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DECK TITLE"
+          }
+        }
+      }
+    },
+    "deck_editor_load_more_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load more cards"
+          }
+        }
+      }
+    },
+    "deck_editor_loading_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading more cards…"
+          }
+        }
+      }
+    },
+    "deck_editor_reorder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reorder"
+          }
+        }
+      }
+    },
+    "deck_editor_save": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        }
+      }
+    },
     "deck_editor_saving": {
       "extractionState": "manual",
       "localizations": {
@@ -712,6 +547,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saving…"
+          }
+        }
+      }
+    },
+    "deck_editor_title_edit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Deck"
+          }
+        }
+      }
+    },
+    "deck_editor_title_new": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Deck"
+          }
+        }
+      }
+    },
+    "deck_editor_title_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter deck title..."
           }
         }
       }
@@ -727,216 +595,84 @@
         }
       }
     },
-    "deck_editor_card_new": {
+    "deck_front_language_label": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "New card"
+            "value": "Front language"
           }
         }
       }
     },
-    "edit_card_title": {
+    "deck_language_unset": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Edit card"
+            "value": "Choose a language"
           }
         }
       }
     },
-    "edit_card_cancel": {
+    "deck_languages_hint": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cancel"
+            "value": "Listen and Speak need to know what language each side is in, or the phone reads the card in your own accent. Picking one also tags the deck with that language."
           }
         }
       }
     },
-    "edit_card_save": {
+    "deck_languages_required": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Save"
+            "value": "Pick a front and back language to use Listen or Speak."
           }
         }
       }
     },
-    "edit_card_context": {
+    "decks_empty_create": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Card %1$lld of %2$lld · %3$@"
+            "value": "Create a deck"
           }
         }
       }
     },
-    "edit_card_label_front": {
+    "decks_empty_subtitle": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "FRONT"
+            "value": "Paste a list or create your first deck from scratch."
           }
         }
       }
     },
-    "edit_card_speak_front": {
+    "decks_empty_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Speak front"
+            "value": "No decks yet"
           }
         }
       }
     },
-    "edit_card_front_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enter front text..."
-          }
-        }
-      }
-    },
-    "edit_card_label_back": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BACK"
-          }
-        }
-      }
-    },
-    "edit_card_speak_back": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Speak back"
-          }
-        }
-      }
-    },
-    "edit_card_back_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enter back text..."
-          }
-        }
-      }
-    },
-    "edit_card_add_image": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add image"
-          }
-        }
-      }
-    },
-    "edit_card_image": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Image"
-          }
-        }
-      }
-    },
-    "edit_card_add_audio": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add audio"
-          }
-        }
-      }
-    },
-    "edit_card_audio": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Audio"
-          }
-        }
-      }
-    },
-    "edit_card_label_tags": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TAGS"
-          }
-        }
-      }
-    },
-    "edit_card_add_tag": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "+ Add"
-          }
-        }
-      }
-    },
-    "edit_card_delete": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete card"
-          }
-        }
-      }
-    },
-    "edit_card_speak": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Speak"
-          }
-        }
-      }
-    },
-    "study_error_title": {
+    "decks_error_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -947,145 +683,255 @@
         }
       }
     },
-    "study_close": {
+    "decks_library_count": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Close"
+            "value": "Library · %1$lld"
           }
         }
       }
     },
-    "study_empty_title": {
+    "decks_paste_cta_go": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You're all caught up 🎉"
+            "value": "Go"
           }
         }
       }
     },
-    "study_empty_subtitle": {
+    "decks_paste_cta_subtitle": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No cards due right now."
+            "value": "Turn any list into a deck"
           }
         }
       }
     },
-    "study_empty_subtitle_deck": {
+    "decks_paste_cta_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No cards due in %1$@ right now."
+            "value": "Paste to import"
           }
         }
       }
     },
-    "study_done": {
+    "decks_recent": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Done"
+            "value": "Recent"
           }
         }
       }
     },
-    "study_complete_title": {
+    "decks_retry": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "All done! 🎊"
+            "value": "Retry"
           }
         }
       }
     },
-    "study_complete_subtitle_one": {
+    "decks_search": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You reviewed 1 card."
+            "value": "Search"
           }
         }
       }
     },
-    "study_complete_subtitle_many": {
+    "decks_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You reviewed %1$lld cards."
+            "value": "Your decks"
           }
         }
       }
     },
-    "study_back": {
+    "discover_browse_empty_subtitle": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Back"
+            "value": "Loopky’s public index is new. Publish a deck and it shows up here for everyone."
           }
         }
       }
     },
-    "study_position_of_total": {
+    "discover_browse_empty_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld of %2$lld"
+            "value": "Nothing published here yet"
           }
         }
       }
     },
-    "study_tap_to_reveal": {
+    "discover_browse_tag_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "TAP TO REVEAL"
+            "value": "Decks tagged “%1$@”"
           }
         }
       }
     },
-    "study_speak": {
+    "discover_browse_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Speak"
+            "value": "Discover decks"
           }
         }
       }
     },
-    "discover_title": {
+    "discover_clear_tag": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Discover"
+            "value": "Clear"
+          }
+        }
+      }
+    },
+    "discover_empty_emoji": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "👥"
+          }
+        }
+      }
+    },
+    "discover_empty_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a friend by their pubky to follow them and discover their public decks."
+          }
+        }
+      }
+    },
+    "discover_empty_tag_emoji": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🔍"
+          }
+        }
+      }
+    },
+    "discover_empty_tag_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow more friends to widen your feed, or tap the tag again to clear it."
+          }
+        }
+      }
+    },
+    "discover_empty_tag_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No decks tagged “%1$@” yet"
+          }
+        }
+      }
+    },
+    "discover_empty_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow a friend to see their decks here"
+          }
+        }
+      }
+    },
+    "discover_follow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow"
+          }
+        }
+      }
+    },
+    "discover_following": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following"
+          }
+        }
+      }
+    },
+    "discover_following_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From people you follow"
+          }
+        }
+      }
+    },
+    "discover_people_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People on Loopky"
           }
         }
       }
@@ -1112,79 +958,13 @@
         }
       }
     },
-    "discover_people_title": {
+    "discover_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "People on Loopky"
-          }
-        }
-      }
-    },
-    "discover_browse_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Discover decks"
-          }
-        }
-      }
-    },
-    "discover_browse_tag_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Decks tagged “%1$@”"
-          }
-        }
-      }
-    },
-    "discover_clear_tag": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clear"
-          }
-        }
-      }
-    },
-    "discover_following_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "From people you follow"
-          }
-        }
-      }
-    },
-    "discover_browse_empty_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nothing published here yet"
-          }
-        }
-      }
-    },
-    "discover_browse_empty_subtitle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loopky’s public index is new. Publish a deck and it shows up here for everyone."
+            "value": "Discover"
           }
         }
       }
@@ -1200,84 +980,62 @@
         }
       }
     },
-    "discover_empty_tag_emoji": {
+    "edit_card_add_audio": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "🔍"
+            "value": "Add audio"
           }
         }
       }
     },
-    "discover_empty_tag_title": {
+    "edit_card_add_image": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No decks tagged “%1$@” yet"
+            "value": "Add image"
           }
         }
       }
     },
-    "discover_empty_tag_subtitle": {
+    "edit_card_add_tag": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Follow more friends to widen your feed, or tap the tag again to clear it."
+            "value": "+ Add"
           }
         }
       }
     },
-    "discover_empty_emoji": {
+    "edit_card_audio": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "👥"
+            "value": "Audio"
           }
         }
       }
     },
-    "discover_empty_title": {
+    "edit_card_back_placeholder": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Follow a friend to see their decks here"
+            "value": "Enter back text..."
           }
         }
       }
     },
-    "discover_empty_subtitle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add a friend by their pubky to follow them and discover their public decks."
-          }
-        }
-      }
-    },
-    "paste_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paste cards"
-          }
-        }
-      }
-    },
-    "paste_cancel": {
+    "edit_card_cancel": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -1288,326 +1046,73 @@
         }
       }
     },
-    "paste_next": {
+    "edit_card_context": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Next"
+            "value": "Card %1$lld of %2$lld · %3$@"
           }
         }
       }
     },
-    "paste_input_placeholder_title": {
+    "edit_card_delete": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Paste your list here"
+            "value": "Delete card"
           }
         }
       }
     },
-    "paste_input_placeholder_subtitle": {
+    "edit_card_front_placeholder": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "one card per line"
+            "value": "Enter front text..."
           }
         }
       }
     },
-    "paste_detected_separator": {
+    "edit_card_image": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Detected: %1$@"
+            "value": "Image"
           }
         }
       }
     },
-    "paste_card_count": {
+    "edit_card_label_back": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld cards"
+            "value": "BACK"
           }
         }
       }
     },
-    "paste_preview_label": {
+    "edit_card_label_front": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "PREVIEW"
+            "value": "FRONT"
           }
         }
       }
     },
-    "paste_try_pasting_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TRY PASTING SOMETHING LIKE"
-          }
-        }
-      }
-    },
-    "paste_public_notice": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This deck will be public on your profile"
-          }
-        }
-      }
-    },
-    "paste_card_index": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld/%2$lld"
-          }
-        }
-      }
-    },
-    "paste_blank_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "—"
-          }
-        }
-      }
-    },
-    "paste_separator_tab": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "tab"
-          }
-        }
-      }
-    },
-    "paste_separator_semicolon": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "semicolon"
-          }
-        }
-      }
-    },
-    "paste_separator_pipe": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "pipe"
-          }
-        }
-      }
-    },
-    "paste_separator_em_dash": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "em-dash"
-          }
-        }
-      }
-    },
-    "paste_separator_colon": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "colon"
-          }
-        }
-      }
-    },
-    "paste_separator_comma": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "comma"
-          }
-        }
-      }
-    },
-    "paste_separator_blank_lines": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "blank lines"
-          }
-        }
-      }
-    },
-    "paste_separator_markdown": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "markdown"
-          }
-        }
-      }
-    },
-    "paste_separator_single_column": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "single column"
-          }
-        }
-      }
-    },
-    "paste_separator_auto": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "auto"
-          }
-        }
-      }
-    },
-    "publish_back": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back"
-          }
-        }
-      }
-    },
-    "publish_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New deck"
-          }
-        }
-      }
-    },
-    "publish_cards_ready": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld cards ready"
-          }
-        }
-      }
-    },
-    "publish_cover_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "COVER"
-          }
-        }
-      }
-    },
-    "publish_cover_change": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Change"
-          }
-        }
-      }
-    },
-    "publish_title_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "TITLE"
-          }
-        }
-      }
-    },
-    "publish_title_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deck title"
-          }
-        }
-      }
-    },
-    "publish_description_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "DESCRIPTION"
-          }
-        }
-      }
-    },
-    "publish_description_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add a short description..."
-          }
-        }
-      }
-    },
-    "publish_tags_label": {
+    "edit_card_label_tags": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -1618,442 +1123,233 @@
         }
       }
     },
-    "publish_add_tag": {
+    "edit_card_new_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add tag"
+            "value": "New card"
           }
         }
       }
     },
-    "publish_add": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add"
-          }
-        }
-      }
-    },
-    "publish_public_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Public on your profile"
-          }
-        }
-      }
-    },
-    "publish_public_subtitle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anyone can find this deck on Discover."
-          }
-        }
-      }
-    },
-    "publish_button": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Publish deck"
-          }
-        }
-      }
-    },
-    "publish_tag_sheet_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Tag"
-          }
-        }
-      }
-    },
-    "publish_tag_input_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Type a tag…"
-          }
-        }
-      }
-    },
-    "publish_suggested_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SUGGESTED"
-          }
-        }
-      }
-    },
-    "publish_current_tags_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CURRENT TAGS"
-          }
-        }
-      }
-    },
-    "publish_add_tag_button": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Tag"
-          }
-        }
-      }
-    },
-    "publish_published_icon_desc": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Published"
-          }
-        }
-      }
-    },
-    "publish_published_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deck published!"
-          }
-        }
-      }
-    },
-    "publish_published_subtitle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld cards are now public on your Pubky."
-          }
-        }
-      }
-    },
-    "publish_done": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Done"
-          }
-        }
-      }
-    },
-    "publish_undo": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Undo (%1$llds)"
-          }
-        }
-      }
-    },
-    "brand_tagline": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Learn anything,\nremember everything."
-          }
-        }
-      }
-    },
-    "onboarding_hero_subtitle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spaced repetition that feels like a game. Decks you make, share, and learn from friends."
-          }
-        }
-      }
-    },
-    "onboarding_brand_name": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loopky"
-          }
-        }
-      }
-    },
-    "onboarding_signin_waiting": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waiting for Pubky Ring…"
-          }
-        }
-      }
-    },
-    "onboarding_signin_verifying": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Signing in…"
-          }
-        }
-      }
-    },
-    "onboarding_signin_default": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign in with Pubky Ring"
-          }
-        }
-      }
-    },
-    "onboarding_no_email_notice": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No email. No password. Your key, your account."
-          }
-        }
-      }
-    },
-    "onboarding_get_ring": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Don't have Pubky Ring? Get the app"
-          }
-        }
-      }
-    },
-    "profile_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Profile"
-          }
-        }
-      }
-    },
-    "profile_settings_content_description": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settings"
-          }
-        }
-      }
-    },
-    "profile_pubky_short": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@"
-          }
-        }
-      }
-    },
-    "profile_pubky_truncated": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@…%2$@"
-          }
-        }
-      }
-    },
-    "profile_edit_profile": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Profile"
-          }
-        }
-      }
-    },
-    "profile_share_content_description": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Share"
-          }
-        }
-      }
-    },
-    "profile_stat_decks": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Decks"
-          }
-        }
-      }
-    },
-    "profile_stat_cards": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cards"
-          }
-        }
-      }
-    },
-    "profile_stat_due": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Due"
-          }
-        }
-      }
-    },
-    "profile_sign_out": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign out"
-          }
-        }
-      }
-    },
-    "profile_dismiss": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dismiss"
-          }
-        }
-      }
-    },
-    "profile_edit_profile_sheet_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Profile"
-          }
-        }
-      }
-    },
-    "profile_edit_name_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NAME"
-          }
-        }
-      }
-    },
-    "profile_edit_name_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your name"
-          }
-        }
-      }
-    },
-    "profile_edit_bio_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BIO"
-          }
-        }
-      }
-    },
-    "profile_edit_bio_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tell us about yourself..."
-          }
-        }
-      }
-    },
-    "profile_save": {
+    "edit_card_save": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Save"
+          }
+        }
+      }
+    },
+    "edit_card_saving": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saving…"
+          }
+        }
+      }
+    },
+    "edit_card_speak": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak"
+          }
+        }
+      }
+    },
+    "edit_card_speak_back": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak back"
+          }
+        }
+      }
+    },
+    "edit_card_speak_front": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak front"
+          }
+        }
+      }
+    },
+    "edit_card_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit card"
+          }
+        }
+      }
+    },
+    "follow_list_back_content_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "follow_list_empty_followers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody yet. People using Loopky who follow you show up here."
+          }
+        }
+      }
+    },
+    "follow_list_empty_followers_other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody yet. People using Loopky who follow them show up here."
+          }
+        }
+      }
+    },
+    "follow_list_empty_following": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody yet. People you follow who also use Loopky show up here."
+          }
+        }
+      }
+    },
+    "follow_list_empty_following_other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody yet. People they follow who also use Loopky show up here."
+          }
+        }
+      }
+    },
+    "follow_list_followers_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Followers"
+          }
+        }
+      }
+    },
+    "follow_list_following_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following"
+          }
+        }
+      }
+    },
+    "follow_list_loading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading people…"
+          }
+        }
+      }
+    },
+    "follow_list_loopky_only": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only people with a Loopky account are listed."
+          }
+        }
+      }
+    },
+    "form_error_card_side_required": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This side needs some text or a picture."
+          }
+        }
+      }
+    },
+    "form_error_card_text_too_long": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's too long for a card."
+          }
+        }
+      }
+    },
+    "form_error_description_too_long": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That description is too long."
+          }
+        }
+      }
+    },
+    "form_error_title_required": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Give the deck a title."
+          }
+        }
+      }
+    },
+    "form_error_title_too_long": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That title is too long."
           }
         }
       }
@@ -2069,17 +1365,6 @@
         }
       }
     },
-    "friend_profile_pubky_truncated": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@…%2$@"
-          }
-        }
-      }
-    },
     "friend_profile_copy_pubky": {
       "extractionState": "manual",
       "localizations": {
@@ -2091,13 +1376,13 @@
         }
       }
     },
-    "friend_profile_public_decks_count": {
+    "friend_profile_no_decks": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Public decks · %1$lld"
+            "value": "No decks yet."
           }
         }
       }
@@ -2113,51 +1398,7 @@
         }
       }
     },
-    "settings_back_content_description": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back"
-          }
-        }
-      }
-    },
-    "settings_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settings"
-          }
-        }
-      }
-    },
-    "settings_section_identity": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "IDENTITY"
-          }
-        }
-      }
-    },
-    "settings_pubky_label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pubky"
-          }
-        }
-      }
-    },
-    "settings_pubky_truncated": {
+    "friend_profile_pubky_truncated": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -2168,244 +1409,222 @@
         }
       }
     },
-    "settings_not_signed_in": {
+    "friend_profile_public_decks_count": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not signed in"
+            "value": "Public decks · %1$lld"
           }
         }
       }
     },
-    "settings_copy": {
+    "friend_profile_share": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Copy"
+            "value": "Share profile"
           }
         }
       }
     },
-    "settings_homeserver_label": {
+    "home_browse_examples": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Homeserver"
+            "value": "Browse examples"
           }
         }
       }
     },
-    "settings_homeserver_unknown": {
+    "home_cards": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Unknown"
+            "value": "cards"
           }
         }
       }
     },
-    "settings_section_about": {
+    "home_create_first_deck": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ABOUT"
+            "value": "Create your first deck"
           }
         }
       }
     },
-    "settings_app_version_label": {
+    "home_deck_due_cards": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "App version"
+            "value": "%1$lld due · %2$lld cards"
           }
         }
       }
     },
-    "settings_app_version_unknown": {
+    "home_due_today": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "—"
+            "value": "DUE TODAY"
           }
         }
       }
     },
-    "settings_sign_out": {
+    "home_empty_subtitle": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign out"
+            "value": "Paste a list, import from a file, or start from scratch — your first deck is one tap away."
           }
         }
       }
     },
-    "settings_sign_out_dialog_title": {
+    "home_empty_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign out?"
+            "value": "No decks yet"
           }
         }
       }
     },
-    "settings_sign_out_dialog_message": {
+    "home_error_title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your decks stay on your homeserver. Signing back in restores everything."
+            "value": "Something went wrong"
           }
         }
       }
     },
-    "settings_cancel": {
+    "home_greeting_hello": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cancel"
+            "value": "Hello,"
           }
         }
       }
     },
-    "component_deck_tile_card_count": {
+    "home_greeting_name": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld cards"
+            "value": "%1$@ 👋"
           }
         }
       }
     },
-    "component_author_row_following": {
+    "home_progress_done": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Following"
+            "value": "%1$lld of %2$lld done · keep going!"
           }
         }
       }
     },
-    "component_author_row_follow": {
+    "home_retry": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Follow"
+            "value": "Retry"
           }
         }
       }
     },
-    "component_stats_bar_total": {
+    "home_see_all": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Total"
+            "value": "See all"
           }
         }
       }
     },
-    "component_stats_bar_due": {
+    "home_start_studying": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Due"
+            "value": "Start studying"
           }
         }
       }
     },
-    "component_stats_bar_new": {
+    "home_to_review": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "New"
+            "value": "to review"
           }
         }
       }
     },
-    "component_stats_bar_mastered": {
+    "home_todays_decks": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mastered"
+            "value": "Today's decks"
           }
         }
       }
     },
-    "component_stats_bar_cards": {
+    "identity_unknown_person": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cards"
+            "value": "there"
           }
         }
       }
     },
-    "component_tag_chip_label": {
+    "identity_you_badge": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "#%1$@"
-          }
-        }
-      }
-    },
-    "component_tag_chip_remove": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remove tag"
-          }
-        }
-      }
-    },
-    "nav_tab_study": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "STUDY"
+            "value": "You"
           }
         }
       }
@@ -2443,35 +1662,1168 @@
         }
       }
     },
-    "common_coming_soon": {
+    "nav_tab_study": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Coming soon"
+            "value": "STUDY"
           }
         }
       }
     },
-    "identity_you_badge": {
+    "onboarding_brand_name": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You"
+            "value": "Loopky"
           }
         }
       }
     },
-    "identity_unknown_person": {
+    "onboarding_get_ring": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "there"
+            "value": "Don't have Pubky Ring? Get the app"
+          }
+        }
+      }
+    },
+    "onboarding_hero_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spaced repetition that feels like a game. Decks you make, share, and learn from friends."
+          }
+        }
+      }
+    },
+    "onboarding_no_email_notice": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No email. No password. Your key, your account."
+          }
+        }
+      }
+    },
+    "onboarding_qr_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Pubky Ring on your phone, tap Authorize, and scan this code."
+          }
+        }
+      }
+    },
+    "onboarding_qr_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "onboarding_qr_copied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign-in link copied"
+          }
+        }
+      }
+    },
+    "onboarding_qr_copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy sign-in link"
+          }
+        }
+      }
+    },
+    "onboarding_qr_open_here": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I have Pubky Ring on this device"
+          }
+        }
+      }
+    },
+    "onboarding_qr_sheet_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pubky Ring isn't on this device. Open it on the phone that holds your key, tap Authorize, and scan this code."
+          }
+        }
+      }
+    },
+    "onboarding_qr_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan with Pubky Ring"
+          }
+        }
+      }
+    },
+    "onboarding_qr_waiting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for you to approve in Pubky Ring…"
+          }
+        }
+      }
+    },
+    "onboarding_signin_default": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in with Pubky Ring"
+          }
+        }
+      }
+    },
+    "onboarding_signin_verifying": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signing in…"
+          }
+        }
+      }
+    },
+    "onboarding_signin_waiting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for Pubky Ring…"
+          }
+        }
+      }
+    },
+    "paste_blank_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "—"
+          }
+        }
+      }
+    },
+    "paste_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "paste_card_count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld cards"
+          }
+        }
+      }
+    },
+    "paste_card_index": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "paste_detected_separator": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detected: %1$@"
+          }
+        }
+      }
+    },
+    "paste_incomplete_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld card(s) are missing a front or a back. You can fix them after importing."
+          }
+        }
+      }
+    },
+    "paste_input_placeholder_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "one card per line"
+          }
+        }
+      }
+    },
+    "paste_input_placeholder_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste your list here"
+          }
+        }
+      }
+    },
+    "paste_next": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next"
+          }
+        }
+      }
+    },
+    "paste_no_pattern": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No front/back pattern found — every line became a single column. Pick a separator above, or add one to your text."
+          }
+        }
+      }
+    },
+    "paste_preview_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PREVIEW"
+          }
+        }
+      }
+    },
+    "paste_public_notice": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This deck will be public on your profile"
+          }
+        }
+      }
+    },
+    "paste_separator_auto": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "auto"
+          }
+        }
+      }
+    },
+    "paste_separator_blank_lines": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "blank lines"
+          }
+        }
+      }
+    },
+    "paste_separator_colon": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "colon"
+          }
+        }
+      }
+    },
+    "paste_separator_comma": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "comma"
+          }
+        }
+      }
+    },
+    "paste_separator_em_dash": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "em-dash"
+          }
+        }
+      }
+    },
+    "paste_separator_markdown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "markdown"
+          }
+        }
+      }
+    },
+    "paste_separator_pipe": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pipe"
+          }
+        }
+      }
+    },
+    "paste_separator_semicolon": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "semicolon"
+          }
+        }
+      }
+    },
+    "paste_separator_single_column": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "single column"
+          }
+        }
+      }
+    },
+    "paste_separator_tab": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tab"
+          }
+        }
+      }
+    },
+    "paste_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste cards"
+          }
+        }
+      }
+    },
+    "paste_try_pasting_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TRY PASTING SOMETHING LIKE"
+          }
+        }
+      }
+    },
+    "profile_copied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        }
+      }
+    },
+    "profile_copy_pubky": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy pubky"
+          }
+        }
+      }
+    },
+    "profile_dismiss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        }
+      }
+    },
+    "profile_edit_bio_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BIO"
+          }
+        }
+      }
+    },
+    "profile_edit_bio_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tell us about yourself..."
+          }
+        }
+      }
+    },
+    "profile_edit_name_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NAME"
+          }
+        }
+      }
+    },
+    "profile_edit_name_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your name"
+          }
+        }
+      }
+    },
+    "profile_edit_profile": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Profile"
+          }
+        }
+      }
+    },
+    "profile_edit_profile_sheet_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Profile"
+          }
+        }
+      }
+    },
+    "profile_open_on_pubky_app": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open on pubky.app"
+          }
+        }
+      }
+    },
+    "profile_pubky_short": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@"
+          }
+        }
+      }
+    },
+    "profile_pubky_truncated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@…%2$@"
+          }
+        }
+      }
+    },
+    "profile_save": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        }
+      }
+    },
+    "profile_settings_content_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        }
+      }
+    },
+    "profile_share_content_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share"
+          }
+        }
+      }
+    },
+    "profile_sign_out": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out"
+          }
+        }
+      }
+    },
+    "profile_sign_out_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "profile_sign_out_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out"
+          }
+        }
+      }
+    },
+    "profile_sign_out_dialog_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You'll need Pubky Ring to sign back in. Your decks stay on your homeserver."
+          }
+        }
+      }
+    },
+    "profile_sign_out_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out?"
+          }
+        }
+      }
+    },
+    "profile_stat_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cards"
+          }
+        }
+      }
+    },
+    "profile_stat_decks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decks"
+          }
+        }
+      }
+    },
+    "profile_stat_due": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Due"
+          }
+        }
+      }
+    },
+    "profile_stat_followers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Followers"
+          }
+        }
+      }
+    },
+    "profile_stat_following": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following"
+          }
+        }
+      }
+    },
+    "profile_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Profile"
+          }
+        }
+      }
+    },
+    "publish_add": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
+          }
+        }
+      }
+    },
+    "publish_add_tag": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add tag"
+          }
+        }
+      }
+    },
+    "publish_add_tag_button": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Tag"
+          }
+        }
+      }
+    },
+    "publish_back": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "publish_button": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publish deck"
+          }
+        }
+      }
+    },
+    "publish_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "publish_card_options_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CARD OPTIONS"
+          }
+        }
+      }
+    },
+    "publish_cards_ready": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld cards ready"
+          }
+        }
+      }
+    },
+    "publish_cover_change": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change"
+          }
+        }
+      }
+    },
+    "publish_cover_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "COVER"
+          }
+        }
+      }
+    },
+    "publish_current_tags_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CURRENT TAGS"
+          }
+        }
+      }
+    },
+    "publish_description_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DESCRIPTION"
+          }
+        }
+      }
+    },
+    "publish_description_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a short description..."
+          }
+        }
+      }
+    },
+    "publish_done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "publish_error_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't clean up the cancelled deck. Part of it is still on your homeserver."
+          }
+        }
+      }
+    },
+    "publish_error_no_draft": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There's nothing to publish — the import was lost. Go back and paste your list again."
+          }
+        }
+      }
+    },
+    "publish_error_undo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't undo the publish. The deck is still on your homeserver."
+          }
+        }
+      }
+    },
+    "publish_listen_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play audio pronunciation on card back"
+          }
+        }
+      }
+    },
+    "publish_listen_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listen"
+          }
+        }
+      }
+    },
+    "publish_progress_count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld cards"
+          }
+        }
+      }
+    },
+    "publish_public_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anyone can find this deck on Discover."
+          }
+        }
+      }
+    },
+    "publish_public_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Public on your profile"
+          }
+        }
+      }
+    },
+    "publish_published_icon_desc": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Published"
+          }
+        }
+      }
+    },
+    "publish_published_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld cards are now public on your Pubky."
+          }
+        }
+      }
+    },
+    "publish_published_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deck published!"
+          }
+        }
+      }
+    },
+    "publish_publishing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publishing…"
+          }
+        }
+      }
+    },
+    "publish_reverse_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Also ask each card back to front"
+          }
+        }
+      }
+    },
+    "publish_reverse_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Both directions"
+          }
+        }
+      }
+    },
+    "publish_speak_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Test your pronunciation"
+          }
+        }
+      }
+    },
+    "publish_speak_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak"
+          }
+        }
+      }
+    },
+    "publish_suggested_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SUGGESTED"
+          }
+        }
+      }
+    },
+    "publish_tag_input_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type a tag…"
+          }
+        }
+      }
+    },
+    "publish_tag_sheet_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Tag"
+          }
+        }
+      }
+    },
+    "publish_tags_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TAGS"
+          }
+        }
+      }
+    },
+    "publish_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New deck"
+          }
+        }
+      }
+    },
+    "publish_title_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TITLE"
+          }
+        }
+      }
+    },
+    "publish_title_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deck title"
+          }
+        }
+      }
+    },
+    "publish_type_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write the answer instead of just reading it"
+          }
+        }
+      }
+    },
+    "publish_type_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type the answer"
+          }
+        }
+      }
+    },
+    "publish_undo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo (%1$llds)"
           }
         }
       }
@@ -2487,17 +2839,6 @@
         }
       }
     },
-    "search_placeholder": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Search or paste a pubky"
-          }
-        }
-      }
-    },
     "search_clear": {
       "extractionState": "manual",
       "localizations": {
@@ -2505,39 +2846,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Clear"
-          }
-        }
-      }
-    },
-    "search_scan_qr": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scan QR code"
-          }
-        }
-      }
-    },
-    "search_hint": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Search by name, or paste a pubky, a shared link or scan a QR code."
-          }
-        }
-      }
-    },
-    "search_people_title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "People"
           }
         }
       }
@@ -2553,24 +2861,13 @@
         }
       }
     },
-    "search_open_profile": {
+    "search_empty_subtitle": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open this profile"
-          }
-        }
-      }
-    },
-    "search_open_deck": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open this deck"
+            "value": "Try a different name, or paste their pubky to open them directly."
           }
         }
       }
@@ -2586,35 +2883,1234 @@
         }
       }
     },
-    "search_empty_subtitle": {
+    "search_hint": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Try a different name, or paste their pubky to open them directly."
+            "value": "Search by name, or paste a pubky, a shared link or scan a QR code."
           }
         }
       }
     },
-    "deck_editor_loading_cards": {
+    "search_open_deck": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loading more cards…"
+            "value": "Open this deck"
           }
         }
       }
     },
-    "deck_editor_load_more_cards": {
+    "search_open_profile": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Load more cards"
+            "value": "Open this profile"
+          }
+        }
+      }
+    },
+    "search_people_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "People"
+          }
+        }
+      }
+    },
+    "search_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search or paste a pubky"
+          }
+        }
+      }
+    },
+    "search_scan_qr": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan QR code"
+          }
+        }
+      }
+    },
+    "settings_app_version_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App version"
+          }
+        }
+      }
+    },
+    "settings_app_version_unknown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "—"
+          }
+        }
+      }
+    },
+    "settings_back_content_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "settings_back_up_account": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back up your account"
+          }
+        }
+      }
+    },
+    "settings_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "settings_copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        }
+      }
+    },
+    "settings_delete_account": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account"
+          }
+        }
+      }
+    },
+    "settings_delete_account_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account"
+          }
+        }
+      }
+    },
+    "settings_delete_account_confirm_countdown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account (%1$d)"
+          }
+        }
+      }
+    },
+    "settings_delete_account_dialog_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your decks, cards, images and study progress will be permanently deleted from your homeserver, and your profile will be removed from Loopky."
+          }
+        }
+      }
+    },
+    "settings_delete_account_dialog_identity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Pubky identity stays in Pubky Ring."
+          }
+        }
+      }
+    },
+    "settings_delete_account_dialog_irreversible": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This cannot be undone."
+          }
+        }
+      }
+    },
+    "settings_delete_account_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account?"
+          }
+        }
+      }
+    },
+    "settings_delete_account_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not delete everything. You are still signed in, so you can try again."
+          }
+        }
+      }
+    },
+    "settings_delete_account_progress_count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d of %2$d removed"
+          }
+        }
+      }
+    },
+    "settings_delete_account_progress_starting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting"
+          }
+        }
+      }
+    },
+    "settings_delete_account_progress_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleting"
+          }
+        }
+      }
+    },
+    "settings_homeserver_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Homeserver"
+          }
+        }
+      }
+    },
+    "settings_homeserver_unknown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
+          }
+        }
+      }
+    },
+    "settings_interval_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How long until the card comes back. The same every time you tap that grade, however often you've seen it."
+          }
+        }
+      }
+    },
+    "settings_interval_easy_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Easy interval (days)"
+          }
+        }
+      }
+    },
+    "settings_interval_good_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Good interval (days)"
+          }
+        }
+      }
+    },
+    "settings_interval_hard_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hard interval (days)"
+          }
+        }
+      }
+    },
+    "settings_interval_mastery_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A card counts as mastered once it's on your longest interval, so raising this raises the bar."
+          }
+        }
+      }
+    },
+    "settings_license": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "License"
+          }
+        }
+      }
+    },
+    "settings_loading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading settings…"
+          }
+        }
+      }
+    },
+    "settings_new_cards_goal_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A goal, not a limit. You'll be told when you reach it and can keep going."
+          }
+        }
+      }
+    },
+    "settings_new_cards_goal_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New cards per day"
+          }
+        }
+      }
+    },
+    "settings_not_signed_in": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not signed in"
+          }
+        }
+      }
+    },
+    "settings_privacy_policy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy policy"
+          }
+        }
+      }
+    },
+    "settings_pubky_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pubky"
+          }
+        }
+      }
+    },
+    "settings_pubky_truncated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@…%2$@"
+          }
+        }
+      }
+    },
+    "settings_section_about": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ABOUT"
+          }
+        }
+      }
+    },
+    "settings_section_identity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IDENTITY"
+          }
+        }
+      }
+    },
+    "settings_section_image_search": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IMAGE SEARCH"
+          }
+        }
+      }
+    },
+    "settings_section_sharing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SHARING"
+          }
+        }
+      }
+    },
+    "settings_section_studying": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "STUDYING"
+          }
+        }
+      }
+    },
+    "settings_share_on_pubky_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After you create, follow or clone a deck, offer to post about it so your Pubky followers see it. Your decks stay public either way — this only controls the post."
+          }
+        }
+      }
+    },
+    "settings_share_on_pubky_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask to share on Pubky"
+          }
+        }
+      }
+    },
+    "settings_sign_out": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out"
+          }
+        }
+      }
+    },
+    "settings_sign_out_dialog_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your decks stay on your homeserver. Signing back in restores everything."
+          }
+        }
+      }
+    },
+    "settings_sign_out_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out?"
+          }
+        }
+      }
+    },
+    "settings_signout_unbacked_backup": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back up first"
+          }
+        }
+      }
+    },
+    "settings_signout_unbacked_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky holds the only copy of the key for %1$s, and you haven't backed it up. Signing out deletes it, and this account can never be recovered."
+          }
+        }
+      }
+    },
+    "settings_signout_unbacked_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out and erase"
+          }
+        }
+      }
+    },
+    "settings_signout_unbacked_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signing out will erase your key"
+          }
+        }
+      }
+    },
+    "settings_study_save_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't save your study settings."
+          }
+        }
+      }
+    },
+    "settings_study_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't reach your settings on Pubky. Editing is off until they load, so nothing overwrites them."
+          }
+        }
+      }
+    },
+    "settings_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_built_in": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Using Loopky's shared key (limited)"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_error_invalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsplash rejected that key. Check you copied the Access Key in full."
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_error_missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a key first."
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_error_rate_limited": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That key has hit its hourly limit. Try again later."
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_error_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't reach Unsplash to check the key."
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_get": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get a key"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free from Unsplash: create an application in your developer dashboard, then copy its Access Key — not the Secret key."
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsplash access key"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_not_set": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not set — web image search is off"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste your Access Key"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_remove": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_replace": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_save": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_set": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_user_set": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key set · ••••%1$s"
+          }
+        }
+      }
+    },
+    "share_prompt_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share"
+          }
+        }
+      }
+    },
+    "share_prompt_dismiss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not now"
+          }
+        }
+      }
+    },
+    "share_prompt_never": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't ask again"
+          }
+        }
+      }
+    },
+    "share_prompt_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share this on Pubky?"
+          }
+        }
+      }
+    },
+    "sign_in_prompt_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in to do that"
+          }
+        }
+      }
+    },
+    "study_back": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "study_close": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "study_complete_subtitle_many": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You reviewed %1$lld cards."
+          }
+        }
+      }
+    },
+    "study_complete_subtitle_one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You reviewed 1 card."
+          }
+        }
+      }
+    },
+    "study_complete_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All done! 🎊"
+          }
+        }
+      }
+    },
+    "study_done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "study_empty_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No cards due right now."
+          }
+        }
+      }
+    },
+    "study_empty_subtitle_deck": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No cards due in %1$@ right now."
+          }
+        }
+      }
+    },
+    "study_empty_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're all caught up 🎉"
+          }
+        }
+      }
+    },
+    "study_error_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something went wrong"
+          }
+        }
+      }
+    },
+    "study_flip_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap card to reveal answer"
+          }
+        }
+      }
+    },
+    "study_goal_done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to home"
+          }
+        }
+      }
+    },
+    "study_goal_keep_studying": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep studying"
+          }
+        }
+      }
+    },
+    "study_goal_reached_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's your target for today. Nothing is locked, so keep going if you're on a roll."
+          }
+        }
+      }
+    },
+    "study_goal_reached_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily goal reached!"
+          }
+        }
+      }
+    },
+    "study_listen": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listen"
+          }
+        }
+      }
+    },
+    "study_loading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dealing your cards…"
+          }
+        }
+      }
+    },
+    "study_position_of_total": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "study_preview_action_guest": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create account"
+          }
+        }
+      }
+    },
+    "study_preview_back": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to deck"
+          }
+        }
+      }
+    },
+    "study_preview_badge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview · progress isn't saved"
+          }
+        }
+      }
+    },
+    "study_preview_complete_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's the preview 👋"
+          }
+        }
+      }
+    },
+    "study_preview_guest_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create an account and this deck remembers what you got right — and asks again on the day you're about to forget it."
+          }
+        }
+      }
+    },
+    "study_preview_member_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow or clone this deck to keep your progress on it."
+          }
+        }
+      }
+    },
+    "study_preview_next": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next card"
+          }
+        }
+      }
+    },
+    "study_reversed_badge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reversed"
+          }
+        }
+      }
+    },
+    "study_speak": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak"
+          }
+        }
+      }
+    },
+    "study_sync_error_dismiss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Got it"
+          }
+        }
+      }
+    },
+    "study_sync_error_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your reviews aren't saving"
+          }
+        }
+      }
+    },
+    "study_tap_to_reveal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TAP TO REVEAL"
+          }
+        }
+      }
+    },
+    "study_type_check": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check"
+          }
+        }
+      }
+    },
+    "study_type_correct": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct!"
+          }
+        }
+      }
+    },
+    "study_type_give_up": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Give up · show me"
+          }
+        }
+      }
+    },
+    "study_type_near_miss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Almost — check the accents"
+          }
+        }
+      }
+    },
+    "study_type_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type the answer"
+          }
+        }
+      }
+    },
+    "study_type_wrong": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not quite — try again"
           }
         }
       }

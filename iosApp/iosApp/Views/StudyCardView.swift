@@ -1,0 +1,143 @@
+import SwiftUI
+
+/// The flashcard. One of the few places Loopky builds something custom rather than reaching for a
+/// native control — there is no system equivalent of a card that turns over.
+struct StudyCardView: View {
+    var state: StudyViewState
+    @Binding var typed: String
+    var answerFocused: FocusState<Bool>.Binding
+    var onFlip: () -> Void = {}
+    var onListen: () -> Void = {}
+    var onCheckAnswer: () -> Void = {}
+    var onGiveUp: () -> Void = {}
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 24)
+                .fill(LoopkyColor.surfaceCard)
+                .shadow(color: LoopkyColor.shadowElevationMedium, radius: 18, y: 8)
+            face
+                .padding(20)
+                // Counter-rotate the content, or the back face renders mirrored.
+                .rotation3DEffect(.degrees(state.revealed ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+        }
+        .rotation3DEffect(.degrees(state.revealed ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+        .animation(.easeInOut(duration: 0.35), value: state.revealed)
+        .frame(maxWidth: .infinity)
+        // Capped rather than free to grow. A flashcard stretched to a full screen is a wall of
+        // white around one word, and it pushes the grade row off the thumb's reach.
+        .frame(minHeight: 260, maxHeight: 440)
+        // The whole card is the flip target, and it stays live while answering: what a typing card
+        // withholds is the answer, never the gesture.
+        .contentShape(RoundedRectangle(cornerRadius: 24))
+        .onTapGesture(perform: onFlip)
+        // Without this the card is invisible to VoiceOver and to UI automation: a tap gesture on a
+        // shape is not a control, so nothing announces it and nothing can drive it.
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(Text(state.revealed ? state.backText : state.frontText))
+        .accessibilityHint(Text("study_flip_hint"))
+        .accessibilityIdentifier("study_card")
+    }
+
+    @ViewBuilder
+    private var face: some View {
+        VStack(spacing: 14) {
+            if state.revealed { backFace } else { frontFace }
+        }
+    }
+
+    private var frontFace: some View {
+        VStack(spacing: 14) {
+            Text(state.frontText)
+                .font(.system(size: 26, weight: .bold))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+                .multilineTextAlignment(.center)
+            // Listen practises the side that is showing, so it belongs on both faces — but see
+            // `backFace`, where it comes off a masked answer.
+            if state.listenEnabled { listenButton }
+        }
+    }
+
+    private var backFace: some View {
+        VStack(spacing: 12) {
+            if let label = state.backLabel, !label.isEmpty {
+                Text(label)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(LoopkyColor.accentPrimary)
+            }
+
+            if state.answerHidden {
+                answerInput
+            } else {
+                Text(state.backText)
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(LoopkyColor.foregroundPrimary)
+                    .multilineTextAlignment(.center)
+                if state.typePhase == .correct {
+                    Text("study_type_correct")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(LoopkyColor.srsGood)
+                }
+                // Only once the answer is actually on the card — reading a masked back aloud
+                // would hand over the thing the card is withholding.
+                if state.listenEnabled { listenButton }
+            }
+        }
+    }
+
+    /// The input sits *on the card back*, under the prompt label, in the space the answer will
+    /// occupy — not in a row beneath the card.
+    private var answerInput: some View {
+        VStack(spacing: 10) {
+            TextField("study_type_placeholder", text: $typed)
+                .textFieldStyle(.plain)
+                .font(.system(size: 22, weight: .bold))
+                .multilineTextAlignment(.center)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .focused(answerFocused)
+                .onSubmit(onCheckAnswer)
+                .padding(.vertical, 10)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(LoopkyColor.borderSubtle).frame(height: 1)
+                }
+                .accessibilityIdentifier("study_type_input")
+
+            // Names what kind of miss it was, and does not echo what you typed — that is still in
+            // the field, which is the point: you are correcting it, not being told the answer.
+            if let miss = state.typeMissMessage {
+                Text(miss)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(LoopkyColor.srsHard)
+            }
+
+            Button("study_type_check", action: onCheckAnswer)
+                .buttonStyle(.loopkyFilled)
+                .disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityIdentifier("study_type_check")
+
+            // Always right there under Check, and it reports nothing to the scheduler.
+            Button("study_type_give_up", action: onGiveUp)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(LoopkyColor.foregroundMuted)
+                .accessibilityIdentifier("study_type_give_up")
+        }
+    }
+
+    private var listenButton: some View {
+        Button(action: onListen) {
+            HStack(spacing: 6) {
+                Image(systemName: "speaker.wave.2.fill").font(.system(size: 12))
+                Text("study_listen").font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(LoopkyColor.accentPrimary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(LoopkyColor.accentPrimarySoft))
+        }
+        // The card's tap-to-flip must not swallow the button's own tap.
+        .buttonStyle(.plain)
+    }
+}

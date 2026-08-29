@@ -3,11 +3,12 @@ import Shared
 
 /// VM-driven wrapper around the presentational `SearchView`.
 ///
-/// Note the teardown call: the shared ViewModels extend the multiplatform
-/// `androidx.lifecycle.ViewModel`, which exposes `clear()` — there is no `onDispose()`.
+/// Note the teardown call: androidx's own `ViewModel.clear()` is internal and is not exported to
+/// Objective-C, so releasing a VM goes through `IosDependencies.clear(viewModel:)`.
 struct SearchScreen: View {
     var onOpenProfile: (String) -> Void = { _ in }
-    var onOpenDeck: (String, String) -> Void = { _, _ in }
+    /// `(deckId, authorPubky)` — in that order. The two screens used to disagree.
+    var onOpenDeck: (_ deckId: String, _ authorPubky: String) -> Void = { _, _ in }
 
     @State private var viewModel: SearchViewModel?
     @State private var uiState: SearchUiState?
@@ -79,7 +80,7 @@ struct SearchScreen: View {
             case let open as SearchEffectOpenProfile:
                 onOpenProfile(open.pubky)
             case let open as SearchEffectOpenDeck:
-                onOpenDeck(open.authorPubky, open.deckId)
+                onOpenDeck(open.deckId, open.authorPubky)
             default:
                 // A failed follow reverts its own pill; nothing here has to navigate.
                 break
@@ -88,7 +89,7 @@ struct SearchScreen: View {
     }
 
     private func detach() {
-        viewModel?.clear()
+        if let viewModel { IosDependencies.shared.clear(viewModel: viewModel) }
         viewModel = nil
         stateSink = nil
         effectSink = nil

@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.di
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.homegate.HomegateClient
 import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
@@ -40,10 +42,13 @@ import com.github.jvsena42.loopky.presentation.home.HomeViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PasteImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingViewModel
+import com.github.jvsena42.loopky.presentation.profile.FollowListViewModel
+import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
+import kotlinx.coroutines.cancel
 import org.koin.core.Koin
 import org.koin.core.context.startKoin
 import org.koin.core.module.Module
@@ -109,7 +114,7 @@ private fun iosPlatformModule(
     single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }
     single<Speaker> { IosSpeaker() }
     single<PubkyRingPresence> { IosPubkyRingPresence() }
-    single<BackgroundTasks> { IosBackgroundTasks(identity = get(), decks = get()) }
+    single<BackgroundTasks> { IosBackgroundTasks(identityProvider = { get() }, decksProvider = { get() }) }
 }
 
 /** Resolver helper for SwiftUI — avoids depending on Koin Swift bridges in v1. */
@@ -125,8 +130,13 @@ object IosDependencies {
 
     fun decksLibraryViewModel(): DecksLibraryViewModel = koin.get()
 
-    fun deckDetailViewModel(deckId: String): DeckDetailViewModel =
-        koin.get { parametersOf(deckId) }
+    /**
+     * @param authorPubky the deck's author when it is someone else's, `null` for your own.
+     *   `DeckDetailViewModel` only fetches a remote deck when this is non-null, so dropping it
+     *   makes every deck opened from Discover fail as `NotFound`.
+     */
+    fun deckDetailViewModel(deckId: String, authorPubky: String?): DeckDetailViewModel =
+        koin.get { parametersOf(deckId, authorPubky) }
 
     fun deckEditorViewModel(deckId: String?): DeckEditorViewModel =
         koin.get { parametersOf(deckId) }
@@ -145,7 +155,12 @@ object IosDependencies {
 
     fun profileViewModel(): ProfileViewModel = koin.get()
 
-    fun settingsViewModel(): SettingsViewModel = koin.get()
+    /**
+     * @param appVersion the bundle's short version string. The Koin binding reads it from
+     *   `params.getOrNull() ?: ""`, so resolving with no parameters left the About row blank.
+     */
+    fun settingsViewModel(appVersion: String): SettingsViewModel =
+        koin.get { parametersOf(appVersion) }
 
     fun pasteImportViewModel(): PasteImportViewModel = koin.get()
 
@@ -153,4 +168,25 @@ object IosDependencies {
 
     fun friendProfileViewModel(pubky: String): FriendProfileViewModel =
         koin.get { parametersOf(pubky) }
+
+    /**
+     * Both parameters are mandatory — the Koin binding reads them with `params.get()`, not
+     * `getOrNull()`, so a missing one throws rather than defaulting.
+     */
+    fun followListViewModel(pubky: String, source: FollowSource): FollowListViewModel =
+        koin.get { parametersOf(pubky, source) }
+
+    /**
+     * Tear a ViewModel down when its SwiftUI view goes away.
+     *
+     * SwiftUI has no `ViewModelStore`, and androidx's own `ViewModel.clear()` is internal — so
+     * neither is exported to Objective-C and a Swift screen has no way to release the VM it
+     * resolved. Cancelling `viewModelScope` is the part that matters: it is what stops in-flight
+     * repository work, and it is what `clear()` does before invoking `onCleared()`.
+     *
+     * Call it from `.onDisappear`. Swift screens must not reuse the instance afterwards.
+     */
+    fun clear(viewModel: ViewModel) {
+        viewModel.viewModelScope.cancel()
+    }
 }

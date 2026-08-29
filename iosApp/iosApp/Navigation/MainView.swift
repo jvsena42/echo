@@ -1,12 +1,18 @@
 import SwiftUI
+import Shared
 
 struct MainView: View {
     @State private var selectedTab: LoopkyTab = .study
 
-    var onDeckTap: (String) -> Void = { _ in }
+    /// `(deckId, authorPubky)`; the author is `nil` for a deck you own.
+    var onDeckTap: (String, String?) -> Void = { _, _ in }
     var onImportTap: () -> Void = {}
     var onCreateDeckTap: () -> Void = {}
     var onSignedOut: () -> Void = {}
+    var onStartStudy: () -> Void = {}
+    var onOpenSettings: () -> Void = {}
+    var onOpenProfile: (String) -> Void = { _ in }
+    var onOpenFollows: (String, FollowSource) -> Void = { _, _ in }
 
     /// Search is presented over the tabs rather than pushed: it is a way to reach a screen, not a
     /// place in the tab hierarchy, and dismissing it must return to whatever tab asked for it.
@@ -17,17 +23,17 @@ struct MainView: View {
         // with Loopky's accent, rather than rebuilding the chrome from primitives.
         TabView(selection: $selectedTab) {
             HomeScreen(
-                onOpenDeck: onDeckTap,
+                onOpenDeck: { onDeckTap($0, nil) },
                 onCreateDeck: onCreateDeckTap,
                 onBrowseExamples: onImportTap,
-                onStartStudy: {},
+                onStartStudy: onStartStudy,
                 onSignedOut: onSignedOut
             )
             .tabItem { Label(LoopkyTab.study.title, systemImage: LoopkyTab.study.iconName) }
             .tag(LoopkyTab.study)
 
             DecksScreen(
-                onDeckTap: onDeckTap,
+                onDeckTap: { onDeckTap($0, nil) },
                 onImportTap: onImportTap,
                 onCreateDeckTap: onCreateDeckTap
             )
@@ -35,13 +41,18 @@ struct MainView: View {
             .tag(LoopkyTab.decks)
 
             DiscoverScreen(
-                onOpenDeck: { _, deckId in onDeckTap(deckId) },
+                onOpenProfile: onOpenProfile,
+                onOpenDeck: { deckId, author in onDeckTap(deckId, author) },
                 onSearch: { isSearching = true }
             )
             .tabItem { Label(LoopkyTab.discover.title, systemImage: LoopkyTab.discover.iconName) }
             .tag(LoopkyTab.discover)
 
-            ProfileView()
+            ProfileScreen(
+                onSignedOut: onSignedOut,
+                onOpenFollows: onOpenFollows,
+                onOpenSettings: onOpenSettings
+            )
                 .tabItem { Label(LoopkyTab.profile.title, systemImage: LoopkyTab.profile.iconName) }
                 .tag(LoopkyTab.profile)
         }
@@ -53,10 +64,10 @@ struct MainView: View {
         .navigationBarHidden(true)
         .sheet(isPresented: $isSearching) {
             SearchScreen(
-                onOpenProfile: { _ in isSearching = false },
-                onOpenDeck: { _, deckId in
+                onOpenProfile: { pubky in isSearching = false; onOpenProfile(pubky) },
+                onOpenDeck: { deckId, author in
                     isSearching = false
-                    onDeckTap(deckId)
+                    onDeckTap(deckId, author)
                 }
             )
         }

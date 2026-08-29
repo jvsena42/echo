@@ -1,21 +1,31 @@
 import SwiftUI
+import Shared
 
 enum DeckRoute: Hashable, Identifiable {
-    case detail(String)
+    case detail(String, String?)
     case editor(String)
     case editorNew
     case editCard(String, String)
     case importPaste
     case importPublish
+    /// `nil` means everything due across the library, which is what Home asks for.
+    case study(String?)
+    case settings
+    case friendProfile(String)
+    case followList(String, FollowSource)
 
     var id: String {
         switch self {
-        case .detail(let id): return "detail-\(id)"
+        case .detail(let id, let author): return "detail-\(id)-\(author ?? "self")"
         case .editor(let id): return "editor-\(id)"
         case .editorNew: return "editor-new"
         case .editCard(let deckId, let cardId): return "edit-\(deckId)-\(cardId)"
         case .importPaste: return "import-paste"
         case .importPublish: return "import-publish"
+        case .study(let id): return "study-\(id ?? "all")"
+        case .settings: return "settings"
+        case .friendProfile(let pubky): return "friend-\(pubky)"
+        case .followList(let pubky, let source): return "follows-\(pubky)-\(source.name)"
         }
     }
 }
@@ -35,19 +45,24 @@ struct RootView: View {
         NavigationStack {
             if isSignedIn {
                 MainView(
-                    onDeckTap: { deckId in deckRoute = .detail(deckId) },
+                    onDeckTap: { deckId, author in deckRoute = .detail(deckId, author) },
                     onImportTap: { deckRoute = .importPaste },
                     onCreateDeckTap: { deckRoute = .editorNew },
-                    onSignedOut: { isSignedIn = false }
+                    onSignedOut: { isSignedIn = false },
+                    onStartStudy: { deckRoute = .study(nil) },
+                    onOpenSettings: { deckRoute = .settings },
+                    onOpenProfile: { deckRoute = .friendProfile($0) },
+                    onOpenFollows: { pubky, source in deckRoute = .followList(pubky, source) }
                 )
                 .navigationDestination(item: $deckRoute) { route in
                     switch route {
-                    case .detail(let deckId):
+                    case .detail(let deckId, let author):
                         DeckDetailScreen(
                             deckId: deckId,
+                            authorPubky: author,
                             onBack: { deckRoute = nil },
                             onEditDeck: { id in deckRoute = .editor(id) },
-                            onStudy: {},
+                            onStudy: { deckRoute = .study(deckId) },
                             onDeleted: { deckRoute = nil }
                         )
                     case .editor(let deckId):
@@ -57,7 +72,7 @@ struct RootView: View {
                             onEditCard: { d, c in deckRoute = .editCard(d, c) },
                             // Blank card id: the card editor mints one and appends on save.
                             onNewCard: { d in deckRoute = .editCard(d, "") },
-                            onSaved: { id in deckRoute = .detail(id) }
+                            onSaved: { id in deckRoute = .detail(id, nil) }
                         )
                     case .editorNew:
                         DeckEditorScreen(
@@ -65,19 +80,43 @@ struct RootView: View {
                             onBack: { deckRoute = nil },
                             onEditCard: { d, c in deckRoute = .editCard(d, c) },
                             onNewCard: { d in deckRoute = .editCard(d, "") },
-                            onSaved: { id in deckRoute = .detail(id) }
+                            onSaved: { id in deckRoute = .detail(id, nil) }
                         )
                     case .editCard(let deckId, let cardId):
-                        EditCardView(deckId: deckId, cardId: cardId, onBack: { deckRoute = nil })
+                        EditCardScreen(deckId: deckId, cardId: cardId, onBack: { deckRoute = nil })
                     case .importPaste:
-                        PasteView(
+                        PasteScreen(
                             onCancel: { deckRoute = nil },
                             onNext: { deckRoute = .importPublish }
                         )
+                    case .friendProfile(let pubky):
+                        FriendProfileScreen(
+                            pubky: pubky,
+                            onBack: { deckRoute = nil },
+                            onOpenDeck: { deckId, author in deckRoute = .detail(deckId, author) },
+                            onOpenAuthor: { deckRoute = .friendProfile($0) }
+                        )
+                    case .followList(let pubky, let source):
+                        FollowListScreen(
+                            pubky: pubky,
+                            source: source,
+                            onOpenProfile: { deckRoute = .friendProfile($0) }
+                        )
+                    case .settings:
+                        SettingsScreen(onSignedOut: { deckRoute = nil; isSignedIn = false })
+                    case .study(let deckId):
+                        StudySessionScreen(
+                            deckId: deckId,
+                            onClose: {
+                                // Back to the deck it came from, or to the tabs when studying
+                                // everything due.
+                                deckRoute = deckId.map { .detail($0, nil) }
+                            }
+                        )
                     case .importPublish:
-                        PublishDeckView(
+                        PublishDeckScreen(
                             onBack: { deckRoute = .importPaste },
-                            onPublished: { deckId in deckRoute = .detail(deckId) }
+                            onPublished: { deckId in deckRoute = .detail(deckId, nil) }
                         )
                     }
                 }

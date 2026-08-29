@@ -1,180 +1,31 @@
 import SwiftUI
 
+/// Edit one card's two sides. Pure layout; `EditCardScreen` owns the ViewModel.
+///
+/// Image and audio attachment are deliberately absent rather than present-and-inert: they were
+/// `action: {}` buttons before, which look like a working feature. They need `MediaProcessor`,
+/// which has no iOS binding yet — see #113.
 struct EditCardView: View {
-    var deckId: String = ""
-    var cardId: String = ""
-    var onBack: () -> Void = {}
+    var state: EditCardViewState = EditCardViewState()
+    @Binding var front: String
+    @Binding var back: String
+    var onCancel: () -> Void = {}
+    var onSave: () -> Void = {}
+    var onDelete: () -> Void = {}
 
-    // Static preview data until VM is wired via SKIE
-    @State private var frontText = "por favor"
-    @State private var backText = "please"
-    @State private var tags = ["es", "polite"]
-    private let deckTitle = "Spanish Basics"
-    private let cardIndex = 12
-    private let totalCards = 42
+    @State private var isConfirmingDelete = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                // Header
-                HStack {
-                    Button(action: onBack) {
-                        Text("edit_card_cancel")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(LoopkyColor.accentPrimary)
-                    }
-                    Spacer()
-                    Text("edit_card_title")
-                        .font(.system(size: 18, weight: .heavy))
-                        .foregroundColor(LoopkyColor.foregroundPrimary)
-                    Spacer()
-                    Button("edit_card_save", action: {})
-                        .buttonStyle(.loopkyCompactFilled)
-                }
-
-                // Context chip
-                HStack(spacing: 6) {
-                    Image(systemName: "square.stack.3d.up")
-                        .font(.system(size: 12))
-                        .foregroundColor(LoopkyColor.accentSecondary)
-                    Text(String(format: NSLocalizedString("edit_card_context", comment: ""), cardIndex, totalCards, deckTitle))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(LoopkyColor.accentSecondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule().fill(LoopkyColor.accentSecondarySoft)
-                )
-
-                // Front section
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("edit_card_label_front")
-                            .font(.system(size: 10, weight: .bold))
-                            .kerning(0.8)
-                            .foregroundColor(LoopkyColor.foregroundMuted)
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Image(systemName: "speaker.wave.2")
-                                .font(.system(size: 12))
-                            Text("edit_card_speak")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundColor(LoopkyColor.accentPrimary)
-                    }
-                    TextEditor(text: $frontText)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(LoopkyColor.foregroundPrimary)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 80)
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(LoopkyColor.accentPrimary, lineWidth: 2)
-                        )
-                }
-
-                // Back section
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("edit_card_label_back")
-                            .font(.system(size: 10, weight: .bold))
-                            .kerning(0.8)
-                            .foregroundColor(LoopkyColor.foregroundMuted)
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Image(systemName: "speaker.wave.2")
-                                .font(.system(size: 12))
-                            Text("edit_card_speak")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundColor(LoopkyColor.accentPrimary)
-                    }
-                    TextEditor(text: $backText)
-                        .font(.system(size: 16))
-                        .foregroundColor(LoopkyColor.foregroundPrimary)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 60)
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(LoopkyColor.borderSubtle, lineWidth: 1)
-                        )
-                }
-
-                // Media buttons
-                HStack(spacing: 12) {
-                    Button(action: {}) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "photo")
-                            Text("edit_card_image")
-                        }
-                    }
-                    .buttonStyle(LoopkyOutlineButtonStyle(
-                        stroke: LoopkyColor.borderSubtle,
-                        foreground: LoopkyColor.foregroundMuted,
-                        fontSize: 14,
-                        lineWidth: 1
-                    ))
-                    Button(action: {}) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "mic")
-                            Text("edit_card_audio")
-                        }
-                    }
-                    .buttonStyle(LoopkyOutlineButtonStyle(
-                        stroke: LoopkyColor.borderSubtle,
-                        foreground: LoopkyColor.foregroundMuted,
-                        fontSize: 14,
-                        lineWidth: 1
-                    ))
-                }
-
-                // Tags section
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("edit_card_label_tags")
-                        .font(.system(size: 10, weight: .bold))
-                        .kerning(0.8)
-                        .foregroundColor(LoopkyColor.foregroundMuted)
-                    HStack(spacing: 6) {
-                        ForEach(tags, id: \.self) { tag in
-                            TagChipView(tag: tag)
-                        }
-                        Text("edit_card_add_tag")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(LoopkyColor.accentSecondary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .overlay(
-                                Capsule().stroke(LoopkyColor.accentSecondary, lineWidth: 1)
-                            )
-                    }
-                }
-                .padding(16)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(LoopkyColor.borderSubtle, lineWidth: 1)
-                )
-
-                Spacer().frame(height: 20)
-
-                // Delete button
-                Button(action: {}) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 16))
-                        Text("edit_card_delete")
-                            .font(.system(size: 15, weight: .bold))
-                    }
-                    .foregroundColor(LoopkyColor.srsAgain)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(LoopkyColor.dangerSoft)
-                    )
-                }
+                header
+                context
+                side("edit_card_label_front", placeholder: "edit_card_front_placeholder",
+                     text: $front, error: state.frontError)
+                side("edit_card_label_back", placeholder: "edit_card_back_placeholder",
+                     text: $back, error: state.backError)
+                if let errorMessage = state.errorMessage { errorRow(errorMessage) }
+                if !state.isNewCard { deleteButton }
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -182,9 +33,100 @@ struct EditCardView: View {
         }
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
+        .confirmationDialog(
+            Text("edit_card_delete"),
+            isPresented: $isConfirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("edit_card_delete", role: .destructive, action: onDelete)
+            Button("edit_card_cancel", role: .cancel) {}
+        }
     }
-}
 
-#Preview {
-    EditCardView()
+    private var header: some View {
+        HStack {
+            Button(action: onCancel) {
+                Text("edit_card_cancel")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(LoopkyColor.accentPrimary)
+            }
+            Spacer()
+            Text(state.isNewCard ? "edit_card_new_title" : "edit_card_title")
+                .font(.system(size: 18, weight: .heavy))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+            Spacer()
+            if state.isSaving {
+                ProgressView().controlSize(.small)
+            } else {
+                Button("edit_card_save", action: onSave)
+                    .buttonStyle(LoopkyCompactFilledButtonStyle(
+                        fill: LoopkyColor.accentPrimary,
+                        foreground: .white
+                    ))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var context: some View {
+        if !state.deckTitle.isEmpty {
+            // "Card %1$lld of %2$lld · %3$@" — the two counts come first, the deck title last.
+            Text(String(
+                format: NSLocalizedString("edit_card_context", comment: ""),
+                state.cardIndex, state.totalCards, state.deckTitle
+            ))
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(LoopkyColor.foregroundMuted)
+        }
+    }
+
+    private func side(
+        _ label: LocalizedStringKey,
+        placeholder: LocalizedStringKey,
+        text: Binding<String>,
+        error: String?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.system(size: 10, weight: .bold))
+                .kerning(0.8)
+                .foregroundStyle(LoopkyColor.foregroundMuted)
+            TextField(placeholder, text: text, axis: .vertical)
+                .font(.system(size: 16))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+                .lineLimit(2...6)
+                .padding(14)
+                .background(RoundedRectangle(cornerRadius: 14).fill(LoopkyColor.surfaceCard))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(error == nil ? LoopkyColor.borderSubtle : LoopkyColor.danger, lineWidth: 1)
+                )
+            if let error {
+                Text(error).font(.system(size: 12)).foregroundStyle(LoopkyColor.danger)
+            }
+        }
+    }
+
+    private var deleteButton: some View {
+        Button { isConfirmingDelete = true } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "trash")
+                Text("edit_card_delete")
+            }
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(LoopkyColor.danger)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 14).fill(LoopkyColor.dangerSoft))
+        }
+    }
+
+    private func errorRow(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.circle.fill").font(.system(size: 13))
+            Text(message).font(.system(size: 13, weight: .medium))
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(LoopkyColor.danger)
+    }
 }

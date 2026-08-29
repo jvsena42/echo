@@ -3,13 +3,12 @@ import Shared
 
 /// VM-driven wrapper around the presentational `DiscoverView`.
 ///
-/// Note the teardown call: the shared ViewModels extend the multiplatform
-/// `androidx.lifecycle.ViewModel`, which exposes `clear()` — there is no `onDispose()`. The older
-/// iOS screens still call `onDispose()` and have not been rebuilt against the framework since the
-/// androidx migration; they will need the same correction.
+/// Note the teardown call: androidx's own `ViewModel.clear()` is internal and is not exported to
+/// Objective-C, so releasing a VM goes through `IosDependencies.clear(viewModel:)`.
 struct DiscoverScreen: View {
     var onOpenProfile: (String) -> Void = { _ in }
-    var onOpenDeck: (String, String) -> Void = { _, _ in }
+    /// `(deckId, authorPubky)` — in that order. The two screens used to disagree.
+    var onOpenDeck: (_ deckId: String, _ authorPubky: String) -> Void = { _, _ in }
     var onSearch: () -> Void = {}
 
     @State private var viewModel: DiscoverViewModel?
@@ -20,7 +19,7 @@ struct DiscoverScreen: View {
     var body: some View {
         DiscoverView(
             state: viewState,
-            onTagTap: { viewModel?.onTagSelected(tag: $0.map { Tag(value: $0) }) },
+            onTagTap: { selectTag(labelled: $0) },
             onSearchTap: { viewModel?.onSearch() },
             onPersonTap: { viewModel?.onOpenAuthor(pubky: $0) },
             onFollowTap: { viewModel?.onFollowToggle(pubky: $0) },
@@ -65,9 +64,21 @@ struct DiscoverScreen: View {
         )
     }
 
-    /// Generics erase across the bridge, so each strip is mapped from its erased item list.
-    private func section<Wire, Item>(
-        _ state: SectionState<AnyObject>,
+    /// `Tag` is a Kotlin value class, so it crosses the bridge as an opaque `id` and cannot be
+    /// rebuilt in Swift — `Tag(value:)` does not exist. The tag the user tapped is therefore
+    /// looked up among the ones the state already carries and handed back unchanged.
+    private func selectTag(labelled label: String?) {
+        guard let label else {
+            viewModel?.onTagSelected(tag: nil)
+            return
+        }
+        let original = uiState?.topics.items.first { KotlinInterop.tagLabel($0) == label }
+        viewModel?.onTagSelected(tag: original)
+    }
+
+    /// Item types erase to `Any` across the bridge, so each strip is mapped from its erased list.
+    private func section<Wire: AnyObject, Item>(
+        _ state: SectionState<Wire>,
         transform: (Wire) -> Item
     ) -> DiscoverSection<Item> {
         DiscoverSection(
@@ -98,7 +109,7 @@ struct DiscoverScreen: View {
     }
 
     private func detach() {
-        viewModel?.clear()
+        if let viewModel { IosDependencies.shared.clear(viewModel: viewModel) }
         viewModel = nil
         stateSink = nil
         effectSink = nil
