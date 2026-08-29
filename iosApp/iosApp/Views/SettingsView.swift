@@ -4,7 +4,6 @@ import SwiftUI
 /// the platform's section styling, row insets and Liquid Glass chrome on the iOS 26 SDK.
 struct SettingsView: View {
     var state: SettingsViewState = SettingsViewState()
-    var onBack: () -> Void = {}
     var onCopyPubky: () -> Void = {}
     var onCopyHomeserver: () -> Void = {}
     var onShareOnPubkyChanged: (Bool) -> Void = { _ in }
@@ -40,12 +39,6 @@ struct SettingsView: View {
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationTitle(Text("settings_title"))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: onBack) { Image(systemName: "chevron.left") }
-                    .accessibilityLabel(Text("settings_back_content_description"))
-            }
-        }
         .confirmationDialog(
             Text("settings_sign_out_dialog_title"),
             isPresented: $isConfirmingSignOut,

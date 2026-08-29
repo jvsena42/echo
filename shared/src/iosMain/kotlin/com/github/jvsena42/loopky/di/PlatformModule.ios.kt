@@ -42,6 +42,8 @@ import com.github.jvsena42.loopky.presentation.home.HomeViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PasteImportViewModel
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
 import com.github.jvsena42.loopky.presentation.onboarding.OnboardingViewModel
+import com.github.jvsena42.loopky.presentation.profile.FollowListViewModel
+import com.github.jvsena42.loopky.presentation.profile.FollowSource
 import com.github.jvsena42.loopky.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
@@ -166,6 +168,13 @@ object IosDependencies {
 
     fun friendProfileViewModel(pubky: String): FriendProfileViewModel =
         koin.get { parametersOf(pubky) }
+
+    /**
+     * Both parameters are mandatory — the Koin binding reads them with `params.get()`, not
+     * `getOrNull()`, so a missing one throws rather than defaulting.
+     */
+    fun followListViewModel(pubky: String, source: FollowSource): FollowListViewModel =
+        koin.get { parametersOf(pubky, source) }
 
     /**
      * Tear a ViewModel down when its SwiftUI view goes away.

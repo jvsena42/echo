@@ -892,6 +892,28 @@
         }
       }
     },
+    "discover_follow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow"
+          }
+        }
+      }
+    },
+    "discover_following": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following"
+          }
+        }
+      }
+    },
     "discover_following_title": {
       "extractionState": "manual",
       "localizations": {
@@ -1178,6 +1200,105 @@
         }
       }
     },
+    "follow_list_back_content_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "follow_list_empty_followers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody yet. People using Loopky who follow you show up here."
+          }
+        }
+      }
+    },
+    "follow_list_empty_followers_other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody yet. People using Loopky who follow them show up here."
+          }
+        }
+      }
+    },
+    "follow_list_empty_following": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody yet. People you follow who also use Loopky show up here."
+          }
+        }
+      }
+    },
+    "follow_list_empty_following_other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nobody yet. People they follow who also use Loopky show up here."
+          }
+        }
+      }
+    },
+    "follow_list_followers_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Followers"
+          }
+        }
+      }
+    },
+    "follow_list_following_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following"
+          }
+        }
+      }
+    },
+    "follow_list_loading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading people…"
+          }
+        }
+      }
+    },
+    "follow_list_loopky_only": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only people with a Loopky account are listed."
+          }
+        }
+      }
+    },
     "form_error_card_side_required": {
       "extractionState": "manual",
       "localizations": {
@@ -1255,6 +1376,17 @@
         }
       }
     },
+    "friend_profile_no_decks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No decks yet."
+          }
+        }
+      }
+    },
     "friend_profile_no_public_decks": {
       "extractionState": "manual",
       "localizations": {
@@ -1284,6 +1416,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Public decks · %1$lld"
+          }
+        }
+      }
+    },
+    "friend_profile_share": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share profile"
           }
         }
       }
@@ -3561,6 +3704,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Share this on Pubky?"
+          }
+        }
+      }
+    },
+    "sign_in_prompt_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in to do that"
           }
         }
       }

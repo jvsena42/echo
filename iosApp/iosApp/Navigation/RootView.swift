@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 enum DeckRoute: Hashable, Identifiable {
     case detail(String, String?)
@@ -10,6 +11,8 @@ enum DeckRoute: Hashable, Identifiable {
     /// `nil` means everything due across the library, which is what Home asks for.
     case study(String?)
     case settings
+    case friendProfile(String)
+    case followList(String, FollowSource)
 
     var id: String {
         switch self {
@@ -21,6 +24,8 @@ enum DeckRoute: Hashable, Identifiable {
         case .importPublish: return "import-publish"
         case .study(let id): return "study-\(id ?? "all")"
         case .settings: return "settings"
+        case .friendProfile(let pubky): return "friend-\(pubky)"
+        case .followList(let pubky, let source): return "follows-\(pubky)-\(source.name)"
         }
     }
 }
@@ -45,7 +50,9 @@ struct RootView: View {
                     onCreateDeckTap: { deckRoute = .editorNew },
                     onSignedOut: { isSignedIn = false },
                     onStartStudy: { deckRoute = .study(nil) },
-                    onOpenSettings: { deckRoute = .settings }
+                    onOpenSettings: { deckRoute = .settings },
+                    onOpenProfile: { deckRoute = .friendProfile($0) },
+                    onOpenFollows: { pubky, source in deckRoute = .followList(pubky, source) }
                 )
                 .navigationDestination(item: $deckRoute) { route in
                     switch route {
@@ -82,11 +89,21 @@ struct RootView: View {
                             onCancel: { deckRoute = nil },
                             onNext: { deckRoute = .importPublish }
                         )
-                    case .settings:
-                        SettingsScreen(
+                    case .friendProfile(let pubky):
+                        FriendProfileScreen(
+                            pubky: pubky,
                             onBack: { deckRoute = nil },
-                            onSignedOut: { deckRoute = nil; isSignedIn = false }
+                            onOpenDeck: { deckId, author in deckRoute = .detail(deckId, author) },
+                            onOpenAuthor: { deckRoute = .friendProfile($0) }
                         )
+                    case .followList(let pubky, let source):
+                        FollowListScreen(
+                            pubky: pubky,
+                            source: source,
+                            onOpenProfile: { deckRoute = .friendProfile($0) }
+                        )
+                    case .settings:
+                        SettingsScreen(onSignedOut: { deckRoute = nil; isSignedIn = false })
                     case .study(let deckId):
                         StudySessionScreen(
                             deckId: deckId,

@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 struct MainView: View {
     @State private var selectedTab: LoopkyTab = .study
@@ -10,6 +11,8 @@ struct MainView: View {
     var onSignedOut: () -> Void = {}
     var onStartStudy: () -> Void = {}
     var onOpenSettings: () -> Void = {}
+    var onOpenProfile: (String) -> Void = { _ in }
+    var onOpenFollows: (String, FollowSource) -> Void = { _, _ in }
 
     /// Search is presented over the tabs rather than pushed: it is a way to reach a screen, not a
     /// place in the tab hierarchy, and dismissing it must return to whatever tab asked for it.
@@ -38,13 +41,18 @@ struct MainView: View {
             .tag(LoopkyTab.decks)
 
             DiscoverScreen(
+                onOpenProfile: onOpenProfile,
                 onOpenDeck: { deckId, author in onDeckTap(deckId, author) },
                 onSearch: { isSearching = true }
             )
             .tabItem { Label(LoopkyTab.discover.title, systemImage: LoopkyTab.discover.iconName) }
             .tag(LoopkyTab.discover)
 
-            ProfileScreen(onSignedOut: onSignedOut, onOpenSettings: onOpenSettings)
+            ProfileScreen(
+                onSignedOut: onSignedOut,
+                onOpenFollows: onOpenFollows,
+                onOpenSettings: onOpenSettings
+            )
                 .tabItem { Label(LoopkyTab.profile.title, systemImage: LoopkyTab.profile.iconName) }
                 .tag(LoopkyTab.profile)
         }
@@ -56,7 +64,7 @@ struct MainView: View {
         .navigationBarHidden(true)
         .sheet(isPresented: $isSearching) {
             SearchScreen(
-                onOpenProfile: { _ in isSearching = false },
+                onOpenProfile: { pubky in isSearching = false; onOpenProfile(pubky) },
                 onOpenDeck: { deckId, author in
                     isSearching = false
                     onDeckTap(deckId, author)

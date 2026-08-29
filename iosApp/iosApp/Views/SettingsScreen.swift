@@ -7,7 +7,6 @@ import Shared
 /// `params.getOrNull() ?: ""` and the accessor passed none, so the About row would have shown an
 /// empty version. The version comes from the bundle instead.
 struct SettingsScreen: View {
-    var onBack: () -> Void = {}
     var onSignedOut: () -> Void = {}
 
     @Environment(\.openURL) private var openURL
@@ -26,7 +25,6 @@ struct SettingsScreen: View {
     var body: some View {
         SettingsView(
             state: viewState,
-            onBack: onBack,
             onCopyPubky: { viewModel?.onCopyPubkyClick() },
             onCopyHomeserver: { viewModel?.onCopyHomeserverClick() },
             onShareOnPubkyChanged: { viewModel?.onShareOnPubkyChange(enabled: $0) },

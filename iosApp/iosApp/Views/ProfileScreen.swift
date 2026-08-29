@@ -8,7 +8,8 @@ import Shared
 /// `RootView`, with nothing able to start it.
 struct ProfileScreen: View {
     var onSignedOut: () -> Void = {}
-    var onOpenFollows: (FollowSource) -> Void = { _ in }
+    /// `(pubky, source)` — the screen supplies its own pubky so callers need not know it.
+    var onOpenFollows: (String, FollowSource) -> Void = { _, _ in }
     var onOpenSettings: () -> Void = {}
 
     @Environment(\.openURL) private var openURL
@@ -42,8 +43,8 @@ struct ProfileScreen: View {
             onShare: { viewModel?.onShareClick() },
             onOpenOnPubkyApp: { viewModel?.onOpenOnPubkyApp() },
             onSignOut: { viewModel?.onSignOutClick() },
-            onOpenFollowing: { onOpenFollows(FollowSource.following) },
-            onOpenFollowers: { onOpenFollows(FollowSource.followers) },
+            onOpenFollowing: { openFollows(FollowSource.following) },
+            onOpenFollowers: { openFollows(FollowSource.followers) },
             onOpenSettings: onOpenSettings
         )
         .sheet(item: $shareItem) { ShareSheet(items: [$0.text]) }
@@ -61,6 +62,11 @@ struct ProfileScreen: View {
         }
         .onAppear { attach() }
         .onDisappear { detach() }
+    }
+
+    private func openFollows(_ source: FollowSource) {
+        guard let pubky = uiState?.identity?.pubky else { return }
+        onOpenFollows(pubky, source)
     }
 
     private var viewState: ProfileViewState {
