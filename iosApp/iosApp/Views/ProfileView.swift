@@ -136,26 +136,7 @@ struct ProfileView: View {
     }
 
     private var avatar: some View {
-        ZStack {
-            Circle().fill(LoopkyColor.accentSecondarySoft)
-            if let avatarUrl = state.avatarUrl, let url = URL(string: avatarUrl) {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    initialText
-                }
-                .clipShape(Circle())
-            } else {
-                initialText
-            }
-        }
-        .frame(width: 88, height: 88)
-    }
-
-    private var initialText: some View {
-        Text(state.initial)
-            .font(.system(size: 34, weight: .heavy))
-            .foregroundStyle(LoopkyColor.accentSecondary)
+        PubkyAvatarView(initial: state.initial, avatarUrl: state.avatarUrl, size: 88)
     }
 
     private var stats: some View {

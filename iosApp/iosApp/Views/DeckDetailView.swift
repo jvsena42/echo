@@ -136,14 +136,11 @@ struct DeckDetailView: View {
 
                 // Author
                 HStack(spacing: 10) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(LoopkyColor.accentSecondarySoft)
-                            .frame(width: 32, height: 32)
-                        Text(content.author.initial)
-                            .font(.system(size: 14, weight: .heavy))
-                            .foregroundColor(LoopkyColor.accentSecondary)
-                    }
+                    PubkyAvatarView(
+                        initial: content.author.initial,
+                        avatarUrl: content.author.avatarUrl,
+                        size: 32
+                    )
                     VStack(alignment: .leading) {
                         HStack(spacing: 6) {
                             Text(content.author.label)
