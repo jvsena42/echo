@@ -4621,6 +4621,39 @@
         }
       }
     },
+    "secure_screen_recording_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your recovery phrase is hidden while the screen is being recorded or mirrored. Stop the recording to see it."
+          }
+        }
+      }
+    },
+    "secure_screen_recording_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen recording is on"
+          }
+        }
+      }
+    },
+    "secure_screen_reveal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show anyway"
+          }
+        }
+      }
+    },
     "settings_app_version_label": {
       "extractionState": "manual",
       "localizations": {
