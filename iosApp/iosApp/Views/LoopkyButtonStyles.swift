@@ -15,6 +15,8 @@ struct LoopkyFilledButtonStyle: ButtonStyle {
     var fontSize: CGFloat = 17
     var verticalPadding: CGFloat = 18
 
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: fontSize, weight: .bold))
@@ -22,7 +24,10 @@ struct LoopkyFilledButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .padding(.vertical, verticalPadding)
             .background(Capsule().fill(fill))
-            .opacity(configuration.isPressed ? 0.85 : 1)
+            // A ButtonStyle does not dim on its own: without this every disabled primary in the
+            // app — Send code, Restore account, Create file — renders identically to a live one
+            // and invites the tap it will then swallow.
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
@@ -35,6 +40,8 @@ struct LoopkySoftButtonStyle: ButtonStyle {
     var fontSize: CGFloat = 16
     var verticalPadding: CGFloat = 18
 
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: fontSize, weight: .bold))
@@ -42,7 +49,10 @@ struct LoopkySoftButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .padding(.vertical, verticalPadding)
             .background(Capsule().fill(fill))
-            .opacity(configuration.isPressed ? 0.85 : 1)
+            // A ButtonStyle does not dim on its own: without this every disabled primary in the
+            // app — Send code, Restore account, Create file — renders identically to a live one
+            // and invites the tap it will then swallow.
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
@@ -53,6 +63,8 @@ struct LoopkyCompactFilledButtonStyle: ButtonStyle {
     var fill: Color = LoopkyColor.accentPrimary
     var foreground: Color = .white
 
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 14, weight: .bold))
@@ -60,7 +72,10 @@ struct LoopkyCompactFilledButtonStyle: ButtonStyle {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(Capsule().fill(fill))
-            .opacity(configuration.isPressed ? 0.85 : 1)
+            // A ButtonStyle does not dim on its own: without this every disabled primary in the
+            // app — Send code, Restore account, Create file — renders identically to a live one
+            // and invites the tap it will then swallow.
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
     }
 }
 
@@ -73,6 +88,8 @@ struct LoopkyOutlineButtonStyle: ButtonStyle {
     var fontSize: CGFloat = 15
     var fillWidth: Bool = true
 
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: fontSize, weight: .bold))
@@ -84,7 +101,7 @@ struct LoopkyOutlineButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .stroke(stroke, lineWidth: lineWidth)
             )
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
     }
 }
 

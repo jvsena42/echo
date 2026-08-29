@@ -11,6 +11,7 @@ struct ProfileScreen: View {
     /// `(pubky, source)` — the screen supplies its own pubky so callers need not know it.
     var onOpenFollows: (String, FollowSource) -> Void = { _, _ in }
     var onOpenSettings: () -> Void = {}
+    var onBackUpNow: () -> Void = {}
 
     @Environment(\.openURL) private var openURL
 
@@ -45,7 +46,8 @@ struct ProfileScreen: View {
             onSignOut: { viewModel?.onSignOutClick() },
             onOpenFollowing: { openFollows(FollowSource.following) },
             onOpenFollowers: { openFollows(FollowSource.followers) },
-            onOpenSettings: onOpenSettings
+            onOpenSettings: onOpenSettings,
+            onBackUpNow: onBackUpNow
         )
         .sheet(item: $shareItem) { ShareSheet(items: [$0.text]) }
         .overlay(alignment: .bottom) {
@@ -78,6 +80,7 @@ struct ProfileScreen: View {
             shortPubky: identity?.shortPubky ?? "",
             initial: identity?.initial ?? "?",
             avatarUrl: state.identity?.avatarUrl,
+            needsBackup: state.needsBackup,
             bio: state.identity?.bio,
             deckCount: Int(state.deckCount),
             cardCount: Int(state.cardCount),
@@ -122,7 +125,7 @@ struct ProfileScreen: View {
     }
 
     private func detach() {
-        if let viewModel { IosDependencies.shared.clear(viewModel: viewModel) }
+        viewModel?.release()
         viewModel = nil
         stateSink = nil
         effectSink = nil
@@ -135,6 +138,9 @@ struct ProfileViewState {
     var shortPubky: String = ""
     var initial: String = "?"
     var avatarUrl: String?
+    /// Loopky holds the only copy of this account's key and no method has been completed yet.
+    /// Goes away as soon as one has — Settings keeps the permanent door.
+    var needsBackup: Bool = false
     var bio: String?
     var deckCount: Int = 0
     var cardCount: Int = 0

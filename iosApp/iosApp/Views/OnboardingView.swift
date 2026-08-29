@@ -7,7 +7,8 @@ struct OnboardingView: View {
     var isWorking: Bool = false
     var errorMessage: String?
     var onSignInTapped: () -> Void = {}
-    var onInstallTapped: () -> Void = {}
+    var onRestoreTapped: () -> Void = {}
+    var onCreatePubkyTapped: () -> Void = {}
 
     var body: some View {
         ZStack {
@@ -61,6 +62,19 @@ struct OnboardingView: View {
             .shadow(color: LoopkyColor.shadowAccent, radius: 24, x: 0, y: 8)
             .disabled(isWorking)
 
+            // The second door, presented as a matched pair with Ring rather than a footnote:
+            // someone arriving with a recovery phrase has as much right to the front of the
+            // screen as someone arriving with the app.
+            Button(action: onRestoreTapped) {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.down.doc")
+                    Text("onboarding_restore")
+                }
+            }
+            .buttonStyle(.loopkySoft)
+            .disabled(isWorking)
+            .accessibilityIdentifier("onboarding_restore")
+
             Text("onboarding_no_email_notice")
                 .font(.system(size: 13))
                 .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.6))
@@ -72,11 +86,14 @@ struct OnboardingView: View {
                     .foregroundColor(Color(red: 0.85, green: 0.17, blue: 0.17))
             }
 
-            Button(action: onInstallTapped) {
-                Text("onboarding_get_ring")
+            // Deliberately a text link, not a third button — Android does the same. Creating a
+            // pubky is the least common way in, and it costs money or a code.
+            Button(action: onCreatePubkyTapped) {
+                Text("onboarding_create_pubky")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Color(red: 0.48, green: 0.3, blue: 1.0))
             }
+            .accessibilityIdentifier("onboarding_create_pubky")
         }
     }
 }

@@ -221,7 +221,7 @@ struct BulkImportScreen: View {
     }
 
     private func detach() {
-        if let viewModel { IosDependencies.shared.clear(viewModel: viewModel) }
+        viewModel?.release()
         viewModel = nil
         stateSink = nil
         effectSink = nil

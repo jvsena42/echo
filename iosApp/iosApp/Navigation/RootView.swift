@@ -44,101 +44,26 @@ struct RootView: View {
     @State private var isSignedIn: Bool = false
     @State private var pubky: String?
     @State private var deckRoute: DeckRoute?
+    /// The signed-out flows. A path, not a single destination: signup and backup go
+    /// several pushes deep.
+    @State private var identityPath: [IdentityRoute] = []
+    /// Backup, reached from Settings or the Profile nag. A sheet, not a push — see `BackupFlowView`.
+    @State private var isBackingUp = false
 
     var body: some View {
-        NavigationStack {
+        // Two stacks, not one. The signed-in side pushes a single destination at a time
+        // (`navigationDestination(item:)`); the signed-out side needs a **path**, because signup
+        // and backup go several pushes deep. A stack cannot do both — a pathless stack ignores
+        // appends to `identityPath`, which is what left "Create account" doing nothing.
+        Group {
             if isSignedIn {
-                MainView(
-                    onDeckTap: { deckId, author in deckRoute = .detail(deckId, author) },
-                    onImportTap: { deckRoute = .importPaste },
-                    onImportFileTap: { deckRoute = .importBulk(nil) },
-                    onCreateDeckTap: { deckRoute = .editorNew },
-                    onSignedOut: { isSignedIn = false },
-                    onStartStudy: { deckRoute = .study(nil) },
-                    onOpenSettings: { deckRoute = .settings },
-                    onOpenProfile: { deckRoute = .friendProfile($0) },
-                    onOpenFollows: { pubky, source in deckRoute = .followList(pubky, source) }
-                )
-                .navigationDestination(item: $deckRoute) { route in
-                    switch route {
-                    case .detail(let deckId, let author):
-                        DeckDetailScreen(
-                            deckId: deckId,
-                            authorPubky: author,
-                            onBack: { deckRoute = nil },
-                            onEditDeck: { id in deckRoute = .editor(id) },
-                            onStudy: { deckRoute = .study(deckId) },
-                            onDeleted: { deckRoute = nil }
-                        )
-                    case .editor(let deckId):
-                        DeckEditorScreen(
-                            deckId: deckId,
-                            onBack: { deckRoute = nil },
-                            onEditCard: { d, c in deckRoute = .editCard(d, c) },
-                            // Blank card id: the card editor mints one and appends on save.
-                            onNewCard: { d in deckRoute = .editCard(d, "") },
-                            onSaved: { id in deckRoute = .detail(id, nil) }
-                        )
-                    case .editorNew:
-                        DeckEditorScreen(
-                            deckId: nil,
-                            onBack: { deckRoute = nil },
-                            onEditCard: { d, c in deckRoute = .editCard(d, c) },
-                            onNewCard: { d in deckRoute = .editCard(d, "") },
-                            onSaved: { id in deckRoute = .detail(id, nil) }
-                        )
-                    case .editCard(let deckId, let cardId):
-                        EditCardScreen(deckId: deckId, cardId: cardId, onBack: { deckRoute = nil })
-                    case .importPaste:
-                        PasteScreen(
-                            onCancel: { deckRoute = nil },
-                            onNext: { deckRoute = .importTriage }
-                        )
-                    case .importBulk(let incoming):
-                        BulkImportScreen(
-                            incomingFile: incoming,
-                            onCancel: { deckRoute = nil },
-                            onContinue: { deckRoute = .importTriage }
-                        )
-                    case .importTriage:
-                        TriageScreen(
-                            onBack: { deckRoute = nil },
-                            onPublish: { deckRoute = .importPublish }
-                        )
-                    case .friendProfile(let pubky):
-                        FriendProfileScreen(
-                            pubky: pubky,
-                            onBack: { deckRoute = nil },
-                            onOpenDeck: { deckId, author in deckRoute = .detail(deckId, author) },
-                            onOpenAuthor: { deckRoute = .friendProfile($0) }
-                        )
-                    case .followList(let pubky, let source):
-                        FollowListScreen(
-                            pubky: pubky,
-                            source: source,
-                            onOpenProfile: { deckRoute = .friendProfile($0) }
-                        )
-                    case .settings:
-                        SettingsScreen(onSignedOut: { deckRoute = nil; isSignedIn = false })
-                    case .study(let deckId):
-                        StudySessionScreen(
-                            deckId: deckId,
-                            onClose: {
-                                // Back to the deck it came from, or to the tabs when studying
-                                // everything due.
-                                deckRoute = deckId.map { .detail($0, nil) }
-                            }
-                        )
-                    case .importPublish:
-                        PublishDeckScreen(
-                            onBack: { deckRoute = .importPaste },
-                            onPublished: { deckId in deckRoute = .detail(deckId, nil) }
-                        )
-                    }
-                }
+                signedIn
             } else {
-                OnboardingScreen(onSignedIn: { isSignedIn = true })
+                signedOut
             }
+        }
+        .sheet(isPresented: $isBackingUp) {
+            BackupFlowView(onClose: { isBackingUp = false })
         }
         .onOpenURL { url in
             // Two kinds of URL arrive here. A deck file opened from Files, Mail or a chat app —
@@ -151,5 +76,221 @@ struct RootView: View {
                 print("[Loopky] received deeplink: \(url.absoluteString)")
             }
         }
+    }
+
+    private var signedIn: some View {
+        NavigationStack {
+            MainView(
+                onDeckTap: { deckId, author in deckRoute = .detail(deckId, author) },
+                onImportTap: { deckRoute = .importPaste },
+                onImportFileTap: { deckRoute = .importBulk(nil) },
+                onCreateDeckTap: { deckRoute = .editorNew },
+                onSignedOut: { isSignedIn = false },
+                onStartStudy: { deckRoute = .study(nil) },
+                onOpenSettings: { deckRoute = .settings },
+                onOpenProfile: { deckRoute = .friendProfile($0) },
+                onOpenFollows: { pubky, source in deckRoute = .followList(pubky, source) },
+                onBackUpNow: { isBackingUp = true }
+            )
+            .navigationDestination(item: $deckRoute) { route in
+                switch route {
+                case .detail(let deckId, let author):
+                    DeckDetailScreen(
+                        deckId: deckId,
+                        authorPubky: author,
+                        onBack: { deckRoute = nil },
+                        onEditDeck: { id in deckRoute = .editor(id) },
+                        onStudy: { deckRoute = .study(deckId) },
+                        onDeleted: { deckRoute = nil }
+                    )
+                case .editor(let deckId):
+                    DeckEditorScreen(
+                        deckId: deckId,
+                        onBack: { deckRoute = nil },
+                        onEditCard: { d, c in deckRoute = .editCard(d, c) },
+                        // Blank card id: the card editor mints one and appends on save.
+                        onNewCard: { d in deckRoute = .editCard(d, "") },
+                        onSaved: { id in deckRoute = .detail(id, nil) }
+                    )
+                case .editorNew:
+                    DeckEditorScreen(
+                        deckId: nil,
+                        onBack: { deckRoute = nil },
+                        onEditCard: { d, c in deckRoute = .editCard(d, c) },
+                        onNewCard: { d in deckRoute = .editCard(d, "") },
+                        onSaved: { id in deckRoute = .detail(id, nil) }
+                    )
+                case .editCard(let deckId, let cardId):
+                    EditCardScreen(deckId: deckId, cardId: cardId, onBack: { deckRoute = nil })
+                case .importPaste:
+                    PasteScreen(
+                        onCancel: { deckRoute = nil },
+                        onNext: { deckRoute = .importTriage }
+                    )
+                case .importBulk(let incoming):
+                    BulkImportScreen(
+                        incomingFile: incoming,
+                        onCancel: { deckRoute = nil },
+                        onContinue: { deckRoute = .importTriage }
+                    )
+                case .importTriage:
+                    TriageScreen(
+                        onBack: { deckRoute = nil },
+                        onPublish: { deckRoute = .importPublish }
+                    )
+                case .friendProfile(let pubky):
+                    FriendProfileScreen(
+                        pubky: pubky,
+                        onBack: { deckRoute = nil },
+                        onOpenDeck: { deckId, author in deckRoute = .detail(deckId, author) },
+                        onOpenAuthor: { deckRoute = .friendProfile($0) }
+                    )
+                case .followList(let pubky, let source):
+                    FollowListScreen(
+                        pubky: pubky,
+                        source: source,
+                        onOpenProfile: { deckRoute = .friendProfile($0) }
+                    )
+                case .settings:
+                    SettingsScreen(
+                        onSignedOut: { deckRoute = nil; isSignedIn = false },
+                        onBackUpNow: { isBackingUp = true }
+                    )
+                case .study(let deckId):
+                    StudySessionScreen(
+                        deckId: deckId,
+                        onClose: {
+                            // Back to the deck it came from, or to the tabs when studying
+                            // everything due.
+                            deckRoute = deckId.map { .detail($0, nil) }
+                        }
+                    )
+                case .importPublish:
+                    PublishDeckScreen(
+                        onBack: { deckRoute = .importPaste },
+                        onPublished: { deckId in deckRoute = .detail(deckId, nil) }
+                    )
+                }
+            }
+        }
+    }
+
+    private var signedOut: some View {
+        NavigationStack(path: $identityPath) {
+            OnboardingScreen(
+                onSignedIn: { signIn() },
+                onCreatePubky: { identityPath.append(.signupStart(adoptHeldKey: false)) },
+                onRestore: { identityPath.append(.restoreStart) },
+                onUnregistered: { pubky in
+                    // Ring holds this key, so Loopky cannot register it.
+                    identityPath.append(.unregisteredKey(pubky: pubky, loopkyHoldsKey: false))
+                }
+            )
+            .navigationDestination(for: IdentityRoute.self) { route in
+                identityDestination(route)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func identityDestination(_ route: IdentityRoute) -> some View {
+        switch route {
+        case .restoreStart:
+            RestoreStartScreen(
+                onBack: pop,
+                onRestoreWithPhrase: { identityPath.append(.restorePhrase) },
+                onRestoreWithFile: { identityPath.append(.restoreFile) }
+            )
+        case .restorePhrase:
+            RestorePhraseScreen(
+                onBack: pop,
+                onRestored: signIn,
+                onUnregistered: { pubky in
+                    // Loopky holds this one — it was just derived from the phrase.
+                    identityPath.append(.unregisteredKey(pubky: pubky, loopkyHoldsKey: true))
+                }
+            )
+        case .restoreFile:
+            RestoreFileScreen(
+                onBack: pop,
+                onRestored: signIn,
+                onUnregistered: { pubky in
+                    identityPath.append(.unregisteredKey(pubky: pubky, loopkyHoldsKey: true))
+                }
+            )
+        case .unregisteredKey(let pubky, let loopkyHoldsKey):
+            UnregisteredKeyScreen(
+                pubky: pubky,
+                loopkyHoldsKey: loopkyHoldsKey,
+                onBack: pop,
+                onNeedsVerification: {
+                    // adopt = true: the terminal step registers *this* key rather than minting a
+                    // new one, which would leave the pubky on screen account-less forever.
+                    identityPath.append(.signupStart(adoptHeldKey: true))
+                },
+                onRegistered: { identityPath.append(.backupStart(enteredFromSettings: false)) },
+                onRestoreWithPhrase: { identityPath.append(.restorePhrase) }
+            )
+        case .signupStart:
+            SignupStartScreen(
+                onBack: pop,
+                onSms: { identityPath.append(.signupPhone) },
+                onLightning: { identityPath.append(.signupLightning) },
+                onInviteCode: { identityPath.append(.signupInvite) }
+            )
+        case .signupPhone:
+            PhoneVerificationScreen(onBack: pop, onDone: toLocalSignup)
+        case .signupLightning:
+            LightningVerificationScreen(onBack: pop, onDone: toLocalSignup)
+        case .signupInvite:
+            InviteCodeScreen(onBack: pop, onDone: toLocalSignup)
+        case .signupLocal(let adoptHeldKey):
+            LocalSignupScreen(
+                onBack: pop,
+                adoptHeldKey: adoptHeldKey,
+                // Straight to backup, and the signup path is dropped: this is the only moment in
+                // the app where a key exists that nobody has a copy of, and there is nothing
+                // behind it worth walking back into.
+                onBackup: { identityPath = [.backupStart(enteredFromSettings: false)] },
+                onStartOver: { identityPath.startSignupOver(adoptHeldKey: adoptHeldKey) }
+            )
+        case .backupStart(let enteredFromSettings):
+            BackupStartScreen(
+                // Reached from onboarding the account already exists, so both exits mean "into
+                // the app"; reached from Settings the caller pops us instead.
+                onBack: enteredFromSettings ? pop : signIn,
+                onDone: enteredFromSettings ? pop : signIn,
+                onPhrase: { identityPath.append(.backupPhrase) },
+                onFile: { identityPath.append(.backupFile) },
+                onRing: { identityPath.append(.backupRing) }
+            )
+        case .backupPhrase:
+            BackupPhraseScreen(onBack: pop, onContinue: { identityPath.append(.backupQuiz) })
+        case .backupQuiz:
+            // Back to the menu, not out of the flow: one method done is not a reason to stop
+            // offering the others, and the menu now shows this one ticked.
+            BackupQuizScreen(onBack: pop, onDone: { identityPath.returnToBackupMenu() })
+        case .backupFile:
+            BackupFileScreen(onBack: pop, onDone: { identityPath.returnToBackupMenu() })
+        case .backupRing:
+            BackupRingScreen(onBack: pop, onDone: { identityPath.returnToBackupMenu() })
+        }
+    }
+
+    /// All three human checks land on the same terminal step, carrying the adopt intent of the
+    /// signup attempt the user is actually standing in.
+    private func toLocalSignup() {
+        identityPath.append(.signupLocal(adoptHeldKey: identityPath.adoptHeldKey))
+    }
+
+    private func pop() {
+        if !identityPath.isEmpty { identityPath.removeLast() }
+    }
+
+    /// Clear the whole flow *and* flip the flag, so the tab screens rebuild against the new
+    /// session — Android's `goHomeSignedIn()` pops the entire graph for the same reason.
+    private func signIn() {
+        identityPath.removeAll()
+        isSignedIn = true
     }
 }

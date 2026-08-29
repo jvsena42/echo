@@ -549,3 +549,53 @@ cannot be automated. The run above went through "Open with" instead (`simctl ope
   card and Discover's person tile both needed an explicit accessibility action before they could
   be driven — worth checking on anything new that is tappable but not a `Button`.
 
+
+## #149 — Signup, backup and restore on iOS (2026-08-29)
+
+The identity cluster had **no iOS counterpart at all** before this run: fourteen screens, none of
+them ported. Driven on the **iPhone 17 simulator (iOS 26.5)** against the real staging homeserver.
+
+| Screen | Result |
+| --- | --- |
+| Onboarding → Create account | ✅ PASS — after the nav fix below; the method picker shows live Homegate pricing ("Pay ₿ 10 (≈ US$0.01) once") |
+| SMS — number entry | ✅ PASS — "Send code" appears only once the number validates. **No code was sent**: a bogus number would burn a real SMS attempt against the homeserver |
+| Lightning | ✅ PASS — live invoice created; QR on a white plate, BOLT11 shown, "Open in wallet" / "Copy invoice", "Waiting for payment…" |
+| Invite code | ✅ PASS — renders, uppercase field, submit gated. **Not redeemed** — no code to hand |
+| Local signup (terminal step) | ⚪ NOT REACHED — needs a spent token, so it needs a real SMS/sats/invite |
+| Restore with a phrase | ✅ PASS — derived the key, signed in, landed on Home. See the flake note below |
+| Restore with a file | 🟡 PARTIAL — the screen renders and "Choose file" opens the picker, which runs out of process and cannot be automated (same limit as `.apkg`). The decrypt path is unexercised on iOS |
+| Backup menu | ✅ PASS — phrase card ticked ✓ Done for a restored key, Ring card says "Not installed — we'll take you to it", "I'll do this later" present |
+| Recovery phrase | ✅ PASS — twelve words blurred, reveal pill over the grid, Continue disabled until revealed |
+| Confirm quiz | ✅ PASS — Word 4 / 7 / 10; a wrong answer says so and **clears every selection**; a right one returns to the menu |
+| Encrypted file | ✅ PASS to the picker — passphrase masked, strength reads "Strong", exporter opens with the blob and a `.pkarr` name. The confirmed-write branch needs the out-of-process picker |
+| Export to Pubky Ring | ✅ PASS — not-installed path, "Install Pubky Ring", and the subtitle that says Loopky keeps its own copy |
+| Backup from Settings | ✅ PASS — the permanent "Back up your account" row appears for a Loopky-held key and is **absent** for the Ring-held account, which is what `holdsOwnKey` is for |
+| Profile backup nag | ✅ PASS by absence — no nag for a Ring-held key, and none for a restored one (already backed up) |
+| Sign out | ✅ PASS — confirm dialog, then back to onboarding |
+
+### Three bugs found by driving it, all invisible to the build
+
+1. **Every push in the signed-out flow was dropped.** `identityPath` was appended to inside a
+   `NavigationStack` with no path binding, so "Create account" and "Use a recovery phrase or file"
+   did nothing at all. Split into two stacks — the signed-in side needs
+   `navigationDestination(item:)`, the signed-out side needs a path.
+2. **Disabled buttons looked enabled.** A `ButtonStyle` does not react to `.disabled()` on its
+   own, so every disabled primary in the app rendered at full strength and invited a tap it would
+   swallow.
+3. **A passphrase field could not be typed into.** The accessibility identifier sat on the row
+   around the field rather than the field, so automation resolved it and typed into nothing. Worth
+   remembering: an identifier on a container is not a text target.
+
+### One unexplained failure, recorded rather than closed
+
+The **first** restore-with-phrase attempt on a fresh install returned "That's not a valid recovery
+phrase". Two later attempts with the identical phrase, on the same build, signed in. Diagnostic
+logging showed `validate_mnemonic_phrase` answering `true`, so the phrase was never the problem
+and the failure is downstream of it. Not reproduced since; do not assume it is fixed.
+
+### Not exercised, and why
+
+- Anything needing a **spent signup token** — local signup, and therefore the "a key nobody has a
+  copy of" state that the Profile nag and the unbacked sign-out warning are written for.
+- The **confirmed-write** halves of file backup and file restore, and the **Ring-installed** half
+  of Ring export: all three end in an out-of-process system UI the automation cannot reach.

@@ -223,3 +223,81 @@ enum FormErrorCopy {
         }
     }
 }
+
+/// Native mirror of the shared `SignupError`, for the same reason `LoopkyErrorReason` mirrors
+/// `ErrorReason`: a Kotlin enum crosses as a class whose entries are lowercased class properties,
+/// so switching on it can never be exhaustive. Mirroring it moves that guarantee back — the two
+/// switches below have no `default`, so adding a case without copy is a compile error.
+enum LoopkySignupError: CaseIterable {
+    case geoblocked
+    case phoneBlocked
+    case rateLimited
+    case rateLimitedWeekly
+    case rateLimitedYearly
+    case codeIncorrect
+    case invoiceExpired
+    case verificationLost
+    case unavailable
+    case tokenRejected
+
+    /// The only place the bridged singletons are matched.
+    init?(_ error: SignupError?) {
+        switch error {
+        case SignupError.geoblocked: self = .geoblocked
+        case SignupError.phoneblocked: self = .phoneBlocked
+        case SignupError.ratelimited: self = .rateLimited
+        case SignupError.ratelimitedweekly: self = .rateLimitedWeekly
+        case SignupError.ratelimitedyearly: self = .rateLimitedYearly
+        case SignupError.codeincorrect: self = .codeIncorrect
+        case SignupError.invoiceexpired: self = .invoiceExpired
+        case SignupError.verificationlost: self = .verificationLost
+        case SignupError.unavailable: self = .unavailable
+        case SignupError.tokenrejected: self = .tokenRejected
+        case nil: return nil
+        default:
+            assertionFailure("Unmapped SignupError. Add it to LoopkySignupError.")
+            self = .unavailable
+        }
+    }
+
+    /// `TokenRejected` is terminal by design — it is the one signup error that must never offer
+    /// "try again", which is why `LocalSignupUiState.canRetry` excludes it.
+    var isTerminal: Bool { self == .tokenRejected }
+}
+
+enum SignupErrorCopy {
+
+    static func title(for error: SignupError?) -> String? {
+        LoopkySignupError(error).map(title(for:))
+    }
+
+    static func message(for error: SignupError?) -> String? {
+        LoopkySignupError(error).map(message(for:))
+    }
+
+    static func title(for error: LoopkySignupError) -> String {
+        NSLocalizedString("signup_error_\(error.key)_title", comment: "Signup error title")
+    }
+
+    static func message(for error: LoopkySignupError) -> String {
+        NSLocalizedString("signup_error_\(error.key)_message", comment: "Signup error message")
+    }
+}
+
+private extension LoopkySignupError {
+    /// The snake_case fragment the string keys are built from.
+    var key: String {
+        switch self {
+        case .geoblocked: return "geoblocked"
+        case .phoneBlocked: return "phone_blocked"
+        case .rateLimited: return "rate_limited"
+        case .rateLimitedWeekly: return "rate_limited_weekly"
+        case .rateLimitedYearly: return "rate_limited_yearly"
+        case .codeIncorrect: return "code_incorrect"
+        case .invoiceExpired: return "invoice_expired"
+        case .verificationLost: return "verification_lost"
+        case .unavailable: return "unavailable"
+        case .tokenRejected: return "token_rejected"
+        }
+    }
+}

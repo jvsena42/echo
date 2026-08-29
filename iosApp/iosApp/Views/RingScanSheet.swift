@@ -17,6 +17,11 @@ struct RingScanSheet: View {
     /// sheet is a fallback rather than the main event.
     let ringInstalledHere: Bool
     var onOpenRingHere: () -> Void
+    /// Where Ring comes from, for someone who has it on no phone at all. This lives here rather
+    /// than on onboarding: the sheet is the one place that has already established Ring is not on
+    /// this device, and a permanent link under the sign-in button was answering a question nobody
+    /// on that screen had asked.
+    var onGetRing: () -> Void
     var onCancel: () -> Void
 
     @State private var didCopy = false
@@ -53,6 +58,11 @@ struct RingScanSheet: View {
                     didCopy = true
                 }
                 .buttonStyle(.loopkyOutline)
+
+                Button("onboarding_get_ring", action: onGetRing)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(LoopkyColor.foregroundMuted)
+                    .accessibilityIdentifier("onboarding_qr_get_ring")
 
                 Button("onboarding_qr_cancel", action: onCancel)
                     .font(.subheadline)

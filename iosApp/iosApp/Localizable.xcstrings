@@ -1,6 +1,446 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "backup_done_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "backup_file_create": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create and save file"
+          }
+        }
+      }
+    },
+    "backup_file_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't create the file. Please try again."
+          }
+        }
+      }
+    },
+    "backup_file_passphrase": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passphrase"
+          }
+        }
+      }
+    },
+    "backup_file_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a passphrase. You will need it — and the file — to restore."
+          }
+        }
+      }
+    },
+    "backup_file_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encrypted recovery file"
+          }
+        }
+      }
+    },
+    "backup_later": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'll do this later"
+          }
+        }
+      }
+    },
+    "backup_method_file": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encrypted file"
+          }
+        }
+      }
+    },
+    "backup_method_file_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save a passphrase-protected file to Files or iCloud Drive."
+          }
+        }
+      }
+    },
+    "backup_method_phrase": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recovery phrase"
+          }
+        }
+      }
+    },
+    "backup_method_phrase_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write down twelve words and confirm them."
+          }
+        }
+      }
+    },
+    "backup_method_ring": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export to Pubky Ring"
+          }
+        }
+      }
+    },
+    "backup_method_ring_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy your key into Pubky Ring. Loopky keeps its copy too."
+          }
+        }
+      }
+    },
+    "backup_method_ring_missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not installed — we'll take you to it."
+          }
+        }
+      }
+    },
+    "backup_nag_action": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back up now"
+          }
+        }
+      }
+    },
+    "backup_nag_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your key lives only on this device. If you lose it, your decks go with it."
+          }
+        }
+      }
+    },
+    "backup_nag_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back up your account"
+          }
+        }
+      }
+    },
+    "backup_phrase_continue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I've written them down"
+          }
+        }
+      }
+    },
+    "backup_phrase_reveal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to reveal"
+          }
+        }
+      }
+    },
+    "backup_phrase_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write these twelve words down, in order, and keep them somewhere safe."
+          }
+        }
+      }
+    },
+    "backup_phrase_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your recovery phrase"
+          }
+        }
+      }
+    },
+    "backup_phrase_warning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This phrase is for your Pubky account only. It is not a Bitcoin wallet and holds no funds."
+          }
+        }
+      }
+    },
+    "backup_quiz_position": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Word %1$lld"
+          }
+        }
+      }
+    },
+    "backup_quiz_submit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm"
+          }
+        }
+      }
+    },
+    "backup_quiz_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick the right word for each position."
+          }
+        }
+      }
+    },
+    "backup_quiz_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm your phrase"
+          }
+        }
+      }
+    },
+    "backup_quiz_wrong": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's not quite right. Check your written copy and try again."
+          }
+        }
+      }
+    },
+    "backup_ring_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I imported it into Pubky Ring"
+          }
+        }
+      }
+    },
+    "backup_ring_install": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install Pubky Ring"
+          }
+        }
+      }
+    },
+    "backup_ring_missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pubky Ring isn't installed on this device."
+          }
+        }
+      }
+    },
+    "backup_ring_open": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Pubky Ring"
+          }
+        }
+      }
+    },
+    "backup_ring_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This copies your key into Pubky Ring. Loopky keeps its own copy, and your recovery phrase still works."
+          }
+        }
+      }
+    },
+    "backup_ring_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export to Pubky Ring"
+          }
+        }
+      }
+    },
+    "backup_start_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your key lives only on this device. Save it somewhere you can reach if you lose your phone. You can also do this later."
+          }
+        }
+      }
+    },
+    "backup_start_subtitle_backed_up": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You already have a copy of this key, so it's safe. Pubky Ring keeps it in a separate app — safer still — or add another backup here. You can also do this later."
+          }
+        }
+      }
+    },
+    "backup_start_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back up your account"
+          }
+        }
+      }
+    },
+    "backup_strength_fair": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fair — 16 characters or more is much stronger"
+          }
+        }
+      }
+    },
+    "backup_strength_strong": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strong"
+          }
+        }
+      }
+    },
+    "backup_strength_too_short": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too short"
+          }
+        }
+      }
+    },
+    "backup_strength_weak": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weak — 16 characters or more is much stronger"
+          }
+        }
+      }
+    },
     "brand_tagline": {
       "extractionState": "manual",
       "localizations": {
@@ -2564,6 +3004,17 @@
         }
       }
     },
+    "onboarding_create_pubky": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't have a Pubky? Create account"
+          }
+        }
+      }
+    },
     "onboarding_get_ring": {
       "extractionState": "manual",
       "localizations": {
@@ -2685,6 +3136,17 @@
         }
       }
     },
+    "onboarding_restore": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use a recovery phrase or file"
+          }
+        }
+      }
+    },
     "onboarding_signin_default": {
       "extractionState": "manual",
       "localizations": {
@@ -2714,6 +3176,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Waiting for Pubky Ring…"
+          }
+        }
+      }
+    },
+    "passphrase_hide": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide passphrase"
+          }
+        }
+      }
+    },
+    "passphrase_reveal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show passphrase"
           }
         }
       }
@@ -3708,6 +4192,336 @@
         }
       }
     },
+    "restore_error_invalid_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check that all twelve words are spelled correctly and in the right order."
+          }
+        }
+      }
+    },
+    "restore_error_invalid_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's not a valid recovery phrase"
+          }
+        }
+      }
+    },
+    "restore_error_no_account_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This recovery phrase is valid, but no Pubky account has been created for it. Check for a mistyped or out-of-order word — and if it came from a Bitcoin or crypto wallet, that's a different kind of phrase and won't work here."
+          }
+        }
+      }
+    },
+    "restore_error_no_account_pubky": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It unlocks this pubky:"
+          }
+        }
+      }
+    },
+    "restore_error_no_account_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That phrase doesn't match an account"
+          }
+        }
+      }
+    },
+    "restore_error_passphrase_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check the passphrase, and that this is the recovery file for the account you want. This says nothing about whether the account exists."
+          }
+        }
+      }
+    },
+    "restore_error_passphrase_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That didn't open the file"
+          }
+        }
+      }
+    },
+    "restore_error_unreadable_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky couldn't open the file you chose. Try choosing it again."
+          }
+        }
+      }
+    },
+    "restore_error_unreadable_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't read that file"
+          }
+        }
+      }
+    },
+    "restore_file_change": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a different file"
+          }
+        }
+      }
+    },
+    "restore_file_choose": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose file"
+          }
+        }
+      }
+    },
+    "restore_file_passphrase_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passphrase"
+          }
+        }
+      }
+    },
+    "restore_file_passphrase_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The passphrase you set"
+          }
+        }
+      }
+    },
+    "restore_file_submit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore account"
+          }
+        }
+      }
+    },
+    "restore_file_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the file you saved, then enter its passphrase."
+          }
+        }
+      }
+    },
+    "restore_file_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open your recovery file"
+          }
+        }
+      }
+    },
+    "restore_method_file": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encrypted recovery file"
+          }
+        }
+      }
+    },
+    "restore_method_file_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A recovery.pkarr file and its passphrase."
+          }
+        }
+      }
+    },
+    "restore_method_phrase": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recovery phrase"
+          }
+        }
+      }
+    },
+    "restore_method_phrase_detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The twelve words you wrote down."
+          }
+        }
+      }
+    },
+    "restore_phrase_checking": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking…"
+          }
+        }
+      }
+    },
+    "restore_phrase_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recovery phrase"
+          }
+        }
+      }
+    },
+    "restore_phrase_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "word one word two word three…"
+          }
+        }
+      }
+    },
+    "restore_phrase_submit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore account"
+          }
+        }
+      }
+    },
+    "restore_phrase_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twelve words, in order, separated by spaces."
+          }
+        }
+      }
+    },
+    "restore_phrase_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your recovery phrase"
+          }
+        }
+      }
+    },
+    "restore_retry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        }
+      }
+    },
+    "restore_seed_warning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only enter a phrase created for Pubky. Never enter a Bitcoin or other crypto wallet recovery phrase here."
+          }
+        }
+      }
+    },
+    "restore_start_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use the backup you made when your pubky was created."
+          }
+        }
+      }
+    },
+    "restore_start_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore your account"
+          }
+        }
+      }
+    },
     "search_back": {
       "extractionState": "manual",
       "localizations": {
@@ -3825,6 +4639,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Scan QR code"
+          }
+        }
+      }
+    },
+    "secure_screen_recording_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your recovery phrase is hidden while the screen is being recorded or mirrored. Stop the recording to see it."
+          }
+        }
+      }
+    },
+    "secure_screen_recording_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen recording is on"
+          }
+        }
+      }
+    },
+    "secure_screen_reveal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show anyway"
           }
         }
       }
@@ -4588,6 +5435,94 @@
         }
       }
     },
+    "sign_in_prompt_clone_deck_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A clone is your own copy, published under your key and yours to edit. It needs an account — one key, no email."
+          }
+        }
+      }
+    },
+    "sign_in_prompt_clone_deck_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make it yours"
+          }
+        }
+      }
+    },
+    "sign_in_prompt_cta": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create account or sign in"
+          }
+        }
+      }
+    },
+    "sign_in_prompt_dismiss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not now"
+          }
+        }
+      }
+    },
+    "sign_in_prompt_follow_deck_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following saves a deck to your library, keeps it up to date with the author and remembers what you've learned. It needs an account — one key, no email."
+          }
+        }
+      }
+    },
+    "sign_in_prompt_follow_deck_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep this deck"
+          }
+        }
+      }
+    },
+    "sign_in_prompt_follow_person_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following puts the decks people publish on your Discover. It needs an account — one key, no email."
+          }
+        }
+      }
+    },
+    "sign_in_prompt_follow_person_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow people"
+          }
+        }
+      }
+    },
     "sign_in_prompt_title": {
       "extractionState": "manual",
       "localizations": {
@@ -4595,6 +5530,776 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sign in to do that"
+          }
+        }
+      }
+    },
+    "signup_card_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not available in your country"
+          }
+        }
+      }
+    },
+    "signup_code_change_number": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change number"
+          }
+        }
+      }
+    },
+    "signup_code_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verification code"
+          }
+        }
+      }
+    },
+    "signup_code_resend": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resend code"
+          }
+        }
+      }
+    },
+    "signup_code_resend_in": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resend in %1$llds"
+          }
+        }
+      }
+    },
+    "signup_code_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We sent a 6-digit code to %1$@."
+          }
+        }
+      }
+    },
+    "signup_code_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter the code."
+          }
+        }
+      }
+    },
+    "signup_code_verify": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verify"
+          }
+        }
+      }
+    },
+    "signup_error_code_incorrect_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check it and try again."
+          }
+        }
+      }
+    },
+    "signup_error_code_incorrect_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That code didn't work"
+          }
+        }
+      }
+    },
+    "signup_error_geoblocked_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This method isn't offered in your country. Try another one, or use an invite code."
+          }
+        }
+      }
+    },
+    "signup_error_geoblocked_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not available here"
+          }
+        }
+      }
+    },
+    "signup_error_invoice_expired_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That invoice timed out before it was paid. Ask for a new one."
+          }
+        }
+      }
+    },
+    "signup_error_invoice_expired_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invoice expired"
+          }
+        }
+      }
+    },
+    "signup_error_phone_blocked_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This phone number can't be used for verification. Try another, or use an invite code."
+          }
+        }
+      }
+    },
+    "signup_error_phone_blocked_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Number can't be used"
+          }
+        }
+      }
+    },
+    "signup_error_rate_limited_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Give it a few minutes and try again."
+          }
+        }
+      }
+    },
+    "signup_error_rate_limited_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too many attempts"
+          }
+        }
+      }
+    },
+    "signup_error_rate_limited_weekly_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This number has used all its verifications this week. Try a payment or an invite code instead."
+          }
+        }
+      }
+    },
+    "signup_error_rate_limited_weekly_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weekly limit reached"
+          }
+        }
+      }
+    },
+    "signup_error_rate_limited_yearly_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This number has used all its verifications for the year. Try a payment or an invite code instead."
+          }
+        }
+      }
+    },
+    "signup_error_rate_limited_yearly_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yearly limit reached"
+          }
+        }
+      }
+    },
+    "signup_error_token_rejected_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your homeserver wouldn't accept this code — it may already have been used. Trying again won't help; start over to get a new one."
+          }
+        }
+      }
+    },
+    "signup_error_token_rejected_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That signup code was refused"
+          }
+        }
+      }
+    },
+    "signup_error_unavailable_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check your connection and try again."
+          }
+        }
+      }
+    },
+    "signup_error_unavailable_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't reach the service"
+          }
+        }
+      }
+    },
+    "signup_error_verification_lost_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We lost track of this verification. Starting again is safe."
+          }
+        }
+      }
+    },
+    "signup_error_verification_lost_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let's start over"
+          }
+        }
+      }
+    },
+    "signup_invite_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invite code"
+          }
+        }
+      }
+    },
+    "signup_invite_link": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Have an invite code?"
+          }
+        }
+      }
+    },
+    "signup_invite_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "XXXX-XXXX-XXXX"
+          }
+        }
+      }
+    },
+    "signup_invite_submit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        }
+      }
+    },
+    "signup_invite_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask the Pubky team for a code to get an account on their homeserver."
+          }
+        }
+      }
+    },
+    "signup_invite_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your invite code."
+          }
+        }
+      }
+    },
+    "signup_lightning_amount": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pay ₿ %1$lld to continue."
+          }
+        }
+      }
+    },
+    "signup_lightning_amount_fiat": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pay ₿ %1$lld (%2$@) to continue."
+          }
+        }
+      }
+    },
+    "signup_lightning_card_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No phone number needed"
+          }
+        }
+      }
+    },
+    "signup_lightning_card_price": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pay ₿ %1$lld once"
+          }
+        }
+      }
+    },
+    "signup_lightning_card_price_fiat": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pay ₿ %1$lld (%2$@) once"
+          }
+        }
+      }
+    },
+    "signup_lightning_card_price_unknown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pay once"
+          }
+        }
+      }
+    },
+    "signup_lightning_card_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitcoin payment"
+          }
+        }
+      }
+    },
+    "signup_lightning_copied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invoice copied"
+          }
+        }
+      }
+    },
+    "signup_lightning_copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy invoice"
+          }
+        }
+      }
+    },
+    "signup_lightning_new_invoice": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New invoice"
+          }
+        }
+      }
+    },
+    "signup_lightning_no_wallet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Lightning wallet found — invoice copied instead"
+          }
+        }
+      }
+    },
+    "signup_lightning_open_wallet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in wallet"
+          }
+        }
+      }
+    },
+    "signup_lightning_qr_content_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QR code containing this Lightning invoice"
+          }
+        }
+      }
+    },
+    "signup_lightning_resumed_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You may already have paid ₿ %1$lld. Hold on while we confirm — no need to pay again."
+          }
+        }
+      }
+    },
+    "signup_lightning_resumed_subtitle_fiat": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You may already have paid ₿ %1$lld (%2$@). Hold on while we confirm — no need to pay again."
+          }
+        }
+      }
+    },
+    "signup_lightning_resumed_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking your earlier payment."
+          }
+        }
+      }
+    },
+    "signup_lightning_resumed_waiting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirming with the server…"
+          }
+        }
+      }
+    },
+    "signup_lightning_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan or tap to pay."
+          }
+        }
+      }
+    },
+    "signup_lightning_waiting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for payment…"
+          }
+        }
+      }
+    },
+    "signup_local_retry": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        }
+      }
+    },
+    "signup_local_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Making your key and registering it. This takes a moment."
+          }
+        }
+      }
+    },
+    "signup_local_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creating your account"
+          }
+        }
+      }
+    },
+    "signup_phone_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Include your country code (for example +1 for the US)."
+          }
+        }
+      }
+    },
+    "signup_phone_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phone number"
+          }
+        }
+      }
+    },
+    "signup_phone_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+316XXXXXXXX"
+          }
+        }
+      }
+    },
+    "signup_phone_send": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send code"
+          }
+        }
+      }
+    },
+    "signup_phone_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We'll text you a verification code."
+          }
+        }
+      }
+    },
+    "signup_phone_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proof of phone."
+          }
+        }
+      }
+    },
+    "signup_ring_recommended_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pubky Ring keeps your key in a separate app, so signing in to Loopky never exposes it. Install it, or create your key in Loopky instead."
+          }
+        }
+      }
+    },
+    "signup_ring_recommended_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pubky Ring is the safest place for your key"
+          }
+        }
+      }
+    },
+    "signup_sms_card_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses your phone number"
+          }
+        }
+      }
+    },
+    "signup_sms_card_price": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free"
+          }
+        }
+      }
+    },
+    "signup_sms_card_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SMS verification"
+          }
+        }
+      }
+    },
+    "signup_start_over": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start over"
+          }
+        }
+      }
+    },
+    "signup_start_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No email needed. Verify with a text or a small payment, or use an invite code."
+          }
+        }
+      }
+    },
+    "signup_start_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prove you're not a robot."
           }
         }
       }
@@ -5101,6 +6806,160 @@
           "stringUnit": {
             "state": "translated",
             "value": "Undo last card"
+          }
+        }
+      }
+    },
+    "unregistered_check_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A single mistyped or out-of-order word still passes the checksum and unlocks a different account. This is the most common reason to see this screen."
+          }
+        }
+      }
+    },
+    "unregistered_check_phrase": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check my recovery phrase again"
+          }
+        }
+      }
+    },
+    "unregistered_pubky_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key you presented:"
+          }
+        }
+      }
+    },
+    "unregistered_register": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Register this key"
+          }
+        }
+      }
+    },
+    "unregistered_register_confirm_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This publishes %1$@ as a public identity on the Pubky network. Only do this for a key you created for Pubky — never for a Bitcoin or crypto wallet recovery phrase."
+          }
+        }
+      }
+    },
+    "unregistered_register_confirm_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "unregistered_register_confirm_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Register this key?"
+          }
+        }
+      }
+    },
+    "unregistered_register_confirm_yes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Register it"
+          }
+        }
+      }
+    },
+    "unregistered_register_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creates an account for the key shown above, and publishes it publicly. Needs a quick verification if you haven't done one."
+          }
+        }
+      }
+    },
+    "unregistered_ring_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky can't register a key it doesn't hold. Ring can't create the account either — that needs a signup token, and those come from Loopky. Two routes keep your key: use Ring's Edit pubky sheet with a token from Loopky, or reveal the recovery phrase in Ring and restore it here."
+          }
+        }
+      }
+    },
+    "unregistered_ring_import": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore with my recovery phrase"
+          }
+        }
+      }
+    },
+    "unregistered_ring_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pubky Ring is holding this key"
+          }
+        }
+      }
+    },
+    "unregistered_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key is valid — there's just no Pubky account registered for it."
+          }
+        }
+      }
+    },
+    "unregistered_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This key has no account yet"
           }
         }
       }
