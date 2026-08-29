@@ -9,6 +9,7 @@ struct StudyCardView: View {
     var answerFocused: FocusState<Bool>.Binding
     var onFlip: () -> Void = {}
     var onListen: () -> Void = {}
+    var onSpeak: () -> Void = {}
     var onCheckAnswer: () -> Void = {}
     var onGiveUp: () -> Void = {}
 
@@ -58,7 +59,7 @@ struct StudyCardView: View {
                 .multilineTextAlignment(.center)
             // Listen practises the side that is showing, so it belongs on both faces — but see
             // `backFace`, where it comes off a masked answer.
-            if state.listenEnabled { listenButton }
+            practiceRow
         }
     }
 
@@ -85,9 +86,9 @@ struct StudyCardView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(LoopkyColor.srsGood)
                 }
-                // Only once the answer is actually on the card — reading a masked back aloud
-                // would hand over the thing the card is withholding.
-                if state.listenEnabled { listenButton }
+                // Only once the answer is actually on the card — reading a masked back aloud, or
+                // asking it to be pronounced, would hand over the thing the card is withholding.
+                practiceRow
             }
         }
     }
@@ -143,6 +144,36 @@ struct StudyCardView: View {
             .frame(maxHeight: 240)
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
+    }
+
+    /// Listen and Speak, both practising the side that is showing.
+    ///
+    /// Neither appears unless the deck declared its language pair: given no language the engines
+    /// fall back to the *reader's* locale, so an undeclared Spanish deck would be read in an
+    /// English accent and graded by an English model — a wrong answer that looks like a feature.
+    @ViewBuilder
+    private var practiceRow: some View {
+        if state.listenEnabled || state.speakEnabled {
+            HStack(spacing: 8) {
+                if state.listenEnabled { listenButton }
+                if state.speakEnabled { speakButton }
+            }
+        }
+    }
+
+    private var speakButton: some View {
+        Button(action: onSpeak) {
+            HStack(spacing: 6) {
+                Image(systemName: "mic.fill").font(.system(size: 12))
+                Text("study_speak").font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(LoopkyColor.accentSecondary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(LoopkyColor.accentSecondarySoft))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("study_speak")
     }
 
     private var listenButton: some View {

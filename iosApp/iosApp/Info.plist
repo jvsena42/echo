@@ -27,6 +27,15 @@
 	  Android has the same entry point via ACTION_VIEW / ACTION_SEND (`ImportFileIntent`).
 	  `.apkg` has no registered UTType, so it is declared here as a zip-conforming type.
 	-->
+	<!--
+	  Speak (pronunciation practice) needs both, and iOS terminates the app on the first request if
+	  either is missing. Two separate prompts: recognition happens on Apple's terms, and the
+	  microphone is what feeds it.
+	-->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Loopky listens while you practise saying a card out loud, and stops as soon as you have answered.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Loopky turns what you say into text to check your pronunciation against the card. Nothing is stored.</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

@@ -23,6 +23,7 @@ struct StudySessionView: View {
     var onCheckAnswer: () -> Void = {}
     var onGiveUp: () -> Void = {}
     var onListen: () -> Void = {}
+    var onSpeak: () -> Void = {}
     var onNextCard: () -> Void = {}
     /// The end of a guest's preview offers an account. Nothing else on this screen does.
     var onSignIn: () -> Void = {}
@@ -68,6 +69,7 @@ struct StudySessionView: View {
                 answerFocused: $answerFocused,
                 onFlip: onReveal,
                 onListen: onListen,
+                onSpeak: onSpeak,
                 onCheckAnswer: onCheckAnswer,
                 onGiveUp: onGiveUp
             )

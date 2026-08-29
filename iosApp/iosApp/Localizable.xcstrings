@@ -3643,6 +3643,50 @@
         }
       }
     },
+    "permission_mic_denied_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak needs microphone access, and Android won't ask again. You can turn it on in Settings."
+          }
+        }
+      }
+    },
+    "permission_mic_denied_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone is off"
+          }
+        }
+      }
+    },
+    "permission_mic_rationale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak listens while you say the word and tells you how close you were. Audio is processed on your device and never leaves it."
+          }
+        }
+      }
+    },
+    "permission_mic_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Practise your pronunciation"
+          }
+        }
+      }
+    },
     "profile_copied": {
       "extractionState": "manual",
       "localizations": {
@@ -6543,6 +6587,127 @@
           "stringUnit": {
             "state": "translated",
             "value": "Prove you're not a robot."
+          }
+        }
+      }
+    },
+    "speak_continue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        }
+      }
+    },
+    "speak_correct_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct"
+          }
+        }
+      }
+    },
+    "speak_correct_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perfect!"
+          }
+        }
+      }
+    },
+    "speak_listening_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap to cancel"
+          }
+        }
+      }
+    },
+    "speak_listening_prompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say the word"
+          }
+        }
+      }
+    },
+    "speak_permission_denied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone permission is needed to practice speaking."
+          }
+        }
+      }
+    },
+    "speak_try_again": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        }
+      }
+    },
+    "speak_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speech recognition is unavailable on this device."
+          }
+        }
+      }
+    },
+    "speak_wrong_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not quite right"
+          }
+        }
+      }
+    },
+    "speak_you_said": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You said"
+          }
+        }
+      }
+    },
+    "speak_you_said_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "YOU SAID"
           }
         }
       }
