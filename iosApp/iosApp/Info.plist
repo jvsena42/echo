@@ -42,6 +42,31 @@
 			</array>
 		</dict>
 	</array>
+	<!--
+	  A recovery file has no registered UTType either, and the export picker needs one: given only
+	  `public.data` it strips the extension off the suggested name, so "recovery.pkarr" is offered
+	  as "recovery" and saved without the extension the user needs to recognise it later.
+	-->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.github.jvsena42.loopky.pkarr</string>
+			<key>UTTypeDescription</key>
+			<string>Pubky recovery file</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>pkarr</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>
