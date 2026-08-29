@@ -114,8 +114,8 @@ struct EditCardView: View {
                     .buttonStyle(LoopkyOutlineButtonStyle(
                         stroke: LoopkyColor.borderSubtle,
                         foreground: LoopkyColor.foregroundMuted,
-                        fontSize: 14,
-                        lineWidth: 1
+                        lineWidth: 1,
+                        fontSize: 14
                     ))
                     Button(action: {}) {
                         HStack(spacing: 8) {
@@ -126,8 +126,8 @@ struct EditCardView: View {
                     .buttonStyle(LoopkyOutlineButtonStyle(
                         stroke: LoopkyColor.borderSubtle,
                         foreground: LoopkyColor.foregroundMuted,
-                        fontSize: 14,
-                        lineWidth: 1
+                        lineWidth: 1,
+                        fontSize: 14
                     ))
                 }
 
