@@ -135,7 +135,7 @@ fun SettingsRoute(
         onCopyHomeserverClick = viewModel::onCopyHomeserverClick,
         onShareOnPubkyChange = viewModel::onShareOnPubkyChange,
         onNewCardsGoalChange = viewModel::onNewCardsGoalChange,
-        onFirstIntervalChange = viewModel::onFirstIntervalChange,
+        onIntervalChange = viewModel::onIntervalChange,
         onSaveUnsplashKey = viewModel::onSaveUnsplashKey,
         onRemoveUnsplashKey = viewModel::onRemoveUnsplashKey,
         onUnsplashKeyErrorDismissed = viewModel::onUnsplashKeyErrorDismissed,
@@ -162,7 +162,7 @@ private fun SettingsScreen(
     onCopyHomeserverClick: () -> Unit,
     onShareOnPubkyChange: (Boolean) -> Unit,
     onNewCardsGoalChange: (Int) -> Unit,
-    onFirstIntervalChange: (SrsGrade, Int) -> Unit,
+    onIntervalChange: (SrsGrade, Int) -> Unit,
     onSaveUnsplashKey: (String) -> Unit,
     onRemoveUnsplashKey: () -> Unit,
     onUnsplashKeyErrorDismissed: () -> Unit,
@@ -352,7 +352,7 @@ private fun SettingsScreen(
             settings = state.studySettings,
             enabled = state.canEditStudySettings,
             onGoalChange = onNewCardsGoalChange,
-            onIntervalChange = onFirstIntervalChange,
+            onIntervalChange = onIntervalChange,
         )
 
         // --- Image search section ---
@@ -1059,7 +1059,7 @@ private fun SettingsScreenPreview() {
             onCopyHomeserverClick = {},
             onShareOnPubkyChange = {},
             onNewCardsGoalChange = {},
-            onFirstIntervalChange = { _, _ -> },
+            onIntervalChange = { _, _ -> },
             onSaveUnsplashKey = {},
             onRemoveUnsplashKey = {},
             onUnsplashKeyErrorDismissed = {},

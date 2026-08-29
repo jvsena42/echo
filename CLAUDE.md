@@ -83,10 +83,20 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   The queue serves due reviews before never-seen cards and is **uncapped** — nothing in the
   queue-building path may consult `newCardsPerDayGoal`, because reaching it is announced, never
   enforced. Copy calling it a limit describes a feature Loopky does not have. Study settings
-  (goal + Hard/Good/Easy first intervals) are a **synced record** at `/pub/loopky/settings.json`,
+  (goal + Hard/Good/Easy intervals) are a **synced record** at `/pub/loopky/settings.json`,
   not an `AppPreferences` value, because they decide `dueAt`s and review state already syncs;
   `SettingsRepository.update` refuses unless the record has actually been read this session, at the
   repository rather than only in the UI. Read Architecture.md §8.6 before touching any of it.
+- **Grading is fixed-interval, not SM-2 — the button says what the card gets.** A grade schedules
+  `now + settings.{hard,good,easy}Days`, every review, whatever the card's history; only `Again` is
+  fixed in code (`<10m`). Compounding growth (`interval × ease`) was removed because it made the
+  settings screen a liar from the second review onwards — a 3-day Good gave 8 days, then 20, while
+  the button read 3. Three traps. `easeFactor`/`repetitions` are still tracked but **never read for
+  an interval**; reintroducing a read there brings the whole bug back. The settings record's wire
+  keys are still `first_*` — renaming them resets every existing record to the defaults on read.
+  And `maturityThresholdDays` is the **longest configured interval**, not 21: under fixed intervals
+  no card can sit further out than the largest setting, so any higher threshold pins Mastered %
+  below 100% on every deck forever with nothing reporting it. See Architecture.md §8.6.
 - **Listen and Speak are inert without a declared language pair, and that is deliberate — but
   the gate covers those two only.** A deck
   carries `frontLang`/`backLang` (BCP-47) beside the `listenEnabled`/`speakEnabled` opt-ins, and

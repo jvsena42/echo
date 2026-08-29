@@ -240,14 +240,18 @@ class SrsRepositoryImplTest {
     }
 
     @Test
-    fun aFirstReviewUsesTheUsersOwnInterval() = runTest {
-        settings.setStudySettings(StudySettings(firstGoodDays = 9))
+    fun everyReviewUsesTheUsersOwnInterval() = runTest {
+        settings.setStudySettings(StudySettings(goodDays = 9))
         publishDeck("deck1", "c1")
         repo.dueForDeck("deck1")
+        val card = testCard("c1", deckId = "deck1")
 
-        val next = repo.review(testCard("c1", deckId = "deck1"), SrsGrade.Good).getOrThrow()
+        val first = repo.review(card, SrsGrade.Good).getOrThrow()
+        val second = repo.review(card, SrsGrade.Good).getOrThrow()
 
-        assertEquals(9, next.intervalDays)
+        // The setting, not a multiple of it: the second Good is 9 days out, exactly like the first.
+        assertEquals(9, first.intervalDays)
+        assertEquals(9, second.intervalDays)
     }
 
     @Test
@@ -288,14 +292,15 @@ class SrsRepositoryImplTest {
     }
 
     @Test
-    fun secondReviewGrowsTheIntervalFromTheCachedState() = runTest {
+    fun aSecondReviewSchedulesFromTheGradeNotFromTheCachedInterval() = runTest {
         publishDeck("deck1", "c1")
         repo.review(testCard("c1"), SrsGrade.Good).getOrThrow()
 
         val state = repo.review(testCard("c1"), SrsGrade.Easy).getOrThrow()
 
-        // interval 3, ease 2.5, easy bonus 1.3 → round(9.75) = 10 days.
-        assertEquals(expected = 10, actual = state.intervalDays)
+        // The Easy setting flat, not the previous 3-day interval grown by ease. The repetition
+        // count still climbs off the cached state, which is what the cache is for.
+        assertEquals(expected = StudySettings.Default.easyDays, actual = state.intervalDays)
         assertEquals(expected = 2, actual = state.repetitions)
         assertEquals(SrsGrade.Easy, state.lastGrade)
     }

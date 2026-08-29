@@ -44,9 +44,9 @@ class SettingsRepositoryImplTest {
             AppSettingsDto(
                 study = StudySettingsDto(
                     new_cards_per_day = settings.newCardsPerDayGoal,
-                    first_hard_days = settings.firstHardDays,
-                    first_good_days = settings.firstGoodDays,
-                    first_easy_days = settings.firstEasyDays,
+                    first_hard_days = settings.hardDays,
+                    first_good_days = settings.goodDays,
+                    first_easy_days = settings.easyDays,
                 ),
             ),
         )
@@ -75,7 +75,7 @@ class SettingsRepositoryImplTest {
 
     @Test
     fun aNewAccountDoesNotInheritThePreviousOnesSettings() = runTest {
-        seedRecord(StudySettings(newCardsPerDayGoal = 40, firstEasyDays = 10))
+        seedRecord(StudySettings(newCardsPerDayGoal = 40, easyDays = 10))
         val repo = repo()
         repo.ensureLoaded()
         assertEquals(40, repo.studySettings.value.settings.newCardsPerDayGoal)
@@ -90,7 +90,7 @@ class SettingsRepositoryImplTest {
 
     @Test
     fun aNewAccountCannotWriteThePreviousOnesSettingsIntoItsOwnRecord() = runTest {
-        seedRecord(StudySettings(newCardsPerDayGoal = 40, firstEasyDays = 10))
+        seedRecord(StudySettings(newCardsPerDayGoal = 40, easyDays = 10))
         val repo = repo()
         repo.ensureLoaded()
 
@@ -124,13 +124,13 @@ class SettingsRepositoryImplTest {
 
     @Test
     fun anExistingRecordIsLoaded() = runTest {
-        seedRecord(StudySettings(newCardsPerDayGoal = 40, firstEasyDays = 10))
+        seedRecord(StudySettings(newCardsPerDayGoal = 40, easyDays = 10))
         val repo = repo()
 
         repo.ensureLoaded()
 
         assertEquals(40, repo.studySettings.value.settings.newCardsPerDayGoal)
-        assertEquals(10, repo.studySettings.value.settings.firstEasyDays)
+        assertEquals(10, repo.studySettings.value.settings.easyDays)
         assertEquals(SettingsOrigin.Remote, repo.studySettings.value.origin)
     }
 
@@ -149,7 +149,7 @@ class SettingsRepositoryImplTest {
     fun aWriteIsRefusedUntilTheRecordHasBeenRead() = runTest {
         // The destructive case: read fails, the flow holds defaults, one tap in Settings would
         // otherwise put 1/3/7 over whatever the user actually had.
-        seedRecord(StudySettings(firstEasyDays = 30))
+        seedRecord(StudySettings(easyDays = 30))
         pubky.failGetWith = PubkyError("Request failed: connection reset")
         val repo = repo()
         repo.ensureLoaded()
@@ -170,7 +170,7 @@ class SettingsRepositoryImplTest {
         val repo = repo()
         repo.ensureLoaded()
 
-        repo.update(StudySettings(newCardsPerDayGoal = 5, firstEasyDays = 14)).getOrThrow()
+        repo.update(StudySettings(newCardsPerDayGoal = 5, easyDays = 14)).getOrThrow()
 
         val written = loopkyJson.decodeFromString<AppSettingsDto>(pubky.store.getValue(url))
         assertEquals(5, written.study.new_cards_per_day)
@@ -184,7 +184,7 @@ class SettingsRepositoryImplTest {
         val repo = repo()
         repo.ensureLoaded()
 
-        repo.update(StudySettings(newCardsPerDayGoal = 0, firstGoodDays = 9_999)).getOrThrow()
+        repo.update(StudySettings(newCardsPerDayGoal = 0, goodDays = 9_999)).getOrThrow()
 
         val written = loopkyJson.decodeFromString<AppSettingsDto>(pubky.store.getValue(url))
         assertEquals(1, written.study.new_cards_per_day)
@@ -197,13 +197,13 @@ class SettingsRepositoryImplTest {
         // review state computed from rules the user never chose.
         val warm = repo()
         warm.ensureLoaded()
-        warm.update(StudySettings(firstEasyDays = 14)).getOrThrow()
+        warm.update(StudySettings(easyDays = 14)).getOrThrow()
 
         pubky.failGetWith = PubkyError("Request failed: connection reset")
         val coldStart = repo()
         coldStart.ensureLoaded()
 
-        assertEquals(14, coldStart.studySettings.value.settings.firstEasyDays)
+        assertEquals(14, coldStart.studySettings.value.settings.easyDays)
         assertEquals(SettingsOrigin.Cached, coldStart.studySettings.value.origin)
         assertFalse(
             coldStart.studySettings.value.isEditable,
@@ -229,7 +229,7 @@ class SettingsRepositoryImplTest {
         val repo = repo()
         repo.ensureLoaded()
 
-        repo.update(StudySettings(firstEasyDays = 12)).getOrThrow()
+        repo.update(StudySettings(easyDays = 12)).getOrThrow()
 
         val raw = pubky.store.getValue(url)
         assertEquals(12, loopkyJson.decodeFromString<AppSettingsDto>(raw).study.first_easy_days)

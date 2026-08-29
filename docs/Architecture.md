@@ -108,7 +108,7 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 | `DiscoveryRepository` | Decks by followed **users**, `followUser()` / `unfollowUser()` — deck-level following is on `DeckRepository`, plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
 | `SrsRepository` | Per-card SRS state; the study queue (**due reviews then never-seen cards** — `isNew` is not `isDue`, §8.6), per-deck `DeckCounts`, `mastery()`, `review(card, grade)`, and today's `dailyProgress` | Pubky FFI + in-memory cache |
 | `MediaRepository` | Image + audio blob storage for cards | Pubky FFI (blobs) + platform file I/O |
-| `SettingsRepository` | The user's own study settings (`/pub/loopky/settings.json`) — the new-cards-per-day goal and the Hard/Good/Easy first intervals (§8.6) | Pubky FFI + `AppPreferences` mirror |
+| `SettingsRepository` | The user's own study settings (`/pub/loopky/settings.json`) — the new-cards-per-day goal and the Hard/Good/Easy intervals (§8.6) | Pubky FFI + `AppPreferences` mirror |
 
 All repositories are interfaces in `commonMain` with implementations in `commonMain` (`data/repository/impl/`); only the FFI- and file-touching parts drop into `androidMain`/`iosMain` actuals.
 
@@ -304,7 +304,7 @@ costs for the session, and a boolean the user flipped in Settings has no busines
 Device-local for v1 where that is the right answer: `shareOnPubky` (#39) and the debug-only
 `pubkyEnvironment` are properties of *this install*.
 
-**Study settings took the other route.** The new-cards-per-day goal and the Hard/Good/Easy first
+**Study settings took the other route.** The new-cards-per-day goal and the Hard/Good/Easy
 intervals live in a `/pub/loopky/settings.json` record instead (`SettingsRepository`, §8.6), because
 they decide `dueAt` values — and the review state those produce already syncs, so two devices
 holding different intervals would write state computed from different rules. `AppPreferences` keeps
@@ -894,10 +894,26 @@ counts come back as a `DeckCounts(due, new)` pair. Consequences worth keeping st
 - Home headlines `due + min(new, goal − newCardsToday)` — the day's intent, not the backlog. That is
   presentation only; the queue behind it is still everything.
 
+**Grading is fixed-interval, not SM-2.** A grade schedules the card for `now + the days configured
+for that grade` — Hard, Good and Easy each mean exactly one number, on the first review and on the
+fiftieth. Only `Again` is fixed in code (`<10m`, a same-session retry rather than a date).
+
+This replaced compounding growth (`interval × ease`), which made the settings screen a liar from the
+second review onwards: a 3-day Good setting produced 8 days on review two and 20 on review three,
+while the button said 3. `SrsState.easeFactor` and `repetitions` are still tracked — they record how
+a card has gone, and growth cannot return without them — but nothing reads them for an interval.
+The trade is deliberate and worth stating: intervals never lengthen as a card is learned, so a
+well-known card keeps coming back on its Easy interval rather than drifting out to months.
+
+Changing a setting is **not retroactive**. An already-scheduled card keeps the `dueAt` it was given
+and picks the new number up at its next grade; nothing rewrites stored state.
+
 **Study settings are a synced record, not a preference.** `/pub/loopky/settings.json` holds the
-new-cards-per-day goal (default 20) and the Hard/Good/Easy first intervals (1/3/7). They are on the
-homeserver because they decide `dueAt` values, and review state already syncs. `SettingsRepository`
-guards three things:
+new-cards-per-day goal (default 20) and the Hard/Good/Easy intervals (1/3/7). They are on the
+homeserver because they decide `dueAt` values, and review state already syncs. The record's keys are
+still spelled `first_hard_days` / `first_good_days` / `first_easy_days` — a historical spelling from
+when they were first-review-only, kept because renaming them would silently reset every existing
+record to the defaults on read. `SettingsRepository` guards three things:
 
 - `studySettings` is a `StateFlow` carrying a `SettingsOrigin` — `Defaults`, `Cached` (the
   `AppPreferences` mirror) or `Remote`. `update()` **refuses unless the origin is `Remote`**, at the
@@ -923,11 +939,17 @@ not be noticed by anyone.
 withholds cards. Copy that calls it a limit describes a feature Loopky does not have.
 
 **Mastered % is partial credit against a moving line.** Each card contributes
-`min(intervalDays / threshold, 1)`, where the threshold is `StudySettings.maturityThresholdDays` —
-SM-2's 21 days, or past the user's longest first interval, whichever is further out. Without the
-second half, setting Easy to 30 days would mark a brand-new card fully mastered with one grade,
-i.e. a progress bar you move by editing a preference. "Fully mastered" is the exact
-every-card-is-mature test, never `share == 1f`: summing thirds of 21 lands on 0.99999994.
+`min(intervalDays / threshold, 1)`, where the threshold is `StudySettings.maturityThresholdDays` =
+the **longest of the three configured intervals**.
+
+The threshold has to be reachable, and under fixed intervals that is the whole constraint: no card
+can ever sit further out than the largest setting, so the old formula (`max(21, longest + 1)`)
+would pin `masteryShare` below 100% and make `isFullyMastered` return false forever, on every deck,
+with nothing reporting it — at 1/2/7 it asked for 21 days no card could reach. What the number now
+means in practice is "this card is as far out as this scheduler can put it", i.e. normally that you
+last graded it Easy; `Again` zeroes `intervalDays`, so a lapse drops it back to nothing, which is
+what keeps it honest. "Fully mastered" is still the exact every-card-is-mature test, never
+`share == 1f`: summing thirds lands on 0.99999994.
 
 ### 8.7 Studying a deck both ways
 

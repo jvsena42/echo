@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
+import com.github.jvsena42.loopky.domain.model.StudySettings
 import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeCardRepository
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
@@ -304,17 +305,17 @@ class DeckDetailViewModelTest {
     @Test
     fun `mastered moves within the first session`() = runTest(mainDispatcher) {
         // #101's table, row 4: a deck studied end to end read 0%, identical to one never opened.
-        // Partial credit puts a 7-day card a third of the way to the 21-day line.
+        // Partial credit puts a 3-day Good card most of the way to the 7-day Easy line.
         deckRepo.decks["deck1"] = testDeck(cardCount = 1)
         cardRepo.seedRemote(testCard("c1"))
         srsRepo.due = listOf(testCard("c1", deckId = "deck1"))
 
         val vm = viewModel()
         advanceUntilIdle()
-        srsRepo.upsert("deck1", dueState("c1").copy(intervalDays = 7)).getOrThrow()
+        srsRepo.upsert("deck1", dueState("c1").copy(intervalDays = 3)).getOrThrow()
         advanceUntilIdle()
 
-        assertEquals(expected = "33%", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).masteredPercent)
+        assertEquals(expected = "43%", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).masteredPercent)
     }
 
     @Test
@@ -334,19 +335,21 @@ class DeckDetailViewModelTest {
     }
 
     @Test
-    fun `a longer first interval moves the mastery line instead of gaming it`() = runTest(mainDispatcher) {
+    fun `a longer interval moves the mastery line with it`() = runTest(mainDispatcher) {
         deckRepo.decks["deck1"] = testDeck(cardCount = 1)
         cardRepo.seedRemote(testCard("c1"))
         srsRepo.due = listOf(testCard("c1", deckId = "deck1"))
-        srsRepo.studySettings = com.github.jvsena42.loopky.domain.model.StudySettings(firstEasyDays = 30)
+        srsRepo.studySettings = StudySettings(easyDays = 30)
 
         val vm = viewModel()
         advanceUntilIdle()
-        // One Easy grade at the user's own 30-day interval must not read as fully mastered.
+        // A card sitting on the longest configured interval is as far out as this scheduler can
+        // ever put it, so it reads as mastered. Raising Easy raises the bar; it does not put 100%
+        // out of reach, which a fixed 21-day line would.
         srsRepo.upsert("deck1", dueState("c1").copy(intervalDays = 30)).getOrThrow()
         advanceUntilIdle()
 
-        assertEquals(expected = "97%", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).masteredPercent)
+        assertEquals(expected = "100%", actual = assertIs<DeckDetailUiState.Content>(vm.state.value).masteredPercent)
     }
 
     @Test
