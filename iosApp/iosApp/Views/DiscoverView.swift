@@ -86,20 +86,27 @@ struct DiscoverView: View {
 
     /// What replaces the three tabs a guest does not have: a way *in*, not a wall.
     private var guestBanner: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("guest_banner_title")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundColor(LoopkyColor.foregroundPrimary)
-            Text("guest_banner_body")
-                .font(.system(size: 13))
-                .foregroundColor(LoopkyColor.foregroundSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+        // The action sits beside the copy rather than under it: the banner is one line of pitch and
+        // one button, and stacking them made a short card twice as tall while leaving the whole
+        // right half of it empty at every width above a phone.
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("guest_banner_title")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(LoopkyColor.foregroundPrimary)
+                Text("guest_banner_body")
+                    .font(.system(size: 13))
+                    .foregroundColor(LoopkyColor.foregroundSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             Button("guest_banner_cta", action: onSignIn)
                 .buttonStyle(.loopkyCompactFilled)
-                .padding(.top, 4)
+                // The copy wraps; the button does not. Without this a narrow window squeezes
+                // "Get started" onto two lines before it takes a second line of body text.
+                .fixedSize()
                 .accessibilityIdentifier("guest_banner_cta")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 18).fill(LoopkyColor.accentPrimarySoft))
     }
