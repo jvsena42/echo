@@ -13,7 +13,7 @@ struct FriendProfileView: View {
     var onDismissSignInPrompt: () -> Void = {}
     var onSignIn: () -> Void = {}
 
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    @Environment(\.loopkyWidthClass) private var widthClass
 
     var body: some View {
         ScrollView {
@@ -36,6 +36,10 @@ struct FriendProfileView: View {
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 40)
+            // Reading rather than Wide, as on Android: this is a person, not a catalogue — the bio
+            // and the stat band are the screen, and the deck grid answers extra width with extra
+            // columns inside the same measure.
+            .contentPane()
         }
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
@@ -144,7 +148,7 @@ struct FriendProfileView: View {
                 .foregroundStyle(LoopkyColor.foregroundMuted)
                 .padding(.top, 20)
         } else {
-            LazyVGrid(columns: columns, spacing: 12) {
+            LazyVGrid(columns: deckGridItems(widthClass, spacing: 12), spacing: 12) {
                 ForEach(state.decks) { deck in
                     DeckTileView(
                         title: deck.title,

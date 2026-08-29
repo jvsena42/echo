@@ -55,10 +55,7 @@ struct SearchView: View {
 
     @FocusState private var isFocused: Bool
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 14),
-        GridItem(.flexible(), spacing: 14),
-    ]
+    @Environment(\.loopkyWidthClass) private var widthClass
 
     var body: some View {
         VStack(spacing: 0) {
@@ -81,6 +78,7 @@ struct SearchView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 8)
+                .contentPane(PaneWidth.wide)
             }
         }
         .background(LoopkyColor.surfacePrimary)
@@ -124,6 +122,9 @@ struct SearchView: View {
         .background(RoundedRectangle(cornerRadius: 14).fill(LoopkyColor.surfaceCard))
         .padding(.horizontal, 20)
         .padding(.bottom, 8)
+        // The same ceiling the results below get: a field three times the width of the rows under
+        // it reads as belonging to a different screen.
+        .contentPane(PaneWidth.wide)
     }
 
     private func directHitRow(_ hit: SearchDirectHit) -> some View {
@@ -190,7 +191,7 @@ struct SearchView: View {
     private var decksSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader("search_decks_title")
-            LazyVGrid(columns: columns, spacing: 14) {
+            LazyVGrid(columns: deckGridItems(widthClass), spacing: 14) {
                 ForEach(state.decks) { deck in
                     DeckTileView(
                         title: deck.title,

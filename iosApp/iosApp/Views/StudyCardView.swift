@@ -13,6 +13,8 @@ struct StudyCardView: View {
     var onCheckAnswer: () -> Void = {}
     var onGiveUp: () -> Void = {}
 
+    @Environment(\.loopkyWidthClass) private var widthClass
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 24)
@@ -27,9 +29,10 @@ struct StudyCardView: View {
         .animation(.easeInOut(duration: 0.35), value: state.revealed)
         .frame(maxWidth: .infinity)
         // Capped rather than free to grow — a flashcard stretched to a full screen is a wall of
-        // white around one word, and it pushes the grade row off the thumb's reach — but the cap
-        // is Android's 560, not the 440 that left a third of the screen empty below the card.
-        .frame(minHeight: 320, maxHeight: 560)
+        // white around one word, and it pushes the grade row off the thumb's reach. Keyed on the
+        // width class because a phone's ceiling on an iPad leaves a third of the screen as empty
+        // cream above and below the card, which is the same mistake in the other direction.
+        .frame(minHeight: 320, maxHeight: maxCardHeight)
         // The whole card is the flip target, and it stays live while answering: what a typing card
         // withholds is the answer, never the gesture.
         .contentShape(RoundedRectangle(cornerRadius: 24))
@@ -41,6 +44,17 @@ struct StudyCardView: View {
         .accessibilityLabel(Text(state.revealed ? state.backText : state.frontText))
         .accessibilityHint(Text("study_flip_hint"))
         .accessibilityIdentifier("study_card")
+    }
+
+    /// Unchanged from before iPads existed: on a phone this ceiling is never the binding one.
+    /// A portrait iPad has the height to spend; a landscape one has ~620pt between the progress bar
+    /// and the flip hint, so its ceiling only binds on a desktop-tall window.
+    private var maxCardHeight: CGFloat {
+        switch widthClass {
+        case .compact: return 560
+        case .medium: return 860
+        case .expanded: return 720
+        }
     }
 
     @ViewBuilder

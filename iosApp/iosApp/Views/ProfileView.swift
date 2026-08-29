@@ -28,30 +28,33 @@ struct ProfileView: View {
     /// Enough of the pubky to recognise the account being erased.
     private let pubkyPreviewLength = 12
 
+    @Environment(\.loopkyWidthClass) private var widthClass
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
                 toolbar
                 if state.isLoading {
                     ProgressView().padding(.top, 60)
+                } else if widthClass.isExpanded {
+                    // Who you are on the left, what that adds up to on the right. Stacked, this
+                    // screen is a column of full-width bands: at iPad width a three-number stat
+                    // card puts "Decks" and "Due" a hand's width apart with a strip of empty card
+                    // between them.
+                    HStack(alignment: .top, spacing: 28) {
+                        identityPane.frame(width: profilePaneWidth)
+                        detailsPane.frame(maxWidth: .infinity)
+                    }
                 } else {
-                    hero
-                    Button("profile_edit_profile", action: onEditProfile)
-                        .buttonStyle(.loopkySoft)
-                    stats
-                    peopleRow
-                    // Context, not a task, so it sits below the numbers rather than above them.
-                    PubkyAppProfileCta(action: onOpenOnPubkyApp)
-                    // Directly above sign-out, because that is the button that can destroy the
-                    // key it warns about: signing out of an un-backed-up local key ends the
-                    // account. Under the hero it was a notice; here it is a last chance.
-                    if state.needsBackup { backupNag }
-                    signOutButton
+                    identityPane
+                    detailsPane
                 }
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 40)
+            // After the background, so the cream still reaches both edges of an iPad.
+            .contentPane(widthClass.isExpanded ? PaneWidth.wide : PaneWidth.reading)
         }
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
@@ -88,6 +91,30 @@ struct ProfileView: View {
                 format: NSLocalizedString("settings_signout_unbacked_body", comment: ""),
                 String(state.shortPubky.prefix(pubkyPreviewLength))
             ))
+        }
+    }
+
+    /// Avatar, name, pubky, bio — and the one action that edits them.
+    private var identityPane: some View {
+        VStack(spacing: 20) {
+            hero
+            Button("profile_edit_profile", action: onEditProfile)
+                .buttonStyle(.loopkySoft)
+        }
+    }
+
+    /// What the identity adds up to: counts, the pubky.app link, and the way out.
+    private var detailsPane: some View {
+        VStack(spacing: 20) {
+            stats
+            peopleRow
+            // Context, not a task, so it sits below the numbers rather than above them.
+            PubkyAppProfileCta(action: onOpenOnPubkyApp)
+            // Directly above sign-out, because that is the button that can destroy the key it
+            // warns about: signing out of an un-backed-up local key ends the account. Under the
+            // hero it was a notice; here it is a last chance.
+            if state.needsBackup { backupNag }
+            signOutButton
         }
     }
 
@@ -277,3 +304,6 @@ struct ProfileView: View {
         .presentationDetents([.medium])
     }
 }
+
+/// Wide enough for a display name and a truncated pubky to sit on one line each.
+private let profilePaneWidth: CGFloat = 340

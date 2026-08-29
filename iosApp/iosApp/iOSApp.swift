@@ -39,7 +39,11 @@ struct iOSApp: App {
 
     var body: some Scene {
         WindowGroup {
+            // The one place the window's width is published from. Every adaptive decision below —
+            // two-pane layouts, grid columns, the sign-in handoff — reads it from the environment,
+            // so all of them re-answer on rotation and on a Split View divider being dragged.
             RootView()
+                .provideWindowSize()
         }
     }
 }

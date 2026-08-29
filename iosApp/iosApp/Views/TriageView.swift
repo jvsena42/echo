@@ -23,6 +23,8 @@ struct TriageView: View {
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 20)
+        // One card, kept or dropped: a single-task screen, so the narrower ceiling.
+        .contentPane(PaneWidth.focused)
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
     }

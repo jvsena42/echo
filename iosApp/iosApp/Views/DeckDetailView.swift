@@ -59,6 +59,8 @@ struct DeckDetailView: View {
     var onClone: () -> Void = {}
     var onRefresh: () async -> Void = {}
 
+    @Environment(\.loopkyWidthClass) private var widthClass
+
     var body: some View {
         ZStack(alignment: .bottom) {
             switch state {
@@ -71,6 +73,7 @@ struct DeckDetailView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
+                .contentPane(PaneWidth.reading)
             case .error(let message):
                 VStack(spacing: 12) {
                     header(isOwned: false)
@@ -86,6 +89,7 @@ struct DeckDetailView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
+                .contentPane(PaneWidth.reading)
             case .content(let content):
                 contentBody(content)
             }
@@ -96,130 +100,14 @@ struct DeckDetailView: View {
 
     @ViewBuilder
     private func contentBody(_ content: DeckDetailContent) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                header(isOwned: content.isOwned)
-
-                // Cover
-                coverView(content)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: content.isOwned ? 120 : 160)
-                    .clipShape(RoundedRectangle(cornerRadius: 28))
-
-                // Badge (owned variant)
-                if content.isOwned {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.white)
-                        Text("deck_detail_in_your_library")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(LoopkyColor.srsGood))
-                }
-
-                // Title + Description
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(content.title)
-                        .font(.system(size: 28, weight: .heavy))
-                        .foregroundColor(LoopkyColor.foregroundPrimary)
-                    if let description = content.description, !description.isEmpty {
-                        Text(description)
-                            .font(.system(size: 14))
-                            .foregroundColor(LoopkyColor.foregroundSecondary)
-                            .lineSpacing(4)
-                    }
-                }
-
-                // Author
-                HStack(spacing: 10) {
-                    PubkyAvatarView(
-                        initial: content.author.initial,
-                        avatarUrl: content.author.avatarUrl,
-                        size: 32
-                    )
-                    VStack(alignment: .leading) {
-                        HStack(spacing: 6) {
-                            Text(content.author.label)
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(LoopkyColor.foregroundPrimary)
-                                .lineLimit(1)
-                            if content.isOwned {
-                                YouBadge()
-                            }
-                        }
-                        Text(content.author.truncatedPubky)
-                            .font(.system(size: 11))
-                            .foregroundColor(LoopkyColor.foregroundMuted)
-                    }
-                    Spacer()
-                }
-
-                if !content.isOwned { foreignDeckActions(content) }
-                deckNotes(content)
-
-                // Tags
-                if !content.tags.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(content.tags, id: \.self) { tag in
-                                TagChipView(tag: tag, onTap: { onOpenTag(tag) })
-                            }
-                        }
-                    }
-                }
-
-                // Stats
-                StatsBarView(
-                    totalCards: content.totalCards,
-                    dueLabel: content.dueLabel,
-                    newCards: content.newCards,
-                    masteredPercent: content.masteredPercent
-                )
-
-                // Cards. Shown for decks you don't own too — being able to look through the
-                // cards before studying is what makes a shared deck worth opening.
-                cardsHeading(count: content.cards.count)
-
-                if content.cards.isEmpty {
-                    Text(content.isOwned
-                        ? "deck_detail_cards_empty_owned"
-                        : "deck_detail_cards_empty_foreign")
-                        .font(.system(size: 14))
-                        .foregroundColor(LoopkyColor.foregroundMuted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    LazyVStack(spacing: 8) {
-                        ForEach(content.cards) { card in
-                            HStack {
-                                Text(card.front)
-                                    .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(LoopkyColor.foregroundPrimary)
-                                Spacer()
-                                Text(card.back)
-                                    .font(.system(size: 13))
-                                    .foregroundColor(LoopkyColor.foregroundMuted)
-                            }
-                            .padding(14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(LoopkyColor.surfaceCard)
-                            )
-                            .shadow(color: LoopkyColor.shadowElevationLow, radius: 8, x: 0, y: 2)
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 100)
+        if widthClass.isExpanded {
+            wideBody(content)
+        } else {
+            compactBody(content)
         }
-        .refreshable { await onRefresh() }
 
-        // Bottom CTA
+        // Bottom CTA. Floating over the content at every width, so it is bounded on its own rather
+        // than by whichever pane it happens to sit above.
         if showsStudyCta {
             Button(action: onStudy) {
                 HStack(spacing: 8) {
@@ -232,6 +120,182 @@ struct DeckDetailView: View {
             .shadow(color: LoopkyColor.shadowAccent, radius: 24, x: 0, y: 8)
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
+            .contentPane(PaneWidth.focused)
+        }
+    }
+
+    /// Stacked: everything the deck *is*, then everything that is *in* it.
+    private func compactBody(_ content: DeckDetailContent) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                header(isOwned: content.isOwned)
+                metadataColumn(content)
+                cardsColumn(content)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 100)
+            .contentPane(PaneWidth.reading)
+        }
+        .refreshable { await onRefresh() }
+    }
+
+    /// Deck detail on an iPad in landscape: what the deck *is* on the left, what is *in* it on the
+    /// right.
+    ///
+    /// Stacked, this screen spends the whole first screenful on cover art and metadata and pushes
+    /// the cards — the thing you came to look at — below the fold, while every card row runs the
+    /// full width with its prompt at one edge and its answer at the other. Side by side, the
+    /// metadata column is a readable measure and the card list is visible immediately, which is the
+    /// actual point of the extra room.
+    ///
+    /// A plain `HStack` rather than a `NavigationSplitView`: this screen is pushed onto a
+    /// `NavigationStack` and draws its own header over a hidden navigation bar, so a split view
+    /// nested here would bring a second toolbar and a sidebar toggle to fight the header with.
+    private func wideBody(_ content: DeckDetailContent) -> some View {
+        VStack(spacing: 0) {
+            // Across the top rather than inside the left pane: back and share act on the screen,
+            // not on the metadata column, and a back button that scrolls away is one people cannot
+            // find.
+            header(isOwned: content.isOwned)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+            HStack(alignment: .top, spacing: 28) {
+                ScrollView {
+                    metadataColumn(content).padding(.bottom, 100)
+                }
+                .frame(width: detailPaneWidth)
+                ScrollView {
+                    cardsColumn(content).padding(.bottom, 100)
+                }
+                .frame(maxWidth: .infinity)
+                .refreshable { await onRefresh() }
+            }
+        }
+        .padding(.horizontal, 20)
+        .contentPane(PaneWidth.wide)
+    }
+
+    /// Cover, title, author, actions, tags and stats — everything above the card list when stacked,
+    /// and the left column when side by side.
+    private func metadataColumn(_ content: DeckDetailContent) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Cover
+            coverView(content)
+                .frame(maxWidth: .infinity)
+                .frame(height: content.isOwned ? 120 : 160)
+                .clipShape(RoundedRectangle(cornerRadius: 28))
+
+            // Badge (owned variant)
+            if content.isOwned {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                    Text("deck_detail_in_your_library")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(LoopkyColor.srsGood))
+            }
+
+            // Title + Description
+            VStack(alignment: .leading, spacing: 8) {
+                Text(content.title)
+                    .font(.system(size: 28, weight: .heavy))
+                    .foregroundColor(LoopkyColor.foregroundPrimary)
+                if let description = content.description, !description.isEmpty {
+                    Text(description)
+                        .font(.system(size: 14))
+                        .foregroundColor(LoopkyColor.foregroundSecondary)
+                        .lineSpacing(4)
+                }
+            }
+
+            // Author
+            HStack(spacing: 10) {
+                PubkyAvatarView(
+                    initial: content.author.initial,
+                    avatarUrl: content.author.avatarUrl,
+                    size: 32
+                )
+                VStack(alignment: .leading) {
+                    HStack(spacing: 6) {
+                        Text(content.author.label)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(LoopkyColor.foregroundPrimary)
+                            .lineLimit(1)
+                        if content.isOwned {
+                            YouBadge()
+                        }
+                    }
+                    Text(content.author.truncatedPubky)
+                        .font(.system(size: 11))
+                        .foregroundColor(LoopkyColor.foregroundMuted)
+                }
+                Spacer()
+            }
+
+            if !content.isOwned { foreignDeckActions(content) }
+            deckNotes(content)
+
+            // Tags
+            if !content.tags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(content.tags, id: \.self) { tag in
+                            TagChipView(tag: tag, onTap: { onOpenTag(tag) })
+                        }
+                    }
+                }
+            }
+
+            // Stats
+            StatsBarView(
+                totalCards: content.totalCards,
+                dueLabel: content.dueLabel,
+                newCards: content.newCards,
+                masteredPercent: content.masteredPercent
+            )
+        }
+    }
+
+    /// The card list. Shown for decks you don't own too — being able to look through the cards
+    /// before studying is what makes a shared deck worth opening.
+    private func cardsColumn(_ content: DeckDetailContent) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            cardsHeading(count: content.cards.count)
+
+            if content.cards.isEmpty {
+                Text(content.isOwned
+                    ? "deck_detail_cards_empty_owned"
+                    : "deck_detail_cards_empty_foreign")
+                    .font(.system(size: 14))
+                    .foregroundColor(LoopkyColor.foregroundMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                LazyVStack(spacing: 8) {
+                    ForEach(content.cards) { card in
+                        HStack {
+                            Text(card.front)
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(LoopkyColor.foregroundPrimary)
+                            Spacer()
+                            Text(card.back)
+                                .font(.system(size: 13))
+                                .foregroundColor(LoopkyColor.foregroundMuted)
+                        }
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(LoopkyColor.surfaceCard)
+                        )
+                        .shadow(color: LoopkyColor.shadowElevationLow, radius: 8, x: 0, y: 2)
+                    }
+                }
+            }
         }
     }
 
@@ -409,19 +473,23 @@ struct DeckDetailView: View {
                 circleIcon(systemName: "square.and.arrow.up")
             }
         }
+        .loopkyGlassGroup(spacing: 10)
     }
 
+    /// A round floating control over the deck's own scroll view — one of the few surfaces in
+    /// Loopky that has to ask for Liquid Glass, because it is a hand-built shape rather than a
+    /// system control that gets it by being rebuilt against the iOS 26 SDK.
     private func circleIcon(systemName: String, tint: Color = LoopkyColor.foregroundPrimary) -> some View {
-        ZStack {
-            Circle()
-                .fill(LoopkyColor.surfaceCard)
-                .frame(width: 40, height: 40)
-            Image(systemName: systemName)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(tint)
-        }
+        Image(systemName: systemName)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(tint)
+            .frame(width: 40, height: 40)
+            .loopkyGlass(in: .circle)
     }
 }
+
+/// The metadata column's width — a readable measure for the title and description.
+private let detailPaneWidth: CGFloat = 360
 
 // MARK: - Stats Bar
 

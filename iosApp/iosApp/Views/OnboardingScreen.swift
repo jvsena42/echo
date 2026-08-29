@@ -41,6 +41,8 @@ struct OnboardingScreen: View {
     var onExplore: () -> Void = {}
     var autoExplore: Bool = false
 
+    @Environment(\.loopkyWidthClass) private var widthClass
+
     var body: some View {
         Group {
             if isRestoring {
@@ -49,9 +51,12 @@ struct OnboardingScreen: View {
                 OnboardingView(
                     isWorking: isWorking,
                     errorMessage: errorMessage,
-                    onSignInTapped: { viewModel?.onSignInClick(handoff: RingHandoff.thisdevice) },
+                    onSignInTapped: { viewModel?.onSignInClick(handoff: handoff) },
                     onRestoreTapped: onRestore,
-                    onCreatePubkyTapped: onCreatePubky
+                    onCreatePubkyTapped: onCreatePubky,
+                    // Inline only where there is a column to put it in; narrower windows get the
+                    // same panel as a sheet, below.
+                    scan: widthClass.isExpanded ? scanPrompt : nil
                 )
             }
         }
@@ -65,13 +70,13 @@ struct OnboardingScreen: View {
             if autoExplore && noSession { onExplore() }
         }
         .sheet(isPresented: scanSheetBinding) {
-            if let awaiting {
+            if let scanPrompt {
                 RingScanSheet(
-                    authUrl: awaiting.authUrl,
-                    ringInstalledHere: awaiting.ringInstalledHere,
-                    onOpenRingHere: { viewModel?.onOpenRingOnThisDevice() },
-                    onGetRing: { viewModel?.onGetRingClick() },
-                    onCancel: { viewModel?.onCancelSignIn() }
+                    authUrl: scanPrompt.authUrl,
+                    ringInstalledHere: scanPrompt.ringInstalledHere,
+                    onOpenRingHere: scanPrompt.onOpenRingHere,
+                    onGetRing: scanPrompt.onGetRing,
+                    onCancel: scanPrompt.onCancel
                 )
             }
         }
@@ -81,16 +86,45 @@ struct OnboardingScreen: View {
         uiState as? OnboardingUiStateAwaitingApproval
     }
 
-    /// Raise the QR only where the deeplink cannot go.
+    /// Where the user is expected to approve this sign-in.
     ///
-    /// The shared VM fires `OpenDeeplink` only when the handoff is this device *and* Ring is
-    /// actually installed here, so an authorisation that is waiting with `ringInstalledHere ==
-    /// false` has nothing driving it — the code is the user's only way to approve it. This is the
-    /// same rule Android applies (3224e94), and it is what makes a simulator signable at all:
-    /// Ring cannot be installed on one, so the QR is always the path there.
+    /// A phone's key is in Ring on that same phone, so the deeplink is the shortest path. An iPad's
+    /// owner keeps their key on their phone, where the deeplink cannot reach, so the way in is a
+    /// code that phone can scan — and Ring being installed *here* does not change it, because an
+    /// iPad that happens to have Ring may still not have this user's key.
+    ///
+    /// Computed from the window on every layout, never captured at launch: an iPad in Slide Over is
+    /// a phone-shaped column, and rotation and a Split View divider both move the answer while the
+    /// app is running.
+    private var handoff: RingHandoff {
+        widthClass.isAtLeastMedium ? RingHandoff.anotherdevice : RingHandoff.thisdevice
+    }
+
+    /// The pending authorisation, when it is waiting on a device this one cannot deeplink to.
+    ///
+    /// The shared VM fires `OpenDeeplink` only when the handoff is `ThisDevice` *and* Ring is
+    /// actually installed here, so anything else leaves the authorisation live with nothing driving
+    /// it — the code is then the user's only way to approve it. Both halves of that condition
+    /// matter: reading `ringInstalledHere` alone would leave an iPad **with** Ring installed
+    /// waiting forever on a deeplink the VM deliberately never fired.
+    private var scanPrompt: RingScanPrompt? {
+        guard let awaiting else { return nil }
+        let deeplinkFired = awaiting.handoff == RingHandoff.thisdevice && awaiting.ringInstalledHere
+        guard !deeplinkFired else { return nil }
+        return RingScanPrompt(
+            authUrl: awaiting.authUrl,
+            ringInstalledHere: awaiting.ringInstalledHere,
+            onOpenRingHere: { viewModel?.onOpenRingOnThisDevice() },
+            onGetRing: { viewModel?.onGetRingClick() },
+            onCancel: { viewModel?.onCancelSignIn() }
+        )
+    }
+
+    /// The sheet is the narrow-window presentation only — at expanded width the same panel is
+    /// rendered inline in the sign-in column, and raising both would stack a modal over it.
     private var scanSheetBinding: Binding<Bool> {
         Binding(
-            get: { awaiting.map { !$0.ringInstalledHere } ?? false },
+            get: { !widthClass.isExpanded && scanPrompt != nil },
             // Dismissing by drag is the same intent as Cancel: back out without an error.
             set: { if !$0 { viewModel?.onCancelSignIn() } }
         )

@@ -14,6 +14,8 @@ struct HomeView: View {
     var onStartStudy: () -> Void = {}
     var onOpenDeck: (String) -> Void = { _ in }
 
+    @Environment(\.loopkyWidthClass) private var widthClass
+
     var body: some View {
         ZStack {
             LoopkyColor.surfacePrimary.ignoresSafeArea()
@@ -30,21 +32,12 @@ struct HomeView: View {
                             onBrowseExamples: onBrowseExamples
                         )
                     case .content(let content):
-                        // Nothing due *and* nothing unseen is a different screen, not a hero
-                        // reading zero: a primary CTA whose only outcome is "All done!" is a dead
-                        // end dressed as an action.
-                        if content.dueToday == 0 && content.newToday == 0 {
-                            CaughtUpCard(nextDueAtMillis: content.nextDueAtMillis)
+                        if widthClass.isExpanded {
+                            wideContent(content)
                         } else {
-                            DueTodayHeroCard(
-                                dueToday: content.dueToday,
-                                doneToday: content.doneToday,
-                                newCardsToday: content.newCardsToday,
-                                newCardsGoal: content.newCardsGoal,
-                                onStartStudy: onStartStudy
-                            )
+                            hero(content)
+                            TodaysDecksSection(decks: content.decks, onOpenDeck: onOpenDeck)
                         }
-                        TodaysDecksSection(decks: content.decks, onOpenDeck: onOpenDeck)
                     case .error(let message):
                         Text("home_error_title")
                             .font(.system(size: 20, weight: .heavy))
@@ -57,10 +50,61 @@ struct HomeView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
                 .padding(.bottom, 100)
+                // After the background and the scroll, so the cream still reaches both edges of an
+                // iPad and only the content inside is bounded. Wide enough for two panes side by
+                // side; narrower, the due-today hero is a number and its caption, and unbounded
+                // they drift to opposite ends of the card and read as two unrelated things.
+                .contentPane(widthClass.isExpanded ? PaneWidth.wide : PaneWidth.reading)
             }
         }
     }
+
+    /// Home on an iPad in landscape: the day's headline beside the decks, rather than stacked above
+    /// them.
+    ///
+    /// Two things are different from the compact layout, both about the same problem. The hero is
+    /// pinned to a column of its own instead of running the full width — a "2 / cards to review"
+    /// card stretched across 1100pt puts its number and its caption a hand's width apart. And the
+    /// deck list runs two across, because the stacked pair used barely a third of the height and
+    /// left the rest of the screen empty.
+    private func wideContent(_ content: HomeContentData) -> some View {
+        HStack(alignment: .top, spacing: 24) {
+            hero(content)
+                .frame(width: heroPaneWidth)
+            TodaysDecksSection(
+                decks: content.decks,
+                columns: wideDeckColumns,
+                onOpenDeck: onOpenDeck
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Nothing due *and* nothing unseen is a different card, not a hero reading zero: a primary CTA
+    /// whose only outcome is "All done!" is a dead end dressed as an action.
+    @ViewBuilder
+    private func hero(_ content: HomeContentData) -> some View {
+        if content.dueToday == 0 && content.newToday == 0 {
+            CaughtUpCard(nextDueAtMillis: content.nextDueAtMillis)
+        } else {
+            DueTodayHeroCard(
+                dueToday: content.dueToday,
+                doneToday: content.doneToday,
+                newCardsToday: content.newCardsToday,
+                newCardsGoal: content.newCardsGoal,
+                onStartStudy: onStartStudy
+            )
+        }
+    }
 }
+
+/// The hero column's width — the number, its caption and the Start studying button, at the size
+/// they are on a phone.
+private let heroPaneWidth: CGFloat = 340
+
+/// Two across inside the right pane. The window may be wide, but this pane is only part of it, so
+/// the screen-wide count would give rows too narrow to read.
+private let wideDeckColumns = 2
 
 enum HomeViewState: Equatable {
     case loading
