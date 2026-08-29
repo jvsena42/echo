@@ -20,20 +20,41 @@ enum KotlinInterop {
         return described
     }
 
-    /// Human label for the parser's detected separator.
+    /// Localized label for the parser's detected separator.
+    ///
+    /// These read back to the user in "Detected: em-dash", so they go through the string catalog
+    /// rather than being spelled in English here — the `paste_separator_*` keys already exist.
     static func separatorLabel(_ separator: Separator?) -> String {
+        NSLocalizedString(separatorKey(separator), comment: "Paste parser separator name")
+    }
+
+    private static func separatorKey(_ separator: Separator?) -> String {
         switch separator {
-        case is Separator.EmDash: return "em-dash"
-        case is Separator.Tab: return "tab"
-        case is Separator.Colon: return "colon"
-        case is Separator.Semicolon: return "semicolon"
-        case is Separator.Comma: return "comma"
-        case is Separator.Pipe: return "pipe"
-        case is Separator.MarkdownTable: return "markdown"
-        case is Separator.BlankLine: return "blank line"
-        case is Separator.SingleColumn: return "single column"
-        case is Separator.Custom: return "custom"
-        default: return "auto"
+        case is Separator.EmDash: return "paste_separator_em_dash"
+        case is Separator.Tab: return "paste_separator_tab"
+        case is Separator.Colon: return "paste_separator_colon"
+        case is Separator.Semicolon: return "paste_separator_semicolon"
+        case is Separator.Comma: return "paste_separator_comma"
+        case is Separator.Pipe: return "paste_separator_pipe"
+        case is Separator.MarkdownTable: return "paste_separator_markdown"
+        case is Separator.BlankLine: return "paste_separator_blank_lines"
+        case is Separator.SingleColumn: return "paste_separator_single_column"
+        default: return "paste_separator_auto"
         }
     }
+
+    /// The delimiters the user can force, in the order the picker offers them.
+    ///
+    /// `Custom` is deliberately absent: it carries a character the picker has no way to ask for.
+    static let selectableSeparators: [Separator] = [
+        Separator.Auto.shared,
+        Separator.EmDash.shared,
+        Separator.Tab.shared,
+        Separator.Colon.shared,
+        Separator.Semicolon.shared,
+        Separator.Comma.shared,
+        Separator.Pipe.shared,
+        Separator.MarkdownTable.shared,
+        Separator.BlankLine.shared,
+    ]
 }

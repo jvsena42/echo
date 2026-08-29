@@ -71,7 +71,7 @@ struct RootView: View {
                     case .editCard(let deckId, let cardId):
                         EditCardView(deckId: deckId, cardId: cardId, onBack: { deckRoute = nil })
                     case .importPaste:
-                        PasteView(
+                        PasteScreen(
                             onCancel: { deckRoute = nil },
                             onNext: { deckRoute = .importPublish }
                         )

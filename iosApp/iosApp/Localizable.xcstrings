@@ -1618,6 +1618,17 @@
         }
       }
     },
+    "paste_incomplete_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d card(s) are missing a front or a back. You can fix them after importing."
+          }
+        }
+      }
+    },
     "paste_input_placeholder_subtitle": {
       "extractionState": "manual",
       "localizations": {
@@ -1647,6 +1658,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Next"
+          }
+        }
+      }
+    },
+    "paste_no_pattern": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No front/back pattern found — every line became a single column. Pick a separator above, or add one to your text."
           }
         }
       }
