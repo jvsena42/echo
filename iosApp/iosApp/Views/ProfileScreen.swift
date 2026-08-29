@@ -9,6 +9,7 @@ import Shared
 struct ProfileScreen: View {
     var onSignedOut: () -> Void = {}
     var onOpenFollows: (FollowSource) -> Void = { _ in }
+    var onOpenSettings: () -> Void = {}
 
     @Environment(\.openURL) private var openURL
 
@@ -42,7 +43,8 @@ struct ProfileScreen: View {
             onOpenOnPubkyApp: { viewModel?.onOpenOnPubkyApp() },
             onSignOut: { viewModel?.onSignOutClick() },
             onOpenFollowing: { onOpenFollows(FollowSource.following) },
-            onOpenFollowers: { onOpenFollows(FollowSource.followers) }
+            onOpenFollowers: { onOpenFollows(FollowSource.followers) },
+            onOpenSettings: onOpenSettings
         )
         .sheet(item: $shareItem) { ShareSheet(items: [$0.text]) }
         .overlay(alignment: .bottom) {

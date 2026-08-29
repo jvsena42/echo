@@ -153,7 +153,12 @@ object IosDependencies {
 
     fun profileViewModel(): ProfileViewModel = koin.get()
 
-    fun settingsViewModel(): SettingsViewModel = koin.get()
+    /**
+     * @param appVersion the bundle's short version string. The Koin binding reads it from
+     *   `params.getOrNull() ?: ""`, so resolving with no parameters left the About row blank.
+     */
+    fun settingsViewModel(appVersion: String): SettingsViewModel =
+        koin.get { parametersOf(appVersion) }
 
     fun pasteImportViewModel(): PasteImportViewModel = koin.get()
 

@@ -20,6 +20,7 @@ struct ProfileView: View {
     var onSignOut: () -> Void = {}
     var onOpenFollowing: () -> Void = {}
     var onOpenFollowers: () -> Void = {}
+    var onOpenSettings: () -> Void = {}
 
     @State private var isConfirmingSignOut = false
 
@@ -68,6 +69,12 @@ struct ProfileView: View {
                     .foregroundStyle(LoopkyColor.accentPrimary)
             }
             .accessibilityLabel(Text("profile_share_content_description"))
+            Button(action: onOpenSettings) {
+                Image(systemName: "gearshape")
+                    .foregroundStyle(LoopkyColor.accentPrimary)
+            }
+            .accessibilityLabel(Text("profile_settings_content_description"))
+            .accessibilityIdentifier("profile_settings")
         }
     }
 

@@ -2839,6 +2839,17 @@
         }
       }
     },
+    "settings_back_up_account": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back up your account"
+          }
+        }
+      }
+    },
     "settings_cancel": {
       "extractionState": "manual",
       "localizations": {
@@ -2857,6 +2868,127 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copy"
+          }
+        }
+      }
+    },
+    "settings_delete_account": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account"
+          }
+        }
+      }
+    },
+    "settings_delete_account_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account"
+          }
+        }
+      }
+    },
+    "settings_delete_account_confirm_countdown": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account (%1$d)"
+          }
+        }
+      }
+    },
+    "settings_delete_account_dialog_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your decks, cards, images and study progress will be permanently deleted from your homeserver, and your profile will be removed from Loopky."
+          }
+        }
+      }
+    },
+    "settings_delete_account_dialog_identity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Pubky identity stays in Pubky Ring."
+          }
+        }
+      }
+    },
+    "settings_delete_account_dialog_irreversible": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This cannot be undone."
+          }
+        }
+      }
+    },
+    "settings_delete_account_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete account?"
+          }
+        }
+      }
+    },
+    "settings_delete_account_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not delete everything. You are still signed in, so you can try again."
+          }
+        }
+      }
+    },
+    "settings_delete_account_progress_count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d of %2$d removed"
+          }
+        }
+      }
+    },
+    "settings_delete_account_progress_starting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting"
+          }
+        }
+      }
+    },
+    "settings_delete_account_progress_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleting"
           }
         }
       }
@@ -2883,6 +3015,105 @@
         }
       }
     },
+    "settings_interval_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How long until the card comes back. The same every time you tap that grade, however often you've seen it."
+          }
+        }
+      }
+    },
+    "settings_interval_easy_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Easy interval (days)"
+          }
+        }
+      }
+    },
+    "settings_interval_good_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Good interval (days)"
+          }
+        }
+      }
+    },
+    "settings_interval_hard_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hard interval (days)"
+          }
+        }
+      }
+    },
+    "settings_interval_mastery_note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A card counts as mastered once it's on your longest interval, so raising this raises the bar."
+          }
+        }
+      }
+    },
+    "settings_license": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "License"
+          }
+        }
+      }
+    },
+    "settings_loading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading settings…"
+          }
+        }
+      }
+    },
+    "settings_new_cards_goal_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A goal, not a limit. You'll be told when you reach it and can keep going."
+          }
+        }
+      }
+    },
+    "settings_new_cards_goal_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New cards per day"
+          }
+        }
+      }
+    },
     "settings_not_signed_in": {
       "extractionState": "manual",
       "localizations": {
@@ -2890,6 +3121,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not signed in"
+          }
+        }
+      }
+    },
+    "settings_privacy_policy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy policy"
           }
         }
       }
@@ -2938,6 +3180,61 @@
         }
       }
     },
+    "settings_section_image_search": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IMAGE SEARCH"
+          }
+        }
+      }
+    },
+    "settings_section_sharing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SHARING"
+          }
+        }
+      }
+    },
+    "settings_section_studying": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "STUDYING"
+          }
+        }
+      }
+    },
+    "settings_share_on_pubky_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After you create, follow or clone a deck, offer to post about it so your Pubky followers see it. Your decks stay public either way — this only controls the post."
+          }
+        }
+      }
+    },
+    "settings_share_on_pubky_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask to share on Pubky"
+          }
+        }
+      }
+    },
     "settings_sign_out": {
       "extractionState": "manual",
       "localizations": {
@@ -2971,6 +3268,72 @@
         }
       }
     },
+    "settings_signout_unbacked_backup": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back up first"
+          }
+        }
+      }
+    },
+    "settings_signout_unbacked_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky holds the only copy of the key for %1$s, and you haven't backed it up. Signing out deletes it, and this account can never be recovered."
+          }
+        }
+      }
+    },
+    "settings_signout_unbacked_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out and erase"
+          }
+        }
+      }
+    },
+    "settings_signout_unbacked_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signing out will erase your key"
+          }
+        }
+      }
+    },
+    "settings_study_save_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't save your study settings."
+          }
+        }
+      }
+    },
+    "settings_study_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't reach your settings on Pubky. Editing is off until they load, so nothing overwrites them."
+          }
+        }
+      }
+    },
     "settings_title": {
       "extractionState": "manual",
       "localizations": {
@@ -2978,6 +3341,182 @@
           "stringUnit": {
             "state": "translated",
             "value": "Settings"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_built_in": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Using Loopky's shared key (limited)"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_error_invalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsplash rejected that key. Check you copied the Access Key in full."
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_error_missing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a key first."
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_error_rate_limited": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That key has hit its hourly limit. Try again later."
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_error_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't reach Unsplash to check the key."
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_get": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get a key"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free from Unsplash: create an application in your developer dashboard, then copy its Access Key — not the Secret key."
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsplash access key"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_not_set": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not set — web image search is off"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste your Access Key"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_remove": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_replace": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_save": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_set": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set"
+          }
+        }
+      }
+    },
+    "settings_unsplash_key_user_set": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key set · ••••%1$s"
           }
         }
       }

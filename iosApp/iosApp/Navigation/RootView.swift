@@ -9,6 +9,7 @@ enum DeckRoute: Hashable, Identifiable {
     case importPublish
     /// `nil` means everything due across the library, which is what Home asks for.
     case study(String?)
+    case settings
 
     var id: String {
         switch self {
@@ -19,6 +20,7 @@ enum DeckRoute: Hashable, Identifiable {
         case .importPaste: return "import-paste"
         case .importPublish: return "import-publish"
         case .study(let id): return "study-\(id ?? "all")"
+        case .settings: return "settings"
         }
     }
 }
@@ -42,7 +44,8 @@ struct RootView: View {
                     onImportTap: { deckRoute = .importPaste },
                     onCreateDeckTap: { deckRoute = .editorNew },
                     onSignedOut: { isSignedIn = false },
-                    onStartStudy: { deckRoute = .study(nil) }
+                    onStartStudy: { deckRoute = .study(nil) },
+                    onOpenSettings: { deckRoute = .settings }
                 )
                 .navigationDestination(item: $deckRoute) { route in
                     switch route {
@@ -78,6 +81,11 @@ struct RootView: View {
                         PasteScreen(
                             onCancel: { deckRoute = nil },
                             onNext: { deckRoute = .importPublish }
+                        )
+                    case .settings:
+                        SettingsScreen(
+                            onBack: { deckRoute = nil },
+                            onSignedOut: { deckRoute = nil; isSignedIn = false }
                         )
                     case .study(let deckId):
                         StudySessionScreen(
