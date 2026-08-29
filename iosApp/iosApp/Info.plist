@@ -15,6 +15,57 @@
 			</array>
 		</dict>
 	</array>
+	<!--
+	  Makes Loopky's Documents folder visible in Files and over Finder, so an .apkg can be dropped
+	  in and imported without going through a share sheet — the same way Anki's own iOS app works.
+	  `OpeningDocumentsInPlace` means the picker hands back the original file rather than a copy,
+	  which is why the reader takes a security-scoped URL.
+	-->
+	<!--
+	  Lets Loopky appear in "Open with" for a deck file, which is how an Anki export usually
+	  arrives — a chat attachment or a Mail download, not something already sitting in Files.
+	  Android has the same entry point via ACTION_VIEW / ACTION_SEND (`ImportFileIntent`).
+	  `.apkg` has no registered UTType, so it is declared here as a zip-conforming type.
+	-->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Anki deck</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.github.jvsena42.loopky.apkg</string>
+				<string>public.plain-text</string>
+				<string>public.comma-separated-values-text</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.github.jvsena42.loopky.apkg</string>
+			<key>UTTypeDescription</key>
+			<string>Anki deck</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.zip-archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>apkg</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.github.jvsena42.loopky.media-rehost</string>

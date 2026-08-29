@@ -1,0 +1,10 @@
+# SQLite, for reading an Anki `.apkg`'s `collection.anki2`.
+#
+# Not a Kotlin/Native platform library (zlib is; sqlite3 is not), but iOS ships both the header and
+# the dylib in the SDK — so this is a cinterop over what is already on the device rather than a new
+# dependency. Android gets the same capability from `android.database.sqlite`.
+#
+# Read-only use: the collection is opened with SQLITE_OPEN_READONLY and never written.
+headers = sqlite3.h
+package = sqlite3
+linkerOpts = -lsqlite3

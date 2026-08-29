@@ -14,11 +14,13 @@ struct PublishDeckView: View {
     var onAddTag: (String) -> Void = { _ in }
     var onRemoveTag: (String) -> Void = { _ in }
     var options: DeckStudyOptions
+    var onCoverSelected: (ImageSelection) -> Void = { _ in }
     var onShareConfirm: () -> Void = {}
     var onShareDismiss: () -> Void = {}
     var onShareNeverAsk: () -> Void = {}
 
     @State private var isAddingTag = false
+    @State private var pickingCover = false
 
     var body: some View {
         Group {
@@ -30,6 +32,15 @@ struct PublishDeckView: View {
         }
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
+        .sheet(isPresented: $pickingCover) {
+            ImagePickerSheet(
+                title: "publish_cover_label",
+                subtitle: nil,
+                onRemove: nil,
+                onSelected: onCoverSelected,
+                onClose: { pickingCover = false }
+            )
+        }
         .sheet(isPresented: $isAddingTag) {
             AddTagSheet(
                 tags: state.tags,
@@ -95,12 +106,41 @@ struct PublishDeckView: View {
     }
 
     private var cardsReady: some View {
-        HStack(spacing: 8) {
-            Text(state.coverEmoji.isEmpty ? "📚" : state.coverEmoji).font(.system(size: 22))
+        HStack(spacing: 12) {
+            Button { pickingCover = true } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12).fill(LoopkyColor.accentPrimarySoft)
+                    if hasCover {
+                        CardMediaImage(
+                            ref: coverRef,
+                            pendingBytes: state.coverPendingBytes,
+                            authorPubky: "",
+                            deckId: "",
+                            contentMode: .fill
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    } else {
+                        Text(state.coverEmoji.isEmpty ? "📚" : state.coverEmoji).font(.system(size: 24))
+                    }
+                }
+                .frame(width: 52, height: 52)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("publish_cover_change"))
+            .accessibilityIdentifier("publish_cover_change")
+
             Text(String(format: NSLocalizedString("publish_cards_ready", comment: ""), state.cardCount))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(LoopkyColor.foregroundSecondary)
             Spacer()
+        }
+    }
+
+    private var hasCover: Bool { state.coverImageUrl != nil || state.coverPendingBytes != nil }
+
+    private var coverRef: MediaRef.Image? {
+        state.coverImageUrl.map {
+            MediaRef.Image(path: "", mime: "", sha256: "", width: nil, height: nil, uri: nil, url: $0)
         }
     }
 

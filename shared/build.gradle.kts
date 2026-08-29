@@ -21,6 +21,9 @@ kotlin {
             baseName = "Shared"
             isStatic = true
         }
+        // SQLite for reading an Anki `.apkg`'s collection. zlib, which the same reader needs for
+        // inflate, is already a Kotlin/Native platform library and needs no interop.
+        iosTarget.compilations.getByName("main").cinterops.create("sqlite3")
     }
     
     sourceSets {

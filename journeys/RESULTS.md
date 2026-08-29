@@ -499,12 +499,52 @@ result below as new ground.
 account with no `pubky.app` profile. Harmless and handled, but it was the only `E/` line in an
 otherwise clean session and it buries anything that matters. Filed as #174.
 
+## Anki `.apkg` import — ✅ PASS (2026-08-29)
+
+Read end to end on the iPhone 17 simulator against the real homeserver, from a fixture carrying
+four notes, a two-template (reversed) note type, a `0x1F`-nested deck name, a protobuf deck
+description, and Anki's legacy `collection.anki2` stub alongside the real `collection.anki21`.
+
+| Step | Result |
+| --- | --- |
+| Open the file | PASSED — zip parsed by `ZipReader` over the system zlib, collection read through the SQLite cinterop |
+| Prefer the real collection | PASSED — `collection.anki21` chosen over the legacy stub |
+| Parse | PASSED — "4 cards parsed · Separator: tab" |
+| Field names | PASSED — "Fields: Spanish → English", read from the `fields` table |
+| Deck name | PASSED — "Spanish Nouns", the **root** of `Spanish Nouns␟Beginner`, not the leaf |
+| Deck description | PASSED — "Basic Spanish nouns.", decoded from the protobuf `decks.kind` blob |
+| Reversible detection | PASSED — two templates, so "Both directions" arrived **on** as a suggestion |
+| Suggested tags | PASSED — `#spanish` `#animals`, from the note tags |
+| Triage → publish | PASSED — Approve all → Publish → Undo window → deck detail: 4 cards, 4 new, all four rows |
+
+**Two crashes were found and fixed on this path**, both on the first real file:
+
+1. `IosAnkiDb.open` kept the connection handle as the `CPointerVar` it was written into, which
+   `memScoped` frees on exit — so every later call read freed memory and `close` segfaulted.
+   Covered now by `IosAnkiDbTest`, which fails with signal 11 if the bug is reintroduced.
+2. `String(format:)` with Android's `%1$s`. Java's `%s` is a **C string** on iOS, so a Swift
+   `String` passed to it faults in `strlen`. Nine ported strings carried it. Every `%d` was also
+   widened to `%lld`, since a Swift `Int` is 64-bit.
+
+The second is a whole class of bug, and the catalog is now audited for it rather than trusted —
+see the driving notes.
+
+**Not reached by the picker.** The Files picker runs out of process, so the file-choosing tap
+cannot be automated. The run above went through "Open with" instead (`simctl openurl` with a
+`file://` URL), which the app now handles — Android has the same entry point via `ACTION_VIEW` /
+`ACTION_SEND`. The picker itself was exercised by hand.
+
 ## Driving notes
 
 - `ui-automation type-text` into a SwiftUI `TextEditor` drops characters. Some of that was ours —
   a field bound through the ViewModel round-trips every keystroke and races the next, now fixed —
   but the tool is still lossy. Prefer `--replace-existing`, re-read the element ref between steps
   (it changes), and use `key-press --key-code 40` for newlines; multi-line `--text` is rejected.
+- **Format strings ported from Android are a crash, not a typo.** Java's `%1$s` is a C string on
+  iOS and faults in `strlen`; a Swift `Int` handed to `%d` reads the wrong width. Neither the
+  compiler nor SwiftLint sees either. Check every `%s` becomes `%@` and every `%d` becomes `%lld`
+  when porting a string, and check the *argument order* — `edit_card_context` puts its counts
+  before its title, and getting that wrong is also a segfault.
 - A bare `.onTapGesture` is invisible to both VoiceOver and the automation snapshot. The study
   card and Discover's person tile both needed an explicit accessibility action before they could
   be driven — worth checking on anything new that is tappable but not a `Button`.

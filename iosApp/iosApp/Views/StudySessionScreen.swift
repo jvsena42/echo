@@ -81,6 +81,10 @@ struct StudySessionScreen: View {
             typePhase: Self.typePhase(card.typePhase),
             typeMissMessage: Self.missMessage(card.typePhase),
             promptLanguage: card.reversed ? card.backLang : card.frontLang,
+            deckId: card.deckId,
+            authorPubky: card.authorPubky,
+            frontImageRef: card.frontImageRef,
+            backImageRef: card.backImageRef,
             syncErrorMessage: card.syncError.map { ErrorCopy.message(for: $0) },
             goalReached: card.goalCelebration != nil
         )
@@ -192,6 +196,10 @@ struct StudyViewState {
     var typePhase: StudyTypePhase = .off
     var typeMissMessage: String?
     var promptLanguage: String?
+    var deckId: String = ""
+    var authorPubky: String = ""
+    var frontImageRef: MediaRef.Image?
+    var backImageRef: MediaRef.Image?
     var syncErrorMessage: String?
     var goalReached: Bool = false
     var reviewed: Int = 0

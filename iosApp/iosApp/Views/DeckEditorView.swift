@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 struct EditorCardData: Identifiable {
     let id: String
@@ -10,8 +11,16 @@ struct EditorCardData: Identifiable {
 
 /// Pure layout — state comes from the shared `DeckEditorViewModel` via `DeckEditorScreen`.
 struct DeckEditorView: View {
+    @State private var pickingCover = false
     var isNew: Bool = true
     var coverEmoji: String = ""
+    /// A cover chosen *this session*: a web URL, or bytes not yet uploaded.
+    ///
+    /// A cover already saved as a blob is deliberately absent, matching Android — the editor's
+    /// state carries no ref for it, so both platforms fall back to the emoji until a new picture
+    /// is chosen.
+    var coverImageUrl: String?
+    var coverPendingBytes: Data?
     var title: String = ""
     var description: String = ""
     var tags: [String] = []
@@ -37,8 +46,18 @@ struct DeckEditorView: View {
     var onSave: () -> Void = {}
     /// The four study opt-ins and the language pair, built by `DeckEditorScreen`.
     var studyOptions: DeckStudyOptions?
+    var onCoverSelected: (ImageSelection) -> Void = { _ in }
 
     @State private var showTagSheet = false
+
+    private var hasCover: Bool { coverImageUrl != nil || coverPendingBytes != nil }
+
+    /// A URL chosen this session has no `MediaRef` yet; wrap it so the same view can draw it.
+    private var coverRef: MediaRef.Image? {
+        coverImageUrl.map {
+            MediaRef.Image(path: "", mime: "", sha256: "", width: nil, height: nil, uri: nil, url: $0)
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -78,13 +97,31 @@ struct DeckEditorView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     // Cover + Title
                     HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(LoopkyColor.accentPrimarySoft)
-                                .frame(width: 64, height: 64)
-                            Text(coverEmoji.isEmpty ? "📚" : coverEmoji)
-                                .font(.system(size: 32))
+                        Button { pickingCover = true } label: {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(LoopkyColor.accentPrimarySoft)
+                                if hasCover {
+                                    CardMediaImage(
+                                        ref: coverRef,
+                                        pendingBytes: coverPendingBytes,
+                                        authorPubky: "",
+                                        deckId: "",
+                                        contentMode: .fill
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                } else {
+                                    // The emoji is the fallback cover, drawn underneath — a deck
+                                    // always has one, a picture is optional.
+                                    Text(coverEmoji.isEmpty ? "📚" : coverEmoji)
+                                        .font(.system(size: 32))
+                                }
+                            }
+                            .frame(width: 64, height: 64)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text("publish_cover_change"))
+                        .accessibilityIdentifier("deck_editor_cover")
                         VStack(alignment: .leading, spacing: 6) {
                             Text("deck_editor_label_title")
                                 .font(.system(size: 10, weight: .bold))
@@ -236,6 +273,15 @@ struct DeckEditorView: View {
         }
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
+        .sheet(isPresented: $pickingCover) {
+            ImagePickerSheet(
+                title: "publish_cover_label",
+                subtitle: nil,
+                onRemove: nil,
+                onSelected: onCoverSelected,
+                onClose: { pickingCover = false }
+            )
+        }
         .sheet(isPresented: $showTagSheet) {
             AddTagSheet(tags: tags, onAdd: onAddTag, onRemove: onRemoveTag)
         }
