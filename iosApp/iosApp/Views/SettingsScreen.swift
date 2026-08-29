@@ -36,9 +36,6 @@ struct SettingsScreen: View {
             onSaveUnsplashKey: { viewModel?.onSaveUnsplashKey(key: $0) },
             onRemoveUnsplashKey: { viewModel?.onRemoveUnsplashKey() },
             onDismissUnsplashError: { viewModel?.onUnsplashKeyErrorDismissed() },
-            onSignOut: { viewModel?.onSignOutClick() },
-            onConfirmSignOutWithoutBackup: { viewModel?.onConfirmSignOutWithoutBackup() },
-            onDismissSignOutWarning: { viewModel?.onDismissSignOutWarning() },
             onDeleteAccount: { viewModel?.onDeleteAccountClick() },
             onConfirmDeleteAccount: { viewModel?.onConfirmDeleteAccount() },
             onDismissDeleteAccount: { viewModel?.onDeleteAccountDismissed() },
@@ -77,7 +74,6 @@ struct SettingsScreen: View {
             unsplashKeyStatus: Self.unsplashStatus(state.unsplashKeyStatus),
             isVerifyingUnsplashKey: state.isVerifyingUnsplashKey,
             unsplashKeyError: Self.unsplashError(state.unsplashKeyError),
-            unbackedUpPubky: state.unbackedUpPubky,
             holdsOwnKey: state.holdsOwnKey,
             isDeleting: state.deletion != nil
         )
@@ -166,7 +162,6 @@ struct SettingsViewState {
     var unsplashKeyStatus: UnsplashStatus = .notSet
     var isVerifyingUnsplashKey: Bool = false
     var unsplashKeyError: String?
-    var unbackedUpPubky: String?
     /// Whether this device holds the key **for the account on screen** — not merely whether a key
     /// is in the vault. An abandoned local signup leaves one behind for a pubky nobody signed in
     /// as, and offering that user a backup door into someone else's identity is the bug this

@@ -12,9 +12,6 @@ struct SettingsView: View {
     var onSaveUnsplashKey: (String) -> Void = { _ in }
     var onRemoveUnsplashKey: () -> Void = {}
     var onDismissUnsplashError: () -> Void = {}
-    var onSignOut: () -> Void = {}
-    var onConfirmSignOutWithoutBackup: () -> Void = {}
-    var onDismissSignOutWarning: () -> Void = {}
     var onDeleteAccount: () -> Void = {}
     var onConfirmDeleteAccount: () -> Void = {}
     var onDismissDeleteAccount: () -> Void = {}
@@ -22,11 +19,8 @@ struct SettingsView: View {
     var onBackUpNow: () -> Void = {}
 
     @State private var unsplashKey = ""
-    @State private var isConfirmingSignOut = false
 
     private static let privacyPolicyUrl = "https://loopky.app/privacy"
-    /// Enough of the pubky to recognise the account, as Android's warning shows.
-    private let pubkyPreviewLength = 12
 
     var body: some View {
         List {
@@ -42,41 +36,6 @@ struct SettingsView: View {
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationTitle(Text("settings_title"))
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog(
-            Text("settings_sign_out_dialog_title"),
-            isPresented: $isConfirmingSignOut,
-            titleVisibility: .visible
-        ) {
-            Button("settings_sign_out", role: .destructive, action: onSignOut)
-            Button("settings_cancel", role: .cancel) {}
-        } message: {
-            Text("settings_sign_out_dialog_message")
-        }
-        // Refused because this device holds a key nobody has a copy of. A separate, sterner
-        // prompt than the ordinary sign-out — losing it loses the account.
-        .alert(
-            Text("settings_signout_unbacked_title"),
-            isPresented: Binding(
-                get: { state.unbackedUpPubky != nil },
-                set: { if !$0 { onDismissSignOutWarning() } }
-            )
-        ) {
-            // Backing up is the safe action and the one almost everyone here wants; the
-            // destructive one is deliberately the quiet option beside it.
-            Button("settings_signout_unbacked_backup") {
-                onDismissSignOutWarning()
-                onBackUpNow()
-            }
-            Button("settings_signout_unbacked_confirm", role: .destructive, action: onConfirmSignOutWithoutBackup)
-            Button("settings_cancel", role: .cancel, action: onDismissSignOutWarning)
-        } message: {
-            // The body names the account being erased — without the argument it rendered the
-            // format specifier itself.
-            Text(verbatim: String(
-                format: NSLocalizedString("settings_signout_unbacked_body", comment: ""),
-                String((state.unbackedUpPubky ?? "").prefix(pubkyPreviewLength))
-            ))
-        }
         .alert(
             Text("settings_delete_account_dialog_title"),
             isPresented: Binding(get: { state.isDeleting }, set: { if !$0 { onDismissDeleteAccount() } })
@@ -112,7 +71,7 @@ struct SettingsView: View {
 
             // A permanent way back into backup, for as long as Loopky holds this account's key.
             //
-            // The Profile nag is not enough on its own: it disappears the moment one method is
+            // The Profile card is not enough on its own: it disappears the moment one method is
             // done, which left the flow unreachable afterwards — no second method, no encrypted
             // file to add later, and no route at all for a restored account, which counts as
             // backed up the moment it signs in. Methods accumulate, so the door stays open.
@@ -219,14 +178,13 @@ struct SettingsView: View {
         }
     }
 
-    /// The only section with a header on iOS and not on Android.
+    /// Deleting an account, and nothing else.
     ///
-    /// Without one it is two red links appended after ABOUT, four screens down, and someone
-    /// scanning the headers for a way out finds nothing that mentions their account — which is
-    /// exactly how it was reported missing. Android has the same gap.
+    /// Sign-out and the backup door both live on Profile now: they belong beside the key they act
+    /// on, and here they were four screens down in the one section without a header — which is
+    /// how sign-out came to be reported missing.
     private var dangerSection: some View {
         Section {
-            Button("settings_sign_out", role: .destructive) { isConfirmingSignOut = true }
             Button("settings_delete_account", role: .destructive, action: onDeleteAccount)
         } header: {
             Text("settings_section_account")

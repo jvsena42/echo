@@ -24,6 +24,9 @@ struct ProfileView: View {
     var onBackUpNow: () -> Void = {}
 
     @State private var isConfirmingSignOut = false
+    @State private var isConfirmingUnbackedSignOut = false
+    /// Enough of the pubky to recognise the account being erased.
+    private let pubkyPreviewLength = 12
 
     var body: some View {
         ScrollView {
@@ -64,6 +67,27 @@ struct ProfileView: View {
             Button("profile_sign_out_cancel", role: .cancel) {}
         } message: {
             Text("profile_sign_out_dialog_message")
+        }
+        // Sign-out lives only here now, so the warning Settings used to raise travels with it:
+        // this device holds the only copy of a key nobody has backed up, and signing out deletes
+        // it. A sterner prompt than the ordinary confirm, because losing it loses the account.
+        .alert(
+            Text("settings_signout_unbacked_title"),
+            isPresented: $isConfirmingUnbackedSignOut
+        ) {
+            // Backing up is the safe action and the one almost everyone here wants; the
+            // destructive one is deliberately the quiet option beside it.
+            Button("settings_signout_unbacked_backup") {
+                isConfirmingUnbackedSignOut = false
+                onBackUpNow()
+            }
+            Button("settings_signout_unbacked_confirm", role: .destructive, action: onSignOut)
+            Button("profile_sign_out_cancel", role: .cancel) {}
+        } message: {
+            Text(verbatim: String(
+                format: NSLocalizedString("settings_signout_unbacked_body", comment: ""),
+                String(state.shortPubky.prefix(pubkyPreviewLength))
+            ))
         }
     }
 
@@ -213,7 +237,15 @@ struct ProfileView: View {
     /// It is the one control on this screen that can end an account, and a quiet line of red text
     /// under a card read as a footnote next to the backup warning it follows.
     private var signOutButton: some View {
-        Button { isConfirmingSignOut = true } label: {
+        Button {
+            // Which prompt depends on what is at stake: an unbacked local key makes this
+            // irreversible, and the ordinary confirm does not say so.
+            if state.needsBackup {
+                isConfirmingUnbackedSignOut = true
+            } else {
+                isConfirmingSignOut = true
+            }
+        } label: {
             Label("profile_sign_out", systemImage: "rectangle.portrait.and.arrow.right")
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(LoopkyColor.danger)
