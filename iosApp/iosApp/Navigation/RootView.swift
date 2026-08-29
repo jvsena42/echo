@@ -44,6 +44,9 @@ struct RootView: View {
     @State private var isSignedIn: Bool = false
     @State private var pubky: String?
     @State private var deckRoute: DeckRoute?
+    /// The signed-out flows. A path, not a single destination: signup and backup go
+    /// several pushes deep.
+    @State private var identityPath: [IdentityRoute] = []
 
     var body: some View {
         NavigationStack {
@@ -137,7 +140,18 @@ struct RootView: View {
                     }
                 }
             } else {
-                OnboardingScreen(onSignedIn: { isSignedIn = true })
+                OnboardingScreen(
+                    onSignedIn: { signIn() },
+                    onCreatePubky: { identityPath.append(.signupStart(adoptHeldKey: false)) },
+                    onRestore: { identityPath.append(.restoreStart) },
+                    onUnregistered: { pubky in
+                        // Ring holds this key, so Loopky cannot register it.
+                        identityPath.append(.unregisteredKey(pubky: pubky, loopkyHoldsKey: false))
+                    }
+                )
+                .navigationDestination(for: IdentityRoute.self) { route in
+                    identityDestination(route)
+                }
             }
         }
         .onOpenURL { url in
@@ -151,5 +165,61 @@ struct RootView: View {
                 print("[Loopky] received deeplink: \(url.absoluteString)")
             }
         }
+    }
+
+    @ViewBuilder
+    private func identityDestination(_ route: IdentityRoute) -> some View {
+        switch route {
+        case .restoreStart:
+            RestoreStartScreen(
+                onBack: pop,
+                onRestoreWithPhrase: { identityPath.append(.restorePhrase) },
+                onRestoreWithFile: { identityPath.append(.restoreFile) }
+            )
+        case .restorePhrase:
+            RestorePhraseScreen(
+                onBack: pop,
+                onRestored: signIn,
+                onUnregistered: { pubky in
+                    // Loopky holds this one — it was just derived from the phrase.
+                    identityPath.append(.unregisteredKey(pubky: pubky, loopkyHoldsKey: true))
+                }
+            )
+        case .restoreFile:
+            RestoreFileScreen(
+                onBack: pop,
+                onRestored: signIn,
+                onUnregistered: { pubky in
+                    identityPath.append(.unregisteredKey(pubky: pubky, loopkyHoldsKey: true))
+                }
+            )
+        case .unregisteredKey(let pubky, let loopkyHoldsKey):
+            UnregisteredKeyScreen(
+                pubky: pubky,
+                loopkyHoldsKey: loopkyHoldsKey,
+                onBack: pop,
+                onNeedsVerification: {
+                    // adopt = true: the terminal step registers *this* key rather than minting a
+                    // new one, which would leave the pubky on screen account-less forever.
+                    identityPath.append(.signupStart(adoptHeldKey: true))
+                },
+                onRegistered: { identityPath.append(.backupStart(enteredFromSettings: false)) },
+                onRestoreWithPhrase: { identityPath.append(.restorePhrase) }
+            )
+        default:
+            // Signup and backup land here next.
+            EmptyView()
+        }
+    }
+
+    private func pop() {
+        if !identityPath.isEmpty { identityPath.removeLast() }
+    }
+
+    /// Clear the whole flow *and* flip the flag, so the tab screens rebuild against the new
+    /// session — Android's `goHomeSignedIn()` pops the entire graph for the same reason.
+    private func signIn() {
+        identityPath.removeAll()
+        isSignedIn = true
     }
 }

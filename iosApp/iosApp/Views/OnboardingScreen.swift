@@ -30,6 +30,11 @@ struct OnboardingScreen: View {
     @State private var effectSink: FlowEffectSink?
 
     var onSignedIn: () -> Void
+    /// The three doors Android's onboarding offers beside Ring sign-in. iOS had none of them.
+    var onCreatePubky: () -> Void = {}
+    var onRestore: () -> Void = {}
+    /// A Ring sign-in whose key the homeserver has no account for.
+    var onUnregistered: (String) -> Void = { _ in }
 
     var body: some View {
         Group {
@@ -40,7 +45,9 @@ struct OnboardingScreen: View {
                     isWorking: isWorking,
                     errorMessage: errorMessage,
                     onSignInTapped: { viewModel?.onSignInClick(handoff: RingHandoff.thisdevice) },
-                    onInstallTapped: { viewModel?.onGetRingClick() }
+                    onInstallTapped: { viewModel?.onGetRingClick() },
+                    onRestoreTapped: onRestore,
+                    onCreatePubkyTapped: onCreatePubky
                 )
             }
         }
@@ -118,6 +125,8 @@ struct OnboardingScreen: View {
                 if let url = URL(string: install.url) { openURL(url) }
             case is OnboardingEffectNavigateHome:
                 signedIn()
+            case let unregistered as OnboardingEffectNavigateUnregistered:
+                onUnregistered(unregistered.pubky)
             default:
                 break
             }

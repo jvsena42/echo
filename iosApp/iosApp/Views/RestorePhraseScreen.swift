@@ -1,0 +1,110 @@
+import SwiftUI
+import Shared
+
+/// Sign in by typing a recovery phrase.
+struct RestorePhraseScreen: View {
+    var onBack: () -> Void
+    var onRestored: () -> Void
+    var onUnregistered: (String) -> Void
+
+    @State private var viewModel: RestorePhraseViewModel?
+    @State private var uiState: RestorePhraseUiState?
+    @State private var stateSink: FlowEffectSink?
+    @State private var effectSink: FlowEffectSink?
+    @State private var phrase = ""
+
+    var body: some View {
+        SignupScaffold(
+            title: "restore_phrase_title",
+            subtitle: NSLocalizedString("restore_phrase_subtitle", comment: ""),
+            onBack: onBack
+        ) {
+            VStack(alignment: .leading, spacing: 0) {
+                // The don't-type-your-wallet-phrase direction. Permanent, never a toast.
+                SeedPhraseWarning(text: "restore_seed_warning")
+                Spacer().frame(height: 20)
+
+                FieldLabel(text: "restore_phrase_label")
+                Spacer().frame(height: 8)
+
+                // Disabled while checking, and that is load-bearing: an editable field during the
+                // round trip lets the checked words and the on-screen words diverge, and every
+                // outcome below is about the submitted ones.
+                TextField("restore_phrase_placeholder", text: $phrase, axis: .vertical)
+                    .lineLimit(3...6)
+                    .font(.system(size: 15))
+                    .foregroundStyle(LoopkyColor.foregroundPrimary)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    // Deliberately no `.textContentType` — see `PassphraseField`. `.password`
+                    // would offer the recovery phrase to iCloud Keychain (#148).
+                    .disabled(isChecking)
+                    .onChange(of: phrase) { _, value in viewModel?.onPhraseChange(phrase: value) }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(LoopkyColor.surfaceCard))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(isInvalid ? LoopkyColor.danger : LoopkyColor.borderSubtle, lineWidth: 1)
+                    )
+                    .accessibilityIdentifier("restore_phrase_input")
+
+                Spacer().frame(height: 24)
+                SignupPrimaryButton(
+                    title: isChecking ? "restore_phrase_checking" : "restore_phrase_submit",
+                    isLoading: isChecking,
+                    isEnabled: uiState?.canSubmit ?? false,
+                    action: { viewModel?.onSubmit() }
+                )
+                .accessibilityIdentifier("restore_phrase_submit")
+
+                if let outcome = uiState?.outcome {
+                    Spacer().frame(height: 20)
+                    RestoreOutcomeBlock(outcome: outcome)
+                }
+            }
+        }
+        // The phrase is on screen, so cover it while recording. Not FLAG_SECURE — see SecureContent.
+        .modifier(SecureScreenModifier())
+        .onAppear { attach() }
+        .onDisappear { detach() }
+    }
+
+    private var isChecking: Bool { uiState?.isChecking ?? false }
+
+    private var isInvalid: Bool { uiState?.outcome is RestoreOutcomeInvalidPhrase }
+
+    private func attach() {
+        guard viewModel == nil else { return }
+        let vm = IosDependencies.shared.restorePhraseViewModel()
+        viewModel = vm
+        stateSink = FlowEffectSink(vm.state) { uiState = $0 as? RestorePhraseUiState }
+        effectSink = FlowEffectSink(vm.effects) { effect in
+            switch effect {
+            case is RestoreEffectNavigateHome:
+                onRestored()
+            case let unregistered as RestoreEffectNavigateUnregistered:
+                onUnregistered(unregistered.pubky)
+            default:
+                break
+            }
+        }
+    }
+
+    private func detach() {
+        // `onLeaveUnlessCorrecting`, not `onLeave`: someone whose phrase resolved to an account
+        // that does not exist is being sent to the unregistered-key screen and may come straight
+        // back to correct a word. Wiping the field under them would make them retype twelve.
+        viewModel?.onLeaveUnlessCorrecting()
+        viewModel?.release()
+        viewModel = nil
+        stateSink = nil
+        effectSink = nil
+    }
+}
+
+/// Applies `SecureContent` as a modifier, so a screen can opt in with one line.
+struct SecureScreenModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        SecureContent { content }
+    }
+}

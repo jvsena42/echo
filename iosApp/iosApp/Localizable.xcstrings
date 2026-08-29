@@ -3004,6 +3004,17 @@
         }
       }
     },
+    "onboarding_create_pubky": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't have a Pubky? Create account"
+          }
+        }
+      }
+    },
     "onboarding_get_ring": {
       "extractionState": "manual",
       "localizations": {
@@ -3121,6 +3132,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Waiting for you to approve in Pubky Ring…"
+          }
+        }
+      }
+    },
+    "onboarding_restore": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use a recovery phrase or file"
           }
         }
       }
