@@ -1959,6 +1959,28 @@
         }
       }
     },
+    "profile_copied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        }
+      }
+    },
+    "profile_copy_pubky": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy pubky"
+          }
+        }
+      }
+    },
     "profile_dismiss": {
       "extractionState": "manual",
       "localizations": {
@@ -2036,6 +2058,17 @@
         }
       }
     },
+    "profile_open_on_pubky_app": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open on pubky.app"
+          }
+        }
+      }
+    },
     "profile_pubky_short": {
       "extractionState": "manual",
       "localizations": {
@@ -2102,6 +2135,50 @@
         }
       }
     },
+    "profile_sign_out_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "profile_sign_out_confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out"
+          }
+        }
+      }
+    },
+    "profile_sign_out_dialog_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You'll need Pubky Ring to sign back in. Your decks stay on your homeserver."
+          }
+        }
+      }
+    },
+    "profile_sign_out_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out?"
+          }
+        }
+      }
+    },
     "profile_stat_cards": {
       "extractionState": "manual",
       "localizations": {
@@ -2131,6 +2208,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Due"
+          }
+        }
+      }
+    },
+    "profile_stat_followers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Followers"
+          }
+        }
+      }
+    },
+    "profile_stat_following": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Following"
           }
         }
       }

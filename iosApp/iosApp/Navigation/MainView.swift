@@ -42,7 +42,7 @@ struct MainView: View {
             .tabItem { Label(LoopkyTab.discover.title, systemImage: LoopkyTab.discover.iconName) }
             .tag(LoopkyTab.discover)
 
-            ProfileView()
+            ProfileScreen(onSignedOut: onSignedOut)
                 .tabItem { Label(LoopkyTab.profile.title, systemImage: LoopkyTab.profile.iconName) }
                 .tag(LoopkyTab.profile)
         }
