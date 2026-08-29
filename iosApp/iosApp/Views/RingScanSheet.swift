@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The way in when Pubky Ring is not on this device: the pending authorisation as a QR code for
-/// Ring on the phone that holds the key.
+/// The way in when Pubky Ring cannot be reached on this device: the pending authorisation as a QR
+/// code for Ring on the phone that holds the key.
 ///
 /// The code carries the same one-shot `pubkyauth://` URL the deeplink would have, and the relay
 /// poll behind it is the same one — Ring does not care whether it was opened by a tap here or a
@@ -9,18 +9,23 @@ import SwiftUI
 /// than starting a new one: a fresh sign-in would invalidate the code the user may already be
 /// pointing a phone at.
 ///
-/// Presented as a `.sheet` with detents rather than a bespoke overlay, so it gets the system's
-/// drag-to-dismiss and Liquid Glass chrome on the iOS 26 SDK for free.
-struct RingScanSheet: View {
+/// Two presentations, because the two windows want different things. On a phone this is a `.sheet`
+/// — the sign-in screen is full of hero, and the code is a moment rather than a place. On an iPad
+/// it is rendered **inline**, in the sign-in column beside the hero: the QR *is* the primary path
+/// there (an iPad's owner keeps their key on their phone), and burying the primary path in a modal
+/// floating over an otherwise empty screen is the wrong shape for it.
+struct RingScanPanel: View {
     let authUrl: String
-    /// Drives the body copy only. When Ring *is* here the deeplink has already been fired, so the
-    /// sheet is a fallback rather than the main event.
+    /// Drives the body copy and the "open it here instead" escape hatch. When Ring *is* here the
+    /// deeplink has already been fired on a phone, so the panel is a fallback rather than the main
+    /// event — but on an iPad the handoff is to another device regardless, and the button is what
+    /// lets someone whose key happens to be in Ring here take the short path anyway.
     let ringInstalledHere: Bool
     var onOpenRingHere: () -> Void
     /// Where Ring comes from, for someone who has it on no phone at all. This lives here rather
-    /// than on onboarding: the sheet is the one place that has already established Ring is not on
-    /// this device, and a permanent link under the sign-in button was answering a question nobody
-    /// on that screen had asked.
+    /// than on onboarding: the panel is the one place that has already established Ring is not
+    /// reachable, and a permanent link under the sign-in button was answering a question nobody on
+    /// that screen had asked.
     var onGetRing: () -> Void
     var onCancel: () -> Void
 
@@ -69,8 +74,31 @@ struct RingScanSheet: View {
                     .foregroundStyle(LoopkyColor.foregroundMuted)
             }
         }
+    }
+}
+
+/// The phone presentation of [RingScanPanel]: a native sheet with detents, so it gets the system's
+/// drag-to-dismiss and Liquid Glass chrome on the iOS 26 SDK for free.
+struct RingScanSheet: View {
+    let authUrl: String
+    let ringInstalledHere: Bool
+    var onOpenRingHere: () -> Void
+    var onGetRing: () -> Void
+    var onCancel: () -> Void
+
+    var body: some View {
+        RingScanPanel(
+            authUrl: authUrl,
+            ringInstalledHere: ringInstalledHere,
+            onOpenRingHere: onOpenRingHere,
+            onGetRing: onGetRing,
+            onCancel: onCancel
+        )
         .padding(24)
         .frame(maxWidth: .infinity)
+        // The code is a single-task screen, so it keeps a focused measure on a regular width
+        // rather than spreading a 200pt QR across a form sheet.
+        .contentPane(PaneWidth.focused)
         .background(LoopkyColor.surfacePrimary)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
