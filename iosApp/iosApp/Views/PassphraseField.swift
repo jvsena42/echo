@@ -19,6 +19,9 @@ struct PassphraseField: View {
     var placeholder: LocalizedStringKey?
     var isEnabled: Bool = true
     var isError: Bool = false
+    /// Goes on the field itself, not the row around it: an identifier on the container is not a
+    /// text target, so automation finds it and types into nothing.
+    var identifier: String?
 
     @State private var isRevealed = false
     @Environment(\.scenePhase) private var scenePhase
@@ -37,6 +40,7 @@ struct PassphraseField: View {
             .font(.system(size: 15))
             .foregroundStyle(LoopkyColor.foregroundPrimary)
             .disabled(!isEnabled)
+            .accessibilityIdentifier(identifier ?? "")
 
             Button {
                 isRevealed.toggle()

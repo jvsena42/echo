@@ -37,7 +37,8 @@ struct RestoreFileScreen: View {
                         text: $passphrase,
                         placeholder: "restore_file_passphrase_placeholder",
                         isEnabled: !isChecking,
-                        isError: uiState?.outcome is RestoreOutcomeWrongPassphrase
+                        isError: uiState?.outcome is RestoreOutcomeWrongPassphrase,
+                        identifier: "restore_file_passphrase"
                     )
                     .onChange(of: passphrase) { _, value in
                         viewModel?.onPassphraseChange(passphrase: value)

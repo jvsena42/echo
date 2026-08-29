@@ -34,12 +34,12 @@ struct BackupFileScreen: View {
                     text: $passphrase,
                     placeholder: nil,
                     isEnabled: !(uiState?.isCreating ?? false),
-                    isError: uiState?.failed ?? false
+                    isError: uiState?.failed ?? false,
+                    identifier: "backup_file_passphrase"
                 )
                 .onChange(of: passphrase) { _, value in
                     viewModel?.onPassphraseChange(value: value)
                 }
-                .accessibilityIdentifier("backup_file_passphrase")
 
                 Spacer().frame(height: 8)
                 // A nudge, not a gate: the repository accepts any non-empty passphrase, and a
@@ -63,7 +63,7 @@ struct BackupFileScreen: View {
         .fileExporter(
             isPresented: $isExporting,
             document: document,
-            contentType: .data,
+            contentType: .pubkyRecovery,
             defaultFilename: exportName
         ) { result in
             // Only a confirmed write counts as a backup — a cancelled picker must not stop the
@@ -133,10 +133,18 @@ struct BackupFileScreen: View {
     }
 }
 
+extension UTType {
+    /// Declared in Info.plist as an exported type. Falling back to `.data` would cost the
+    /// extension on the saved file, not the save itself.
+    static var pubkyRecovery: UTType {
+        UTType("com.github.jvsena42.loopky.pkarr") ?? .data
+    }
+}
+
 /// The exported blob, as raw bytes. Written by the picker, never by us — so "saved" means the
 /// coordinator reported a write, not that we asked for one.
 struct RecoveryFileDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.data] }
+    static var readableContentTypes: [UTType] { [.pubkyRecovery] }
 
     var data: Data
 
