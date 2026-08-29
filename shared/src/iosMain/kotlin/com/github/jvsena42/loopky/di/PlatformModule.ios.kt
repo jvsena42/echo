@@ -112,7 +112,7 @@ private fun iosPlatformModule(
     single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }
     single<Speaker> { IosSpeaker() }
     single<PubkyRingPresence> { IosPubkyRingPresence() }
-    single<BackgroundTasks> { IosBackgroundTasks(identity = get(), decks = get()) }
+    single<BackgroundTasks> { IosBackgroundTasks(identityProvider = { get() }, decksProvider = { get() }) }
 }
 
 /** Resolver helper for SwiftUI — avoids depending on Koin Swift bridges in v1. */

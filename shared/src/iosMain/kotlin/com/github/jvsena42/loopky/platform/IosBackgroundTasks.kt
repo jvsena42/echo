@@ -29,11 +29,27 @@ import platform.Foundation.dateWithTimeIntervalSinceNow
  *   That is acceptable for both jobs: re-hosting is opportunistic by design (#65 already covers
  *   the blobs the user actually looks at), and compaction only ever buys request count back.
  */
+/*
+ * The repositories arrive as providers, not instances, and that is load-bearing.
+ *
+ * `DeckRepositoryImpl` takes a `BackgroundTasks` (it schedules compaction and re-hosting), so
+ * asking for a `DeckRepository` here closes a construction cycle:
+ * `BackgroundTasks -> DeckRepository -> BackgroundTasks`. Koin's `SingleInstanceFactory` holds a
+ * non-reentrant lock while it builds, so re-entering the same factory on the same thread does not
+ * fail cleanly — on Kotlin/Native it segfaults, which is what `doInitKoin` did on every launch.
+ *
+ * Android never hits it: `AndroidBackgroundTasks` takes only a `Context`, and its WorkManager
+ * workers resolve their repositories when they run. Deferring the `get()` to task-execution time
+ * does the same thing here, and neither repository is touched before a task actually runs.
+ */
 @OptIn(ExperimentalForeignApi::class)
 class IosBackgroundTasks(
-    private val identity: IdentityRepository,
-    private val decks: DeckRepository,
+    private val identityProvider: () -> IdentityRepository,
+    private val decksProvider: () -> DeckRepository,
 ) : BackgroundTasks {
+
+    private val identity: IdentityRepository get() = identityProvider()
+    private val decks: DeckRepository get() = decksProvider()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
