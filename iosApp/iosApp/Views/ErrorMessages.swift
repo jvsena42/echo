@@ -197,3 +197,29 @@ enum ErrorCopy {
         }
     }
 }
+
+/// Copy for the shared `FormError`s, in one place so the publish flow, the deck editor and the
+/// card editor cannot drift into wording the same validation differently.
+///
+/// Like `ErrorReason`, `FormError` is a Kotlin enum whose entries export lowercased with no
+/// separators, so this is the only file that has to know that.
+enum FormErrorCopy {
+    static func message(for error: FormError?) -> String? {
+        switch error {
+        case FormError.titlerequired:
+            return NSLocalizedString("form_error_title_required", comment: "")
+        case FormError.titletoolong:
+            return NSLocalizedString("form_error_title_too_long", comment: "")
+        case FormError.descriptiontoolong:
+            return NSLocalizedString("form_error_description_too_long", comment: "")
+        case FormError.cardsiderequired:
+            return NSLocalizedString("form_error_card_side_required", comment: "")
+        case FormError.cardtexttoolong:
+            return NSLocalizedString("form_error_card_text_too_long", comment: "")
+        case FormError.languagesrequired:
+            return NSLocalizedString("deck_languages_required", comment: "")
+        default:
+            return nil
+        }
+    }
+}

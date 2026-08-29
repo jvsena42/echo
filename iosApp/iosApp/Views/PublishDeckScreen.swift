@@ -77,21 +77,12 @@ struct PublishDeckScreen: View {
             publishedDeckId: state.publishedDeckId,
             undoSecondsRemaining: Int(state.undoSecondsRemaining),
             canPublish: state.canPublish,
-            titleError: Self.formErrorText(state.titleError),
-            descriptionError: Self.formErrorText(state.descriptionError),
+            titleError: FormErrorCopy.message(for: state.titleError),
+            descriptionError: FormErrorCopy.message(for: state.descriptionError),
             errorMessage: Self.publishErrorText(state.error),
             sharePromptPreview: state.sharePrompt?.preview,
             isSharing: state.sharePrompt?.isPosting ?? false
         )
-    }
-
-    private static func formErrorText(_ error: FormError?) -> String? {
-        switch error {
-        case FormError.titlerequired: return NSLocalizedString("form_error_title_required", comment: "")
-        case FormError.titletoolong: return NSLocalizedString("form_error_title_too_long", comment: "")
-        case FormError.descriptiontoolong: return NSLocalizedString("form_error_description_too_long", comment: "")
-        default: return nil
-        }
     }
 
     private static func publishErrorText(_ error: PublishError?) -> String? {
