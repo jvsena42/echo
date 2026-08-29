@@ -24,7 +24,7 @@ struct FriendProfileView: View {
                 } else {
                     hero
                     stats
-                    if !state.isSelf { followButton }
+                    actionRow
                     if let errorMessage = state.errorMessage {
                         Text(errorMessage)
                             .font(.system(size: 13))
@@ -56,9 +56,6 @@ struct FriendProfileView: View {
             }
             .accessibilityLabel(Text("friend_profile_back_content_description"))
             Spacer()
-            // The mark, not a generic globe: this leads to *their* pubky.app profile, and the
-            // shape is what says so.
-            PubkyAppIconButton(action: onOpenOnPubkyApp)
             Button(action: onShare) {
                 Image(systemName: "square.and.arrow.up").foregroundStyle(LoopkyColor.accentPrimary)
             }
@@ -110,6 +107,20 @@ struct FriendProfileView: View {
                 .foregroundStyle(LoopkyColor.foregroundMuted)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Follow, with the way out to pubky.app beside it.
+    ///
+    /// The mark sits next to the action rather than up in the toolbar: this is the row about
+    /// *this person*, and "see them on pubky.app" belongs with "follow them" rather than with
+    /// back and share. It stays for your own profile too, where there is no Follow to sit beside.
+    private var actionRow: some View {
+        HStack(spacing: 10) {
+            if !state.isSelf { followButton }
+            // The mark, not a generic globe: this leads to *their* pubky.app profile, and the
+            // shape is what says so.
+            PubkyAppIconButton(action: onOpenOnPubkyApp)
+        }
     }
 
     private var followButton: some View {
