@@ -130,6 +130,9 @@ struct DueTodayHeroCard: View {
 
 struct TodaysDecksSection: View {
     let decks: [HomeDeckSummary]
+    /// How many rows stand side by side. One on a phone; two inside the right pane of the wide
+    /// layout, where a single column of rows would leave most of the pane empty.
+    var columns: Int = 1
     let onOpenDeck: (String) -> Void
 
     var body: some View {
@@ -143,8 +146,20 @@ struct TodaysDecksSection: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(LoopkyColor.accentSecondary)
             }
-            ForEach(decks) { deck in
-                DeckRow(deck: deck, onTap: { onOpenDeck(deck.id) })
+            if columns > 1 {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columns),
+                    alignment: .leading,
+                    spacing: 12
+                ) {
+                    ForEach(decks) { deck in
+                        DeckRow(deck: deck, onTap: { onOpenDeck(deck.id) })
+                    }
+                }
+            } else {
+                ForEach(decks) { deck in
+                    DeckRow(deck: deck, onTap: { onOpenDeck(deck.id) })
+                }
             }
         }
     }
