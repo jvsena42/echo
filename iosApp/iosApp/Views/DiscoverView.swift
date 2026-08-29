@@ -56,10 +56,7 @@ struct DiscoverView: View {
     var isGuest: Bool = false
     var onSignIn: () -> Void = {}
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 14),
-        GridItem(.flexible(), spacing: 14),
-    ]
+    @Environment(\.loopkyWidthClass) private var widthClass
 
     var body: some View {
         ScrollView {
@@ -80,6 +77,9 @@ struct DiscoverView: View {
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 24)
+            // Mostly tile grids and horizontal strips, so it gets the widest ceiling — but a
+            // ceiling all the same, or the guest banner's two lines of copy run the full 1366pt.
+            .contentPane(PaneWidth.wide)
         }
         .background(LoopkyColor.surfacePrimary)
     }
@@ -264,7 +264,7 @@ struct DiscoverView: View {
     }
 
     private func deckGrid(_ decks: [DiscoverDeckData]) -> some View {
-        LazyVGrid(columns: columns, spacing: 14) {
+        LazyVGrid(columns: deckGridItems(widthClass), spacing: 14) {
             ForEach(decks) { deck in
                 DeckTileView(
                     title: deck.title,

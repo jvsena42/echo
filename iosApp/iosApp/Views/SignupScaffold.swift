@@ -58,6 +58,7 @@ struct SignupScaffold<Content: View>: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 24)
+            .contentPane(PaneWidth.focused)
         }
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)

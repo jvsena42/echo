@@ -50,6 +50,9 @@ struct GoalCelebrationView: View {
                     .foregroundStyle(LoopkyColor.foregroundMuted)
             }
             .padding(.horizontal, 32)
+            // The one modal moment in a session, and it covers the whole screen — so on an iPad
+            // its two buttons need a ceiling of their own or they run the width of the display.
+            .contentPane(PaneWidth.focused)
         }
         // Swallows taps so a stray press does not reach the card underneath.
         .contentShape(Rectangle())

@@ -16,6 +16,7 @@ struct TagBrowseScreen: View {
     @State private var uiState: TagBrowseUiState?
     @State private var stateSink: FlowEffectSink?
     @State private var effectSink: FlowEffectSink?
+    @Environment(\.loopkyWidthClass) private var widthClass
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -49,6 +50,7 @@ struct TagBrowseScreen: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
+        .contentPane(PaneWidth.wide)
     }
 
     @ViewBuilder
@@ -84,7 +86,7 @@ struct TagBrowseScreen: View {
 
     private func grid(decks: [DiscoverDeck]) -> some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(columns: deckGridItems(widthClass, spacing: 12), spacing: 12) {
                 ForEach(decks, id: \.id) { deck in
                     DeckTileView(
                         title: deck.title,
@@ -102,6 +104,9 @@ struct TagBrowseScreen: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
+            // A wall of tiles, which is the one thing that genuinely improves with more room — it
+            // answers with more columns, not wider tiles.
+            .contentPane(PaneWidth.wide)
         }
     }
 

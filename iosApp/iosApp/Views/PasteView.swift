@@ -26,6 +26,9 @@ struct PasteView: View {
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 40)
+            // A single column of form fields and prose. After the background, so the cream
+            // still reaches both edges of an iPad and only the content inside is bounded.
+            .contentPane()
         }
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)

@@ -33,10 +33,7 @@ struct DecksView: View {
     var sort: DeckSort = .recent
     var onSortChanged: (DeckSort) -> Void = { _ in }
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 14),
-        GridItem(.flexible(), spacing: 14),
-    ]
+    @Environment(\.loopkyWidthClass) private var widthClass
 
     var body: some View {
         ScrollView {
@@ -131,8 +128,9 @@ struct DecksView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    // Deck grid
-                    LazyVGrid(columns: columns, spacing: 14) {
+                    // Deck grid — column count from the window, never a fixed two. Two across on
+                    // a landscape iPad gives 550pt-wide tiles with a cover the size of a paperback.
+                    LazyVGrid(columns: deckGridItems(widthClass), spacing: 14) {
                         ForEach(decks) { deck in
                             DeckTileView(
                                 title: deck.title,
@@ -164,6 +162,10 @@ struct DecksView: View {
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 100)
+            // Wide rather than Reading: this column is mostly a tile grid, which is the one thing
+            // that genuinely improves with more room — it answers with more columns, not wider
+            // tiles. After the background, so the cream still reaches both edges.
+            .contentPane(PaneWidth.wide)
         }
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
     }

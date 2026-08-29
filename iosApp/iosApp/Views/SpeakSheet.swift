@@ -27,7 +27,7 @@ struct SpeakSheet: View {
             }
         }
         .padding(24)
-        .frame(maxWidth: .infinity)
+        .contentPane(PaneWidth.focused)
         .background(LoopkyColor.surfacePrimary)
         .presentationDetents([.height(340)])
         .presentationDragIndicator(.visible)
