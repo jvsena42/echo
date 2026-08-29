@@ -45,13 +45,17 @@ struct OnboardingView: View {
     private var wideBody: some View {
         HStack(spacing: 48) {
             heroBlock.frame(maxWidth: heroMaxWidth)
-            // Scrollable, because the `HStack` bounds this column to the window height and a
-            // `VStack` that overflows a bounded parent clips in silence — no error, no ellipsis,
-            // just a button sliced in half. The QR panel is the tallest thing that lands here.
-            ScrollView {
+            // `ViewThatFits`, not a bare `ScrollView`. The column has to scroll when it overflows
+            // — the `HStack` bounds it to the window height, and a `VStack` that overflows a
+            // bounded parent clips in silence: no error, no ellipsis, just a button sliced in half,
+            // and the QR panel is the tallest thing that lands here. But a `ScrollView` is greedy
+            // about height whether it needs it or not, which pinned the three sign-in buttons to
+            // the ceiling while the hero sat centred beside them. This takes the plain column
+            // whenever it fits, so it sizes to its content and the row centres both halves.
+            ViewThatFits(in: .vertical) {
                 signInColumn
+                ScrollView { signInColumn }
             }
-            .scrollBounceBehavior(.basedOnSize)
             .frame(maxWidth: PaneWidth.focused)
         }
         .frame(maxHeight: .infinity)
