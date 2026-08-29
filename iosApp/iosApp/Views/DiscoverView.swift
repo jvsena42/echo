@@ -1,10 +1,13 @@
 import SwiftUI
+import Shared
 
 struct DiscoverPersonData: Identifiable {
     let id: String
     let label: String
     let shortPubky: String
     let initial: String
+    /// The person's picture. A plain URL, unlike a deck cover — profile avatars are not blobs.
+    var avatarUrl: String?
     var isFollowing: Bool = false
     var isFollowPending: Bool = false
 }
@@ -18,6 +21,7 @@ struct DiscoverDeckData: Identifiable {
     let cardCount: Int
     let coverEmoji: String
     let authorLabel: String
+    var coverImage: MediaRef.Image?
 }
 
 /// One independently-loading strip, mirroring the shared `SectionState`.
@@ -128,12 +132,7 @@ struct DiscoverView: View {
 
     private func personTile(_ person: DiscoverPersonData) -> some View {
         VStack(spacing: 6) {
-            ZStack {
-                Circle().fill(LoopkyColor.accentSecondarySoft).frame(width: 56, height: 56)
-                Text(person.initial)
-                    .font(.system(size: 24, weight: .heavy))
-                    .foregroundColor(LoopkyColor.accentSecondary)
-            }
+            PubkyAvatarView(initial: person.initial, avatarUrl: person.avatarUrl, size: 56)
             Text(person.label)
                 .font(.system(size: 13, weight: .bold))
                 .foregroundColor(LoopkyColor.foregroundPrimary)
@@ -249,6 +248,9 @@ struct DiscoverView: View {
                     cardCount: deck.cardCount,
                     coverEmoji: deck.coverEmoji,
                     authorLabel: deck.authorLabel,
+                    coverImage: deck.coverImage,
+                    authorPubky: deck.authorPubky,
+                    deckId: deck.deckId,
                     onTap: { onDeckTap(deck.authorPubky, deck.deckId) }
                 )
             }

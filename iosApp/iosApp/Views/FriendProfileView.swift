@@ -154,6 +154,9 @@ struct FriendProfileView: View {
                         cardCount: deck.cardCount,
                         coverEmoji: deck.coverEmoji,
                         authorLabel: deck.authorLabel,
+                        coverImage: deck.coverImage,
+                        authorPubky: deck.authorPubky,
+                        deckId: deck.id,
                         onTap: { onOpenDeck(deck.id, deck.authorPubky) }
                     )
                 }

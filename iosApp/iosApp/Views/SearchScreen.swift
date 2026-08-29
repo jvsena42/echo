@@ -45,6 +45,7 @@ struct SearchScreen: View {
                     label: identity.label,
                     shortPubky: identity.shortPubky,
                     initial: identity.initial,
+                    avatarUrl: identity.avatarUrl,
                     isFollowing: person.isFollowing,
                     isFollowPending: person.isFollowPending
                 )
@@ -56,7 +57,8 @@ struct SearchScreen: View {
                     title: deck.title,
                     cardCount: Int(deck.cardCount),
                     coverEmoji: deck.coverEmoji,
-                    authorLabel: IdentityData(deck.author).label
+                    authorLabel: IdentityData(deck.author).label,
+                    coverImage: deck.coverImage
                 )
             }
         )
