@@ -7,7 +7,8 @@ import Shared
 /// Objective-C, so releasing a VM goes through `IosDependencies.clear(viewModel:)`.
 struct DiscoverScreen: View {
     var onOpenProfile: (String) -> Void = { _ in }
-    var onOpenDeck: (String, String) -> Void = { _, _ in }
+    /// `(deckId, authorPubky)` — in that order. The two screens used to disagree.
+    var onOpenDeck: (_ deckId: String, _ authorPubky: String) -> Void = { _, _ in }
     var onSearch: () -> Void = {}
 
     @State private var viewModel: DiscoverViewModel?
