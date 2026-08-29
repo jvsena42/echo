@@ -31,13 +31,13 @@ struct OnboardingScreen: View {
                 OnboardingView(
                     isWorking: isWorking,
                     errorMessage: errorMessage,
-                    onSignInTapped: { viewModel.onSignInClick() },
+                    onSignInTapped: { viewModel.onSignInClick(handoff: RingHandoff.thisdevice) },
                     onInstallTapped: { viewModel.onGetRingClick() }
                 )
             }
         }
         .onAppear { attachEffects() }
-        .onDisappear { viewModel.onDispose() }
+        .onDisappear { IosDependencies.shared.clear(viewModel: viewModel) }
     }
 
     /// Cold start, still reading the persisted session back. Showing the splash here keeps a
