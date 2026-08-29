@@ -99,7 +99,7 @@ struct DeckDetailScreen: View {
     }
 
     private func detach() {
-        viewModel?.onDispose()
+        if let viewModel { IosDependencies.shared.clear(viewModel: viewModel) }
         viewModel = nil
         stateSink = nil
         effectSink = nil

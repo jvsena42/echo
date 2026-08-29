@@ -3,8 +3,8 @@ import Shared
 
 /// VM-driven wrapper around the presentational `SearchView`.
 ///
-/// Note the teardown call: the shared ViewModels extend the multiplatform
-/// `androidx.lifecycle.ViewModel`, which exposes `clear()` — there is no `onDispose()`.
+/// Note the teardown call: androidx's own `ViewModel.clear()` is internal and is not exported to
+/// Objective-C, so releasing a VM goes through `IosDependencies.clear(viewModel:)`.
 struct SearchScreen: View {
     var onOpenProfile: (String) -> Void = { _ in }
     var onOpenDeck: (String, String) -> Void = { _, _ in }
@@ -88,7 +88,7 @@ struct SearchScreen: View {
     }
 
     private func detach() {
-        viewModel?.clear()
+        if let viewModel { IosDependencies.shared.clear(viewModel: viewModel) }
         viewModel = nil
         stateSink = nil
         effectSink = nil

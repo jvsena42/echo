@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.di
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jvsena42.loopky.data.homegate.HomegateClient
 import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
@@ -44,6 +46,7 @@ import com.github.jvsena42.loopky.presentation.profile.FriendProfileViewModel
 import com.github.jvsena42.loopky.presentation.profile.ProfileViewModel
 import com.github.jvsena42.loopky.presentation.settings.SettingsViewModel
 import com.github.jvsena42.loopky.presentation.study.StudySessionViewModel
+import kotlinx.coroutines.cancel
 import org.koin.core.Koin
 import org.koin.core.context.startKoin
 import org.koin.core.module.Module
@@ -153,4 +156,18 @@ object IosDependencies {
 
     fun friendProfileViewModel(pubky: String): FriendProfileViewModel =
         koin.get { parametersOf(pubky) }
+
+    /**
+     * Tear a ViewModel down when its SwiftUI view goes away.
+     *
+     * SwiftUI has no `ViewModelStore`, and androidx's own `ViewModel.clear()` is internal — so
+     * neither is exported to Objective-C and a Swift screen has no way to release the VM it
+     * resolved. Cancelling `viewModelScope` is the part that matters: it is what stops in-flight
+     * repository work, and it is what `clear()` does before invoking `onCleared()`.
+     *
+     * Call it from `.onDisappear`. Swift screens must not reuse the instance afterwards.
+     */
+    fun clear(viewModel: ViewModel) {
+        viewModel.viewModelScope.cancel()
+    }
 }

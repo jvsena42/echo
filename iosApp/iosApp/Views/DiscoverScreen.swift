@@ -3,10 +3,8 @@ import Shared
 
 /// VM-driven wrapper around the presentational `DiscoverView`.
 ///
-/// Note the teardown call: the shared ViewModels extend the multiplatform
-/// `androidx.lifecycle.ViewModel`, which exposes `clear()` — there is no `onDispose()`. The older
-/// iOS screens still call `onDispose()` and have not been rebuilt against the framework since the
-/// androidx migration; they will need the same correction.
+/// Note the teardown call: androidx's own `ViewModel.clear()` is internal and is not exported to
+/// Objective-C, so releasing a VM goes through `IosDependencies.clear(viewModel:)`.
 struct DiscoverScreen: View {
     var onOpenProfile: (String) -> Void = { _ in }
     var onOpenDeck: (String, String) -> Void = { _, _ in }
@@ -98,7 +96,7 @@ struct DiscoverScreen: View {
     }
 
     private func detach() {
-        viewModel?.clear()
+        if let viewModel { IosDependencies.shared.clear(viewModel: viewModel) }
         viewModel = nil
         stateSink = nil
         effectSink = nil
