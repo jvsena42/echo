@@ -37,6 +37,14 @@ struct StudySessionView: View {
             LoopkyColor.surfacePrimary.ignoresSafeArea()
             content
             if let syncErrorMessage = state.syncErrorMessage { syncBanner(syncErrorMessage) }
+            // Over everything, including the sync banner: it is the one modal moment in a session.
+            if state.goalReached {
+                GoalCelebrationView(
+                    newCardsToday: state.newCardsToday,
+                    onKeepStudying: onContinueAfterGoal,
+                    onDone: onClose
+                )
+            }
         }
         .navigationBarHidden(true)
     }

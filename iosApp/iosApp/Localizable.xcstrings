@@ -6866,6 +6866,28 @@
         }
       }
     },
+    "study_goal_reached_count_many": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld new cards today"
+          }
+        }
+      }
+    },
+    "study_goal_reached_count_one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld new card today"
+          }
+        }
+      }
+    },
     "study_goal_reached_title": {
       "extractionState": "manual",
       "localizations": {

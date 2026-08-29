@@ -120,6 +120,7 @@ struct StudySessionScreen: View {
             backImageRef: card.backImageRef,
             syncErrorMessage: card.syncError.map { ErrorCopy.message(for: $0) },
             goalReached: card.goalCelebration != nil,
+            newCardsToday: Int(card.goalCelebration?.newCardsToday ?? 0),
             isPreview: card.isPreview,
             previewAdvanceAvailable: card.previewAdvanceAvailable
         )
@@ -279,6 +280,7 @@ struct StudyViewState {
     var backImageRef: MediaRef.Image?
     var syncErrorMessage: String?
     var goalReached: Bool = false
+    var newCardsToday: Int = 0
     var reviewed: Int = 0
     var errorMessage: String?
     /// A sample of a deck nobody has kept: no grading, no scheduling, and a different ending.
