@@ -15,6 +15,61 @@ homeserver you hold the key to.
 
 ---
 
+## Screenshots
+
+Captured on the v0.6.0 debug build against a live Pubky homeserver — a Pixel phone emulator
+(1080×2400) and the `Pixel_Tablet` emulator in landscape (2560×1600), the two width classes the
+adaptive layouts target. Full-resolution files live in [`screenshots/`](./screenshots) and double
+as the Play Store asset set.
+
+### Phone
+
+<table>
+<tr>
+<td align="center"><img src="screenshots/phone/00-onboarding.png" width="170" alt="Onboarding"><br><sub><b>Sign in</b><br>A key, not an account</sub></td>
+<td align="center"><img src="screenshots/phone/01-home.png" width="170" alt="Today"><br><sub><b>Today</b><br>The daily queue</sub></td>
+<td align="center"><img src="screenshots/phone/02-decks.png" width="170" alt="Deck library"><br><sub><b>Library</b><br>Your decks</sub></td>
+<td align="center"><img src="screenshots/phone/03-deck-detail.png" width="170" alt="Deck detail"><br><sub><b>Deck</b><br>Stats, tags, cards</sub></td>
+<td align="center"><img src="screenshots/phone/04-study-front.png" width="170" alt="Study prompt"><br><sub><b>Study</b><br>Listen and Speak</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/phone/05-study-answer.png" width="170" alt="Grading a card"><br><sub><b>Grade</b><br>The button says the interval</sub></td>
+<td align="center"><img src="screenshots/phone/06-discover.png" width="170" alt="Discover"><br><sub><b>Discover</b><br>Decks and tags</sub></td>
+<td align="center"><img src="screenshots/phone/07-profile.png" width="170" alt="Profile"><br><sub><b>Profile</b><br>Your Pubky identity</sub></td>
+<td align="center"><img src="screenshots/phone/08-paste-import.png" width="170" alt="Paste to import"><br><sub><b>Paste import</b><br>Separator auto-detected</sub></td>
+<td align="center"><img src="screenshots/phone/09-signup.png" width="170" alt="Homeserver signup"><br><sub><b>Signup</b><br>SMS, sats or invite</sub></td>
+</tr>
+</table>
+
+### Tablet
+
+Home, deck detail and onboarding are real two-pane layouts at expanded width, with a navigation
+rail in place of the tab bar — not a stretched phone column.
+
+<table>
+<tr>
+<td align="center"><img src="screenshots/tablet/01-home.png" width="380" alt="Today on tablet"><br><sub><b>Today</b> — queue beside the deck grid</sub></td>
+<td align="center"><img src="screenshots/tablet/02-decks.png" width="380" alt="Deck library on tablet"><br><sub><b>Library</b> — four columns at expanded width</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/tablet/03-deck-detail.png" width="380" alt="Deck detail on tablet"><br><sub><b>Deck</b> — metadata beside the full card list</sub></td>
+<td align="center"><img src="screenshots/tablet/04-study-front.png" width="380" alt="Study on tablet"><br><sub><b>Study</b> — the prompt side</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/tablet/05-study-answer.png" width="380" alt="Grading on tablet"><br><sub><b>Grade</b> — grades move beside the card</sub></td>
+<td align="center"><img src="screenshots/tablet/06-discover.png" width="380" alt="Discover on tablet"><br><sub><b>Discover</b> — trending tags and follows</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/tablet/07-profile.png" width="380" alt="Profile on tablet"><br><sub><b>Profile</b> — identity and totals</sub></td>
+<td align="center"><img src="screenshots/tablet/00-onboarding.png" width="380" alt="Onboarding on tablet"><br><sub><b>Sign in</b> — split across two panes</sub></td>
+</tr>
+</table>
+
+> Settings and the recovery-phrase screens are `FLAG_SECURE`, so they cannot be screenshotted —
+> that is deliberate, and why they are absent here.
+
+---
+
 ## Status
 
 **Android is feature-built end to end.** Onboarding and Pubky Ring sign-in, homeserver signup
