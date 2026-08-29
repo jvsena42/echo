@@ -77,9 +77,17 @@ rail in place of the tab bar — not a stretched phone column.
 Type, deck library and editor, paste import and bulk file import (`.txt` / `.csv` / `.apkg`),
 publishing, discovery and tag browse, profiles and follows, and settings.
 
-**iOS is wired but unproven.** The SwiftUI screens, the Koin bootstrap and the Kotlin↔Swift Flow
-bridge are all in place, but nobody has driven the app against a real homeserver. Treat its
-behaviour as unverified rather than blocked.
+**iOS covers the core loop.** Sign in with Pubky Ring — by deeplink, or by scanning a QR from the
+phone that holds your key — then browse and search, the deck library and editor, paste import and
+publishing, the SRS study loop with Type the answer and Listen, profiles and follows, and settings
+including the synced study intervals. Driven against a real homeserver on the iPhone 17 simulator;
+see the iOS section of [`journeys/RESULTS.md`](./journeys/RESULTS.md).
+
+Still Android-only: Speak (pronunciation practice), bulk file import and triage, tag browse, the
+signup flow and the backup/restore screens — tracked in
+[#113](https://github.com/jvsena42/loopky/issues/113) and
+[#149](https://github.com/jvsena42/loopky/issues/149). iPad layouts are
+[#173](https://github.com/jvsena42/loopky/issues/173).
 
 Roughly 680 shared tests run on every PR. Two known blockers before a Play release: the native
 Pubky libraries fail 16 KB page-size alignment, and release packaging is still an unsigned

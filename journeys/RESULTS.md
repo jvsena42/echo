@@ -1,4 +1,8 @@
-# Android journey results
+# Journey results
+
+Android runs first, then an iOS section at the foot of the file.
+
+## Android
 
 Run against the Loopky debug APK on the `emulator-5558` Pixel emulator with Pubky Ring
 installed (staging identity), 2026-06-13.
@@ -433,4 +437,75 @@ scroll.
 
 `emu rotate` is what actually rotates the tablet — `settings put system user_rotation` did not take
 on it, and `wm size` overrides did not reach the app either.
+
+---
+
+# iOS
+
+First iOS runs ever recorded. Driven on the **iPhone 17 simulator (iOS 26.5)** via
+`xcodebuildmcp`, signed in against the **real staging homeserver**, 2026-08-29.
+
+## How sign-in works on a simulator
+
+Pubky Ring cannot be installed on a simulator, so `pubkyauth://` has nowhere to go and the
+deeplink path is a dead end there. Sign in by **scanning the QR from a real phone**: tap "Sign in
+with Pubky Ring" and the QR sheet is raised automatically, because `ringInstalledHere` is false.
+The relay poll underneath is the same one the deeplink uses.
+
+Without this, nothing needing a session could be verified on iOS at all — which is why the QR
+landed in the same PR rather than waiting for the iPad work (#173).
+
+## Before this run, iOS did not build
+
+`main` did not compile: `onDispose()` had been removed from the shared ViewModels, `onSignInClick`
+had gained a mandatory parameter, and `ErrorMessages.swift` was written against camelCased Kotlin
+enum spellings that never existed. Once compiling, it **segfaulted on every launch** from a Koin
+cycle (`BackgroundTasks → DeckRepository → BackgroundTasks`) that only iOS entered. Treat every
+result below as new ground.
+
+## What passed
+
+| Flow | Result |
+| --- | --- |
+| Sign in — QR scanned from a phone | ✅ PASS — relay poll → session → Home greeting the real pubky. Survives reinstall (Keychain). |
+| Paste-to-Import — parse | ✅ PASS — 2 colon lines → "Detected: colon", live preview, Next enabled. Comma input the shared rules decline reports "single column" with both warnings and Next stays disabled. |
+| Publish | ✅ PASS — title → Publish → "Undo (1s)" → Done → deck detail: "Spanish basics", 2 cards, 2 new, both rows, You badge. Written to the homeserver. |
+| Edit a card | ✅ PASS — change the back → Save → deck detail reads "Hola / hello there" back from the homeserver. |
+| Deck editor — study options | ✅ PASS — Listen/Speak/Type/Both directions all present; enabling Type saves to the manifest. |
+| Study loop | ✅ PASS — "1 of 2" → reveal → Again <10m / Hard 1d / Good 3d / Easy 7d → grade both → Done. Deck detail then reads 0 due, 0 new, **43% mastered**, read back from the homeserver. |
+| Type the answer | ✅ PASS — wrong answer reports "Not quite — try again", keeps the card shut, leaves the typed text in the field, offers no grade; correct answer opens the card with "Correct!" and all four grades, none pre-selected. Give up opens the card and reports nothing. |
+| Listen | ✅ PASS (audible check only) — plays through `SpeechSpeaker` in the deck's declared language. Works without a Kotlin `IosSpeaker`. |
+| Settings | ✅ PASS — real pubky and homeserver; raising Good 3d → 5d writes the synced record and the study screen's button then reads "Good · 5d". Restored to 3d afterwards. |
+| Profile | ✅ PASS — kfezy1, 1 deck / 2 cards / 0 due, people chips, edit sheet opens. |
+| Someone else's deck from Discover | ✅ PASS — this is the `authorPubky` fix. Opens with cover, description, tags, 24 cards and the card list; it resolved to `NotFound` before. |
+| Friend profile | ✅ PASS — Discover → person → 6 decks, 17 cards, 1 following, 1 follower, Follow button, deck grid. |
+| Follow list | ✅ PASS — Profile → Following → self-addressed empty state. |
+
+## Not exercised, and why
+
+- **Sign out** and **delete account** — both were built and left untapped on purpose: the session
+  was needed for the rest of the run, and re-authenticating needs a phone to scan with.
+- **Follow / unfollow** — writes to a real social graph; not exercised on someone's live account.
+- **Search** — the sheet opens and accepts a query, but a people search against the staging Nexus
+  indexer sat spinning and never returned. Not investigated; `SearchScreen` predates this work.
+- **Speak** — no `SpeechRecognizer` binding on iOS, and `Info.plist` has no microphone or
+  speech-recognition usage strings. The button is hidden rather than shown-and-inert.
+- **Background tasks** — `BGProcessingTaskRequest.submit` throws on a simulator.
+- **iPad / any width but a phone** — tracked in #173.
+
+## Known noise
+
+`fetchProfile: FAILED — 404` is logged at error level with a stack trace on every sign-in for an
+account with no `pubky.app` profile. Harmless and handled, but it was the only `E/` line in an
+otherwise clean session and it buries anything that matters. Filed as #174.
+
+## Driving notes
+
+- `ui-automation type-text` into a SwiftUI `TextEditor` drops characters. Some of that was ours —
+  a field bound through the ViewModel round-trips every keystroke and races the next, now fixed —
+  but the tool is still lossy. Prefer `--replace-existing`, re-read the element ref between steps
+  (it changes), and use `key-press --key-code 40` for newlines; multi-line `--text` is rejected.
+- A bare `.onTapGesture` is invisible to both VoiceOver and the automation snapshot. The study
+  card and Discover's person tile both needed an explicit accessibility action before they could
+  be driven — worth checking on anything new that is tappable but not a `Button`.
 
