@@ -19,11 +19,14 @@ struct SettingsView: View {
     var onConfirmDeleteAccount: () -> Void = {}
     var onDismissDeleteAccount: () -> Void = {}
     var onOpenUrl: (String) -> Void = { _ in }
+    var onBackUpNow: () -> Void = {}
 
     @State private var unsplashKey = ""
     @State private var isConfirmingSignOut = false
 
     private static let privacyPolicyUrl = "https://loopky.app/privacy"
+    /// Enough of the pubky to recognise the account, as Android's warning shows.
+    private let pubkyPreviewLength = 12
 
     var body: some View {
         List {
@@ -58,10 +61,21 @@ struct SettingsView: View {
                 set: { if !$0 { onDismissSignOutWarning() } }
             )
         ) {
+            // Backing up is the safe action and the one almost everyone here wants; the
+            // destructive one is deliberately the quiet option beside it.
+            Button("settings_signout_unbacked_backup") {
+                onDismissSignOutWarning()
+                onBackUpNow()
+            }
             Button("settings_signout_unbacked_confirm", role: .destructive, action: onConfirmSignOutWithoutBackup)
             Button("settings_cancel", role: .cancel, action: onDismissSignOutWarning)
         } message: {
-            Text("settings_signout_unbacked_body")
+            // The body names the account being erased — without the argument it rendered the
+            // format specifier itself.
+            Text(verbatim: String(
+                format: NSLocalizedString("settings_signout_unbacked_body", comment: ""),
+                String((state.unbackedUpPubky ?? "").prefix(pubkyPreviewLength))
+            ))
         }
         .alert(
             Text("settings_delete_account_dialog_title"),
@@ -95,6 +109,18 @@ struct SettingsView: View {
                 }
             }
             .tint(LoopkyColor.foregroundPrimary)
+
+            // A permanent way back into backup, for as long as Loopky holds this account's key.
+            //
+            // The Profile nag is not enough on its own: it disappears the moment one method is
+            // done, which left the flow unreachable afterwards — no second method, no encrypted
+            // file to add later, and no route at all for a restored account, which counts as
+            // backed up the moment it signs in. Methods accumulate, so the door stays open.
+            if state.holdsOwnKey {
+                Button("settings_back_up_account", action: onBackUpNow)
+                    .tint(LoopkyColor.accentSecondary)
+                    .accessibilityIdentifier("settings_back_up_account")
+            }
         } header: {
             Text("settings_section_identity")
         }

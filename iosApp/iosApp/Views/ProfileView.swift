@@ -21,6 +21,7 @@ struct ProfileView: View {
     var onOpenFollowing: () -> Void = {}
     var onOpenFollowers: () -> Void = {}
     var onOpenSettings: () -> Void = {}
+    var onBackUpNow: () -> Void = {}
 
     @State private var isConfirmingSignOut = false
 
@@ -32,6 +33,7 @@ struct ProfileView: View {
                     ProgressView().padding(.top, 60)
                 } else {
                     hero
+                    if state.needsBackup { backupNag }
                     stats
                     peopleRow
                     actions
@@ -173,6 +175,30 @@ struct ProfileView: View {
             .background(Capsule().fill(LoopkyColor.surfaceCard))
             .overlay(Capsule().stroke(LoopkyColor.borderSubtle, lineWidth: 1))
         }
+    }
+
+    /// Shown while Loopky holds the only copy of this account's key.
+    ///
+    /// It goes away as soon as any one method is done — which is why Settings keeps a permanent
+    /// row into the same flow: backup methods accumulate, and this card is a prompt, not the door.
+    private var backupNag: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("backup_nag_title")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+            Text("backup_nag_body")
+                .font(.system(size: 13))
+                .foregroundStyle(LoopkyColor.foregroundSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("backup_nag_action", action: onBackUpNow)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(LoopkyColor.accentSecondary)
+                .padding(.top, 2)
+                .accessibilityIdentifier("profile_back_up_now")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 16).fill(LoopkyColor.danger.opacity(0.12)))
     }
 
     private var actions: some View {

@@ -8,6 +8,7 @@ import Shared
 /// empty version. The version comes from the bundle instead.
 struct SettingsScreen: View {
     var onSignedOut: () -> Void = {}
+    var onBackUpNow: () -> Void = {}
 
     @Environment(\.openURL) private var openURL
 
@@ -41,7 +42,8 @@ struct SettingsScreen: View {
             onDeleteAccount: { viewModel?.onDeleteAccountClick() },
             onConfirmDeleteAccount: { viewModel?.onConfirmDeleteAccount() },
             onDismissDeleteAccount: { viewModel?.onDeleteAccountDismissed() },
-            onOpenUrl: { if let url = URL(string: $0) { openURL(url) } }
+            onOpenUrl: { if let url = URL(string: $0) { openURL(url) } },
+            onBackUpNow: onBackUpNow
         )
         .overlay(alignment: .bottom) {
             if let toast {
@@ -76,6 +78,7 @@ struct SettingsScreen: View {
             isVerifyingUnsplashKey: state.isVerifyingUnsplashKey,
             unsplashKeyError: Self.unsplashError(state.unsplashKeyError),
             unbackedUpPubky: state.unbackedUpPubky,
+            holdsOwnKey: state.holdsOwnKey,
             isDeleting: state.deletion != nil
         )
     }
@@ -164,5 +167,10 @@ struct SettingsViewState {
     var isVerifyingUnsplashKey: Bool = false
     var unsplashKeyError: String?
     var unbackedUpPubky: String?
+    /// Whether this device holds the key **for the account on screen** — not merely whether a key
+    /// is in the vault. An abandoned local signup leaves one behind for a pubky nobody signed in
+    /// as, and offering that user a backup door into someone else's identity is the bug this
+    /// comparison exists to stop.
+    var holdsOwnKey: Bool = false
     var isDeleting: Bool = false
 }

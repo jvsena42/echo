@@ -14,6 +14,7 @@ struct MainView: View {
     var onOpenSettings: () -> Void = {}
     var onOpenProfile: (String) -> Void = { _ in }
     var onOpenFollows: (String, FollowSource) -> Void = { _, _ in }
+    var onBackUpNow: () -> Void = {}
 
     /// Search is presented over the tabs rather than pushed: it is a way to reach a screen, not a
     /// place in the tab hierarchy, and dismissing it must return to whatever tab asked for it.
@@ -53,7 +54,8 @@ struct MainView: View {
             ProfileScreen(
                 onSignedOut: onSignedOut,
                 onOpenFollows: onOpenFollows,
-                onOpenSettings: onOpenSettings
+                onOpenSettings: onOpenSettings,
+                onBackUpNow: onBackUpNow
             )
                 .tabItem { Label(LoopkyTab.profile.title, systemImage: LoopkyTab.profile.iconName) }
                 .tag(LoopkyTab.profile)

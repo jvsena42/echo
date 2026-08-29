@@ -47,6 +47,8 @@ struct RootView: View {
     /// The signed-out flows. A path, not a single destination: signup and backup go
     /// several pushes deep.
     @State private var identityPath: [IdentityRoute] = []
+    /// Backup, reached from Settings or the Profile nag. A sheet, not a push — see `BackupFlowView`.
+    @State private var isBackingUp = false
 
     var body: some View {
         NavigationStack {
@@ -60,7 +62,8 @@ struct RootView: View {
                     onStartStudy: { deckRoute = .study(nil) },
                     onOpenSettings: { deckRoute = .settings },
                     onOpenProfile: { deckRoute = .friendProfile($0) },
-                    onOpenFollows: { pubky, source in deckRoute = .followList(pubky, source) }
+                    onOpenFollows: { pubky, source in deckRoute = .followList(pubky, source) },
+                    onBackUpNow: { isBackingUp = true }
                 )
                 .navigationDestination(item: $deckRoute) { route in
                     switch route {
@@ -122,7 +125,10 @@ struct RootView: View {
                             onOpenProfile: { deckRoute = .friendProfile($0) }
                         )
                     case .settings:
-                        SettingsScreen(onSignedOut: { deckRoute = nil; isSignedIn = false })
+                        SettingsScreen(
+                            onSignedOut: { deckRoute = nil; isSignedIn = false },
+                            onBackUpNow: { isBackingUp = true }
+                        )
                     case .study(let deckId):
                         StudySessionScreen(
                             deckId: deckId,
@@ -153,6 +159,9 @@ struct RootView: View {
                     identityDestination(route)
                 }
             }
+        }
+        .sheet(isPresented: $isBackingUp) {
+            BackupFlowView(onClose: { isBackingUp = false })
         }
         .onOpenURL { url in
             // Two kinds of URL arrive here. A deck file opened from Files, Mail or a chat app —
@@ -206,10 +215,56 @@ struct RootView: View {
                 onRegistered: { identityPath.append(.backupStart(enteredFromSettings: false)) },
                 onRestoreWithPhrase: { identityPath.append(.restorePhrase) }
             )
-        default:
-            // Signup and backup land here next.
-            EmptyView()
+        case .signupStart:
+            SignupStartScreen(
+                onBack: pop,
+                onSms: { identityPath.append(.signupPhone) },
+                onLightning: { identityPath.append(.signupLightning) },
+                onInviteCode: { identityPath.append(.signupInvite) }
+            )
+        case .signupPhone:
+            PhoneVerificationScreen(onBack: pop, onDone: toLocalSignup)
+        case .signupLightning:
+            LightningVerificationScreen(onBack: pop, onDone: toLocalSignup)
+        case .signupInvite:
+            InviteCodeScreen(onBack: pop, onDone: toLocalSignup)
+        case .signupLocal(let adoptHeldKey):
+            LocalSignupScreen(
+                onBack: pop,
+                adoptHeldKey: adoptHeldKey,
+                // Straight to backup, and the signup path is dropped: this is the only moment in
+                // the app where a key exists that nobody has a copy of, and there is nothing
+                // behind it worth walking back into.
+                onBackup: { identityPath = [.backupStart(enteredFromSettings: false)] },
+                onStartOver: { identityPath.startSignupOver(adoptHeldKey: adoptHeldKey) }
+            )
+        case .backupStart(let enteredFromSettings):
+            BackupStartScreen(
+                // Reached from onboarding the account already exists, so both exits mean "into
+                // the app"; reached from Settings the caller pops us instead.
+                onBack: enteredFromSettings ? pop : signIn,
+                onDone: enteredFromSettings ? pop : signIn,
+                onPhrase: { identityPath.append(.backupPhrase) },
+                onFile: { identityPath.append(.backupFile) },
+                onRing: { identityPath.append(.backupRing) }
+            )
+        case .backupPhrase:
+            BackupPhraseScreen(onBack: pop, onContinue: { identityPath.append(.backupQuiz) })
+        case .backupQuiz:
+            // Back to the menu, not out of the flow: one method done is not a reason to stop
+            // offering the others, and the menu now shows this one ticked.
+            BackupQuizScreen(onBack: pop, onDone: { identityPath.returnToBackupMenu() })
+        case .backupFile:
+            BackupFileScreen(onBack: pop, onDone: { identityPath.returnToBackupMenu() })
+        case .backupRing:
+            BackupRingScreen(onBack: pop, onDone: { identityPath.returnToBackupMenu() })
         }
+    }
+
+    /// All three human checks land on the same terminal step, carrying the adopt intent of the
+    /// signup attempt the user is actually standing in.
+    private func toLocalSignup() {
+        identityPath.append(.signupLocal(adoptHeldKey: identityPath.adoptHeldKey))
     }
 
     private func pop() {
