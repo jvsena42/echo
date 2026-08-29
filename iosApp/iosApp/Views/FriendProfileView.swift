@@ -11,6 +11,7 @@ struct FriendProfileView: View {
     var onRefresh: () -> Void = {}
     var onOpenDeck: (String, String) -> Void = { _, _ in }
     var onDismissSignInPrompt: () -> Void = {}
+    var onSignIn: () -> Void = {}
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
@@ -39,13 +40,13 @@ struct FriendProfileView: View {
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
         .refreshable { onRefresh() }
-        // A guest can read the whole profile; only Follow needs an account.
-        .alert(
-            Text("sign_in_prompt_title"),
-            isPresented: Binding(get: { state.requiresSignIn }, set: { if !$0 { onDismissSignInPrompt() } })
-        ) {
-            Button("profile_dismiss", role: .cancel, action: onDismissSignInPrompt)
-        }
+        // A guest can read the whole profile; only Follow needs an account. The prompt used to
+        // name no reason and offer only Dismiss — a wall with no door in it.
+        .signInPrompt(
+            reason: state.signInReason,
+            onSignIn: { onDismissSignInPrompt(); onSignIn() },
+            onDismiss: onDismissSignInPrompt
+        )
     }
 
     private var toolbar: some View {

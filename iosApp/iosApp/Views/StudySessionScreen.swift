@@ -20,6 +20,8 @@ struct StudySessionScreen: View {
     /// needed — so the deck's author comes along, to read the cards off *their* homeserver.
     var isPreview: Bool = false
     var previewAuthorPubky: String?
+    /// The end of a guest's preview offers an account.
+    var onSignIn: () -> Void = {}
     var onClose: () -> Void = {}
 
     @State private var viewModel: StudySessionViewModel?
@@ -45,6 +47,7 @@ struct StudySessionScreen: View {
             onGiveUp: { viewModel?.onGiveUp() },
             onListen: { viewModel?.onSpeak() },
             onNextCard: { viewModel?.onNextCard() },
+            onSignIn: onSignIn,
             onDismissSyncError: { viewModel?.onDismissSyncError() },
             onContinueAfterGoal: { viewModel?.onContinueAfterGoal() }
         )
@@ -64,7 +67,9 @@ struct StudySessionScreen: View {
             return StudyViewState(
                 phase: .complete,
                 syncErrorMessage: done.syncError.map { ErrorCopy.message(for: $0) },
-                reviewed: Int(done.reviewed)
+                reviewed: Int(done.reviewed),
+                isPreview: done.isPreview,
+                isSignedIn: done.isSignedIn
             )
         }
         guard let card = uiState as? StudySessionUiStateReviewing else { return StudyViewState() }
@@ -90,7 +95,9 @@ struct StudySessionScreen: View {
             frontImageRef: card.frontImageRef,
             backImageRef: card.backImageRef,
             syncErrorMessage: card.syncError.map { ErrorCopy.message(for: $0) },
-            goalReached: card.goalCelebration != nil
+            goalReached: card.goalCelebration != nil,
+            isPreview: card.isPreview,
+            previewAdvanceAvailable: card.previewAdvanceAvailable
         )
     }
 
@@ -212,6 +219,11 @@ struct StudyViewState {
     var goalReached: Bool = false
     var reviewed: Int = 0
     var errorMessage: String?
+    /// A sample of a deck nobody has kept: no grading, no scheduling, and a different ending.
+    var isPreview: Bool = false
+    var isSignedIn: Bool = true
+    /// Move on without deciding anything — the preview's stand-in for the grade row.
+    var previewAdvanceAvailable: Bool = false
 
     /// What the card is currently showing. Distinct from `revealed`: a typing card can be flipped
     /// while its answer is still withheld, which is exactly the state `answerHidden` describes.

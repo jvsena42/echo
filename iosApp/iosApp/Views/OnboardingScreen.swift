@@ -35,6 +35,11 @@ struct OnboardingScreen: View {
     var onRestore: () -> Void = {}
     /// A Ring sign-in whose key the homeserver has no account for.
     var onUnregistered: (String) -> Void = { _ in }
+    /// This launch found no session: hand off to browsing rather than holding the visitor on a
+    /// sign-in wall. Only fires when [autoExplore] is set, which is the launch that was routed
+    /// here automatically rather than by an explicit "sign me out".
+    var onExplore: () -> Void = {}
+    var autoExplore: Bool = false
 
     var body: some View {
         Group {
@@ -52,6 +57,13 @@ struct OnboardingScreen: View {
         }
         .onAppear { attach() }
         .onDisappear { detach() }
+        // Driven off the state, not an effect, for the same reason Android does it this way:
+        // `effects` has zero replay, so anything emitted from the ViewModel's init can be dropped
+        // if the collector has not attached yet — and "no persisted session" is decided in exactly
+        // that window. Idle is the ViewModel's word for it, and a StateFlow cannot lose it.
+        .onChange(of: hasNoSession) { _, noSession in
+            if autoExplore && noSession { onExplore() }
+        }
         .sheet(isPresented: scanSheetBinding) {
             if let awaiting {
                 RingScanSheet(
@@ -89,6 +101,9 @@ struct OnboardingScreen: View {
     private var isRestoring: Bool {
         uiState is OnboardingUiStateRestoring
     }
+
+    /// The ViewModel has finished looking and found nothing to restore.
+    private var hasNoSession: Bool { uiState is OnboardingUiStateIdle }
 
     private var isWorking: Bool {
         switch uiState {

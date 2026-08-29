@@ -2598,6 +2598,39 @@
         }
       }
     },
+    "guest_banner_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep decks and track progress."
+          }
+        }
+      }
+    },
+    "guest_banner_cta": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get started"
+          }
+        }
+      }
+    },
+    "guest_banner_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Just looking around"
+          }
+        }
+      }
+    },
     "home_browse_examples": {
       "extractionState": "manual",
       "localizations": {
@@ -6785,6 +6818,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Next card"
+          }
+        }
+      }
+    },
+    "study_preview_subtitle_many": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You tried %1$lld cards."
+          }
+        }
+      }
+    },
+    "study_preview_subtitle_one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You tried %1$lld card."
           }
         }
       }

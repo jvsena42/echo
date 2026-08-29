@@ -9,11 +9,15 @@ struct SearchScreen: View {
     var onOpenProfile: (String) -> Void = { _ in }
     /// `(deckId, authorPubky)` — in that order. The two screens used to disagree.
     var onOpenDeck: (_ deckId: String, _ authorPubky: String) -> Void = { _, _ in }
+    /// Browsing without an account: following a person from here raises a prompt instead.
+    var isGuest: Bool = false
+    var onSignIn: () -> Void = {}
 
     @State private var viewModel: SearchViewModel?
     @State private var uiState: SearchUiState?
     @State private var stateSink: FlowEffectSink?
     @State private var effectSink: FlowEffectSink?
+    @State private var signInReason: SignInReason?
 
     var body: some View {
         SearchView(
@@ -26,6 +30,11 @@ struct SearchScreen: View {
             onDeckTap: { author, deckId in
                 viewModel?.onOpenDeck(authorPubky: author, deckId: deckId)
             }
+        )
+        .signInPrompt(
+            reason: signInReason,
+            onSignIn: { signInReason = nil; onSignIn() },
+            onDismiss: { signInReason = nil }
         )
         .onAppear { attach() }
         .onDisappear { detach() }
@@ -83,6 +92,8 @@ struct SearchScreen: View {
                 onOpenProfile(open.pubky)
             case let open as SearchEffectOpenDeck:
                 onOpenDeck(open.deckId, open.authorPubky)
+            case let require as SearchEffectRequireSignIn:
+                signInReason = require.reason
             default:
                 // A failed follow reverts its own pill; nothing here has to navigate.
                 break
