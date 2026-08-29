@@ -3786,6 +3786,17 @@
         }
       }
     },
+    "permission_camera_denied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky needs the camera to read a QR code. You can turn it on in Settings."
+          }
+        }
+      }
+    },
     "permission_mic_denied_message": {
       "extractionState": "manual",
       "localizations": {

@@ -18,12 +18,14 @@ struct SearchScreen: View {
     @State private var stateSink: FlowEffectSink?
     @State private var effectSink: FlowEffectSink?
     @State private var signInReason: SignInReason?
+    @State private var isScanning = false
 
     var body: some View {
         SearchView(
             state: viewState,
             onQueryChange: { viewModel?.onQueryChange(raw: $0) },
             onSubmit: { viewModel?.onSubmit() },
+            onScan: { isScanning = true },
             onOpenDirectHit: { viewModel?.onSubmit() },
             onPersonTap: { viewModel?.onOpenProfile(pubky: $0) },
             onFollowTap: { viewModel?.onFollowToggle(pubky: $0) },
@@ -31,6 +33,17 @@ struct SearchScreen: View {
                 viewModel?.onOpenDeck(authorPubky: author, deckId: deckId)
             }
         )
+        .sheet(isPresented: $isScanning) {
+            QrScannerSheet(
+                onScanned: { scanned in
+                    isScanning = false
+                    // Straight into the field: search already accepts a pasted pubky, and a
+                    // scanned one is the same input arriving by a shorter route.
+                    viewModel?.onQueryChange(raw: scanned)
+                },
+                onClose: { isScanning = false }
+            )
+        }
         .signInPrompt(
             reason: signInReason,
             onSignIn: { signInReason = nil; onSignIn() },

@@ -32,6 +32,8 @@
 	  either is missing. Two separate prompts: recognition happens on Apple's terms, and the
 	  microphone is what feeds it.
 	-->
+	<key>NSCameraUsageDescription</key>
+	<string>Loopky uses the camera to read a QR code holding someone's pubky, so you can find them without typing it.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Loopky listens while you practise saying a card out loud, and stops as soon as you have answered.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
