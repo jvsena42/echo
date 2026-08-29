@@ -1,19 +1,72 @@
 import Foundation
 import Shared
 
-/// Maps the shared `ErrorReason` to user-facing copy, mirroring the Android
-/// `ErrorMessages.kt`.
+/// Native mirror of the shared `ErrorReason`.
+///
+/// The bridged `ErrorReason` is a Kotlin enum, which crosses to Swift as a *class* whose entries
+/// are class properties (`ErrorReason.sessionexpired` — lowercased, no separators). Switching on
+/// it can therefore never be exhaustive, which is exactly the hazard this file used to carry: a
+/// new reason compiled without a warning and silently rendered the generic copy, while Android's
+/// `when` failed the build.
+///
+/// Mirroring it as a real Swift enum moves that guarantee back. `title(for:)` and `message(for:)`
+/// switch over `LoopkyErrorReason` with **no `default`**, so adding a case here without giving it
+/// copy is a compile error. `init(_:)` below is the single bridge point, and the one place a new
+/// shared reason has to be mapped — the debug assertion catches forgetting it.
+enum LoopkyErrorReason: CaseIterable {
+    case offline
+    case sessionExpired
+    case notFound
+    case noHomeserverAccount
+    case notSignedIn
+    case ringNotInstalled
+    case authFailed
+    case authRelayUnreachable
+    case serverBusy
+    case storageFull
+    case homeserverLookupFailed
+    case unknown
+
+    /// The only place the bridged singletons are matched. Kotlin enum entries are singletons, so
+    /// identity comparison is well defined.
+    init(_ reason: ErrorReason) {
+        switch reason {
+        case ErrorReason.offline: self = .offline
+        case ErrorReason.sessionexpired: self = .sessionExpired
+        case ErrorReason.notfound: self = .notFound
+        case ErrorReason.nohomeserveraccount: self = .noHomeserverAccount
+        case ErrorReason.notsignedin: self = .notSignedIn
+        case ErrorReason.ringnotinstalled: self = .ringNotInstalled
+        case ErrorReason.authfailed: self = .authFailed
+        case ErrorReason.authrelayunreachable: self = .authRelayUnreachable
+        case ErrorReason.serverbusy: self = .serverBusy
+        case ErrorReason.storagefull: self = .storageFull
+        case ErrorReason.homeserverlookupfailed: self = .homeserverLookupFailed
+        default:
+            // A reason added on the Kotlin side and not mapped above lands here. It renders the
+            // generic copy rather than crashing a user, but trips in debug so it is caught.
+            assertionFailure("Unmapped ErrorReason: \(reason.name). Add it to LoopkyErrorReason.")
+            self = .unknown
+        }
+    }
+}
+
+/// Maps the shared `ErrorReason` to user-facing copy, mirroring the Android `ErrorMessages.kt`.
 ///
 /// ViewModels deliberately carry no message text: the Pubky FFI's diagnostic string
 /// (`HTTP transport error: error sending request for url (https://_pubky.rc3om…)`) used to be
 /// rendered to users verbatim.
-///
-/// **Both switches end in `default:`, so adding an `ErrorReason` case compiles here without a
-/// warning and silently renders the generic copy.** Android's `when` is exhaustive and will fail
-/// the build; this file will not. Add the case here in the same change.
 enum ErrorCopy {
 
     static func title(for reason: ErrorReason) -> String {
+        title(for: LoopkyErrorReason(reason))
+    }
+
+    static func message(for reason: ErrorReason) -> String {
+        message(for: LoopkyErrorReason(reason))
+    }
+
+    static func title(for reason: LoopkyErrorReason) -> String {
         switch reason {
         case .offline:
             return NSLocalizedString("You're offline", comment: "Error title: no connectivity")
@@ -52,12 +105,12 @@ enum ErrorCopy {
                 "We couldn't check that",
                 comment: "Error title: pkarr/DHT lookup did not answer"
             )
-        default:
+        case .unknown:
             return NSLocalizedString("Something went wrong", comment: "Error title: generic")
         }
     }
 
-    static func message(for reason: ErrorReason) -> String {
+    static func message(for reason: LoopkyErrorReason) -> String {
         switch reason {
         case .offline:
             // The reassurance stays, short: Pubky is the only source of truth and there is no
@@ -136,7 +189,7 @@ enum ErrorCopy {
                     + "or switch to a different Wi-Fi or mobile data.",
                 comment: "Error message: pkarr/DHT lookup did not answer"
             )
-        default:
+        case .unknown:
             return NSLocalizedString(
                 "Something went wrong. Please try again.",
                 comment: "Error message: generic"
