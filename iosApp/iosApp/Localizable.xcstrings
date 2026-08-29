@@ -1629,6 +1629,303 @@
         }
       }
     },
+    "image_sheet_add_key": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add key"
+          }
+        }
+      }
+    },
+    "image_sheet_back_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose an image for the back of the card"
+          }
+        }
+      }
+    },
+    "image_sheet_back_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back image"
+          }
+        }
+      }
+    },
+    "image_sheet_credit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo by %1$s on %2$s"
+          }
+        }
+      }
+    },
+    "image_sheet_credit_platform": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos from %1$s"
+          }
+        }
+      }
+    },
+    "image_sheet_credit_unknown_author": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "an Unsplash photographer"
+          }
+        }
+      }
+    },
+    "image_sheet_credit_unsplash": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsplash"
+          }
+        }
+      }
+    },
+    "image_sheet_done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "image_sheet_error_invalid_key": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsplash rejected that key. Check it in Settings."
+          }
+        }
+      }
+    },
+    "image_sheet_error_missing_key": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web image search needs an Unsplash API key. It's free and takes about two minutes."
+          }
+        }
+      }
+    },
+    "image_sheet_error_rate_limited": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsplash's hourly limit is used up. Your own key gets you your own limit."
+          }
+        }
+      }
+    },
+    "image_sheet_error_unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't reach Unsplash. Check your connection, or pick from your gallery."
+          }
+        }
+      }
+    },
+    "image_sheet_from_gallery": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From gallery"
+          }
+        }
+      }
+    },
+    "image_sheet_front_subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose an image for the front of the card"
+          }
+        }
+      }
+    },
+    "image_sheet_front_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Front image"
+          }
+        }
+      }
+    },
+    "image_sheet_get_key": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get a key"
+          }
+        }
+      }
+    },
+    "image_sheet_image_unreadable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That image couldn't be read. Try another one."
+          }
+        }
+      }
+    },
+    "image_sheet_link_clear": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear link"
+          }
+        }
+      }
+    },
+    "image_sheet_link_failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That link didn't load as an image. From a results page, copy the image itself or its image address — not the page's."
+          }
+        }
+      }
+    },
+    "image_sheet_link_preview": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasted image"
+          }
+        }
+      }
+    },
+    "image_sheet_no_results": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No images found"
+          }
+        }
+      }
+    },
+    "image_sheet_paste": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste"
+          }
+        }
+      }
+    },
+    "image_sheet_paste_empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to paste. Copy an image address first."
+          }
+        }
+      }
+    },
+    "image_sheet_paste_image_clip": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's a copied image. Paste its address instead, or pick it from your gallery."
+          }
+        }
+      }
+    },
+    "image_sheet_photo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo"
+          }
+        }
+      }
+    },
+    "image_sheet_remove": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove image"
+          }
+        }
+      }
+    },
+    "image_sheet_search_placeholder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search images, or paste a link…"
+          }
+        }
+      }
+    },
     "nav_tab_decks": {
       "extractionState": "manual",
       "localizations": {

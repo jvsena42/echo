@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.IosPubkyClientAdapter
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.RawPubkyClient
+import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.IosAppPreferences
 import com.github.jvsena42.loopky.data.storage.IosLocalKeyStore
@@ -25,6 +26,7 @@ import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.StudyProgressStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.IosBackgroundTasks
 import com.github.jvsena42.loopky.platform.IosMediaProcessor
@@ -176,6 +178,17 @@ object IosDependencies {
     fun triageViewModel(): TriageViewModel = koin.get()
 
     fun imageSheetViewModel(): ImageSheetViewModel = koin.get()
+
+    /**
+     * Blob bytes for a stored media ref, so SwiftUI can draw a picture that is not a web URL.
+     *
+     * `authorPubky` is the *deck's* author, not the signed-in user: resolving against the session
+     * makes media on any deck you do not own unreachable, because it looks for the blob under your
+     * own pubky. Returns null rather than throwing — a picture that will not load is not worth
+     * failing a card over.
+     */
+    suspend fun mediaBytes(authorPubky: String, deckId: String, ref: MediaRef): ByteArray? =
+        koin.get<MediaRepository>().get(authorPubky, deckId, ref).getOrNull()
 
     fun publishDeckViewModel(): PublishDeckViewModel = koin.get()
 

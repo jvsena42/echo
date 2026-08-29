@@ -1,10 +1,10 @@
 import SwiftUI
+import Shared
 
-/// Edit one card's two sides. Pure layout; `EditCardScreen` owns the ViewModel.
+/// Edit one card's two sides, each optionally carrying a picture.
 ///
-/// Image and audio attachment are deliberately absent rather than present-and-inert: they were
-/// `action: {}` buttons before, which look like a working feature. They need `MediaProcessor`,
-/// which has no iOS binding yet — see #113.
+/// Pure layout; `EditCardScreen` owns the ViewModel. Audio attachment is still absent — there is
+/// no recorder on iOS, and a button that does nothing is worse than no button.
 struct EditCardView: View {
     var state: EditCardViewState = EditCardViewState()
     @Binding var front: String
@@ -12,8 +12,14 @@ struct EditCardView: View {
     var onCancel: () -> Void = {}
     var onSave: () -> Void = {}
     var onDelete: () -> Void = {}
+    var onFrontImage: (ImageSelection) -> Void = { _ in }
+    var onBackImage: (ImageSelection) -> Void = { _ in }
+    var onRemoveFrontImage: () -> Void = {}
+    var onRemoveBackImage: () -> Void = {}
 
     @State private var isConfirmingDelete = false
+    @State private var pickingFront = false
+    @State private var pickingBack = false
 
     var body: some View {
         ScrollView {
@@ -21,9 +27,13 @@ struct EditCardView: View {
                 header
                 context
                 side("edit_card_label_front", placeholder: "edit_card_front_placeholder",
-                     text: $front, error: state.frontError)
+                     text: $front, error: state.frontError,
+                     imageRef: state.frontImageRef, pending: state.frontPendingBytes,
+                     onPick: { pickingFront = true }, onRemove: onRemoveFrontImage)
                 side("edit_card_label_back", placeholder: "edit_card_back_placeholder",
-                     text: $back, error: state.backError)
+                     text: $back, error: state.backError,
+                     imageRef: state.backImageRef, pending: state.backPendingBytes,
+                     onPick: { pickingBack = true }, onRemove: onRemoveBackImage)
                 if let errorMessage = state.errorMessage { errorRow(errorMessage) }
                 if !state.isNewCard { deleteButton }
             }
@@ -33,6 +43,24 @@ struct EditCardView: View {
         }
         .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
         .navigationBarHidden(true)
+        .sheet(isPresented: $pickingFront) {
+            ImagePickerSheet(
+                title: "image_sheet_front_title",
+                subtitle: "image_sheet_front_subtitle",
+                onRemove: state.frontImageRef != nil || state.frontPendingBytes != nil ? onRemoveFrontImage : nil,
+                onSelected: onFrontImage,
+                onClose: { pickingFront = false }
+            )
+        }
+        .sheet(isPresented: $pickingBack) {
+            ImagePickerSheet(
+                title: "image_sheet_back_title",
+                subtitle: "image_sheet_back_subtitle",
+                onRemove: state.backImageRef != nil || state.backPendingBytes != nil ? onRemoveBackImage : nil,
+                onSelected: onBackImage,
+                onClose: { pickingBack = false }
+            )
+        }
         .confirmationDialog(
             Text("edit_card_delete"),
             isPresented: $isConfirmingDelete,
@@ -80,17 +108,40 @@ struct EditCardView: View {
         }
     }
 
+    // swiftlint:disable:next function_parameter_count
     private func side(
         _ label: LocalizedStringKey,
         placeholder: LocalizedStringKey,
         text: Binding<String>,
-        error: String?
+        error: String?,
+        imageRef: MediaRef.Image?,
+        pending: Data?,
+        onPick: @escaping () -> Void,
+        onRemove: @escaping () -> Void
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .font(.system(size: 10, weight: .bold))
                 .kerning(0.8)
                 .foregroundStyle(LoopkyColor.foregroundMuted)
+            if imageRef != nil || pending != nil {
+                CardMediaImage(
+                    ref: imageRef,
+                    pendingBytes: pending,
+                    authorPubky: state.authorPubky,
+                    deckId: state.deckId
+                )
+                .frame(maxHeight: 140)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            Button(action: onPick) {
+                HStack(spacing: 6) {
+                    Image(systemName: "photo").font(.system(size: 12))
+                    Text(imageRef != nil || pending != nil ? "edit_card_image" : "edit_card_add_image")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(LoopkyColor.accentPrimary)
+            }
             TextField(placeholder, text: text, axis: .vertical)
                 .font(.system(size: 16))
                 .foregroundStyle(LoopkyColor.foregroundPrimary)

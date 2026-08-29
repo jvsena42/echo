@@ -109,7 +109,11 @@ struct PublishDeckScreen: View {
             uiState = state
             // The draft arrives with a suggested title; seed the fields once so the user sees it,
             // then leave them alone or typing would fight the state coming back.
-            if !didSeedFields {
+            //
+            // Gated on the draft having loaded, for the same reason as `EditCardScreen`: the
+            // ViewModel emits its defaults first, and seeding from those would blank the
+            // suggestion the import produced.
+            if !didSeedFields && state.cardCount > 0 {
                 didSeedFields = true
                 title = state.title
                 description = state.description_
