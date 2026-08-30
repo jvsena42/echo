@@ -17,12 +17,15 @@ homeserver you hold the key to.
 
 ## Screenshots
 
-Captured on the v0.6.0 debug build against a live Pubky homeserver — a Pixel phone emulator
-(1080×2400) and the `Pixel_Tablet` emulator in landscape (2560×1600), the two width classes the
-adaptive layouts target. Full-resolution files live in [`screenshots/`](./screenshots) and double
-as the Play Store asset set.
+Captured against a live Pubky homeserver on both platforms. Full-resolution files live in
+[`screenshots/`](./screenshots) and double as the store asset sets.
 
-### Phone
+### Android
+
+Captured on the v0.6.0 debug build — a Pixel phone emulator (1080×2400) and the `Pixel_Tablet`
+emulator in landscape (2560×1600), the two width classes the adaptive layouts target.
+
+#### Phone
 
 <table>
 <tr>
@@ -41,7 +44,7 @@ as the Play Store asset set.
 </tr>
 </table>
 
-### Tablet
+#### Tablet
 
 Home, deck detail and onboarding are real two-pane layouts at expanded width, with a navigation
 rail in place of the tab bar — not a stretched phone column.
@@ -67,6 +70,49 @@ rail in place of the tab bar — not a stretched phone column.
 
 > Settings and the recovery-phrase screens are `FLAG_SECURE`, so they cannot be screenshotted —
 > that is deliberate, and why they are absent here.
+
+### iOS
+
+Captured on the **Release** build (production Nexus + Homegate) against a live homeserver, on the
+iPhone 17 Pro Max simulator (1320×2868) and the iPad Pro 13-inch simulator (2064×2752) — the two
+sizes App Store Connect asks for. The SwiftUI screens are native, not Compose Multiplatform, and
+the iPad has its own regular-size-class layouts rather than a stretched phone column.
+
+#### iPhone
+
+<table>
+<tr>
+<td align="center"><img src="screenshots/ios-phone/01-home.png" width="170" alt="Today"><br><sub><b>Today</b><br>The daily queue</sub></td>
+<td align="center"><img src="screenshots/ios-phone/02-decks.png" width="170" alt="Deck library"><br><sub><b>Library</b><br>Your decks</sub></td>
+<td align="center"><img src="screenshots/ios-phone/03-deck-detail.png" width="170" alt="Deck detail"><br><sub><b>Deck</b><br>Stats, tags, cards</sub></td>
+<td align="center"><img src="screenshots/ios-phone/04-study-front.png" width="170" alt="Study prompt"><br><sub><b>Study</b><br>The prompt side</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/ios-phone/05-study-answer.png" width="170" alt="Grading a card"><br><sub><b>Grade</b><br>Listen, Speak, and the interval on the button</sub></td>
+<td align="center"><img src="screenshots/ios-phone/06-discover.png" width="170" alt="Discover"><br><sub><b>Discover</b><br>Decks and tags from people you follow</sub></td>
+<td align="center"><img src="screenshots/ios-phone/07-profile.png" width="170" alt="Profile"><br><sub><b>Profile</b><br>Your Pubky identity</sub></td>
+</tr>
+</table>
+
+#### iPad
+
+<table>
+<tr>
+<td align="center"><img src="screenshots/ios-tablet/01-home.png" width="380" alt="Today on iPad"><br><sub><b>Today</b> — queue beside the deck grid</sub></td>
+<td align="center"><img src="screenshots/ios-tablet/02-decks.png" width="380" alt="Deck library on iPad"><br><sub><b>Library</b> — multi-column at regular width</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/ios-tablet/04-study-front.png" width="380" alt="Study on iPad"><br><sub><b>Study</b> — the prompt side</sub></td>
+<td align="center"><img src="screenshots/ios-tablet/05-study-answer.png" width="380" alt="Grading on iPad"><br><sub><b>Grade</b> — grades move beside the card</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="screenshots/ios-tablet/06-discover.png" width="380" alt="Discover on iPad"><br><sub><b>Discover</b> — four columns of decks and tags</sub></td>
+<td align="center"><img src="screenshots/ios-tablet/07-profile.png" width="380" alt="Profile on iPad"><br><sub><b>Profile</b> — identity and totals</sub></td>
+</tr>
+<tr>
+<td align="center" colspan="2"><img src="screenshots/ios-tablet/00-onboarding.png" width="380" alt="Onboarding on iPad"><br><sub><b>Sign in</b> — a simulator has no Pubky Ring, so the QR handoff is raised automatically</sub></td>
+</tr>
+</table>
 
 ---
 
