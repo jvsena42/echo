@@ -54,6 +54,13 @@ struct BackupFileScreen: View {
                     isLoading: uiState?.isCreating ?? false,
                     isEnabled: uiState?.canCreate ?? false
                 ) {
+                    // Send the passphrase that is on screen before encrypting with it. The field
+                    // owns its own @State and the ViewModel hears about edits only through
+                    // .onChange, which has been seen to miss a value that arrives in one shot —
+                    // and of everywhere that can happen, here is the worst: the file would be
+                    // encrypted with something the user never typed, and nothing would say so
+                    // until the day they needed it and it would not open.
+                    viewModel?.onPassphraseChange(value: passphrase)
                     viewModel?.onCreateClick()
                 }
                 .accessibilityIdentifier("backup_file_create")

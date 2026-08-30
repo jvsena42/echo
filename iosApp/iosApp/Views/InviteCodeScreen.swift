@@ -40,7 +40,13 @@ struct InviteCodeScreen: View {
                     title: "signup_invite_submit",
                     isLoading: uiState?.isSubmitting ?? false,
                     isEnabled: uiState?.canSubmit ?? false,
-                    action: { viewModel?.onSubmit() }
+                    action: {
+                        // Check the code that is on screen, not whatever .onChange last delivered
+                        // — a pasted code is exactly the one-shot case that can go missing, and
+                        // "That code didn't work" over a good code is a dead end.
+                        viewModel?.onCodeChange(code: code)
+                        viewModel?.onSubmit()
+                    }
                 )
                 .accessibilityIdentifier("signup_invite_submit")
             }
