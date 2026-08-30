@@ -804,3 +804,28 @@ screens and the invite code: a phrase that desyncs shows a wrong error message a
 again, but a *passphrase* that desyncs encrypts the file with something the user never typed and
 nothing detects it — not at write time, not at "✓ Done", not until the day they need the file and
 it will not open.
+
+### iPad — the same three fixes at regular size class (2026-08-30)
+
+Driven on a clean **iPad Air 13-inch (M4)**, expanded width. The signed-in iPad Pro was left alone:
+its session came from a QR scan and there is no phrase for that account, so signing out of it would
+have cost a scan to undo.
+
+| Step | Result |
+| --- | --- |
+| Guest shell → onboarding | ✅ PASS — all three routes in the expanded-width layout |
+| **Restore by phrase, first submit** | ✅ PASS — bulk-entered, no forced sync, signed straight in to the sidebar layout. This is the case that failed on the phone before the fix |
+| Sign-out confirm | ✅ PASS — **Cancel renders beside Sign out** here too; the `.alert` conversion is not phone-only |
+| Restore by file → picker | ✅ PASS — picker opened over the bounded restore column, file visible in Recents |
+| **Restore by file, first submit** | ✅ PASS — passphrase bulk-entered with no forced sync, decrypted, signed in as `ma8tms` |
+
+Two things this run establishes that the phone run could not. The file that was restored here is
+the one written by the **guarded** `BackupFileScreen`, so the guard is confirmed end to end: a
+passphrase typed in one shot encrypts a file that opens with the passphrase the user actually
+typed. And restore-by-phrase now works on an iPad, which is what makes an iPad cheap to sign in:
+before this it needed a QR scanned from a phone, because the recorded phrase was believed dead.
+
+**A saved recovery file overwrites silently.** Saving a second file to the same folder replaced the
+first with no prompt, and the earlier one — a different passphrase — went to the folder's `.Trash`.
+That is the system exporter's behaviour rather than Loopky's, but anyone keeping a fixture file
+should know the passphrase they wrote down belongs to whichever save was last.
