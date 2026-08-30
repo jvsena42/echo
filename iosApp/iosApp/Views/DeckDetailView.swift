@@ -125,19 +125,31 @@ struct DeckDetailView: View {
     }
 
     /// Stacked: everything the deck *is*, then everything that is *in* it.
+    ///
+    /// The header sits **outside** the scroll view, as it does in `wideBody`. Inside it, a
+    /// `refreshable` scroll view swallows every tap on its topmost content: back, edit, delete and
+    /// share all rendered, reported themselves to VoiceOver and to `snapshot-ui` as buttons, and
+    /// did nothing at all — while the tag chips and the study CTA further down worked, so the
+    /// screen looked alive right up until the one control that leaves it. Nothing reports this;
+    /// the iPad was unaffected only because its header was already hoisted out.
     private func compactBody(_ content: DeckDetailContent) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                header(isOwned: content.isOwned)
-                metadataColumn(content)
-                cardsColumn(content)
+        VStack(spacing: 0) {
+            header(isOwned: content.isOwned)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .contentPane(PaneWidth.reading)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    metadataColumn(content)
+                    cardsColumn(content)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 100)
+                .contentPane(PaneWidth.reading)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 100)
-            .contentPane(PaneWidth.reading)
+            .refreshable { await onRefresh() }
         }
-        .refreshable { await onRefresh() }
     }
 
     /// Deck detail on an iPad in landscape: what the deck *is* on the left, what is *in* it on the
