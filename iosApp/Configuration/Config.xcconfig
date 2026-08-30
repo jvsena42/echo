@@ -13,7 +13,13 @@ TEAM_ID=
 //
 // Change it only BEFORE the app record exists in App Store Connect. After that it is
 // permanent: a new identifier is a new app, with no path to move testers or reviews.
-PRODUCT_BUNDLE_IDENTIFIER=com.github.jvsena42.loopky.Loopky
+//
+// Matches Android's applicationId exactly. It also makes the identifiers already in
+// Info.plist real children of it rather than merely looking like them: the two
+// BGTaskScheduler ids, the `...loopky.login` URL name, and the `.apkg` / `.pkarr` UTIs
+// were all written as `com.github.jvsena42.loopky.*` while the bundle was
+// `...loopky.Loopky`, so none of them actually nested under it.
+PRODUCT_BUNDLE_IDENTIFIER=com.github.jvsena42.loopky
 
 PRODUCT_NAME=Loopky
 
