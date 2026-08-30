@@ -1,7 +1,23 @@
+// Your Apple Developer Team ID, from developer.apple.com → Membership.
+// Ten characters, e.g. A1B2C3D4E5. Needed to sign a device build or archive;
+// a simulator build works without it.
 TEAM_ID=
 
-PRODUCT_NAME=Loopky
-PRODUCT_BUNDLE_IDENTIFIER=com.github.jvsena42.loopky.Loopky$(TEAM_ID)
+// The app's permanent identity on the App Store.
+//
+// This is deliberately NOT derived from TEAM_ID. The Kotlin Multiplatform template
+// ships it as `...Loopky$(TEAM_ID)`, which keeps two developers' dev builds from
+// colliding but makes the bundle identifier change the moment TEAM_ID is filled in —
+// silently breaking the match with the App Store Connect record and every provisioning
+// profile. It is fixed here instead.
+//
+// Change it only BEFORE the app record exists in App Store Connect. After that it is
+// permanent: a new identifier is a new app, with no path to move testers or reviews.
+PRODUCT_BUNDLE_IDENTIFIER=com.github.jvsena42.loopky.Loopky
 
+PRODUCT_NAME=Loopky
+
+// MARKETING_VERSION is what testers see. CURRENT_PROJECT_VERSION must be unique for
+// every upload to App Store Connect — bump it per upload, not per release.
 CURRENT_PROJECT_VERSION=13
 MARKETING_VERSION=0.6.1
