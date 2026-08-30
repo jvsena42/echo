@@ -829,3 +829,37 @@ before this it needed a QR scanned from a phone, because the recorded phrase was
 first with no prompt, and the earlier one — a different passphrase — went to the folder's `.Trash`.
 That is the system exporter's behaviour rather than Loopky's, but anyone keeping a fixture file
 should know the passphrase they wrote down belongs to whichever save was last.
+
+## Deck detail — the whole header was untappable on a phone (2026-08-30)
+
+Found while driving the **Release** build (production Nexus + Homegate) on an iPhone 17 Pro Max to
+capture App Store assets, and confirmed by hand — not by automation alone, which is what first made
+it look like a driving artifact rather than a bug.
+
+**Every control in the deck-detail header did nothing on a phone.** Back, Edit, Delete and Share
+all rendered, all reported themselves as buttons to VoiceOver and to `snapshot-ui`, and all
+swallowed their taps. Nothing below them was affected — the tag chips opened tag browse and
+"Start studying" started a session — so the screen looked entirely alive right up until you tried
+to leave it. Interactive pop is off (the header replaces a hidden navigation bar), so the only way
+off the screen was to force-quit.
+
+| Step | Before | After |
+| --- | --- | --- |
+| Deck detail → Back | ❌ dead, 5 taps in a row did nothing | ✅ pops to the tabs |
+| Deck detail → Edit | ❌ dead | ✅ opens Edit Deck |
+| Deck detail → Share | ❌ dead, no share sheet | ✅ (same hit-testing path) |
+| Deck detail → tag chip | ✅ worked throughout | ✅ |
+| Deck detail → Start studying | ✅ worked throughout | ✅ |
+| **iPad**, same build, same deck | ✅ **worked throughout** | ✅ |
+
+**Cause: the header was inside the `refreshable` scroll view.** A `ScrollView` with
+`.refreshable` swallows taps on its topmost content, and `compactBody` had the header as the first
+child of that scroll view. `wideBody` had already hoisted its header out — for an unrelated
+reason, so that the back button would not scroll away — which is the only reason the iPad was
+unaffected and why a tablet pass could never have caught this. `compactBody` now matches it.
+
+Three things this is worth remembering for. The build is green and SwiftLint is clean either way.
+The accessibility tree reports a dead button and a live one identically, so `snapshot-ui` cannot
+tell them apart — only tapping and asserting on what changed can. And the two layouts diverged
+silently: the phone path regressed while the iPad path stayed correct, which is the failure mode
+the width-adaptive rule in CLAUDE.md warns about, running in the direction nobody checks.
