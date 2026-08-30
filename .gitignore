@@ -27,3 +27,6 @@ node_modules/
 # passwords are configured in local.properties (gitignored above).
 *.jks
 *.keystore
+
+# App Store asset staging (large videos; screenshots are mirrored in screenshots/ios-*)
+appstore/
