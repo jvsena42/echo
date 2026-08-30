@@ -777,3 +777,30 @@ one-line guard.
   claim "a paste desyncs" is inferred from the mechanism rather than watched.
 - **Recovery file and Ring export** — still end in out-of-process system UI the automation cannot
   reach.
+
+### Sign in by recovery file — ✅ PASS (2026-08-30, same run)
+
+Previously recorded as unreachable because both halves end in an out-of-process document picker.
+They are reachable with a person to tap the picker, and were driven that way here.
+
+| Step | Result |
+| --- | --- |
+| Settings → Back up your account → Encrypted file | ✅ PASS — Create disabled until a passphrase is entered |
+| Create and save file | ✅ PASS — `fileExporter` offered "Save as recovery" (`.pkarr`) into the Loopky folder; a confirmed save wrote 91 bytes |
+| Both methods marked done | ✅ PASS — the backup menu shows "Recovery phrase ✓ Done" **and** "Encrypted file ✓ Done". This is the confirmed-write half that had never been exercised |
+| Sign out → Restore → Encrypted recovery file | ✅ PASS — picker returned `recovery.pkarr`, the screen named the chosen file, Restore stayed disabled until a passphrase was typed |
+| Restore | ✅ PASS — decrypted, signed in, landed on Home as the same pubky (`ma8tms`) with **no** backup nag, which is right: a file-restored key is demonstrably backed up |
+
+**The passphrase was entered in one shot on the backup side, on purpose, and did not desync.** That
+matters more than it sounds. `BackupFileScreen` carries the identical `.onChange`-only passphrase
+as the restore-phrase field that *did* desync an hour earlier, so the defect is **intermittent
+rather than deterministic** — one clean run is not evidence a screen is safe. On the restore side
+the sync was forced (type, append a character, delete it) so that a failure could only be blamed on
+the backup side; it passed, so the file written with bulk-entered text was encrypted with the whole
+passphrase.
+
+The consequence of it going the other way is why the same guard has now been applied to the file
+screens and the invite code: a phrase that desyncs shows a wrong error message and the user tries
+again, but a *passphrase* that desyncs encrypts the file with something the user never typed and
+nothing detects it — not at write time, not at "✓ Done", not until the day they need the file and
+it will not open.
