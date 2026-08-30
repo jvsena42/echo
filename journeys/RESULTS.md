@@ -711,3 +711,121 @@ which is both halves of the ViewModel's own rule.
 - **The stale iOS test-account phrase.** The recovery phrase recorded for the disposable simulator
   account is rejected by the local BIP39 checksum, so restore-from-phrase could not be used to sign
   the iPad in. The QR scan was used instead.
+
+## Signup → backup → sign out → restore, end to end on iOS (2026-08-30)
+
+Driven on the **iPhone 17 Pro simulator (iOS 26.5)** against the real staging homeserver, on a
+brand-new account created for the run: Lightning signup (₿10, staging price), so the "a key nobody
+has a copy of" state that `17`/`19` describe was reachable for the first time. The iPhone 17
+simulator was deliberately left alone so its existing session survived.
+
+| Step | Result |
+| --- | --- |
+| Guest shell → "Get started" → onboarding | ✅ PASS |
+| Create account → method screen | ✅ PASS — Bitcoin card quotes "Pay ₿ 10 (≈ US$0.01) once", the staging price, with the fiat figure beside it. No Ring gate: a simulator cannot hold Ring, so the local route is the one offered |
+| Lightning invoice → paid | ✅ PASS — invoice rendered with QR + Copy, and the screen advanced on its own within ~80s of payment |
+| Key minted, account registered | ✅ PASS — landed on the backup menu |
+| Reveal the twelve words | ✅ PASS — blurred until asked for, and revealing does **not** mark the method done |
+| **"I'll do this later"** | ✅ PASS — lands on Home with the account live and no method recorded |
+| The un-backed-up nag | ✅ PASS — Profile carries "Back up your account / Your key lives only on this device…" with `profile_back_up_now`. Home carries none, which is right: the nag has one home |
+| The un-backed-up sign-out warning | ✅ PASS — an `.alert` reading "Signing out will erase your key — Loopky holds the only copy of the key for ma8tms, and you haven't backed it up. Signing out deletes it, and this account can never be recovered", with Back up / Sign out and erase / Cancel all visible |
+| Nag → phrase → quiz | ✅ PASS — quiz asked words 4, 7 and 10; passing it flipped the card to "✓ Done" and the nag disappeared |
+| Sign out (backed up) | ✅ PASS — lands on onboarding, not the guest shell |
+| Restore with the recovery phrase | ❌ **FAILED on the first submit**, ✅ passes after the fix below |
+
+### The phrase the app had just shown was rejected as invalid
+
+Submitting the twelve words produced **"That's not a valid recovery phrase"** — the local BIP-39
+verdict, over a phrase the app itself had minted minutes earlier. It is not a mis-transcription:
+the words were read out of the runtime accessibility tree rather than off a screenshot, and they
+check out against the BIP-39 English wordlist independently of the app (checksum `1111`).
+
+Nor was it the FFI. The runtime log shows `validate_mnemonic_phrase` returning at mint time with
+`mnemonic_phrase_to_keypair` following it, and at restore time the same call with **no** derivation
+after it — so validation answered "false" for a string that had answered "true" fifteen minutes
+before. Appending one character to the field and deleting it again, leaving the visible text
+identical, made the very next submit sign in.
+
+**The field and the ViewModel disagreed.** `RestorePhraseScreen`'s `TextField` owns its own
+`@State` and the ViewModel learns of edits only through `.onChange`; when the text arrives in one
+shot rather than keystroke by keystroke, the ViewModel can still hold what it had before while the
+field shows the phrase. `canSubmit` is only `phrase.isNotBlank()`, so the button is happily enabled
+over a stale value, and what gets checked is not what the user is looking at. Fixed by handing the
+ViewModel the visible text at submit time. The exact sequence that failed now signs in on the first
+tap.
+
+Worth knowing: **this is the "stale recovery phrase" from the #113 and iPad notes.** The phrase
+recorded then was almost certainly fine, and the entry path was the bug. Three other screens take
+a pasted value through the same `.onChange`-only route — `InviteCodeScreen`, `RestoreFileScreen`
+and `BackupFileScreen` — and were not exercised here; they are the same shape and worth the same
+one-line guard.
+
+### Two more found by driving it
+
+- **The sign-out dialog had no Cancel.** `confirmationDialog`'s `.cancel` button is detached from
+  its action list and rendered nothing at all, leaving the destructive "Sign out" as the only
+  button on screen and a tap outside as the sole, undiscoverable way back. Now an `.alert`, which
+  draws both — the same trap, and the same fix, as the announce prompt in #113.
+- **The sign-out copy claimed you need Pubky Ring to get back in** ("You'll need Pubky Ring to sign
+  back in"), which is untrue for exactly the account this run created: a recovery phrase, a
+  recovery file or Ring all work. Android's string was already right; iOS now matches it.
+
+### Not exercised
+
+- **A real clipboard paste.** The automation could not raise the paste menu or send ⌘V, so the
+  bulk-entry path was driven by `type-text`. The fix removes the whole class either way, but the
+  claim "a paste desyncs" is inferred from the mechanism rather than watched.
+- **Recovery file and Ring export** — still end in out-of-process system UI the automation cannot
+  reach.
+
+### Sign in by recovery file — ✅ PASS (2026-08-30, same run)
+
+Previously recorded as unreachable because both halves end in an out-of-process document picker.
+They are reachable with a person to tap the picker, and were driven that way here.
+
+| Step | Result |
+| --- | --- |
+| Settings → Back up your account → Encrypted file | ✅ PASS — Create disabled until a passphrase is entered |
+| Create and save file | ✅ PASS — `fileExporter` offered "Save as recovery" (`.pkarr`) into the Loopky folder; a confirmed save wrote 91 bytes |
+| Both methods marked done | ✅ PASS — the backup menu shows "Recovery phrase ✓ Done" **and** "Encrypted file ✓ Done". This is the confirmed-write half that had never been exercised |
+| Sign out → Restore → Encrypted recovery file | ✅ PASS — picker returned `recovery.pkarr`, the screen named the chosen file, Restore stayed disabled until a passphrase was typed |
+| Restore | ✅ PASS — decrypted, signed in, landed on Home as the same pubky (`ma8tms`) with **no** backup nag, which is right: a file-restored key is demonstrably backed up |
+
+**The passphrase was entered in one shot on the backup side, on purpose, and did not desync.** That
+matters more than it sounds. `BackupFileScreen` carries the identical `.onChange`-only passphrase
+as the restore-phrase field that *did* desync an hour earlier, so the defect is **intermittent
+rather than deterministic** — one clean run is not evidence a screen is safe. On the restore side
+the sync was forced (type, append a character, delete it) so that a failure could only be blamed on
+the backup side; it passed, so the file written with bulk-entered text was encrypted with the whole
+passphrase.
+
+The consequence of it going the other way is why the same guard has now been applied to the file
+screens and the invite code: a phrase that desyncs shows a wrong error message and the user tries
+again, but a *passphrase* that desyncs encrypts the file with something the user never typed and
+nothing detects it — not at write time, not at "✓ Done", not until the day they need the file and
+it will not open.
+
+### iPad — the same three fixes at regular size class (2026-08-30)
+
+Driven on a clean **iPad Air 13-inch (M4)**, expanded width. The signed-in iPad Pro was left alone:
+its session came from a QR scan and there is no phrase for that account, so signing out of it would
+have cost a scan to undo.
+
+| Step | Result |
+| --- | --- |
+| Guest shell → onboarding | ✅ PASS — all three routes in the expanded-width layout |
+| **Restore by phrase, first submit** | ✅ PASS — bulk-entered, no forced sync, signed straight in to the sidebar layout. This is the case that failed on the phone before the fix |
+| Sign-out confirm | ✅ PASS — **Cancel renders beside Sign out** here too; the `.alert` conversion is not phone-only |
+| Restore by file → picker | ✅ PASS — picker opened over the bounded restore column, file visible in Recents |
+| **Restore by file, first submit** | ✅ PASS — passphrase bulk-entered with no forced sync, decrypted, signed in as `ma8tms` |
+
+Two things this run establishes that the phone run could not. The file that was restored here is
+the one written by the **guarded** `BackupFileScreen`, so the guard is confirmed end to end: a
+passphrase typed in one shot encrypts a file that opens with the passphrase the user actually
+typed. And restore-by-phrase now works on an iPad, which is what makes an iPad cheap to sign in:
+before this it needed a QR scanned from a phone, because the recorded phrase was believed dead.
+
+**A saved recovery file overwrites silently.** Saving a second file to the same folder replaced the
+first with no prompt, and the earlier one — a different passphrase — went to the folder's `.Trash`.
+That is the system exporter's behaviour rather than Loopky's, but anyone keeping a fixture file
+should know the passphrase they wrote down belongs to whichever save was last.

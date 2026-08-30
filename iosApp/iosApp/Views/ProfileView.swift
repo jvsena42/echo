@@ -61,10 +61,13 @@ struct ProfileView: View {
         .sheet(isPresented: Binding(get: { state.showEditSheet }, set: { if !$0 { onDismissEdit() } })) {
             editSheet
         }
-        .confirmationDialog(
+        // An `.alert`, not a `confirmationDialog`: a dialog's `.cancel` button is detached from its
+        // action list and did not render at all here, leaving the destructive "Sign out" as the only
+        // button on screen and tapping outside as the sole, undiscoverable way back. The safe option
+        // on a destructive confirm has to be visible.
+        .alert(
             Text("profile_sign_out_dialog_title"),
-            isPresented: $isConfirmingSignOut,
-            titleVisibility: .visible
+            isPresented: $isConfirmingSignOut
         ) {
             Button("profile_sign_out_confirm", role: .destructive, action: onSignOut)
             Button("profile_sign_out_cancel", role: .cancel) {}

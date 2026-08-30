@@ -4045,7 +4045,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You'll need Pubky Ring to sign back in. Your decks stay on your homeserver."
+            "value": "Your decks stay on your homeserver. Signing back in restores everything."
           }
         }
       }

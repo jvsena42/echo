@@ -49,7 +49,11 @@ struct RestoreFileScreen: View {
                         title: isChecking ? "restore_phrase_checking" : "restore_file_submit",
                         isLoading: isChecking,
                         isEnabled: uiState?.canSubmit ?? false,
-                        action: { viewModel?.onSubmit() }
+                        action: {
+                            // The passphrase on screen is the one to try — see BackupFileScreen.
+                            viewModel?.onPassphraseChange(passphrase: passphrase)
+                            viewModel?.onSubmit()
+                        }
                     )
                     .accessibilityIdentifier("restore_file_submit")
                 }

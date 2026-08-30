@@ -53,7 +53,7 @@ struct RestorePhraseScreen: View {
                     title: isChecking ? "restore_phrase_checking" : "restore_phrase_submit",
                     isLoading: isChecking,
                     isEnabled: uiState?.canSubmit ?? false,
-                    action: { viewModel?.onSubmit() }
+                    action: submit
                 )
                 .accessibilityIdentifier("restore_phrase_submit")
 
@@ -67,6 +67,23 @@ struct RestorePhraseScreen: View {
         .modifier(SecureScreenModifier())
         .onAppear { attach() }
         .onDisappear { detach() }
+    }
+
+    /// Hand the ViewModel the words that are **on screen**, then check those.
+    ///
+    /// The field owns its own `@State` (see `PassphraseField`), and the ViewModel only learns of
+    /// edits through `.onChange`. When the text arrives in one shot rather than keystroke by
+    /// keystroke — a paste of twelve words, which is how most people do this — the field can hold
+    /// the phrase while the ViewModel still holds what it had before, and the phrase that gets
+    /// checked is not the phrase the user is looking at. That surfaces as "That's not a valid
+    /// recovery phrase" over a perfectly good one, which is the single worst thing this screen can
+    /// say: it is the message that sends someone hunting for a mistyped word they never made.
+    ///
+    /// Re-sending the visible text costs nothing when the two already agree, and the screen's own
+    /// contract — every outcome below is about the submitted words — only holds with it.
+    private func submit() {
+        viewModel?.onPhraseChange(phrase: phrase)
+        viewModel?.onSubmit()
     }
 
     private var isChecking: Bool { uiState?.isChecking ?? false }
