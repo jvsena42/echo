@@ -36,7 +36,7 @@
 		</dict>
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
+	<true/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>pubkyring</string>
