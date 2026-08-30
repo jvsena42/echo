@@ -711,3 +711,69 @@ which is both halves of the ViewModel's own rule.
 - **The stale iOS test-account phrase.** The recovery phrase recorded for the disposable simulator
   account is rejected by the local BIP39 checksum, so restore-from-phrase could not be used to sign
   the iPad in. The QR scan was used instead.
+
+## Signup → backup → sign out → restore, end to end on iOS (2026-08-30)
+
+Driven on the **iPhone 17 Pro simulator (iOS 26.5)** against the real staging homeserver, on a
+brand-new account created for the run: Lightning signup (₿10, staging price), so the "a key nobody
+has a copy of" state that `17`/`19` describe was reachable for the first time. The iPhone 17
+simulator was deliberately left alone so its existing session survived.
+
+| Step | Result |
+| --- | --- |
+| Guest shell → "Get started" → onboarding | ✅ PASS |
+| Create account → method screen | ✅ PASS — Bitcoin card quotes "Pay ₿ 10 (≈ US$0.01) once", the staging price, with the fiat figure beside it. No Ring gate: a simulator cannot hold Ring, so the local route is the one offered |
+| Lightning invoice → paid | ✅ PASS — invoice rendered with QR + Copy, and the screen advanced on its own within ~80s of payment |
+| Key minted, account registered | ✅ PASS — landed on the backup menu |
+| Reveal the twelve words | ✅ PASS — blurred until asked for, and revealing does **not** mark the method done |
+| **"I'll do this later"** | ✅ PASS — lands on Home with the account live and no method recorded |
+| The un-backed-up nag | ✅ PASS — Profile carries "Back up your account / Your key lives only on this device…" with `profile_back_up_now`. Home carries none, which is right: the nag has one home |
+| The un-backed-up sign-out warning | ✅ PASS — an `.alert` reading "Signing out will erase your key — Loopky holds the only copy of the key for ma8tms, and you haven't backed it up. Signing out deletes it, and this account can never be recovered", with Back up / Sign out and erase / Cancel all visible |
+| Nag → phrase → quiz | ✅ PASS — quiz asked words 4, 7 and 10; passing it flipped the card to "✓ Done" and the nag disappeared |
+| Sign out (backed up) | ✅ PASS — lands on onboarding, not the guest shell |
+| Restore with the recovery phrase | ❌ **FAILED on the first submit**, ✅ passes after the fix below |
+
+### The phrase the app had just shown was rejected as invalid
+
+Submitting the twelve words produced **"That's not a valid recovery phrase"** — the local BIP-39
+verdict, over a phrase the app itself had minted minutes earlier. It is not a mis-transcription:
+the words were read out of the runtime accessibility tree rather than off a screenshot, and they
+check out against the BIP-39 English wordlist independently of the app (checksum `1111`).
+
+Nor was it the FFI. The runtime log shows `validate_mnemonic_phrase` returning at mint time with
+`mnemonic_phrase_to_keypair` following it, and at restore time the same call with **no** derivation
+after it — so validation answered "false" for a string that had answered "true" fifteen minutes
+before. Appending one character to the field and deleting it again, leaving the visible text
+identical, made the very next submit sign in.
+
+**The field and the ViewModel disagreed.** `RestorePhraseScreen`'s `TextField` owns its own
+`@State` and the ViewModel learns of edits only through `.onChange`; when the text arrives in one
+shot rather than keystroke by keystroke, the ViewModel can still hold what it had before while the
+field shows the phrase. `canSubmit` is only `phrase.isNotBlank()`, so the button is happily enabled
+over a stale value, and what gets checked is not what the user is looking at. Fixed by handing the
+ViewModel the visible text at submit time. The exact sequence that failed now signs in on the first
+tap.
+
+Worth knowing: **this is the "stale recovery phrase" from the #113 and iPad notes.** The phrase
+recorded then was almost certainly fine, and the entry path was the bug. Three other screens take
+a pasted value through the same `.onChange`-only route — `InviteCodeScreen`, `RestoreFileScreen`
+and `BackupFileScreen` — and were not exercised here; they are the same shape and worth the same
+one-line guard.
+
+### Two more found by driving it
+
+- **The sign-out dialog had no Cancel.** `confirmationDialog`'s `.cancel` button is detached from
+  its action list and rendered nothing at all, leaving the destructive "Sign out" as the only
+  button on screen and a tap outside as the sole, undiscoverable way back. Now an `.alert`, which
+  draws both — the same trap, and the same fix, as the announce prompt in #113.
+- **The sign-out copy claimed you need Pubky Ring to get back in** ("You'll need Pubky Ring to sign
+  back in"), which is untrue for exactly the account this run created: a recovery phrase, a
+  recovery file or Ring all work. Android's string was already right; iOS now matches it.
+
+### Not exercised
+
+- **A real clipboard paste.** The automation could not raise the paste menu or send ⌘V, so the
+  bulk-entry path was driven by `type-text`. The fix removes the whole class either way, but the
+  claim "a paste desyncs" is inferred from the mechanism rather than watched.
+- **Recovery file and Ring export** — still end in out-of-process system UI the automation cannot
+  reach.
