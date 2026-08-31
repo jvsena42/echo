@@ -3,7 +3,6 @@ package com.github.jvsena42.loopky.ui.backup
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,16 +10,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -30,9 +38,11 @@ import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.presentation.backup.BackupEffect
 import com.github.jvsena42.loopky.presentation.backup.BackupQuizUiState
 import com.github.jvsena42.loopky.presentation.backup.BackupQuizViewModel
+import com.github.jvsena42.loopky.presentation.backup.ConfirmMode
 import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.PasswordManagerSheet
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -52,10 +62,18 @@ fun BackupQuizRoute(
 
     SecureScreen()
 
-    LaunchedEffect(viewModel) {
+    // Same split as the phrase screen: the credential sheet needs an Activity, so the read lives
+    // here and the ViewModel only asks for it and judges the answer.
+    val context = LocalContext.current
+    val sheet = remember(context) { PasswordManagerSheet(context) }
+    val account = stringResource(R.string.app_name)
+
+    LaunchedEffect(viewModel, sheet) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 BackupEffect.Done -> currentOnDone()
+                BackupEffect.ReadBackFromPasswordManager ->
+                    viewModel.onPasswordManagerReadBack(sheet.read(account))
                 else -> Unit
             }
         }
@@ -65,6 +83,7 @@ fun BackupQuizRoute(
         state = state,
         onAnswer = viewModel::onAnswer,
         onSubmit = viewModel::onSubmit,
+        onCheckSaved = viewModel::onCheckSavedClick,
         onBack = onBack,
         modifier = modifier,
     )
@@ -75,16 +94,46 @@ private fun BackupQuizScreen(
     state: BackupQuizUiState,
     onAnswer: (Int, String) -> Unit,
     onSubmit: () -> Unit,
+    onCheckSaved: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = LoopkyTheme.colors
+    // Two different claims need two different checks. Recall tests that twelve words were copied
+    // down; someone who saved the phrase to a password manager copied nothing, so that question
+    // tests nothing they did and fails for a reason that is not a problem. What is worth checking
+    // on that path is that the credential is still there and still says the right words.
+    val savedMode = state.mode == ConfirmMode.PasswordManager
     SignupScaffold(
-        title = stringResource(R.string.backup_quiz_title),
-        subtitle = stringResource(R.string.backup_quiz_subtitle),
+        title = stringResource(
+            if (savedMode) R.string.backup_quiz_saved_title else R.string.backup_quiz_title,
+        ),
+        subtitle = stringResource(
+            if (savedMode) R.string.backup_quiz_saved_subtitle else R.string.backup_quiz_subtitle,
+        ),
         onBack = onBack,
         modifier = modifier,
     ) {
+        if (savedMode) {
+            if (state.wrong) {
+                Text(
+                    text = stringResource(R.string.backup_quiz_saved_wrong),
+                    modifier = Modifier.testTag("backup_quiz_saved_wrong"),
+                    color = colors.danger,
+                    fontSize = 13.sp,
+                )
+                Spacer(Modifier.height(16.dp))
+            }
+            LoopkyPrimaryButton(
+                label = stringResource(R.string.backup_quiz_saved_check),
+                onClick = onCheckSaved,
+                enabled = state.canCheckSaved,
+                loading = state.isChecking,
+                modifier = Modifier.testTag("backup_quiz_saved_check"),
+            )
+            return@SignupScaffold
+        }
+
         state.positions.forEachIndexed { questionIndex, position ->
             Text(
                 text = stringResource(R.string.backup_quiz_position, position),
@@ -141,24 +190,42 @@ private fun OptionChip(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) colors.accentPrimary.copy(alpha = SELECTED_ALPHA) else colors.surfaceSecondary)
+            // Filled when chosen, matching iOS, rather than a tinted fill behind an accent
+            // outline. A 1dp warm border on a rounded field is the app's *error* treatment — it is
+            // what an invalid phone number wears — and #FF5C00 against #D92C2C is a hue apart, so
+            // the chosen answer read as a rejected one. That lands worst here of anywhere: this is
+            // a quiz, being wrong is a live outcome, and the real failure message renders in
+            // `danger` a few dp below.
+            .background(if (selected) colors.accentPrimary else colors.surfaceSecondary)
             .border(
                 BorderStroke(1.dp, if (selected) colors.accentPrimary else colors.borderSubtle),
                 RoundedCornerShape(12.dp),
             )
-            .clickable(onClick = onClick)
+            // `selectable`, not `clickable`: these are one-of-N per position, and the selection was
+            // previously carried by colour and font weight alone — invisible to TalkBack, which
+            // announced four identical rows, and to the journeys, whose semantics tree said
+            // nothing about which word was picked.
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = label,
-            color = colors.foregroundPrimary,
+            color = if (selected) colors.foregroundOnAccent else colors.foregroundPrimary,
             fontSize = 14.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.weight(1f),
         )
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = colors.foregroundOnAccent,
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }
-
-private const val SELECTED_ALPHA = 0.15f
 
 @Preview
 @Composable
@@ -170,7 +237,7 @@ private fun BackupQuizPreview() {
                 positions = listOf(3, 6, 9),
                 options = List(3) { listOf("abandon", "ability", "about", "above") },
             ),
-            onAnswer = { _, _ -> }, onSubmit = {}, onBack = {},
+            onAnswer = { _, _ -> }, onSubmit = {}, onCheckSaved = {}, onBack = {},
         )
     }
 }

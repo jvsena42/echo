@@ -97,17 +97,21 @@ private fun NumberEntry(
     SignupTextField(
         value = state.phoneNumber,
         onValueChange = onPhoneChange,
-        isError = state.error != null,
+        isError = state.error != null || state.showMissingPlusHint,
         keyboardType = KeyboardType.Phone,
         placeholder = stringResource(R.string.signup_phone_placeholder),
         testTag = "signup_phone_input",
     )
     Spacer(Modifier.height(8.dp))
+    // The same hint, in `danger` once the `+` is definitely missing. Recolouring rather than
+    // adding a second line keeps one place to look; keyed on the missing `+` rather than on
+    // validity, because "too short" is true of every number halfway through being typed.
     Text(
         text = stringResource(R.string.signup_phone_hint),
-        color = colors.foregroundMuted,
+        color = if (state.showMissingPlusHint) colors.danger else colors.foregroundMuted,
         fontSize = 12.sp,
         lineHeight = 16.sp,
+        modifier = Modifier.testTag("signup_phone_hint"),
     )
     Spacer(Modifier.height(24.dp))
     // Withheld on a terminal limit: offering "send" would invite the user to spend attempts they

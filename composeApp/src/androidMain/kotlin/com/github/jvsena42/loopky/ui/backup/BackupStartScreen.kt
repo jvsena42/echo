@@ -116,6 +116,21 @@ private fun BackupStartScreen(
                     tag = "backup_method_file",
                 ),
             )
+            // Opens the phrase screen, because that is where the save lives — the words have to
+            // be on screen to be handed over. The card exists anyway: without one there is no
+            // row for the tick to appear on, so a user who had saved to a password manager came
+            // back to a menu that showed the method undone.
+            if (state.showPasswordManager) {
+                add(
+                    BackupCard(
+                        method = BackupMethod.PasswordManager,
+                        label = stringResource(R.string.backup_method_password_manager),
+                        detail = stringResource(R.string.backup_method_password_manager_detail),
+                        onClick = onPhrase,
+                        tag = "backup_method_password_manager",
+                    ),
+                )
+            }
             add(
                 BackupCard(
                     method = BackupMethod.PubkyRing,

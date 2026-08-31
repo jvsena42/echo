@@ -115,7 +115,7 @@ class DiscoverViewModel(
                 _state.update {
                     it.copy(
                         following = it.following.loaded(decks.filterByTag(it.selectedTag).toCards(authors)),
-                        topics = it.topics.copy(items = mergedTopics()),
+                        topics = it.topics.copy(items = mergedTopics(globalTopics, feed)),
                     )
                 }
                 Log.d(TAG, "loadFollowing: ${decks.size} decks")
@@ -170,7 +170,7 @@ class DiscoverViewModel(
         globalTopics = runSuspendCatching { tagRepository.trendingDeckTags() }
             .onFailure { Log.e(TAG, "loadTopics: FAILED — ${it.message}", it) }
             .getOrElse { emptyList() }
-        _state.update { it.copy(topics = it.topics.loaded(mergedTopics())) }
+        _state.update { it.copy(topics = it.topics.loaded(mergedTopics(globalTopics, feed))) }
     }
 
     /**
@@ -188,6 +188,22 @@ class DiscoverViewModel(
         _state.update { it.withResolvedAuthors(authors) }
         Log.d(TAG, "loadAuthorProfiles: resolved=${resolved.count { it != null }}/${pending.size}")
     }
+
+    /**
+     * Select by label. **This is the entry point Swift must use.**
+     *
+     * [Tag] is a `value class`, and Kotlin/Native treats one differently either side of a call:
+     * boxed as an element of a `List<Tag>`, but *erased to its underlying `String`* at a parameter
+     * position. Swift can only obtain a `Tag` as the boxed object it finds in state, so handing
+     * that object to [onTagSelected] passed a Kotlin object where the bridge expected an
+     * `NSString`. Nothing rejected it: the pointer was reinterpreted, `value` read back null, and
+     * `sanitizeLabel` segfaulted on `trim()` — a null dereference in a language with no nulls,
+     * reachable by tapping a topic chip on Discover.
+     *
+     * A `String` crosses as itself, so the erasure has nothing to disagree about. Prefer this
+     * anywhere a `Tag` would otherwise cross the ObjC boundary as an argument.
+     */
+    fun onTagLabelSelected(label: String?) = onTagSelected(label?.let(::Tag))
 
     fun onTagSelected(tag: Tag?) {
         val next = if (tag == _state.value.selectedTag) null else tag
@@ -257,12 +273,6 @@ class DiscoverViewModel(
         viewModelScope.launch { _effects.emit(DiscoverEffect.OpenDeck(authorPubky, deckId)) }
     }
 
-    /** Global topics first — they are ranked — then labels only the followed feed knows about. */
-    private fun mergedTopics(): List<Tag> =
-        (globalTopics + feed.flatMap { it.tags })
-            .filterNot { ReservedTags.isReserved(it) }
-            .distinct()
-
     companion object {
         private const val TAG = "Loopky/DiscoverVM"
 
@@ -307,6 +317,17 @@ private fun MutableStateFlow<DiscoverUiState>.updatePerson(
         ),
     )
 }
+
+/**
+ * Global topics first — they are ranked — then labels only the followed feed knows about.
+ *
+ * A pure function of its two arguments, so it lives here beside the other list helpers rather
+ * than on the ViewModel, which is at detekt's function ceiling.
+ */
+private fun mergedTopics(globalTopics: List<Tag>, feed: List<Deck>): List<Tag> =
+    (globalTopics + feed.flatMap { it.tags })
+        .filterNot { ReservedTags.isReserved(it) }
+        .distinct()
 
 private fun List<Deck>.filterByTag(tag: Tag?): List<Deck> =
     if (tag == null) this else filter { tag in it.tags }

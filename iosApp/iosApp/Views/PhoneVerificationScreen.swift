@@ -49,7 +49,7 @@ struct PhoneVerificationScreen: View {
                 text: $phoneNumber,
                 placeholder: "signup_phone_placeholder",
                 isEnabled: !(uiState?.isWorking ?? false),
-                isError: uiState?.error != nil,
+                isError: uiState?.error != nil || showMissingPlusHint,
                 keyboard: .phonePad
             )
             .onChange(of: phoneNumber) { _, value in
@@ -58,9 +58,12 @@ struct PhoneVerificationScreen: View {
             .accessibilityIdentifier("signup_phone_input")
 
             Spacer().frame(height: 8)
+            // The same hint in `danger` once the `+` is definitely missing, matching Android.
+            // Keyed on the missing `+` and not on validity: "too short" is true of every number
+            // halfway through being typed.
             Text("signup_phone_hint")
                 .font(.system(size: 12))
-                .foregroundStyle(LoopkyColor.foregroundMuted)
+                .foregroundStyle(showMissingPlusHint ? LoopkyColor.danger : LoopkyColor.foregroundMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
             // Withheld entirely on a terminal rate limit, not disabled: a button that cannot ever
@@ -115,6 +118,10 @@ struct PhoneVerificationScreen: View {
     }
 
     private var canResend: Bool { uiState?.canResend ?? false }
+
+    /// Both `canSendCode` and this come from the shared ViewModel, so the rule cannot drift
+    /// between the platforms.
+    private var showMissingPlusHint: Bool { uiState?.showMissingPlusHint ?? false }
 
     private var resendLabel: String {
         canResend

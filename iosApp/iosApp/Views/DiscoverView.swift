@@ -136,8 +136,11 @@ struct DiscoverView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(state.topics, id: \.self) { topic in
-                    TagChipView(tag: topic, onTap: { onTagTap(topic) })
-                        .opacity(state.selectedTag == nil || state.selectedTag == topic ? 1 : 0.5)
+                    TagChipView(
+                        tag: topic,
+                        onTap: { onTagTap(topic) },
+                        isSelected: state.selectedTag == topic
+                    )
                 }
             }
         }

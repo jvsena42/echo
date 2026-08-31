@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +30,7 @@ import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.PassphraseField
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.LeaveEffect
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -50,7 +50,7 @@ fun BackupFileRoute(
     var pendingBlob by remember { mutableStateOf<String?>(null) }
 
     SecureScreen()
-    DisposableEffect(viewModel) { onDispose { viewModel.onLeave() } }
+    LeaveEffect { viewModel.onLeave() }
 
     val saver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(RECOVERY_MIME),

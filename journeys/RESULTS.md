@@ -863,3 +863,63 @@ The accessibility tree reports a dead button and a live one identically, so `sna
 tell them apart — only tapping and asserting on what changed can. And the two layouts diverged
 silently: the phone path regressed while the iPad path stayed correct, which is the failure mode
 the width-adaptive rule in CLAUDE.md warns about, running in the direction nobody checks.
+
+## Backup hardening, quiz chip, and the phone field (2026-08-31)
+
+Driven on a **Xiaomi 22031116BG (MIUI, Android 14)** over `android-cli`, against staging except
+where noted. Five fixes plus one follow-up, all verified by driving rather than by a green build.
+Journeys touched: **06** (profile/settings), **20** (restore by phrase); the backup-menu path has
+no journey of its own yet and is worth one.
+
+| Check | Before | After |
+| --- | --- | --- |
+| `android screen capture` on the phrase screen, **production** debug build | ❌ full-resolution, readable phrase | ✅ pure black |
+| Restore-phrase field, rotate portrait → landscape | ❌ wiped to empty | ✅ all twelve words survive |
+| Recovery-phrase screen, rotate | ❌ blank grid, Continue permanently disabled | ✅ words kept, Continue live |
+| Quiz option, selected | ❌ thin warm outline — read as an error | ✅ solid fill + check mark |
+| Phrase screen → Save to password manager | — | ✅ GPM sheet → "Saved and checked" |
+| Confirm step, after a password-manager save | ❌ recall quiz for words nobody wrote | ✅ "Check your saved phrase" read-back |
+| Backup menu, after saving | ❌ method done, no row to say so | ✅ **Password manager ✓ Done** |
+
+**`android layout` does not work on this device at all.** `uiautomator dump` crashes inside MIUI's
+`ThemeCompatibilityLoader` (`/data/system/theme_config/theme_compatibility.xml` missing) before it
+reaches the app, so the flat-JSON assertions the journeys rely on are unavailable here — every
+check above was made from screenshots and coordinate taps. Use an emulator or a non-MIUI device
+when a journey needs `android layout`.
+
+**Two device-driving notes.** `adb shell input text` with `%s` separators drops most characters
+into a Compose field; typing word by word with ~350 ms between them is reliable. And a fresh
+install after `adb uninstall` trips MIUI's "Instalação via USB bloqueada" and needs the phone
+unlocked — `adb shell pm clear` resets state without that prompt.
+
+**A black screenshot is not always `FLAG_SECURE`.** One capture came back black because the phone
+had gone to sleep, which looks identical to the capture block. Check `dumpsys window | grep mAwake`
+before concluding anything from a black frame.
+
+**The password-manager save writes to a real Google account.** Verifying it created a `Loopky`
+entry in the signed-in user's Google Password Manager holding the staging fixture phrase. Delete it
+from `passwords.google.com` after a verification run, or the fixture phrase outlives the test.
+
+## iOS chips, and a crash behind them (2026-08-31)
+
+Driven on the **iPhone 17 simulator** via `xcodebuildmcp`, staging, while checking whether the
+Android quiz-chip fix needed an iOS counterpart. Journeys touched: **04** (discover/social),
+**13** (tag browse).
+
+| Check | Before | After |
+| --- | --- | --- |
+| Discover → tap a topic chip | ❌ **app crashes to the home screen** | ✅ loads "Decks tagged …" |
+| Selected topic chip | ❌ looks unpicked; the *others* dim to 50% | ✅ filled, matching Android |
+| Selection in the a11y tree | ❌ nothing — `.isSelected` used nowhere on iOS | ✅ reported on topic and quiz chips |
+
+**The crash was a value-class bridge trap, not a UI bug.** `SIGSEGV` at `0x0` inside
+`sanitizeLabel`'s `trim()` — a null dereference in a language with no nulls. `Tag` is
+`@JvmInline value class`, boxed inside `List<Tag>` but erased to `String` at a parameter position,
+so the boxed object Swift found in state reached a bridge expecting an `NSString`. Now recorded as
+the fifth bridge trap in CLAUDE.md; the fix is `onTagLabelSelected`, taking the label.
+
+Two things worth repeating. The crash was **only** reachable by tapping — the build is green,
+SwiftLint is clean, and `snapshot-ui` renders the chips identically either way, so nothing short of
+driving the app finds it. And the iOS quiz chip was already *visually* correct (it filled, which is
+what Android was changed to match), which made it easy to assume iOS needed nothing; the defect it
+did have was in the accessibility tree, where looking at a screenshot cannot reach.
