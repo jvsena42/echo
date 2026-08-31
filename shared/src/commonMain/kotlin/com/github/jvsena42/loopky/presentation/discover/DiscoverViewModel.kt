@@ -115,7 +115,7 @@ class DiscoverViewModel(
                 _state.update {
                     it.copy(
                         following = it.following.loaded(decks.filterByTag(it.selectedTag).toCards(authors)),
-                        topics = it.topics.copy(items = mergedTopics()),
+                        topics = it.topics.copy(items = mergedTopics(globalTopics, feed)),
                     )
                 }
                 Log.d(TAG, "loadFollowing: ${decks.size} decks")
@@ -170,7 +170,7 @@ class DiscoverViewModel(
         globalTopics = runSuspendCatching { tagRepository.trendingDeckTags() }
             .onFailure { Log.e(TAG, "loadTopics: FAILED — ${it.message}", it) }
             .getOrElse { emptyList() }
-        _state.update { it.copy(topics = it.topics.loaded(mergedTopics())) }
+        _state.update { it.copy(topics = it.topics.loaded(mergedTopics(globalTopics, feed))) }
     }
 
     /**
@@ -273,12 +273,6 @@ class DiscoverViewModel(
         viewModelScope.launch { _effects.emit(DiscoverEffect.OpenDeck(authorPubky, deckId)) }
     }
 
-    /** Global topics first — they are ranked — then labels only the followed feed knows about. */
-    private fun mergedTopics(): List<Tag> =
-        (globalTopics + feed.flatMap { it.tags })
-            .filterNot { ReservedTags.isReserved(it) }
-            .distinct()
-
     companion object {
         private const val TAG = "Loopky/DiscoverVM"
 
@@ -323,6 +317,17 @@ private fun MutableStateFlow<DiscoverUiState>.updatePerson(
         ),
     )
 }
+
+/**
+ * Global topics first — they are ranked — then labels only the followed feed knows about.
+ *
+ * A pure function of its two arguments, so it lives here beside the other list helpers rather
+ * than on the ViewModel, which is at detekt's function ceiling.
+ */
+private fun mergedTopics(globalTopics: List<Tag>, feed: List<Deck>): List<Tag> =
+    (globalTopics + feed.flatMap { it.tags })
+        .filterNot { ReservedTags.isReserved(it) }
+        .distinct()
 
 private fun List<Deck>.filterByTag(tag: Tag?): List<Deck> =
     if (tag == null) this else filter { tag in it.tags }
