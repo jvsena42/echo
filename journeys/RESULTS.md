@@ -899,3 +899,27 @@ before concluding anything from a black frame.
 **The password-manager save writes to a real Google account.** Verifying it created a `Loopky`
 entry in the signed-in user's Google Password Manager holding the staging fixture phrase. Delete it
 from `passwords.google.com` after a verification run, or the fixture phrase outlives the test.
+
+## iOS chips, and a crash behind them (2026-08-31)
+
+Driven on the **iPhone 17 simulator** via `xcodebuildmcp`, staging, while checking whether the
+Android quiz-chip fix needed an iOS counterpart. Journeys touched: **04** (discover/social),
+**13** (tag browse).
+
+| Check | Before | After |
+| --- | --- | --- |
+| Discover → tap a topic chip | ❌ **app crashes to the home screen** | ✅ loads "Decks tagged …" |
+| Selected topic chip | ❌ looks unpicked; the *others* dim to 50% | ✅ filled, matching Android |
+| Selection in the a11y tree | ❌ nothing — `.isSelected` used nowhere on iOS | ✅ reported on topic and quiz chips |
+
+**The crash was a value-class bridge trap, not a UI bug.** `SIGSEGV` at `0x0` inside
+`sanitizeLabel`'s `trim()` — a null dereference in a language with no nulls. `Tag` is
+`@JvmInline value class`, boxed inside `List<Tag>` but erased to `String` at a parameter position,
+so the boxed object Swift found in state reached a bridge expecting an `NSString`. Now recorded as
+the fifth bridge trap in CLAUDE.md; the fix is `onTagLabelSelected`, taking the label.
+
+Two things worth repeating. The crash was **only** reachable by tapping — the build is green,
+SwiftLint is clean, and `snapshot-ui` renders the chips identically either way, so nothing short of
+driving the app finds it. And the iOS quiz chip was already *visually* correct (it filled, which is
+what Android was changed to match), which made it easy to assume iOS needed nothing; the defect it
+did have was in the accessibility tree, where looking at a screenshot cannot reach.
