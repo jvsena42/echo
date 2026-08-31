@@ -189,6 +189,22 @@ class DiscoverViewModel(
         Log.d(TAG, "loadAuthorProfiles: resolved=${resolved.count { it != null }}/${pending.size}")
     }
 
+    /**
+     * Select by label. **This is the entry point Swift must use.**
+     *
+     * [Tag] is a `value class`, and Kotlin/Native treats one differently either side of a call:
+     * boxed as an element of a `List<Tag>`, but *erased to its underlying `String`* at a parameter
+     * position. Swift can only obtain a `Tag` as the boxed object it finds in state, so handing
+     * that object to [onTagSelected] passed a Kotlin object where the bridge expected an
+     * `NSString`. Nothing rejected it: the pointer was reinterpreted, `value` read back null, and
+     * `sanitizeLabel` segfaulted on `trim()` — a null dereference in a language with no nulls,
+     * reachable by tapping a topic chip on Discover.
+     *
+     * A `String` crosses as itself, so the erasure has nothing to disagree about. Prefer this
+     * anywhere a `Tag` would otherwise cross the ObjC boundary as an argument.
+     */
+    fun onTagLabelSelected(label: String?) = onTagSelected(label?.let(::Tag))
+
     fun onTagSelected(tag: Tag?) {
         val next = if (tag == _state.value.selectedTag) null else tag
         browseJob?.cancel()
