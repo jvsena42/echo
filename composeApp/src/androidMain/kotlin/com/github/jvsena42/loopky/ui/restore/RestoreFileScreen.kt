@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -29,6 +28,7 @@ import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.PassphraseField
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.LeaveEffect
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -51,9 +51,7 @@ fun RestoreFileRoute(
     // A passphrase is on screen, so the same capture block the phrase screen uses applies.
     SecureScreen()
 
-    DisposableEffect(viewModel) {
-        onDispose { viewModel.onLeaveUnlessCorrecting() }
-    }
+    LeaveEffect(viewModel) { viewModel.onLeaveUnlessCorrecting() }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->

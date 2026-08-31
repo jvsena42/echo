@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.domain.model.PassphraseStrength
 import com.github.jvsena42.loopky.domain.model.strengthOf
 import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.util.Log
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -77,8 +78,24 @@ class BackupPhraseViewModel(
     private val _state = MutableStateFlow(BackupPhraseUiState())
     val state: StateFlow<BackupPhraseUiState> = _state.asStateFlow()
 
+    private var loadJob: Job? = null
+
     init {
-        viewModelScope.launch {
+        onEnter()
+    }
+
+    /**
+     * Load the words, unless they are already here.
+     *
+     * Called on every entry, not only from `init`, because [onLeave] empties a ViewModel that
+     * **outlives the screen**: it is retained across a configuration change and kept on the
+     * back stack while the confirm quiz is on top. With loading in `init` alone, rotating the
+     * phone or stepping back from the quiz left a live ViewModel holding no words and nothing
+     * that would ever fetch them again — an empty grid with Continue permanently disabled.
+     */
+    fun onEnter() {
+        if (loadJob?.isActive == true || _state.value.words.isNotEmpty()) return
+        loadJob = viewModelScope.launch {
             keyBackup.revealRecoveryPhrase()
                 .onSuccess { phrase ->
                     _state.update { it.copy(isLoading = false, words = phrase.split(" ").filter(String::isNotBlank)) }
@@ -93,7 +110,11 @@ class BackupPhraseViewModel(
     /** Reveal the words that are blurred until asked for — a shoulder-surfing guard, not security. */
     fun onRevealClick() = _state.update { it.copy(revealed = true) }
 
-    fun onLeave() = _state.update { BackupPhraseUiState() }
+    fun onLeave() {
+        loadJob?.cancel()
+        loadJob = null
+        _state.update { BackupPhraseUiState() }
+    }
 }
 
 data class BackupPhraseUiState(

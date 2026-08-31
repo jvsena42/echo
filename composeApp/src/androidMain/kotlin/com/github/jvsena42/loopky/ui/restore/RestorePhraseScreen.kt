@@ -10,7 +10,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -35,6 +34,7 @@ import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.LeaveEffect
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.viewmodel.koinViewModel
@@ -57,9 +57,7 @@ fun RestorePhraseRoute(
 
     // The words must not outlive the screen: a StateFlow lives as long as the ViewModel, so
     // without this they stay in memory — and in any heap dump — after the user has navigated away.
-    DisposableEffect(viewModel) {
-        onDispose { viewModel.onLeaveUnlessCorrecting() }
-    }
+    LeaveEffect(viewModel) { viewModel.onLeaveUnlessCorrecting() }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->

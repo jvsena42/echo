@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +35,7 @@ import com.github.jvsena42.loopky.ui.layout.windowWidthClass
 import com.github.jvsena42.loopky.ui.restore.SeedPhraseWarning
 import com.github.jvsena42.loopky.ui.signup.SignupScaffold
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.util.LeaveEffect
 import com.github.jvsena42.loopky.ui.util.SecureScreen
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -48,7 +49,10 @@ fun BackupPhraseRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     SecureScreen()
-    DisposableEffect(viewModel) { onDispose { viewModel.onLeave() } }
+    // Re-entrant on purpose: `onLeave` empties a ViewModel that outlives this screen, so
+    // returning from the quiz has to refill it.
+    LaunchedEffect(viewModel) { viewModel.onEnter() }
+    LeaveEffect(viewModel) { viewModel.onLeave() }
 
     BackupPhraseScreen(
         state = state,
