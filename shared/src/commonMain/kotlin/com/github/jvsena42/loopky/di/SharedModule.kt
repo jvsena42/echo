@@ -164,7 +164,7 @@ val sharedModule = module {
             registerHeldKey = params.getOrNull() ?: false,
         )
     }
-    viewModel { BackupStartViewModel(keyBackup = get(), ringPresence = get()) }
+    viewModel { BackupStartViewModel(keyBackup = get(), ringPresence = get(), passwordManager = get()) }
     viewModel { BackupPhraseViewModel(keyBackup = get(), passwordManager = get()) }
     viewModel { BackupQuizViewModel(keyBackup = get()) }
     viewModel { BackupFileViewModel(keyBackup = get()) }

@@ -33,9 +33,15 @@ private const val TAG = "Loopky/BackupVM"
 class BackupStartViewModel(
     private val keyBackup: KeyBackupRepository,
     ringPresence: PubkyRingPresence,
+    passwordManager: PasswordManagerPresence,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(BackupStartUiState(ringInstalled = ringPresence.canImportKey()))
+    private val _state = MutableStateFlow(
+        BackupStartUiState(
+            ringInstalled = ringPresence.canImportKey(),
+            canSaveToPasswordManager = passwordManager.canSave(),
+        ),
+    )
     val state: StateFlow<BackupStartUiState> = _state.asStateFlow()
 
     init {
@@ -62,8 +68,15 @@ data class BackupStartUiState(
     val done: Set<BackupMethod> = emptySet(),
     val hasPhrase: Boolean = false,
     val ringInstalled: Boolean = false,
+    val canSaveToPasswordManager: Boolean = false,
 ) {
     val isBackedUp: Boolean get() = done.isNotEmpty()
+
+    /**
+     * The password-manager card needs the words to hand over, so it goes wherever the phrase card
+     * goes — a key restored from a recovery file has no phrase to save.
+     */
+    val showPasswordManager: Boolean get() = canSaveToPasswordManager && hasPhrase
 }
 
 /**
