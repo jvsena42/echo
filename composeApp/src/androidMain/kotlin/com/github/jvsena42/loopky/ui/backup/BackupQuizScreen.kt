@@ -3,7 +3,6 @@ package com.github.jvsena42.loopky.ui.backup
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,16 +10,23 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -141,24 +147,42 @@ private fun OptionChip(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) colors.accentPrimary.copy(alpha = SELECTED_ALPHA) else colors.surfaceSecondary)
+            // Filled when chosen, matching iOS, rather than a tinted fill behind an accent
+            // outline. A 1dp warm border on a rounded field is the app's *error* treatment — it is
+            // what an invalid phone number wears — and #FF5C00 against #D92C2C is a hue apart, so
+            // the chosen answer read as a rejected one. That lands worst here of anywhere: this is
+            // a quiz, being wrong is a live outcome, and the real failure message renders in
+            // `danger` a few dp below.
+            .background(if (selected) colors.accentPrimary else colors.surfaceSecondary)
             .border(
                 BorderStroke(1.dp, if (selected) colors.accentPrimary else colors.borderSubtle),
                 RoundedCornerShape(12.dp),
             )
-            .clickable(onClick = onClick)
+            // `selectable`, not `clickable`: these are one-of-N per position, and the selection was
+            // previously carried by colour and font weight alone — invisible to TalkBack, which
+            // announced four identical rows, and to the journeys, whose semantics tree said
+            // nothing about which word was picked.
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = label,
-            color = colors.foregroundPrimary,
+            color = if (selected) colors.foregroundOnAccent else colors.foregroundPrimary,
             fontSize = 14.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.weight(1f),
         )
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = colors.foregroundOnAccent,
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }
-
-private const val SELECTED_ALPHA = 0.15f
 
 @Preview
 @Composable
