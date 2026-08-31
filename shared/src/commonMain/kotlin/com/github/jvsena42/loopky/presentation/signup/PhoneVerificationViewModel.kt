@@ -62,7 +62,7 @@ class PhoneVerificationViewModel(
         if (sendJob?.isActive == true) return
         sendJob = viewModelScope.launch {
             _state.update { it.copy(isWorking = true, error = null) }
-            signupRepository.sendSmsCode(_state.value.phoneNumber)
+            signupRepository.sendSmsCode(_state.value.normalizedPhoneNumber)
                 .onSuccess {
                     _state.update { it.copy(isWorking = false, phase = PhoneVerificationPhase.CodeEntry) }
                     startCooldown()
@@ -84,7 +84,7 @@ class PhoneVerificationViewModel(
         verifyJob = viewModelScope.launch {
             val current = _state.value
             _state.update { it.copy(isWorking = true, error = null) }
-            signupRepository.redeemSmsCode(current.phoneNumber, current.code)
+            signupRepository.redeemSmsCode(current.normalizedPhoneNumber, current.code)
                 .onSuccess {
                     _state.update { it.copy(isWorking = false) }
                     _effects.emit(PhoneVerificationEffect.NavigateToHandoff)
@@ -126,7 +126,20 @@ data class PhoneVerificationUiState(
     val resendCooldownSeconds: Int = 0,
     val error: SignupError? = null,
 ) {
-    val canSendCode: Boolean get() = phoneNumber.isNotBlank() && !isWorking
+    /** What actually goes on the wire: separators stripped, so a pasted number is not rejected. */
+    val normalizedPhoneNumber: String get() = PhoneNumberInput.normalize(phoneNumber)
+
+    /**
+     * A well-formed E.164 number, not merely a non-empty field.
+     *
+     * The old `isNotBlank()` let a malformed number spend one of the two SMS verifications a user
+     * gets per week — and [isTerminal] then removes the send button, so the mistake is not
+     * retryable. See [PhoneNumberInput].
+     */
+    val canSendCode: Boolean get() = PhoneNumberInput.isValid(phoneNumber) && !isWorking
+
+    /** Say the `+` is missing, but only once it is unambiguously missing rather than unfinished. */
+    val showMissingPlusHint: Boolean get() = PhoneNumberInput.isMissingPlus(phoneNumber)
     val canVerify: Boolean get() = code.isNotBlank() && !isWorking
     val canResend: Boolean get() = resendCooldownSeconds == 0 && !isWorking
 
