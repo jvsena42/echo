@@ -1,6 +1,6 @@
 ---
 name: release
-description: Bump versions on a release branch, build a signed APK, tag, and publish a GitHub release
+description: Bump versions on a release branch, build a signed APK and Play bundle, tag, and publish a GitHub release
 disable-model-invocation: true
 argument-hint: "<version> (e.g. v0.2.0)"
 ---
@@ -8,7 +8,9 @@ argument-hint: "<version> (e.g. v0.2.0)"
 Release process for Loopky. Version: $ARGUMENTS
 
 Loopky is a Kotlin Multiplatform app, so a release bumps **both** platforms in the same commit even
-though only the Android APK is published as a release asset.
+though only the Android APK is published as a release asset. The signed Android App Bundle is built
+in the same step but is not attached to the release — an AAB cannot be installed directly, and it
+exists for the Play Console upload the user performs by hand.
 
 `main` is protected — nothing is committed or pushed to it directly. The version bump goes on a
 release branch and reaches `main` through a pull request; the tag is then created on the resulting
@@ -56,22 +58,44 @@ merge commit.
    proceed until `gh pr view --json state` reports `MERGED`. Then
    `git switch main && git pull origin main`.
 
-7. **Build signed APK** (from merged `main`, so the artifact matches the commit being tagged):
+7. **Build the signed artifacts** (from merged `main`, so they match the commit being tagged):
    - Confirm `local.properties` defines all four signing constants: `KEYSTORE_FILE`,
      `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Check that the **keys are present** only —
      never read, print, or echo their values (e.g. `grep -c '^KEYSTORE_FILE=' local.properties`).
      Abort with a clear message if any is missing, because the build would otherwise silently
      produce an unsigned APK.
-   - Run `./gradlew clean :composeApp:assembleRelease`.
-   - Verify the APK exists at `composeApp/build/outputs/apk/release/composeApp-release.apk`.
-   - Verify it is actually signed: `apksigner verify <apk>` (or `jarsigner -verify`). Abort if the
-     APK is unsigned. The `signingConfigs` block in `composeApp/build.gradle.kts` only creates a
+   - Run `./gradlew clean :composeApp:assembleRelease :composeApp:bundleRelease`. The APK is the
+     GitHub release asset; the AAB is what gets uploaded to the Play Console.
+   - Verify the APK exists at `composeApp/build/outputs/apk/release/composeApp-release.apk` and the
+     bundle at `composeApp/build/outputs/bundle/release/composeApp-release.aab`.
+   - Verify the APK is actually signed: `apksigner verify <apk>` (or `jarsigner -verify`). Abort if
+     it is unsigned. The `signingConfigs` block in `composeApp/build.gradle.kts` only creates a
      `release` config when `KEYSTORE_FILE` is present, and the release build type falls back to an
      unsigned build when it is not — so an unsigned APK here means the constants did not reach
-     Gradle, never that the build failed.
-   - **Rename it for upload**: copy it to `Loopky-<numeric_version>.apk` in the repo root, so the
-     release asset carries the app name and version rather than `composeApp-release.apk`. `*.apk`
-     is gitignored, so the copy stays out of the working tree's status.
+     Gradle, never that the build failed. Verify the AAB the same way with `jarsigner -verify`
+     (an AAB carries JAR/v1 signing only, so `apksigner` does not apply to it); look for
+     `jar verified` — the self-signed and missing-timestamp warnings it also prints are expected
+     for an upload key and are not failures.
+   - **Check the signing key's algorithm, not just that a signature exists.** Play App Signing
+     requires the upload key to be **RSA, 2048 bits or more**; it rejects anything else at upload
+     time with "Your Android App Bundle has an invalid signature", which says nothing about the
+     real cause and cannot be fixed by rebuilding. `jarsigner`/`apksigner` happily verify a
+     non-RSA signature, so this has to be asserted separately — extract the signature block from
+     the AAB and print the certificate (public data, safe to show):
+
+     ```shell
+     unzip -o -q <aab> 'META-INF/*.RSA' 'META-INF/*.EC' 'META-INF/*.DSA' -d /tmp/certchk
+     keytool -printcert -file /tmp/certchk/META-INF/<block> | grep -E "Public Key|Signature algorithm|Valid"
+     ```
+
+     Abort unless it reads `RSA` at 2048 bits or more (`SHA256withRSA`). A `256-bit EC
+     (secp256r1)` key is the failure this check exists to catch — see v0.6.1, where the release
+     published fine and only the Play upload rejected it. Also confirm the certificate's validity
+     ends after **2033-10-22**, Play's floor.
+   - **Rename them for upload**: copy the APK to `Loopky-<numeric_version>.apk` and the AAB to
+     `Loopky-<numeric_version>.aab` in the repo root, so the artifacts carry the app name and
+     version rather than `composeApp-release.*`. `*.apk` and `*.aab` are both gitignored, so the
+     copies stay out of the working tree's status.
 
 8. **Generate changelog** (before tagging, so the user confirms the notes and the publish together):
    - Find the previous tag: `git describe --tags --abbrev=0 HEAD` — the new tag does not exist yet,
@@ -107,9 +131,14 @@ merge commit.
       `gh api repos/jvsena42/loopky/releases/latest -q '.tag_name'`. Note there is no `isLatest`
       JSON field — query the `releases/latest` endpoint instead.
 
-11. **Clean up and summarize**: Delete the temporary `Loopky-<numeric_version>.apk` and the merged release branch
-    (`git branch -d chore/version-<numeric_version>`), then print the release URL, the new Android
-    `versionCode`/`versionName`, and the iOS `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`.
+11. **Clean up and summarize**: Delete the temporary `Loopky-<numeric_version>.apk` and the merged
+    release branch (`git branch -d chore/version-<numeric_version>`), then print the release URL,
+    the new Android `versionCode`/`versionName`, and the iOS
+    `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`.
+
+    **Keep `Loopky-<numeric_version>.aab`** — it is not a GitHub release asset, it is the artifact
+    the user uploads to the Play Console by hand, and deleting it means rebuilding. Print its path
+    and say it is ready for upload.
 
 ## Important
 
@@ -123,7 +152,9 @@ merge commit.
   real state (`git log`, `git ls-remote --heads origin <branch>`, `gh pr list`) before redoing
   anything — `git rev-parse @{u}` can fail on a branch that *was* pushed, when its remote-tracking
   ref is simply not fetched yet.
-- Never skip detekt, the tests, or the APK signature verification.
+- Never skip detekt, the tests, the signature verification, or the key-algorithm check. The
+  algorithm check is the one that is easy to think redundant: a signature that verifies can
+  still be rejected by Play, and the rejection happens after the release is already public.
 - Never print, log, or commit any value from `local.properties` — it holds the signing credentials
   and the Unsplash key, and it is gitignored for that reason. Refer to the constants by name only,
   and never commit a real `TEAM_ID`.
