@@ -24,10 +24,12 @@ import androidx.compose.ui.platform.LocalContext
  * screen. Everything else should let `viewModelScope` do its job.
  */
 @Composable
-fun LeaveEffect(key: Any?, onLeave: () -> Unit) {
+fun LeaveEffect(onLeave: () -> Unit) {
     val activity = LocalContext.current as? Activity
+    // `rememberUpdatedState` so the effect keys on nothing and still calls the latest lambda: a
+    // key would re-arm the effect, and re-arming a *leave* handler fires it.
     val currentOnLeave by rememberUpdatedState(onLeave)
-    DisposableEffect(key) {
+    DisposableEffect(Unit) {
         onDispose {
             if (activity?.isChangingConfigurations != true) currentOnLeave()
         }

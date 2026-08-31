@@ -116,6 +116,10 @@ private fun BackupStartScreen(
                     tag = "backup_method_file",
                 ),
             )
+            // No card of its own: saving to a password manager needs the words on screen to
+            // hand over, so it lives on the phrase screen as a second action there. A card here
+            // would open the phrase screen anyway. It still ticks, because `done` is what the
+            // menu renders, and the tick is the point of recording the method.
             add(
                 BackupCard(
                     method = BackupMethod.PubkyRing,

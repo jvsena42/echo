@@ -57,7 +57,7 @@ fun RestorePhraseRoute(
 
     // The words must not outlive the screen: a StateFlow lives as long as the ViewModel, so
     // without this they stay in memory — and in any heap dump — after the user has navigated away.
-    LeaveEffect(viewModel) { viewModel.onLeaveUnlessCorrecting() }
+    LeaveEffect { viewModel.onLeaveUnlessCorrecting() }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->

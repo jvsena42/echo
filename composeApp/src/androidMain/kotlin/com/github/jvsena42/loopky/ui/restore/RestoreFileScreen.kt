@@ -51,7 +51,7 @@ fun RestoreFileRoute(
     // A passphrase is on screen, so the same capture block the phrase screen uses applies.
     SecureScreen()
 
-    LeaveEffect(viewModel) { viewModel.onLeaveUnlessCorrecting() }
+    LeaveEffect { viewModel.onLeaveUnlessCorrecting() }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->

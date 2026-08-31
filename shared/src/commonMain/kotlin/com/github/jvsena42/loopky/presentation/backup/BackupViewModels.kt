@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.domain.model.BackupMethod
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.PassphraseStrength
 import com.github.jvsena42.loopky.domain.model.strengthOf
+import com.github.jvsena42.loopky.platform.PasswordManagerPresence
 import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.util.Log
 import kotlinx.coroutines.Job
@@ -73,10 +74,14 @@ data class BackupStartUiState(
  */
 class BackupPhraseViewModel(
     private val keyBackup: KeyBackupRepository,
+    passwordManager: PasswordManagerPresence,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(BackupPhraseUiState())
+    private val _state = MutableStateFlow(BackupPhraseUiState(canSaveToPasswordManager = passwordManager.canSave()))
     val state: StateFlow<BackupPhraseUiState> = _state.asStateFlow()
+
+    private val _effects = MutableSharedFlow<BackupPhraseEffect>(extraBufferCapacity = 4)
+    val effects: SharedFlow<BackupPhraseEffect> = _effects.asSharedFlow()
 
     private var loadJob: Job? = null
 
@@ -110,10 +115,62 @@ class BackupPhraseViewModel(
     /** Reveal the words that are blurred until asked for — a shoulder-surfing guard, not security. */
     fun onRevealClick() = _state.update { it.copy(revealed = true) }
 
+    /**
+     * Hand the phrase to the platform's credential sheet.
+     *
+     * Offered only after the words are on screen. Saving a secret the user has not been shown,
+     * from a button beside a blurred grid, asks them to trust a backup of something they never saw.
+     */
+    fun onSaveToPasswordManagerClick() {
+        val words = _state.value.words
+        if (words.isEmpty() || _state.value.isSavingToPasswordManager) return
+        _state.update { it.copy(isSavingToPasswordManager = true, passwordManagerFailed = false) }
+        viewModelScope.launch {
+            _effects.emit(BackupPhraseEffect.SaveToPasswordManager(words.joinToString(" ")))
+        }
+    }
+
+    /**
+     * The credential sheet closed. [saved] is false for a cancel *and* for a provider that refused.
+     *
+     * A save is **not** recorded here. What proves this backup is reading the credential back and
+     * finding the right phrase in it, which [onPasswordManagerReadBack] does — a sheet that
+     * reported success while storing nothing retrievable would otherwise retire the nag on an
+     * account that is still one lost phone from gone.
+     */
+    fun onPasswordManagerSaveResult(saved: Boolean) {
+        if (!saved) {
+            _state.update { it.copy(isSavingToPasswordManager = false, passwordManagerFailed = true) }
+            return
+        }
+        viewModelScope.launch { _effects.emit(BackupPhraseEffect.ReadBackFromPasswordManager) }
+    }
+
+    /**
+     * What the credential manager handed back, compared against the real phrase.
+     *
+     * The comparison is the whole point: it is the difference between "a sheet appeared" and "this
+     * account is recoverable from the password manager".
+     */
+    fun onPasswordManagerReadBack(secret: String?) {
+        val expected = _state.value.words.joinToString(" ")
+        val verified = secret != null && expected.isNotEmpty() && secret.trim() == expected
+        if (!verified) {
+            _state.update { it.copy(isSavingToPasswordManager = false, passwordManagerFailed = true) }
+            return
+        }
+        viewModelScope.launch {
+            keyBackup.markBackedUp(BackupMethod.PasswordManager)
+            _state.update {
+                it.copy(isSavingToPasswordManager = false, passwordManagerFailed = false, savedToPasswordManager = true)
+            }
+        }
+    }
+
     fun onLeave() {
         loadJob?.cancel()
         loadJob = null
-        _state.update { BackupPhraseUiState() }
+        _state.update { BackupPhraseUiState(canSaveToPasswordManager = _state.value.canSaveToPasswordManager) }
     }
 }
 
@@ -122,7 +179,28 @@ data class BackupPhraseUiState(
     val words: List<String> = emptyList(),
     val revealed: Boolean = false,
     val failed: Boolean = false,
-)
+    val canSaveToPasswordManager: Boolean = false,
+    val isSavingToPasswordManager: Boolean = false,
+    val savedToPasswordManager: Boolean = false,
+    val passwordManagerFailed: Boolean = false,
+) {
+    /** Offered only once the words are visible — see `onSaveToPasswordManagerClick`. */
+    val showPasswordManagerSave: Boolean
+        get() = canSaveToPasswordManager && revealed && words.isNotEmpty()
+}
+
+sealed interface BackupPhraseEffect {
+    /**
+     * Raise the platform's "save a password" sheet for [secret].
+     *
+     * Carries the phrase, so it goes straight to the platform layer and is never logged, cached or
+     * held in a field — the same rule as `ringExportUrl`.
+     */
+    data class SaveToPasswordManager(val secret: String) : BackupPhraseEffect
+
+    /** Read the credential back, so the save can be verified rather than assumed. */
+    data object ReadBackFromPasswordManager : BackupPhraseEffect
+}
 
 /**
  * The confirm quiz. **Passing this is what marks the phrase backed up, not seeing it.**
@@ -143,6 +221,22 @@ class BackupQuizViewModel(
     private var quiz: PhraseQuiz? = null
 
     init {
+        // A phrase already in a password manager gets a different confirm step — see [ConfirmMode].
+        viewModelScope.launch {
+            keyBackup.custody.collect { custody ->
+                val saved = (custody as? KeyCustody.Loopky)?.backedUpBy.orEmpty()
+                _state.update {
+                    it.copy(
+                        mode = if (BackupMethod.PasswordManager in saved) {
+                            ConfirmMode.PasswordManager
+                        } else {
+                            ConfirmMode.Recall
+                        },
+                    )
+                }
+            }
+        }
+
         viewModelScope.launch {
             keyBackup.buildPhraseQuiz()
                 .onSuccess { built ->
@@ -186,7 +280,44 @@ class BackupQuizViewModel(
             _effects.emit(BackupEffect.Done)
         }
     }
+
+    /**
+     * Confirm a phrase that lives in a password manager, by reading it back out of one.
+     *
+     * The recall quiz asks whether the user copied twelve words down correctly. Someone who put
+     * the phrase in a password manager did not copy anything, so that question tests nothing they
+     * did and fails for a reason that is not a problem. What is worth checking on this path is the
+     * thing that would actually lose the account: that the credential is still there and still
+     * says the right words.
+     */
+    fun onCheckSavedClick() {
+        if (_state.value.isChecking) return
+        _state.update { it.copy(isChecking = true, wrong = false) }
+        viewModelScope.launch { _effects.emit(BackupEffect.ReadBackFromPasswordManager) }
+    }
+
+    /** What the credential manager returned, compared against the real phrase. */
+    fun onPasswordManagerReadBack(secret: String?) {
+        viewModelScope.launch {
+            val expected = keyBackup.revealRecoveryPhrase().getOrNull()
+            if (secret == null || expected.isNullOrBlank() || secret.trim() != expected) {
+                _state.update { it.copy(isChecking = false, wrong = true) }
+                return@launch
+            }
+            keyBackup.markBackedUp(BackupMethod.PasswordManager)
+            _state.update { it.copy(isChecking = false, wrong = false, isDone = true) }
+            _effects.emit(BackupEffect.Done)
+        }
+    }
 }
+
+/**
+ * How the confirm step proves the phrase is safe.
+ *
+ * Two different claims, so two different checks: [Recall] tests that the words were written down,
+ * [PasswordManager] tests that they can be read back out of the manager they were saved to.
+ */
+enum class ConfirmMode { Recall, PasswordManager }
 
 data class BackupQuizUiState(
     val isLoading: Boolean = true,
@@ -196,8 +327,13 @@ data class BackupQuizUiState(
     val wrong: Boolean = false,
     val isDone: Boolean = false,
     val failed: Boolean = false,
+    val mode: ConfirmMode = ConfirmMode.Recall,
+    val isChecking: Boolean = false,
 ) {
     val canSubmit: Boolean get() = positions.isNotEmpty() && answers.size == positions.size
+
+    /** The confirm action on the password-manager path; nothing to answer, so only the check gates it. */
+    val canCheckSaved: Boolean get() = !isChecking
 }
 
 /** Create an encrypted recovery file and hand it to the platform's save sheet. */
@@ -338,4 +474,7 @@ sealed interface BackupEffect {
 
     /** The store listing for Pubky Ring, so "not installed" is not a dead end. */
     data class OpenInstallPage(val url: String) : BackupEffect
+
+    /** Read the saved credential back, so the confirm step checks it rather than the user. */
+    data object ReadBackFromPasswordManager : BackupEffect
 }

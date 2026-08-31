@@ -50,7 +50,7 @@ fun BackupFileRoute(
     var pendingBlob by remember { mutableStateOf<String?>(null) }
 
     SecureScreen()
-    LeaveEffect(viewModel) { viewModel.onLeave() }
+    LeaveEffect { viewModel.onLeave() }
 
     val saver = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(RECOVERY_MIME),

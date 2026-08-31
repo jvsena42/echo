@@ -33,9 +33,11 @@ import com.github.jvsena42.loopky.domain.model.avatarDisplayUrl
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.IosBackgroundTasks
 import com.github.jvsena42.loopky.platform.IosMediaProcessor
+import com.github.jvsena42.loopky.platform.IosPasswordManagerPresence
 import com.github.jvsena42.loopky.platform.IosPubkyRingPresence
 import com.github.jvsena42.loopky.platform.IosSpeaker
 import com.github.jvsena42.loopky.platform.MediaProcessor
+import com.github.jvsena42.loopky.platform.PasswordManagerPresence
 import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.presentation.backup.BackupFileViewModel
@@ -137,6 +139,7 @@ private fun iosPlatformModule(
     single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }
     single<Speaker> { IosSpeaker() }
     single<MediaProcessor> { IosMediaProcessor() }
+    single<PasswordManagerPresence> { IosPasswordManagerPresence() }
     single<PubkyRingPresence> { IosPubkyRingPresence() }
     single<BackgroundTasks> { IosBackgroundTasks(identityProvider = { get() }, decksProvider = { get() }) }
 }

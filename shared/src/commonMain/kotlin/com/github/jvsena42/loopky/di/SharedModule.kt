@@ -165,7 +165,7 @@ val sharedModule = module {
         )
     }
     viewModel { BackupStartViewModel(keyBackup = get(), ringPresence = get()) }
-    viewModel { BackupPhraseViewModel(keyBackup = get()) }
+    viewModel { BackupPhraseViewModel(keyBackup = get(), passwordManager = get()) }
     viewModel { BackupQuizViewModel(keyBackup = get()) }
     viewModel { BackupFileViewModel(keyBackup = get()) }
     viewModel { BackupRingViewModel(keyBackup = get(), ringPresence = get()) }
