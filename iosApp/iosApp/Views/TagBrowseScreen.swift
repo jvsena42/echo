@@ -23,7 +23,7 @@ struct TagBrowseScreen: View {
             header
             content
         }
-        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
+        .loopkyScreenBackground()
         .navigationBarHidden(true)
         .onAppear { attach() }
         .onDisappear { detach() }

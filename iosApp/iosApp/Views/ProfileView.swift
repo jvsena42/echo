@@ -56,7 +56,7 @@ struct ProfileView: View {
             // After the background, so the cream still reaches both edges of an iPad.
             .contentPane(widthClass.isExpanded ? PaneWidth.wide : PaneWidth.reading)
         }
-        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
+        .loopkyScreenBackground()
         .navigationBarHidden(true)
         .sheet(isPresented: Binding(get: { state.showEditSheet }, set: { if !$0 { onDismissEdit() } })) {
             editSheet

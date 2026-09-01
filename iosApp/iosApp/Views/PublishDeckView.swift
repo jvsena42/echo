@@ -30,7 +30,7 @@ struct PublishDeckView: View {
                 form
             }
         }
-        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
+        .loopkyScreenBackground()
         .navigationBarHidden(true)
         .sheet(isPresented: $pickingCover) {
             ImagePickerSheet(
