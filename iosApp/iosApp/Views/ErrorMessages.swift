@@ -11,8 +11,8 @@ import Shared
 ///
 /// Mirroring it as a real Swift enum moves that guarantee back. `title(for:)` and `message(for:)`
 /// switch over `LoopkyErrorReason` with **no `default`**, so adding a case here without giving it
-/// copy is a compile error. `init(_:)` below is the single bridge point, and the one place a new
-/// shared reason has to be mapped — the debug assertion catches forgetting it.
+/// copy is a compile error. `bridged` below is the single bridge point, and the one place a new
+/// shared reason has to be mapped — the debug assertion in `init(_:)` catches forgetting it.
 enum LoopkyErrorReason: CaseIterable {
     case offline
     case sessionExpired
@@ -27,27 +27,41 @@ enum LoopkyErrorReason: CaseIterable {
     case homeserverLookupFailed
     case unknown
 
-    /// The only place the bridged singletons are matched. Kotlin enum entries are singletons, so
-    /// identity comparison is well defined.
+    /// The bridged entry each case mirrors. Kotlin enum entries are singletons, so comparing them
+    /// is well defined.
+    ///
+    /// The mapping is written in this direction on purpose. Switching over the *bridged* value can
+    /// never be exhaustive, so a case that nothing matched stayed unreachable without a warning —
+    /// which is how `.unknown` came to crash the debug app (#193): it was the classifier's own
+    /// catch-all and the one case the initializer could not produce. Switching over `self` has no
+    /// `default`, so every case here must name its entry or the build fails.
+    var bridged: ErrorReason {
+        switch self {
+        case .offline: return ErrorReason.offline
+        case .sessionExpired: return ErrorReason.sessionexpired
+        case .notFound: return ErrorReason.notfound
+        case .noHomeserverAccount: return ErrorReason.nohomeserveraccount
+        case .notSignedIn: return ErrorReason.notsignedin
+        case .ringNotInstalled: return ErrorReason.ringnotinstalled
+        case .authFailed: return ErrorReason.authfailed
+        case .authRelayUnreachable: return ErrorReason.authrelayunreachable
+        case .serverBusy: return ErrorReason.serverbusy
+        case .storageFull: return ErrorReason.storagefull
+        case .homeserverLookupFailed: return ErrorReason.homeserverlookupfailed
+        case .unknown: return ErrorReason.unknown
+        }
+    }
+
+    /// The only place the bridged singletons are matched.
     init(_ reason: ErrorReason) {
-        switch reason {
-        case ErrorReason.offline: self = .offline
-        case ErrorReason.sessionexpired: self = .sessionExpired
-        case ErrorReason.notfound: self = .notFound
-        case ErrorReason.nohomeserveraccount: self = .noHomeserverAccount
-        case ErrorReason.notsignedin: self = .notSignedIn
-        case ErrorReason.ringnotinstalled: self = .ringNotInstalled
-        case ErrorReason.authfailed: self = .authFailed
-        case ErrorReason.authrelayunreachable: self = .authRelayUnreachable
-        case ErrorReason.serverbusy: self = .serverBusy
-        case ErrorReason.storagefull: self = .storageFull
-        case ErrorReason.homeserverlookupfailed: self = .homeserverLookupFailed
-        default:
-            // A reason added on the Kotlin side and not mapped above lands here. It renders the
+        guard let matched = LoopkyErrorReason.allCases.first(where: { $0.bridged == reason }) else {
+            // A reason added on the Kotlin side and not mirrored above lands here. It renders the
             // generic copy rather than crashing a user, but trips in debug so it is caught.
             assertionFailure("Unmapped ErrorReason: \(reason.name). Add it to LoopkyErrorReason.")
             self = .unknown
+            return
         }
+        self = matched
     }
 }
 
