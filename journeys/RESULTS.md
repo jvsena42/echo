@@ -1000,3 +1000,72 @@ Tapping Clone deck on iOS terminated the app — `LoopkyErrorReason.init` maps 1
 enum's 12 entries and lets `Unknown` fall into an `assertionFailure`, but `Unknown` is
 `PubkyErrors.kt`'s own `else ->` catch-all. Any unclassified error therefore crashes the iOS debug
 app when its copy is rendered. Present on `main`; `ErrorMessages.swift` is untouched by this branch.
+
+## #193 — the unclassified-error crash, and the audit it prompted (2026-09-01, iPhone 17 / 17 Pro)
+
+**The crash.** `LoopkyErrorReason.init` mapped 11 of `ErrorReason`'s 12 entries and let the
+twelfth trip an `assertionFailure`. The twelfth was `Unknown` — the classifier's own `else ->`,
+produced by seven call sites — so every unclassified error killed the iOS debug app the moment its
+copy was rendered. Verified both ways on the iPhone 17 simulator by rendering all twelve entries at
+launch: on `main`, `Fatal error: Unmapped ErrorReason: Unknown` after the eleventh; with the fix,
+twelve lines and no trap, `Unknown -> Something went wrong`.
+
+**The mapping now runs the other way.** A bridged Kotlin enum crosses as a *class*, so switching
+over it can never be exhaustive and a Swift case nothing matched stays unreachable in silence —
+which is the actual defect, not the missing line. `LoopkyErrorReason.bridged` switches over `self`
+with no `default`, so every case must name its entry or the build fails, and `init` is a lookup
+over `allCases`. The assertion survives for its stated purpose: a reason added on the Kotlin side.
+
+**The audit.** Every Swift `switch` over a bridged enum or sealed interface was checked against its
+Kotlin source, and every `Effect` member against the screens that consume it. Most `default`s are
+sound. Three findings, one of them worse than the crash.
+
+| Finding | Verdict |
+| --- | --- |
+| `ErrorReason.Unknown` unmapped | ✅ fixed |
+| Deck editor never rendered the announce prompt | ✅ fixed — see below |
+| Search dropped `ShowFollowError` | ✅ fixed |
+| `FormError`, `SignupError`, `BulkImportError`, `RestoreOutcome`, `PublishError`, `UnsplashError`, `PassphraseStrength`, `SignInReason`, `DeckSort`, `TypePhase` | ✅ all entries mapped; the `default`s are genuinely unreachable or land on the one remaining case |
+| `BackupPhraseEffect.SaveToPasswordManager`, `BackupEffect.ReadBackFromPasswordManager` | ✅ unreachable — `IosPasswordManagerPresence.canSave()` is `false` by design |
+
+**Creating a deck on iOS did not work, and a green build said nothing.** `DeckEditorScreen` never
+read `uiState.sharePrompt`. `settle()` parks a *create* on that prompt and **withholds
+`SaveSuccess` until it is answered**, so with `shareOnPubky` defaulting on the deck was written to
+the homeserver and the editor simply stayed put — Save looked inert. Worse, `actualDeckId =
+deckId ?: generateId()` means a second tap on Save mints a second deck.
+
+Driven on the iPhone 17 Pro simulator (account `ma8tms…`, which owns one deck), reaching the
+editor's create mode through a temporary button — the real entry point exists **only** in the empty
+library state, on both platforms, which is why nobody had hit this:
+
+| Step | `main` | Fixed |
+| --- | --- | --- |
+| Save a new deck | ❌ editor unchanged, no prompt | ✅ "Share this on Pubky?" with Share / Don't ask again / Not now |
+| After answering "Not now" | ❌ still on the editor; deck present in the library after Close | ✅ editor closes onto the new deck's detail screen |
+
+Both probe decks were deleted afterwards; the account is back to its single deck.
+
+**Search now says why a follow failed.** `SearchEffect.ShowFollowError` fell into a `default: break`
+whose comment argued the reverting pill was enough. It is not — Android's search toasts the reason
+and iOS's own Discover already flashes it, so search was the only one of the three that reverted in
+silence. Same capsule toast as Discover. The failure path was not forced on a device (a simulator
+has no radio to switch off); it is line-for-line the Discover path that already works.
+
+**Two announce outcomes are deliberately still not shown**, now as explicit cases rather than a
+`default`. `PublishDeckEffect.Shared`/`ShareFailed` and the `DeckEditorEffect` pair arrive
+immediately before the `Published`/`SaveSuccess` that pops the screen, so a toast raised there is
+torn down before anyone reads it. Android's window-level toast survives that navigation; SwiftUI's
+overlay cannot.
+
+**Left for a follow-up, found by the same audit:**
+
+- `PublishDeckView`'s share prompt is still a `confirmationDialog`, the construct whose `.cancel`
+  button "may not render at all" — the reason `SignInPromptView.sharePrompt` was moved to `.alert`.
+  "Not now" is the safe choice there and may be invisible.
+- `HomeEffect.NavigateAllDecks` has no iOS handler and `onSeeAllDecksClick` no iOS caller: Home's
+  "See all" over today's decks does not exist on iOS.
+- `TriageEffect.NavigateEditCard` still has no iOS destination (already documented in
+  `TriageScreen`).
+- **New: `journeys/24-deck-create-editor.xml`.** No journey covered creating a deck from the
+  editor, which is exactly how the stuck-save survived. It needs an account with an empty library,
+  because that is the only place the create entry appears.
