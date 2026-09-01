@@ -132,6 +132,11 @@ struct PublishDeckScreen: View {
             switch effect {
             case is PublishDeckEffectNavigateBack: onBack()
             case let published as PublishDeckEffectPublished: onPublished(published.deckId)
+            case is PublishDeckEffectShared, is PublishDeckEffectShareFailed:
+                // Deliberately not shown. Announcing is best-effort, and the `Published` that
+                // follows it immediately pops this screen — a toast raised here would be torn
+                // down with it before anyone read it.
+                break
             default: break
             }
         }
