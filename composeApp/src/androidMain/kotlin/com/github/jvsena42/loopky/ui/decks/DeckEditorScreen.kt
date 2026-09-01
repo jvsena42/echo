@@ -639,9 +639,9 @@ private fun DeckMetadataCard(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        // Top row: cover + title. Centred rather than topped or bottomed: the column beside it is
-        // label / field / counter, so aligning to either edge parks the tile against the 10sp
-        // label or the counter instead of the input it belongs to.
+        // Top row: cover + title, matching iOS. The column beside the tile is label + field and
+        // nothing else — the counter and error live below the whole row — so centring pairs the
+        // cover with both, rather than parking it against the 10sp label or the counter.
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -725,29 +725,32 @@ private fun DeckMetadataCard(
                     shape = RoundedCornerShape(12.dp),
                     colors = textFieldColors(),
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    val errorText = state.titleError
-                    if (errorText != null) {
-                        Text(
-                            text = errorText,
-                            fontSize = 12.sp,
-                            color = colors.danger,
-                            modifier = Modifier.weight(1f),
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                    CharacterCounter(
-                        current = state.title.length,
-                        max = DeckLimits.TITLE_MAX_LENGTH,
-                    )
-                }
             }
+        }
+
+        // Below the row, not inside the column beside the cover: keeping them there made that
+        // column label / field / counter, and a tile centred on all three hangs level with the
+        // field while the label floats above it.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            val errorText = state.titleError
+            if (errorText != null) {
+                Text(
+                    text = errorText,
+                    fontSize = 12.sp,
+                    color = colors.danger,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+            CharacterCounter(
+                current = state.title.length,
+                max = DeckLimits.TITLE_MAX_LENGTH,
+            )
         }
 
         // Description section
