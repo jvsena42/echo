@@ -116,7 +116,6 @@ struct DeckEditorView: View {
                                         deckId: "",
                                         contentMode: .fill
                                     )
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
                                 } else {
                                     // The emoji is the fallback cover, drawn underneath — a deck
                                     // always has one, a picture is optional.
@@ -124,7 +123,14 @@ struct DeckEditorView: View {
                                         .font(.system(size: 32))
                                 }
                             }
+                            // Clip *after* the frame, not around the image inside it. A `.fill`
+                            // image reports a size larger than the box in one dimension, so the
+                            // ZStack grows with it and the frame only re-centres the overflow —
+                            // it does not cut it off. Clipping the inner image rounds that
+                            // oversized rect instead of the tile, which is how the cover came to
+                            // spill over the title beside it (#166).
                             .frame(width: 64, height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(Text("publish_cover_change"))
