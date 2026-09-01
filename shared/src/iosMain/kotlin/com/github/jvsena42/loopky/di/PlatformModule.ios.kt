@@ -10,6 +10,7 @@ import com.github.jvsena42.loopky.data.nexus.NexusClient
 import com.github.jvsena42.loopky.data.pubky.IosPubkyClientAdapter
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.RawPubkyClient
+import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.IosAppPreferences
@@ -26,10 +27,12 @@ import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.StudyProgressStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
+import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.avatarDisplayUrl
+import com.github.jvsena42.loopky.domain.model.frontBackOf
 import com.github.jvsena42.loopky.platform.BackgroundTasks
 import com.github.jvsena42.loopky.platform.IosBackgroundTasks
 import com.github.jvsena42.loopky.platform.IosMediaProcessor
@@ -218,6 +221,37 @@ object IosDependencies {
 
     fun triageViewModel(): TriageViewModel = koin.get()
 
+    /**
+     * One draft row, as the triage card editor needs it.
+     *
+     * Reaches for [ImportRepository] rather than a ViewModel, which is what Android's
+     * `TriageEditCardRoute` does and for the same reason: the draft is already in memory, an edit
+     * is a field write, and there is no async work for a ViewModel to own. Returns null when the
+     * draft has been cleared under the screen — the publish step clears it — so the caller can
+     * leave rather than edit a row that is gone.
+     */
+    fun triageRow(rowIndex: Int): TriageRowEdit? {
+        val repository = koin.get<ImportRepository>()
+        val draft = repository.currentDraft() ?: return null
+        val row = draft.rows.firstOrNull { it.index == rowIndex } ?: return null
+        val (front, back) = draft.frontBackOf(row)
+        return TriageRowEdit(
+            front = front,
+            back = back,
+            frontImage = repository.rowImage(rowIndex, isFront = true),
+            backImage = repository.rowImage(rowIndex, isFront = false),
+        )
+    }
+
+    fun updateTriageRow(rowIndex: Int, front: String, back: String) {
+        koin.get<ImportRepository>().updateRow(rowIndex, front, back)
+    }
+
+    /** A null [image] clears the side, which is how the picker's Remove is expressed. */
+    fun setTriageRowImage(rowIndex: Int, isFront: Boolean, image: DraftCardImage?) {
+        koin.get<ImportRepository>().setRowImage(rowIndex, isFront, image)
+    }
+
     fun imageSheetViewModel(): ImageSheetViewModel = koin.get()
 
     /**
@@ -299,3 +333,16 @@ object IosDependencies {
         viewModel.viewModelScope.cancel()
     }
 }
+
+/**
+ * A triage row's two sides and their pictures, for the iOS card editor.
+ *
+ * Its own type rather than a `Pair` plus two lookups: a `Pair` crosses as `KotlinPair` with erased
+ * `Any?` components, so the front and back would arrive at SwiftUI as values needing a cast.
+ */
+data class TriageRowEdit(
+    val front: String,
+    val back: String,
+    val frontImage: DraftCardImage?,
+    val backImage: DraftCardImage?,
+)

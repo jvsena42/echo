@@ -134,6 +134,7 @@ struct TodaysDecksSection: View {
     /// layout, where a single column of rows would leave most of the pane empty.
     var columns: Int = 1
     let onOpenDeck: (String) -> Void
+    var onSeeAll: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -142,9 +143,15 @@ struct TodaysDecksSection: View {
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(LoopkyColor.foregroundPrimary)
                 Spacer()
-                Text("home_see_all")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(LoopkyColor.accentSecondary)
+                // A Button, not a styled Text. It was the latter for as long as it existed: it
+                // looked like the control Android has, announced nothing to VoiceOver, and did
+                // nothing when tapped.
+                Button(action: onSeeAll) {
+                    Text("home_see_all")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(LoopkyColor.accentSecondary)
+                }
+                .accessibilityIdentifier("home_see_all_decks")
             }
             if columns > 1 {
                 LazyVGrid(
