@@ -146,7 +146,8 @@ struct RootView: View {
                 onEditCard: { d, c in deckPath.append(.editCard(d, c)) },
                 // Blank card id: the card editor mints one and appends on save.
                 onNewCard: { d in deckPath.append(.editCard(d, "")) },
-                onSaved: { id in deckPath = [.detail(id, nil)] }
+                onSaved: { id in deckPath = [.detail(id, nil)] },
+                onSignedOut: { signOut() }
             )
         case .editorNew:
             DeckEditorScreen(
@@ -154,7 +155,8 @@ struct RootView: View {
                 onBack: { popDeck() },
                 onEditCard: { d, c in deckPath.append(.editCard(d, c)) },
                 onNewCard: { d in deckPath.append(.editCard(d, "")) },
-                onSaved: { id in deckPath = [.detail(id, nil)] }
+                onSaved: { id in deckPath = [.detail(id, nil)] },
+                onSignedOut: { signOut() }
             )
         case .editCard(let deckId, let cardId):
             EditCardScreen(deckId: deckId, cardId: cardId, onBack: { popDeck() })
@@ -227,7 +229,8 @@ struct RootView: View {
                 onBack: { popDeck() },
                 // The published deck replaces the whole import flow: there is nothing behind it
                 // worth walking back into.
-                onPublished: { deckId in deckPath = [.detail(deckId, nil)] }
+                onPublished: { deckId in deckPath = [.detail(deckId, nil)] },
+                onSignedOut: { signOut() }
             )
         }
     }

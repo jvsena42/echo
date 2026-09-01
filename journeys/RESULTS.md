@@ -440,6 +440,33 @@ scroll.
 `emu rotate` is what actually rotates the tablet — `settings put system user_rotation` did not take
 on it, and `wm size` overrides did not reach the app either.
 
+## 25 — A session Loopky cannot reach (#165) — ✅ PASS (2026-09-01, emulator-5554 + Pixel_Tablet)
+
+Driven with the fault injection journey 25 describes, on the phone emulator and then on
+`Pixel_Tablet` in both orientations. The account was restored from a recovery phrase (journey 20),
+then a two-card deck published so the later failures could not be a broken build.
+
+| Step | Result |
+| --- | --- |
+| Publish a deck with the first writes allowed through | PASSED — `save: SUCCESS deckId=q3vz90rsspty`, so the wedge that follows is the injection and nothing else |
+| Editor Save once the injection bites | PASSED — logcat shows `revalidating session` → `session revalidated successfully` **between** the two write attempts, so the write is retried through a fresh import rather than reported on the first failure |
+| Editor error copy | PASSED — "Couldn't save this deck. Loopky couldn't re-establish your session. It's not your connection — try again." No URL, no "HTTP transport error", nothing from the FFI. This is the row that used to render the raw Rust error in place of the card list |
+| Editor "Sign in again" | PASSED — `deck_editor_sign_in_again` present under the message; tapping it logs `onSignInAgainClick: signing out to re-authenticate` and lands on onboarding |
+| Publish error copy | PASSED — "Couldn't publish this deck." + the same session copy, replacing "Check your connection and try again. Your decks are safe on Pubky." `publish_sign_in_again` offered beside it and signs out correctly |
+| Tablet landscape (1280×800dp, Expanded) | PASSED — the error row and the button stay inside the editor's `contentPane(Reading)` cap, aligned with the card rows rather than stretching the pane |
+| Tablet portrait (800×1280dp, Medium) | PASSED — same |
+
+**`settings put system user_rotation` did take on `Pixel_Tablet` this time**, contradicting the
+2026-08-26 note above — but only on the second attempt, with `accelerometer_rotation` set to 0
+first. The first `put` reported success and left `dumpsys` at `rotation=0`. Confirm with
+`dumpsys window displays | grep -oE 'w[0-9]+dp h[0-9]+dp'` before trusting a screenshot; that reads
+the width class the app actually got, which the rotation value alone does not.
+
+**The long form of the copy was cut on this run.** It first read "…so nothing was saved. Your decks
+are safe on Pubky. Try again — if it keeps failing, sign in again.", which took five lines of the
+publish form. Every screen composes this after a consequence ("Couldn't save this deck. …"), so
+what was lost is already said, and "sign in again" is the button directly underneath.
+
 ---
 
 # iOS

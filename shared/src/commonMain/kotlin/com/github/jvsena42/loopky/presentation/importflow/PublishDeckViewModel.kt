@@ -397,6 +397,27 @@ class PublishDeckViewModel(
         }
     }
 
+    /**
+     * The escape hatch beside a session failure: end the session and go sign in again.
+     *
+     * Explicit, never automatic — a `SessionUnreachable` publish failed without the homeserver
+     * ever answering, so ending a session that may still be good is the user's call. The draft
+     * survives: it lives in the import repository, not in this screen, so a re-signed-in user
+     * comes back to the same deck to publish (#165).     *
+     * The sign-out is best-effort on purpose. `signOut` refuses when it would destroy the only
+     * copy of a locally-minted key that has never been backed up, and that refusal must stand —
+     * but it is not a reason to withhold the sign-in screen, because signing in again *replaces*
+     * the session without needing the old one cleared. Either way the user ends up somewhere they
+     * can get a working session.
+     */
+    fun onSignInAgainClick() {
+        viewModelScope.launch {
+            Log.d(TAG, "onSignInAgainClick: signing out to re-authenticate")
+            runSuspendCatching { identityRepository.signOut() }
+            _effects.emit(PublishDeckEffect.NavigateToOnboarding)
+        }
+    }
+
     fun onDonePublish() {
         val deckId = _state.value.publishedDeckId ?: return
         undoCountdownJob?.cancel()
@@ -691,21 +712,32 @@ data class PublishDeckUiState(
  * the UI, which is the thing [ErrorReason] exists to stop.
  */
 sealed interface PublishError {
+    /**
+     * The classified cause, for a screen deciding what to offer beside the message. Null only when
+     * the failure never involved the homeserver.
+     */
+    val reason: ErrorReason?
+
     /** The triage draft is gone, so there is nothing to publish. Not a homeserver failure. */
-    data object NoDraft : PublishError
+    data object NoDraft : PublishError {
+        override val reason: ErrorReason? = null
+    }
 
     /** The publish itself failed. Nothing was kept; the user can retry over it. */
-    data class Publish(val reason: ErrorReason) : PublishError
+    data class Publish(override val reason: ErrorReason) : PublishError
 
     /** The sweep after a cancel failed, so the partial deck is still on the homeserver. */
-    data class Cancel(val reason: ErrorReason) : PublishError
+    data class Cancel(override val reason: ErrorReason) : PublishError
 
     /** The undo failed, so the deck is still published. */
-    data class Undo(val reason: ErrorReason) : PublishError
+    data class Undo(override val reason: ErrorReason) : PublishError
 }
 
 sealed interface PublishDeckEffect {
     data object NavigateBack : PublishDeckEffect
+
+    /** The user chose to sign in again from a session failure; the session is already cleared. */
+    data object NavigateToOnboarding : PublishDeckEffect
     data class Published(val deckId: String) : PublishDeckEffect
 
     /** The announcement post went out, or didn't. Cosmetic either way — the deck is published. */

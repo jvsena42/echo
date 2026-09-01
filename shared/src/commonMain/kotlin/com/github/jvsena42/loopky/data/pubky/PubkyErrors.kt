@@ -68,6 +68,36 @@ internal fun Throwable.isNetworkFailure(): Boolean {
 }
 
 /**
+ * The FFI could not import the session secret at all — the wording every `*_with_session` entry
+ * point returns when `restore_session` fails (`session_cache.rs`, one call site).
+ *
+ * On its own it says nothing about *why*: the fork wraps whatever went wrong behind that one
+ * prefix, so an expiry, a 429 and a dead connection all arrive worded identically. It is only ever
+ * useful combined with a second classifier, which is why it is not mapped to a reason by itself.
+ */
+internal fun Throwable.isSessionImportFailure(): Boolean =
+    message?.lowercase()?.contains("failed to import session") == true
+
+/**
+ * The session round trip that opens every authenticated write could not be made: an import
+ * failure whose cause was transport, not an answer from the homeserver.
+ *
+ * This is a *narrower* statement than [isNetworkFailure], and the narrowing is the point. Every
+ * authenticated write begins with `POST https://_pubky.<pubky>/session`, so when that host cannot
+ * be reached the whole write path dies while everything else — Nexus reads, ordinary HTTPS —
+ * keeps working. Measured on device over three separate hours-long sessions (#165): pkarr
+ * resolved, `homeserver.pubky.app` answered 200, TCP to its advertised port connected, and only
+ * the session preamble failed. Reporting that as [ErrorReason.Offline] sent the user to check a
+ * connection that was fine, and it was the *only* thing the publish flow said.
+ *
+ * Not an expiry, however much the wording overlaps — see the note on [isSessionExpired]. The
+ * request never arrived, so the session may well still be good; the caller retries it through a
+ * fresh import rather than signing anyone out.
+ */
+internal fun Throwable.isSessionUnreachable(): Boolean =
+    isSessionImportFailure() && isNetworkFailure()
+
+/**
  * The homeserver answered 429: too many requests in flight or too quickly.
  *
  * Measured, not assumed — publishing a 1,200-card deck with 8 concurrent writes reliably trips
@@ -125,6 +155,10 @@ fun Throwable.toErrorReason(): ErrorReason = when {
     // Offline — it answered, so the device's connection is fine and saying otherwise sends the
     // user to check something that is not broken.
     isRateLimited() -> ErrorReason.ServerBusy
+    // Ahead of the transport classifier it is a special case of, because the two lead to opposite
+    // advice: this one means the session round trip could not be made while the device's
+    // connection is fine, and Offline's copy tells the user to go check that connection (#165).
+    isSessionUnreachable() -> ErrorReason.SessionUnreachable
     isNetworkFailure() -> ErrorReason.Offline
     isNotFound() -> ErrorReason.NotFound
     else -> ErrorReason.Unknown

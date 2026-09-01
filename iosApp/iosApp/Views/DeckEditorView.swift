@@ -34,6 +34,8 @@ struct DeckEditorView: View {
     var titleError: String?
     var descriptionError: String?
     var error: String?
+    /// Offered beside `error` only when signing in again could clear it — see `offersSignIn`.
+    var onSignInAgain: (() -> Void)?
 
     var onTitleChanged: (String) -> Void = { _ in }
     var onDescriptionChanged: (String) -> Void = { _ in }
@@ -196,6 +198,16 @@ struct DeckEditorView: View {
 
                 if let error {
                     FieldErrorText(message: error)
+                    // A Button, never a tappable Text: a bare `.onTapGesture` is invisible to
+                    // VoiceOver and to `snapshot-ui`, so the one way out of a wedged session
+                    // would be reachable by a finger and by nothing else.
+                    if let onSignInAgain {
+                        Button(NSLocalizedString("error_sign_in_again", comment: ""),
+                               action: onSignInAgain)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(LoopkyColor.accentPrimary)
+                            .accessibilityIdentifier("deck_editor_sign_in_again")
+                    }
                 }
 
                 // The editor is the only place a deck published before the language pair existed

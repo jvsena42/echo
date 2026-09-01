@@ -16,6 +16,7 @@ import Shared
 enum LoopkyErrorReason: CaseIterable {
     case offline
     case sessionExpired
+    case sessionUnreachable
     case notFound
     case noHomeserverAccount
     case notSignedIn
@@ -39,6 +40,7 @@ enum LoopkyErrorReason: CaseIterable {
         switch self {
         case .offline: return ErrorReason.offline
         case .sessionExpired: return ErrorReason.sessionexpired
+        case .sessionUnreachable: return ErrorReason.sessionunreachable
         case .notFound: return ErrorReason.notfound
         case .noHomeserverAccount: return ErrorReason.nohomeserveraccount
         case .notSignedIn: return ErrorReason.notsignedin
@@ -86,6 +88,11 @@ enum ErrorCopy {
             return NSLocalizedString("You're offline", comment: "Error title: no connectivity")
         case .sessionExpired:
             return NSLocalizedString("Session expired", comment: "Error title: needs re-auth")
+        case .sessionUnreachable:
+            return NSLocalizedString(
+                "Couldn't reach your session",
+                comment: "Error title: the /session round trip failed at the transport layer"
+            )
         case .notFound:
             return NSLocalizedString("Not found", comment: "Error title: missing record")
         case .noHomeserverAccount:
@@ -138,6 +145,16 @@ enum ErrorCopy {
             return NSLocalizedString(
                 "Sign in with Pubky Ring again to get back to your decks.",
                 comment: "Error message: needs re-auth"
+            )
+        case .sessionUnreachable:
+            // Deliberately not the offline copy (#165): the homeserver session round trip is what
+            // failed, and the device's connection was measurably fine every time this was seen —
+            // hence naming it only to rule it out. Short because every screen showing this
+            // composes it after a consequence ("Couldn't save this deck. …"), so length is paid
+            // twice; what was lost is already said there, and "sign in again" is the button.
+            return NSLocalizedString(
+                "Loopky couldn't re-establish your session. It's not your connection — try again.",
+                comment: "Error message: the /session round trip failed at the transport layer"
             )
         case .notFound:
             return NSLocalizedString(
@@ -209,6 +226,28 @@ enum ErrorCopy {
                 comment: "Error message: generic"
             )
         }
+    }
+}
+
+/// Copy for a failed deck-editor operation, composed from `ErrorCopy` exactly as the publish
+/// flow's is: the consequence differs per operation, the cause is the shared vocabulary.
+///
+/// The editor used to render the throwable's own `message`, which is how the card list came to
+/// show `"Failed to import session: Request failed: HTTP transport error: error sending request
+/// for url (https://_pubky.…/session)"` where the cards belong (#165).
+enum DeckEditorErrorCopy {
+    static func message(for error: DeckEditorError?) -> String? {
+        guard let error else { return nil }
+        let consequence: String
+        switch error.op {
+        case DeckEditorOp.loadcards:
+            consequence = NSLocalizedString("deck_editor_error_cards", comment: "")
+        case DeckEditorOp.movecard:
+            consequence = NSLocalizedString("deck_editor_error_move", comment: "")
+        default:
+            consequence = NSLocalizedString("deck_editor_error_save", comment: "")
+        }
+        return "\(consequence) \(ErrorCopy.message(for: error.reason))"
     }
 }
 

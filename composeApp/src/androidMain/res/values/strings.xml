@@ -93,6 +93,12 @@
     <string name="deck_editor_label_tags">TAGS (PUBKY)</string>
     <string name="deck_editor_add_tag">+ Add</string>
     <string name="deck_editor_cards_count">Cards (%1$d)</string>
+    <!-- The consequence, then the cause. Composed from the shared ErrorReason copy the same way
+         publish_error_* is, so the editor cannot word a session failure differently from the rest
+         of the app — and so the FFI's own message never reaches this row again (#165). -->
+    <string name="deck_editor_error_cards">Couldn\'t load this deck\'s cards. Your changes to the deck\'s details will still save. %1$s</string>
+    <string name="deck_editor_error_move">Couldn\'t move that card. %1$s</string>
+    <string name="deck_editor_error_save">Couldn\'t save this deck. %1$s</string>
     <string name="deck_editor_add_card">Add card</string>
     <string name="deck_editor_reorder">Reorder</string>
     <string name="deck_editor_card_front_placeholder">Front</string>
@@ -550,6 +556,16 @@
     <string name="error_offline_message">Check your connection and try again. Your decks are safe on Pubky.</string>
     <string name="error_session_expired_title">Session expired</string>
     <string name="error_session_expired_message">Sign in with Pubky Ring again to get back to your decks.</string>
+    <!-- Deliberately not the offline copy (#165). The homeserver session round trip is what
+         failed; the device's connection was measurably fine every time this was seen, so sending
+         the user to check it points at the one thing that is working — hence naming the
+         connection only to rule it out. Says nothing about what was lost (the sentence it is
+         appended to already does) and does not mention signing in (the button below it is the
+         offer); every screen showing this composes it after a consequence, so length here is
+         paid twice. -->
+    <string name="error_session_unreachable_title">Couldn\'t reach your session</string>
+    <string name="error_session_unreachable_message">Loopky couldn\'t re-establish your session. It\'s not your connection — try again.</string>
+    <string name="error_sign_in_again">Sign in again</string>
     <string name="error_not_found_title">Not found</string>
     <string name="error_not_found_message">This deck no longer exists. It may have been deleted.</string>
     <string name="error_no_account_title">Your Pubky isn\'t set up yet</string>

@@ -42,7 +42,7 @@ internal fun Throwable.isSessionExpired(): Boolean {
 fun Throwable.requiresReauth(): Boolean = isSessionExpired()
 
 /**
- * Run a session-authenticated write, retrying the two failures that are worth retrying.
+ * Run a session-authenticated write, retrying the three failures that are worth retrying.
  *
  * **Session expiry:** revalidate once and try again. The secret is read from [session] on each
  * attempt rather than captured, so the retry naturally picks up the refreshed one.
@@ -52,6 +52,18 @@ fun Throwable.requiresReauth(): Boolean = isSessionExpired()
  * when a publish pushes several writes at once, and without this a large import fails outright
  * partway through. The failure is transient and the request well-formed, so surfacing it to the
  * user would be wrong.
+ *
+ * **An unreachable session round trip:** re-import once, then try again. This is the failure of
+ * #165 — every authenticated write opens with `POST https://_pubky.<pubky>/session`, and when that
+ * round trip starts failing it takes down the whole write path while reads keep working. Nothing
+ * retried it, so the app parked there: publish reported "check your connection" about a connection
+ * that was fine, and only a sign-out/sign-in cleared it. [SessionRevalidator.revalidate] is the one
+ * lever the client has — on the FFI side it *forgets* the cached session and imports a fresh one —
+ * so it is worth exactly one attempt. Its own failure is **not** terminal here, unlike an expiry:
+ * the request never reached the homeserver either time, so it says nothing new, and the write is
+ * retried once regardless in case the blip was momentary. Bounded at one recovery because each
+ * attempt costs a ~5s connect timeout, and a wedge that survives it is not going to yield to a
+ * fourth try — it needs the user, which is what `ErrorReason.SessionUnreachable` is for.
  *
  * **Not** retried: a 507 out-of-storage. It is terminal until the user deletes something, so a
  * retry chain against it only spends time reaching the same answer.
@@ -64,6 +76,7 @@ private suspend fun withWriteRetry(
     attempt: suspend (secret: String) -> Result<String>,
 ): Result<String> {
     var revalidated = false
+    var recovered = false
     var backoff = INITIAL_BACKOFF_MS
     var rateLimitRetries = 0
 
@@ -83,6 +96,16 @@ private suspend fun withWriteRetry(
             // Never retried, and asserted here rather than relied on: 507 is terminal until the
             // user frees space, so backing off against it only delays the same failure (#91).
             error.isQuotaExceeded() -> return result
+
+            // Deliberately below the expiry branch and above the transient ones: the wording
+            // overlaps an expiry (both are "Failed to import session: …") and the cause overlaps
+            // being offline, and it is neither. Re-import once, then try the write again whether
+            // or not that worked — see the note above (#165).
+            error.isSessionUnreachable() && !recovered -> {
+                recovered = true
+                revalidator.revalidate()
+                delay(backoff)
+            }
 
             error.isRateLimited() && rateLimitRetries < MAX_RATE_LIMIT_RETRIES -> {
                 rateLimitRetries++

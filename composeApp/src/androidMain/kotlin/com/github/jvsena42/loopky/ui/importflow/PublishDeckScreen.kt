@@ -69,6 +69,7 @@ import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckEffect
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckUiState
 import com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel
+import com.github.jvsena42.loopky.presentation.importflow.PublishError
 import com.github.jvsena42.loopky.ui.components.AddTagSheet
 import com.github.jvsena42.loopky.ui.components.CharacterCounter
 import com.github.jvsena42.loopky.ui.components.DeckStudyOptions
@@ -96,6 +97,8 @@ fun PublishDeckRoute(
     onPublished: (deckId: String) -> Unit = {},
     /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
     onOpenSettings: () -> Unit = {},
+    /** The session was ended from the error row's "Sign in again" — go collect a new one. */
+    onSignedOut: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<PublishDeckViewModel>()
     // Offer the languages this device can actually voice, so the author is not choosing
@@ -104,12 +107,14 @@ fun PublishDeckRoute(
 
     val currentBack by rememberUpdatedState(onBack)
     val currentPublished by rememberUpdatedState(onPublished)
+    val currentSignedOut by rememberUpdatedState(onSignedOut)
     val context = LocalContext.current
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 PublishDeckEffect.NavigateBack -> currentBack()
+                PublishDeckEffect.NavigateToOnboarding -> currentSignedOut()
                 is PublishDeckEffect.Published -> currentPublished(effect.deckId)
                 PublishDeckEffect.Shared -> context.toast(R.string.share_prompt_posted)
                 PublishDeckEffect.ShareFailed -> context.toast(R.string.share_prompt_failed)
@@ -142,6 +147,7 @@ fun PublishDeckRoute(
         onShareNeverAsk = viewModel::onShareNeverAsk,
         onBackClick = viewModel::onBackClick,
         onOpenSettings = onOpenSettings,
+        onSignInAgain = viewModel::onSignInAgainClick,
     )
 }
 
@@ -173,6 +179,8 @@ private fun PublishDeckScreen(
     onBackClick: () -> Unit,
     /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
     onOpenSettings: () -> Unit = {},
+    /** Ends the session and sends the user to sign in, from the error row (#165). */
+    onSignInAgain: () -> Unit = {},
 ) {
     val colors = LoopkyTheme.colors
     var showTagSheet by remember { mutableStateOf(false) }
@@ -193,6 +201,7 @@ private fun PublishDeckScreen(
             onShareConfirm = onShareConfirm,
             onShareDismiss = onShareDismiss,
             onShareNeverAsk = onShareNeverAsk,
+            onSignInAgain = onSignInAgain,
         )
         return
     }
@@ -564,12 +573,7 @@ private fun PublishDeckScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             state.error?.let { error ->
-                Text(
-                    publishErrorMessage(error),
-                    fontSize = 14.sp,
-                    color = colors.danger,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                PublishErrorRow(error = error, onSignInAgain = onSignInAgain)
             }
             if (busy) {
                 PublishProgress(
@@ -740,6 +744,7 @@ private fun PublishedContent(
     onShareConfirm: () -> Unit,
     onShareDismiss: () -> Unit,
     onShareNeverAsk: () -> Unit,
+    onSignInAgain: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
 
@@ -824,12 +829,49 @@ private fun PublishedContent(
 
         // Error
         state.error?.let { error ->
-            Text(
-                publishErrorMessage(error),
-                fontSize = 14.sp,
-                color = colors.danger,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            PublishErrorRow(error = error, onSignInAgain = onSignInAgain)
+        }
+    }
+}
+
+/**
+ * The failed step, plus the one action worth offering beside it.
+ *
+ * "Check your connection and try again" was the whole of what this screen said when the session
+ * round trip stopped going through, and it pointed at the one thing that was fine (#165). The
+ * reason now carries the truth; this adds the way out, for the reasons [offersSignIn] documents.
+ */
+@Composable
+private fun PublishErrorRow(
+    error: PublishError,
+    onSignInAgain: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("publish_error"),
+    ) {
+        Text(
+            publishErrorMessage(error),
+            fontSize = 14.sp,
+            color = colors.danger,
+        )
+        if (error.reason?.offersSignIn == true) {
+            TextButton(
+                onClick = onSignInAgain,
+                contentPadding = PaddingValues(0.dp),
+                modifier = Modifier.testTag("publish_sign_in_again"),
+            ) {
+                Text(
+                    text = stringResource(R.string.error_sign_in_again),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.W700,
+                    color = colors.accentPrimary,
+                )
+            }
         }
     }
 }
