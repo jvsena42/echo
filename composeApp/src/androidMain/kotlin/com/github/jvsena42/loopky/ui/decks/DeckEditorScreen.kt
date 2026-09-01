@@ -111,6 +111,8 @@ import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /** How close to the end of the list a scroll gets before the next chunk is requested. */
 private const val PAGE_PREFETCH_ROWS = 8
@@ -609,7 +611,7 @@ private fun DeckStudySection(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalEncodingApi::class)
 @Composable
 private fun DeckMetadataCard(
     state: DeckEditorUiState,
@@ -653,10 +655,23 @@ private fun DeckMetadataCard(
                     .testTag("deck_editor_cover"),
                 contentAlignment = Alignment.Center,
             ) {
-                val pickedCover = state.coverImageUrl
-                if (pickedCover != null) {
+                // Cover in the same priority order deck detail uses: bytes picked this session →
+                // remote URL → homeserver blob (Base64, loaded by the ViewModel) → the emoji box.
+                // Coil renders a URL string and a decoded ByteArray alike.
+                val pendingBytes = state.coverPendingBytes
+                val coverUrl = state.coverImageUrl
+                val coverBase64 = state.coverImageBase64
+                val coverModel: Any? = remember(pendingBytes, coverUrl, coverBase64) {
+                    when {
+                        pendingBytes != null -> pendingBytes
+                        !coverUrl.isNullOrEmpty() -> coverUrl
+                        !coverBase64.isNullOrEmpty() -> runCatching { Base64.decode(coverBase64) }.getOrNull()
+                        else -> null
+                    }
+                }
+                if (coverModel != null) {
                     AsyncImage(
-                        model = pickedCover,
+                        model = coverModel,
                         contentDescription = stringResource(R.string.deck_editor_cover),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
