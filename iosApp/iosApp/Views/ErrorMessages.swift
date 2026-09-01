@@ -148,11 +148,12 @@ enum ErrorCopy {
             )
         case .sessionUnreachable:
             // Deliberately not the offline copy (#165): the homeserver session round trip is what
-            // failed, and the device's connection was measurably fine every time this was seen.
+            // failed, and the device's connection was measurably fine every time this was seen —
+            // hence naming it only to rule it out. Short because every screen showing this
+            // composes it after a consequence ("Couldn't save this deck. …"), so length is paid
+            // twice; what was lost is already said there, and "sign in again" is the button.
             return NSLocalizedString(
-                "Loopky couldn't re-establish your session with your homeserver, so nothing was "
-                    + "saved. Your decks are safe on Pubky. Try again — if it keeps failing, "
-                    + "sign in again.",
+                "Loopky couldn't re-establish your session. It's not your connection — try again.",
                 comment: "Error message: the /session round trip failed at the transport layer"
             )
         case .notFound:
