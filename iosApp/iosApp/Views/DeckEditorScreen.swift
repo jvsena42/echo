@@ -76,6 +76,15 @@ struct DeckEditorScreen: View {
                 }
             }
         )
+        // Without this the editor is *stuck* after creating a deck, not merely quiet: a create
+        // with announcing on parks the flow on the prompt and withholds `SaveSuccess` until it is
+        // answered, so the deck is written and the screen never leaves.
+        .sharePrompt(
+            prompt: uiState?.sharePrompt,
+            onConfirm: { viewModel?.onShareConfirm() },
+            onDismiss: { viewModel?.onShareDismiss() },
+            onNeverAsk: { viewModel?.onShareNeverAsk() }
+        )
         .onAppear { attach() }
         .onDisappear { detach() }
     }
@@ -96,6 +105,11 @@ struct DeckEditorScreen: View {
                 onNewCard(newCard.deckId)
             case let saved as DeckEditorEffectSaveSuccess:
                 onSaved(saved.deckId)
+            case is DeckEditorEffectShared, is DeckEditorEffectShareFailed:
+                // Deliberately not shown. Announcing is best-effort, and the `SaveSuccess` that
+                // follows it immediately pops this screen — a toast raised here would be torn
+                // down with the editor before anyone read it.
+                break
             default:
                 break
             }
