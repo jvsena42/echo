@@ -9,6 +9,7 @@ enum DeckRoute: Hashable, Identifiable {
     case importPaste
     case importBulk(URL?)
     case importTriage
+    case importTriageEditCard(Int)
     case importPublish
     /// `nil` means everything due across the library, which is what Home asks for.
     case study(String?)
@@ -28,6 +29,7 @@ enum DeckRoute: Hashable, Identifiable {
         case .importPaste: return "import-paste"
         case .importBulk(let url): return "import-bulk-\(url?.lastPathComponent ?? "picker")"
         case .importTriage: return "import-triage"
+        case .importTriageEditCard(let rowIndex): return "import-triage-edit-\(rowIndex)"
         case .importPublish: return "import-publish"
         case .study(let id): return "study-\(id ?? "all")"
         case .studyPreview(let id, let author): return "preview-\(id)-\(author ?? "self")"
@@ -170,8 +172,13 @@ struct RootView: View {
         case .importTriage:
             TriageScreen(
                 onBack: { popDeck() },
-                onPublish: { deckPath.append(.importPublish) }
+                onPublish: { deckPath.append(.importPublish) },
+                onEditCard: { rowIndex in deckPath.append(.importTriageEditCard(rowIndex)) }
             )
+        case .importTriageEditCard(let rowIndex):
+            // Triage re-reads the draft in its `onAppear`, so popping back is all the editor has
+            // to do for its change to show.
+            TriageEditCardScreen(rowIndex: rowIndex, onBack: { popDeck() })
         case .friendProfile(let pubky):
             FriendProfileScreen(
                 pubky: pubky,

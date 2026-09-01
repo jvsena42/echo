@@ -8,6 +8,7 @@ struct TriageView: View {
     var onUndo: () -> Void = {}
     var onApproveAll: () -> Void = {}
     var onBack: () -> Void = {}
+    var onEdit: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 16) {
@@ -100,6 +101,13 @@ struct TriageView: View {
                     .buttonStyle(.loopkyFilled)
                     .accessibilityIdentifier("triage_keep")
             }
+            // Between the two verdicts on Android, and offered here for the same reason: a card
+            // the parser split badly is worth ten seconds of fixing, and without this the only
+            // answer to one was to throw it away.
+            Button("triage_edit", action: onEdit)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(LoopkyColor.accentPrimary)
+                .accessibilityIdentifier("triage_edit")
             // Only after a decision, and only for the last one — the ViewModel owns that rule.
             if state.canUndo {
                 Button("triage_undo", action: onUndo)
