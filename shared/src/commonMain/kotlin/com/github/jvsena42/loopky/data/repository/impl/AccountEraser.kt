@@ -87,7 +87,7 @@ class AccountEraser(
         // and `failures++` from two coroutines is a race that would under-report and sign the user
         // out of an account that is still half there.
         failures += namespaceRecords(owner)
-            .mapConcurrently(limit = SWEEP_IN_FLIGHT) { path -> deleteRecord(path).also { progress.step() } }
+            .mapConcurrently { path -> deleteRecord(path).also { progress.step() } }
             .count { deleted -> !deleted }
 
         // 3. The directory entry. Nothing else takes the account out of Discover and search, so a
@@ -181,7 +181,7 @@ class AccountEraser(
     private suspend fun deleteAnnouncementPosts(owner: String) {
         val ownDeckRoot = PubkyPaths.decksList(owner)
         pubky.listAllEntriesOrEmpty(PubkyPaths.postsRoot(owner))
-            .mapConcurrently(limit = SWEEP_IN_FLIGHT) { path ->
+            .mapConcurrently { path ->
                 val embedUri = runSuspendCatching {
                     loopkyJson.decodeFromString<PostDto>(pubky.get(path).getOrThrow()).embed?.uri
                 }.getOrNull()
@@ -212,13 +212,6 @@ class AccountEraser(
 
     private companion object {
         const val TAG = "Loopky/AccountEraser"
-
-        /**
-         * Narrower than the default write width, matching `DeckRepositoryImpl`'s sweep: the FFI
-         * re-imports and revalidates the session on every authenticated call, so a long run of
-         * deletes at publish width reliably 429s straight through the retry budget.
-         */
-        const val SWEEP_IN_FLIGHT = 2
     }
 }
 

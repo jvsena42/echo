@@ -3,7 +3,6 @@ package com.github.jvsena42.loopky.data.repository.impl
 import com.github.jvsena42.loopky.data.pubky.AccountStamp
 import com.github.jvsena42.loopky.data.pubky.CHUNK_SIZE
 import com.github.jvsena42.loopky.data.pubky.CardChunking
-import com.github.jvsena42.loopky.data.pubky.MAX_IN_FLIGHT
 import com.github.jvsena42.loopky.data.pubky.ManifestDto
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
@@ -677,11 +676,13 @@ class DeckRepositoryImpl(
         // Manifest last, and on its own: a half-deleted deck without a manifest disappears from
         // listings instead of resurfacing as corrupt, so it must not be racing the rest.
         val (manifests, contents) = all.partition { it.endsWith("/manifest.json") }
-        // Narrower than the default: a sweep is longer than any publish — deleting a 9,000-card
-        // deck is ~90 records back to back — and the FFI re-imports and revalidates the session on
-        // every authenticated call, so each delete costs the homeserver several requests. At the
-        // publish width this reliably 429'd right through the retry budget and the deck survived.
-        contents.mapConcurrently(limit = SWEEP_IN_FLIGHT) { path -> deleteRecordLocked(path) }
+        // At the ordinary write width. A sweep used to run at half of it, because the FFI
+        // re-imported and revalidated the session on *every* authenticated call: one delete cost
+        // two requests, so a sweep pushed twice its own length at the homeserver and 429'd right
+        // through the retry budget, leaving the deck behind. The session is reused now (#105), a
+        // delete costs one request like any other write, and the exception has nothing left to
+        // justify it — narrowing it again only serializes the sweep.
+        contents.mapConcurrently { path -> deleteRecordLocked(path) }
         for (path in manifests) {
             deleteRecordLocked(path)
         }
@@ -1059,12 +1060,5 @@ class DeckRepositoryImpl(
 
         /** Room for a burst of mutations while a collector is mid-reload; oldest is dropped. */
         const val CHANGE_BUFFER = 8
-
-        /**
-         * In-flight deletes during a deck sweep. Half [MAX_IN_FLIGHT], because a sweep is a far
-         * longer run of writes than the publish that value was measured against — see the note at
-         * the call site in `deleteLocked`.
-         */
-        const val SWEEP_IN_FLIGHT = 2
     }
 }

@@ -132,11 +132,14 @@ internal suspend fun PubkyClient.deleteWithSessionRetry(
 /**
  * Enough to ride out a burst without leaving the user staring at a stalled progress bar.
  *
- * 8 rather than 5 because a *sweep* is not a publish. Deleting a 9,000-card deck is ~90 records,
- * and the FFI re-imports and revalidates the session on every authenticated call, so the sweep
- * costs the homeserver several times its own length in requests. Measured on device: the 5-retry
- * budget (~8s) ran out mid-sweep and the delete failed; the deck stayed, and retrying only
- * repeated it. With jitter, the doubling chain now spans ~64s in the worst case.
+ * 8 rather than 5 because a *sweep* is not a publish: deleting a 9,000-card deck is ~90 records
+ * back to back, and measured on device the 5-retry budget (~8s) ran out mid-sweep — the delete
+ * failed, the deck stayed, and retrying only repeated it. With jitter, the doubling chain spans
+ * ~64s in the worst case.
+ *
+ * Kept at 8 after #105 halved the request count, rather than trimmed back with it. The budget is
+ * insurance against a rate limit whose threshold is not ours to know, and the cost of an unused
+ * retry is nothing; the cost of one too few is a deck that will not delete.
  */
 private const val MAX_RATE_LIMIT_RETRIES = 8
 
