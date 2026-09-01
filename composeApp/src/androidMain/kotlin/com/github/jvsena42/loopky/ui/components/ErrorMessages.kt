@@ -19,6 +19,7 @@ fun errorTitle(reason: ErrorReason): String = stringResource(
     when (reason) {
         ErrorReason.Offline -> R.string.error_offline_title
         ErrorReason.SessionExpired -> R.string.error_session_expired_title
+        ErrorReason.SessionUnreachable -> R.string.error_session_unreachable_title
         ErrorReason.NotFound -> R.string.error_not_found_title
         ErrorReason.NoHomeserverAccount -> R.string.error_no_account_title
         ErrorReason.NotSignedIn -> R.string.error_not_signed_in_title
@@ -37,6 +38,7 @@ fun errorMessage(reason: ErrorReason): String = stringResource(
     when (reason) {
         ErrorReason.Offline -> R.string.error_offline_message
         ErrorReason.SessionExpired -> R.string.error_session_expired_message
+        ErrorReason.SessionUnreachable -> R.string.error_session_unreachable_message
         ErrorReason.NotFound -> R.string.error_not_found_message
         ErrorReason.NoHomeserverAccount -> R.string.error_no_account_message
         ErrorReason.NotSignedIn -> R.string.error_not_signed_in_message

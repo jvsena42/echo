@@ -15,6 +15,25 @@ enum class ErrorReason {
     /** The stored session is no longer valid; the user has to sign in again. */
     SessionExpired,
 
+    /**
+     * The `/session` round trip that precedes every authenticated write failed at the transport
+     * layer, so the session could not be re-established and nothing was written.
+     *
+     * Deliberately distinct from [Offline]: the failing request is the FFI's own
+     * `https://_pubky.<pubky>/session`, and on the runs this was measured on (#165) Nexus reads,
+     * `homeserver.pubky.app` and a raw TCP connect to the homeserver's advertised port all kept
+     * working from the same device. Rendering that as "you're offline — check your connection"
+     * sent the user to fix the one thing demonstrably fine, which is the whole of that bug's
+     * second half.
+     *
+     * Deliberately distinct from [SessionExpired] as well, and in the opposite direction: the
+     * homeserver never answered, so **nothing is known** about whether the session is still valid.
+     * Treating it as an expiry is what `requiresReauth` would act on, signing the user out over a
+     * dropped connection. Writes retry it once through a fresh session import; when that does not
+     * clear it, offering sign-in is the user's call to make, not ours.
+     */
+    SessionUnreachable,
+
     /** The requested record does not exist (e.g. a deck that was deleted). */
     NotFound,
 

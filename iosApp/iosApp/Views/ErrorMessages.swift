@@ -16,6 +16,7 @@ import Shared
 enum LoopkyErrorReason: CaseIterable {
     case offline
     case sessionExpired
+    case sessionUnreachable
     case notFound
     case noHomeserverAccount
     case notSignedIn
@@ -39,6 +40,7 @@ enum LoopkyErrorReason: CaseIterable {
         switch self {
         case .offline: return ErrorReason.offline
         case .sessionExpired: return ErrorReason.sessionexpired
+        case .sessionUnreachable: return ErrorReason.sessionunreachable
         case .notFound: return ErrorReason.notfound
         case .noHomeserverAccount: return ErrorReason.nohomeserveraccount
         case .notSignedIn: return ErrorReason.notsignedin
@@ -86,6 +88,11 @@ enum ErrorCopy {
             return NSLocalizedString("You're offline", comment: "Error title: no connectivity")
         case .sessionExpired:
             return NSLocalizedString("Session expired", comment: "Error title: needs re-auth")
+        case .sessionUnreachable:
+            return NSLocalizedString(
+                "Couldn't reach your session",
+                comment: "Error title: the /session round trip failed at the transport layer"
+            )
         case .notFound:
             return NSLocalizedString("Not found", comment: "Error title: missing record")
         case .noHomeserverAccount:
@@ -138,6 +145,15 @@ enum ErrorCopy {
             return NSLocalizedString(
                 "Sign in with Pubky Ring again to get back to your decks.",
                 comment: "Error message: needs re-auth"
+            )
+        case .sessionUnreachable:
+            // Deliberately not the offline copy (#165): the homeserver session round trip is what
+            // failed, and the device's connection was measurably fine every time this was seen.
+            return NSLocalizedString(
+                "Loopky couldn't re-establish your session with your homeserver, so nothing was "
+                    + "saved. Your decks are safe on Pubky. Try again — if it keeps failing, "
+                    + "sign in again.",
+                comment: "Error message: the /session round trip failed at the transport layer"
             )
         case .notFound:
             return NSLocalizedString(

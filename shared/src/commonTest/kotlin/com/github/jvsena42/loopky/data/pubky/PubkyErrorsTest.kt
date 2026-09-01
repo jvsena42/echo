@@ -43,16 +43,49 @@ class PubkyErrorsTest {
     }
 
     @Test
-    fun anOfflineSessionImportIsOfflineNotAnExpiry() {
-        // Seen on device: offline, the FFI's own session call fails with wording that contains
-        // both "session" and "import", so it classified as an expiry and the study screen told the
-        // user to sign in with Pubky Ring again over a dropped connection.
-        val offline = PubkyError(
+    fun anUnreachableSessionImportIsNeitherAnExpiryNorBeingOffline() {
+        // Verbatim from three separate device runs (#165). It is not an expiry — the request never
+        // arrived, so nothing is known about the session, and reading it as one signed the user out
+        // over a dropped connection. Nor is it "you're offline": the failing host is the FFI's own
+        // `_pubky.<pubky>`, and while this was live Nexus reads, homeserver.pubky.app and a raw TCP
+        // connect to the homeserver all answered from the same device. The publish screen said
+        // "check your connection and try again" and that was the only thing it said.
+        val unreachable = PubkyError(
             "Failed to import session: Request failed: HTTP transport error: error sending " +
                 "request for url (https://_pubky.rc3omrqq/session)",
         )
 
-        assertEquals(ErrorReason.Offline, offline.toErrorReason())
+        assertFalse(unreachable.isSessionExpired())
+        assertEquals(ErrorReason.SessionUnreachable, unreachable.toErrorReason())
+    }
+
+    @Test
+    fun anOrdinaryTransportFailureIsStillOffline() {
+        // The narrowness guard. SessionUnreachable claims the device's connection is fine, so it
+        // must only fire on the session preamble — a read that fails the same way is the ordinary
+        // offline case and has to keep the ordinary copy.
+        val read = PubkyError(
+            "Failed to send list request: Request failed: HTTP transport error: error sending " +
+                "request for url (https://_pubky.rc3omrqq/pub/loopky/decks/?)",
+        )
+
+        assertFalse(read.isSessionUnreachable())
+        assertEquals(ErrorReason.Offline, read.toErrorReason())
+    }
+
+    @Test
+    fun aSessionImportThatTheHomeserverAnsweredIsNotUnreachable() {
+        // The other half of the guard, and the reason isSessionUnreachable is an AND rather than a
+        // prefix match: the fork wraps every import failure in the same words, so a 429 and a 507
+        // arrive worded identically to a dead connection and must keep their own reasons.
+        assertFalse(
+            PubkyError(
+                "Failed to import session: Request failed: Server responded with an error: " +
+                    "429 Too Many Requests",
+            ).isSessionUnreachable(),
+        )
+        assertFalse(PubkyError("Failed to import session: 507 Insufficient Storage").isSessionUnreachable())
+        assertFalse(PubkyError("Failed to import session: invalid session").isSessionUnreachable())
     }
 
     @Test

@@ -550,6 +550,13 @@
     <string name="error_offline_message">Check your connection and try again. Your decks are safe on Pubky.</string>
     <string name="error_session_expired_title">Session expired</string>
     <string name="error_session_expired_message">Sign in with Pubky Ring again to get back to your decks.</string>
+    <!-- Deliberately not the offline copy (#165). The homeserver session round trip is what
+         failed; the device's connection was measurably fine every time this was seen, so sending
+         the user to check it points at the one thing that is working. Ends on the two things that
+         do help, in the order worth trying them. -->
+    <string name="error_session_unreachable_title">Couldn\'t reach your session</string>
+    <string name="error_session_unreachable_message">Loopky couldn\'t re-establish your session with your homeserver, so nothing was saved. Your decks are safe on Pubky. Try again — if it keeps failing, sign in again.</string>
+    <string name="error_sign_in_again">Sign in again</string>
     <string name="error_not_found_title">Not found</string>
     <string name="error_not_found_message">This deck no longer exists. It may have been deleted.</string>
     <string name="error_no_account_title">Your Pubky isn\'t set up yet</string>
