@@ -1186,8 +1186,16 @@ it is covered by unit tests in the fork, not by this. And the deck sizes are sma
 not the 9,263-card deck that opened the issue, so the *ratio* is measured here and the wall-clock
 at scale is not.
 
-**Two emulator artifacts, neither caused by the change.** `adb shell input text` in a tight loop
-corrupts occasional lines (a newline landing one character late), which produces cards with an
-empty side and a publish that fails validation before any network call — pace the typing. And
-pressing BACK on the publish screen leaves a blank white screen with an empty accessibility tree;
-it reproduces from a cold start and touches nothing in this change, but it is worth an issue.
+**One emulator artifact, and one sighting that would not reproduce.** `adb shell input text` in a
+tight loop corrupts occasional lines (a newline landing one character late), which produces cards
+with an empty side and a publish that fails validation before any network call — pace the typing.
+
+Twice during this run the app was left on a **blank white screen with an empty `android layout`
+dump**, process alive and `MainActivity` still resumed, after pressing BACK on a failed publish.
+It did not survive scrutiny as a bug: single BACK from paste, paced BACKs out of publish, five
+rapid BACKs from the Decks tab, and BACK-then-immediate-tap after a failed publish were each
+driven deliberately afterwards and all behaved correctly. Both sightings followed a 150–240 line
+typing loop, so the likeliest explanation is hundreds of queued key events still draining into
+whatever screen the app had navigated to — an artifact of the driving method rather than anything
+a finger can reach. Filed as jvsena42/loopky#198 so a second sighting has somewhere to land, not
+as a known defect.
