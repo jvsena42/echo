@@ -38,15 +38,19 @@ struct TriageScreen: View {
 
     private var viewState: TriageViewState {
         guard let state = uiState else { return TriageViewState() }
+        // The card *behind* the one being decided, so the stack can reveal it as the top card is
+        // dragged away. Nil on the last card, which simply has nothing behind it.
+        let following = state.cards.indices.contains(Int(state.currentIndex) + 1)
+            ? state.cards[Int(state.currentIndex) + 1]
+            : nil
         return TriageViewState(
-            front: state.currentCard?.front ?? "",
-            back: state.currentCard?.back ?? "",
+            card: state.currentCard.map { TriageCardFace(front: $0.front, back: $0.back) },
+            next: following.map { TriageCardFace(front: $0.front, back: $0.back) },
             position: Int(state.currentIndex) + 1,
             total: Int(state.total),
             keptCount: Int(state.keptCount),
             discardedCount: Int(state.discardedCount),
             canUndo: state.canUndo,
-            hasCard: state.currentCard != nil,
             errorMessage: state.error
         )
     }
@@ -76,13 +80,23 @@ struct TriageScreen: View {
 }
 
 struct TriageViewState {
-    var front: String = ""
-    var back: String = ""
+    /// The card being decided. Nil once the queue is exhausted.
+    var card: TriageCardFace?
+    /// The one behind it, drawn in the stack and revealed by the swipe.
+    var next: TriageCardFace?
     var position: Int = 0
     var total: Int = 0
     var keptCount: Int = 0
     var discardedCount: Int = 0
     var canUndo: Bool = false
-    var hasCard: Bool = false
     var errorMessage: String?
+
+    var hasCard: Bool { card != nil }
+}
+
+/// Both sides of one card, which is all the stack draws — triage is a review of what the parser
+/// produced, so nothing here is hidden behind a flip.
+struct TriageCardFace: Equatable {
+    var front: String = ""
+    var back: String = ""
 }
