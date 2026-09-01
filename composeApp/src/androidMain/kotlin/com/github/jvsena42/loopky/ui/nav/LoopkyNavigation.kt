@@ -282,6 +282,11 @@ internal fun LoopkyNavHost(
                     navController.navigateTo(Routes.deckDetail(savedDeckId))
                 },
                 onOpenSettings = { navController.navigateTo(Routes.settings(Routes.SETTINGS_FOCUS_UNSPLASH)) },
+                onSignedOut = {
+                    navController.navigateTo(Routes.ONBOARDING) {
+                        popUpTo(Routes.MAIN) { inclusive = true }
+                    }
+                },
             )
         }
         composable(Routes.IMPORT_PASTE) {
@@ -327,6 +332,11 @@ internal fun LoopkyNavHost(
                     navController.navigateTo(Routes.deckDetail(deckId))
                 },
                 onOpenSettings = { navController.navigateTo(Routes.settings(Routes.SETTINGS_FOCUS_UNSPLASH)) },
+                onSignedOut = {
+                    navController.navigateTo(Routes.ONBOARDING) {
+                        popUpTo(Routes.MAIN) { inclusive = true }
+                    }
+                },
             )
         }
         signupDestinations(navController)

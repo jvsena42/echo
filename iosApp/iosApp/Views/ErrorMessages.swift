@@ -228,6 +228,28 @@ enum ErrorCopy {
     }
 }
 
+/// Copy for a failed deck-editor operation, composed from `ErrorCopy` exactly as the publish
+/// flow's is: the consequence differs per operation, the cause is the shared vocabulary.
+///
+/// The editor used to render the throwable's own `message`, which is how the card list came to
+/// show `"Failed to import session: Request failed: HTTP transport error: error sending request
+/// for url (https://_pubky.…/session)"` where the cards belong (#165).
+enum DeckEditorErrorCopy {
+    static func message(for error: DeckEditorError?) -> String? {
+        guard let error else { return nil }
+        let consequence: String
+        switch error.op {
+        case DeckEditorOp.loadcards:
+            consequence = NSLocalizedString("deck_editor_error_cards", comment: "")
+        case DeckEditorOp.movecard:
+            consequence = NSLocalizedString("deck_editor_error_move", comment: "")
+        default:
+            consequence = NSLocalizedString("deck_editor_error_save", comment: "")
+        }
+        return "\(consequence) \(ErrorCopy.message(for: error.reason))"
+    }
+}
+
 /// Copy for the shared `FormError`s, in one place so the publish flow, the deck editor and the
 /// card editor cannot drift into wording the same validation differently.
 ///

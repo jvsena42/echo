@@ -1597,6 +1597,39 @@
         }
       }
     },
+    "deck_editor_error_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't load this deck's cards. Your changes to the deck's details will still save."
+          }
+        }
+      }
+    },
+    "deck_editor_error_move": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't move that card."
+          }
+        }
+      }
+    },
+    "deck_editor_error_save": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't save this deck."
+          }
+        }
+      }
+    },
     "deck_editor_has_audio": {
       "extractionState": "manual",
       "localizations": {
@@ -2451,6 +2484,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Edit card"
+          }
+        }
+      }
+    },
+    "error_sign_in_again": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in again"
           }
         }
       }

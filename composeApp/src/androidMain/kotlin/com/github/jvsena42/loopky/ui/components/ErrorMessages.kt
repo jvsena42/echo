@@ -5,6 +5,8 @@ import androidx.compose.ui.res.stringResource
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.FormError
+import com.github.jvsena42.loopky.presentation.decks.DeckEditorError
+import com.github.jvsena42.loopky.presentation.decks.DeckEditorOp
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
 import com.github.jvsena42.loopky.presentation.importflow.PublishError
 import com.github.jvsena42.loopky.presentation.signup.SignupError
@@ -145,6 +147,22 @@ fun publishErrorMessage(error: PublishError): String = when (error) {
     is PublishError.Cancel -> stringResource(R.string.publish_error_cancel, errorMessage(error.reason))
     is PublishError.Undo -> stringResource(R.string.publish_error_undo, errorMessage(error.reason))
 }
+
+/**
+ * Copy for a failed deck-editor operation, composed from [errorMessage] exactly as
+ * [publishErrorMessage] is: the consequence differs per operation, the cause is the shared
+ * vocabulary. The editor used to render `err.message` here, which put the FFI's raw session error
+ * where the card list belongs (#165).
+ */
+@Composable
+fun deckEditorErrorMessage(error: DeckEditorError): String = stringResource(
+    when (error.op) {
+        DeckEditorOp.LoadCards -> R.string.deck_editor_error_cards
+        DeckEditorOp.MoveCard -> R.string.deck_editor_error_move
+        DeckEditorOp.Save -> R.string.deck_editor_error_save
+    },
+    errorMessage(error.reason),
+)
 
 /** Field-level validation copy for [FormError]. */
 @Composable

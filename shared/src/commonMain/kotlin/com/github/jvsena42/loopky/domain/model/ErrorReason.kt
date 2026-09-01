@@ -110,4 +110,25 @@ enum class ErrorReason {
 
     /** Anything we could not classify. */
     Unknown,
+    ;
+
+    /**
+     * Whether signing in again is a remedy worth *offering* for this failure.
+     *
+     * Not the same question as `requiresReauth`, and deliberately wider. That one decides whether
+     * the app may sign someone out on its own, and it is true for exactly one reason — an expiry
+     * the homeserver confirmed. This decides whether a screen puts a "Sign in again" button next
+     * to the message, which is the user's call to make and costs nothing when it turns out not to
+     * have been needed.
+     *
+     * [SessionUnreachable] is the case that motivates the distinction (#165): the app has no
+     * grounds to end the session itself, and a fresh sign-in was nevertheless the only thing that
+     * ever cleared it. [NoHomeserverAccount] is excluded on purpose — there is nothing to sign in
+     * to.
+     *
+     * A member rather than an extension property because Swift reads it too, and only a member
+     * crosses the ObjC bridge as `reason.offersSignIn`.
+     */
+    val offersSignIn: Boolean
+        get() = this == SessionExpired || this == SessionUnreachable || this == NotSignedIn
 }

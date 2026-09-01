@@ -93,6 +93,12 @@
     <string name="deck_editor_label_tags">TAGS (PUBKY)</string>
     <string name="deck_editor_add_tag">+ Add</string>
     <string name="deck_editor_cards_count">Cards (%1$d)</string>
+    <!-- The consequence, then the cause. Composed from the shared ErrorReason copy the same way
+         publish_error_* is, so the editor cannot word a session failure differently from the rest
+         of the app — and so the FFI's own message never reaches this row again (#165). -->
+    <string name="deck_editor_error_cards">Couldn\'t load this deck\'s cards. Your changes to the deck\'s details will still save. %1$s</string>
+    <string name="deck_editor_error_move">Couldn\'t move that card. %1$s</string>
+    <string name="deck_editor_error_save">Couldn\'t save this deck. %1$s</string>
     <string name="deck_editor_add_card">Add card</string>
     <string name="deck_editor_reorder">Reorder</string>
     <string name="deck_editor_card_front_placeholder">Front</string>

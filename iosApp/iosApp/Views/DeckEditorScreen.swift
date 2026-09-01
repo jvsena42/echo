@@ -10,6 +10,8 @@ struct DeckEditorScreen: View {
     /// A card that does not exist yet — the editor mints its id and appends it on save.
     var onNewCard: (String) -> Void = { _ in }
     var onSaved: (String) -> Void = { _ in }
+    /// The session was ended from the error row's "Sign in again" — go collect a new one.
+    var onSignedOut: () -> Void = {}
 
     @State private var viewModel: DeckEditorViewModel?
     @State private var uiState: DeckEditorUiState?
@@ -39,9 +41,12 @@ struct DeckEditorScreen: View {
             isLoadingCards: uiState?.isLoadingCards ?? false,
             hasMoreCards: uiState?.hasMoreCards ?? false,
             isSaving: uiState?.isSaving ?? false,
-            titleError: uiState?.titleError,
-            descriptionError: uiState?.descriptionError,
-            error: uiState?.error,
+            titleError: FormErrorCopy.message(for: uiState?.titleError),
+            descriptionError: FormErrorCopy.message(for: uiState?.descriptionError),
+            error: DeckEditorErrorCopy.message(for: uiState?.error),
+            onSignInAgain: (uiState?.error?.reason.offersSignIn ?? false)
+                ? { viewModel?.onSignInAgainClick() }
+                : nil,
             onTitleChanged: { viewModel?.onTitleChanged(text: $0) },
             onDescriptionChanged: { viewModel?.onDescriptionChanged(text: $0) },
             onAddTag: { viewModel?.onAddTag(tag: $0) },
@@ -99,6 +104,8 @@ struct DeckEditorScreen: View {
             switch effect {
             case is DeckEditorEffectNavigateBack:
                 onBack()
+            case is DeckEditorEffectNavigateToOnboarding:
+                onSignedOut()
             case let editCard as DeckEditorEffectNavigateEditCard:
                 onEditCard(editCard.deckId, editCard.cardId)
             case let newCard as DeckEditorEffectNavigateNewCard:

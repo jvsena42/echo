@@ -88,6 +88,7 @@ import com.github.jvsena42.loopky.domain.model.DeckLimits
 import com.github.jvsena42.loopky.domain.model.SpeechLanguages
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorEffect
+import com.github.jvsena42.loopky.presentation.decks.DeckEditorError
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorUiState
 import com.github.jvsena42.loopky.presentation.decks.DeckEditorViewModel
 import com.github.jvsena42.loopky.presentation.decks.EditableCardModel
@@ -99,6 +100,7 @@ import com.github.jvsena42.loopky.ui.components.ImageSelection
 import com.github.jvsena42.loopky.ui.components.ReorderableListState
 import com.github.jvsena42.loopky.ui.components.SharePromptDialog
 import com.github.jvsena42.loopky.ui.components.TagChip
+import com.github.jvsena42.loopky.ui.components.deckEditorErrorMessage
 import com.github.jvsena42.loopky.ui.components.formErrorMessage
 import com.github.jvsena42.loopky.ui.components.rememberReorderableListState
 import com.github.jvsena42.loopky.ui.components.reorderableHandle
@@ -129,6 +131,8 @@ fun DeckEditorRoute(
     onSaved: (deckId: String) -> Unit = {},
     /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
     onOpenSettings: () -> Unit = {},
+    /** The session was ended from the error row's "Sign in again" — go collect a new one. */
+    onSignedOut: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<DeckEditorViewModel> { parametersOf(deckId) }
     // Offer the languages this device can actually voice, so the author is not choosing
@@ -139,12 +143,14 @@ fun DeckEditorRoute(
     val currentEditCard by rememberUpdatedState(onEditCard)
     val currentNewCard by rememberUpdatedState(onNewCard)
     val currentSaved by rememberUpdatedState(onSaved)
+    val currentSignedOut by rememberUpdatedState(onSignedOut)
     val context = LocalContext.current
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 DeckEditorEffect.NavigateBack -> currentBack()
+                DeckEditorEffect.NavigateToOnboarding -> currentSignedOut()
                 is DeckEditorEffect.NavigateEditCard -> currentEditCard(effect.deckId, effect.cardId)
                 is DeckEditorEffect.NavigateNewCard -> currentNewCard(effect.deckId)
                 is DeckEditorEffect.SaveSuccess -> currentSaved(effect.deckId)
@@ -181,6 +187,7 @@ fun DeckEditorRoute(
         onCoverWebSelected = viewModel::onCoverWebSelected,
         onCoverGallerySelected = viewModel::onCoverGallerySelected,
         onOpenSettings = onOpenSettings,
+        onSignInAgain = viewModel::onSignInAgainClick,
     )
 
     // Shown over the editor rather than on the destination: saving a new deck leaves this screen,
@@ -220,6 +227,8 @@ fun DeckEditorScreen(
     onCoverGallerySelected: (ByteArray, String) -> Unit,
     /** Opens Settings on the Unsplash key row, for when the image sheet reports a key problem. */
     onOpenSettings: () -> Unit = {},
+    /** Ends the session and sends the user to sign in, from the error row (#165). */
+    onSignInAgain: () -> Unit = {},
 ) {
     val colors = LoopkyTheme.colors
     var showCoverSheet by rememberSaveable { mutableStateOf(false) }
@@ -425,15 +434,10 @@ fun DeckEditorScreen(
                 item(key = "cards_loading") { CardsLoadingRow() }
             }
 
-            // 5. Error toast
-            state.error?.let { errorText ->
+            // 5. Error row
+            state.error?.let { error ->
                 item(key = "error") {
-                    Text(
-                        text = errorText,
-                        fontSize = 14.sp,
-                        color = colors.danger,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    DeckEditorErrorRow(error = error, onSignInAgain = onSignInAgain)
                 }
             }
         }
@@ -449,6 +453,49 @@ fun DeckEditorScreen(
             },
             onDismiss = { moveTarget = null },
         )
+    }
+}
+
+/**
+ * What failed, in the app's own words, plus the one action worth offering beside it.
+ *
+ * "Sign in again" appears only for the reasons [offersSignIn] admits, and it is deliberately an
+ * offer rather than something the app does on its own: a `SessionUnreachable` write failed without
+ * the homeserver ever answering, so ending a session that may still be good is the user's call.
+ * Before it existed there was no route out of a wedged session short of restarting the app (#165).
+ */
+@Composable
+private fun DeckEditorErrorRow(
+    error: DeckEditorError,
+    onSignInAgain: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("deck_editor_error"),
+    ) {
+        Text(
+            text = deckEditorErrorMessage(error),
+            fontSize = 14.sp,
+            color = colors.danger,
+        )
+        if (error.reason.offersSignIn) {
+            TextButton(
+                onClick = onSignInAgain,
+                contentPadding = PaddingValues(0.dp),
+                modifier = Modifier.testTag("deck_editor_sign_in_again"),
+            ) {
+                Text(
+                    text = stringResource(R.string.error_sign_in_again),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.W700,
+                    color = colors.accentPrimary,
+                )
+            }
+        }
     }
 }
 
@@ -736,10 +783,10 @@ private fun DeckMetadataCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.Top,
         ) {
-            val errorText = state.titleError
-            if (errorText != null) {
+            val fieldError = state.titleError
+            if (fieldError != null) {
                 Text(
-                    text = errorText,
+                    text = formErrorMessage(fieldError),
                     fontSize = 12.sp,
                     color = colors.danger,
                     modifier = Modifier.weight(1f),
@@ -785,10 +832,10 @@ private fun DeckMetadataCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.Top,
             ) {
-                val errorText = state.descriptionError
-                if (errorText != null) {
+                val fieldError = state.descriptionError
+                if (fieldError != null) {
                     Text(
-                        text = errorText,
+                        text = formErrorMessage(fieldError),
                         fontSize = 12.sp,
                         color = colors.danger,
                         modifier = Modifier.weight(1f),

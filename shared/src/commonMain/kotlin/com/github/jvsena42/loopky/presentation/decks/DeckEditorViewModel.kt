@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.presentation.decks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
@@ -13,6 +14,7 @@ import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
 import com.github.jvsena42.loopky.domain.model.DeckLimits
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.FormError
 import com.github.jvsena42.loopky.domain.model.LanguageTags
 import com.github.jvsena42.loopky.domain.model.MediaRef
@@ -173,8 +175,12 @@ class DeckEditorViewModel(
      * to page along, so this is the old whole-deck read, kept for exactly those decks.
      */
     private suspend fun loadWholeDeck(deck: Deck) {
+        var reason: ErrorReason? = null
         val cards = cardRepository.fetchByDeck(deck)
-            .onFailure { err -> Log.e(TAG, "loadWholeDeck: FAILED — ${err.message}", err) }
+            .onFailure { err ->
+                Log.e(TAG, "loadWholeDeck: FAILED — ${err.message}", err)
+                reason = err.toErrorReason()
+            }
             .getOrNull()
             ?.inStudyOrder()
         _state.update { s ->
@@ -183,7 +189,7 @@ class DeckEditorViewModel(
                 totalCards = maxOf(deck.cardCount, cards?.size ?: 0),
                 isLoadingCards = false,
                 hasMoreCards = false,
-                error = if (cards == null) CARDS_LOAD_FAILED else s.error,
+                error = reason?.let { DeckEditorError(DeckEditorOp.LoadCards, it) } ?: s.error,
             )
         }
     }
@@ -210,7 +216,12 @@ class DeckEditorViewModel(
                 // hasMoreCards is left alone: the page is still there to try again for, and
                 // clearing it would tell the list the deck ends here.
                 Log.e(TAG, "appendNextPage: chunk $chunk FAILED — ${err.message}", err)
-                _state.update { it.copy(isLoadingCards = false, error = CARDS_LOAD_FAILED) }
+                _state.update {
+                    it.copy(
+                        isLoadingCards = false,
+                        error = DeckEditorError(DeckEditorOp.LoadCards, err.toErrorReason()),
+                    )
+                }
             }
     }
 
@@ -392,7 +403,9 @@ class DeckEditorViewModel(
                     .onSuccess { loadedDeck = it }
                     .onFailure { err ->
                         Log.e(TAG, "onMoveCard: FAILED — ${err.message}", err)
-                        _state.update { it.copy(error = MOVE_FAILED) }
+                        _state.update {
+                            it.copy(error = DeckEditorError(DeckEditorOp.MoveCard, err.toErrorReason()))
+                        }
                         reloadLoadedPages()
                     }
             }
@@ -457,7 +470,7 @@ class DeckEditorViewModel(
      */
     private fun validateForSave(s: DeckEditorUiState): Boolean {
         if (s.title.isBlank()) {
-            _state.update { it.copy(error = "Title is required.") }
+            _state.update { it.copy(titleError = FormError.TitleRequired) }
             return false
         }
         val titleError = titleErrorFor(s.title)
@@ -490,7 +503,12 @@ class DeckEditorViewModel(
             val session = runSuspendCatching { identityRepository.currentSession() }.getOrNull()
                 ?: runSuspendCatching { identityRepository.loadPersistedSession() }.getOrNull()
             val authorPubky = session?.identity?.pubky ?: run {
-                _state.update { it.copy(isSaving = false, error = "Not signed in.") }
+                _state.update {
+                    it.copy(
+                        isSaving = false,
+                        error = DeckEditorError(DeckEditorOp.Save, ErrorReason.NotSignedIn),
+                    )
+                }
                 return@launch
             }
 
@@ -513,10 +531,45 @@ class DeckEditorViewModel(
                     settle(saved, isCreate = deckId == null)
                 }
                 .onFailure { err ->
+                    // The reason, never `err.message`: this is where the FFI's own
+                    // "Failed to import session: Request failed: HTTP transport error: error
+                    // sending request for url (https://_pubky.…/session)" was rendered to users,
+                    // in the card list, as the only place the real cause appeared at all (#165).
                     Log.e(TAG, "save: FAILED — ${err.message}", err)
-                    _state.update { it.copy(isSaving = false, error = err.message ?: "Save failed.") }
+                    _state.update {
+                        it.copy(
+                            isSaving = false,
+                            error = DeckEditorError(DeckEditorOp.Save, err.toErrorReason()),
+                        )
+                    }
                 }
         }
+    }
+
+    /**
+     * The escape hatch offered beside a session failure: end the session and go sign in again.
+     *
+     * Explicit, never automatic, and that is the point. A `SessionUnreachable` write failed
+     * without the homeserver ever answering, so the app has no grounds to end a session that may
+     * well still be good — but a fresh sign-in was the only thing that ever cleared it on device
+     * (#165), and before this there was no way to reach one short of restarting the app.     *
+     * The sign-out is best-effort on purpose. `signOut` refuses when it would destroy the only
+     * copy of a locally-minted key that has never been backed up, and that refusal must stand —
+     * but it is not a reason to withhold the sign-in screen, because signing in again *replaces*
+     * the session without needing the old one cleared. Either way the user ends up somewhere they
+     * can get a working session.
+     */
+    fun onSignInAgainClick() {
+        viewModelScope.launch {
+            Log.d(TAG, "onSignInAgainClick: signing out to re-authenticate")
+            runSuspendCatching { identityRepository.signOut() }
+            _effects.emit(DeckEditorEffect.NavigateToOnboarding)
+        }
+    }
+
+    /** Clear a failure the user has read, so the next attempt starts from a clean screen. */
+    fun onDismissError() {
+        _state.update { it.copy(error = null) }
     }
 
     /**
@@ -605,23 +658,18 @@ class DeckEditorViewModel(
     }
 }
 
-private const val CARDS_LOAD_FAILED =
-    "Couldn't load this deck's cards. Your changes to the deck's details will still save."
-
-private const val MOVE_FAILED = "Couldn't move that card. Check your connection and try again."
-
 private const val DEFAULT_IMAGE_MIME = "image/jpeg"
 
-private fun titleErrorFor(text: String): String? =
+private fun titleErrorFor(text: String): FormError? =
     if (text.length > DeckLimits.TITLE_MAX_LENGTH) {
-        "Title must be ${DeckLimits.TITLE_MAX_LENGTH} characters or fewer."
+        FormError.TitleTooLong
     } else {
         null
     }
 
-private fun descriptionErrorFor(text: String): String? =
+private fun descriptionErrorFor(text: String): FormError? =
     if (text.length > DeckLimits.DESCRIPTION_MAX_LENGTH) {
-        "Description must be ${DeckLimits.DESCRIPTION_MAX_LENGTH} characters or fewer."
+        FormError.DescriptionTooLong
     } else {
         null
     }
@@ -745,14 +793,11 @@ data class DeckEditorUiState(
     /** BCP-47 tags for the two card sides; required once either speech opt-in above is on. */
     val frontLang: String? = null,
     val backLang: String? = null,
-    /**
-     * Typed rather than a message like the two errors below it: those predate [FormError], and a
-     * new hardcoded English string in `commonMain` is the thing [FormError] exists to avoid.
-     */
     val languagesError: FormError? = null,
-    val titleError: String? = null,
-    val descriptionError: String? = null,
-    val error: String? = null,
+    val titleError: FormError? = null,
+    val descriptionError: FormError? = null,
+    /** What failed and why, never the FFI's own words — see [DeckEditorError]. */
+    val error: DeckEditorError? = null,
     /** Set after a save that created the deck, unless the user has opted out of being asked (#39). */
     val sharePrompt: DeckSharePrompt? = null,
 ) {
@@ -776,8 +821,38 @@ data class EditableCardModel(
     val hasAudio: Boolean,
 )
 
+/**
+ * What failed in the editor, and why.
+ *
+ * Two fields rather than one message because the *consequence* differs and the *cause* does not:
+ * a failed card page still lets the deck's details save, a failed move leaves the list showing an
+ * order the homeserver does not have, and a failed save wrote nothing at all. The reason beside it
+ * is the same vocabulary every other screen speaks, so the platform layer composes one from the
+ * other exactly as `publishErrorMessage` does.
+ *
+ * It replaced a raw `String` that carried `err.message`, which is how the card list came to render
+ * `"Failed to import session: Request failed: HTTP transport error: error sending request for url
+ * (https://_pubky.…/session)"` in place of the cards (#165).
+ */
+data class DeckEditorError(val op: DeckEditorOp, val reason: ErrorReason)
+
+/** The editor operations that can fail with an [ErrorReason]. */
+enum class DeckEditorOp {
+    /** A page of the card list did not arrive. The metadata is still editable and still saves. */
+    LoadCards,
+
+    /** A reorder was rejected; the list has been re-read from the homeserver. */
+    MoveCard,
+
+    /** The manifest write failed, so nothing was saved. */
+    Save,
+}
+
 sealed interface DeckEditorEffect {
     data object NavigateBack : DeckEditorEffect
+
+    /** The user chose to sign in again from a session failure; the session is already cleared. */
+    data object NavigateToOnboarding : DeckEditorEffect
     data class NavigateEditCard(val deckId: String, val cardId: String) : DeckEditorEffect
 
     /** Open the card editor on a card that does not exist yet; it writes it on save. */

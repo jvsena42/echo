@@ -245,13 +245,28 @@ struct PublishDeckView: View {
         .padding(24)
     }
 
+    /// The message, plus the one way out when the failure is a session the app cannot reach.
+    ///
+    /// "Check your connection and try again" was the whole of what this screen said while every
+    /// write was dying on the `/session` round trip, and it pointed at the one thing that was fine
+    /// (#165). A Button, never a tappable Text: a bare `.onTapGesture` is announced by nothing and
+    /// found by `snapshot-ui` not at all.
     private func errorRow(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.circle.fill").font(.system(size: 13))
-            Text(message).font(.system(size: 13, weight: .medium))
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.circle.fill").font(.system(size: 13))
+                Text(message).font(.system(size: 13, weight: .medium))
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(LoopkyColor.danger)
+
+            if let onSignInAgain = state.onSignInAgain {
+                Button(NSLocalizedString("error_sign_in_again", comment: ""), action: onSignInAgain)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(LoopkyColor.accentPrimary)
+                    .accessibilityIdentifier("publish_sign_in_again")
+            }
         }
-        .foregroundStyle(LoopkyColor.danger)
     }
 
     private var publicNotice: some View {
