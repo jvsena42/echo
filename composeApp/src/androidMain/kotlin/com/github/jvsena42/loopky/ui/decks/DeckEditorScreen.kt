@@ -111,6 +111,8 @@ import kotlinx.coroutines.flow.collectLatest
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /** How close to the end of the list a scroll gets before the next chunk is requested. */
 private const val PAGE_PREFETCH_ROWS = 8
@@ -609,7 +611,7 @@ private fun DeckStudySection(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalEncodingApi::class)
 @Composable
 private fun DeckMetadataCard(
     state: DeckEditorUiState,
@@ -637,10 +639,12 @@ private fun DeckMetadataCard(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        // Top row: emoji + title
+        // Top row: cover + title, matching iOS. The column beside the tile is label + field and
+        // nothing else — the counter and error live below the whole row — so centring pairs the
+        // cover with both, rather than parking it against the 10sp label or the counter.
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             // Cover box — tappable so a deck's cover can be changed after publishing,
             // which was previously impossible: the picker only existed on the publish step.
@@ -653,10 +657,23 @@ private fun DeckMetadataCard(
                     .testTag("deck_editor_cover"),
                 contentAlignment = Alignment.Center,
             ) {
-                val pickedCover = state.coverImageUrl
-                if (pickedCover != null) {
+                // Cover in the same priority order deck detail uses: bytes picked this session →
+                // remote URL → homeserver blob (Base64, loaded by the ViewModel) → the emoji box.
+                // Coil renders a URL string and a decoded ByteArray alike.
+                val pendingBytes = state.coverPendingBytes
+                val coverUrl = state.coverImageUrl
+                val coverBase64 = state.coverImageBase64
+                val coverModel: Any? = remember(pendingBytes, coverUrl, coverBase64) {
+                    when {
+                        pendingBytes != null -> pendingBytes
+                        !coverUrl.isNullOrEmpty() -> coverUrl
+                        !coverBase64.isNullOrEmpty() -> runCatching { Base64.decode(coverBase64) }.getOrNull()
+                        else -> null
+                    }
+                }
+                if (coverModel != null) {
                     AsyncImage(
-                        model = pickedCover,
+                        model = coverModel,
                         contentDescription = stringResource(R.string.deck_editor_cover),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
@@ -708,29 +725,32 @@ private fun DeckMetadataCard(
                     shape = RoundedCornerShape(12.dp),
                     colors = textFieldColors(),
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    val errorText = state.titleError
-                    if (errorText != null) {
-                        Text(
-                            text = errorText,
-                            fontSize = 12.sp,
-                            color = colors.danger,
-                            modifier = Modifier.weight(1f),
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                    CharacterCounter(
-                        current = state.title.length,
-                        max = DeckLimits.TITLE_MAX_LENGTH,
-                    )
-                }
             }
+        }
+
+        // Below the row, not inside the column beside the cover: keeping them there made that
+        // column label / field / counter, and a tile centred on all three hangs level with the
+        // field while the label floats above it.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            val errorText = state.titleError
+            if (errorText != null) {
+                Text(
+                    text = errorText,
+                    fontSize = 12.sp,
+                    color = colors.danger,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+            CharacterCounter(
+                current = state.title.length,
+                max = DeckLimits.TITLE_MAX_LENGTH,
+            )
         }
 
         // Description section

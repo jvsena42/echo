@@ -923,3 +923,80 @@ SwiftLint is clean, and `snapshot-ui` renders the chips identically either way, 
 driving the app finds it. And the iOS quiz chip was already *visually* correct (it filled, which is
 what Android was changed to match), which made it easy to assume iOS needed nothing; the defect it
 did have was in the accessibility tree, where looking at a screenshot cannot reach.
+
+## Deck editor — the cover it edits (#166) — ✅ PASS (2026-09-01, `emulator-5554`)
+
+Journey **11** re-run on a Medium_Phone emulator, signed in as `kfezy1`, against a real
+homeserver. The editor's cover box showed the title's first letter for every deck that had a
+cover — the same placeholder a deck with none gets — while the deck grid and deck detail both drew
+the real picture. It is the only screen from which a published deck's cover can be *replaced*, so
+it was the only screen that would not show what was being replaced.
+
+| Step | Before | After |
+| --- | --- | --- |
+| Editor on a deck with an **Unsplash** cover | ❌ `S` on the accent-soft square | ✅ the photo |
+| Editor on a deck with a **gallery** cover (homeserver blob) | ❌ `S` | ✅ the photo |
+| Pick a gallery image, before saving | ❌ `S` — the picked bytes were never drawn | ✅ the photo |
+| Save with the cover untouched, reopen | ✅ cover kept (already guarded by this journey) | ✅ kept, ref unchanged |
+| Cover tile vs. the title input beside it | ❌ level with the 10sp label, floating above the field | ✅ centred on the field |
+| Same, at 1280dp (`wm size 2560x1600`, density 320) | ❌ same misalignment | ✅ centred |
+
+**Two covers, two paths, and only one of them was in the issue.** A remote cover is a URL the
+manifest already carries; a gallery cover is a blob with no URL at all, so it has to be fetched and
+handed over as Base64 exactly the way `DeckDetailViewModel` does. Mapping the URL alone — the fix
+the issue proposes — leaves every gallery cover still showing its initial, and nothing reports it.
+The picked-but-unsaved case was broken too: `coverPendingBytes` was in the state and never drawn,
+so choosing a photo from the gallery looked like it had done nothing until you saved.
+
+**The alignment was a second bug, found only by looking at the screen.** The cover sat in a Row
+with `Alignment.Top` against a column of *label / field / counter*, so it hung level with the 10sp
+"DECK TITLE" label rather than the input. Invisible while the box was an empty letter tile;
+obvious the moment it held a picture. Bottom-aligning is no better — it parks the tile against the
+character counter — so the row is centred.
+
+**Saving no longer rebuilds a cover it did not change.** With the stored URL now in state, the
+save path would have reconstructed a ref from the URL alone on every metadata save, quietly
+dropping the stored mime and dimensions. `resolveCoverImage` only builds a new ref when the URL
+differs from the one the deck was loaded with.
+
+**iOS, 2026-09-01 (iPhone 17 simulator, `xcodebuildmcp` now installed).** Re-run against the
+staging account that owns the test decks, opening the editor on an **existing** deck with a cover
+(Periodic Table, 118 cards) rather than one created for the test.
+
+| Step | Result |
+| --- | --- |
+| Editor on a deck with a cover | ✅ the photo — `coverImageBase64` reaches `CardMediaImage` |
+| Cover tile clipped to its 64pt box | ❌ then ✅ — see below |
+| Cover tile vs. the label + title beside it | ✅ centred on both |
+
+**Showing the cover exposed a second iOS bug, and only driving the app found it.** The tile is a
+`ZStack` under `.frame(width: 64, height: 64)`, with the clip applied to the `CardMediaImage`
+*inside* it. A `.fill` image reports a size larger than the box in one dimension, so the ZStack grew
+with it and the frame merely re-centred the overflow instead of cutting it off — the cover spilled
+out over "DECK TITLE" and the title text beside it. Invisible on `main`, because on `main` the
+editor never drew a cover at all. Fixed by clipping *after* the frame
+(`.frame(...).clipShape(RoundedRectangle(cornerRadius: 14))`), which is what Android's
+`Modifier.size(64.dp).clip(...)` on the Box already did. SwiftLint is clean either way, and the
+build was green with the overlap on screen.
+
+**Android re-run 2026-09-01 (`emulator-5554`, Pixel_9), on a cloned deck.** The staging phrase
+account owns nothing, so the editor was opened on a deck **cloned** from Discover — whose cover is a
+pinned blob ref, the Base64 path, and which is genuinely pre-existing rather than created by the
+test.
+
+| Step | Result |
+| --- | --- |
+| Editor on the clone, cover is a pinned blob | ✅ the photo |
+| Rename and save, reopen the editor | ✅ cover kept, counter reads the saved title |
+
+**The title row now matches iOS.** The counter and error sat *inside* the column beside the cover,
+making it label / field / counter; centring a tile against all three parks it level with the field
+while the label floats above it. Moving them below the whole row leaves label + field beside the
+cover — iOS's arrangement — so the tile spans both. Both tiles are 64dp/64pt; only the surrounding
+column differed.
+
+**Found while testing, not caused by this branch: [#193](https://github.com/jvsena42/loopky/issues/193).**
+Tapping Clone deck on iOS terminated the app — `LoopkyErrorReason.init` maps 11 of the shared
+enum's 12 entries and lets `Unknown` fall into an `assertionFailure`, but `Unknown` is
+`PubkyErrors.kt`'s own `else ->` catch-all. Any unclassified error therefore crashes the iOS debug
+app when its copy is rendered. Present on `main`; `ErrorMessages.swift` is untouched by this branch.

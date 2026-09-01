@@ -37,6 +37,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * The deck editor: metadata, plus a **paged** view of the deck's cards.
@@ -58,6 +60,7 @@ import kotlinx.coroutines.sync.withLock
 // Seven collaborators because the editor writes a deck end to end: manifest, cards, cover upload,
 // the author it stamps, and — since #39 — the announcement it offers on a create.
 @Suppress("TooManyFunctions", "LongParameterList")
+@OptIn(ExperimentalEncodingApi::class)
 class DeckEditorViewModel(
     private val deckId: String?,
     private val deckRepository: DeckRepository,
@@ -113,6 +116,11 @@ class DeckEditorViewModel(
                 DeckEditorUiState(
                     isNew = false,
                     coverEmoji = deck.coverEmoji ?: deck.title.firstOrNull()?.toString() ?: "",
+                    // The cover this screen is about to edit. A remote cover is its URL; a
+                    // homeserver blob has none, so loadCoverBlob fetches its bytes below. Without
+                    // both, the one screen that can *replace* a cover is the one screen that
+                    // cannot show you the cover you are replacing (#166).
+                    coverImageUrl = deck.coverImageRef?.url,
                     title = deck.title,
                     description = deck.description ?: "",
                     tags = deck.tags.map { tag -> tag.value },
@@ -133,7 +141,27 @@ class DeckEditorViewModel(
             }
             pageOrder = deck.chunks.sortedBy { it.n }.map { it.n }
             pagesLoaded = 0
+            // Off loadJob deliberately: a child would keep it active, and onLoadMoreCards
+            // refuses to page while it is.
+            viewModelScope.launch { loadCoverBlob(deck) }
             if (pageOrder.isEmpty()) loadWholeDeck(deck) else appendNextPage(deck)
+        }
+    }
+
+    /**
+     * Fetches a homeserver blob cover and folds its Base64 bytes into the state, mirroring
+     * [DeckDetailViewModel]. Remote (URL) covers need no fetch — [DeckEditorUiState.coverImageUrl]
+     * already carries them — and a cover picked since the load wins, so this drops its result
+     * rather than overwriting one.
+     */
+    private suspend fun loadCoverBlob(deck: Deck) {
+        val ref = deck.coverImageRef?.takeIf { !it.isRemote } ?: return
+        val bytes = mediaRepository.get(deck.authorPubky, deck.id, ref)
+            .onFailure { Log.e(TAG, "loadCoverBlob: FAILED — ${it.message}", it) }
+            .getOrNull() ?: return
+        val encoded = Base64.encode(bytes)
+        _state.update { s ->
+            if (s.coverImageUrl != null || s.coverPendingBytes != null) s else s.copy(coverImageBase64 = encoded)
         }
     }
 
@@ -305,11 +333,25 @@ class DeckEditorViewModel(
      * on [com.github.jvsena42.loopky.presentation.importflow.PublishDeckViewModel].
      */
     fun onCoverWebSelected(url: String) {
-        _state.update { it.copy(coverImageUrl = url, coverPendingBytes = null, coverPendingMime = null) }
+        _state.update {
+            it.copy(
+                coverImageUrl = url,
+                coverImageBase64 = null,
+                coverPendingBytes = null,
+                coverPendingMime = null,
+            )
+        }
     }
 
     fun onCoverGallerySelected(bytes: ByteArray, mime: String) {
-        _state.update { it.copy(coverImageUrl = null, coverPendingBytes = bytes, coverPendingMime = mime) }
+        _state.update {
+            it.copy(
+                coverImageUrl = null,
+                coverImageBase64 = null,
+                coverPendingBytes = bytes,
+                coverPendingMime = mime,
+            )
+        }
     }
 
     /**
@@ -459,7 +501,8 @@ class DeckEditorViewModel(
             // orphan the chunk it patched.
             val existing = deckId?.let { deckRepository.getLocal(it) ?: loadedDeck }
             val cards = if (deckId == null) newDeckCards(s.cards, actualDeckId, now) else emptyList()
-            val cover = resolveCoverImage(s, actualDeckId, mediaRepository) ?: existing?.coverImageRef
+            val cover = resolveCoverImage(s, actualDeckId, mediaRepository, existing?.coverImageRef)
+                ?: existing?.coverImageRef
             val deck = buildDeck(s, authorPubky, actualDeckId, existing, cards, now, cover)
 
             writeDeck(deck, cards, isCreate = deckId == null)
@@ -596,12 +639,16 @@ private suspend fun resolveCoverImage(
     s: DeckEditorUiState,
     deckId: String,
     mediaRepository: MediaRepository,
+    existing: MediaRef.Image?,
 ): MediaRef.Image? = when {
     s.coverPendingBytes != null ->
         mediaRepository.putImage(deckId, s.coverPendingBytes, s.coverPendingMime ?: DEFAULT_IMAGE_MIME)
             .getOrNull()
 
-    s.coverImageUrl != null -> MediaRef.Image(
+    // Only a URL the user actually picked builds a new ref. Since #166 the editor opens with the
+    // stored cover's URL already in state, and rebuilding from it would throw away whatever the
+    // saved ref carries beyond the URL (its mime, its dimensions) on every metadata save.
+    s.coverImageUrl != null && s.coverImageUrl != existing?.url -> MediaRef.Image(
         path = "",
         mime = DEFAULT_IMAGE_MIME,
         sha256 = "",
@@ -680,7 +727,10 @@ data class DeckEditorUiState(
     val isLoadingCards: Boolean = false,
     /** There are chunk records left to page in. */
     val hasMoreCards: Boolean = false,
+    /** A remote cover: the deck's stored URL on open, or one picked this session. */
     val coverImageUrl: String? = null,
+    /** A homeserver-blob cover's bytes, fetched on open. Null for a remote or unset cover. */
+    val coverImageBase64: String? = null,
     val coverPendingBytes: ByteArray? = null,
     val coverPendingMime: String? = null,
     val isSaving: Boolean = false,
