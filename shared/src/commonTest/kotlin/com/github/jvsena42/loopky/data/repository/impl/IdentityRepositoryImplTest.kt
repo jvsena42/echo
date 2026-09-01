@@ -2,7 +2,9 @@ package com.github.jvsena42.loopky.data.repository.impl
 
 import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
+import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.Session
@@ -66,6 +68,27 @@ class IdentityRepositoryImplTest {
         publishProfile("Ada")
 
         assertEquals("Ada", repo.fetchProfile(TEST_PUBKY).getOrThrow().displayName)
+    }
+
+    @Test
+    fun anUnpublishedProfileIsReportedAsAbsentRatherThanAsAFailedRead() = runTest {
+        // The default state of any pubky created outside pubky.app, and the reason sign-in used to
+        // log an error with a stack trace on every launch (#174). Absence has to stay tellable
+        // apart from "we could not read it": the first is an answer, the second is a fault.
+        val failure = repo.fetchProfile(TEST_PUBKY).exceptionOrNull()
+
+        assertEquals(ErrorReason.NotFound, failure?.toErrorReason())
+    }
+
+    @Test
+    fun aProfileWeCouldNotReadIsNotReportedAsAbsent() = runTest {
+        pubky.failGetWith = PubkyError(
+            "Request failed: HTTP transport error: error sending request for url (…)",
+        )
+
+        val failure = repo.fetchProfile(TEST_PUBKY).exceptionOrNull()
+
+        assertEquals(ErrorReason.Offline, failure?.toErrorReason())
     }
 
     @Test

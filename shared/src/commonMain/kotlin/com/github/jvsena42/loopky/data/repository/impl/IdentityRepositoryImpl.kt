@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.asSignupUrl
 import com.github.jvsena42.loopky.data.pubky.isNoHomeserverRecord
+import com.github.jvsena42.loopky.data.pubky.isNotFound
 import com.github.jvsena42.loopky.data.pubky.keypairFromMnemonic
 import com.github.jvsena42.loopky.data.pubky.keypairFromSecretKey
 import com.github.jvsena42.loopky.data.pubky.mintValidatedKeypair
@@ -480,7 +481,15 @@ internal class IdentityRepositoryImpl(
             val dto = loopkyJson.decodeFromString<ProfileDto>(json)
             dto.toDomain(pubky).also { cacheProfile(it) }
         }.onFailure {
-            Log.e(TAG, "fetchProfile: FAILED — ${it::class.simpleName}: ${it.message}", it)
+            // A 404 is the answer "this account has published no profile" — the ordinary state of
+            // any pubky created outside pubky.app, and one every caller already handles by falling
+            // back to the pubky itself. Reporting it as an error with a stack trace made a clean
+            // sign-in read as a broken one and buried the failures that do matter (#174).
+            if (it.isNotFound()) {
+                Log.d(TAG, "fetchProfile: none published by ${pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
+            } else {
+                Log.e(TAG, "fetchProfile: FAILED — ${it::class.simpleName}: ${it.message}", it)
+            }
         }
     }
 
