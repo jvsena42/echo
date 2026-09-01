@@ -639,10 +639,12 @@ private fun DeckMetadataCard(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        // Top row: emoji + title
+        // Top row: cover + title. Centred rather than topped or bottomed: the column beside it is
+        // label / field / counter, so aligning to either edge parks the tile against the 10sp
+        // label or the counter instead of the input it belongs to.
         Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             // Cover box — tappable so a deck's cover can be changed after publishing,
             // which was previously impossible: the picker only existed on the publish step.
