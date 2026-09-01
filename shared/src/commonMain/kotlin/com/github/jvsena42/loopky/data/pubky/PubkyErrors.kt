@@ -8,11 +8,28 @@ import com.github.jvsena42.loopky.domain.model.ErrorReason
  * "unknown error", never to silently wrong behaviour.
  */
 
-/** The path does not exist on the homeserver. For a list, that means "nothing here yet". */
+/**
+ * The path does not exist on the homeserver. For a list, that means "nothing here yet"; for a
+ * profile, "this account has published none" — an answer, not a failure to get one.
+ *
+ * Prefers [PubkyError.status] when the message named one, so a 500 whose body happens to say
+ * "not found" is not read as an absent record. Falls back to substrings otherwise, which is
+ * where the FFI's own wording (`"not found: pubky://…"`) and every non-HTTP miss land.
+ */
 internal fun Throwable.isNotFound(): Boolean {
+    (this as? PubkyError)?.status?.let { return it == HTTP_NOT_FOUND }
     val msg = message?.lowercase() ?: return false
-    return "not found" in msg || "notfound" in msg || "404" in msg
+    return "not found" in msg || "notfound" in msg || STATUS_404.containsMatchIn(msg)
 }
+
+private const val HTTP_NOT_FOUND = 404
+
+/**
+ * `404` as a status code rather than as three digits inside something else — same reasoning as
+ * [STATUS_507], and the same hazard: every failure message carries a `pubky://` URL, and deck
+ * and card ids are random alphanumerics.
+ */
+private val STATUS_404 = Regex("(?<![0-9a-z])404(?![0-9a-z])")
 
 /**
  * `get_homeserver` answered `Ok(None)`: this pubky has published no homeserver record, so it has
