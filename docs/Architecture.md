@@ -235,6 +235,10 @@ Bulk file import (`BulkImportViewModel`) rejoins this flow at the publish step, 
 
 > **Bulk operations.** `PubkyClient` has no batch/multi-put primitive, and all writes are sequential per operation. Publishing, deck listing, the `delete()` sweep and chunk reads all want bounded concurrency (#43 §4). Since the interface is a deliberate 1:1 FFI mirror, that stays a *repository-level* concern unless the FFI grows bulk calls. Two prerequisites before turning concurrency on: `MutableSessionProvider.value` is a plain non-atomic `var` read on every retry attempt, and `SessionRevalidatorImpl` serializes revalidation without coalescing it. Every `list()` call site now pages through `cursor`/`limit` (`data/repository/impl/PubkyPaging.kt`); the deck listing also asks for `shallow`.
 
+> **One authenticated write is one request — but only since #105, and only because the fork caches the session.** Every `*_with_session` FFI call used to begin with `restore_session`, whose cookie path ends in a full `/session` round trip. A record write therefore cost **two** HTTP requests: a revalidation nobody asked for, then the write. A 9,263-card deck delete is ~100 records, so ~200 requests, half of them overhead — and publish paid the same tax per chunk. The overhead was also what saturated the homeserver's rate limiter, which forced the sweeps down to a concurrency of 2 and serialized them; the two effects compounded. `src/session_cache.rs` in the fork now imports a session once per secret and hands out clones, so both sweeps run at the ordinary [`MAX_IN_FLIGHT`] width again.
+>
+> Two things worth not re-deriving. **True batching is not available**: the homeserver's DELETE route handles exactly one entry and the SDK exposes only `storage().delete(path)`, so a recursive delete needs homeserver *plus* SDK *plus* FFI work. And **the reuse is safe because revalidating first was never what made a write safe** — the homeserver checks the session on the write itself and answers 401 when it will not accept it, so an expiry is caught either way; the fork drops the cached session on a 401/403, re-imports, and retries once, which is why `isSessionExpired()` still sees the same `"Failed to import session: …"` wording it classifies on.
+
 `com.github.jvsena42.loopky.data.pubky.PubkyClient` in `shared/commonMain` is a **thin** Kotlin interface that mirrors the FFI surface one-for-one. It hides the `List<String>` `[status, payload]` convention behind `Result<String>` but does **not** introduce deck/card concepts — higher-level domain operations live in the repositories layer. The interface groups calls into: keys & mnemonics, recovery files, auth/sessions (including the Pubky Ring-style `startAuthFlow` / `awaitAuthApproval` / `parseAuthUrl` flow), records (secret-key and session variants), DHT resolution, and network switching.
 
 ### 7.2 Android wiring
@@ -257,8 +261,13 @@ Bulk file import (`BulkImportViewModel`) rejoins this flow at the publish step, 
 
 Run the fork's build scripts, then re-copy the outputs:
 
+`build_android.sh` needs `ANDROID_NDK_HOME` — it strips the libraries with the NDK's own
+`llvm-strip`, because cargo-ndk 4.x dropped the stripping it used to do by default and each
+unstripped ABI is ~40% larger.
+
 ```shell
 cd ../pubky-core-ffi-fork
+export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.1.12297006   # or whichever NDK you have
 ./build_android.sh
 ./build_ios.sh
 # then, from loopky/
