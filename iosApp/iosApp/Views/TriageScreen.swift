@@ -8,6 +8,9 @@ import Shared
 struct TriageScreen: View {
     var onBack: () -> Void = {}
     var onPublish: () -> Void = {}
+    /// The draft row to edit, by its index in the parse — not its position in the queue, which
+    /// shifts as cards are discarded.
+    var onEditCard: (Int) -> Void = { _ in }
 
     @State private var viewModel: TriageViewModel?
     @State private var uiState: TriageUiState?
@@ -21,7 +24,8 @@ struct TriageScreen: View {
             onDiscard: { viewModel?.onDiscard() },
             onUndo: { viewModel?.onUndo() },
             onApproveAll: { viewModel?.onApproveAll() },
-            onBack: { viewModel?.onBackClick() }
+            onBack: { viewModel?.onBackClick() },
+            onEdit: { viewModel?.onEditClick() }
         )
         .onAppear {
             attach()
@@ -56,9 +60,8 @@ struct TriageScreen: View {
             switch effect {
             case is TriageEffectNavigatePublish: onPublish()
             case is TriageEffectNavigateBack: onBack()
+            case let edit as TriageEffectNavigateEditCard: onEditCard(Int(edit.rowIndex))
             default:
-                // `NavigateEditCard` has no iOS destination yet — the triage card editor is a
-                // separate screen still to be built, so the row stays keep-or-discard.
                 break
             }
         }

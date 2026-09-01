@@ -13,6 +13,8 @@ struct HomeView: View {
     var onBrowseExamples: () -> Void = {}
     var onStartStudy: () -> Void = {}
     var onOpenDeck: (String) -> Void = { _ in }
+    /// "See all" over today's decks — the full library, i.e. the Decks tab.
+    var onSeeAllDecks: () -> Void = {}
 
     @Environment(\.loopkyWidthClass) private var widthClass
 
@@ -36,7 +38,11 @@ struct HomeView: View {
                             wideContent(content)
                         } else {
                             hero(content)
-                            TodaysDecksSection(decks: content.decks, onOpenDeck: onOpenDeck)
+                            TodaysDecksSection(
+                                decks: content.decks,
+                                onOpenDeck: onOpenDeck,
+                                onSeeAll: onSeeAllDecks
+                            )
                         }
                     case .error(let message):
                         Text("home_error_title")
@@ -74,7 +80,8 @@ struct HomeView: View {
             TodaysDecksSection(
                 decks: content.decks,
                 columns: wideDeckColumns,
-                onOpenDeck: onOpenDeck
+                onOpenDeck: onOpenDeck,
+                onSeeAll: onSeeAllDecks
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         }

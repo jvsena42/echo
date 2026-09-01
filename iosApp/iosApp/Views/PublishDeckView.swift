@@ -49,16 +49,21 @@ struct PublishDeckView: View {
             )
         }
         // Announcing is opt-in per action: off means never asked and never posted.
-        .confirmationDialog(
+        //
+        // An alert, not a confirmationDialog, for the reason `SignInPromptView.sharePrompt` is one:
+        // the dialog's `.cancel` button is detached from its action list and may not render at all,
+        // which would leave "Not now" — the safe, common answer — reachable only by guessing that a
+        // tap outside dismisses. The message stays the announcement preview rather than the shared
+        // modifier's static body, because this is the one place the post is shown before it is sent.
+        .alert(
             Text("share_prompt_title"),
-            isPresented: Binding(get: { state.sharePromptPreview != nil }, set: { if !$0 { onShareDismiss() } }),
-            titleVisibility: .visible
+            isPresented: Binding(get: { state.sharePromptPreview != nil }, set: { if !$0 { onShareDismiss() } })
         ) {
             Button("share_prompt_confirm", action: onShareConfirm).disabled(state.isSharing)
             Button("share_prompt_never", role: .destructive, action: onShareNeverAsk)
             Button("share_prompt_dismiss", role: .cancel, action: onShareDismiss)
         } message: {
-            if let preview = state.sharePromptPreview { Text(preview) }
+            if let preview = state.sharePromptPreview { Text(verbatim: preview) }
         }
     }
 

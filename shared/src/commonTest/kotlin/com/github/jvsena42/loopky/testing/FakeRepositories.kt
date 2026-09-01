@@ -30,6 +30,7 @@ import com.github.jvsena42.loopky.data.storage.PendingSignup
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.StudyProgressStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
+import com.github.jvsena42.loopky.domain.model.BACK_FIELD
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
 import com.github.jvsena42.loopky.domain.model.Deck
@@ -39,6 +40,7 @@ import com.github.jvsena42.loopky.domain.model.DeckMastery
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ErrorReason
+import com.github.jvsena42.loopky.domain.model.FRONT_FIELD
 import com.github.jvsena42.loopky.domain.model.HomeserverLookup
 import com.github.jvsena42.loopky.domain.model.ImportDraft
 import com.github.jvsena42.loopky.domain.model.KeyCustody
@@ -1008,7 +1010,8 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
     private val triageDecisions = mutableMapOf<Int, TriageDecision>()
     private val rowEdits = mutableMapOf<Int, Pair<String, String>>()
 
-    override fun currentDraft(): ImportDraft? = draft
+    override fun currentDraft(): ImportDraft? =
+        draft?.let { d -> if (rowEdits.isEmpty()) d else d.copy(rows = d.rows.map(::applyEdit)) }
 
     override suspend fun parse(rawText: String, separator: Separator?): Result<ImportDraft> =
         draft?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no draft"))
@@ -1097,7 +1100,20 @@ class FakeImportRepository(var draft: ImportDraft? = null) : ImportRepository {
     override fun rowImage(rowIndex: Int, isFront: Boolean): DraftCardImage? = rowImages[rowIndex to isFront]
 
     override fun keptRows(): List<ParsedRow> =
-        draft?.rows?.filter { triageDecisions[it.index] != TriageDecision.Discard } ?: emptyList()
+        draft?.rows
+            ?.filter { triageDecisions[it.index] != TriageDecision.Discard }
+            ?.map(::applyEdit)
+            ?: emptyList()
+
+    /** Mirrors `ImportRepositoryImpl.applyEdit`. A fake that ignores edits tests nothing about them. */
+    private fun applyEdit(row: ParsedRow): ParsedRow {
+        val (front, back) = rowEdits[row.index] ?: return row
+        val fields = row.fields.toMutableList()
+        while (fields.size <= BACK_FIELD) fields.add("")
+        fields[FRONT_FIELD] = front
+        fields[BACK_FIELD] = back
+        return row.copy(fields = fields, isValid = front.isNotBlank() || back.isNotBlank())
+    }
 
     override fun clear() {
         clearCount++
