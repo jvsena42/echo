@@ -959,7 +959,44 @@ save path would have reconstructed a ref from the URL alone on every metadata sa
 dropping the stored mime and dimensions. `resolveCoverImage` only builds a new ref when the URL
 differs from the one the deck was loaded with.
 
-**Not exercised:** iOS. The same shared state change carries `coverImageBase64` to
-`DeckEditorView`, and `CardMediaImage` already draws bytes, but `xcodebuildmcp` is not installed on
-this machine (the MCP server fails to connect) and there is no simulator here — the Swift side is
-unverified on a device.
+**iOS, 2026-09-01 (iPhone 17 simulator, `xcodebuildmcp` now installed).** Re-run against the
+staging account that owns the test decks, opening the editor on an **existing** deck with a cover
+(Periodic Table, 118 cards) rather than one created for the test.
+
+| Step | Result |
+| --- | --- |
+| Editor on a deck with a cover | ✅ the photo — `coverImageBase64` reaches `CardMediaImage` |
+| Cover tile clipped to its 64pt box | ❌ then ✅ — see below |
+| Cover tile vs. the label + title beside it | ✅ centred on both |
+
+**Showing the cover exposed a second iOS bug, and only driving the app found it.** The tile is a
+`ZStack` under `.frame(width: 64, height: 64)`, with the clip applied to the `CardMediaImage`
+*inside* it. A `.fill` image reports a size larger than the box in one dimension, so the ZStack grew
+with it and the frame merely re-centred the overflow instead of cutting it off — the cover spilled
+out over "DECK TITLE" and the title text beside it. Invisible on `main`, because on `main` the
+editor never drew a cover at all. Fixed by clipping *after* the frame
+(`.frame(...).clipShape(RoundedRectangle(cornerRadius: 14))`), which is what Android's
+`Modifier.size(64.dp).clip(...)` on the Box already did. SwiftLint is clean either way, and the
+build was green with the overlap on screen.
+
+**Android re-run 2026-09-01 (`emulator-5554`, Pixel_9), on a cloned deck.** The staging phrase
+account owns nothing, so the editor was opened on a deck **cloned** from Discover — whose cover is a
+pinned blob ref, the Base64 path, and which is genuinely pre-existing rather than created by the
+test.
+
+| Step | Result |
+| --- | --- |
+| Editor on the clone, cover is a pinned blob | ✅ the photo |
+| Rename and save, reopen the editor | ✅ cover kept, counter reads the saved title |
+
+**The title row now matches iOS.** The counter and error sat *inside* the column beside the cover,
+making it label / field / counter; centring a tile against all three parks it level with the field
+while the label floats above it. Moving them below the whole row leaves label + field beside the
+cover — iOS's arrangement — so the tile spans both. Both tiles are 64dp/64pt; only the surrounding
+column differed.
+
+**Found while testing, not caused by this branch: [#193](https://github.com/jvsena42/loopky/issues/193).**
+Tapping Clone deck on iOS terminated the app — `LoopkyErrorReason.init` maps 11 of the shared
+enum's 12 entries and lets `Unknown` fall into an `assertionFailure`, but `Unknown` is
+`PubkyErrors.kt`'s own `else ->` catch-all. Any unclassified error therefore crashes the iOS debug
+app when its copy is rendered. Present on `main`; `ErrorMessages.swift` is untouched by this branch.
