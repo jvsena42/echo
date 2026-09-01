@@ -4,6 +4,8 @@ import com.github.jvsena42.loopky.domain.model.ErrorReason
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class PubkyErrorsTest {
 
@@ -151,6 +153,54 @@ class PubkyErrorsTest {
         val both = PubkyError("No homeserver found for this public key (failed to resolve)")
 
         assertEquals(ErrorReason.NoHomeserverAccount, both.toErrorReason())
+    }
+
+    @Test
+    fun readsTheStatusOutOfTheAnswerTheHomeserverActuallySends() {
+        // Verbatim from an iOS sign-in against a real homeserver (#174). The FFI has no typed
+        // error surface, so this prose is the only place the status exists.
+        val absent = PubkyError(
+            "Request failed: Request failed: Server responded with an error: " +
+                "404 Not Found - Not Found",
+        )
+
+        assertEquals(404, absent.status)
+        assertTrue(absent.isNotFound())
+        assertEquals(ErrorReason.NotFound, absent.toErrorReason())
+    }
+
+    @Test
+    fun carriesNoStatusWhenTheMessageNamesNone() {
+        // A transport failure never reached the homeserver, so there is no status to report —
+        // and the classifiers must fall back to substrings rather than read one out of the URL.
+        val offline = PubkyError(
+            "Request failed: HTTP transport error: error sending request for url " +
+                "(https://_pubky.rc3omrqq/pub/loopky/decks/404abc/manifest.json)",
+        )
+
+        assertNull(offline.status)
+        assertEquals(ErrorReason.Offline, offline.toErrorReason())
+    }
+
+    @Test
+    fun doesNotReadAnIdContaining404AsAMissingRecord() {
+        // The same hazard STATUS_507 guards against: ids are random alphanumerics, and a bare
+        // "404" substring match would report a live record as absent.
+        val unrelated = PubkyError("Failed to put record: pubky://x/pub/loopky/decks/a404bc/manifest.json")
+
+        assertFalse(unrelated.isNotFound())
+        assertEquals(ErrorReason.Unknown, unrelated.toErrorReason())
+    }
+
+    @Test
+    fun aStatusInTheMessageWinsOverABodyThatSaysNotFound() {
+        // A server error whose body happens to carry the words is not an absent record, and the
+        // difference is the whole point: one is an answer, the other is a failure to get one.
+        val serverError = PubkyError(
+            "Request failed: Server responded with an error: 500 Internal Server Error - not found",
+        )
+
+        assertFalse(serverError.isNotFound())
     }
 
     @Test

@@ -162,4 +162,27 @@ interface PubkyClient {
 }
 
 /** Error returned by [PubkyClient] when the FFI replies with `["error", message]`. */
-class PubkyError(message: String) : RuntimeException(message)
+class PubkyError(message: String) : RuntimeException(message) {
+    /**
+     * The HTTP status the homeserver answered with, when the FFI's message carries one.
+     *
+     * The FFI has no typed error surface — a homeserver answer reaches us as prose
+     * (`"Request failed: Server responded with an error: 404 Not Found - Not Found"`), so the
+     * status has to be read back out of it. Parsed once here rather than at each call site,
+     * because a bare `"404" in message` is the bug [isNotFound] used to have: every failure
+     * message carries a `pubky://` URL, and deck and card ids are random alphanumerics.
+     *
+     * `null` when the message names no status — a transport failure that never reached the
+     * homeserver, or wording this parser does not know. Classifiers fall back to substrings
+     * there, so a miss degrades to today's behaviour rather than to a wrong verdict.
+     */
+    val status: Int? = STATUS_IN_MESSAGE.find(message)?.groupValues?.get(1)?.toIntOrNull()
+}
+
+/**
+ * Matches the status in the one shape the homeserver's answers reach us in. Deliberately
+ * anchored to the phrase rather than hunting for three digits: an unanchored match would read a
+ * status out of the URL in the same message.
+ */
+private val STATUS_IN_MESSAGE =
+    Regex("""responded with an error:\s*(\d{3})""", RegexOption.IGNORE_CASE)

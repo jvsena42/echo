@@ -1125,3 +1125,30 @@ front now reads 'buenos dias'" is the assertion that fails on `main`. The journe
 why that step matters, and adds reopening the editor and leaving it without saving. Android is
 still owed a run of it — no emulator was up, and the fix there is the shared code these tests and
 the iOS pass cover.
+
+## #174 — an absent profile is no longer reported as an error (2026-09-01, `emulator-5554`)
+
+Shared code, so this is one fix for both platforms; driven on Android because that is where a
+log is readable without a simulator attached.
+
+Signed in as `ma8tms…`, Discover → browse `loopky-deck`, which resolves one author profile per
+tile and is the densest `fetchProfile` path in the app:
+
+| Step | Result |
+| --- | --- |
+| Launch, session restored, Home loads | PASSED |
+| Discover → 11 decks, 5 author profiles resolved | PASSED — `loadAuthorProfiles: resolved=4/5` |
+| The author with no `pubky.app` profile | PASSED — `D … fetchProfile: none published by 1xzbn89y…`, one line, no throwable |
+| Error-level lines in the whole session | **0** (`grep -c " E Loopky"`) |
+
+Before the fix that fifth author produced `E/Loopky/IdentityRepo: fetchProfile: FAILED —
+PubkyError: … 404 Not Found` with a full stack trace, and sign-in produced two more on every
+launch. Nothing about the behaviour changed: the caller still `getOrNull()`s and falls back to
+the pubky.
+
+**The classifier was the actual work.** A 404 had to be told from a read that failed, and
+`PubkyError` carried the status only inside its message prose. It now parses one out
+(`PubkyError.status`), anchored to `"responded with an error: NNN"` so it cannot read a status
+out of the `pubky://` URL in the same message, and `isNotFound()` prefers it — which also closes
+the hazard `STATUS_507` was written for: a deck id containing "404" used to classify a live
+record as missing.
