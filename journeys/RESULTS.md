@@ -48,10 +48,12 @@ Re-verified on `emulator-5554` 2026-06-17 after adding the triage step + card op
 The study loop, discover, deck manage/delete, and profile/settings/sign-out journeys remain
 runnable on the emulator.
 
-## 07 — Triage edit — ⏳ scripted (not re-run)
+## 07 — Triage edit — ✅ PASS on iOS (2026-09-01); still not re-run on Android
 
 `journeys/07-triage-edit.xml`: edit a draft card's front/back in triage, keep, publish, and
-confirm the edit persisted. Scripted; drive with adb.
+confirm the edit persisted. **Scripted 2026-06 and never actually run until now**, which is how
+two bugs sat in it — see the #193 follow-ups section at the end of this file. Driven on the
+iPhone 17 Pro simulator after those fixes; the Android script is still owed a run.
 
 ## 08 — Image select — ✅ PARTIAL PASS
 
@@ -1069,3 +1071,57 @@ overlay cannot.
 - **New: `journeys/24-deck-create-editor.xml`.** No journey covered creating a deck from the
   editor, which is exactly how the stuck-save survived. It needs an account with an empty library,
   because that is the only place the create entry appears.
+
+## #193 follow-ups — the three the audit deferred (2026-09-01, iPhone 17 Pro)
+
+All three fixed. Driven on the simulator, signed in as `ma8tms…`; every probe deck deleted
+afterwards. SwiftLint clean, `detektAll` clean, `:shared:allTests` green (1258 tests), and
+`:composeApp:assembleDebug` still builds against the shared change.
+
+**Home's "See all" was a label, not a control.** `TodaysDecksSection` rendered `home_see_all` as a
+styled `Text`: it looked exactly like Android's button, announced nothing to VoiceOver, and did
+nothing when tapped — `HomeEffect.NavigateAllDecks` had no handler and `onSeeAllDecksClick` no
+caller. It is a `Button` now, carrying Android's `home_see_all_decks` tag, wired through
+`HomeScreen` to `MainView`, which selects the Decks tab. **Both** Home layouts pass it, compact and
+the wide two-pane one. Verified: tapping it moves the selection to Decks.
+
+**The publish share prompt is an `.alert`.** It was still the one `confirmationDialog` left in the
+share family — the construct whose `.cancel` button is detached from the action list and, per the
+note on `SignInPromptView.sharePrompt`, may not render at all, which would leave "Not now" (the
+safe, ordinary answer) reachable only by guessing that a tap outside dismisses. It keeps the
+announcement preview as its message, because this is the one place the post is shown before it is
+sent. Verified on device: Share / Don't ask again / Not now all visible, preview intact. This one is
+applied on the documented rule rather than on an observed failure — the old dialog did render all
+three buttons on this OS version.
+
+**Triage card editing exists on iOS, and it turned out the whole feature was broken on both
+platforms.** `TriageEffect.NavigateEditCard` had no iOS destination *and* no iOS control emitting
+it. Added: an Edit action on `TriageView` (tag `triage_edit`, between the two verdicts as on
+Android), a `TriageEditCardScreen` — deliberately not VM-driven, mirroring Android's
+`TriageEditCardRoute`, since the draft is in memory and an edit is a field write — and the
+`importTriageEditCard` route. Reading and writing the row goes through three narrow
+`IosDependencies` functions rather than exposing `ImportRepository` to Swift.
+
+Driving it immediately showed the edit not taking:
+
+| Step | Before | After |
+| --- | --- | --- |
+| Edit "Gato" → "Gatinho", Save | ❌ triage still reads "Gato" | ✅ reads "Gatinho" |
+| Reopen the editor | ❌ opens on "Gato" | ✅ opens on "Gatinho" |
+| Publish | ✅ deck carries "Gatinho" | ✅ unchanged |
+
+**That is a `commonMain` bug, and Android has it too.** `ImportRepository.updateRow` stores the
+edit in a `rowEdits` map beside the parse — deliberately, so a re-parse can drop them wholesale —
+but `currentDraft()` handed back the *raw* rows and only `keptRows()` applied the edits. So every
+reader of the draft disagreed with the deck that would be published: triage kept showing the old
+text, the editor reopened on it, and a row edited into having a back still counted as missing one.
+The edits only became visible at publish, which is the one moment nobody can see. `currentDraft()`
+now applies them, with two tests over the real repository. `FakeImportRepository` was wrong the same
+way — it ignored edits in both `currentDraft()` and `keptRows()` — so no ViewModel test could have
+caught it; it now mirrors the real `applyEdit`.
+
+**Journey 07 already described this exactly, and had never been run.** Its step "the first card
+front now reads 'buenos dias'" is the assertion that fails on `main`. The journey now spells out
+why that step matters, and adds reopening the editor and leaving it without saving. Android is
+still owed a run of it — no emulator was up, and the fix there is the shared code these tests and
+the iOS pass cover.
