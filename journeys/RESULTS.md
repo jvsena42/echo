@@ -1152,3 +1152,42 @@ the pubky.
 out of the `pubky://` URL in the same message, and `isNotFound()` prefers it — which also closes
 the hazard `STATUS_507` was written for: a deck id containing "404" used to classify a live
 record as missing.
+
+## Every authenticated write paid a `/session` round trip (#105) — ✅ PASS (2026-09-01, `emulator-5554`)
+
+Journeys **02** (paste-import → publish) and **05** (deck manage/delete) re-run on a 16KB-page
+`sdk_gphone16k_arm64` emulator, signed in as `ma8tms…dyomwy`, against a real homeserver, after the
+FFI fork learned to reuse an imported session (`src/session_cache.rs`).
+
+Counted from the SDK's own tracing rather than a stopwatch. `pubky` logs `Importing session
+secret` once per `import_secret`, and `import_secret` is what ends in the `/session` round trip —
+so the line count *is* the overhead, and the old code emitted one per authenticated call by
+construction.
+
+| Operation | Authenticated writes | `/session` imports (before: one per write) |
+| --- | --- | --- |
+| Fresh process, cold start | — | **1** |
+| Publish a 6-card deck | 4 × `put_with_session` | **0** |
+| Delete a 24-card deck with 6 tags | 16 × `delete_with_session` | **0** |
+| Delete the 6-card deck | 4 × `delete_with_session` | **0** |
+
+`429 Too Many Requests`: **0** across all of it, with both sweeps back at the ordinary
+`MAX_IN_FLIGHT` width — the narrowing to 2 existed only because the doubled request count
+saturated the limiter, and it went with the cause. Publish landed in **2.5s**; the two deletes in
+**14.5s** and **10.2s** end to end, most of which is the deck-list refresh behind them.
+
+**The cold-start `1` is the control.** It proves the log line still fires and the counting is
+honest: the session is imported exactly once per process, and every write after it reuses that
+import. Without that row a table of zeroes would equally well mean the tracing was off.
+
+**Two things this run says nothing about.** The homeserver here answered every request first time,
+so the expiry path — 401 → drop the cached session → re-import → retry once — was never taken;
+it is covered by unit tests in the fork, not by this. And the deck sizes are small: 16 deletes is
+not the 9,263-card deck that opened the issue, so the *ratio* is measured here and the wall-clock
+at scale is not.
+
+**Two emulator artifacts, neither caused by the change.** `adb shell input text` in a tight loop
+corrupts occasional lines (a newline landing one character late), which produces cards with an
+empty side and a publish that fails validation before any network call — pace the typing. And
+pressing BACK on the publish screen leaves a blank white screen with an empty accessibility tree;
+it reproduces from a cold start and touches nothing in this change, but it is worth an issue.
