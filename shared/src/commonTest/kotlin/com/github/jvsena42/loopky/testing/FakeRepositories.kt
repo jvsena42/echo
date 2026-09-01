@@ -1155,13 +1155,24 @@ class FakeMediaRepository : MediaRepository {
 
     val gets = mutableListOf<Triple<String, String, MediaRef>>()
 
+    /** Blob bytes by sha256, for a test that cares what [get] actually returns. */
+    val blobs = mutableMapOf<String, ByteArray>()
+
+    /** When set, [get] fails with this instead of returning bytes. */
+    var failGetWith: Throwable? = null
+
+    /** When set, [get] blocks on it — so a test can act while a fetch is in flight. */
+    var getGate: CompletableDeferred<Unit>? = null
+
     override suspend fun get(
         authorPubky: String,
         deckId: String,
         ref: MediaRef,
     ): Result<ByteArray> {
         gets.add(Triple(authorPubky, deckId, ref))
-        return Result.success(ByteArray(0))
+        getGate?.await()
+        failGetWith?.let { return Result.failure(it) }
+        return Result.success(blobs[ref.sha256] ?: ByteArray(0))
     }
 
     val rehosts = mutableListOf<Pair<String, MediaRef>>()
