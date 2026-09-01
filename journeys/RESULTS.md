@@ -923,3 +923,43 @@ SwiftLint is clean, and `snapshot-ui` renders the chips identically either way, 
 driving the app finds it. And the iOS quiz chip was already *visually* correct (it filled, which is
 what Android was changed to match), which made it easy to assume iOS needed nothing; the defect it
 did have was in the accessibility tree, where looking at a screenshot cannot reach.
+
+## Deck editor — the cover it edits (#166) — ✅ PASS (2026-09-01, `emulator-5554`)
+
+Journey **11** re-run on a Medium_Phone emulator, signed in as `kfezy1`, against a real
+homeserver. The editor's cover box showed the title's first letter for every deck that had a
+cover — the same placeholder a deck with none gets — while the deck grid and deck detail both drew
+the real picture. It is the only screen from which a published deck's cover can be *replaced*, so
+it was the only screen that would not show what was being replaced.
+
+| Step | Before | After |
+| --- | --- | --- |
+| Editor on a deck with an **Unsplash** cover | ❌ `S` on the accent-soft square | ✅ the photo |
+| Editor on a deck with a **gallery** cover (homeserver blob) | ❌ `S` | ✅ the photo |
+| Pick a gallery image, before saving | ❌ `S` — the picked bytes were never drawn | ✅ the photo |
+| Save with the cover untouched, reopen | ✅ cover kept (already guarded by this journey) | ✅ kept, ref unchanged |
+| Cover tile vs. the title input beside it | ❌ level with the 10sp label, floating above the field | ✅ centred on the field |
+| Same, at 1280dp (`wm size 2560x1600`, density 320) | ❌ same misalignment | ✅ centred |
+
+**Two covers, two paths, and only one of them was in the issue.** A remote cover is a URL the
+manifest already carries; a gallery cover is a blob with no URL at all, so it has to be fetched and
+handed over as Base64 exactly the way `DeckDetailViewModel` does. Mapping the URL alone — the fix
+the issue proposes — leaves every gallery cover still showing its initial, and nothing reports it.
+The picked-but-unsaved case was broken too: `coverPendingBytes` was in the state and never drawn,
+so choosing a photo from the gallery looked like it had done nothing until you saved.
+
+**The alignment was a second bug, found only by looking at the screen.** The cover sat in a Row
+with `Alignment.Top` against a column of *label / field / counter*, so it hung level with the 10sp
+"DECK TITLE" label rather than the input. Invisible while the box was an empty letter tile;
+obvious the moment it held a picture. Bottom-aligning is no better — it parks the tile against the
+character counter — so the row is centred.
+
+**Saving no longer rebuilds a cover it did not change.** With the stored URL now in state, the
+save path would have reconstructed a ref from the URL alone on every metadata save, quietly
+dropping the stored mime and dimensions. `resolveCoverImage` only builds a new ref when the URL
+differs from the one the deck was loaded with.
+
+**Not exercised:** iOS. The same shared state change carries `coverImageBase64` to
+`DeckEditorView`, and `CardMediaImage` already draws bytes, but `xcodebuildmcp` is not installed on
+this machine (the MCP server fails to connect) and there is no simulator here — the Swift side is
+unverified on a device.
