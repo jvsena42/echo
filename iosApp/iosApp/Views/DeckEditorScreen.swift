@@ -21,6 +21,7 @@ struct DeckEditorScreen: View {
             isNew: uiState?.isNew ?? (deckId == nil),
             coverEmoji: uiState?.coverEmoji ?? "",
             coverImageUrl: uiState?.coverImageUrl,
+            coverImageBase64: uiState?.coverImageBase64,
             coverPendingBytes: uiState?.coverPendingBytes?.toData(),
             title: uiState?.title ?? "",
             description: uiState?.description_ ?? "",
