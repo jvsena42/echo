@@ -36,7 +36,7 @@ struct SettingsView: View {
         // A column of settings rows — the case `PaneWidth.reading` exists for. Unbounded, a
         // 1366pt-wide row puts its label at one edge and its toggle at the other.
         .contentPane()
-        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
+        .loopkyScreenBackground()
         .navigationTitle(Text("settings_title"))
         .navigationBarTitleDisplayMode(.inline)
         .alert(

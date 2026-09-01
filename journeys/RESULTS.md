@@ -1226,3 +1226,62 @@ typing loop, so the likeliest explanation is hundreds of queued key events still
 whatever screen the app had navigated to — an artifact of the driving method rather than anything
 a finger can reach. Filed as jvsena42/loopky#198 so a second sighting has somewhere to land, not
 as a known defect.
+
+---
+
+## iOS import flow brought up to Android's — 02 and 07 re-run (2026-09-01)
+
+`journeys/02-paste-import-publish.xml` and `journeys/07-triage-edit.xml`, driven on the **iPhone 17
+simulator** and the **iPad Pro 13-inch (M5) simulator** (both iOS 26.5) via `xcodebuildmcp`, signed
+in against the real staging homeserver. Paste cards and Review cards were the two screens furthest
+from their Android counterparts; both were rebuilt against the Compose originals.
+
+**02 — paste and triage steps: ✅ PASS on iOS.** The two regressions this journey exists to catch
+were *both* live on iOS until this run, because the assertions were written from Android and the
+iOS screen had neither:
+
+| Step | Before | Now |
+| --- | --- | --- |
+| Single word "dog" → chip reads "No pattern detected" | ❌ no chip — a separate warning row below the field | ✅ the chip carries it, as on Android |
+| Count reads "1 card", not "1 cards" | ❌ `paste_card_count` was a flat `"%lld cards"` | ✅ a real plural in the catalog |
+| 3 comma lines → "Detected: comma" + live preview | ✅ | ✅ now a horizontal strip of flashcards, not a two-column table |
+| Next → Review cards with `triage_card`, `triage_progress` "1 of 3", Discard/Edit/Keep | 🟡 the screen existed; **none of the ids did** | ✅ every id the journey names now resolves |
+| Keep ×3 → Publish | ✅ | ✅ 1 of 3 → 2 of 3 → 3 of 3 → New deck |
+
+Stopped there rather than publishing a junk deck to staging: the publish screen is unchanged by
+this work.
+
+**07 — the edit entry point: ✅ PASS.** `triage_edit` is now a round pencil button between the two
+verdicts; tapping it opens the editor on the card's current text (`triage_edit_front` = "hola",
+`triage_edit_back` = "hello").
+
+**Swipe, which iOS did not have at all.** Review cards is now a card stack: drag right kept
+(1 of 3 → 2 of 3, "1 kept"), drag left discarded ("1 kept · 1 discarded"), the peek card behind
+grows in as the top one leaves, and the keep/discard badge scales in over the card and rides with
+it. The three round buttons run the same fly-off, so tapping and swiping do not look like two
+different screens. Verified mid-gesture on the phone and end-to-end on both devices. Reduce Motion
+skips the flight and keeps the decision.
+
+**Tablet.** Both screens match Android's tablet behaviour: a full-width bar over content capped at
+the reading ceiling and centred. One thing was wrong on the first iPad pass and is fixed — the card
+*region* was capped at 540 rather than the card, which left the card and its buttons bunched under
+the title with ~300pt of empty cream below. The region is greedy now; the card is what gets capped.
+
+**The background never reached the edges, on any screen.** Sampling the framebuffer on Review cards
+showed pure white from y=0 to y≈90 and again below y≈750 — `.background(color.ignoresSafeArea())`
+does not work in a `NavigationStack` destination, because the background sizes to a frame that is
+already inset and the colour has no inset left to escape. It was invisible on the cream screens,
+where the window's white passes for `surfacePrimary`, and obvious the moment Review cards painted
+`surfaceSecondary`. All 16 screens now go through `loopkyScreenBackground`, which puts the colour
+under a `ZStack`; re-sampled edge to edge afterwards.
+
+**One stale assertion, left as found.** Journey 02 still asserts "the Listen and Speak toggles are
+both ON by default". They are off — all four study opt-ins default off, deliberately, and the
+publish screen showed all four off on this run. Not touched here because nothing in this change
+caused it; either the journey or the default is wrong and that is worth deciding on purpose.
+
+**A simulator artifact worth knowing.** The simulator keyboard's autocorrect rewrites pasted-in
+test text as it is typed ("hola" → "Hora", "dog,cachorro" → "Dog,cachorro", "adios" → "Áudios"),
+and `type-text` refuses a string containing a newline or an em-dash — type each line and press
+key code 40 between them. None of it is the app; it does make a typed em-dash list untestable this
+way.

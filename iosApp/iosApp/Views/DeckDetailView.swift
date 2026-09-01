@@ -94,7 +94,7 @@ struct DeckDetailView: View {
                 contentBody(content)
             }
         }
-        .background(LoopkyColor.surfacePrimary.ignoresSafeArea())
+        .loopkyScreenBackground()
         .navigationBarHidden(true)
     }
 

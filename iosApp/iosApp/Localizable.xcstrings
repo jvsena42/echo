@@ -3592,9 +3592,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld cards"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld card"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld cards"
+                }
+              }
+            }
           }
         }
       }
@@ -3610,6 +3622,28 @@
         }
       }
     },
+    "paste_chip_incomplete": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld incomplete"
+          }
+        }
+      }
+    },
+    "paste_chip_no_pattern": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No pattern detected"
+          }
+        }
+      }
+    },
     "paste_detected_separator": {
       "extractionState": "manual",
       "localizations": {
@@ -3617,17 +3651,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Detected: %1$@"
-          }
-        }
-      }
-    },
-    "paste_incomplete_cards": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld card(s) are missing a front or a back. You can fix them after importing."
           }
         }
       }
@@ -3661,17 +3684,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Next"
-          }
-        }
-      }
-    },
-    "paste_no_pattern": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No front/back pattern found — every line became a single column. Pick a separator above, or add one to your text."
           }
         }
       }
@@ -3748,7 +3760,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "em-dash"
+            "value": "dash"
           }
         }
       }
@@ -3782,6 +3794,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "semicolon"
+          }
+        }
+      }
+    },
+    "paste_separator_sheet_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Split cards by"
           }
         }
       }
@@ -3826,6 +3849,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "TRY PASTING SOMETHING LIKE"
+          }
+        }
+      }
+    },
+    "paste_validation_empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste or type your list first."
+          }
+        }
+      }
+    },
+    "paste_validation_no_cards": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No cards found yet — check the separator or add a front and back."
           }
         }
       }
