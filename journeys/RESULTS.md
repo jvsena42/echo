@@ -1293,9 +1293,11 @@ know, shorten the instruction blocks, and make the two platforms say the same th
 
 **"homeserver" is gone from every user-facing string on both platforms** (was 9 on Android and
 mirrored in `ErrorMessages.swift`). Nobody picks a homeserver, sees one, or can act on the word.
-It became "your account" where it meant storage, and the Settings row that displayed the
-homeserver's z32 is now **Storage server** — the value is still there for support, the coined term
-is not. `homeserver` survives only in Kotlin/Swift identifiers and code comments.
+It became "your account" where it meant storage. The Settings row that displays the
+homeserver's z32 was briefly renamed **Storage server**, and that was reverted the same day (see
+the iOS pass below): a coined term names nothing, so a user comparing Loopky's row against any
+other Pubky client's has no way to tell they are the same thing. Everywhere else, `homeserver`
+survives only in Kotlin/Swift identifiers and code comments.
 
 **"Pubky" now appears only where it names something the user can act on** — the Pubky Ring app,
 pubky.app, the invite code from the Pubky team, and the pubky shown on a profile. Dropped from
@@ -1333,7 +1335,7 @@ every `%`-bearing catalog value now reports zero.
 
 | Verified on the phone | Result |
 | --- | --- |
-| 06 — Settings: identity rows, sharing row, all four study rows | ✅ "Storage server", "Ask before posting", no wrapping or truncation |
+| 06 — Settings: identity rows, sharing row, all four study rows | ✅ "Storage server" (since reverted to "Homeserver"), "Ask before posting", no wrapping or truncation |
 | 06 — Settings after the second copy pass (below) | ✅ Hard interval's note is one line, Easy interval's two, sharing two; screen no longer scrolls to reach Image search |
 | 06 — Sign out dialog | ✅ "Your decks stay in your account. Signing back in restores everything." |
 | 05 — Deck detail → Delete deck | ✅ "Delete deck?" / "“Spanish Nouns” and everything you've learned from it will be deleted. This can't be undone." — the title interpolates |
@@ -1367,3 +1369,44 @@ and anything sweeping this again should leave them alone: `paste_blank_placehold
 glyph, and `decks_sort_alphabetical` ("A–Z") and `deck_editor_move_to_label` ("Position (1–%1$d)")
 are en-dash numeric ranges, which is what an en dash is for. Re-checked on the phone: Settings
 reads "A goal, not a limit. You can always keep going."
+
+
+## iOS pass on the copy branch — study captions, Homeserver, language hint (2026-09-02, `iPhone 17` sim + `emulator-5554`)
+
+The plain-language pass above was written on a machine with no Xcode, and flagged itself as
+**unverified on iOS**. This is that verification, plus the three changes it turned up.
+
+**The Studying section was wrong on iOS, and only on iOS.** Android has always hung each caption
+under the row it explains; SwiftUI's `Section(footer:)` stacked all three below all four steppers,
+so "A goal, not a limit", "How long until the card comes back" and the mastery note read as one
+block of prose with no way to tell which belonged to which. The mastery note is the one that
+actually breaks: it is only meaningful beside the Easy interval it measures against. Fixed by
+giving the stepper label a `VStack` of label + caption, matching `StudySettingsSection`; the footer
+now carries only the "can't edit yet" warning, which is genuinely section-wide. VoiceOver gains the
+captions as a side effect — they were unreachable footer text and now read out with their stepper
+(`New cards per day, A goal, not a limit. You can always keep going., 20, Increment`).
+
+**"Storage server" reverted to "Homeserver"** on both platforms — see the correction above.
+
+**The deck-editor language hint was cut to one line.** Two sentences of justification became "Sets
+the voice used to read each side aloud." The requirement is unchanged and still stated where it
+bites, on `deck_languages_required`. Three drafts were rejected on the way and the reasons are
+worth keeping: "not your accent" makes the reader work out whose accent and why it would happen,
+and "This also tags the deck" describes a side effect nobody is deciding at that moment.
+
+| Verified | Result |
+| --- | --- |
+| 06 — Settings, Studying section (iPhone 17 sim) | ✅ each caption under its own row; Good has none, as on Android |
+| 06 — Settings, identity rows (iPhone 17 sim) | ✅ "Homeserver" |
+| 06 — Settings, identity + Studying (`emulator-5554`) | ✅ "Homeserver"; Android captions unchanged |
+| 05 — Deck editor, Listen on → language pickers (iPhone 17 sim) | ✅ hint is two lines above the pickers, no truncation |
+| 05 — Deck editor, Listen on → language pickers (`emulator-5554`) | ✅ hint is one line; backed out without saving |
+
+`assembleDebug`, `detektAll` and `lintSwift` green; iOS builds and runs on the simulator.
+
+**Not verified, and why.** The **iPad** was not checked. The regular-size-class pass this repo asks
+for needs a signed-in Settings screen, and the iPad simulator is in guest state — a simulator signs
+in by QR from a real phone, which a session cannot do. The change is a `LabeledContent` label
+swapped for a `VStack`, which SwiftUI lays out the same at any width, but nobody has looked at it
+above compact. The error strings (journey 10) are still un-retriggered, unchanged from the pass
+above.
