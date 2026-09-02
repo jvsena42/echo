@@ -25,6 +25,10 @@ actual object Log {
 
     private fun write(level: String, tag: String, message: String, throwable: Throwable?) {
         System.err.println("$level/$tag: $message")
-        throwable?.printStackTrace(System.err)
+        // The message always, the stack only when asked. A warning or an error is worth keeping on
+        // a terminal; twelve frames of coroutine machinery under it buries the one line that says
+        // what went wrong, and the CLI already turns the same failure into an exit code and a
+        // `--json` error object. `--verbose` is how you get the trace back.
+        if (debugEnabled) throwable?.printStackTrace(System.err)
     }
 }

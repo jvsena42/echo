@@ -18,8 +18,19 @@ class Args private constructor(
     private val switches: Set<String>,
 ) {
 
-    /** The first [n] positional words joined, for naming a command in output and errors. */
-    fun command(n: Int = 2): String = words.take(n).joinToString(" ")
+    /**
+     * The command being asked for: `deck create`, `card add`, `import`, `whoami`.
+     *
+     * Two words for the grouped commands and one for the rest, rather than "the first two words"
+     * — an operand is not part of the verb, and taking it as one names the command
+     * `import cards.tsv` in the `--json` envelope and looks it up under that name in the
+     * dispatcher, where it matches nothing.
+     */
+    val verb: String
+        get() {
+            val head = words.firstOrNull() ?: return ""
+            return if (head in GROUPS) listOfNotNull(head, word(1)).joinToString(" ") else head
+        }
 
     fun word(index: Int): String? = words.getOrNull(index)
 
@@ -37,6 +48,9 @@ class Args private constructor(
     fun has(name: String): Boolean = name in switches || name in options
 
     companion object {
+        /** Commands that are a noun plus a verb. Everything else is one word. */
+        private val GROUPS = setOf("deck", "card", "tag")
+
         /**
          * Which long options take no value.
          *

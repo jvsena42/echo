@@ -59,13 +59,15 @@ private fun run(argv: Array<String>): ExitCode {
         return ExitCode.Usage
     }
 
-    if (args.words.isEmpty() || args.has("help")) {
-        println(USAGE)
-        return if (args.words.isEmpty() && !args.has("help")) ExitCode.Usage else ExitCode.Ok
-    }
+    // Version before help, and both before the empty-command check: `loopky --version` has no
+    // positional words, so the "you gave me nothing" branch would answer it with the usage block.
     if (args.has("version")) {
         println(VERSION)
         return ExitCode.Ok
+    }
+    if (args.words.isEmpty() || args.has("help")) {
+        println(USAGE)
+        return if (args.has("help")) ExitCode.Ok else ExitCode.Usage
     }
 
     Log.debugEnabled = args.has("verbose")
@@ -73,15 +75,15 @@ private fun run(argv: Array<String>): ExitCode {
     val koin = startCli(environment)
     try {
         val result = runBlocking { dispatch(args, koin.identity(), koin, environment) }
-        emit(args, environment, args.command(), result)
+        emit(args, environment, args.verb, result)
         return ExitCode.Ok
     } catch (error: CliError) {
-        fail(args, environment, args.command(), error.exitCode, error.message.orEmpty())
+        fail(args, environment, args.verb, error.exitCode, error.message.orEmpty())
         return error.exitCode
     } catch (error: Exception) {
         val code = ExitCode.of(error)
         Log.e(TAG, "command failed", error)
-        fail(args, environment, args.command(), code, error.message ?: error::class.simpleName.orEmpty())
+        fail(args, environment, args.verb, code, error.message ?: error::class.simpleName.orEmpty())
         return code
     } finally {
         stopCli()
@@ -104,7 +106,7 @@ private suspend fun dispatch(
     environment: CliEnvironment,
 ): CommandResult {
     val progress: (String) -> Unit = { line -> if (!args.has("json")) System.err.println(line) }
-    return when (val verb = args.words.joinToString(" ", limit = 2, truncated = "")) {
+    return when (val verb = args.verb) {
         "login" -> login(args, identity, environment, { line -> emitEvent(args, line) }, System.err::println)
         "logout" -> logout(identity)
         "whoami" -> whoami(identity, koin.get<PubkyClient>(), environment)

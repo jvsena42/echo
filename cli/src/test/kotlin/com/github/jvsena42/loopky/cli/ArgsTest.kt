@@ -13,8 +13,20 @@ class ArgsTest {
     fun `reads positional words in order`() {
         val args = Args.parse(arrayOf("card", "edit", "deck1", "card9"))
         assertEquals(listOf("card", "edit", "deck1", "card9"), args.words)
-        assertEquals("card edit", args.command())
+        assertEquals("card edit", args.verb)
         assertEquals("card9", args.requireWord(3, "cardId"))
+    }
+
+    /**
+     * The verb stops at the noun-plus-verb, never at "the first two words". Taking an operand as
+     * part of the verb names the command `import cards.tsv` in the `--json` envelope and looks it
+     * up under that name in the dispatcher, where it matches nothing.
+     */
+    @Test
+    fun `a one-word command's operand is not part of the verb`() {
+        assertEquals("import", Args.parse(arrayOf("import", "cards.tsv", "--title", "T")).verb)
+        assertEquals("whoami", Args.parse(arrayOf("whoami")).verb)
+        assertEquals("deck show", Args.parse(arrayOf("deck", "show", "abc123")).verb)
     }
 
     @Test
