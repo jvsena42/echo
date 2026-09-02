@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Loopky is a Kotlin Multiplatform flashcards app (iOS + Android) that fuses TinyCards-style playfulness, Anki-style spaced repetition, and Pubky-based decentralized identity/social graph. See `docs/specs.md` (the deck-import spec) and `docs/Architecture.md` (technical architecture — this is the source of truth for module layout, layering, and open questions).
+Loopky is a Kotlin Multiplatform flashcards app (iOS + Android), plus `loopky` — a headless CLI on
+the same shared logic, so an agent can create and manage decks without a phone screen (#54,
+Architecture.md §13). It fuses TinyCards-style playfulness, Anki-style spaced repetition, and Pubky-based decentralized identity/social graph. See `docs/specs.md` (the deck-import spec) and `docs/Architecture.md` (technical architecture — this is the source of truth for module layout, layering, and open questions).
 
 ## Session start
 
@@ -26,7 +28,10 @@ A fresh session has none of this in context, so establish it before the first ed
 ```shell
 ./gradlew :composeApp:assembleDebug     # Android debug build
 ./gradlew :shared:allTests              # shared KMP tests
+./gradlew :shared:jvmTest               # the same suite on the desktop target — fastest full run,
+                                        # and the only one that loads the real libpubkycore
 ./gradlew :shared:compileKotlinMetadata # fast commonMain compile check
+./gradlew :cli:installDist              # build `loopky` -> cli/build/install/loopky/bin/loopky
 ./gradlew detektAll                     # lint Kotlin on all subprojects (detekt + compose rules)
 ./gradlew lintSwift                     # lint iOS Swift (SwiftLint; needs `brew install swiftlint`)
 ```
@@ -95,12 +100,46 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   - `data/storage/` — `SecureSessionStore` interface for persisting the signed-in `Session`, backed by the platform keystore via Liftric KVault (`AndroidSecureSessionStore` wraps EncryptedSharedPreferences; `IosSecureSessionStore` wraps Keychain). This resolves the secret-storage open question — see "Non-obvious rules" below. Non-secret preferences use the separate `AppPreferences` (SharedPreferences / NSUserDefaults) in the same package — don't put a plain setting through the keystore, or a secret through `AppPreferences`.
   - `di/SharedModule.kt` — Koin graph binding repos, ViewModels, and `SessionProvider`; platforms override `PubkyClient` + `SecureSessionStore` via `PlatformModule.{android,ios}.kt`.
   - `presentation/` — KMP ViewModels, one per screen, each extending the multiplatform `androidx.lifecycle.ViewModel` (`viewModelScope`) and exposing `StateFlow<UiState>` + `SharedFlow<UiEffect>` (see "Coding conventions" below). **Implemented** across `onboarding/` (`OnboardingViewModel` + UiState/Effect), `home/` (`HomeViewModel`), `decks/` (`DecksLibraryViewModel`, `DeckDetailViewModel`, `DeckEditorViewModel`, `EditCardViewModel`), `import/` (`PasteImportViewModel`, `PublishDeckViewModel`), and `profile/` (`ProfileViewModel`). Coroutines + Koin are wired (no longer blocked).
+- `shared/src/jvmSharedMain/` — the **JVM family**, shared by `androidMain` and `jvmMain`: the
+  UniFFI-generated JNA bindings, `java.time`/`java.security` actuals, the `java.util.zip` helpers,
+  and `HttpURLConnection`. One copy of `uniffi/pubkycore/pubkycore.kt`, not two — it is generated
+  in the fork and checked in here, and a duplicate would have to stay byte-identical forever with
+  nothing reporting it when it stopped. The group is declared *through*
+  `applyDefaultHierarchyTemplate`; bare `dependsOn` edges silently switch the template off and
+  `iosMain` stops belonging to any compilation.
+- `shared/src/jvmMain/` — the desktop half: 0600 JSON file stores under `$XDG_CONFIG_HOME/loopky`,
+  a `javax.imageio` `MediaProcessor` that degrades rather than throws, no-op `Speaker`/
+  `SpeechRecognizer`/`BackgroundTasks`, and `libpubkycore` under JNA's resource layout
+  (`resources/linux-x86-64/`, `resources/darwin-aarch64/`).
 - `shared/src/{android,ios}Main/` — platform glue only (Pubky FFI, TTS, speech recognition, haptics, file I/O). Nothing else lives here. Some is `expect`/`actual`; some is a plain interface bound per-platform in Koin (`Speaker`, `SpeechRecognizer`, `BackgroundTasks`, `PubkyRingPresence`), which is the right form when the implementation needs platform context or lifecycle.
 - `composeApp/src/androidMain/` — Android app. Compose screens in `ui/`, Koin in `di/`, `MainActivity` as entry point. Uses Jetpack Navigation Compose.
+- `cli/` — `loopky`, the headless client. A plain JVM module on `:shared`'s `jvm()` target; it
+  resolves repositories from Koin and never touches `presentation/`. See `cli/README.md` for the
+  surface and Architecture.md §13 for the decisions.
 - `iosApp/iosApp/` — iOS app. SwiftUI screens in `Views/`, `NavigationStack` in `Navigation/`, Koin bootstrap in `DI/`. Compose Multiplatform UI is **not** used for iOS screens.
 
 ### Non-obvious rules
 
+- **The CLI's session can only write `/pub/loopky/`, and that is structural, not a setting.**
+  `:cli` asks Ring for `/pub/loopky/:rw` and never `DEFAULT_CAPABILITIES`, so an agent session
+  cannot write a post, a follow or a profile edit under any bug or any prompt injection — it was
+  never handed the capability. Three consequences not to undo. The announce confirmation (#39) is
+  gone **by construction** rather than behind a `--no-announce` flag: there is nothing to confirm.
+  Deck tags still work, because `TagRepositoryImpl` routes on the *subject* and a deck manifest's
+  tag record lives in `/pub/loopky/tags/` (§7.7) — so widening the scope "so tagging works" fixes
+  nothing and gives away everything. And `whoami` reports no display name, because that lives in
+  `/pub/pubky.app/profile.json`; adding one means widening the scope.
+- **A binary has no build type, so the network has to be an explicit input.** The apps pin it
+  (debug → staging, release → production, #42); `:cli` reads `--env`/`LOOPKY_ENV` and defaults to
+  **production**, one `PubkyEnvironment` value and never a `--nexus-url` beside a
+  `--homegate-url`. A session that disagrees with the requested environment is a hard error with
+  its own exit code, because a Nexus read aimed at the wrong network answers *successfully and
+  empty* — an agent that writes a tag, reads it back and sees `[]` concludes the write failed and
+  retries. Every `--json` result carries the environment and the indexer for the same reason.
+- **`--json` is the CLI's verification channel, not its print format.** An agent cannot screenshot
+  its way to checking that the picture it attached is the right picture, so reads echo back what
+  was *stored* — image refs and tags, not just text. That makes the envelope an API surface:
+  versioned `"schema": 1` from the first release, fields may be added, meanings may not change.
 - **Do not add Compose Multiplatform UI code for iOS screens.** The working assumption (see `docs/Architecture.md §12` open question #1) is native SwiftUI on iOS. `composeApp` is Android-only despite the name.
 - **ViewModels live in `shared/commonMain`, not in platform modules.** Both Compose and SwiftUI screens consume the same VMs. No `@Composable` or `ObservableObject` in shared code.
 - **Always import symbols; never reference them fully-qualified inline.** Add an `import` at the top of the file (e.g. `import androidx.compose.ui.graphics.Color`) and use the short name, rather than writing `androidx.compose.ui.graphics.Color` inline in a type or call. Applies to both Kotlin and Swift.

@@ -34,7 +34,9 @@ loopky/
 │   └── src/
 │       ├── commonMain/            ← domain + data + presentation (VMs)
 │       ├── commonTest/            ← the whole test suite
-│       ├── androidMain/           ← Pubky FFI, TTS, speech, WorkManager, Koin platform module
+│       ├── jvmSharedMain/         ← the JVM family: JNA bindings, java.time/security/zip, HTTP
+│       ├── androidMain/           ← TTS, speech, WorkManager, keystore vaults, Koin
+│       ├── jvmMain/               ← desktop: file stores, ImageIO, no-op platform, libpubkycore
 │       └── iosMain/               ← Pubky FFI adapter, TTS, speech, BGTaskScheduler, Koin
 │
 ├── composeApp/                    ← Android app
@@ -42,6 +44,9 @@ loopky/
 │       ├── ui/                    ← Compose screens + navigation
 │       ├── LoopkyApp.kt           ← Application; starts Koin
 │       └── MainActivity.kt        ← single activity, deeplink entry
+│
+├── cli/                           ← `loopky`, the headless client (§13)
+│   └── src/main/kotlin/.../cli/   ← commands, --json schema, exit codes, terminal QR
 │
 └── iosApp/                        ← iOS app
     └── iosApp/
@@ -56,25 +61,29 @@ loopky/
 **Dependency direction:**
 
 ```
-          ┌──────────────────┐      ┌────────────────┐
-          │ composeApp       │      │ iosApp         │
-          │ (Compose + Nav)  │      │ (SwiftUI + NS) │
-          └────────┬─────────┘      └────────┬───────┘
-                   │                         │
-                   └───────────┬─────────────┘
-                               ▼
-                         ┌───────────┐
-                         │  shared   │
-                         │ commonMain│
-                         │  domain   │
-                         │   data    │
-                         │    VMs    │
-                         └─────┬─────┘
-                               ▼
-                  androidMain / iosMain actuals
-                               ▼
-                   pubky-core-ffi-fork bindings
+     ┌──────────────────┐  ┌────────────────┐  ┌──────────────┐
+     │ composeApp       │  │ iosApp         │  │ cli          │
+     │ (Compose + Nav)  │  │ (SwiftUI + NS) │  │ (no UI, §13) │
+     └────────┬─────────┘  └────────┬───────┘  └──────┬───────┘
+              │                     │                 │
+              └──────────┬──────────┴─────────────────┘
+                         ▼
+                   ┌───────────┐
+                   │  shared   │
+                   │ commonMain│
+                   │  domain   │
+                   │   data    │
+                   │    VMs    │
+                   └─────┬─────┘
+                         ▼
+        jvmSharedMain / androidMain / jvmMain / iosMain actuals
+                         ▼
+             pubky-core-ffi-fork bindings
 ```
+
+`:cli` consumes the same graph and stops at `data` — it resolves repositories from Koin and
+treats `presentation/` as dead weight. That is the shape the no-use-case-layer rule pays off in:
+a third consumer needed no new layer, only a platform module.
 
 Platform UI modules depend on `shared`. `shared` depends only on Kotlin stdlib, Coroutines, kotlinx-serialization, Koin (+ the Koin ViewModel DSL), the multiplatform `androidx.lifecycle` ViewModel, Liftric KVault, and (via expect/actual) the Pubky FFI. SQLDelight and multiplatform-settings are **not** dependencies in v1 — see §8.
 
@@ -1155,9 +1164,10 @@ emulator, and SRS flush failures that only appear when the network goes away mid
 ## 11. Build & tooling
 
 - **Gradle** with version catalog (`gradle/libs.versions.toml`).
-- **Plugins (actual):** `org.jetbrains.kotlin.multiplatform`, `com.android.library`/`com.android.application`, `org.jetbrains.kotlin.plugin.serialization`, the Compose Multiplatform + Compose-compiler plugins (Android-only Compose), and `io.gitlab.arturbosch.detekt`. Koin is a runtime dependency (no plugin). **No `app.cash.sqldelight` plugin** — SQLDelight is not adopted (§8.1).
+- **Plugins (actual):** `org.jetbrains.kotlin.multiplatform`, `org.jetbrains.kotlin.jvm` (`:cli` only), `com.android.library`/`com.android.application`, `org.jetbrains.kotlin.plugin.serialization`, the Compose Multiplatform + Compose-compiler plugins (Android-only Compose), `application` (`:cli`), and `io.gitlab.arturbosch.detekt`. Koin is a runtime dependency (no plugin). **No `app.cash.sqldelight` plugin** — SQLDelight is not adopted (§8.1).
 - **iOS framework packaging:** `shared` is consumed as a static framework (`baseName = "Shared"`, `isStatic = true`) per `shared/build.gradle.kts`; an XCFramework / SPM packaging step can come later.
-- **Notable runtime dependencies** beyond the ones §3 lists: Coil 3 (`coil-compose`, `coil-network-okhttp`) for images, `androidx-navigation-compose`, `androidx-core-splashscreen`, `play-services-code-scanner` for the Ring QR scan, `androidx.work:work-runtime-ktx` (§9.6), and JNA for the UniFFI bindings. **SKIE is not in the build and is not planned** — the Swift↔Flow bridge is hand-rolled (§9.2).
+- **Notable runtime dependencies** beyond the ones §3 lists: Coil 3 (`coil-compose`, `coil-network-okhttp`) for images, `androidx-navigation-compose`, `androidx-core-splashscreen`, `play-services-code-scanner` for the Ring QR scan, `androidx.work:work-runtime-ktx` (§9.6), `com.google.zxing:core` (the tablet sign-in panel and the CLI's terminal QR), `org.xerial:sqlite-jdbc` (the desktop `.apkg` reader only — Android uses platform SQLite), and JNA for the UniFFI bindings. **SKIE is not in the build and is not planned** — the Swift↔Flow bridge is hand-rolled (§9.2).
+- **`:cli` packaging:** `./gradlew :cli:installDist` produces `cli/build/install/loopky/bin/loopky`; `:cli:distTar` produces a tarball. Both need a JRE 17 on the target machine, which is short of the goal — see §13.10.
 - **Lint:** detekt with `detekt-formatting` + `detekt-compose-rules` (`config/detekt/detekt.yml`) via `./gradlew detektAll`; SwiftLint via `./gradlew lintSwift` (`iosApp/.swiftlint.yml`, generated `pubkycore.swift` excluded).
 - **CI** (`.github/workflows/ci.yml`), on PR and push to `main`: `detektAll`, then `:shared:testDebugUnitTest :composeApp:testDebugUnitTest`, then `:composeApp:assembleDebug`. **No iOS job** — there is no test target and no `xcodebuild` step, so iOS breakage is caught only by building locally.
 
@@ -1181,7 +1191,279 @@ passed roughly ninety Compose screens ago.
 
 ---
 
-## 13. References
+## 13. The headless client (`:cli`)
+
+`loopky` is a terminal binary that creates and manages decks against the same homeserver layout
+the two apps use (#54). The point is not a nicer keyboard UX: it is that **an agent can drive
+Loopky**. Agents already write good flashcards; until this, the only way into a Loopky deck was a
+phone screen.
+
+### 13.1 Why it is a module here and not a rewrite
+
+Three options were on the table: a JVM target on `shared`, a Rust CLI straight on the `pubky`
+crate, or a Python CLI on the existing bindings. The last two are the same trade — skip the FFI and
+the JVM entirely, at the cost of **reimplementing the deck protocol**, which is no longer just a
+schema. `DeckRepositoryImpl.publish` writes an `incomplete: true` marker manifest *first* (§8.0),
+then the chunks at `MAX_IN_FLIGHT = 4`, then sweeps trailing chunks when a deck shrinks, then
+rewrites the manifest without the marker, then mirrors tags best-effort. Add the spec §6 parser,
+the `.apkg` reader and SRS, and it is most of `data/repository/impl` in a second language that can
+drift — and the marker ordering and the stale-chunk sweep are precisely where a second
+implementation silently produces decks the Android app cannot open.
+
+So: a `jvm()` target, and the CLI inherits `MAX_IN_FLIGHT`, `SessionRetry`'s 429 backoff, the
+chunked layout and the parser for free.
+
+What it cost was **not one `actual`**: five trivial ones, an `ApkgReader` on a JDBC driver, and a
+`jvmPlatformModule` answering for ~15 bindings. Most are cheap for a headless client, but they all
+have to exist — `:shared` is one Koin graph and a missing binding is a start-up failure.
+
+### 13.2 Capabilities: `/pub/loopky/:rw`, and nothing else
+
+The apps request `DEFAULT_CAPABILITIES` (`/pub/loopky/:rw,/pub/pubky.app/:rw`). The CLI requests
+the first half only, and the guarantee that buys is **structural rather than a flag somebody
+remembered to set**: an agent session cannot write a post, a follow or a profile edit under any
+bug or any prompt injection, because it was never handed the capability.
+
+It costs less than it first looked, because the premise that deck tagging needs the pubky.app
+namespace is wrong. `TagRepositoryImpl` routes on the *subject*: a deck manifest goes to
+`PubkyPaths.loopkyTag` (`/pub/loopky/tags/`), and only a profile or post subject goes to
+`PubkyPaths.tag` (§7.7). So `deck create --tag …` and the language tags a declared pair puts on a
+deck both work unchanged.
+
+What is actually given up is the pubky.app-native writes a headless deck tool has no business
+making: **announcing** (#39 — a post), tagging a *profile*, and editing `profile.json`. Reading
+pubky.app is dropped too, and that is scope rather than capability — public `/pub/` records are
+world-readable and no capability was gating them. One visible consequence: `whoami` reports pubky,
+homeserver and environment and **not a display name**, because that lives in
+`/pub/pubky.app/profile.json`.
+
+The announce confirmation is therefore gone **by construction**, not behind a `--no-announce`
+flag. There is nothing to confirm.
+
+### 13.3 `--json` is the verification channel
+
+An agent cannot look at a screenshot to check that the picture it attached is the picture it
+meant. Reviewing candidate images by eye is what caught 15 of 27 state-map searches returning the
+wrong kind of map, several book covers with the answer printed on them, and a food photo that was
+a YouTube thumbnail of a presenter's face. What replaces that is reads that **echo back what was
+actually stored** — fronts, backs, image refs, tags — so intent can be diffed against result
+without rendering anything.
+
+That makes `--json` an API surface with compatibility obligations, so it is versioned from the
+first release (`"schema": 1`). Fields may be added; a field's meaning may not change under the
+same version.
+
+Two fields ride on **every** result, success and failure alike: `environment` and `indexer`. The
+reason is sharp. A Nexus read aimed at the wrong network does not error — it answers *normally,
+for the other network*, so everything comes back empty. An agent that writes a deck tag, reads it
+back, gets `[]` and concludes the write failed will retry, against the very requirement that says
+a repeated `card add` must be detectable, with no signal anywhere that the read was aimed at the
+wrong world. A silent empty is the one failure mode this design cannot absorb, so the answer
+always says which network answered.
+
+### 13.4 Exit codes, and why session expiry has its own
+
+| Code | Meaning |
+| --- | --- |
+| 0 | ok |
+| 1 | internal |
+| 2 | usage |
+| 3 | not signed in |
+| 4 | **session expired** |
+| 5 | network |
+| 6 | not found |
+| 7 | storage full (507 — terminal, never retried; §8.5) |
+| 8 | environment mismatch |
+| 9 | bad input |
+
+4 is the reason this table is not three rows long. The homeserver session dies after roughly an
+hour and nothing renews it (#165): writes start failing, reads keep working, and from outside it
+is indistinguishable from a network wobble. An agent told the wrong one either retries a dead
+session forever or abandons a working network. Told which it is, it can stop, say so, and resume
+after a human runs `loopky login` — which is what makes `--resume` worth having at all.
+
+Classification goes through `Throwable.toErrorReason()`, the same classifier the apps use, rather
+than matching messages in the CLI: it already knows that "this pubky published no homeserver
+record" and "the DHT did not answer" arrive through one call and are not the same thing.
+
+There is **no `expires_at`** to report, and `whoami` says so by omission. The FFI's session payload
+carries a pubky, a secret, a homeserver and capabilities — no expiry — so a client cannot plan
+around the wall, only discover it. `whoami` therefore *asks*: it revalidates and reports
+`session_live`, which is the honest substitute and the thing to check before starting an hour-long
+import rather than forty cards in.
+
+### 13.5 Sessions: `LOOPKY_SESSION`, and a 0600 file
+
+`LOOPKY_SESSION` is read **before** the stored session. That ordering is the requirement, not a
+convenience: a cloud agent's sandbox is recreated per task, so `$XDG_CONFIG_HOME/loopky` is gone
+every run, there is no "log in once", and nobody is watching that terminal to scan a QR code. The
+variable is the only way in on such a box.
+
+The secret alone is not a `Session` — the pubky, homeserver and capabilities are not in it. So
+`IdentityRepository.adoptSession` trades it for the real thing via `revalidateSession`, which
+proves it is still live in the same round trip. An injected session is deliberately **not
+persisted**: it is the caller's, for this process, and writing it to `$XDG_CONFIG_HOME` would
+leave a container's credential behind on the machine whose own session it was standing in for.
+
+On disk it is a **mode-0600 file, as the default rather than the fallback**. libsecret is usually
+present on a desktop Linux and usually absent on the headless box an agent runs on, so making a
+keyring the default and the file the fallback would fail exactly where the tool is meant to work.
+The trade-off is stated in `--help`, not only here: a session secret on that machine is protected
+by file permissions and nothing else. What is stored is a capability-scoped, expiring session,
+never a secret key — that never leaves Pubky Ring. macOS gets the same file store today; the
+Keychain is the right answer on that row and is that row's remaining work.
+
+### 13.6 Which network, and why it must be said out loud
+
+The apps pick the network from the build type — debug is staging, release is production, pinned
+and un-overridable (#42). A binary has neither a build variant nor a Settings screen, and the
+sandbox it runs in has no `local.properties`. So `--env` / `LOOPKY_ENV`, **defaulting to
+production**, for the same reason `PubkyEnvironment.fromNameOrProduction` falls back that way: an
+unrecognised value must not quietly point at a network the user does not publish to.
+
+One value, never three flags. `PubkyEnvironment` exists so the Homegate, the default homeserver
+and the indexer cannot be configured apart, and there is deliberately no `--nexus-url` beside a
+`--homegate-url`.
+
+A session and an environment that disagree is an **error at startup**, code 8, not a warning. The
+homeserver half would work either way — pkarr resolves both networks — and only the
+indexer-backed reads would be silently wrong, which is §13.3's failure mode. The check fires only
+when the session sits on the *other* environment's known default homeserver, which is a fact; it
+is not an equality check against `defaultHomeserver`, which would refuse a legitimate self-hosted
+one.
+
+### 13.7 Resumability and idempotence
+
+Both are v1 requirements rather than polish, and for one reason: the hourly expiry means an
+agent's normal recovery is to re-run the command.
+
+- **`card add` is idempotent by front/back**, image included. Text alone would collapse two cards
+  asking the same question about different pictures — a flags deck is exactly that. Rows that
+  match are *reported* as skipped, so a caller can tell "already there" from "did nothing".
+- **`import --resume` checkpoints against the deck on the homeserver**, not a local cursor file.
+  The deck already records exactly which cards arrived, it survives the sandbox being thrown away,
+  and it cannot disagree with reality the way a cursor can. It costs one deck read. It is matched
+  on the deck's **title**, which is why `--title` is mandatory and never derived from a filename:
+  a resumed run has to name the same deck it named the first time.
+- **Batch mutation, not just batch creation.** `card edit --from-file` exists for the same reason
+  the surface steers agents away from `card add` in a loop, with more force: editing is what you
+  do *after* an import, and it is the shape an agent naturally reaches for. One card write is one
+  chunk read-modify-write plus a manifest patch plus a `/session` round trip (#105) either way;
+  what a batch saves is the process start, the sign-in and the deck read, which is most of the
+  wall clock.
+
+### 13.8 The import format, and the image columns
+
+`loopky import` runs the **app's own parser** — `ImportRepository.parseBulk`, spec §6 separator
+rules and §9 edge cases, with the file-sized caps. A deck imported here and a deck imported on a
+phone are split identically, which is what "the Android app opens it without a repair step" rests
+on.
+
+A tab-separated file with **image columns** takes the other entry point:
+
+```
+front <TAB> back <TAB> front_image_url <TAB> back_image_url
+```
+
+Splitting that on tabs is reading a format this client defines, not reimplementing §6; the rows
+then go through `parseBulkNotes`, which is the same body minus the splitting step. That entry
+point exists because dedupe *renumbers* rows, so a picture cannot be re-attached afterwards by the
+index it was read at.
+
+The columns are there from day one because they close the gap neither bulk path can express: both
+`.apkg` and TSV carry an image only when a field is *nothing but* that image
+(`AnkiField.imageSrc`), so "this side has text **and** a picture" had no representation, and ~190
+pictures had to go through the card editor by hand even though the decks imported in one shot.
+Since #167 an image can be a remote ref — a URL, no bytes on the wire, no media quota — which is
+what makes fixing it cheap.
+
+### 13.9 Login on a machine with no phone in it
+
+`beginSignIn(returnToApp = false)`. The mobile flow appends Ring's `x-success`/`x-cancel`/
+`x-error` callbacks so Ring can deeplink back into the app; a CLI must not, because there is no app
+to return to and a dangling `x-success` pointing at `loopky://` bounces the user into Loopky on
+their phone after a desktop login. Nothing else about the flow changes: the session still arrives
+over the relay in phase 2.
+
+The URL is printed as a terminal QR (half-blocks, black-on-white **explicitly** — a terminal's own
+theme is unknown and frequently dark, and drawing modules in the default foreground produces an
+inverted code no scanner will read), with `--qr-out FILE` for a PNG and `--url-only` for a box
+whose output is going into a log.
+
+Two constraints worth knowing. `AUTH_FLOW` in the FFI is a **single global slot**
+(`static AUTH_FLOW: Mutex<Option<…>>`), so there is one in-flight auth per process — fine for a
+CLI invocation, relevant the moment anyone wraps this in a daemon serving several agents. And
+`awaitAuthApproval` *takes* that slot, so a failed poll consumes it and there is no in-place
+retry: recovering means running `loopky login` again, which mints a new secret and a new code. The
+CLI says that rather than looping, because a retry loop would silently invalidate the code already
+on screen.
+
+### 13.10 Native library and packaging
+
+`libpubkycore` ships **inside the jar**, under JNA's own resource layout
+(`linux-x86-64/libpubkycore.so`, `darwin-aarch64/libpubkycore.dylib`), which `Native.load` extracts
+at runtime. Nobody installing the CLI fetches a native library by hand or sets
+`-Djna.library.path`. Built by `build_desktop.sh` in the fork; see
+`shared/src/jvmMain/resources/README.md`.
+
+`UniffiPubkyClientJvmTest` is what proves a row actually loads. The 1,271 shared tests run against
+`FakePubkyClient` and pass identically on a machine where the directory is empty, the architecture
+is wrong, or the file is one level off — none of which surfaces until the first homeserver call,
+as an ordinary-looking transport error.
+
+**What ships today is `installDist` / `distTar`: a jar plus a start script, needing a JRE 17.**
+That is honestly short of the target. "How it reaches an agent" is the primary constraint, not a
+footnote: for a cloud sandbox — non-root as often as not, ephemeral, configured by a setup script
+— `curl -fsSL … -o ~/.local/bin/loopky && chmod +x` is one line and needs no root, where a
+third-party apt repo is four privileged commands and a GPG keyring. "Install a JDK" is exactly
+what a one-line install cannot be. The remaining work is GraalVM `native-image` (single binary,
+~20–40 ms start; kotlinx.serialization is compile-time and fine, but **JNA is the sharp edge**,
+since native-image needs explicit handling of the very library extraction above), with a `jlink`
+tarball as the fallback. A container image is the other half, and for a sandbox that lets you pick
+one it beats any install step.
+
+Two smaller gaps, named so they are decisions rather than omissions. The tarball carries **both**
+native rows, so a Linux box hauls 11 MB of macOS dylib it will never load; splitting the
+distribution per OS is straightforward and has not been done. And **Windows** is out of scope for
+v1 — it is the same three rows (`win32-x86-64/pubkycore.dll`, a DPAPI session store, a UTF-8
+console for the QR) and nothing in the design blocks it, but no part of the agent workload that
+motivated this runs there.
+
+### 13.11 Shape for a second front end
+
+The chat-only audience — Claude's analysis tool, ChatGPT's code interpreter — has no shell and no
+network egress, so a client needing a homeserver, a relay and DHT resolution cannot function there
+under *any* packaging. For that audience a remote MCP server is not a later evolution of the CLI;
+it is a **parallel channel** and the only integration that exists.
+
+The command layer is therefore shaped to be wrapped: one function per command, taking plain values
+and returning its `--json` shape, with **no logic in the arg parser**. `dispatch` is a `when` over
+verbs and nothing else. An MCP server should be a binding over those functions rather than a
+second implementation of them.
+
+Whether such a server is hosted — and therefore holds users' session secrets, with everything that
+implies — or runs on the user's own machine over stdio is open. Finding 1 pushes the same way for
+a different reason: a process that outlives one command is the natural place to renew a session
+before it expires, which a per-invocation CLI can never be.
+
+### 13.12 Still open
+
+- **Can Loopky run behind an allowlist proxy at all?** A hard blocker for cloud sandboxes, not a
+  polish item. Homegate and Nexus are fixed hosts, but the homeserver is resolved from its pubky
+  over pkarr and served under a pkarr-derived certificate, so the data host is **not a fixed
+  name** — and pkarr's DHT path is UDP, which an HTTP-only proxy blocks outright. Somebody has to
+  establish whether the relay fallback is enough to run the whole client over HTTP to a known set
+  of hosts. If it is, document the list; if it is not, the container image with unrestricted
+  egress is the only cloud-sandbox story and that should be said out loud.
+- **Its own repo, and the `core` / `presentation` split.** Starting in-tree is cheaper while
+  `shared` is moving; the trigger for extracting is the first *out-of-tree* consumer, which needs
+  a published artifact — and that artifact is the module boundary. The seam is real and these two
+  consumers name it: the CLI wants repositories and treats VMs as dead weight, while the watch
+  (#73) wants `presentation/`.
+
+---
+
+## 14. References
 
 - [`docs/specs.md`](./specs.md) — Paste-to-Import product spec.
 - `pubky-core-ffi-fork` — local sibling repo at `../pubky-core-ffi-fork`.

@@ -1,6 +1,6 @@
 # Journey results
 
-Android runs first, then an iOS section at the foot of the file.
+Android runs first, then an iOS section, then the CLI at the foot of the file.
 
 ## Android
 
@@ -1446,3 +1446,56 @@ four endpoints and cannot be talked into staging (#42).
 
 **Not verified:** the iPad. The change is DI wiring with no layout in it, and Discover was read on
 a compact size class only.
+
+---
+
+# CLI (`loopky`)
+
+The headless client has no `journeys/*.xml` and cannot have one: those scripts drive a screen with
+`android-cli`, and this has none. Its equivalent is the CI job — `cli-linux` in
+`.github/workflows/ci.yml` runs the shared suite on the `jvm()` target and asserts the exit-code
+and `--json` contract against the built binary on a headless Linux x86_64 runner, which is the
+environment #54 exists for. What follows is what was checked by hand beyond that.
+
+## #54 — the Linux target and the CLI — 2026-09-02, macOS arm64 (dev machine)
+
+Run against the **live production and staging networks** with
+`cli/build/install/loopky/bin/loopky`, `LOOPKY_CONFIG_HOME` pointed at a scratch directory.
+
+| Verified | Result |
+| --- | --- |
+| `libpubkycore` loads from the jar through JNA | ✅ `UniffiPubkyClientJvmTest` — mnemonic generated, keypair derived twice to the same pubky, an invalid phrase answered `false` |
+| Whole shared suite on the desktop target | ✅ 1,271 tests, 0 failures (`:shared:jvmTest`) |
+| `login` mints a real auth URL | ✅ `pubkyauth://signin?caps=%2Fpub%2Floopky%2F%3Arw&relay=https%3A%2F%2Fhttprelay.pubky.app%2Finbox&secret=…` |
+| …with **no Ring return-callbacks** | ✅ no `x-success`/`x-cancel`/`x-error`/`x-source` in the URL — there is no app to return to |
+| …and the capability is loopky-only | ✅ `caps=/pub/loopky/:rw`, not `DEFAULT_CAPABILITIES` |
+| Relay poll starts and blocks | ✅ `Starting auth flow polling for relay channel https://httprelay.pubky.app/inbox/…` |
+| Terminal QR renders | ✅ half-blocks, black-on-white, scannable in a dark-themed terminal |
+| `--qr-out` | ✅ 512×512 PNG written |
+| `--url-only` | ✅ prints the bare URL and no picture |
+| Nexus read, production | ✅ `tag trending --limit 8 --json` → `stem, gcse, language, portuguese, 🇧🇷, english, biology, geografia` |
+| Nexus read, staging | ✅ `--env staging` → a *different* list (`language, stem, gcse, bosnian, english`), i.e. the environment really does route the indexer |
+| Exit code: no session | ✅ 3, `"code":"not_signed_in"` |
+| Exit code: unknown command | ✅ 2, one-line message (not the whole usage block) |
+| Exit code: dead `LOOPKY_SESSION` | ✅ 4, with the right advice — "mint a new one with `loopky login --export`", not "run `loopky login`" |
+| `--json` failures land on **stdout** | ✅ a caller parsing one stream sees the errors too |
+| stdout stays clean | ✅ QR, prompts, progress and every log line on stderr; `RUST_LOG` defaulted to `warn` by the start script, so the SDK's four INFO lines no longer precede a login |
+| `--version` | ✅ `loopky 0.1.0 (schema 1)` |
+| Unit tests | ✅ 29 (`:cli:test`) — arg parsing, the card-file formats incl. accented round-trip, the JSON envelope, the exit-code mapping |
+| `detektAll` | ✅ green |
+| Android and iOS unaffected by the source-set move | ✅ `:composeApp:assembleDebug` and `:shared:compileKotlinIosArm64` both build |
+
+**Two bugs the hand-run caught that a green build did not.** `--version` printed the usage block,
+because the "you gave me nothing" branch fires on a command line with no positional words. And
+`import cards.tsv` dispatched under the verb `"import cards.tsv"` — the verb was "the first two
+words", which is right for `deck create` and wrong the moment a command takes an operand; it
+matched nothing and reported an unknown command. Both fixed, both now covered by `ArgsTest`.
+
+**Not verified, and it needs a Linux box with a phone next to it.** Everything above the sign-in
+line: no Pubky Ring approval was completed, so `deck create`, `import`, `card add/edit/rm`,
+`deck sync/compact` and `whoami` against a real session are **untested end to end**. The
+acceptance criteria that turn on that — a deck the Android app opens without a repair step, an
+`import` killed mid-run and resumed without duplicating, a full run leaving no record under
+`/pub/pubky.app/` — are unmet until someone scans the QR. The `linux-x86-64` `.so` itself is also
+unrun on Linux outside CI: it was cross-built from macOS in a container, and CI's `:shared:jvmTest`
+is the first thing that exercises it on a real glibc host.
