@@ -1481,7 +1481,7 @@ Run against the **live production and staging networks** with
 | `--json` failures land on **stdout** | ✅ a caller parsing one stream sees the errors too |
 | stdout stays clean | ✅ QR, prompts, progress and every log line on stderr; `RUST_LOG` defaulted to `warn` by the start script, so the SDK's four INFO lines no longer precede a login |
 | `--version` | ✅ `loopky 0.1.0 (schema 1)` |
-| Unit tests | ✅ 29 (`:cli:test`) — arg parsing, the card-file formats incl. accented round-trip, the JSON envelope, the exit-code mapping |
+| Unit tests | ✅ 31 (`:cli:test`) — arg parsing, the card-file formats incl. accented round-trip, the JSON envelope, the exit-code mapping |
 | `detektAll` | ✅ green |
 | Android and iOS unaffected by the source-set move | ✅ `:composeApp:assembleDebug` and `:shared:compileKotlinIosArm64` both build |
 

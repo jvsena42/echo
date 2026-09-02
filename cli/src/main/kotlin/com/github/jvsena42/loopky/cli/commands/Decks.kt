@@ -108,7 +108,7 @@ suspend fun deckCreate(
     val deckId = generateId()
     val now = System.currentTimeMillis()
     val cards = args.option("from-file")
-        ?.let { readCardFile(it).toCards(deckId, now) }
+        ?.let { readCardFile(it).requireBothSides().toCards(deckId, now) }
         .orEmpty()
 
     val deck = Deck(

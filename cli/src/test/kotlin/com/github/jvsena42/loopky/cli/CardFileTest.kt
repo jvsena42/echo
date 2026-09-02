@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.cli
 
 import com.github.jvsena42.loopky.cli.commands.readCardFile
+import com.github.jvsena42.loopky.cli.commands.requireBothSides
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -94,6 +95,26 @@ class CardFileTest {
             readCardFile(write(".jsonl", """{"id":"c1"}""" + "\n"))
         }
         assertEquals(ExitCode.BadInput, error.exitCode)
+    }
+
+    /**
+     * `publish` `require`s both sides too, but that throws an `IllegalArgumentException` no
+     * classifier recognises — so a blank column in the user's own file would reach them as exit 1
+     * "internal" plus a Kotlin assertion message.
+     */
+    @Test
+    fun `a half-empty row is bad input, and the message names it`() {
+        val rows = readCardFile(write(".tsv", "hola\thello\nadios\t\n"))
+        val error = assertFailsWith<CliError> { rows.requireBothSides() }
+        assertEquals(ExitCode.BadInput, error.exitCode)
+        assertTrue(error.message.orEmpty().contains("Row 2"), error.message.orEmpty())
+    }
+
+    /** A picture counts as a side — that is the whole point of the image columns. */
+    @Test
+    fun `an image alone is a side`() {
+        val rows = readCardFile(write(".tsv", "hola\t\t\thttps://example.test/b.jpg\n"))
+        assertEquals(rows, rows.requireBothSides())
     }
 
     @Test

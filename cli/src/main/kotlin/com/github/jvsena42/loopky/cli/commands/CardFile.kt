@@ -48,6 +48,16 @@ data class CardFileRow(
         get() = front.isNullOrBlank() && back.isNullOrBlank() &&
             frontImageUrl.isNullOrBlank() && backImageUrl.isNullOrBlank()
 
+    /**
+     * A row that could become a card: something on **both** sides, text or a picture.
+     *
+     * False is not the same as [isEmpty]. An edit row is allowed to carry one side and mean "leave
+     * the other alone", so this is asked only where a row becomes a *new* card.
+     */
+    val hasBothSides: Boolean
+        get() = !(front.isNullOrBlank() && frontImageUrl.isNullOrBlank()) &&
+            !(back.isNullOrBlank() && backImageUrl.isNullOrBlank())
+
     fun toCard(deckId: String, now: Long, index: Int): Card = Card(
         id = generateId(),
         deckId = deckId,
@@ -133,3 +143,24 @@ private const val FRONT_COLUMN = 0
 private const val BACK_COLUMN = 1
 private const val FRONT_IMAGE_COLUMN = 2
 private const val BACK_IMAGE_COLUMN = 3
+
+/**
+ * Refuse a batch that holds a card with nothing on one of its sides.
+ *
+ * Checked here rather than left to `publish`, which `require`s the same thing: that throws an
+ * `IllegalArgumentException` no classifier recognises, so it would reach the user as exit 1
+ * "internal" plus a Kotlin assertion message — for a blank column in their own file. The import
+ * path needs none of this, because the shared parser already drops half-empty rows.
+ *
+ * The message names the row, since the whole point of a batch is that nobody is reading it line by
+ * line.
+ */
+internal fun List<CardFileRow>.requireBothSides(): List<CardFileRow> = onEachIndexed { index, row ->
+    if (!row.hasBothSides) {
+        throw CliError(
+            ExitCode.BadInput,
+            "Row ${index + 1} has nothing on one side; a card needs a front and a back. " +
+                "An image counts as a side.",
+        )
+    }
+}

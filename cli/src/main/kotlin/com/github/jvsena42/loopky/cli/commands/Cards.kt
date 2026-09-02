@@ -78,16 +78,18 @@ suspend fun cardAdd(args: Args, decks: DeckRepository, cards: CardRepository): C
     val deck = decks.sync(deckId).getOrElse { throw asCliError(it) }
     val existing = cards.fetchByDeck(deck).getOrElse { throw asCliError(it) }
 
-    val rows = args.option("from-file")?.let(::readCardFile) ?: listOf(
-        CardFileRow(
-            front = args.option("front"),
-            back = args.option("back"),
-            frontImageUrl = args.option("front-image"),
-            backImageUrl = args.option("back-image"),
-        ).also {
-            if (it.isEmpty) throw CliError(ExitCode.Usage, "Give --front/--back, or --from-file.")
-        },
-    )
+    val rows = (
+        args.option("from-file")?.let(::readCardFile) ?: listOf(
+            CardFileRow(
+                front = args.option("front"),
+                back = args.option("back"),
+                frontImageUrl = args.option("front-image"),
+                backImageUrl = args.option("back-image"),
+            ).also {
+                if (it.isEmpty) throw CliError(ExitCode.Usage, "Give --front/--back, or --from-file.")
+            },
+        )
+        ).requireBothSides()
 
     val seen = existing.mapTo(mutableSetOf()) { it.identityOf() }
     val now = System.currentTimeMillis()
