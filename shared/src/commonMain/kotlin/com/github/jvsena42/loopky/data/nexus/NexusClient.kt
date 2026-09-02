@@ -21,8 +21,9 @@ class NexusClient(
     /**
      * Which indexer this build talks to. Deliberately has no default: staging and production
      * index different networks, so a missing wire-up must fail to compile rather than quietly
-     * ship a release pointed at staging (#42). Platform modules supply it — see
-     * `androidPlatformModule` / `doInitKoin`.
+     * ship a release pointed at staging (#42). Platform modules supply it from the injected
+     * `PubkyEnvironment.nexusBaseUrl`, so it cannot end up on a different network from the
+     * homeserver the app publishes to (#205) — see `androidPlatformModule` / `doInitKoin`.
      *
      * Public because the indexer also serves profile pictures, which callers build URLs for
      * themselves (see [com.github.jvsena42.loopky.domain.model.avatarDisplayUrl]).

@@ -94,18 +94,15 @@ import org.koin.mp.KoinPlatform
  * saves in Settings, and never shown to them. Blank is fine; web image search then reports that a
  * key is needed instead of failing silently.
  *
- * [nexusBaseUrl] is the Pubky Nexus indexer, which differs between environments — Swift passes
- * staging under `#if DEBUG` and production otherwise. No default, so a release build cannot
- * silently fall back to staging (#42).
- *
- * [pubkyEnvironmentName] is a [PubkyEnvironment] name, picked the same `#if DEBUG` way. It decides
- * which Homegate mints signup tokens *and* which homeserver those tokens are valid on — an
- * unrecognised name resolves to production, because a token minted against the wrong environment
- * is rejected and, being single-use, is gone.
+ * [pubkyEnvironmentName] is a [PubkyEnvironment] name, picked `#if DEBUG` in `iOSApp.swift`. It
+ * decides which Homegate mints signup tokens, which homeserver those tokens are valid on, and
+ * which Nexus indexer the social half of the app reads (#205) — an unrecognised name resolves to
+ * production, because a token minted against the wrong environment is rejected and, being
+ * single-use, is gone. One name rather than a name plus an indexer URL, so a release build cannot
+ * end up reading one network while publishing to another (#42).
  */
 fun doInitKoin(
     rawPubkyClient: RawPubkyClient,
-    nexusBaseUrl: String,
     unsplashFallbackKey: String,
     pubkyEnvironmentName: String,
 ) {
@@ -113,7 +110,7 @@ fun doInitKoin(
     startKoin {
         modules(
             sharedModule,
-            iosPlatformModule(rawPubkyClient, nexusBaseUrl, unsplashFallbackKey, environment),
+            iosPlatformModule(rawPubkyClient, unsplashFallbackKey, environment),
         )
     }
     // BGTaskScheduler rejects a handler registered after the app has finished launching, so this
@@ -123,13 +120,12 @@ fun doInitKoin(
 
 private fun iosPlatformModule(
     rawPubkyClient: RawPubkyClient,
-    nexusBaseUrl: String,
     unsplashFallbackKey: String,
     pubkyEnvironment: PubkyEnvironment,
 ): Module = module {
     single<PubkyClient> { IosPubkyClientAdapter(rawPubkyClient) }
     single<HttpFetcher> { IosHttpFetcher() }
-    single { NexusClient(http = get(), baseUrl = nexusBaseUrl) }
+    single { NexusClient(http = get(), baseUrl = pubkyEnvironment.nexusBaseUrl) }
     single { pubkyEnvironment }
     single { HomegateClient(http = get(), baseUrl = pubkyEnvironment.homegateBaseUrl) }
     single<SecureSessionStore> { IosSecureSessionStore() }

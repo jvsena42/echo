@@ -36,15 +36,19 @@ class LoopkyApp : Application() {
             // shown to them. Ships scrambled so it is not a literal in the dex — a speed bump
             // against APK scanners, not protection. See UnsplashKeyObfuscation.
             unsplashFallbackKey = deobfuscateUnsplashKey(BuildConfig.UNSPLASH_ACCESS_KEY_OBF),
-            // Staging on debug, production on release — see composeApp/build.gradle.kts.
-            nexusBaseUrl = BuildConfig.NEXUS_BASE_URL,
-            // Which Homegate mints signup tokens, and which homeserver they are valid on. A
-            // debug build can override this from Settings; a release cannot (#42).
+            // Which network this build talks to, whole: the Homegate that mints signup tokens,
+            // the homeserver they are valid on, the web client, and the Nexus indexer. Staging on
+            // debug, production on release — see composeApp/build.gradle.kts. A debug build can
+            // override it from Settings; a release cannot (#42).
             pubkyEnvironment = resolveStartupEnvironment(
                 context = this,
                 buildDefault = PubkyEnvironment.fromNameOrProduction(BuildConfig.PUBKY_ENV),
                 allowStoredOverride = BuildConfig.DEBUG,
             ),
+            // A locally-run Nexus, and nothing else (#58) — blank unless local.properties names
+            // one. Guarded on DEBUG as well as pinned blank in the release build type, for the
+            // same reason the environment override is: a shipped build reads production (#205).
+            localNexusBaseUrl = if (BuildConfig.DEBUG) BuildConfig.LOCAL_NEXUS_BASE_URL else "",
         ) {
             // Koin's own logger, gated for the same reason as Log.d: it narrates every definition
             // it resolves, which is noise a shipped build has no use for.

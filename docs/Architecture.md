@@ -329,8 +329,14 @@ wrong.
 
 Global questions a single homeserver cannot answer — trending tags, prefix search, "which
 decks carry this tag", "how many people follow this deck", "who else uses Loopky" — are
-served by the Pubky Nexus REST API (`data/nexus/NexusClient`, default base
-`https://nexus.staging.pubky.app`). The HTTP layer is the small `HttpFetcher` interface with
+served by the Pubky Nexus REST API (`data/nexus/NexusClient`). **Which deployment it reads is
+part of `PubkyEnvironment`, not a wire of its own** (#205): staging and production index separate
+networks, and a mismatched indexer does not error — it answers normally, for the other network, so
+discovery, tags, followers, search and every avatar simply come back empty while sign-in, publish
+and study keep working over pkarr. Fusing it with the gate, the homeserver and the web client makes
+that unconfigurable. The single escape hatch is `LOCAL_NEXUS_BASE_URL` in `local.properties`, named
+for the one legitimate case — a Nexus running on your own machine (#58) — and blank on release. The
+HTTP layer is the small `HttpFetcher` interface with
 per-platform impls (HttpURLConnection / NSURLSession) so shared stays free of an HTTP client
 dependency. It has two entry points: `get()`, where any non-2xx is a failure, and `send()`,
 where **the status is data**. The second exists for gated APIs that answer 403 for "not in

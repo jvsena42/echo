@@ -47,8 +47,8 @@ private const val PUBKY_RING_PLAY_STORE_URL =
 
 fun androidPlatformModule(
     unsplashFallbackKey: String,
-    nexusBaseUrl: String,
     pubkyEnvironment: PubkyEnvironment,
+    localNexusBaseUrl: String = "",
 ): Module = module {
     single<PubkyClient> { AndroidPubkyClient() }
     single<HttpFetcher> { AndroidHttpFetcher() }
@@ -68,7 +68,9 @@ fun androidPlatformModule(
     single<PubkyRingPresence> {
         AndroidPubkyRingPresence(androidContext(), installUrl = PUBKY_RING_PLAY_STORE_URL)
     }
-    single { NexusClient(http = get(), baseUrl = nexusBaseUrl) }
+    single {
+        NexusClient(http = get(), baseUrl = localNexusBaseUrl.ifBlank { pubkyEnvironment.nexusBaseUrl })
+    }
     single { pubkyEnvironment }
     single { HomegateClient(http = get(), baseUrl = pubkyEnvironment.homegateBaseUrl) }
     single { UnsplashClient(http = get(), keyStore = get(), fallbackKey = unsplashFallbackKey) }
@@ -85,24 +87,28 @@ fun androidPlatformModule(
  * [unsplashFallbackKey] is the build-time Unsplash key. It is only a fallback: a key the user
  * saves in Settings takes precedence, and this one is never shown to them.
  *
- * [nexusBaseUrl] has no default on purpose: the indexer is the one endpoint that differs between
- * environments, and a release build must never fall back to the staging network (#42). The app
- * passes `BuildConfig.NEXUS_BASE_URL`, which the build type picks.
+ * [pubkyEnvironment] has no default on purpose, and for a sharp reason: it decides which Homegate
+ * mints signup tokens and which homeserver those tokens are valid on. A token is single-use, so one
+ * minted against the wrong environment is rejected and gone. It carries the Nexus indexer too, so
+ * there is no second wire the indexer can drift on (#205). Resolved once here rather than read
+ * live, because [HomegateClient] and [NexusClient] are singletons that capture their base URL when
+ * constructed — a debug build's Settings override therefore applies on the next launch, which that
+ * screen states.
  *
- * [pubkyEnvironment] likewise, and for a sharper reason: it decides which Homegate mints signup
- * tokens and which homeserver those tokens are valid on. A token is single-use, so one minted
- * against the wrong environment is rejected and gone. Resolved once here rather than read live,
- * because [HomegateClient] is a singleton that captures its base URL when constructed — a debug
- * build's Settings override therefore applies on the next launch, which that screen states.
+ * [localNexusBaseUrl] is the **one** sanctioned way to point the indexer somewhere the environment
+ * did not choose: a Nexus running on your own machine (#58). It is blank on a release build, which
+ * `composeApp/build.gradle.kts` pins and `LoopkyApp` guards again — a shipped build reads the
+ * network its users publish to (#42). Anything else that wants a different indexer wants a
+ * different [pubkyEnvironment].
  */
 fun initKoinAndroid(
     unsplashFallbackKey: String = "",
-    nexusBaseUrl: String,
     pubkyEnvironment: PubkyEnvironment,
+    localNexusBaseUrl: String = "",
     appDeclaration: KoinAppDeclaration = {},
 ) {
     startKoin {
         appDeclaration()
-        modules(sharedModule, androidPlatformModule(unsplashFallbackKey, nexusBaseUrl, pubkyEnvironment))
+        modules(sharedModule, androidPlatformModule(unsplashFallbackKey, pubkyEnvironment, localNexusBaseUrl))
     }
 }
