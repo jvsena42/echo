@@ -1410,3 +1410,39 @@ in by QR from a real phone, which a session cannot do. The change is a `LabeledC
 swapped for a `VStack`, which SwiftUI lays out the same at any width, but nobody has looked at it
 above compact. The error strings (journey 10) are still un-retriggered, unchanged from the pass
 above.
+
+## 04 — Discover, after folding the indexer into `PubkyEnvironment` (#205) — ✅ PASS (2026-09-02, `emulator-5554` + `iPhone 17` sim)
+
+The Nexus indexer stopped travelling on a `BuildConfig.NEXUS_BASE_URL` wire of its own and became
+`PubkyEnvironment.nexusBaseUrl`, alongside the gate, the homeserver and the web client. Journey 04
+is the whole test surface: everything below the Discover header is an indexer read, and a
+mismatched indexer never errors — Nexus answers for the other network, so the strips just come back
+empty.
+
+Confirmed the staging indexer had content first, per the journey's own instruction:
+`curl 'https://nexus.staging.pubky.app/v0/stream/resources?app=loopky&tags=loopky-deck&limit=5'`
+returned five deck manifests.
+
+| Verified | Result |
+| --- | --- |
+| Android — Discover, trending chips | ✅ `#language #stem #gcse #bosnian #english` |
+| Android — People on Loopky | ✅ three suggestions with Follow pills |
+| Android — "Discover decks" global browse | ✅ six `discover_deck_tile`s, incl. other authors' decks |
+| Android — avatars | ✅ a real photo renders for `juan`, i.e. `avatarDisplayUrl` resolved against the injected host |
+| iOS — Discover (`iPhone 17` sim) | ✅ `discover_person` rows, `tag_chip_*` chips, browse tiles from four authors |
+
+**The escape hatch was tested in both directions**, because "the indexer follows the environment"
+is only worth as much as the one override that may leave it. With
+`LOCAL_NEXUS_BASE_URL=http://127.0.0.1:8080` in `local.properties` and nothing listening there,
+"Discover decks" fell to its honest empty state — "Nothing published here yet" with the
+`discover_browse_empty_search` CTA — while "From people you follow" kept rendering, since that
+comes off the homeserver. That is exactly the silent half-empty symptom #205 describes, reproduced
+on purpose. Removing the key and rebuilding brought the browse tiles straight back.
+
+`assembleDebug`, `assembleRelease`, `:shared:allTests`, `detektAll` and `lintSwift` all green. The
+release `BuildConfig` was read out of the build directory to confirm the pin: `PUBKY_ENV
+= "Production"` with `LOCAL_NEXUS_BASE_URL = ""`, so a shipped build resolves production for all
+four endpoints and cannot be talked into staging (#42).
+
+**Not verified:** the iPad. The change is DI wiring with no layout in it, and Discover was read on
+a compact size class only.
