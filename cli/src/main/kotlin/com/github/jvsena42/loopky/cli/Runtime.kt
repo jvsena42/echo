@@ -94,8 +94,12 @@ suspend fun requireSession(
  * [PubkyEnvironment.defaultHomeserver]" — that would refuse a legitimate self-hosted homeserver.
  * It only fires when the session sits on the *other* environment's known default, which is a fact,
  * not an inference.
+ *
+ * It therefore **fails open**: a self-hosted homeserver, or one reported in a form these constants
+ * do not match, passes. That is the right way round — the alternative refuses accounts that are
+ * perfectly valid — but it means this catches the common mistake rather than every mistake.
  */
-private fun checkEnvironmentAgrees(session: Session, environment: CliEnvironment) {
+internal fun checkEnvironmentAgrees(session: Session, environment: CliEnvironment) {
     val other = PubkyEnvironment.entries.firstOrNull {
         it != environment.pubky && it.defaultHomeserver == session.homeserver
     } ?: return
