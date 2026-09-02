@@ -51,7 +51,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose a passphrase. You will need it — and the file — to restore."
+            "value": "Choose a passphrase. You will need it, and the file, to restore."
           }
         }
       }
@@ -150,7 +150,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not installed — we'll take you to it."
+            "value": "Not installed. We'll take you to it."
           }
         }
       }
@@ -238,7 +238,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This phrase is for your Pubky account only. It is not a Bitcoin wallet and holds no funds."
+            "value": "This phrase is for your account only. It is not a Bitcoin wallet and holds no funds."
           }
         }
       }
@@ -370,7 +370,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your key lives only on this device. Save it somewhere you can reach if you lose your phone. You can also do this later."
+            "value": "Your key lives only on this device. Save it somewhere you can reach if you lose your phone."
           }
         }
       }
@@ -381,7 +381,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You already have a copy of this key, so it's safe. Pubky Ring keeps it in a separate app — safer still — or add another backup here. You can also do this later."
+            "value": "You already have a copy of this key. Pubky Ring keeps it in a separate app, which is safer still, or you can add another backup here."
           }
         }
       }
@@ -403,7 +403,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fair — 16 characters or more is much stronger"
+            "value": "Fair. 16 characters or more is much stronger"
           }
         }
       }
@@ -436,7 +436,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Weak — 16 characters or more is much stronger"
+            "value": "Weak. 16 characters or more is much stronger"
           }
         }
       }
@@ -766,7 +766,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your cards, the deck's name and its pictures come across. Audio doesn't — those cards import as text."
+            "value": "Your cards, the deck's name and its pictures come across. Audio doesn't, so those cards import as text."
           }
         }
       }
@@ -1253,13 +1253,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "“%1$@” and its %2$lld card will be copied to your homeserver as a deck you own and can edit. It won't receive the author's later changes."
+                  "value": "“%1$@” and its %2$lld card become a deck you own and can edit. It won't get the author's later changes."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "“%1$@” and its %2$lld cards will be copied to your homeserver as a deck you own and can edit. It won't receive the author's later changes."
+                  "value": "“%1$@” and its %2$lld cards become a deck you own and can edit. It won't get the author's later changes."
                 }
               }
             }
@@ -1328,7 +1328,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This removes the deck and its cards from your homeserver."
+            "value": "“%1$@” and everything you've learned from it will be deleted. This can't be undone."
           }
         }
       }
@@ -1603,7 +1603,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't load this deck's cards. Your changes to the deck's details will still save."
+            "value": "Couldn't load this deck's cards. Changes to the deck's details will still save."
           }
         }
       }
@@ -1823,7 +1823,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This deck didn't finish uploading — some cards are missing. Import it again to complete it, or delete it."
+            "value": "This deck didn't finish uploading, so some cards are missing. Import it again to complete it, or delete it."
           }
         }
       }
@@ -1845,7 +1845,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Listen and Speak need to know what language each side is in, or the phone reads the card in your own accent. Picking one also tags the deck with that language."
+            "value": "Sets the voice used to read each side aloud."
           }
         }
       }
@@ -2131,7 +2131,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add a friend by their pubky to follow them and discover their public decks."
+            "value": "Add a friend by their pubky to follow them and see their public decks."
           }
         }
       }
@@ -2153,7 +2153,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Follow more friends to widen your feed, or tap the tag again to clear it."
+            "value": "Nobody has tagged a deck with this yet. Tap the tag again to see everything."
           }
         }
       }
@@ -2263,7 +2263,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trending on Pubky"
+            "value": "Trending"
           }
         }
       }
@@ -2802,7 +2802,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nothing scheduled yet — study ahead from any deck."
+            "value": "Nothing scheduled yet. Study ahead from any deck."
           }
         }
       }
@@ -2857,7 +2857,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Paste a list, import from a file, or start from scratch — your first deck is one tap away."
+            "value": "Paste a list, import a file, or start from scratch."
           }
         }
       }
@@ -3220,7 +3220,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "That link didn't load as an image. From a results page, copy the image itself or its image address — not the page's."
+            "value": "That link didn't load as an image. Copy the image itself, or its image address rather than the page's."
           }
         }
       }
@@ -3319,7 +3319,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "DECKS"
+            "value": "Decks"
           }
         }
       }
@@ -3330,7 +3330,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "DISCOVER"
+            "value": "Discover"
           }
         }
       }
@@ -3341,7 +3341,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "PROFILE"
+            "value": "Profile"
           }
         }
       }
@@ -3352,7 +3352,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "STUDY"
+            "value": "Today"
           }
         }
       }
@@ -3870,7 +3870,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No cards found yet — check the separator or add a front and back."
+            "value": "No cards found yet. Check the separator, or add a front and back."
           }
         }
       }
@@ -3914,7 +3914,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Speak listens while you say the word and tells you how close you were. Audio is processed on your device and never leaves it."
+            "value": "Speak listens while you say the word and tells you how close you were. Audio never leaves your device."
           }
         }
       }
@@ -4134,7 +4134,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your decks stay on your homeserver. Signing back in restores everything."
+            "value": "Your decks stay in your account. Signing back in restores everything."
           }
         }
       }
@@ -4310,7 +4310,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cancel"
+            "value": "Cancel import"
           }
         }
       }
@@ -4409,7 +4409,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't clean up the cancelled deck. Part of it is still on your homeserver."
+            "value": "Couldn't remove the cancelled deck. Part of it is still saved."
           }
         }
       }
@@ -4420,7 +4420,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "There's nothing to publish — the import was lost. Go back and paste your list again."
+            "value": "There's nothing to publish. Go back and paste your list again."
           }
         }
       }
@@ -4431,7 +4431,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't undo the publish. The deck is still on your homeserver."
+            "value": "Couldn't undo this. The deck is still published."
           }
         }
       }
@@ -4508,7 +4508,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$lld cards are now public on your Pubky."
+            "value": "%1$lld cards are now public."
           }
         }
       }
@@ -4717,7 +4717,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This recovery phrase is valid, but no Pubky account has been created for it. Check for a mistyped or out-of-order word — and if it came from a Bitcoin or crypto wallet, that's a different kind of phrase and won't work here."
+            "value": "This phrase is valid, but no account has been created for it. Check for a mistyped or out-of-order word. A Bitcoin or crypto wallet phrase won't work here."
           }
         }
       }
@@ -4750,7 +4750,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Check the passphrase, and that this is the recovery file for the account you want. This says nothing about whether the account exists."
+            "value": "Check the passphrase, and that this is the recovery file for the account you want."
           }
         }
       }
@@ -4992,7 +4992,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Only enter a phrase created for Pubky. Never enter a Bitcoin or other crypto wallet recovery phrase here."
+            "value": "Never enter a Bitcoin or other crypto wallet recovery phrase here."
           }
         }
       }
@@ -5278,7 +5278,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your decks, cards, images and study progress will be permanently deleted from your homeserver, and your profile will be removed from Loopky."
+            "value": "Your decks, cards, images and study progress will be permanently deleted, and your profile will be removed from Loopky."
           }
         }
       }
@@ -5388,7 +5388,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "How long until the card comes back. The same every time you tap that grade, however often you've seen it."
+            "value": "How long until the card comes back."
           }
         }
       }
@@ -5432,7 +5432,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A card counts as mastered once it's on your longest interval, so raising this raises the bar."
+            "value": "Your longest interval is when a card counts as mastered."
           }
         }
       }
@@ -5465,7 +5465,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A goal, not a limit. You'll be told when you reach it and can keep going."
+            "value": "A goal, not a limit. You can always keep going."
           }
         }
       }
@@ -5597,7 +5597,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "After you create, follow or clone a deck, offer to post about it so your Pubky followers see it. Your decks stay public either way — this only controls the post."
+            "value": "Offer to post when you create, follow or copy a deck. Your decks are public either way."
           }
         }
       }
@@ -5608,7 +5608,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ask to share on Pubky"
+            "value": "Ask before posting"
           }
         }
       }
@@ -5630,7 +5630,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your decks stay on your homeserver. Signing back in restores everything."
+            "value": "Your decks stay in your account. Signing back in restores everything."
           }
         }
       }
@@ -5663,7 +5663,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loopky holds the only copy of the key for %1$@, and you haven't backed it up. Signing out deletes it, and this account can never be recovered."
+            "value": "Loopky holds the only copy of the key for %1$@, and you haven't backed it up. Signing out deletes it for good."
           }
         }
       }
@@ -5707,7 +5707,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't reach your settings on Pubky. Editing is off until they load, so nothing overwrites them."
+            "value": "Couldn't load your study settings. Editing is off until they arrive, so nothing is overwritten."
           }
         }
       }
@@ -5806,7 +5806,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Free from Unsplash: create an application in your developer dashboard, then copy its Access Key — not the Secret key."
+            "value": "Free from Unsplash: create an application in the developer dashboard, then copy its Access Key, not the Secret key."
           }
         }
       }
@@ -5828,7 +5828,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not set — web image search is off"
+            "value": "Not set. Web image search is off"
           }
         }
       }
@@ -5905,7 +5905,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Posts to your Pubky feed so the people following you see it. The deck is public either way."
+            "value": "Your followers will see it. The deck is public either way."
           }
         }
       }
@@ -5916,7 +5916,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Share"
+            "value": "Post"
           }
         }
       }
@@ -5938,7 +5938,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn't post to Pubky. The deck is unaffected."
+            "value": "Couldn't post. The deck is unaffected."
           }
         }
       }
@@ -5960,7 +5960,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Shared on Pubky"
+            "value": "Posted"
           }
         }
       }
@@ -5971,7 +5971,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Share this on Pubky?"
+            "value": "Post about this?"
           }
         }
       }
@@ -5982,7 +5982,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Share this copy on Pubky?"
+            "value": "Post about this copy?"
           }
         }
       }
@@ -5993,7 +5993,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Share this deck on Pubky?"
+            "value": "Post about this deck?"
           }
         }
       }
@@ -6004,7 +6004,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Share this follow on Pubky?"
+            "value": "Post about this follow?"
           }
         }
       }
@@ -6015,7 +6015,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A clone is your own copy, published under your key and yours to edit. It needs an account — one key, no email."
+            "value": "A clone is your own copy, published under your key and yours to edit. It needs an account, but no email."
           }
         }
       }
@@ -6059,7 +6059,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Following saves a deck to your library, keeps it up to date with the author and remembers what you've learned. It needs an account — one key, no email."
+            "value": "Following saves the deck to your library, keeps it up to date and remembers what you've learned. It needs an account, but no email."
           }
         }
       }
@@ -6081,7 +6081,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Following puts the decks people publish on your Discover. It needs an account — one key, no email."
+            "value": "Following puts the decks people publish on your Discover. It needs an account, but no email."
           }
         }
       }
@@ -6356,7 +6356,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your homeserver wouldn't accept this code — it may already have been used. Trying again won't help; start over to get a new one."
+            "value": "This code was rejected. It may already have been used. Start over to get a new one."
           }
         }
       }
@@ -6466,7 +6466,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ask the Pubky team for a code to get an account on their homeserver."
+            "value": "Ask the Pubky team for a code to create your account."
           }
         }
       }
@@ -6598,7 +6598,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No Lightning wallet found — invoice copied instead"
+            "value": "No Lightning wallet found. Invoice copied instead"
           }
         }
       }
@@ -6631,7 +6631,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You may already have paid ₿ %1$lld. Hold on while we confirm — no need to pay again."
+            "value": "You may already have paid ₿ %1$lld. Hold on while we confirm, and don't pay again."
           }
         }
       }
@@ -6642,7 +6642,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You may already have paid ₿ %1$lld (%2$@). Hold on while we confirm — no need to pay again."
+            "value": "You may already have paid ₿ %1$lld (%2$@). Hold on while we confirm, and don't pay again."
           }
         }
       }
@@ -6796,7 +6796,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pubky Ring keeps your key in a separate app, so signing in to Loopky never exposes it. Install it, or create your key in Loopky instead."
+            "value": "Pubky Ring keeps your key in a separate app, so signing in never exposes it. Install it, or create your key in Loopky instead."
           }
         }
       }
@@ -7269,7 +7269,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Create an account and this deck remembers what you got right — and asks again on the day you're about to forget it."
+            "value": "Create an account and this deck remembers what you got right, and asks again just before you'd forget it."
           }
         }
       }
@@ -7412,7 +7412,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Almost — check the accents"
+            "value": "Almost. Check the accents"
           }
         }
       }
@@ -7434,7 +7434,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not quite — try again"
+            "value": "Not quite. Try again"
           }
         }
       }
@@ -7599,7 +7599,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A single mistyped or out-of-order word still passes the checksum and unlocks a different account. This is the most common reason to see this screen."
+            "value": "One mistyped or out-of-order word still passes the check and unlocks a different account."
           }
         }
       }
@@ -7643,7 +7643,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This publishes %1$@ as a public identity on the Pubky network. Only do this for a key you created for Pubky — never for a Bitcoin or crypto wallet recovery phrase."
+            "value": "This publishes %1$@ as a public identity. Never do this with a Bitcoin or crypto wallet recovery phrase."
           }
         }
       }
@@ -7687,7 +7687,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Creates an account for the key shown above, and publishes it publicly. Needs a quick verification if you haven't done one."
+            "value": "Creates an account for the key above and publishes it. Needs a quick verification."
           }
         }
       }
@@ -7698,7 +7698,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Loopky can't register a key it doesn't hold. Ring can't create the account either — that needs a signup token, and those come from Loopky. Two routes keep your key: use Ring's Edit pubky sheet with a token from Loopky, or reveal the recovery phrase in Ring and restore it here."
+            "value": "Pubky Ring holds this key, so Loopky can't create its account. Two ways to keep it: get an invite code here and use Ring's Edit pubky sheet, or reveal the recovery phrase in Ring and restore it here."
           }
         }
       }
@@ -7731,7 +7731,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The key is valid — there's just no Pubky account registered for it."
+            "value": "The key is valid. There's just no account registered for it."
           }
         }
       }

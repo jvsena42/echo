@@ -24,9 +24,9 @@
     <string name="home_deck_due">%1$d due</string>
     <string name="home_deck_new">%1$d new</string>
     <string name="home_deck_caught_up">Caught up</string>
-    <string name="home_empty_title">Nothing to study yet</string>
-    <string name="home_empty_subtitle">Create or import a deck to start your first study session. Cards will appear here when they\'re ready for review.</string>
-    <string name="home_create_first_deck">Create a deck</string>
+    <string name="home_empty_title">No decks yet</string>
+    <string name="home_empty_subtitle">Paste a list, import a file, or start from scratch.</string>
+    <string name="home_create_first_deck">Create your first deck</string>
     <string name="home_browse_examples">Browse examples</string>
 
     <!-- Decks library -->
@@ -39,7 +39,7 @@
     <string name="decks_library_count">Library · %1$d</string>
     <string name="decks_recent">Recent</string>
     <string name="decks_empty_title">No decks yet</string>
-    <string name="decks_empty_subtitle">Create your first deck or paste a list to get started.</string>
+    <string name="decks_empty_subtitle">Paste a list or create your first deck from scratch.</string>
     <string name="decks_empty_create">Create a deck</string>
     <string name="decks_error_title">Something went wrong</string>
     <string name="decks_loading">Shuffling your decks…</string>
@@ -61,8 +61,8 @@
     <string name="deck_detail_edit">Edit deck</string>
     <string name="deck_detail_delete">Delete deck</string>
     <string name="deck_detail_share">Share</string>
-    <string name="deck_detail_delete_dialog_title">Delete deck</string>
-    <string name="deck_detail_delete_dialog_message">“%1$s” will be permanently removed from your homeserver, along with your study progress for its cards. This can\'t be undone.</string>
+    <string name="deck_detail_delete_dialog_title">Delete deck?</string>
+    <string name="deck_detail_delete_dialog_message">“%1$s” and everything you\'ve learned from it will be deleted. This can\'t be undone.</string>
     <string name="deck_detail_delete_confirm">Delete</string>
     <string name="deck_detail_delete_cancel">Cancel</string>
     <string name="deck_detail_in_your_library">IN YOUR LIBRARY</string>
@@ -96,7 +96,7 @@
     <!-- The consequence, then the cause. Composed from the shared ErrorReason copy the same way
          publish_error_* is, so the editor cannot word a session failure differently from the rest
          of the app — and so the FFI's own message never reaches this row again (#165). -->
-    <string name="deck_editor_error_cards">Couldn\'t load this deck\'s cards. Your changes to the deck\'s details will still save. %1$s</string>
+    <string name="deck_editor_error_cards">Couldn\'t load this deck\'s cards. Changes to the deck\'s details will still save. %1$s</string>
     <string name="deck_editor_error_move">Couldn\'t move that card. %1$s</string>
     <string name="deck_editor_error_save">Couldn\'t save this deck. %1$s</string>
     <string name="deck_editor_add_card">Add card</string>
@@ -140,8 +140,8 @@
     <string name="study_type_check">Check</string>
     <string name="study_type_give_up">Give up · show me</string>
     <string name="study_type_correct">Correct!</string>
-    <string name="study_type_near_miss">Almost — check the accents</string>
-    <string name="study_type_wrong">Not quite — try again</string>
+    <string name="study_type_near_miss">Almost. Check the accents</string>
+    <string name="study_type_wrong">Not quite. Try again</string>
 
     <!-- Discover -->
     <string name="discover_title">Discover</string>
@@ -240,7 +240,7 @@
     <string name="publish_reverse_title">Both directions</string>
     <string name="publish_reverse_subtitle">Also ask each card back to front</string>
     <string name="study_reversed_badge">Reversed</string>
-    <string name="deck_languages_hint">Listen and Speak need to know what language each side is in, or the phone reads the card in your own accent. Picking one also tags the deck with that language.</string>
+    <string name="deck_languages_hint">Sets the voice used to read each side aloud.</string>
     <string name="deck_front_language_label">Front language</string>
     <string name="deck_back_language_label">Back language</string>
     <string name="deck_language_unset">Choose a language</string>
@@ -273,7 +273,7 @@
     <string name="image_sheet_image_unreadable">That image couldn\'t be read. Try another one.</string>
     <string name="image_sheet_link_preview">Pasted image</string>
     <string name="image_sheet_link_clear">Clear link</string>
-    <string name="image_sheet_link_failed">That link didn\'t load as an image. From a results page, copy the image itself or its image address — not the page\'s.</string>
+    <string name="image_sheet_link_failed">That link didn\'t load as an image. Copy the image itself, or its image address rather than the page\'s.</string>
     <string name="image_sheet_no_results">No images found</string>
     <!-- Web-search failures. The first three are fixed by setting a key; the last one is not. -->
     <string name="image_sheet_error_missing_key">Web image search needs an Unsplash API key. It\'s free and takes about two minutes.</string>
@@ -311,7 +311,7 @@
     <string name="onboarding_brand_name">Loopky</string>
     <string name="onboarding_signin_waiting">Waiting for Pubky Ring…</string>
     <string name="onboarding_signin_verifying">Signing in…</string>
-    <string name="onboarding_signin_default">Continue with Pubky Ring</string>
+    <string name="onboarding_signin_default">Sign in with Pubky Ring</string>
     <string name="onboarding_no_email_notice">No email. No password. Your key, your account.</string>
     <string name="onboarding_get_ring">Don\'t have Pubky Ring? Get the app</string>
     <!-- Consent gate on both account entry points. The two document names are located inside the
@@ -387,24 +387,24 @@
     <string name="settings_homeserver_label">Homeserver</string>
     <string name="settings_homeserver_unknown">Unknown</string>
     <string name="settings_section_sharing">SHARING</string>
-    <string name="settings_share_on_pubky_label">Ask to share on Pubky</string>
+    <string name="settings_share_on_pubky_label">Ask before posting</string>
     <!-- Must not read as a privacy control: published decks are public either way (spec 11). -->
-    <string name="settings_share_on_pubky_description">After you create, follow or clone a deck, offer to post about it so your Pubky followers see it. Your decks stay public either way — this only controls the post.</string>
+    <string name="settings_share_on_pubky_description">Offer to post when you create, follow or copy a deck. Your decks are public either way.</string>
     <!-- Image search (Unsplash API key). Never renders a key: the built-in one is not shown at
          all, and the user's own is reduced to its last four characters. -->
     <string name="settings_section_studying">STUDYING</string>
     <string name="settings_new_cards_goal_label">New cards per day</string>
-    <string name="settings_new_cards_goal_description">A goal, not a limit. You\'ll be told when you reach it and can keep going.</string>
+    <string name="settings_new_cards_goal_description">A goal, not a limit. You can always keep going.</string>
     <string name="settings_interval_hard_label">Hard interval (days)</string>
     <string name="settings_interval_good_label">Good interval (days)</string>
     <string name="settings_interval_easy_label">Easy interval (days)</string>
-    <string name="settings_interval_description">How long until the card comes back. The same every time you tap that grade, however often you\'ve seen it.</string>
-    <string name="settings_interval_mastery_note">A card counts as mastered once it\'s on your longest interval, so raising this raises the bar.</string>
-    <string name="settings_study_unavailable">Couldn\'t reach your settings on Pubky. Editing is off until they load, so nothing overwrites them.</string>
+    <string name="settings_interval_description">How long until the card comes back.</string>
+    <string name="settings_interval_mastery_note">Your longest interval is when a card counts as mastered.</string>
+    <string name="settings_study_unavailable">Couldn\'t load your study settings. Editing is off until they arrive, so nothing is overwritten.</string>
     <string name="settings_study_save_failed">Couldn\'t save your study settings.</string>
     <string name="settings_section_image_search">IMAGE SEARCH</string>
     <string name="settings_unsplash_key_label">Unsplash access key</string>
-    <string name="settings_unsplash_key_not_set">Not set — web image search is off</string>
+    <string name="settings_unsplash_key_not_set">Not set. Web image search is off</string>
     <string name="settings_unsplash_key_built_in">Using Loopky\'s shared key (limited)</string>
     <string name="settings_unsplash_key_user_set">Key set · ••••%1$s</string>
     <string name="settings_unsplash_key_set">Set</string>
@@ -413,7 +413,7 @@
     <string name="settings_unsplash_key_save">Save</string>
     <string name="settings_unsplash_key_cancel">Cancel</string>
     <string name="settings_unsplash_key_placeholder">Paste your Access Key</string>
-    <string name="settings_unsplash_key_hint">Free from Unsplash: create an application in your developer dashboard, then copy its Access Key — not the Secret key.</string>
+    <string name="settings_unsplash_key_hint">Free from Unsplash: create an application in the developer dashboard, then copy its Access Key, not the Secret key.</string>
     <string name="settings_unsplash_key_get">Get a key</string>
     <string name="settings_unsplash_key_error_invalid">Unsplash rejected that key. Check you copied the Access Key in full.</string>
     <string name="settings_unsplash_key_error_missing">Enter a key first.</string>
@@ -431,7 +431,7 @@
          must not imply that it has. -->
     <string name="settings_delete_account">Delete account</string>
     <string name="settings_delete_account_dialog_title">Delete account?</string>
-    <string name="settings_delete_account_dialog_body">Your decks, cards, images and study progress will be permanently deleted from your homeserver, and your profile will be removed from Loopky.</string>
+    <string name="settings_delete_account_dialog_body">Your decks, cards, images and study progress will be permanently deleted, and your profile will be removed from Loopky.</string>
     <string name="settings_delete_account_dialog_irreversible">This cannot be undone.</string>
     <string name="settings_delete_account_dialog_identity">Your Pubky identity stays in Pubky Ring.</string>
     <string name="settings_delete_account_confirm">Delete account</string>
@@ -442,19 +442,19 @@
     <string name="settings_delete_account_failed">Could not delete everything. You are still signed in, so you can try again.</string>
     <string name="settings_sign_out">Sign out</string>
     <string name="settings_sign_out_dialog_title">Sign out?</string>
-    <string name="settings_sign_out_dialog_message">Your decks stay on your homeserver. Signing back in restores everything.</string>
+    <string name="settings_sign_out_dialog_message">Your decks stay in your account. Signing back in restores everything.</string>
     <string name="settings_cancel">Cancel</string>
 
     <!-- Share-on-Pubky consent prompt (#39), shown after create / follow / clone -->
-    <string name="share_prompt_title_created">Share this deck on Pubky?</string>
-    <string name="share_prompt_title_followed">Share this follow on Pubky?</string>
-    <string name="share_prompt_title_cloned">Share this copy on Pubky?</string>
-    <string name="share_prompt_body">Posts to your Pubky feed so the people following you see it. The deck is public either way.</string>
-    <string name="share_prompt_confirm">Share on Pubky</string>
+    <string name="share_prompt_title_created">Post about this deck?</string>
+    <string name="share_prompt_title_followed">Post about this follow?</string>
+    <string name="share_prompt_title_cloned">Post about this copy?</string>
+    <string name="share_prompt_body">Your followers will see it. The deck is public either way.</string>
+    <string name="share_prompt_confirm">Post</string>
     <string name="share_prompt_dismiss">Not now</string>
     <string name="share_prompt_never">Don\'t ask again</string>
-    <string name="share_prompt_failed">Couldn\'t post to Pubky. The deck is unaffected.</string>
-    <string name="share_prompt_posted">Shared on Pubky</string>
+    <string name="share_prompt_failed">Couldn\'t post. The deck is unaffected.</string>
+    <string name="share_prompt_posted">Posted</string>
 
     <!-- Identity — one presentation of a pubky user, shared by every screen -->
     <string name="identity_pubky_short">%1$s</string>
@@ -493,7 +493,7 @@
     <string name="signup_invite_link">Have an invite code?</string>
 
     <string name="signup_invite_title">Enter your invite code.</string>
-    <string name="signup_invite_subtitle">Ask the Pubky team for a code to get an account on their homeserver.</string>
+    <string name="signup_invite_subtitle">Ask the Pubky team for a code to create your account.</string>
     <string name="signup_invite_label">Invite code</string>
     <string name="signup_invite_placeholder">XXXX-XXXX-XXXX</string>
     <string name="signup_invite_submit">Continue</string>
@@ -518,13 +518,13 @@
     <!-- Shown when Loopky comes back to an invoice it issued before being killed, which may
          already have been paid. There is nothing left to show or pay, so the copy stops asking. -->
     <string name="signup_lightning_resumed_title">Checking your earlier payment.</string>
-    <string name="signup_lightning_resumed_subtitle">You may already have paid ₿ %1$d. Hold on while we confirm — no need to pay again.</string>
-    <string name="signup_lightning_resumed_subtitle_fiat">You may already have paid ₿ %1$d (%2$s). Hold on while we confirm — no need to pay again.</string>
+    <string name="signup_lightning_resumed_subtitle">You may already have paid ₿ %1$d. Hold on while we confirm, and don\'t pay again.</string>
+    <string name="signup_lightning_resumed_subtitle_fiat">You may already have paid ₿ %1$d (%2$s). Hold on while we confirm, and don\'t pay again.</string>
     <string name="signup_lightning_resumed_waiting">Confirming with the server…</string>
     <string name="signup_lightning_open_wallet">Open in wallet</string>
     <string name="signup_lightning_copy">Copy invoice</string>
     <string name="signup_lightning_copied">Invoice copied</string>
-    <string name="signup_lightning_no_wallet">No Lightning wallet found — invoice copied instead</string>
+    <string name="signup_lightning_no_wallet">No Lightning wallet found. Invoice copied instead</string>
     <string name="signup_lightning_waiting">Waiting for payment…</string>
     <string name="signup_lightning_new_invoice">New invoice</string>
 
@@ -553,7 +553,7 @@
 
     <!-- Error states. Reason-based copy; the raw FFI message stays in logcat. -->
     <string name="error_offline_title">You\'re offline</string>
-    <string name="error_offline_message">Check your connection and try again. Your decks are safe on Pubky.</string>
+    <string name="error_offline_message">Check your connection and try again. Your decks are safe.</string>
     <string name="error_session_expired_title">Session expired</string>
     <string name="error_session_expired_message">Sign in with Pubky Ring again to get back to your decks.</string>
     <!-- Deliberately not the offline copy (#165). The homeserver session round trip is what
@@ -563,39 +563,39 @@
          appended to already does) and does not mention signing in (the button below it is the
          offer); every screen showing this composes it after a consequence, so length here is
          paid twice. -->
-    <string name="error_session_unreachable_title">Couldn\'t reach your session</string>
-    <string name="error_session_unreachable_message">Loopky couldn\'t re-establish your session. It\'s not your connection — try again.</string>
+    <string name="error_session_unreachable_title">Couldn\'t reconnect</string>
+    <string name="error_session_unreachable_message">Loopky couldn\'t restore your sign-in. It\'s not your connection, so try again.</string>
     <string name="error_sign_in_again">Sign in again</string>
     <string name="error_not_found_title">Not found</string>
     <string name="error_not_found_message">This deck no longer exists. It may have been deleted.</string>
-    <string name="error_no_account_title">Your Pubky isn\'t set up yet</string>
+    <string name="error_no_account_title">Your account isn\'t set up yet</string>
     <!-- Deliberately does NOT send the user back to Pubky Ring. Creating the account needs a
          signup token, tokens come from Homegate, and Homegate lives in Loopky — Ring's only route
          is its Edit-pubky sheet, which wants a homeserver z32 and a token the user does not have.
          Pointing at Ring here points at the one app that cannot help. -->
-    <string name="error_no_account_message">This pubky doesn\'t have an account yet, so there\'s nowhere to keep your decks. Getting one takes a quick verification — Loopky can walk you through it.</string>
+    <string name="error_no_account_message">There\'s no account for this key yet, so there\'s nowhere to keep your decks. Setting one up takes a minute.</string>
     <string name="error_not_signed_in_title">Not signed in</string>
     <string name="error_not_signed_in_message">Sign in with Pubky Ring to continue.</string>
     <string name="error_ring_not_installed_title">Pubky Ring not found</string>
     <string name="error_ring_not_installed_message">Loopky signs you in through Pubky Ring. Install it to continue.</string>
     <string name="error_auth_failed_title">Sign-in didn\'t finish</string>
-    <string name="error_auth_failed_message">Loopky couldn\'t confirm the authorisation with Pubky Ring. Check your connection and try again.</string>
-    <string name="error_auth_relay_title">Sign-in couldn\'t reach Pubky</string>
-    <string name="error_auth_relay_message">Loopky signs you in through Pubky\'s authorisation relay, and it isn\'t responding. Try again in a moment.</string>
+    <string name="error_auth_failed_message">Loopky couldn\'t confirm the sign-in. Check your connection and try again.</string>
+    <string name="error_auth_relay_title">Sign-in couldn\'t connect</string>
+    <string name="error_auth_relay_message">The sign-in service isn\'t responding. Try again in a moment.</string>
     <string name="study_sync_error_title">Your reviews aren\'t saving</string>
     <string name="study_sync_error_dismiss">Got it</string>
     <string name="study_goal_reached_title">Daily goal reached!</string>
     <string name="study_goal_reached_body">That\'s your target for today. Nothing is locked, so keep going if you\'re on a roll.</string>
     <string name="study_goal_keep_studying">Keep studying</string>
     <string name="study_goal_done">Back to home</string>
-    <string name="publish_error_no_draft">No import data. Go back and paste again.</string>
+    <string name="publish_error_no_draft">There\'s nothing to publish. Go back and paste your list again.</string>
     <string name="publish_error_publish">Couldn\'t publish this deck. %1$s</string>
-    <string name="publish_error_cancel">The partial deck is still on your homeserver. %1$s</string>
-    <string name="publish_error_undo">The deck is still published. %1$s</string>
-    <string name="error_server_busy_title">Your homeserver is busy</string>
-    <string name="error_server_busy_message">Your homeserver is rate-limiting Loopky, so this couldn\'t be finished. Nothing is wrong with your connection — wait a moment and try again.</string>
-    <string name="error_storage_full_title">Your Pubky storage is full</string>
-    <string name="error_storage_full_message">There\'s no room left on your homeserver, so this couldn\'t be saved. Delete a deck you no longer study to free up space, or upgrade your Pubky plan for more.</string>
+    <string name="publish_error_cancel">Couldn\'t remove the cancelled deck. Part of it is still saved. %1$s</string>
+    <string name="publish_error_undo">Couldn\'t undo this. The deck is still published. %1$s</string>
+    <string name="error_server_busy_title">The server is busy</string>
+    <string name="error_server_busy_message">Too many requests at once, so this couldn\'t be finished. It\'s not your connection. Wait a moment and try again.</string>
+    <string name="error_storage_full_title">Your storage is full</string>
+    <string name="error_storage_full_message">There\'s no room left in your account. Delete a deck you no longer study to free up space, or upgrade your storage plan.</string>
     <!-- Restore (#147): the door for someone who has a pubky but no working Pubky Ring. -->
     <string name="onboarding_restore">Use a recovery phrase or file</string>
     <string name="restore_start_title">Restore your account</string>
@@ -613,7 +613,7 @@
          is the only protection available — and a warning you can dismiss is one that gets
          dismissed. Deliberately no heuristic detection: a false negative would read as an
          all-clear, which is worse than saying nothing. -->
-    <string name="restore_seed_warning">Only enter a phrase created for Pubky. Never enter a Bitcoin or other crypto wallet recovery phrase here.</string>
+    <string name="restore_seed_warning">Never enter a Bitcoin or other crypto wallet recovery phrase here.</string>
     <!-- Local key creation + backup (#147). -->
     <!-- Separate strings rather than appending "(≈ US$0.85)" onto a translated sentence: the
          parenthetical belongs in a different place in half the languages we will ship. -->
@@ -622,29 +622,29 @@
     <!-- Terminal: retrying re-sends the same dead token. The copy has to send the user back to
          get a new one rather than at a button that cannot work. -->
     <string name="signup_error_token_rejected_title">That signup code was refused</string>
-    <string name="signup_error_token_rejected_message">Your homeserver wouldn\'t accept this code — it may already have been used. Trying again won\'t help; start over to get a new one.</string>
+    <string name="signup_error_token_rejected_message">This code was rejected. It may already have been used. Start over to get a new one.</string>
     <string name="signup_start_over">Start over</string>
     <string name="signup_local_title">Creating your account</string>
     <string name="signup_local_subtitle">Making your key and registering it. This takes a moment.</string>
     <string name="signup_local_retry">Try again</string>
     <string name="signup_ring_recommended_title">Pubky Ring is the safest place for your key</string>
-    <string name="signup_ring_recommended_body">Pubky Ring keeps your key in a separate app, so signing in to Loopky never exposes it. Install it, or create your key in Loopky instead.</string>
+    <string name="signup_ring_recommended_body">Pubky Ring keeps your key in a separate app, so signing in never exposes it. Install it, or create your key in Loopky instead.</string>
     <string name="backup_start_title">Back up your account</string>
-    <string name="backup_start_subtitle">Your key lives only on this device. Save it somewhere you can reach if you lose your phone. You can also do this later.</string>
+    <string name="backup_start_subtitle">Your key lives only on this device. Save it somewhere you can reach if you lose your phone.</string>
     <!-- For a key restored from a phrase or file: it IS already backed up, so telling the user to
          back it up would be describing a risk they do not have. What is still on offer is Pubky
          Ring, which is a custody change rather than a backup. -->
-    <string name="backup_start_subtitle_backed_up">You already have a copy of this key, so it\'s safe. Pubky Ring keeps it in a separate app — safer still — or add another backup here. You can also do this later.</string>
-    <string name="backup_method_ring_missing">Not installed — we\'ll take you to it.</string>
+    <string name="backup_start_subtitle_backed_up">You already have a copy of this key. Pubky Ring keeps it in a separate app, which is safer still, or you can add another backup here.</string>
+    <string name="backup_method_ring_missing">Not installed. We\'ll take you to it.</string>
     <string name="backup_later">I\'ll do this later</string>
     <string name="backup_done_label">Done</string>
     <string name="backup_method_password_manager">Password manager</string>
     <string name="backup_method_password_manager_detail">Save the phrase to Google Password Manager or whichever manager you use.</string>
     <string name="backup_phrase_save_to_manager">Save to password manager</string>
-    <string name="backup_phrase_saved_to_manager">Saved and checked — your password manager has the phrase.</string>
+    <string name="backup_phrase_saved_to_manager">Saved and checked. Your password manager has the phrase.</string>
     <string name="backup_phrase_save_failed">Nothing was saved. Your password manager may have declined, or you cancelled.</string>
     <string name="backup_quiz_saved_title">Check your saved phrase</string>
-    <string name="backup_quiz_saved_subtitle">You saved this phrase to a password manager, so there is nothing to recall. We\'ll read it back to make sure it is still there and still correct.</string>
+    <string name="backup_quiz_saved_subtitle">You saved this phrase to a password manager, so there\'s nothing to recall. We\'ll read it back to check it\'s still there.</string>
     <string name="backup_quiz_saved_check">Check saved phrase</string>
     <string name="backup_quiz_saved_wrong">That did not match. Open your password manager and check the entry for this account, then try again.</string>
     <string name="backup_method_phrase">Recovery phrase</string>
@@ -658,22 +658,22 @@
     <string name="backup_phrase_reveal">Tap to reveal</string>
     <string name="backup_phrase_continue">I\'ve written them down</string>
     <!-- The inverted seed warning: prevents someone sending sats to a Pubky account. -->
-    <string name="backup_phrase_warning">This phrase is for your Pubky account only. It is not a Bitcoin wallet and holds no funds.</string>
+    <string name="backup_phrase_warning">This phrase is for your account only. It is not a Bitcoin wallet and holds no funds.</string>
     <string name="backup_quiz_title">Confirm your phrase</string>
     <string name="backup_quiz_subtitle">Pick the right word for each position.</string>
     <string name="backup_quiz_position">Word %1$d</string>
     <string name="backup_quiz_submit">Confirm</string>
     <string name="backup_quiz_wrong">That\'s not quite right. Check your written copy and try again.</string>
     <string name="backup_file_title">Encrypted recovery file</string>
-    <string name="backup_file_subtitle">Choose a passphrase. You will need it — and the file — to restore.</string>
+    <string name="backup_file_subtitle">Choose a passphrase. You will need it, and the file, to restore.</string>
     <string name="backup_file_passphrase">Passphrase</string>
     <string name="passphrase_reveal">Show passphrase</string>
     <string name="passphrase_hide">Hide passphrase</string>
     <string name="backup_file_create">Create and save file</string>
     <string name="backup_file_failed">Couldn\'t create the file. Please try again.</string>
     <string name="backup_strength_too_short">Too short</string>
-    <string name="backup_strength_weak">Weak — 16 characters or more is much stronger</string>
-    <string name="backup_strength_fair">Fair — 16 characters or more is much stronger</string>
+    <string name="backup_strength_weak">Weak. 16 characters or more is much stronger</string>
+    <string name="backup_strength_fair">Fair. 16 characters or more is much stronger</string>
     <string name="backup_strength_strong">Strong</string>
     <string name="backup_ring_title">Export to Pubky Ring</string>
     <!-- Never implies the key moved. Ring imports it; Loopky keeps its copy and its session, and
@@ -688,23 +688,23 @@
     <string name="backup_nag_body">Your key lives only on this device. If you lose it, your decks go with it.</string>
     <string name="backup_nag_action">Back up now</string>
     <string name="settings_signout_unbacked_title">Signing out will erase your key</string>
-    <string name="settings_signout_unbacked_body">Loopky holds the only copy of the key for %1$s, and you haven\'t backed it up. Signing out deletes it, and this account can never be recovered.</string>
+    <string name="settings_signout_unbacked_body">Loopky holds the only copy of the key for %1$s, and you haven\'t backed it up. Signing out deletes it for good.</string>
     <string name="settings_signout_unbacked_confirm">Sign out and erase</string>
     <string name="settings_signout_unbacked_backup">Back up first</string>
     <string name="unregistered_title">This key has no account yet</string>
-    <string name="unregistered_subtitle">The key is valid — there\'s just no Pubky account registered for it.</string>
+    <string name="unregistered_subtitle">The key is valid. There\'s just no account registered for it.</string>
     <string name="unregistered_pubky_label">The key you presented:</string>
     <string name="unregistered_check_phrase">Check my recovery phrase again</string>
-    <string name="unregistered_check_hint">A single mistyped or out-of-order word still passes the checksum and unlocks a different account. This is the most common reason to see this screen.</string>
+    <string name="unregistered_check_hint">One mistyped or out-of-order word still passes the check and unlocks a different account.</string>
     <string name="unregistered_register">Register this key</string>
     <!-- Says plainly what the button does, because it publishes a record to the DHT. -->
-    <string name="unregistered_register_hint">Creates an account for the key shown above, and publishes it publicly. Needs a quick verification if you haven\'t done one.</string>
+    <string name="unregistered_register_hint">Creates an account for the key above and publishes it. Needs a quick verification.</string>
     <string name="unregistered_register_confirm_title">Register this key?</string>
-    <string name="unregistered_register_confirm_body">This publishes %1$s as a public identity on the Pubky network. Only do this for a key you created for Pubky — never for a Bitcoin or crypto wallet recovery phrase.</string>
+    <string name="unregistered_register_confirm_body">This publishes %1$s as a public identity. Never do this with a Bitcoin or crypto wallet recovery phrase.</string>
     <string name="unregistered_register_confirm_yes">Register it</string>
     <string name="unregistered_register_confirm_cancel">Cancel</string>
     <string name="unregistered_ring_title">Pubky Ring is holding this key</string>
-    <string name="unregistered_ring_body">Loopky can\'t register a key it doesn\'t hold. Ring can\'t create the account either — that needs a signup token, and those come from Loopky. Two routes keep your key: use Ring\'s Edit pubky sheet with a token from Loopky, or reveal the recovery phrase in Ring and restore it here.</string>
+    <string name="unregistered_ring_body">Pubky Ring holds this key, so Loopky can\'t create its account. Two ways to keep it: get an invite code here and use Ring\'s Edit pubky sheet, or reveal the recovery phrase in Ring and restore it here.</string>
     <string name="unregistered_ring_import">Restore with my recovery phrase</string>
     <string name="restore_method_file">Encrypted recovery file</string>
     <string name="restore_method_file_detail">A recovery.pkarr file and its passphrase.</string>
@@ -716,7 +716,7 @@
     <string name="restore_file_passphrase_placeholder">The passphrase you set</string>
     <string name="restore_file_submit">Restore account</string>
     <string name="restore_error_passphrase_title">That didn\'t open the file</string>
-    <string name="restore_error_passphrase_message">Check the passphrase, and that this is the recovery file for the account you want. This says nothing about whether the account exists.</string>
+    <string name="restore_error_passphrase_message">Check the passphrase, and that this is the recovery file for the account you want.</string>
     <string name="restore_error_unreadable_title">Couldn\'t read that file</string>
     <string name="restore_error_unreadable_message">Loopky couldn\'t open the file you chose. Try choosing it again.</string>
     <string name="restore_error_invalid_title">That\'s not a valid recovery phrase</string>
@@ -724,18 +724,18 @@
     <!-- Never "invalid": the phrase is valid, it just is not this account\'s. Showing the pubky is
          the fastest diagnosis available and the only one the user can make. -->
     <string name="restore_error_no_account_title">That phrase doesn\'t match an account</string>
-    <string name="restore_error_no_account_message">This recovery phrase is valid, but no Pubky account has been created for it. Check for a mistyped or out-of-order word — and if it came from a Bitcoin or crypto wallet, that\'s a different kind of phrase and won\'t work here.</string>
+    <string name="restore_error_no_account_message">This phrase is valid, but no account has been created for it. Check for a mistyped or out-of-order word. A Bitcoin or crypto wallet phrase won\'t work here.</string>
     <string name="restore_error_no_account_pubky">It unlocks this pubky:</string>
     <string name="restore_retry">Try again</string>
     <!-- The pkarr/DHT lookup that decides whether a pubky has an account did not answer.
          Never a verdict on what was looked up: it must always read as "we don't know yet". -->
-    <string name="error_lookup_failed_title">We couldn\'t check that</string>
-    <string name="error_lookup_failed_message">We couldn\'t reach the Pubky network to look this up, so we don\'t know yet. This often means a network that blocks peer-to-peer traffic. Try again, or switch to a different Wi-Fi or mobile data.</string>
+    <string name="error_lookup_failed_title">Couldn\'t check that</string>
+    <string name="error_lookup_failed_message">Some networks block the connection Loopky needs. Try again, or switch between Wi-Fi and mobile data.</string>
     <string name="error_generic_title">Something went wrong</string>
     <string name="error_generic_message">Something went wrong. Please try again.</string>
     <string name="home_caught_up_title">You\'re all caught up</string>
     <string name="home_caught_up_next_due">Next review in %1$s.</string>
-    <string name="home_caught_up_no_next_due">Nothing scheduled yet — study ahead from any deck.</string>
+    <string name="home_caught_up_no_next_due">Nothing scheduled yet. Study ahead from any deck.</string>
     <string name="share_deck_chooser_title">Share deck</string>
     <string name="share_profile_chooser_title">Share profile</string>
     <string name="share_deck_body">%1$s on Loopky\n%2$s</string>
@@ -763,9 +763,9 @@
     <string name="form_card_side_required">Add some text or a picture to this side.</string>
     <string name="form_card_text_too_long">Card text must be 2000 characters or fewer.</string>
     <string name="paste_validation_empty">Paste or type your list first.</string>
-    <string name="paste_validation_no_cards">No cards found yet — check the separator or add a front and back.</string>
+    <string name="paste_validation_no_cards">No cards found yet. Check the separator, or add a front and back.</string>
     <string name="permission_mic_title">Practise your pronunciation</string>
-    <string name="permission_mic_rationale">Speak listens while you say the word and tells you how close you were. Audio is processed on your device and never leaves it.</string>
+    <string name="permission_mic_rationale">Speak listens while you say the word and tells you how close you were. Audio never leaves your device.</string>
     <string name="permission_mic_denied_title">Microphone is off</string>
     <string name="permission_mic_denied_message">Speak needs microphone access, and Android won\'t ask again. You can turn it on in Settings.</string>
     <string name="permission_continue">Continue</string>
@@ -782,7 +782,7 @@
     <string name="bulk_formats_label">WHAT WORKS</string>
     <string name="bulk_format_apkg_ext">.apkg</string>
     <string name="bulk_format_apkg_title">Anki deck export</string>
-    <string name="bulk_format_apkg_detail">Your cards, the deck\'s name and its pictures come across. Audio doesn\'t — those cards import as text.</string>
+    <string name="bulk_format_apkg_detail">Your cards, the deck\'s name and its pictures come across. Audio doesn\'t, so those cards import as text.</string>
     <string name="bulk_format_text_ext">.txt · .csv</string>
     <string name="bulk_format_text_title">Plain text export</string>
     <string name="bulk_format_text_detail">In Anki: File → Export → “Notes in Plain Text”. Any tab- or comma-separated list works too.</string>
@@ -822,7 +822,7 @@
     <string name="bulk_error_unknown_message">Something went wrong reading that file. Try another one.</string>
     <string name="bulk_sample_picture">Picture</string>
     <string name="bulk_skipped">%1$d skipped (missing a front or back)</string>
-    <string name="deck_incomplete_warning">This deck didn\'t finish uploading — some cards are missing. Import it again to complete it, or delete it.</string>
+    <string name="deck_incomplete_warning">This deck didn\'t finish uploading, so some cards are missing. Import it again to complete it, or delete it.</string>
     <!-- Add-tag sheet, shared by the publish flow and the deck editor -->
     <string name="tag_sheet_title">Add Tag</string>
     <string name="tag_sheet_input_placeholder">Type a tag…</string>
@@ -845,11 +845,11 @@
     <string name="sign_in_prompt_cta">Create account or sign in</string>
     <string name="sign_in_prompt_dismiss">Not now</string>
     <string name="sign_in_prompt_follow_deck_title">Keep this deck</string>
-    <string name="sign_in_prompt_follow_deck_body">Following saves a deck to your library, keeps it up to date with the author and remembers what you\'ve learned. It needs an account — one key, no email.</string>
+    <string name="sign_in_prompt_follow_deck_body">Following saves the deck to your library, keeps it up to date and remembers what you\'ve learned. It needs an account, but no email.</string>
     <string name="sign_in_prompt_clone_deck_title">Make it yours</string>
-    <string name="sign_in_prompt_clone_deck_body">A clone is your own copy, published under your key and yours to edit. It needs an account — one key, no email.</string>
+    <string name="sign_in_prompt_clone_deck_body">A clone is your own copy, published under your key and yours to edit. It needs an account, but no email.</string>
     <string name="sign_in_prompt_follow_person_title">Follow people</string>
-    <string name="sign_in_prompt_follow_person_body">Following puts the decks people publish on your Discover. It needs an account — one key, no email.</string>
+    <string name="sign_in_prompt_follow_person_body">Following puts the decks people publish on your Discover. It needs an account, but no email.</string>
 
     <!--
       Previewing a deck nobody has kept: a fixed handful of cards, graded and stored nowhere.
@@ -860,7 +860,7 @@
     <string name="study_preview_badge">Preview · progress isn\'t saved</string>
     <string name="study_preview_next">Next card</string>
     <string name="study_preview_complete_title">That\'s the preview 👋</string>
-    <string name="study_preview_guest_detail">Create an account and this deck remembers what you got right — and asks again on the day you\'re about to forget it.</string>
+    <string name="study_preview_guest_detail">Create an account and this deck remembers what you got right, and asks again just before you\'d forget it.</string>
     <string name="study_preview_member_detail">Follow or clone this deck to keep your progress on it.</string>
     <string name="study_preview_action_guest">Create account</string>
     <string name="study_preview_back">Back to deck</string>

@@ -1285,3 +1285,128 @@ test text as it is typed ("hola" → "Hora", "dog,cachorro" → "Dog,cachorro", 
 and `type-text` refuses a string containing a newline or an em-dash — type each line and press
 key code 40 between them. None of it is the app; it does make a typed em-dash list untestable this
 way.
+
+## Plain-language copy pass — jargon out, Android/iOS matched (2026-09-02, `emulator-5554`)
+
+A copy-only change: no logic touched. Three goals — drop the words a normal user has no way to
+know, shorten the instruction blocks, and make the two platforms say the same thing.
+
+**"homeserver" is gone from every user-facing string on both platforms** (was 9 on Android and
+mirrored in `ErrorMessages.swift`). Nobody picks a homeserver, sees one, or can act on the word.
+It became "your account" where it meant storage. The Settings row that displays the
+homeserver's z32 was briefly renamed **Storage server**, and that was reverted the same day (see
+the iOS pass below): a coined term names nothing, so a user comparing Loopky's row against any
+other Pubky client's has no way to tell they are the same thing. Everywhere else, `homeserver`
+survives only in Kotlin/Swift identifiers and code comments.
+
+**"Pubky" now appears only where it names something the user can act on** — the Pubky Ring app,
+pubky.app, the invite code from the Pubky team, and the pubky shown on a profile. Dropped from
+error copy ("Sign-in couldn't reach Pubky" → "Sign-in couldn't connect"; "Your Pubky storage is
+full" → "Your storage is full"), from the sharing prompts ("Share this deck on Pubky?" → "Post
+about this deck?", settings row "Ask to share on Pubky" → "Ask before posting"), and from
+`error_offline_message`, which no longer explains where decks live in order to reassure you.
+"Pubky's authorisation relay", "the Pubky network", "peer-to-peer traffic" and "signup token" are
+all gone — the DHT-lookup failure now reads "Some networks block the connection Loopky needs",
+which is the part a user can do something about.
+
+**The long blocks were cut, hardest first.** `unregistered_ring_body` 277 → 190 chars,
+`restore_error_no_account_message` 223 → 154, `error_lookup_failed_message` 193 → 101. ~30 strings
+shortened in all.
+
+**Three rewrites drifted factually and were corrected before commit** — worth recording because
+each read fine in isolation. A draft of `unregistered_ring_body` said you could "create an account
+here and add it to Ring"; Loopky cannot register a key it does not hold, which is the entire reason
+that screen exists. A draft of `backup_phrase_warning` called the phrase "for your Loopky account
+only" — it is a Pubky identity that works in Ring and elsewhere. And a draft of
+`unregistered_register_confirm_body` narrowed "a key you created for Pubky" to "for Loopky".
+Shortening safety copy is where the meaning goes missing quietest.
+
+**Android/iOS divergence: 21 → 7, and the 7 are deliberate.** One is correctly platform-specific
+(Drive vs iCloud Drive); five are the trailing `%1$s` reason sentence Android appends to deck-editor
+and publish errors and iOS has no reason plumbed for; one is `%@` vs `%1$s` for a single argument.
+Also fixed along the way: iOS's `noHomeserverAccount` message still told users to finish setup in
+Pubky Ring, which predates Loopky having its own signup.
+
+**One `%`-specifier trap introduced and caught.** Giving iOS the Android delete-confirm copy put a
+`%1$@` into a value that `DeckDetailScreen` passed to `Text(_:)` as a bare key — the documented
+failure that renders the specifier. Fixed with a `deleteMessage` computed property mirroring the
+existing `cloneMessage`; an audit over every `Text`/`Button`/`Label`/`alert` key position against
+every `%`-bearing catalog value now reports zero.
+
+| Verified on the phone | Result |
+| --- | --- |
+| 06 — Settings: identity rows, sharing row, all four study rows | ✅ "Storage server" (since reverted to "Homeserver"), "Ask before posting", no wrapping or truncation |
+| 06 — Settings after the second copy pass (below) | ✅ Hard interval's note is one line, Easy interval's two, sharing two; screen no longer scrolls to reach Image search |
+| 06 — Sign out dialog | ✅ "Your decks stay in your account. Signing back in restores everything." |
+| 05 — Deck detail → Delete deck | ✅ "Delete deck?" / "“Spanish Nouns” and everything you've learned from it will be deleted. This can't be undone." — the title interpolates |
+
+`assembleDebug` and `detektAll` green. Placeholder arity was diffed against `HEAD` across both
+catalogs: one intentional change (the delete message gaining the deck title), nothing else.
+
+**Not verified, and why.** The error strings (journey 10) were not re-triggered — they are
+`ErrorReason` copy reached only by inducing the failure, and this change alters the words, not the
+mapping. **Nothing was checked on iOS at all: this machine is Linux, with no Xcode, no simulator
+and no SwiftLint.** The Swift edits are string literals in `ErrorMessages.swift` plus the one
+`deleteMessage` property; they need a build and a pass over Settings, sign-out, delete-deck and the
+share prompt on a simulator before this is trusted on iOS.
+
+**Second pass on the Studying section, on review.** The three descriptions were still doing more
+explaining than a settings row needs. `settings_interval_description` lost the fixed-interval
+clause ("the same every time you tap that grade, however often you've seen it") and is now just
+"How long until the card comes back." — the mechanic is still true and still worth knowing, but a
+row description answers "what is this number?", and the study screen is where the behaviour is
+felt. The mastery note dropped "so raising this raises the bar" (the reader can see that from the
+number), and the new-cards note dropped the sentence about being told when you reach the goal.
+The sharing description lost "so your followers see it"; **its second sentence stays** — without
+"Your decks are public either way", "Ask before posting" reads as a visibility switch, which is a
+privacy control Loopky does not have.
+
+**Em dashes removed from the copy (same day).** The em-dash-as-connector runs through the catalogs
+as a tell, and it was rewritten out of 27 strings on both platforms plus two in `ErrorMessages.swift`
+("It's not your connection — try again." → "…, so try again."). Five uses are **kept on purpose**
+and anything sweeping this again should leave them alone: `paste_blank_placeholder`,
+`profile_stat_pending` and `settings_app_version_unknown` are a bare `—` used as an empty-value
+glyph, and `decks_sort_alphabetical` ("A–Z") and `deck_editor_move_to_label` ("Position (1–%1$d)")
+are en-dash numeric ranges, which is what an en dash is for. Re-checked on the phone: Settings
+reads "A goal, not a limit. You can always keep going."
+
+
+## iOS pass on the copy branch — study captions, Homeserver, language hint (2026-09-02, `iPhone 17` sim + `emulator-5554`)
+
+The plain-language pass above was written on a machine with no Xcode, and flagged itself as
+**unverified on iOS**. This is that verification, plus the three changes it turned up.
+
+**The Studying section was wrong on iOS, and only on iOS.** Android has always hung each caption
+under the row it explains; SwiftUI's `Section(footer:)` stacked all three below all four steppers,
+so "A goal, not a limit", "How long until the card comes back" and the mastery note read as one
+block of prose with no way to tell which belonged to which. The mastery note is the one that
+actually breaks: it is only meaningful beside the Easy interval it measures against. Fixed by
+giving the stepper label a `VStack` of label + caption, matching `StudySettingsSection`; the footer
+now carries only the "can't edit yet" warning, which is genuinely section-wide. VoiceOver gains the
+captions as a side effect — they were unreachable footer text and now read out with their stepper
+(`New cards per day, A goal, not a limit. You can always keep going., 20, Increment`).
+
+**"Storage server" reverted to "Homeserver"** on both platforms — see the correction above.
+
+**The deck-editor language hint was cut to one line.** Two sentences of justification became "Sets
+the voice used to read each side aloud." The requirement is unchanged and still stated where it
+bites, on `deck_languages_required`. Three drafts were rejected on the way and the reasons are
+worth keeping: "not your accent" makes the reader work out whose accent and why it would happen,
+and "This also tags the deck" describes a side effect nobody is deciding at that moment.
+
+| Verified | Result |
+| --- | --- |
+| 06 — Settings, Studying section (iPhone 17 sim) | ✅ each caption under its own row; Good has none, as on Android |
+| 06 — Settings, identity rows (iPhone 17 sim) | ✅ "Homeserver" |
+| 06 — Settings, identity + Studying (`emulator-5554`) | ✅ "Homeserver"; Android captions unchanged |
+| 05 — Deck editor, Listen on → language pickers (iPhone 17 sim) | ✅ hint is two lines above the pickers, no truncation |
+| 05 — Deck editor, Listen on → language pickers (`emulator-5554`) | ✅ hint is one line; backed out without saving |
+
+`assembleDebug`, `detektAll` and `lintSwift` green; iOS builds and runs on the simulator.
+
+**Not verified, and why.** The **iPad** was not checked. The regular-size-class pass this repo asks
+for needs a signed-in Settings screen, and the iPad simulator is in guest state — a simulator signs
+in by QR from a real phone, which a session cannot do. The change is a `LabeledContent` label
+swapped for a `VStack`, which SwiftUI lays out the same at any width, but nobody has looked at it
+above compact. The error strings (journey 10) are still un-retriggered, unchanged from the pass
+above.
