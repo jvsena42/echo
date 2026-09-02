@@ -1845,7 +1845,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Listen and Speak need to know each side's language, or the phone uses your own accent. This also tags the deck with the language."
+            "value": "Sets the voice used to read each side aloud."
           }
         }
       }
