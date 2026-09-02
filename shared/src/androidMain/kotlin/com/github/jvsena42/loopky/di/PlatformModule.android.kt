@@ -2,11 +2,11 @@ package com.github.jvsena42.loopky.di
 
 import com.github.jvsena42.loopky.data.homegate.HomegateClient
 import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
-import com.github.jvsena42.loopky.data.nexus.AndroidHttpFetcher
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
+import com.github.jvsena42.loopky.data.nexus.JvmHttpFetcher
 import com.github.jvsena42.loopky.data.nexus.NexusClient
-import com.github.jvsena42.loopky.data.pubky.AndroidPubkyClient
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
+import com.github.jvsena42.loopky.data.pubky.UniffiPubkyClient
 import com.github.jvsena42.loopky.data.storage.AndroidAppPreferences
 import com.github.jvsena42.loopky.data.storage.AndroidLocalKeyStore
 import com.github.jvsena42.loopky.data.storage.AndroidPendingReviewStore
@@ -50,8 +50,8 @@ fun androidPlatformModule(
     pubkyEnvironment: PubkyEnvironment,
     localNexusBaseUrl: String = "",
 ): Module = module {
-    single<PubkyClient> { AndroidPubkyClient() }
-    single<HttpFetcher> { AndroidHttpFetcher() }
+    single<PubkyClient> { UniffiPubkyClient() }
+    single<HttpFetcher> { JvmHttpFetcher() }
     single<SecureSessionStore> { AndroidSecureSessionStore(androidContext()) }
     single<AppPreferences> { AndroidAppPreferences(androidContext()) }
     single<PendingReviewStore> { AndroidPendingReviewStore(androidContext()) }

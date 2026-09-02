@@ -8,8 +8,13 @@ import java.net.URL
 /**
  * [HttpFetcher] backed by [HttpURLConnection] — no client library needed for Loopky's handful of
  * plain REST calls.
+ *
+ * Shared by every JVM target: `HttpURLConnection` is in the JDK and in Android's platform, so
+ * Android and the desktop `jvm()` target the CLI runs on make the same call the same way. That
+ * matters more than it looks for the CLI, whose `--json` output is a *verification* channel
+ * (#54) — a second HTTP implementation is a second set of quirks for a read to disagree on.
  */
-class AndroidHttpFetcher : HttpFetcher {
+class JvmHttpFetcher : HttpFetcher {
 
     override suspend fun send(request: HttpRequest): Result<HttpResponse> = withContext(Dispatchers.IO) {
         // Plain `runCatching`: the block is synchronous inside `withContext`, so there is no

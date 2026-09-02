@@ -53,8 +53,16 @@ import uniffi.pubkycore.validateMnemonicPhrase as ffiValidateMnemonicPhrase
 private const val LOOPKY_CLIENT_ID = "loopky.app"
 
 /**
- * Android implementation of [PubkyClient] delegating to the UniFFI-generated Kotlin
- * bindings in `uniffi.pubkycore`. JNI libraries are shipped in `shared/androidMain/jniLibs`.
+ * JVM implementation of [PubkyClient] delegating to the UniFFI-generated Kotlin bindings in
+ * `uniffi.pubkycore`, shared by every target that runs on a JVM with JNA — Android and the
+ * desktop `jvm()` target the CLI is built on (#54).
+ *
+ * One implementation rather than two, because the generated bindings are plain JNA with no
+ * Android imports: only *where the native library comes from* differs. Android ships it as a
+ * packaged JNI library (`shared/androidMain/jniLibs/<abi>/libpubkycore.so`); the desktop target
+ * ships it as a jar resource under JNA's own search layout
+ * (`shared/jvmMain/resources/linux-x86-64/libpubkycore.so`), which `Native.load` extracts at
+ * runtime. Both end at the same `Native.load("pubkycore")` inside the bindings.
  *
  * The UniFFI surface returns `List<String>` of shape `[status, payload]` where status is
  * `"success"` or `"error"`. [runFfi]/[runFfiSuspend] translate that into [Result].
@@ -62,7 +70,7 @@ private const val LOOPKY_CLIENT_ID = "loopky.app"
  * Blocking network calls are routed through [Dispatchers.IO] so callers on the main
  * dispatcher stay responsive.
  */
-class AndroidPubkyClient : PubkyClient {
+class UniffiPubkyClient : PubkyClient {
 
     // --- Keys & mnemonics -----------------------------------------------------
     override fun generateSecretKey() = runFfi { ffiGenerateSecretKey() }

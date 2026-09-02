@@ -24,7 +24,13 @@ subprojects {
                 "src/commonMain/kotlin",
                 "src/androidMain/kotlin",
                 "src/iosMain/kotlin",
+                // The JVM family (#54): `jvmSharedMain` is Android + desktop, `jvmMain` is the
+                // desktop half alone. Listed explicitly, like every other set here — a source set
+                // missing from this list is simply not linted, and nothing reports it.
+                "src/jvmSharedMain/kotlin",
+                "src/jvmMain/kotlin",
                 "src/commonTest/kotlin",
+                "src/jvmTest/kotlin",
                 "src/androidUnitTest/kotlin",
             )
         )

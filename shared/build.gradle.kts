@@ -12,6 +12,19 @@ kotlin {
             jvmTarget.set(JvmTarget.JVM_11)
         }
     }
+
+    /**
+     * The desktop JVM the headless client runs on (#54) — Linux x86_64 first, since that is where
+     * an agent actually runs, with macOS arm64 as the developer's machine.
+     *
+     * JVM 17 rather than the Android target's 11: nothing consumes this from a `minSdk` 29 app,
+     * and 17 is what the root build already compiles detekt and every Gradle task against.
+     */
+    jvm {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
     
     listOf(
         iosArm64(),
@@ -26,7 +39,41 @@ kotlin {
         iosTarget.compilations.getByName("main").cinterops.create("sqlite3")
     }
     
+    /**
+     * `jvmSharedMain`: the JVM family, Android and the desktop `jvm()` target together.
+     *
+     * A good deal of what used to sit in `androidMain` was only there by accident of being first —
+     * `java.time`, `java.security`, `java.util.zip`, `HttpURLConnection`, and the UniFFI-generated
+     * JNA bindings, which have no Android imports at all.
+     *
+     * Sharing them is not a tidiness preference. `uniffi/pubkycore/pubkycore.kt` is a *generated*
+     * file, regenerated in `pubky-core-ffi-fork` and checked in here; a second copy under
+     * `jvmMain` would have to stay byte-identical to this one forever, and nothing would report it
+     * when it stopped. One copy, two targets.
+     *
+     * Added *through* the default template rather than with bare `dependsOn` edges, which silently
+     * switch the template off — `iosMain` stops belonging to any compilation and the iOS build
+     * loses every actual in it, with a warning as the only sign.
+     */
+    applyDefaultHierarchyTemplate {
+        common {
+            group("jvmShared") {
+                withAndroidTarget()
+                withJvm()
+            }
+        }
+    }
+
     sourceSets {
+        val jvmSharedMain by getting
+        jvmSharedMain.dependencies {
+            // compileOnly, because the two targets need different *flavours* of the same artifact
+            // at runtime: Android takes `jna@aar` (native .so bundled inside), the desktop target
+            // takes the plain jar. An `implementation` here would put both on Android's runtime
+            // classpath and duplicate every class in it.
+            compileOnly(libs.jna)
+        }
+
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
@@ -35,15 +82,31 @@ kotlin {
             // `api` so the ViewModel type stays visible to the platform UI layers (and the
             // exported iOS framework) that consume the shared ViewModels.
             api(libs.androidx.lifecycle.viewmodel)
+        }
+        iosMain.dependencies {
+            // iOS's Keychain-backed stores. Down here for the same reason as androidMain's copy:
+            // KVault publishes no `jvm` artifact, so a `commonMain` declaration breaks the
+            // desktop target (#54, shared prerequisite 1).
             implementation(libs.kvault)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+        jvmMain.dependencies {
+            implementation(libs.jna)
+            // The `.apkg` collection reader. Android has SQLite in the platform; a desktop JVM
+            // does not, and bulk Anki import is the most CLI-shaped job there is (#46).
+            implementation(libs.sqlite.jdbc)
+        }
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.koin.android)
+            // Android's `SecureSessionStore` and the secrets vault. Down here rather than in
+            // `commonMain` because KVault 1.12.0 publishes android + iOS artifacts and **nothing
+            // else** — no `jvm`, no `watchos` — so a `commonMain` declaration fails to resolve for
+            // the desktop target for a one-line reason that has nothing to do with the code.
+            implementation(libs.kvault)
             // The media re-host job (#53). Lives here rather than in :composeApp because
             // PlatformModule.android.kt binds it and :shared cannot depend on the app module.
             implementation(libs.androidx.work.runtime)

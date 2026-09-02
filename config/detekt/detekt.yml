@@ -38,7 +38,7 @@ complexity:
     thresholdInEnums: 15
     excludes:
       - '**/data/pubky/PubkyClient.kt'
-      - '**/data/pubky/AndroidPubkyClient.kt'
+      - '**/data/pubky/UniffiPubkyClient.kt'
       # Same reason as the two above: a wide interface, and the count is the interface's, not a
       # cohesion problem in the implementation.
       - '**/data/repository/impl/DiscoveryRepositoryImpl.kt'
@@ -60,7 +60,7 @@ exceptions:
   TooGenericExceptionCaught:
     active: true
     excludes:
-      - '**/data/pubky/AndroidPubkyClient.kt'
+      - '**/data/pubky/UniffiPubkyClient.kt'
       - '**/data/pubky/IosPubkyClient.kt'
 
 empty-blocks:
@@ -81,6 +81,7 @@ naming:
     excludes:
       - '**/Platform.android.kt'
       - '**/Platform.ios.kt'
+      - '**/Platform.jvm.kt'
       - '**/domain/model/Media.kt'
   ConstructorParameterNaming:
     active: true
@@ -105,7 +106,7 @@ style:
     ignoreRanges: true
     ignoreHashCodeFunction: true
     excludes:
-      - '**/data/pubky/Hashing.android.kt'
+      - '**/data/pubky/Hashing.jvm.kt'
       - '**/data/pubky/Hashing.ios.kt'
       - '**/commonTest/**'
       - '**/androidUnitTest/**'
