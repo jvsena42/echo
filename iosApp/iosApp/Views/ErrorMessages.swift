@@ -153,7 +153,7 @@ enum ErrorCopy {
             // composes it after a consequence ("Couldn't save this deck. …"), so length is paid
             // twice; what was lost is already said there, and "sign in again" is the button.
             return NSLocalizedString(
-                "Loopky couldn't restore your sign-in. It's not your connection — try again.",
+                "Loopky couldn't restore your sign-in. It's not your connection, so try again.",
                 comment: "Error message: the /session round trip failed at the transport layer"
             )
         case .notFound:
@@ -196,7 +196,7 @@ enum ErrorCopy {
             // sending the user to check it points them at something that is not broken.
             return NSLocalizedString(
                 "Too many requests at once, so this couldn't be finished. It's not your "
-                    + "connection — wait a moment and try again.",
+                    + "connection. Wait a moment and try again.",
                 comment: "Error message: homeserver rate-limiting"
             )
         case .storageFull:

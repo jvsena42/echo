@@ -140,8 +140,8 @@
     <string name="study_type_check">Check</string>
     <string name="study_type_give_up">Give up · show me</string>
     <string name="study_type_correct">Correct!</string>
-    <string name="study_type_near_miss">Almost — check the accents</string>
-    <string name="study_type_wrong">Not quite — try again</string>
+    <string name="study_type_near_miss">Almost. Check the accents</string>
+    <string name="study_type_wrong">Not quite. Try again</string>
 
     <!-- Discover -->
     <string name="discover_title">Discover</string>
@@ -273,7 +273,7 @@
     <string name="image_sheet_image_unreadable">That image couldn\'t be read. Try another one.</string>
     <string name="image_sheet_link_preview">Pasted image</string>
     <string name="image_sheet_link_clear">Clear link</string>
-    <string name="image_sheet_link_failed">That link didn\'t load as an image. Copy the image itself, or its image address — not the page\'s.</string>
+    <string name="image_sheet_link_failed">That link didn\'t load as an image. Copy the image itself, or its image address rather than the page\'s.</string>
     <string name="image_sheet_no_results">No images found</string>
     <!-- Web-search failures. The first three are fixed by setting a key; the last one is not. -->
     <string name="image_sheet_error_missing_key">Web image search needs an Unsplash API key. It\'s free and takes about two minutes.</string>
@@ -394,7 +394,7 @@
          all, and the user's own is reduced to its last four characters. -->
     <string name="settings_section_studying">STUDYING</string>
     <string name="settings_new_cards_goal_label">New cards per day</string>
-    <string name="settings_new_cards_goal_description">A goal, not a limit — you can always keep going.</string>
+    <string name="settings_new_cards_goal_description">A goal, not a limit. You can always keep going.</string>
     <string name="settings_interval_hard_label">Hard interval (days)</string>
     <string name="settings_interval_good_label">Good interval (days)</string>
     <string name="settings_interval_easy_label">Easy interval (days)</string>
@@ -404,7 +404,7 @@
     <string name="settings_study_save_failed">Couldn\'t save your study settings.</string>
     <string name="settings_section_image_search">IMAGE SEARCH</string>
     <string name="settings_unsplash_key_label">Unsplash access key</string>
-    <string name="settings_unsplash_key_not_set">Not set — web image search is off</string>
+    <string name="settings_unsplash_key_not_set">Not set. Web image search is off</string>
     <string name="settings_unsplash_key_built_in">Using Loopky\'s shared key (limited)</string>
     <string name="settings_unsplash_key_user_set">Key set · ••••%1$s</string>
     <string name="settings_unsplash_key_set">Set</string>
@@ -413,7 +413,7 @@
     <string name="settings_unsplash_key_save">Save</string>
     <string name="settings_unsplash_key_cancel">Cancel</string>
     <string name="settings_unsplash_key_placeholder">Paste your Access Key</string>
-    <string name="settings_unsplash_key_hint">Free from Unsplash: create an application in the developer dashboard, then copy its Access Key — not the Secret key.</string>
+    <string name="settings_unsplash_key_hint">Free from Unsplash: create an application in the developer dashboard, then copy its Access Key, not the Secret key.</string>
     <string name="settings_unsplash_key_get">Get a key</string>
     <string name="settings_unsplash_key_error_invalid">Unsplash rejected that key. Check you copied the Access Key in full.</string>
     <string name="settings_unsplash_key_error_missing">Enter a key first.</string>
@@ -518,13 +518,13 @@
     <!-- Shown when Loopky comes back to an invoice it issued before being killed, which may
          already have been paid. There is nothing left to show or pay, so the copy stops asking. -->
     <string name="signup_lightning_resumed_title">Checking your earlier payment.</string>
-    <string name="signup_lightning_resumed_subtitle">You may already have paid ₿ %1$d. Hold on while we confirm — no need to pay again.</string>
-    <string name="signup_lightning_resumed_subtitle_fiat">You may already have paid ₿ %1$d (%2$s). Hold on while we confirm — no need to pay again.</string>
+    <string name="signup_lightning_resumed_subtitle">You may already have paid ₿ %1$d. Hold on while we confirm, and don\'t pay again.</string>
+    <string name="signup_lightning_resumed_subtitle_fiat">You may already have paid ₿ %1$d (%2$s). Hold on while we confirm, and don\'t pay again.</string>
     <string name="signup_lightning_resumed_waiting">Confirming with the server…</string>
     <string name="signup_lightning_open_wallet">Open in wallet</string>
     <string name="signup_lightning_copy">Copy invoice</string>
     <string name="signup_lightning_copied">Invoice copied</string>
-    <string name="signup_lightning_no_wallet">No Lightning wallet found — invoice copied instead</string>
+    <string name="signup_lightning_no_wallet">No Lightning wallet found. Invoice copied instead</string>
     <string name="signup_lightning_waiting">Waiting for payment…</string>
     <string name="signup_lightning_new_invoice">New invoice</string>
 
@@ -564,7 +564,7 @@
          offer); every screen showing this composes it after a consequence, so length here is
          paid twice. -->
     <string name="error_session_unreachable_title">Couldn\'t reconnect</string>
-    <string name="error_session_unreachable_message">Loopky couldn\'t restore your sign-in. It\'s not your connection — try again.</string>
+    <string name="error_session_unreachable_message">Loopky couldn\'t restore your sign-in. It\'s not your connection, so try again.</string>
     <string name="error_sign_in_again">Sign in again</string>
     <string name="error_not_found_title">Not found</string>
     <string name="error_not_found_message">This deck no longer exists. It may have been deleted.</string>
@@ -593,7 +593,7 @@
     <string name="publish_error_cancel">Couldn\'t remove the cancelled deck. Part of it is still saved. %1$s</string>
     <string name="publish_error_undo">Couldn\'t undo this. The deck is still published. %1$s</string>
     <string name="error_server_busy_title">The server is busy</string>
-    <string name="error_server_busy_message">Too many requests at once, so this couldn\'t be finished. It\'s not your connection — wait a moment and try again.</string>
+    <string name="error_server_busy_message">Too many requests at once, so this couldn\'t be finished. It\'s not your connection. Wait a moment and try again.</string>
     <string name="error_storage_full_title">Your storage is full</string>
     <string name="error_storage_full_message">There\'s no room left in your account. Delete a deck you no longer study to free up space, or upgrade your storage plan.</string>
     <!-- Restore (#147): the door for someone who has a pubky but no working Pubky Ring. -->
@@ -622,7 +622,7 @@
     <!-- Terminal: retrying re-sends the same dead token. The copy has to send the user back to
          get a new one rather than at a button that cannot work. -->
     <string name="signup_error_token_rejected_title">That signup code was refused</string>
-    <string name="signup_error_token_rejected_message">This code was rejected — it may already have been used. Start over to get a new one.</string>
+    <string name="signup_error_token_rejected_message">This code was rejected. It may already have been used. Start over to get a new one.</string>
     <string name="signup_start_over">Start over</string>
     <string name="signup_local_title">Creating your account</string>
     <string name="signup_local_subtitle">Making your key and registering it. This takes a moment.</string>
@@ -634,14 +634,14 @@
     <!-- For a key restored from a phrase or file: it IS already backed up, so telling the user to
          back it up would be describing a risk they do not have. What is still on offer is Pubky
          Ring, which is a custody change rather than a backup. -->
-    <string name="backup_start_subtitle_backed_up">You already have a copy of this key. Pubky Ring keeps it in a separate app — safer still — or add another backup here.</string>
-    <string name="backup_method_ring_missing">Not installed — we\'ll take you to it.</string>
+    <string name="backup_start_subtitle_backed_up">You already have a copy of this key. Pubky Ring keeps it in a separate app, which is safer still, or you can add another backup here.</string>
+    <string name="backup_method_ring_missing">Not installed. We\'ll take you to it.</string>
     <string name="backup_later">I\'ll do this later</string>
     <string name="backup_done_label">Done</string>
     <string name="backup_method_password_manager">Password manager</string>
     <string name="backup_method_password_manager_detail">Save the phrase to Google Password Manager or whichever manager you use.</string>
     <string name="backup_phrase_save_to_manager">Save to password manager</string>
-    <string name="backup_phrase_saved_to_manager">Saved and checked — your password manager has the phrase.</string>
+    <string name="backup_phrase_saved_to_manager">Saved and checked. Your password manager has the phrase.</string>
     <string name="backup_phrase_save_failed">Nothing was saved. Your password manager may have declined, or you cancelled.</string>
     <string name="backup_quiz_saved_title">Check your saved phrase</string>
     <string name="backup_quiz_saved_subtitle">You saved this phrase to a password manager, so there\'s nothing to recall. We\'ll read it back to check it\'s still there.</string>
@@ -665,15 +665,15 @@
     <string name="backup_quiz_submit">Confirm</string>
     <string name="backup_quiz_wrong">That\'s not quite right. Check your written copy and try again.</string>
     <string name="backup_file_title">Encrypted recovery file</string>
-    <string name="backup_file_subtitle">Choose a passphrase. You will need it — and the file — to restore.</string>
+    <string name="backup_file_subtitle">Choose a passphrase. You will need it, and the file, to restore.</string>
     <string name="backup_file_passphrase">Passphrase</string>
     <string name="passphrase_reveal">Show passphrase</string>
     <string name="passphrase_hide">Hide passphrase</string>
     <string name="backup_file_create">Create and save file</string>
     <string name="backup_file_failed">Couldn\'t create the file. Please try again.</string>
     <string name="backup_strength_too_short">Too short</string>
-    <string name="backup_strength_weak">Weak — 16 characters or more is much stronger</string>
-    <string name="backup_strength_fair">Fair — 16 characters or more is much stronger</string>
+    <string name="backup_strength_weak">Weak. 16 characters or more is much stronger</string>
+    <string name="backup_strength_fair">Fair. 16 characters or more is much stronger</string>
     <string name="backup_strength_strong">Strong</string>
     <string name="backup_ring_title">Export to Pubky Ring</string>
     <!-- Never implies the key moved. Ring imports it; Loopky keeps its copy and its session, and
@@ -692,7 +692,7 @@
     <string name="settings_signout_unbacked_confirm">Sign out and erase</string>
     <string name="settings_signout_unbacked_backup">Back up first</string>
     <string name="unregistered_title">This key has no account yet</string>
-    <string name="unregistered_subtitle">The key is valid — there\'s just no account registered for it.</string>
+    <string name="unregistered_subtitle">The key is valid. There\'s just no account registered for it.</string>
     <string name="unregistered_pubky_label">The key you presented:</string>
     <string name="unregistered_check_phrase">Check my recovery phrase again</string>
     <string name="unregistered_check_hint">One mistyped or out-of-order word still passes the check and unlocks a different account.</string>
@@ -735,7 +735,7 @@
     <string name="error_generic_message">Something went wrong. Please try again.</string>
     <string name="home_caught_up_title">You\'re all caught up</string>
     <string name="home_caught_up_next_due">Next review in %1$s.</string>
-    <string name="home_caught_up_no_next_due">Nothing scheduled yet — study ahead from any deck.</string>
+    <string name="home_caught_up_no_next_due">Nothing scheduled yet. Study ahead from any deck.</string>
     <string name="share_deck_chooser_title">Share deck</string>
     <string name="share_profile_chooser_title">Share profile</string>
     <string name="share_deck_body">%1$s on Loopky\n%2$s</string>
@@ -763,7 +763,7 @@
     <string name="form_card_side_required">Add some text or a picture to this side.</string>
     <string name="form_card_text_too_long">Card text must be 2000 characters or fewer.</string>
     <string name="paste_validation_empty">Paste or type your list first.</string>
-    <string name="paste_validation_no_cards">No cards found yet — check the separator or add a front and back.</string>
+    <string name="paste_validation_no_cards">No cards found yet. Check the separator, or add a front and back.</string>
     <string name="permission_mic_title">Practise your pronunciation</string>
     <string name="permission_mic_rationale">Speak listens while you say the word and tells you how close you were. Audio never leaves your device.</string>
     <string name="permission_mic_denied_title">Microphone is off</string>
@@ -782,7 +782,7 @@
     <string name="bulk_formats_label">WHAT WORKS</string>
     <string name="bulk_format_apkg_ext">.apkg</string>
     <string name="bulk_format_apkg_title">Anki deck export</string>
-    <string name="bulk_format_apkg_detail">Your cards, the deck\'s name and its pictures come across. Audio doesn\'t — those cards import as text.</string>
+    <string name="bulk_format_apkg_detail">Your cards, the deck\'s name and its pictures come across. Audio doesn\'t, so those cards import as text.</string>
     <string name="bulk_format_text_ext">.txt · .csv</string>
     <string name="bulk_format_text_title">Plain text export</string>
     <string name="bulk_format_text_detail">In Anki: File → Export → “Notes in Plain Text”. Any tab- or comma-separated list works too.</string>
@@ -822,7 +822,7 @@
     <string name="bulk_error_unknown_message">Something went wrong reading that file. Try another one.</string>
     <string name="bulk_sample_picture">Picture</string>
     <string name="bulk_skipped">%1$d skipped (missing a front or back)</string>
-    <string name="deck_incomplete_warning">This deck didn\'t finish uploading — some cards are missing. Import it again to complete it, or delete it.</string>
+    <string name="deck_incomplete_warning">This deck didn\'t finish uploading, so some cards are missing. Import it again to complete it, or delete it.</string>
     <!-- Add-tag sheet, shared by the publish flow and the deck editor -->
     <string name="tag_sheet_title">Add Tag</string>
     <string name="tag_sheet_input_placeholder">Type a tag…</string>
@@ -845,11 +845,11 @@
     <string name="sign_in_prompt_cta">Create account or sign in</string>
     <string name="sign_in_prompt_dismiss">Not now</string>
     <string name="sign_in_prompt_follow_deck_title">Keep this deck</string>
-    <string name="sign_in_prompt_follow_deck_body">Following saves the deck to your library, keeps it up to date and remembers what you\'ve learned. It needs an account — no email required.</string>
+    <string name="sign_in_prompt_follow_deck_body">Following saves the deck to your library, keeps it up to date and remembers what you\'ve learned. It needs an account, but no email.</string>
     <string name="sign_in_prompt_clone_deck_title">Make it yours</string>
-    <string name="sign_in_prompt_clone_deck_body">A clone is your own copy, published under your key and yours to edit. It needs an account — one key, no email.</string>
+    <string name="sign_in_prompt_clone_deck_body">A clone is your own copy, published under your key and yours to edit. It needs an account, but no email.</string>
     <string name="sign_in_prompt_follow_person_title">Follow people</string>
-    <string name="sign_in_prompt_follow_person_body">Following puts the decks people publish on your Discover. It needs an account — one key, no email.</string>
+    <string name="sign_in_prompt_follow_person_body">Following puts the decks people publish on your Discover. It needs an account, but no email.</string>
 
     <!--
       Previewing a deck nobody has kept: a fixed handful of cards, graded and stored nowhere.
@@ -860,7 +860,7 @@
     <string name="study_preview_badge">Preview · progress isn\'t saved</string>
     <string name="study_preview_next">Next card</string>
     <string name="study_preview_complete_title">That\'s the preview 👋</string>
-    <string name="study_preview_guest_detail">Create an account and this deck remembers what you got right — and asks again just before you\'d forget it.</string>
+    <string name="study_preview_guest_detail">Create an account and this deck remembers what you got right, and asks again just before you\'d forget it.</string>
     <string name="study_preview_member_detail">Follow or clone this deck to keep your progress on it.</string>
     <string name="study_preview_action_guest">Create account</string>
     <string name="study_preview_back">Back to deck</string>

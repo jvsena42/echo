@@ -1358,3 +1358,12 @@ number), and the new-cards note dropped the sentence about being told when you r
 The sharing description lost "so your followers see it"; **its second sentence stays** — without
 "Your decks are public either way", "Ask before posting" reads as a visibility switch, which is a
 privacy control Loopky does not have.
+
+**Em dashes removed from the copy (same day).** The em-dash-as-connector runs through the catalogs
+as a tell, and it was rewritten out of 27 strings on both platforms plus two in `ErrorMessages.swift`
+("It's not your connection — try again." → "…, so try again."). Five uses are **kept on purpose**
+and anything sweeping this again should leave them alone: `paste_blank_placeholder`,
+`profile_stat_pending` and `settings_app_version_unknown` are a bare `—` used as an empty-value
+glyph, and `decks_sort_alphabetical` ("A–Z") and `deck_editor_move_to_label` ("Position (1–%1$d)")
+are en-dash numeric ranges, which is what an en dash is for. Re-checked on the phone: Settings
+reads "A goal, not a limit. You can always keep going."

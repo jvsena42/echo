@@ -51,7 +51,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose a passphrase. You will need it — and the file — to restore."
+            "value": "Choose a passphrase. You will need it, and the file, to restore."
           }
         }
       }
@@ -150,7 +150,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not installed — we'll take you to it."
+            "value": "Not installed. We'll take you to it."
           }
         }
       }
@@ -381,7 +381,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You already have a copy of this key. Pubky Ring keeps it in a separate app — safer still — or add another backup here."
+            "value": "You already have a copy of this key. Pubky Ring keeps it in a separate app, which is safer still, or you can add another backup here."
           }
         }
       }
@@ -403,7 +403,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fair — 16 characters or more is much stronger"
+            "value": "Fair. 16 characters or more is much stronger"
           }
         }
       }
@@ -436,7 +436,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Weak — 16 characters or more is much stronger"
+            "value": "Weak. 16 characters or more is much stronger"
           }
         }
       }
@@ -766,7 +766,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your cards, the deck's name and its pictures come across. Audio doesn't — those cards import as text."
+            "value": "Your cards, the deck's name and its pictures come across. Audio doesn't, so those cards import as text."
           }
         }
       }
@@ -1823,7 +1823,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This deck didn't finish uploading — some cards are missing. Import it again to complete it, or delete it."
+            "value": "This deck didn't finish uploading, so some cards are missing. Import it again to complete it, or delete it."
           }
         }
       }
@@ -2802,7 +2802,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nothing scheduled yet — study ahead from any deck."
+            "value": "Nothing scheduled yet. Study ahead from any deck."
           }
         }
       }
@@ -3220,7 +3220,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "That link didn't load as an image. Copy the image itself, or its image address — not the page's."
+            "value": "That link didn't load as an image. Copy the image itself, or its image address rather than the page's."
           }
         }
       }
@@ -3870,7 +3870,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No cards found yet — check the separator or add a front and back."
+            "value": "No cards found yet. Check the separator, or add a front and back."
           }
         }
       }
@@ -5465,7 +5465,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A goal, not a limit — you can always keep going."
+            "value": "A goal, not a limit. You can always keep going."
           }
         }
       }
@@ -5806,7 +5806,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Free from Unsplash: create an application in the developer dashboard, then copy its Access Key — not the Secret key."
+            "value": "Free from Unsplash: create an application in the developer dashboard, then copy its Access Key, not the Secret key."
           }
         }
       }
@@ -5828,7 +5828,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not set — web image search is off"
+            "value": "Not set. Web image search is off"
           }
         }
       }
@@ -6015,7 +6015,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A clone is your own copy, published under your key and yours to edit. It needs an account — one key, no email."
+            "value": "A clone is your own copy, published under your key and yours to edit. It needs an account, but no email."
           }
         }
       }
@@ -6059,7 +6059,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Following saves the deck to your library, keeps it up to date and remembers what you've learned. It needs an account — no email required."
+            "value": "Following saves the deck to your library, keeps it up to date and remembers what you've learned. It needs an account, but no email."
           }
         }
       }
@@ -6081,7 +6081,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Following puts the decks people publish on your Discover. It needs an account — one key, no email."
+            "value": "Following puts the decks people publish on your Discover. It needs an account, but no email."
           }
         }
       }
@@ -6356,7 +6356,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This code was rejected — it may already have been used. Start over to get a new one."
+            "value": "This code was rejected. It may already have been used. Start over to get a new one."
           }
         }
       }
@@ -6598,7 +6598,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No Lightning wallet found — invoice copied instead"
+            "value": "No Lightning wallet found. Invoice copied instead"
           }
         }
       }
@@ -6631,7 +6631,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You may already have paid ₿ %1$lld. Hold on while we confirm — no need to pay again."
+            "value": "You may already have paid ₿ %1$lld. Hold on while we confirm, and don't pay again."
           }
         }
       }
@@ -6642,7 +6642,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You may already have paid ₿ %1$lld (%2$@). Hold on while we confirm — no need to pay again."
+            "value": "You may already have paid ₿ %1$lld (%2$@). Hold on while we confirm, and don't pay again."
           }
         }
       }
@@ -7269,7 +7269,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Create an account and this deck remembers what you got right — and asks again just before you'd forget it."
+            "value": "Create an account and this deck remembers what you got right, and asks again just before you'd forget it."
           }
         }
       }
@@ -7412,7 +7412,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Almost — check the accents"
+            "value": "Almost. Check the accents"
           }
         }
       }
@@ -7434,7 +7434,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not quite — try again"
+            "value": "Not quite. Try again"
           }
         }
       }
@@ -7731,7 +7731,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The key is valid — there's just no account registered for it."
+            "value": "The key is valid. There's just no account registered for it."
           }
         }
       }
