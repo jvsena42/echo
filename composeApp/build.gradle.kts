@@ -4,17 +4,12 @@ import java.util.Base64
 import java.util.Properties
 
 /**
- * The Pubky Nexus indexer, per build type. Staging and production index separate networks, so a
- * release build reading staging would show trending tags and search results that no production
- * user ever published (#42).
- */
-val NEXUS_STAGING_URL = "https://nexus.staging.pubky.app"
-val NEXUS_PRODUCTION_URL = "https://nexus.pubky.app"
-
-/**
- * Which Homegate issues signup tokens, and therefore which homeserver those tokens are good for.
- * The two travel together as [PubkyEnvironment]; only the name is threaded through BuildConfig.
- * A token is single-use, so spending one minted on the wrong environment loses it for good.
+ * Which Pubky network the build talks to. `PubkyEnvironment` fuses everything scoped to one:
+ * the Homegate that issues signup tokens, the homeserver those tokens are good for, the pubky.app
+ * web client, and the Nexus indexer. Only the name is threaded through BuildConfig, so there is no
+ * second value that can be set to a different network by accident (#205) — a token is single-use,
+ * so spending one minted on the wrong environment loses it for good, and a mismatched indexer
+ * answers for the other network instead of failing.
  */
 val PUBKY_ENV_STAGING = "Staging"
 val PUBKY_ENV_PRODUCTION = "Production"
@@ -149,17 +144,20 @@ android {
     }
     buildTypes {
         getByName("debug") {
-            // Staging is the dev-only default; override it in local.properties to point a debug
-            // build at production or a locally-run indexer.
-            val override = (localProps.getProperty("NEXUS_BASE_URL") ?: "").trim()
-            val debugNexusUrl = override.ifEmpty { NEXUS_STAGING_URL }
-            buildConfigField("String", "NEXUS_BASE_URL", "\"$debugNexusUrl\"")
-
-            // The build-time default only; a debug build can also switch environment at runtime
-            // from Settings, which takes effect on the next launch.
+            // Staging is the dev-only default, and it moves the whole environment together —
+            // gate, homeserver, web client and indexer. The build-time default only; a debug
+            // build can also switch environment at runtime from Settings, which takes effect on
+            // the next launch.
             val envOverride = (localProps.getProperty("PUBKY_ENV") ?: "").trim()
             val debugEnv = envOverride.ifEmpty { PUBKY_ENV_STAGING }
             buildConfigField("String", "PUBKY_ENV", "\"$debugEnv\"")
+
+            // The one sanctioned way to read an indexer the environment did not choose: a Nexus
+            // running on your own machine (#58). Named for exactly that — to point a debug build
+            // at another *network*, set PUBKY_ENV, which moves the indexer with it. Blank means
+            // the environment decides, which is what it should do.
+            val localNexus = (localProps.getProperty("LOCAL_NEXUS_BASE_URL") ?: "").trim()
+            buildConfigField("String", "LOCAL_NEXUS_BASE_URL", "\"$localNexus\"")
         }
         getByName("release") {
             // Null without a keystore, and then the build produces an unsigned APK rather than
@@ -167,8 +165,9 @@ android {
             signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = false
             // Never overridable: a release must read the same network its users publish to (#42).
-            buildConfigField("String", "NEXUS_BASE_URL", "\"$NEXUS_PRODUCTION_URL\"")
+            // One value now decides all four endpoints, so there is nothing else to pin.
             buildConfigField("String", "PUBKY_ENV", "\"$PUBKY_ENV_PRODUCTION\"")
+            buildConfigField("String", "LOCAL_NEXUS_BASE_URL", "\"\"")
         }
     }
     compileOptions {
