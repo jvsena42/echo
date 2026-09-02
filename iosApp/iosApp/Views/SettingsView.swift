@@ -94,34 +94,72 @@ struct SettingsView: View {
     private var studyingSection: some View {
         Section {
             Stepper(value: Binding(get: { state.newCardsGoal }, set: onGoalChanged), in: 1...100) {
-                LabeledContent("settings_new_cards_goal_label", value: "\(state.newCardsGoal)")
+                settingRow(
+                    "settings_new_cards_goal_label",
+                    caption: "settings_new_cards_goal_description",
+                    value: "\(state.newCardsGoal)"
+                )
             }
-            intervalRow("settings_interval_hard_label", grade: .hard, days: state.hardDays)
+            intervalRow(
+                "settings_interval_hard_label",
+                caption: "settings_interval_description",
+                grade: .hard,
+                days: state.hardDays
+            )
             intervalRow("settings_interval_good_label", grade: .good, days: state.goodDays)
-            intervalRow("settings_interval_easy_label", grade: .easy, days: state.easyDays)
+            intervalRow(
+                "settings_interval_easy_label",
+                caption: "settings_interval_mastery_note",
+                grade: .easy,
+                days: state.easyDays
+            )
         } header: {
             Text("settings_section_studying")
         } footer: {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("settings_new_cards_goal_description")
-                Text("settings_interval_description")
-                Text("settings_interval_mastery_note")
-                if !state.canEditStudySettings {
-                    // The repository refuses a write before the record has been read, so that a
-                    // save cannot put defaults over what the user really had.
-                    Text("settings_study_unavailable").foregroundStyle(LoopkyColor.danger)
-                }
+            if !state.canEditStudySettings {
+                // The repository refuses a write before the record has been read, so that a
+                // save cannot put defaults over what the user really had.
+                Text("settings_study_unavailable").foregroundStyle(LoopkyColor.danger)
             }
         }
         .disabled(!state.canEditStudySettings)
     }
 
-    private func intervalRow(_ label: LocalizedStringKey, grade: StudyGrade, days: Int) -> some View {
+    private func intervalRow(
+        _ label: LocalizedStringKey,
+        caption: LocalizedStringKey? = nil,
+        grade: StudyGrade,
+        days: Int
+    ) -> some View {
         Stepper(
             value: Binding(get: { days }, set: { onIntervalChanged(grade, $0) }),
             in: 1...365
         ) {
-            LabeledContent(label, value: "\(days)d")
+            settingRow(label, caption: caption, value: "\(days)d")
+        }
+    }
+
+    /// A stepper row whose caption sits under the label it explains, rather than in the section
+    /// footer: three captions stacked below four rows leave the reader to work out which line
+    /// belongs to which setting, and the mastery note in particular only makes sense beside the
+    /// Easy interval it is measured against. Mirrors Android's `StudySettingsSection`.
+    private func settingRow(
+        _ label: LocalizedStringKey,
+        caption: LocalizedStringKey?,
+        value: String
+    ) -> some View {
+        LabeledContent {
+            Text(value)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                if let caption {
+                    Text(caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 
