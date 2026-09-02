@@ -1,0 +1,111 @@
+package com.github.jvsena42.loopky.cli
+
+import com.github.jvsena42.loopky.cli.commands.readCardFile
+import java.io.File
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class CardFileTest {
+
+    private fun write(name: String, body: String): String =
+        File.createTempFile("loopky-cards", name).apply { writeText(body) }.absolutePath
+
+    @Test
+    fun `reads two column tsv`() {
+        val rows = readCardFile(write(".tsv", "hola\thello\nadios\tgoodbye\n"))
+        assertEquals(2, rows.size)
+        assertEquals("hola", rows[0].front)
+        assertEquals("goodbye", rows[1].back)
+        assertNull(rows[0].frontImageUrl)
+    }
+
+    /**
+     * The columns the text formats cannot express. Neither `.apkg` nor TSV-through-the-paste-parser
+     * can say "this side has text *and* a picture" — they carry an image only when a field is
+     * nothing but that image — which is why every one of ~190 pictures went through the card
+     * editor by hand (#54, finding 3).
+     */
+    @Test
+    fun `reads image columns`() {
+        val rows = readCardFile(
+            write(".tsv", "Brasília\tCapital\thttps://example.test/a.jpg\thttps://example.test/b.jpg\n"),
+        )
+        assertEquals("https://example.test/a.jpg", rows.single().frontImageUrl)
+        assertEquals("https://example.test/b.jpg", rows.single().backImageUrl)
+    }
+
+    @Test
+    fun `an empty image column is absent rather than blank`() {
+        val rows = readCardFile(write(".tsv", "hola\thello\t\t\n"))
+        assertNull(rows.single().frontImageUrl)
+        assertNull(rows.single().backImageUrl)
+    }
+
+    @Test
+    fun `skips blank lines and comments so a generated file can carry a header`() {
+        val rows = readCardFile(write(".tsv", "# front\tback\n\nhola\thello\n\n"))
+        assertEquals(1, rows.size)
+    }
+
+    /** Non-ASCII in, exactly as given — the motivation `adb shell input text` could not meet. */
+    @Test
+    fun `round-trips accented text byte for byte`() {
+        val rows = readCardFile(write(".tsv", "Sub-ecossistemas\tSub-ecosystems\nAçaí\tAçaí palm\n"))
+        assertEquals("Sub-ecossistemas", rows[0].front)
+        assertEquals("Açaí", rows[1].front)
+    }
+
+    @Test
+    fun `reads jsonl by extension`() {
+        val rows = readCardFile(
+            write(".jsonl", """{"id":"c1","front":"hola","back":"hello"}""" + "\n"),
+        )
+        assertEquals("c1", rows.single().id)
+        assertEquals("hola", rows.single().front)
+    }
+
+    /** A caller that has to remember `--jsonl` will one day not, so content decides too. */
+    @Test
+    fun `reads jsonl by content when the extension does not say`() {
+        val rows = readCardFile(write(".txt", """{"front":"hola","back":"hello"}""" + "\n"))
+        assertEquals("hola", rows.single().front)
+    }
+
+    @Test
+    fun `a jsonl side may hold a tab, which is what the format is for`() {
+        val rows = readCardFile(write(".jsonl", """{"front":"a\tb","back":"c"}""" + "\n"))
+        assertEquals("a\tb", rows.single().front)
+    }
+
+    /**
+     * A file that produced fewer cards than it has lines is exactly the loss `--json` exists to
+     * show, so a row with nothing to write is refused rather than skipped.
+     *
+     * Reachable through JSONL, which is where an object can name a card and then say nothing about
+     * it — `card edit --from-file` with an id and no fields changes nothing and should say so. A
+     * TSV line cannot get here: a line with no content is blank, and blank lines are skipped.
+     */
+    @Test
+    fun `a row with nothing on either side is an error, not a silent skip`() {
+        val error = assertFailsWith<CliError> {
+            readCardFile(write(".jsonl", """{"id":"c1"}""" + "\n"))
+        }
+        assertEquals(ExitCode.BadInput, error.exitCode)
+    }
+
+    @Test
+    fun `a missing file is bad input rather than a crash`() {
+        val error = assertFailsWith<CliError> { readCardFile("/no/such/file.tsv") }
+        assertEquals(ExitCode.BadInput, error.exitCode)
+    }
+
+    @Test
+    fun `an empty file is refused`() {
+        val error = assertFailsWith<CliError> { readCardFile(write(".tsv", "\n\n")) }
+        assertEquals(ExitCode.BadInput, error.exitCode)
+        assertTrue(error.message.orEmpty().contains("no cards"))
+    }
+}

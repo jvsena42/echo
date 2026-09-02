@@ -212,8 +212,16 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
         return deleteAccountResult
     }
 
-    override suspend fun beginSignIn(capabilities: String): Result<AuthFlowHandle> {
+    /** What the last [beginSignIn] asked for, so a caller can be shown to have suppressed them. */
+    var lastBeginSignInReturnToApp: Boolean? = null
+        private set
+
+    override suspend fun beginSignIn(
+        capabilities: String,
+        returnToApp: Boolean,
+    ): Result<AuthFlowHandle> {
         beginSignInCount++
+        lastBeginSignInReturnToApp = returnToApp
         beginSignInError?.let { return Result.failure(it) }
         return Result.success(
             object : AuthFlowHandle {
@@ -224,6 +232,17 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
                 }
             },
         )
+    }
+
+    /** Secrets handed to [adoptSession], and what it should answer with. */
+    val adoptedSecrets = mutableListOf<String>()
+    var adoptSessionResult: Result<Session>? = null
+
+    override suspend fun adoptSession(sessionSecret: String): Result<Session> {
+        adoptedSecrets += sessionSecret
+        val result = adoptSessionResult ?: completionResult
+        result.onSuccess { session = it }
+        return result
     }
 
     /** Records what [beginSignUp] was asked for, so a retry can be shown to reuse the token. */

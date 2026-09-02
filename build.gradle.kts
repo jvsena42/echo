@@ -8,6 +8,9 @@ plugins {
     alias(libs.plugins.composeMultiplatform) apply false
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
+    // :cli is a plain JVM module. Declared here so the version resolves once, like every other
+    // plugin in this build.
+    alias(libs.plugins.kotlinJvm) apply false
     alias(libs.plugins.detekt) apply false
 }
 
@@ -32,6 +35,10 @@ subprojects {
                 "src/commonTest/kotlin",
                 "src/jvmTest/kotlin",
                 "src/androidUnitTest/kotlin",
+                // :cli is a plain JVM module, so its sources are where a JVM module puts them
+                // rather than in a KMP source set.
+                "src/main/kotlin",
+                "src/test/kotlin",
             )
         )
     }

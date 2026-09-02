@@ -1,0 +1,79 @@
+package com.github.jvsena42.loopky.cli
+
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class ArgsTest {
+
+    @Test
+    fun `reads positional words in order`() {
+        val args = Args.parse(arrayOf("card", "edit", "deck1", "card9"))
+        assertEquals(listOf("card", "edit", "deck1", "card9"), args.words)
+        assertEquals("card edit", args.command())
+        assertEquals("card9", args.requireWord(3, "cardId"))
+    }
+
+    @Test
+    fun `takes an option value from the next token or after an equals`() {
+        val args = Args.parse(arrayOf("deck", "create", "--title", "Capitais", "--description=Do Brasil"))
+        assertEquals("Capitais", args.option("title"))
+        assertEquals("Do Brasil", args.option("description"))
+    }
+
+    @Test
+    fun `keeps every occurrence of a repeated option`() {
+        val args = Args.parse(arrayOf("deck", "create", "--tag", "spanish", "--tag", "language"))
+        assertEquals(listOf("spanish", "language"), args.options("tag"))
+    }
+
+    /**
+     * The reason switches are declared rather than inferred from "the next token starts with
+     * `--`". Inference reads the *flag* as the card's front and writes it to the homeserver.
+     */
+    @Test
+    fun `a declared switch never swallows the option after it`() {
+        val args = Args.parse(arrayOf("card", "add", "d1", "--json", "--front", "hola"))
+        assertTrue(args.has("json"))
+        assertEquals("hola", args.option("front"))
+    }
+
+    @Test
+    fun `an option with no value is a usage error rather than a silent empty`() {
+        assertFailsWith<CliError> { Args.parse(arrayOf("deck", "create", "--title")) }
+    }
+
+    @Test
+    fun `everything after a bare double dash is an operand`() {
+        val args = Args.parse(arrayOf("card", "add", "d1", "--front", "x", "--", "--not-a-flag"))
+        assertEquals(listOf("card", "add", "d1", "--not-a-flag"), args.words)
+    }
+
+    /** A bare `-` is stdin, which every read path accepts as a source. */
+    @Test
+    fun `a bare dash is an operand`() {
+        val args = Args.parse(arrayOf("import", "-", "--title", "T"))
+        assertEquals(listOf("import", "-"), args.words)
+    }
+
+    @Test
+    fun `an unknown short option is refused rather than guessed at`() {
+        assertFailsWith<CliError> { Args.parse(arrayOf("deck", "list", "-j")) }
+    }
+
+    @Test
+    fun `an empty value is kept, because clearing a card side needs one`() {
+        val args = Args.parse(arrayOf("card", "edit", "d1", "c1", "--back="))
+        assertEquals("", args.option("back"))
+    }
+
+    @Test
+    fun `an absent option reads as absent, not as blank`() {
+        val args = Args.parse(arrayOf("card", "edit", "d1", "c1", "--front", "hola"))
+        assertNull(args.option("back"))
+        assertFalse(args.has("back"))
+    }
+}

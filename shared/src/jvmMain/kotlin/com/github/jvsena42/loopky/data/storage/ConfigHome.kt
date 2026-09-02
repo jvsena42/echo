@@ -26,8 +26,13 @@ import java.nio.file.attribute.PosixFilePermissions
  * 2. `$XDG_CONFIG_HOME/loopky`, the freedesktop location.
  * 3. `~/.config/loopky` (Linux) or `~/Library/Application Support/loopky` (macOS).
  */
-internal object ConfigHome {
+object ConfigHome {
 
+    /**
+     * Public because the client has to be able to *say* where it keeps things — `whoami` reports
+     * it, and an agent debugging a container that has lost its session needs the path rather than
+     * a description of the rules.
+     */
     fun resolve(env: (String) -> String? = System::getenv): Path {
         env("LOOPKY_CONFIG_HOME")?.takeIf { it.isNotBlank() }?.let { return Paths.get(it) }
         env("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }?.let { return Paths.get(it, APP_DIR) }

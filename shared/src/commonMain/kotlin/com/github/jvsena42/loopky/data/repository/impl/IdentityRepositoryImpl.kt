@@ -112,14 +112,30 @@ internal class IdentityRepositoryImpl(
         profileCacheLock.withLock { profileCache.clear() }
     }
 
-    override suspend fun beginSignIn(capabilities: String): Result<AuthFlowHandle> {
-        Log.d(TAG, "beginSignIn: capabilities=$capabilities")
+    override suspend fun beginSignIn(
+        capabilities: String,
+        returnToApp: Boolean,
+    ): Result<AuthFlowHandle> {
+        Log.d(TAG, "beginSignIn: capabilities=$capabilities returnToApp=$returnToApp")
         return pubky.startAuthFlow(capabilities)
             .onSuccess { Log.d(TAG, "beginSignIn: startAuthFlow ok — authUrl=${it.redactAuthUrl()}") }
             .onFailure {
                 Log.e(TAG, "beginSignIn: startAuthFlow FAILED — ${it::class.simpleName}: ${it.message}", it)
             }
-            .map { authUrl -> RingAuthFlowHandle(authUrl.withRingCallbacks()) }
+            .map { authUrl ->
+                RingAuthFlowHandle(if (returnToApp) authUrl.withRingCallbacks() else authUrl)
+            }
+    }
+
+    override suspend fun adoptSession(sessionSecret: String): Result<Session> = runSuspendCatching {
+        Log.d(TAG, "adoptSession: revalidating an injected session secret")
+        val session = parseSessionPayload(pubky.revalidateSession(sessionSecret).getOrThrow(), loopkyJson)
+        // Provider only, never the store — see IdentityRepository.adoptSession for why.
+        sessionProvider.set(session)
+        selfTagAsLoopkyUser(session)
+        session
+    }.onFailure {
+        Log.e(TAG, "adoptSession: FAILED — ${it::class.simpleName}: ${it.message}", it)
     }
 
     override suspend fun beginSignUp(

@@ -156,8 +156,32 @@ interface IdentityRepository {
      * 1. [beginSignIn] calls `startAuthFlow` and returns the auth URL to hand to the OS.
      * 2. The caller opens the URL and then awaits [AuthFlowHandle.complete], which blocks on
      *    `awaitAuthApproval`, parses the callback URL, persists the session, and returns it.
+     *
+     * @param returnToApp appends Pubky Ring's `x-success`/`x-cancel`/`x-error` return-callbacks to
+     *   the auth URL, so Ring re-opens Loopky once the user has approved. **A headless client must
+     *   pass false** (#54): there is no app to return to, and a dangling `x-success` pointing at
+     *   `loopky://` bounces the user into the mobile app after a desktop login. It changes nothing
+     *   about how the session arrives — that is the relay, in step 2, either way.
      */
-    suspend fun beginSignIn(capabilities: String = DEFAULT_CAPABILITIES): Result<AuthFlowHandle>
+    suspend fun beginSignIn(
+        capabilities: String = DEFAULT_CAPABILITIES,
+        returnToApp: Boolean = true,
+    ): Result<AuthFlowHandle>
+
+    /**
+     * Take a session secret handed in from outside — `LOOPKY_SESSION` in a container — and make it
+     * this process's session.
+     *
+     * The secret alone is not a [Session]: the pubky, homeserver and granted capabilities are not
+     * in it. `revalidateSession` returns all of them, so one round trip turns the secret into the
+     * real thing *and* proves it is still live, which is why this is a suspend call and not a
+     * parse.
+     *
+     * Deliberately **not persisted**. An injected session is the caller's, for this process only;
+     * writing it to `$XDG_CONFIG_HOME` would leave a container's credential behind on a machine
+     * whose own stored session it was standing in for.
+     */
+    suspend fun adoptSession(sessionSecret: String): Result<Session>
 
     /**
      * Ring-mediated **sign-up**: the same relay handshake as [beginSignIn], but the deeplink asks

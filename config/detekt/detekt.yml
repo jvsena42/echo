@@ -62,6 +62,10 @@ exceptions:
     excludes:
       - '**/data/pubky/UniffiPubkyClient.kt'
       - '**/data/pubky/IosPubkyClient.kt'
+      # The CLI's one process-level boundary. Anything that escapes a command has to become an
+      # exit code rather than a stack trace and a status of 0 — which is exactly what catching
+      # narrowly here would produce for the failure nobody predicted.
+      - '**/cli/Main.kt'
 
 empty-blocks:
   EmptyFunctionBlock:
@@ -83,6 +87,11 @@ naming:
       - '**/Platform.ios.kt'
       - '**/Platform.jvm.kt'
       - '**/domain/model/Media.kt'
+      # A CLI command file is named for the command it implements. The command is a function; the
+      # class in it is that function's `--json` result, and naming the file after the result would
+      # make the surface harder to navigate, not easier.
+      - '**/cli/commands/*.kt'
+      - '**/cli/Runtime.kt'
   ConstructorParameterNaming:
     active: true
     excludes:
@@ -92,6 +101,13 @@ naming:
       - '**/data/unsplash/*.kt'
 
 style:
+  ThrowsCount:
+    active: true
+    max: 2
+    excludes:
+      # A CLI command's throws *are* its contract: each one is a distinct exit code an agent
+      # branches on, so collapsing them into one would collapse the codes with them.
+      - '**/cli/commands/*.kt'
   MagicNumber:
     active: true
     ignoreAnnotated: ['Composable', 'Preview']
@@ -110,6 +126,7 @@ style:
       - '**/data/pubky/Hashing.ios.kt'
       - '**/commonTest/**'
       - '**/androidUnitTest/**'
+      - '**/src/test/kotlin/**'
       - '**/testing/**'
   UnusedPrivateMember:
     active: true
