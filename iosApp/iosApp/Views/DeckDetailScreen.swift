@@ -41,7 +41,7 @@ struct DeckDetailScreen: View {
             Button("deck_detail_delete_cancel", role: .cancel) { viewModel?.onDismissDelete() }
             Button("deck_detail_delete_confirm", role: .destructive) { viewModel?.onConfirmDelete() }
         } message: {
-            Text("deck_detail_delete_dialog_message")
+            Text(deleteMessage)
         }
         .sheet(item: $shareItem) { item in
             ShareSheet(items: [item.text])
@@ -120,6 +120,16 @@ struct DeckDetailScreen: View {
     }
 
     private var content: DeckDetailUiStateContent? { uiState as? DeckDetailUiStateContent }
+
+    /// Names the deck being deleted. Built with `String(format:)` rather than passed to
+    /// `Text(_:)` as a key, which would render the format specifier verbatim.
+    private var deleteMessage: String {
+        guard let content else { return "" }
+        return String(
+            format: NSLocalizedString("deck_detail_delete_dialog_message", comment: ""),
+            content.title
+        )
+    }
 
     private var cloneMessage: String {
         guard let content else { return "" }

@@ -90,14 +90,14 @@ enum ErrorCopy {
             return NSLocalizedString("Session expired", comment: "Error title: needs re-auth")
         case .sessionUnreachable:
             return NSLocalizedString(
-                "Couldn't reach your session",
+                "Couldn't reconnect",
                 comment: "Error title: the /session round trip failed at the transport layer"
             )
         case .notFound:
             return NSLocalizedString("Not found", comment: "Error title: missing record")
         case .noHomeserverAccount:
             return NSLocalizedString(
-                "Your Pubky isn't set up yet",
+                "Your account isn't set up yet",
                 comment: "Error title: pubky has no homeserver account"
             )
         case .notSignedIn:
@@ -108,22 +108,22 @@ enum ErrorCopy {
             return NSLocalizedString("Sign-in didn't finish", comment: "Error title: auth failed")
         case .authRelayUnreachable:
             return NSLocalizedString(
-                "Sign-in couldn't reach Pubky",
+                "Sign-in couldn't connect",
                 comment: "Error title: auth relay unreachable"
             )
         case .serverBusy:
             return NSLocalizedString(
-                "Your homeserver is busy",
+                "The server is busy",
                 comment: "Error title: homeserver rate-limiting"
             )
         case .storageFull:
             return NSLocalizedString(
-                "Your Pubky storage is full",
+                "Your storage is full",
                 comment: "Error title: homeserver storage quota exceeded"
             )
         case .homeserverLookupFailed:
             return NSLocalizedString(
-                "We couldn't check that",
+                "Couldn't check that",
                 comment: "Error title: pkarr/DHT lookup did not answer"
             )
         case .unknown:
@@ -134,11 +134,11 @@ enum ErrorCopy {
     static func message(for reason: LoopkyErrorReason) -> String {
         switch reason {
         case .offline:
-            // The reassurance stays, short: Pubky is the only source of truth and there is no
-            // local cache, so this is exactly the moment a user would fear they had lost
+            // The reassurance stays, short: the homeserver is the only source of truth and there
+            // is no local cache, so this is exactly the moment a user would fear they had lost
             // everything.
             return NSLocalizedString(
-                "Check your connection and try again. Your decks are safe on Pubky.",
+                "Check your connection and try again. Your decks are safe.",
                 comment: "Error message: no connectivity"
             )
         case .sessionExpired:
@@ -153,7 +153,7 @@ enum ErrorCopy {
             // composes it after a consequence ("Couldn't save this deck. …"), so length is paid
             // twice; what was lost is already said there, and "sign in again" is the button.
             return NSLocalizedString(
-                "Loopky couldn't re-establish your session. It's not your connection — try again.",
+                "Loopky couldn't restore your sign-in. It's not your connection — try again.",
                 comment: "Error message: the /session round trip failed at the transport layer"
             )
         case .notFound:
@@ -165,8 +165,8 @@ enum ErrorCopy {
             // Deliberately not "sign in again": there is nothing to sign in to. Saying so is the
             // whole point of this case — it used to fall through to the deck-deleted copy.
             return NSLocalizedString(
-                "This Pubky doesn't have a homeserver account yet, so there's nowhere to keep "
-                    + "your decks. Finish setting it up in Pubky Ring, then sign in again.",
+                "There's no account for this key yet, so there's nowhere to keep your decks. "
+                    + "Setting one up takes a minute.",
                 comment: "Error message: pubky has no homeserver account"
             )
         case .notSignedIn:
@@ -181,33 +181,30 @@ enum ErrorCopy {
             )
         case .authFailed:
             return NSLocalizedString(
-                "Loopky couldn't confirm the authorisation with Pubky Ring. "
-                    + "Check your connection and try again.",
+                "Loopky couldn't confirm the sign-in. Check your connection and try again.",
                 comment: "Error message: auth failed"
             )
         case .authRelayUnreachable:
             // Not "you're offline": the relay is its own host, and the homeserver is usually
             // reachable while it is not.
             return NSLocalizedString(
-                "Loopky signs you in through Pubky's authorisation relay, and it isn't "
-                    + "responding. Try again in a moment.",
+                "The sign-in service isn't responding. Try again in a moment.",
                 comment: "Error message: auth relay unreachable"
             )
         case .serverBusy:
             // Not "you're offline": the homeserver answered, so the connection is fine and
             // sending the user to check it points them at something that is not broken.
             return NSLocalizedString(
-                "Your homeserver is rate-limiting Loopky, so this couldn't be finished. "
-                    + "Nothing is wrong with your connection — wait a moment and try again.",
+                "Too many requests at once, so this couldn't be finished. It's not your "
+                    + "connection — wait a moment and try again.",
                 comment: "Error message: homeserver rate-limiting"
             )
         case .storageFull:
             // Not "please try again" — a retry against a full quota is the one thing that cannot
             // work, so the copy has to name the two things that can: delete something, or buy room.
             return NSLocalizedString(
-                "There's no room left on your homeserver, so this couldn't be saved. "
-                    + "Delete a deck you no longer study to free up space, or upgrade your "
-                    + "Pubky plan for more.",
+                "There's no room left in your account. Delete a deck you no longer study to "
+                    + "free up space, or upgrade your storage plan.",
                 comment: "Error message: homeserver storage quota exceeded"
             )
         case .homeserverLookupFailed:
@@ -215,9 +212,8 @@ enum ErrorCopy {
             // to an account, and it failing means we do not know — saying anything about the
             // phrase here would be a guess presented as an answer.
             return NSLocalizedString(
-                "We couldn't reach the Pubky network to look this up, so we don't know yet. "
-                    + "This often means a network that blocks peer-to-peer traffic. Try again, "
-                    + "or switch to a different Wi-Fi or mobile data.",
+                "Some networks block the connection Loopky needs. Try again, or switch between "
+                    + "Wi-Fi and mobile data.",
                 comment: "Error message: pkarr/DHT lookup did not answer"
             )
         case .unknown:

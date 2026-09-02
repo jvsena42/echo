@@ -29,8 +29,8 @@
         <item quantity="other">%1$d discarded in review</item>
     </plurals>
     <plurals name="cards_published">
-        <item quantity="one">%1$d card is now public on your Pubky.</item>
-        <item quantity="other">%1$d cards are now public on your Pubky.</item>
+        <item quantity="one">%1$d card is now public.</item>
+        <item quantity="other">%1$d cards are now public.</item>
     </plurals>
     <plurals name="study_goal_reached_count">
         <item quantity="one">%1$d new card today</item>
@@ -92,8 +92,8 @@
         <item quantity="other">%1$d new · %2$d cards</item>
     </plurals>
     <plurals name="deck_detail_clone_dialog_message">
-        <item quantity="one">“%1$s” and its %2$d card will be copied to your homeserver as a deck you own and can edit. It won\'t receive the author\'s later changes.</item>
-        <item quantity="other">“%1$s” and its %2$d cards will be copied to your homeserver as a deck you own and can edit. It won\'t receive the author\'s later changes.</item>
+        <item quantity="one">“%1$s” and its %2$d card become a deck you own and can edit. It won\'t get the author\'s later changes.</item>
+        <item quantity="other">“%1$s” and its %2$d cards become a deck you own and can edit. It won\'t get the author\'s later changes.</item>
     </plurals>
     <plurals name="publish_progress_count">
         <item quantity="one">Publishing %1$d of %2$d card…</item>
