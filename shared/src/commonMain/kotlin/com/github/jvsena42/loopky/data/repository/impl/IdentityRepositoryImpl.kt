@@ -468,6 +468,15 @@ internal class IdentityRepositoryImpl(
      */
     private suspend fun selfTagAsLoopkyUser(session: Session) {
         if (selfTaggedThisProcess) return
+        // The subject is a *profile*, so the record goes to `/pub/pubky.app/tags/` (§7.7) — which
+        // a session scoped to `/pub/loopky/:rw` was never granted. Asked rather than attempted:
+        // the headless client (#54) holds exactly that session, and firing the write anyway would
+        // buy a doomed round trip on every command plus a warning about the scope working as
+        // designed. A capability the session does not hold is not an error to report.
+        if (!session.canWritePubkyApp) {
+            Log.d(TAG, "selfTag: skipped — this session has no pubky.app write capability")
+            return
+        }
         val profileUri = PubkyUri(PubkyPaths.profile(session.identity.pubky))
         tagRepository.putReservedTag(profileUri, ReservedTags.USER)
             .onSuccess {

@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.data.pubky.PubkyError
 import com.github.jvsena42.loopky.data.pubky.PubkyPaths
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
+import com.github.jvsena42.loopky.domain.model.Capability
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyUri
 import com.github.jvsena42.loopky.domain.model.ReservedTags
@@ -164,6 +165,21 @@ class IdentityRepositoryImplTest {
         repo.updateProfile(name = "Ada Lovelace", bio = null).getOrThrow()
 
         assertEquals(listOf(profileUri to ReservedTags.USER), tags.putReservedTags)
+    }
+
+    /**
+     * The self-tag's subject is a *profile*, so the record goes to `/pub/pubky.app/tags/` — which
+     * a headless client scoped to `/pub/loopky/:rw` was never granted (#54). Skipped rather than
+     * attempted-and-failed: firing it anyway buys a doomed round trip on every command plus a
+     * warning about the scope working exactly as designed.
+     */
+    @Test
+    fun aSessionWithoutThePubkyAppCapabilityDoesNotSelfTag() = runTest {
+        store.saved = fakeSession().copy(capabilities = listOf(Capability("/pub/loopky/:rw")))
+
+        assertEquals(TEST_PUBKY, repo.loadPersistedSession()?.identity?.pubky)
+
+        assertTrue(tags.putReservedTags.isEmpty(), "wrote ${tags.putReservedTags}")
     }
 
     @Test

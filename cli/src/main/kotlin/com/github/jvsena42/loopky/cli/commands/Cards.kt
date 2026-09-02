@@ -67,6 +67,11 @@ suspend fun cardList(args: Args, decks: DeckRepository, cards: CardRepository): 
  * in it. What a batch saves over a shell loop is the process start, the session round trip and the
  * deck read — which is most of the wall clock, since one card write is one `/session` preamble
  * (#105) either way.
+ *
+ * **The dedupe costs a full card read**, which on a 20k-card deck is ~200 chunk requests before
+ * the first write. There is no index to ask instead, and skipping it would trade the retry
+ * guarantee above for the speed. That is the other reason to use `--from-file`: the read is paid
+ * once for the whole batch, where a shell loop pays it per card.
  */
 suspend fun cardAdd(args: Args, decks: DeckRepository, cards: CardRepository): CommandResult {
     val deckId = args.requireWord(2, "deckId")

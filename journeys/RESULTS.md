@@ -1491,11 +1491,24 @@ because the "you gave me nothing" branch fires on a command line with no positio
 words", which is right for `deck create` and wrong the moment a command takes an operand; it
 matched nothing and reported an unknown command. Both fixed, both now covered by `ArgsTest`.
 
+## The Linux row itself — 2026-09-02, `ubuntu-latest` (CI run 33689406560)
+
+The `.so` was cross-built from macOS in a container, so until this ran nothing had loaded it on a
+real glibc host. The `cli-linux` job did, and passed in 2m30s.
+
+| Verified on Linux x86_64 | Result |
+| --- | --- |
+| `linux-x86-64/libpubkycore.so` loads through JNA from the jar | ✅ — `:shared:jvmTest` passed, and `UniffiPubkyClientJvmTest` is in it, so the alternative was a failing task |
+| Whole shared suite on the desktop target, on Linux | ✅ `> Task :shared:jvmTest` |
+| `loopky --version` from the built binary | ✅ `loopky 0.1.0 (schema 1)` |
+| `whoami --json` with no session | ✅ exit 3, `{"schema":1,"ok":false,…"code":"not_signed_in","exit":3,…}` |
+| The envelope names the network | ✅ `"environment":"production","indexer":"https://nexus.pubky.app"` |
+| Unknown command → 2, missing input → distinguishable | ✅ |
+| A headless box with no desktop session and no libsecret | ✅ — which is what a GitHub runner is, and the reason the file store is the default rather than the fallback |
+
 **Not verified, and it needs a Linux box with a phone next to it.** Everything above the sign-in
 line: no Pubky Ring approval was completed, so `deck create`, `import`, `card add/edit/rm`,
 `deck sync/compact` and `whoami` against a real session are **untested end to end**. The
 acceptance criteria that turn on that — a deck the Android app opens without a repair step, an
 `import` killed mid-run and resumed without duplicating, a full run leaving no record under
-`/pub/pubky.app/` — are unmet until someone scans the QR. The `linux-x86-64` `.so` itself is also
-unrun on Linux outside CI: it was cross-built from macOS in a container, and CI's `:shared:jvmTest`
-is the first thing that exercises it on a real glibc host.
+`/pub/pubky.app/` — are unmet until someone scans the QR.
