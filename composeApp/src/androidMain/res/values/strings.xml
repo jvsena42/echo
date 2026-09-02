@@ -384,7 +384,7 @@
     <string name="settings_pubky_label">Pubky</string>
     <string name="settings_not_signed_in">Not signed in</string>
     <string name="settings_copy">Copy</string>
-    <string name="settings_homeserver_label">Storage server</string>
+    <string name="settings_homeserver_label">Homeserver</string>
     <string name="settings_homeserver_unknown">Unknown</string>
     <string name="settings_section_sharing">SHARING</string>
     <string name="settings_share_on_pubky_label">Ask before posting</string>
