@@ -59,4 +59,20 @@ Description: Headless Loopky client for creating and managing flashcard decks
 CONTROL
 
 mkdir -p "$OUTDIR"
-dpkg-deb --build --root-owner-group "$STAGE" "$OUTDIR/loopky_${VERSION}_amd64.deb"
+
+# **`-Zxz` explicitly, because the default is the *builder's* and that undoes the Depends line
+# above on exactly the hosts it was added for.**
+#
+# Ubuntu's dpkg defaults to zstd (1.22.6 on `ubuntu-latest`, which is where the release builds
+# this); Debian's still defaults to xz (1.21.23 on bookworm). Debian 11's dpkg cannot read zstd at
+# all, so the same staging tree published from an Ubuntu runner answers
+#
+#   dpkg-deb: error: archive uses unknown compression for member 'control.tar.zst', giving up
+#
+# where the xz build answers "loopky depends on libc6 (>= 2.34); however: … 2.31". The first names
+# no package and no fix, which is the failure mode the `Depends:` line exists to remove — and it
+# lands precisely on the pre-2.34 hosts that line is for. Pinning it also makes the artifact the
+# same whoever builds it, rather than something that varies by builder.
+#
+# xz over gzip only for size: ~16 MB against ~24 for a 64 MB binary.
+dpkg-deb -Zxz --build --root-owner-group "$STAGE" "$OUTDIR/loopky_${VERSION}_amd64.deb"
