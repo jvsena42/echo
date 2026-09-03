@@ -14,6 +14,7 @@ import com.github.jvsena42.loopky.cli.result
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.domain.model.Session
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -51,9 +52,14 @@ data class LoginResult(
      * sandbox recreated per task has no stored session and nobody at its terminal to scan a code,
      * so the secret has to be minted somewhere with a human and carried in.
      */
-    val sessionSecret: String? = null,
-    /** Where the session was written, or null when `--export` printed it instead of storing it. */
-    val storedAt: String? = null,
+    @SerialName("session_secret") val sessionSecret: String? = null,
+    /**
+     * Where the session was written.
+     *
+     * Always set: `--export` *also* prints the secret, it does not print it instead of storing it.
+     * A caller reading this to decide whether a credential reached the disk gets the truth.
+     */
+    @SerialName("stored_at") val storedAt: String? = null,
 )
 
 @Serializable
@@ -62,8 +68,8 @@ data class WhoamiResult(
     val homeserver: String,
     val capabilities: List<String>,
     /** `env` for `LOOPKY_SESSION`, `file` for the stored one. */
-    val sessionSource: String,
-    val configHome: String,
+    @SerialName("session_source") val sessionSource: String,
+    @SerialName("config_home") val configHome: String,
     val environment: String,
     val indexer: String,
     /**
@@ -74,9 +80,9 @@ data class WhoamiResult(
      * discover it. This is the honest substitute, and it is what an agent should check before
      * starting an hour-long import rather than 40 cards in (#165).
      */
-    val sessionLive: Boolean,
+    @SerialName("session_live") val sessionLive: Boolean,
     /** Null, always, and deliberately — see [CLI_CAPABILITIES]. */
-    val displayName: String? = null,
+    @SerialName("display_name") val displayName: String? = null,
 )
 
 /**
