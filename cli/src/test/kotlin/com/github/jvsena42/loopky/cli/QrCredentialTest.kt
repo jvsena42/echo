@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.cli
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermission
+import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -60,6 +61,35 @@ class QrCredentialTest {
         file.delete()
     }
 
+    /**
+     * The PNG is written by ~30 lines of chunk-and-CRC in [TerminalQr] rather than by `ImageIO`,
+     * because AWT is what turns the native binary into eight files (#210). That trade is only
+     * sound if the bytes are a real PNG, so this decodes them with the library that was dropped —
+     * `ImageIO` is on the *test* classpath and nowhere near the shipped image — and checks the
+     * one thing a scanner cares about: a dark finder pattern on a light quiet zone, the right way
+     * round.
+     */
+    @Test
+    fun `the hand-rolled png decodes, and is dark-on-light`() {
+        val file = File.createTempFile("loopky-qr", ".png")
+        TerminalQr.writePng(authUrl, file)
+
+        val image = requireNotNull(ImageIO.read(file)) { "the bytes did not decode as an image" }
+        assertTrue(image.width >= QR_MIN_SIZE && image.height == image.width, "${image.width}x${image.height}")
+
+        // The quiet zone is light, and the finder pattern's outer ring — four modules in from the
+        // corner — is dark. Inverted output is the failure a QR encoder actually has, and it is
+        // invisible in a hex dump.
+        val module = image.width / MODULES_ACROSS_A_VERSION_1_CODE
+        assertEquals(WHITE, image.getRGB(1, 1) and RGB_MASK, "the quiet zone came out dark")
+        assertEquals(
+            BLACK,
+            image.getRGB(module * QUIET_ZONE_MODULES + module / 2, module * QUIET_ZONE_MODULES + module / 2) and RGB_MASK,
+            "the finder pattern came out light",
+        )
+        file.delete()
+    }
+
     @Test
     fun `a missing parent directory is created`() {
         val dir = Files.createTempDirectory("loopky-qr-dir").resolve("nested").toFile()
@@ -73,5 +103,20 @@ class QrCredentialTest {
 
     private companion object {
         val PNG_MAGIC = listOf<Byte>(0x89.toByte(), 0x50, 0x4E, 0x47)
+
+        /** ZXing treats the requested 512 as a floor, so the code is at least that wide. */
+        const val QR_MIN_SIZE = 512
+
+        /**
+         * A version-1 code is 21 modules plus two quiet zones. The real code is denser than
+         * version 1, so this over-estimates the module size — which is the safe direction: it
+         * lands the probe *inside* the finder pattern rather than past it.
+         */
+        const val MODULES_ACROSS_A_VERSION_1_CODE = 29
+        const val QUIET_ZONE_MODULES = 4
+
+        const val RGB_MASK = 0xFFFFFF
+        const val BLACK = 0x000000
+        const val WHITE = 0xFFFFFF
     }
 }
