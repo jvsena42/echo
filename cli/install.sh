@@ -26,7 +26,8 @@ die() { printf '%s\n' "loopky: $*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required and was not found"; }
 
 # The host matrix, and it is the same one the binary itself refuses outside of — see
-# `HostSupport.kt`. An unshipped host is told what it is and why, never handed a 404 from a URL it
+# `cli/src/main/kotlin/com/github/jvsena42/loopky/cli/SupportedHost.kt`, which has to stay in
+# step with this. An unshipped host is told what it is and why, never handed a 404 from a URL it
 # was never going to find.
 asset_for_host() {
     os="$(uname -s)"

@@ -57,8 +57,8 @@ internal fun unsupportedHostMessage(
     val advice = when {
         os.startsWith("mac") ->
             "loopky ships one macOS build and it is for Apple Silicon. If this is an Apple " +
-                "Silicon Mac, you are on an x86_64 JVM under Rosetta — reinstall an arm64 JDK, " +
-                "or use the native binary, which has no JVM to get wrong."
+                "Silicon Mac, you are on an x86_64 JVM under Rosetta: use the native binary, " +
+                "which has no JVM to get wrong — or, for this jar, reinstall an arm64 JDK."
         os.startsWith("windows") ->
             "Windows is not a target yet. Nothing in the design blocks it — it needs a " +
                 "`win32-x86-64/pubkycore.dll` row — but there is no build to ship."

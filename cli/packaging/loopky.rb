@@ -35,6 +35,13 @@ class Loopky < Formula
       url "https://github.com/jvsena42/loopky/releases/download/v#{version}/loopky-linux-x86-64"
       sha256 "0000000000000000000000000000000000000000000000000000000000000000"
     end
+    # Spelled out for the same reason as the Intel-Mac branch. Left off the end, this arch gets a
+    # formula error about a missing `url` — Homebrew's words about our file, rather than ours
+    # about the missing build.
+    on_arm do
+      odie "there is no Linux arm64 build. What is missing is a libpubkycore for that host, " \
+           "not this client — see shared/src/jvmMain/resources/README.md."
+    end
   end
 
   def install

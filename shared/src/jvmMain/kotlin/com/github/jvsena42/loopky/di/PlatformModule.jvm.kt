@@ -69,13 +69,18 @@ private val SECRETS = named("secrets")
  * the client is (#210). [JvmMediaProcessor] reaches `javax.imageio` and therefore `java.awt`,
  * which `native-image` cannot fold into an executable on Linux — it ships five JDK `.so`s beside
  * the binary instead, one of them X11. [PassThroughMediaProcessor] is what a headless binary
- * passes, and gives up nothing it uses. See [initKoinJvm], which has no default for it at all.
+ * passes, and gives up nothing it uses.
+ *
+ * **No default, here or in [initKoinJvm].** A default lives in the synthetic Kotlin generates for
+ * the function, which any caller using *any* other default reaches — so it would make
+ * [JvmMediaProcessor] reachable again whatever the call site passes. Enforcing that in one of the
+ * two entry points and arguing for it in the other is how it comes back.
  */
 fun jvmPlatformModule(
     pubkyEnvironment: PubkyEnvironment,
     configHome: Path = ConfigHome.resolve(),
     unsplashFallbackKey: String = "",
-    mediaProcessor: MediaProcessor = JvmMediaProcessor(),
+    mediaProcessor: MediaProcessor,
 ): Module = module {
     single<PubkyClient> { UniffiPubkyClient() }
     single<HttpFetcher> { JvmHttpFetcher() }
@@ -113,12 +118,9 @@ fun jvmPlatformModule(
  * can drift. Splitting `shared` into `core` + `presentation` is the eventual answer and it is
  * triggered by an out-of-tree consumer, not by this one (#54, open question 5).
  *
- * [mediaProcessor] has **no default here on purpose**, unlike every other parameter. A default
- * would live in the synthetic Kotlin generates for it, which every caller reaches — and
- * [JvmMediaProcessor] being reachable at all is what pulls AWT into a `native-image` build and
- * turns `loopky` from one file into eight (#210). A required argument makes the compiler ask,
- * rather than a packaging surprise two releases later. `:cli` passes [PassThroughMediaProcessor];
- * a desktop UI would pass [JvmMediaProcessor].
+ * [mediaProcessor] has **no default**, unlike every other parameter here, and neither does
+ * [jvmPlatformModule] — see the note there. `:cli` passes [PassThroughMediaProcessor]; a desktop
+ * UI would pass [JvmMediaProcessor].
  */
 fun initKoinJvm(
     pubkyEnvironment: PubkyEnvironment,
