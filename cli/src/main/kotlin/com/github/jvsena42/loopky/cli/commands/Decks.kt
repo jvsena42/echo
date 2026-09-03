@@ -32,6 +32,8 @@ data class DeckDeleteResult(val id: String, val deleted: Boolean)
 
 @Serializable
 data class DeckCompactResult(
+    /** The deck as it stands afterwards, chunk table included — see `DeckView.chunks`. */
+    val deck: DeckView,
     val id: String,
     val merges: Int,
     @SerialName("cards_moved") val cardsMoved: Int,
@@ -168,8 +170,13 @@ suspend fun deckSync(args: Args, decks: DeckRepository, cards: CardRepository): 
 suspend fun deckCompact(args: Args, decks: DeckRepository): CommandResult {
     val id = args.requireWord(2, "deckId")
     val outcome = decks.compactDeck(id).getOrElse { throw asCliError(it) }
+    // Re-read afterwards rather than reporting only the outcome's counts: compaction's whole job
+    // is rearranging the chunk table, and a caller has to be able to check the work rather than
+    // take the command's word for it.
+    val compacted = decks.sync(id).getOrElse { throw asCliError(it) }
     return result(
         DeckCompactResult(
+            deck = compacted.toView(),
             id = id,
             merges = outcome.merges,
             cardsMoved = outcome.cardsMoved,

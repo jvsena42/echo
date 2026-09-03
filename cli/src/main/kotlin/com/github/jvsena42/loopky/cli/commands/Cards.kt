@@ -37,6 +37,21 @@ data class CardWriteResult(
      * than merely skipped, so a caller can tell "already there" from "did nothing".
      */
     val skipped: Int = 0,
+    /**
+     * Cards this call actually removed — 0 when the id was not in the deck.
+     *
+     * `card rm` used to answer identically whether it deleted a card or did nothing at all: same
+     * envelope, same exit 0. `DeckRepositoryImpl.deleteCard` treats a missing card as a no-op, and
+     * the CLI reported that as a success, so an agent pruning a list of ids could not tell which
+     * of them were real without re-reading the deck between every delete.
+     *
+     * Reported rather than turned into an error, and the asymmetry with `card edit` — which does
+     * return `not_found` — is deliberate. Removing a card that is already gone leaves the deck in
+     * the state the caller asked for, so failing it would break the retry-after-expiry pattern the
+     * whole surface is built around; that is the same reason `card add` reports [skipped] instead
+     * of refusing a duplicate. An *edit* has no such reading: the change simply cannot be applied.
+     */
+    val removed: Int = 0,
     @SerialName("card_count") val cardCount: Int = 0,
 )
 
@@ -162,10 +177,25 @@ suspend fun cardEdit(args: Args, decks: DeckRepository, cards: CardRepository): 
 suspend fun cardRemove(args: Args, decks: DeckRepository): CommandResult {
     val deckId = args.requireWord(2, "deckId")
     val cardId = args.requireWord(3, "cardId")
-    val deck = decks.deleteCard(deckId, cardId).getOrElse { throw asCliError(it) }
+    // The manifest read that makes the answer possible. `deleteCard` returns the deck either way,
+    // so without a count from before there is nothing to compare against — and the chunk table is
+    // where `cardCount` comes from, so this is one record, not the deck's cards.
+    val before = decks.sync(deckId).getOrElse { throw asCliError(it) }
+    val after = decks.deleteCard(deckId, cardId).getOrElse { throw asCliError(it) }
+    val removed = (before.cardCount - after.cardCount).coerceAtLeast(0)
     return result(
-        CardWriteResult(deckId, emptyList(), written = 0, cardCount = deck.cardCount),
-        "Removed $cardId from $deckId (${deck.cardCount} cards left)",
+        CardWriteResult(
+            deckId = deckId,
+            cards = emptyList(),
+            written = 0,
+            removed = removed,
+            cardCount = after.cardCount,
+        ),
+        if (removed > 0) {
+            "Removed $cardId from $deckId (${after.cardCount} cards left)"
+        } else {
+            "Deck $deckId has no card $cardId — nothing removed (${after.cardCount} cards)."
+        },
     )
 }
 

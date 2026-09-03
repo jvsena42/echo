@@ -44,7 +44,29 @@ data class DeckView(
     @SerialName("speak_enabled") val speakEnabled: Boolean = false,
     @SerialName("type_enabled") val typeEnabled: Boolean = false,
     @SerialName("reverse_enabled") val reverseEnabled: Boolean = false,
+    /**
+     * The manifest's chunk table: which card records exist, how full each one is, and when it last
+     * changed.
+     *
+     * Here because `deck compact`'s entire job is rearranging these, and without them its effect is
+     * invisible through the verification channel except as counts in its own result — a caller
+     * cannot check the work, only take the command's word for it. `chunks[].updated_at` is also
+     * what a follower diffs to re-fetch one record instead of a whole deck, so a caller reasoning
+     * about sync cost needs it.
+     *
+     * **Not contiguous.** Compaction folds a pair of neighbours and drops the higher `n`, so the
+     * numbering has gaps — anything walking this must read `n`, never `0 until size`.
+     */
+    val chunks: List<ChunkView> = emptyList(),
     val uri: String,
+)
+
+/** One card record, as the manifest describes it. */
+@Serializable
+data class ChunkView(
+    val n: Int,
+    val count: Int,
+    @SerialName("updated_at") val updatedAt: Long,
 )
 
 @Serializable
@@ -101,6 +123,7 @@ fun Deck.toView(): DeckView = DeckView(
     speakEnabled = speakEnabled,
     typeEnabled = typeEnabled,
     reverseEnabled = reverseEnabled,
+    chunks = chunks.map { ChunkView(n = it.n, count = it.count, updatedAt = it.updatedAt) },
     uri = pubkyUri.value,
 )
 
