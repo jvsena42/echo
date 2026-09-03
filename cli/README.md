@@ -29,7 +29,7 @@ curl -fsSL https://github.com/jvsena42/loopky/releases/latest/download/loopky-li
 | Linux x86_64 | `loopky-linux-x86-64` · needs glibc 2.34+ (Debian 12, Ubuntu 22.04, RHEL 9 and newer) |
 | macOS, Apple Silicon | `loopky-macos-aarch64` |
 | Container | `docker run --rm -e LOOPKY_SESSION ghcr.io/jvsena42/loopky deck list --json` |
-| Debian/Ubuntu | `loopky_<version>_amd64.deb` on the release page — `dpkg -i`, no `Depends:` |
+| Debian/Ubuntu | `loopky_<version>_amd64.deb` on the release page — `dpkg -i`. Depends on `libc6 (>= 2.34)` and `zlib1g`, which is the whole of it: no JRE, and nothing else |
 | Homebrew | a tap, `cli/packaging/loopky.rb` — see the note in that file |
 
 **An Intel Mac and Windows are not targets**, by decision rather than omission (#54). Both are
