@@ -11,6 +11,9 @@ plugins {
     // :cli is a plain JVM module. Declared here so the version resolves once, like every other
     // plugin in this build.
     alias(libs.plugins.kotlinJvm) apply false
+    // `native-image` for :cli (#210). Declared here for the same reason as the rest, and left
+    // unapplied everywhere else — nothing but the headless client is shipped as a binary.
+    alias(libs.plugins.graalvmNative) apply false
     alias(libs.plugins.detekt) apply false
 }
 

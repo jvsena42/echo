@@ -59,6 +59,17 @@ enum class ExitCode(val code: Int, val json: String) {
 
     /** An input file could not be read, or held nothing importable. */
     BadInput(9, "bad_input"),
+
+    /**
+     * This machine is not one `libpubkycore` is built for. See [SupportedHost].
+     *
+     * Its own code because the alternative is not a vague code but a **wrong** one. An unshipped
+     * host misses at `Native.load`, which throws `UnsatisfiedLinkError("Unable to load library
+     * 'pubkycore': … not found in resource path …")` — and "not found" is what [of] matches on, so
+     * the machine that can never run this binary reports [NotFound]: *the deck does not exist*.
+     * `SupportedHostTest` pins that, because it is the reason this row exists.
+     */
+    UnsupportedHost(10, "unsupported_host"),
     ;
 
     companion object {

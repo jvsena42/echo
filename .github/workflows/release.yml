@@ -1,0 +1,261 @@
+# Publish `loopky` as something you can install without installing anything else (#210).
+#
+# What comes out of a tag:
+#
+#   loopky-linux-x86-64      a single binary, glibc 2.34+, built inside ubuntu:22.04
+#   loopky-macos-aarch64     a single binary, Apple Silicon
+#   loopky_<version>_amd64.deb
+#   ghcr.io/<owner>/loopky   a container image
+#
+# plus a `.sha256` beside each binary, which `cli/install.sh` checks.
+#
+# **One job per host, because `native-image` does not cross-compile.** There is no matrix of
+# `--target` flags to be had: the machine that builds the binary is the machine it runs on, which
+# is also why the Linux job builds inside a container rather than on the runner — a binary linked
+# against the runner's glibc refuses to start on anything older, and the floor that matters is
+# `libpubkycore.so`'s 2.34, not the runner's.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. v0.2.0). Artifacts are uploaded, no release is made.'
+        required: true
+        default: 'v0.0.0-dev'
+
+permissions:
+  contents: read
+
+env:
+  VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+jobs:
+  check-version:
+    # The tag and `loopkyCliVersion` in gradle.properties have to be the same number, and this is
+    # where that is settled — before anything is built, let alone pushed.
+    #
+    # `--version` is compiled in from that property (`:cli:generateCliVersion`). Without this
+    # check, tagging `v0.2.0` without bumping the property ships a GitHub release, a
+    # `ghcr.io/…/loopky:0.2.0` image and a `loopky_0.2.0_amd64.deb` whose binary answers
+    # `loopky 0.1.0` — and `install.sh` ends by running `--version`, so the wrong number is the
+    # first thing a new user sees.
+    name: The tag and the source agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare
+        run: |
+          set -euo pipefail
+          DECLARED=$(sed -n 's/^loopkyCliVersion=//p' gradle.properties)
+          test -n "$DECLARED" || { echo "loopkyCliVersion is not set in gradle.properties"; exit 1; }
+          if [ "${VERSION#v}" != "$DECLARED" ]; then
+            echo "tag $VERSION does not match loopkyCliVersion=$DECLARED in gradle.properties." >&2
+            echo "Bump the property and tag the commit that does it — the binary's --version" >&2
+            echo "comes from the property, not from the tag." >&2
+            exit 1
+          fi
+          echo "$VERSION matches loopkyCliVersion=$DECLARED"
+
+  linux:
+    name: Linux x86_64 binary
+    needs: check-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # `cli/Dockerfile` is the whole build definition, so this step is identical to what a
+      # developer runs locally and there is no second recipe to drift.
+      - name: Build the binary
+        run: |
+          docker build -f cli/Dockerfile --target export \
+            --output type=local,dest=dist .
+
+      # The contract an agent branches on, asserted on the artifact rather than on a jar that
+      # resembles it. Deliberately offline: nothing here needs a homeserver, so a network blip
+      # cannot make a release flake.
+      - name: Smoke-test it
+        env:
+          LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-release
+        run: |
+          set -euo pipefail
+          ls -la dist
+          # One file, or the install story is not one curl. `export` copies the whole
+          # `nativeCompile` directory precisely so this can be counted; the build has already
+          # failed at `:cli:checkNativeImageIsOneFile` if there is more than one.
+          test "$(ls dist | wc -l)" -eq 1
+          chmod +x dist/loopky
+          dist/loopky --version
+          set +e; OUT=$(dist/loopky whoami --json); CODE=$?; set -e
+          echo "$OUT"
+          test "$CODE" -eq 3
+          echo "$OUT" | grep -q '"code":"not_signed_in"'
+          echo "$OUT" | grep -q '"schema":1'
+          # The number in the binary is the number on the release. `check-version` compared the
+          # tag with gradle.properties; this compares the tag with what was actually compiled.
+          dist/loopky --version | grep -qF "loopky ${VERSION#v} "
+
+      - name: Name it, and check it
+        run: |
+          set -euo pipefail
+          mv dist/loopky dist/loopky-linux-x86-64
+          ( cd dist && sha256sum loopky-linux-x86-64 > loopky-linux-x86-64.sha256 )
+          cli/packaging/deb.sh dist/loopky-linux-x86-64 "$VERSION" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: loopky-linux
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS aarch64 binary
+    needs: check-version
+    # An arm64 runner, and only an arm64 runner: there is one `darwin-aarch64` row of
+    # `libpubkycore` and an Intel build would have nothing to load (#54).
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the binary
+        run: ./gradlew :cli:nativeCompile
+
+      - name: Smoke-test it
+        env:
+          LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-release
+        run: |
+          set -euo pipefail
+          BIN=cli/build/native/nativeCompile/loopky
+          "$BIN" --version
+          set +e; OUT=$("$BIN" whoami --json); CODE=$?; set -e
+          echo "$OUT"
+          test "$CODE" -eq 3
+          echo "$OUT" | grep -q '"code":"not_signed_in"'
+          "$BIN" --version | grep -qF "loopky ${VERSION#v} "
+
+      - name: Name it, and check it
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp cli/build/native/nativeCompile/loopky dist/loopky-macos-aarch64
+          ( cd dist && shasum -a 256 loopky-macos-aarch64 > loopky-macos-aarch64.sha256 )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: loopky-macos
+          path: dist/*
+          if-no-files-found: error
+
+  image:
+    name: Container image
+    runs-on: ubuntu-latest
+    # The other half of the install story rather than an alternative to it: a sandbox that lets
+    # you choose an image needs no install step at all, and one with restricted egress may have
+    # no other way in.
+    #
+    # Behind both binary jobs, because this pushes to a registry the moment it succeeds and a
+    # registry push cannot be taken back the way an unpublished artifact can. It builds the same
+    # source through the same Dockerfile, so if the Linux smoke test is going to fail, it fails
+    # before anyone can pull this.
+    needs: [check-version, linux, macos]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/loopky"
+          TAG="${VERSION#v}"
+          docker build -f cli/Dockerfile --target runtime -t "$IMAGE:$TAG" .
+          docker run --rm "$IMAGE:$TAG" --version
+
+          # Only a real tag publishes. A `workflow_dispatch` run builds and tests the image and
+          # stops there, so a dry run cannot move anything under anyone.
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "not a tag push — built and tested, publishing nothing"
+            exit 0
+          fi
+          docker push "$IMAGE:$TAG"
+
+          # `:latest` only for a final version. `docker run … ghcr.io/…/loopky` is what the README
+          # tells people to run, so a `v1.0.0-rc1` tag moving it would silently hand every reader
+          # a release candidate.
+          case "$TAG" in
+            *[!0-9.]*) echo "$TAG is a pre-release — leaving :latest where it is" ;;
+            *) docker tag "$IMAGE:$TAG" "$IMAGE:latest" && docker push "$IMAGE:latest" ;;
+          esac
+
+  release:
+    name: Attach to the release
+    needs: [linux, macos]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ls -la dist
+
+          # **Never publish a release that has nothing in it.** `latest` is what both documented
+          # install paths resolve through — `cli/install.sh` defaults to
+          # `releases/latest/download/loopky-linux-x86-64`, as does the README's one-liner — so a
+          # release that exists before its assets do is a 404 for everyone who runs them.
+          #
+          # Which branch we are in matters, so it is asked rather than inferred from an exit code.
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            # The normal case: whoever ran the `release` skill created it with the curated
+            # changelog moments after pushing the tag, and is holding it back from `latest` until
+            # these assets land. Fill it in; touch neither the notes nor the latest flag.
+            echo "release $VERSION already exists — uploading assets into it"
+            gh release upload "$VERSION" dist/* --clobber
+            exit 0
+          fi
+
+          # No release yet, so this tag was pushed without the runbook. Draft, upload, publish —
+          # three explicit commands rather than `gh release create <tag> <assets>`, which does the
+          # same thing internally but as an implementation detail of a convenience form. It is
+          # documented in gh 2.98's help and the runner's `gh` is whatever its image ships, so the
+          # short form would make a no-window guarantee out of an unpinned dependency. The extra
+          # line costs nothing and depends on nothing.
+          echo "no release $VERSION yet — creating one"
+          EXTRA=()
+          # A pre-release must say so, or GitHub's automatic latest picks it up on publish and
+          # `curl …/releases/latest/download/…` starts handing everyone an RC. Same guard the
+          # image job uses for the `:latest` tag.
+          case "${VERSION#v}" in
+            *[!0-9.]*) EXTRA+=(--prerelease) ;;
+          esac
+          gh release create "$VERSION" --draft --title "$VERSION" --generate-notes --verify-tag "${EXTRA[@]}"
+          gh release upload "$VERSION" dist/*
+          gh release edit "$VERSION" --draft=false

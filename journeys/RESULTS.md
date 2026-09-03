@@ -1452,10 +1452,13 @@ a compact size class only.
 # CLI (`loopky`)
 
 The headless client has no `journeys/*.xml` and cannot have one: those scripts drive a screen with
-`android-cli`, and this has none. Its equivalent is the CI job — `cli-linux` in
-`.github/workflows/ci.yml` runs the shared suite on the `jvm()` target and asserts the exit-code
-and `--json` contract against the built binary on a headless Linux x86_64 runner, which is the
-environment #54 exists for. What follows is what was checked by hand beyond that.
+`android-cli`, and this has none. Its equivalent is two CI jobs in `.github/workflows/ci.yml`, on
+a headless Linux x86_64 runner, which is the environment #54 exists for: `cli-linux` runs the
+shared suite on the `jvm()` target and asserts the exit-code and `--json` contract against the jar
+distribution, and `cli-binary` builds the shipped `native-image` binary through `cli/Dockerfile`
+and asserts the same contract plus the two things only the binary can get wrong — that it is
+**one file**, and that the FFI loads out of its own resources. What follows is what was checked by
+hand beyond that.
 
 ## #54 — the Linux target and the CLI — 2026-09-02, macOS arm64 (dev machine)
 
@@ -1582,3 +1585,142 @@ the whole surface has been driven:
 `tanenbaum` / `computer-science`, ords ascending, read back identical to what went in. Extracted
 from chapter 1 of Tanenbaum, Feamster & Wetherall 6e and published end to end through `loopky`: no
 phone, no screen, one command. That is the branch's claim, demonstrated rather than argued.
+
+---
+
+## #210 — a binary, not a jar — 2026-09-03, macOS arm64 dev machine + linux/amd64 containers
+
+The one thing #54 called "the primary constraint" and did not deliver: an install that needs no
+JRE on the target machine. What ships now is a GraalVM `native-image` binary. Built with **GraalVM
+CE 25.0.2**; the Linux row built and run inside containers on an Apple Silicon host, so the x86_64
+runs below were **emulated** — see "Not verified" at the foot.
+
+| Verified | Result |
+| --- | --- |
+| macOS aarch64 binary | ✅ `:cli:nativeCompile`, 59.9 MB, **one file** |
+| Linux x86_64 binary | ✅ `docker build -f cli/Dockerfile --target export`, **64,817,416 bytes, one file** |
+| …and its glibc floor | ✅ `GLIBC_2.34` — the same floor `libpubkycore.so` already had, i.e. building in `ubuntu:22.04` costs nothing and reaches Debian 12 / RHEL 9 |
+| The FFI actually loads out of the binary | ✅ `login --url-only` printed a real `pubkyauth://signin?caps=%2Fpub%2Floopky%2F%3Arw&relay=…&secret=…` on both rows — that call reaches `_UniFFILib.INSTANCE`, so JNA extracted `libpubkycore`, checked the API checksums and registered the event-listener callback |
+| …with **no network at all** | ✅ same URL under `docker run --network none`; the failure that follows is an honest transport error on the relay poll. So the CI assertion is offline-safe |
+| Nexus read over TLS | ✅ `tag trending --limit 3 --json` → `stem, gcse, language`, both rows |
+| …on a base with **no trust store** | ✅ `debian:bookworm-slim` has no `/etc/ssl/certs` at all, and both Nexus and the auth relay were reached unchanged. Both halves carry their own roots — so `ca-certificates` in the image is belt-and-braces, not a requirement, and the Dockerfile now says which |
+| Exit codes on the binary | ✅ 3 `not_signed_in`, 2 unknown command, `"schema":1` and `"environment":"production"` on both |
+| `--qr-out` after dropping `ImageIO` | ✅ 512×512 1-bit PNG from `TerminalQr.toPng`, decodes under `ImageIO` in the test, dark-on-light the right way round, still 0600, still deleted on exit |
+| `RUST_LOG` default without a start script | ✅ unset → silent; `RUST_LOG=debug` → the SDK's tracing back. `RustLog.kt` sets it through libc |
+| Container image | ✅ `--target runtime`, 217 MB, runs as uid 1000, `--version` / `whoami` / `tag trending` all correct |
+| `.deb` | ✅ `cli/packaging/deb.sh` → 16 MB, `dpkg -i` into a clean `bookworm-slim`, `loopky --version` from `/usr/bin` |
+| `install.sh` host matrix | ✅ Intel Mac, Linux arm64 and an unknown host each refused by name with the reason; Linux x86_64 proceeds to the download (404 today — no release yet) |
+| Per-row jar tarballs | ✅ `loopky-linux-x86-64.tar` holds only `linux-x86-64/libpubkycore.so`, `loopky-darwin-aarch64.tar` only the dylib; the macOS one runs |
+| Shared suite on the JVM target | ✅ 1,305 tests, 0 failures |
+| `:cli:test`, `detektAll` | ✅ green |
+| The Linux binary **runs on real x86_64 hardware** | ✅ CI run 33783491387, `cli-binary` on `ubuntu-latest` (`gcc (linux, x86_64, 11.4.0)`, not emulated): one file, 64,817,416 bytes — the same byte count the emulated build produced — `--version`, `whoami` → 3, and `login --url-only` printing a real `pubkyauth://…&secret=…`, i.e. the FFI loaded and its checksums matched on native hardware |
+| …and it was built with the compatibility target | ✅ `Graal compiler: optimization level: 2, target machine: compatibility` in the same log, so the flag took. That is *not* the same as exercising it — see "Not verified" |
+
+**Start-up, measured rather than quoted.** 20 runs each, warm:
+
+| | native | jar + start script |
+| --- | --- | --- |
+| `--version` | **5 ms** | 49 ms |
+| `whoami` (no session, starts Koin) | 133 ms | 139 ms |
+
+The second row is the honest one and it is not a disappointment about `native-image`: ~125 ms of
+it is JNA unpacking `libjnidispatch` so `RustLog.kt` can call `setenv`. Any command that reaches
+the homeserver pays that anyway. With `RUST_LOG` already set — the call returns immediately — the
+same command is **8 ms**.
+
+**What the one-file check caught, twice, in one sitting.** `native-image` does not fail when it
+cannot fold a JDK native library into the executable; it emits the library beside it and reports
+success. Both of these built green and produced eight files on Linux:
+
+| Reached AWT via | Fix |
+| --- | --- |
+| `TerminalQr.writePng` → `ImageIO` | a hand-rolled PNG encoder, ~30 lines of chunk-and-CRC. A QR code is two colours and no palette |
+| the Koin binding for `MediaProcessor` → `JvmMediaProcessor` → `ImageIO` | `PassThroughMediaProcessor`, and `initKoinJvm` now takes the processor as a **required** argument so a default cannot make the old one reachable again |
+
+A third source was subtler and is worth recording: enabling the **community reachability-metadata
+repository** — the obvious first move for JNA — pulled `java.awt` in on its own. Its JNA rows turned
+out to be a subset of what the tracing agent had already recorded against a real homeserver, so it
+is off, and `com.sun.jna.NativeLong` was the single row worth merging in by hand.
+
+### Not verified
+
+| Path | Why |
+| --- | --- |
+| **A host without AVX2** | the reason `-march=compatibility` is set, and the one thing the CI run above does *not* show: a `ubuntu-latest` runner has AVX2, so a binary built at `native-image`'s default x86-64-v3 would have run there too. The log proves the flag was applied (`target machine: compatibility`), not that it was needed. Demonstrating the SIGILL it prevents needs a pre-Haswell host, or QEMU with the feature masked off |
+| `.github/workflows/release.yml` end to end | it fires on a `v*` tag and nothing has been tagged. The Linux job runs the same `docker build` verified here; the macOS job runs the same `:cli:nativeCompile`; the upload steps are unexercised |
+| The **Homebrew** tap | `cli/packaging/loopky.rb` is a template. A tap is its own repository and this branch cannot create one — the file says what to do with it |
+| `install.sh` against a real release | the host matrix and the failure paths were driven; the download, checksum and install path stop at a 404 until something is published |
+| A write against a homeserver **from the binary** | the FFI is proven loaded and the auth URL is real, but approving in Ring needs a phone. `#54`'s hand-run above covers the write path on the jar, and the code is identical |
+
+## #210 review round 1 — the fixes, verified — 2026-09-03
+
+Eleven findings, none a false positive. Two were things that would have shipped wrong to a user,
+and both were demonstrated rather than argued, so both were reproduced here before being fixed.
+
+| Finding | Reproduced | After |
+| --- | --- | --- |
+| **H1** the `.deb` declared no `Depends`, so an old release installed and *then* crashed | ✅ `dpkg -i` on `debian:bullseye-slim` (glibc 2.31) exited **0**, then `loopky --version` died with `/lib/x86_64-linux-gnu/libc.so.6: version 'GLIBC_2.34' not found` — a loader error naming no package | ✅ `Depends: libc6 (>= 2.34), zlib1g`. `apt install ./loopky_0.1.0_amd64.deb` now exits 100 with `loopky : Depends: libc6 (>= 2.34) but 2.31-13+deb11u14 is to be installed` and installs **nothing**; `dpkg -i` exits 1 with the same reason and leaves the package unconfigured. Still installs and runs on bookworm. (True of the *shipped* artifact only because round 2 pinned the compression — see below) |
+| **H2** `--version` was a literal, so a tag would ship four disagreeing numbers | ✅ `-PloopkyCliVersion=9.9.9` proves the old string was fixed at 0.1.0 whatever the build was called | ✅ `loopkyCliVersion` in `gradle.properties` is the single source; `:cli:generateCliVersion` compiles it in; `-PloopkyCliVersion=9.9.9` → `loopky 9.9.9 (schema 1)`. A new `check-version` job fails the release when the tag disagrees, and both binary jobs assert `--version` matches the tag *after* building |
+| **M3** the CI one-file assertion counted a stage that copies one named file | ✅ `export` was `COPY … /loopky`, so `ls dist \| wc -l` was 1 unconditionally | ✅ `export` copies the whole `nativeCompile/` directory; the count is now an assertion. Rebuilt: still exactly one file |
+| **M4** an unshipped host built a binary with no FFI and no HTTPS, and passed the one-file check | — | ✅ `checkNativeImageHostIsSupported` runs before `nativeCompile` and names the shipped rows. A task, not a configuration-time `error`, so `:cli:test` and `installDist` still work on such a host |
+| **M5** the image job pushed before the smoke tests, and moved `:latest` on any `v*` | — | ✅ `needs: [check-version, linux, macos]`, and `:latest` only for a tag with no pre-release suffix |
+| **M6** the `-march` claim did not follow from the log | ✅ `ubuntu-latest` has AVX2, so a default x86-64-v3 build would have run there too | ✅ narrowed to "runs on real x86_64" plus "built with `target machine: compatibility`", and a host without AVX2 is back under **Not verified** |
+| **L7** `jvmPlatformModule` kept the default the KDoc argued against | — | ✅ neither entry point has one |
+| **L8** a stale artifact made the one-file check blame fixed code | ✅ planted `libawt_xawt.so` in the output directory | ✅ `nativeCompile` clears its output directory first; the planted file was gone and the check passed |
+| **L9** Linux arm64 fell off the end of the Homebrew formula | — | ✅ `on_arm` `odie`s like the Intel-Mac branch |
+| **L10** `install.sh` pointed at `HostSupport.kt`, renamed to `SupportedHost.kt` | — | ✅ full path, so the two host matrices can be kept in step |
+| **L11** the one string telling a user to install a JDK led with it | — | ✅ leads with the binary; the jar is the afterthought |
+
+Re-verified after all of it: macOS binary still one file at 59.9 MB, Linux binary still one file at
+64,817,416 bytes, the runtime image still builds and answers `--version`, 1,305 shared tests and
+`:cli:test` green, `detektAll` green.
+
+One nuance worth stating rather than glossing, since the round caught exactly this kind of thing:
+`dpkg -i` unpacks before it checks dependencies, so `/usr/bin/loopky` exists on disk in the
+refused case even though the package is left unconfigured. `apt install ./file.deb` — the path a
+person actually uses — refuses without unpacking anything.
+
+## #210 review round 2 — the `.deb` the release would actually publish — 2026-09-03
+
+One new medium and one carried-forward low. The medium is the more interesting entry in this file,
+because it is a case of the *verification* being wrong rather than the fix.
+
+**The round-1 H1 check tested a package the release would never produce.** `dpkg-deb --build`
+takes its compression from the builder, and the two builders disagree:
+
+| Builder | `dpkg` | `ar t loopky_0.1.0_amd64.deb` |
+| --- | --- | --- |
+| `debian:bookworm-slim` — where round 1 built it | 1.21.23 | `control.tar.xz`, `data.tar.xz` |
+| `ubuntu:24.04` — what `release.yml` runs on | 1.22.6 | `control.tar.zst`, `data.tar.zst` |
+
+Debian 11's dpkg cannot read zstd at all, so the package the release would publish answers, on the
+very hosts the `Depends:` line was added for:
+
+```
+dpkg-deb: error: archive '…' uses unknown compression for member 'control.tar.zst', giving up
+```
+
+— no package named, no fix suggested, nothing unpacked. That is the failure mode H1 removed,
+reintroduced one layer down by a default nobody chose. `apt install ./…deb` was unaffected (it
+reads the control data itself), so the regression is specific to `dpkg -i` and invisible to the
+path most people would test first.
+
+Fixed by pinning `-Zxz` in `deb.sh`. Re-verified by building the package **on `ubuntu:24.04`**,
+which is the point:
+
+| Check | Result |
+| --- | --- |
+| Members | ✅ `control.tar.xz`, `data.tar.xz`, 15,889,232 bytes |
+| `dpkg -i` on `debian:bullseye-slim` | ✅ `loopky depends on libc6 (>= 2.34); however: Version of libc6:amd64 on system is 2.31-13+deb11u14` — exit 1, left unconfigured |
+| `apt install ./…deb` on bullseye | ✅ exit 100, `Depends: libc6 (>= 2.34) but 2.31-13+deb11u14 is to be installed`, nothing installed |
+| `dpkg -i` on `debian:bookworm-slim` | ✅ installs, `loopky --version` → `loopky 0.1.0 (schema 1)` |
+
+**And the one-file check counted files, so a stray directory passed it.** `reports/` — which a
+diagnostic flag produces — would have slipped through `checkNativeImageIsOneFile` and surfaced
+instead as CI's bare `ls | wc -l`, an exit code with none of the explanation the task exists to
+give. It counts entries now, and marks a directory with a trailing `/` because that usually means
+a diagnostic flag is still set.
+
+The lesson worth keeping: a packaging check has to be run against the artifact the *release*
+builds, not one built the same way somewhere else. Round 1's `.deb` was correct and its test was
+not.

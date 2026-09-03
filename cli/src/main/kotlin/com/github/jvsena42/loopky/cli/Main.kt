@@ -74,7 +74,10 @@ private fun run(argv: Array<String>): ExitCode {
     val environment = CliEnvironment.resolve(args)
     try {
         // Inside the boundary, not before it: starting Koin resolves `PubkyClient`, which is where
-        // a host outside the shipped matrix fails at `Native.load`.
+        // a host outside the shipped matrix fails at `Native.load` — so this is the last point at
+        // which such a host can still be told what is wrong with it rather than about a deck that
+        // does not exist. See `requireSupportedHost`.
+        requireSupportedHost()
         val koin = startCli(environment)
         val result = runBlocking { dispatch(args, koin.identity(), koin, environment) }
         emit(args, environment, args.verb, result)
@@ -202,7 +205,14 @@ private fun fail(args: Args, env: CliEnvironment, command: String, code: ExitCod
 
 private const val TAG = "Loopky/Cli"
 
-private const val VERSION = "loopky 0.1.0 (schema $SCHEMA_VERSION)"
+/**
+ * Two numbers that move independently, which is why both are printed.
+ *
+ * [CLI_VERSION] is generated from `loopkyCliVersion` in `gradle.properties` — see
+ * `:cli:generateCliVersion`, and the release workflow's refusal to accept a tag that disagrees
+ * with it. [SCHEMA_VERSION] is the `--json` envelope's, and it is the one a caller branches on.
+ */
+private val VERSION = "loopky $CLI_VERSION (schema $SCHEMA_VERSION)"
 
 private val USAGE = """
     loopky — a headless Loopky client for decks and cards.

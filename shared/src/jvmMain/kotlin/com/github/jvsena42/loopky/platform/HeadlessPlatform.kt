@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.flowOf
 /**
  * The platform collaborators a headless client answers for by *not* doing them.
  *
- * All four exist because `sharedModule` resolves them, not because the CLI has any use for them —
+ * All five exist because `sharedModule` resolves them, not because the CLI has any use for them —
  * `:shared` is one Koin graph and a missing binding is a start-up failure, so the JVM target has
  * to answer for the whole surface. Each returns the honest "no" rather than a stub that pretends:
  * a `Speaker` that silently succeeds would let a study command claim it read a card aloud.
@@ -40,6 +40,33 @@ class NoPubkyRingPresence : PubkyRingPresence {
 /** No OS password manager to save a recovery phrase into. */
 class NoPasswordManagerPresence : PasswordManagerPresence {
     override fun canSave(): Boolean = false
+}
+
+/**
+ * No image decoder at all: bytes in, the same bytes out.
+ *
+ * This is the one no-op here that exists for the *packaging* rather than for the host, and it is
+ * what makes `loopky` a single file (#210). [JvmMediaProcessor] reaches `javax.imageio`, which
+ * reaches `java.awt` — and `native-image` cannot fold AWT into the executable on Linux. It ships
+ * it *beside* the binary instead: `libawt.so`, `libawt_headless.so`, `libawt_xawt.so`,
+ * `libjavajpeg.so`, `liblcms.so`. Seven files where the install story is one `curl` into
+ * `~/.local/bin`, and one of them an X11 library, in a sandbox with no display.
+ *
+ * Nothing is given up, because nothing in the CLI ever calls this. A card's picture there is a
+ * **URL** (#167) — no bytes cross the wire and no media quota is spent — and the two callers that
+ * do compress (`BulkImportViewModel`, the `.apkg` reader's `compressImage` parameter) are
+ * presentation-layer code a headless client never touches. Pass-through rather than a throw for
+ * the reason [JvmMediaProcessor] gives for its own decode failure: a caller that reaches here
+ * should upload a picture that is merely larger than intended, not lose it.
+ *
+ * The result is byte-for-byte what `JvmMediaProcessor.passThrough` returns, deliberately — two
+ * degrade paths that answer differently for the same input are a bug waiting to be found by
+ * whichever one a card happened to go through. Zero width and height for the reason it gives: a
+ * fabricated aspect ratio would be stored on the card and shown by both apps.
+ */
+class PassThroughMediaProcessor : MediaProcessor {
+    override suspend fun compressImage(bytes: ByteArray, maxDimension: Int, quality: Int): ProcessedImage =
+        ProcessedImage(bytes = bytes, mime = "image/jpeg", width = 0, height = 0)
 }
 
 /**

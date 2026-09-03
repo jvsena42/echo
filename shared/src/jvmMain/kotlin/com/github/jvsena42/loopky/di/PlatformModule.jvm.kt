@@ -34,6 +34,7 @@ import com.github.jvsena42.loopky.platform.NoPasswordManagerPresence
 import com.github.jvsena42.loopky.platform.NoPubkyRingPresence
 import com.github.jvsena42.loopky.platform.NoSpeaker
 import com.github.jvsena42.loopky.platform.NoSpeechRecognizer
+import com.github.jvsena42.loopky.platform.PassThroughMediaProcessor
 import com.github.jvsena42.loopky.platform.PasswordManagerPresence
 import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.platform.Speaker
@@ -63,11 +64,23 @@ private val SECRETS = named("secrets")
  * [configHome] is where the session and preferences live. Injected rather than resolved here so a
  * test — and a container — can point somewhere disposable; see [ConfigHome] for the default and
  * for why it is a 0600 file rather than an OS keyring.
+ *
+ * [mediaProcessor] is the one binding a caller has to think about, and it decides how many files
+ * the client is (#210). [JvmMediaProcessor] reaches `javax.imageio` and therefore `java.awt`,
+ * which `native-image` cannot fold into an executable on Linux — it ships five JDK `.so`s beside
+ * the binary instead, one of them X11. [PassThroughMediaProcessor] is what a headless binary
+ * passes, and gives up nothing it uses.
+ *
+ * **No default, here or in [initKoinJvm].** A default lives in the synthetic Kotlin generates for
+ * the function, which any caller using *any* other default reaches — so it would make
+ * [JvmMediaProcessor] reachable again whatever the call site passes. Enforcing that in one of the
+ * two entry points and arguing for it in the other is how it comes back.
  */
 fun jvmPlatformModule(
     pubkyEnvironment: PubkyEnvironment,
     configHome: Path = ConfigHome.resolve(),
     unsplashFallbackKey: String = "",
+    mediaProcessor: MediaProcessor,
 ): Module = module {
     single<PubkyClient> { UniffiPubkyClient() }
     single<HttpFetcher> { JvmHttpFetcher() }
@@ -83,7 +96,7 @@ fun jvmPlatformModule(
     single<PendingReviewStore> { FilePendingReviewStore(get(PREFERENCES)) }
     single<StudyProgressStore> { FileStudyProgressStore(get(PREFERENCES)) }
 
-    single<MediaProcessor> { JvmMediaProcessor() }
+    single<MediaProcessor> { mediaProcessor }
     single<BackgroundTasks> { InlineBackgroundTasks() }
     single<Speaker> { NoSpeaker() }
     single<SpeechRecognizer> { NoSpeechRecognizer() }
@@ -104,15 +117,23 @@ fun jvmPlatformModule(
  * module as it is keeps the CLI on the *same* graph the apps run rather than a second one that
  * can drift. Splitting `shared` into `core` + `presentation` is the eventual answer and it is
  * triggered by an out-of-tree consumer, not by this one (#54, open question 5).
+ *
+ * [mediaProcessor] has **no default**, unlike every other parameter here, and neither does
+ * [jvmPlatformModule] — see the note there. `:cli` passes [PassThroughMediaProcessor]; a desktop
+ * UI would pass [JvmMediaProcessor].
  */
 fun initKoinJvm(
     pubkyEnvironment: PubkyEnvironment,
+    mediaProcessor: MediaProcessor,
     configHome: Path = ConfigHome.resolve(),
     unsplashFallbackKey: String = "",
     appDeclaration: KoinAppDeclaration = {},
 ) {
     startKoin {
         appDeclaration()
-        modules(sharedModule, jvmPlatformModule(pubkyEnvironment, configHome, unsplashFallbackKey))
+        modules(
+            sharedModule,
+            jvmPlatformModule(pubkyEnvironment, configHome, unsplashFallbackKey, mediaProcessor),
+        )
     }
 }

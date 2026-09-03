@@ -1275,6 +1275,7 @@ always says which network answered.
 | 7 | storage full (507 — terminal, never retried; §8.5) |
 | 8 | environment mismatch |
 | 9 | bad input |
+| 10 | unsupported host (no `libpubkycore` for this OS/arch; §13.10) |
 
 4 is the reason this table is not three rows long. The homeserver session dies after roughly an
 hour and nothing renews it (#165): writes start failing, reads keep working, and from outside it
@@ -1439,23 +1440,69 @@ at runtime. Nobody installing the CLI fetches a native library by hand or sets
 is wrong, or the file is one level off — none of which surfaces until the first homeserver call,
 as an ordinary-looking transport error.
 
-**What ships today is `installDist` / `distTar`: a jar plus a start script, needing a JRE 17.**
-That is honestly short of the target. "How it reaches an agent" is the primary constraint, not a
-footnote: for a cloud sandbox — non-root as often as not, ephemeral, configured by a setup script
-— `curl -fsSL … -o ~/.local/bin/loopky && chmod +x` is one line and needs no root, where a
-third-party apt repo is four privileged commands and a GPG keyring. "Install a JDK" is exactly
-what a one-line install cannot be. The remaining work is GraalVM `native-image` (single binary,
-~20–40 ms start; kotlinx.serialization is compile-time and fine, but **JNA is the sharp edge**,
-since native-image needs explicit handling of the very library extraction above), with a `jlink`
-tarball as the fallback. A container image is the other half, and for a sandbox that lets you pick
-one it beats any install step.
+**What ships is a GraalVM `native-image` binary** (#210): one file, no runtime, ~5 ms to answer
+`--version` where the jar takes ~50, and nothing installed on the machine it lands on. That last
+property is the primary constraint rather than a footnote — for a cloud sandbox, non-root as often
+as not, ephemeral, configured by a setup script, `curl -fsSL … -o ~/.local/bin/loopky && chmod +x`
+is one line and needs no root, and "install a JDK" is exactly what a one-line install cannot be.
+`jlink` was the fallback and was not needed.
 
-Two smaller gaps, named so they are decisions rather than omissions. The tarball carries **both**
-native rows, so a Linux box hauls 11 MB of macOS dylib it will never load; splitting the
-distribution per OS is straightforward and has not been done. And **Windows** is out of scope for
-v1 — it is the same three rows (`win32-x86-64/pubkycore.dll`, a DPAPI session store, a UTF-8
-console for the QR) and nothing in the design blocks it, but no part of the agent workload that
-motivated this runs there.
+**JNA was the sharp edge and the whole of it.** The library extraction described above is
+reflective resource loading, which is the one thing a closed-world image has to be told about
+explicitly. Three registrations carry it, in
+`cli/src/main/resources/META-INF/native-image/…/loopky-cli/`: the `.so`/`.dylib` as an embedded
+resource, JNA's `Structure` subclasses and `Callback` interfaces for reflection and JNI, and
+`_UniFFILib` as a **dynamic proxy** — which is what `Native.load(name, Interface::class.java)`
+actually returns. They were collected with the tracing agent against a *real* homeserver, since
+`FakePubkyClient` never loads a library. Everything else was ordinary: kotlinx.serialization is
+compile-time, Koin's DSL is explicit constructor calls, and nothing scans the classpath.
+
+The community reachability-metadata repository is **off**, which is worth recording because
+switching it on is the obvious first move. Its JNA rows turned out to be a subset of what the
+agent had already recorded, and enabling it pulled `java.awt` into the image — see below.
+
+**"One file" is a property that has to be enforced, not assumed.** `native-image` does not fail
+when it cannot fold a JDK native library into the executable: it emits the library *beside* it and
+reports success. Anything reaching `javax.imageio` pulls in AWT, and on Linux the output becomes
+eight files including `libawt_xawt.so`, an X11 library, in a sandbox with no display. The build is
+green, the tests are green, and the one-line install is dead. `:cli:checkNativeImageIsOneFile`
+fails the build instead, and it has already caught this twice — the `--qr-out` PNG writer (now ~30
+lines of chunk-and-CRC in `TerminalQr`, because a QR code is the one image needing no image
+library) and the Koin binding for `MediaProcessor` (now `PassThroughMediaProcessor`; a card's
+picture here is a URL, so nothing is ever decoded).
+
+Two build flags are load-bearing for a *downloaded* binary. `-march=compatibility`, because
+`native-image` targets x86-64-v3 by default and a v3 binary dies with SIGILL on a host without
+AVX2 — a CPU nobody chose. And the Linux binary is built inside `ubuntu:22.04` rather than on
+whatever runner is current, because a native image links against its builder's glibc and the floor
+is not ours to pick: `libpubkycore.so` already needs GLIBC_2.34. Newer builder, narrower audience,
+with `version 'GLIBC_2.39' not found` as the only clue.
+
+**There is no start script any more, so `RUST_LOG` is set through libc.** The jar's script exports
+`RUST_LOG=warn` in one line of shell; a binary has none, and a process cannot change its own
+environment through `System.getenv` — that map is a copy, and Rust reads the real `environ`. So
+`RustLog.kt` calls `setenv` through JNA, which is already linked in for the FFI. Without it the
+SDK's own tracing writes ANSI-coloured INFO/DEBUG lines to stderr, interleaved with the QR code,
+on the channel an agent harness captures.
+
+**The host matrix is refused at start-up rather than at `Native.load`**, and this is the reason
+exit code 10 exists. An unshipped host does not merely fail vaguely: JNA throws
+`UnsatisfiedLinkError("… not found in resource path …")`, and `isNotFound()` matches those two
+words, so the classifier answers **6, not found** — an agent is told the deck it asked for does not
+exist, on a machine that could never read one. `SupportedHost` checks the pair before Koin starts
+and says which host it is and why there is no build for it. It matters most for the *jar*
+distribution, which is architecture-blind and runs anywhere a JRE does.
+
+The jar distributions remain, and are now **per row**: `linuxDistTar` and `macosDistTar` each carry
+one `libpubkycore`, where `distTar` carried both and a Linux box hauled 11 MB of macOS dylib it
+could never load. They need a JRE 17, but they can be built for either row from either host, which
+a binary cannot — `native-image` does not cross-compile, so the release runs one job per host and
+the Linux one runs in a container.
+
+**Windows** is out of scope for v1 — it is the same three rows (`win32-x86-64/pubkycore.dll`, a
+DPAPI session store, a UTF-8 console for the QR) and nothing in the design blocks it, but no part
+of the agent workload that motivated this runs there. An **Intel Mac** is out for a different
+reason: there is one `darwin-aarch64` row and no `lipo`, deliberately (#54).
 
 ### 13.11 Shape for a second front end
 

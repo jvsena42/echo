@@ -5,12 +5,14 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.common.BitMatrix
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
-import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermissions
-import javax.imageio.ImageIO
+import java.util.zip.CRC32
+import java.util.zip.Deflater
+import java.util.zip.DeflaterOutputStream
 
 /**
  * A `pubkyauth://` URL as something a phone camera can read off a terminal.
@@ -66,20 +68,15 @@ object TerminalQr {
      * second, so the readable window never exists. The caller deletes it once approval lands.
      */
     fun writePng(text: String, file: File) {
-        val matrix = encode(text, PNG_SIZE)
-        val image = BufferedImage(matrix.width, matrix.height, BufferedImage.TYPE_INT_RGB)
-        for (y in 0 until matrix.height) {
-            for (x in 0 until matrix.width) {
-                image.setRGB(x, y, if (matrix.get(x, y)) BLACK else WHITE)
-            }
-        }
+        val png = encode(text, PNG_SIZE).toPng()
         val target = file.absoluteFile
         target.parentFile?.mkdirs()
         val path = createOwnerOnly(target.toPath())
-        // A stream on the file we just created, **not** `ImageIO.write(…, File)`: that overload
-        // deletes the file and recreates it, which throws away the mode set above and puts the
-        // credential back at the ambient umask. Caught by QrCredentialTest, not by reading the API.
-        Files.newOutputStream(path).use { output -> ImageIO.write(image, "png", output) }
+        // A stream on the file we just created, **not** a writer that takes a `File`: the
+        // `ImageIO.write(…, File)` overload this used to call deletes the file and recreates it,
+        // which throws away the mode set above and puts the credential back at the ambient umask.
+        // Caught by QrCredentialTest, not by reading the API.
+        Files.newOutputStream(path).use { output -> output.write(png) }
     }
 
     /**
@@ -128,6 +125,86 @@ object TerminalQr {
 
     private const val FILE_MODE = "rw-------"
 
-    private const val BLACK = 0x000000
-    private const val WHITE = 0xFFFFFF
+    /**
+     * The matrix as a 1-bit greyscale PNG, encoded here in about thirty lines rather than by
+     * `ImageIO`.
+     *
+     * Not a preference — it is what keeps `loopky` a **single file** (#210). `ImageIO` reaches
+     * `java.awt`, and `native-image` cannot fold AWT into the executable on Linux: it ships it
+     * beside the binary as `libawt.so`, `libawt_headless.so`, `libawt_xawt.so`, `libjavajpeg.so`
+     * and `liblcms.so`, one of them an X11 library, in a sandbox with no display. This one call
+     * site was the whole of the cost, and a QR code is the one image that needs no image library:
+     * two colours, no palette, no filtering worth the name.
+     *
+     * `Deflater` writes a zlib stream by default, which is exactly what an `IDAT` holds, so the
+     * whole of the format here is three chunks and a CRC. Bit depth 1, colour type 0 (greyscale):
+     * a sample is one bit, `0` is black, and every row is preceded by a filter byte.
+     */
+    private fun BitMatrix.toPng(): ByteArray {
+        val stride = (width + BITS_PER_BYTE - 1) / BITS_PER_BYTE
+        // Zero-filled, so every module starts black and the *light* ones are the bits written in.
+        val raw = ByteArray((stride + 1) * height)
+        for (y in 0 until height) {
+            val row = y * (stride + 1) + 1
+            for (x in 0 until width) {
+                if (get(x, y)) continue
+                val index = row + x / BITS_PER_BYTE
+                raw[index] = (raw[index].toInt() or (HIGH_BIT ushr (x % BITS_PER_BYTE))).toByte()
+            }
+        }
+
+        val header = ByteArrayOutputStream().apply {
+            writeBigEndian(width)
+            writeBigEndian(height)
+            write(byteArrayOf(BIT_DEPTH, COLOR_TYPE_GREYSCALE, 0, 0, 0))
+        }.toByteArray()
+
+        return ByteArrayOutputStream().apply {
+            write(PNG_SIGNATURE)
+            writeChunk("IHDR", header)
+            writeChunk("IDAT", deflate(raw))
+            writeChunk("IEND", ByteArray(0))
+        }.toByteArray()
+    }
+
+    private fun deflate(bytes: ByteArray): ByteArray {
+        val deflater = Deflater(Deflater.BEST_COMPRESSION)
+        return try {
+            ByteArrayOutputStream().also { sink ->
+                DeflaterOutputStream(sink, deflater).use { it.write(bytes) }
+            }.toByteArray()
+        } finally {
+            deflater.end()
+        }
+    }
+
+    /** Length, four-letter type, payload, and a CRC over the type **and** the payload. */
+    private fun ByteArrayOutputStream.writeChunk(type: String, data: ByteArray) {
+        val name = type.toByteArray(Charsets.US_ASCII)
+        writeBigEndian(data.size)
+        write(name)
+        write(data)
+        val crc = CRC32().apply {
+            update(name)
+            update(data)
+        }
+        writeBigEndian(crc.value.toInt())
+    }
+
+    /** A 32-bit value, most significant byte first, which is how every PNG field is written. */
+    private fun ByteArrayOutputStream.writeBigEndian(value: Int) {
+        for (shift in BIG_ENDIAN_SHIFTS) write(value ushr shift)
+    }
+
+    private val PNG_SIGNATURE = byteArrayOf(
+        0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(),
+        '\r'.code.toByte(), '\n'.code.toByte(), 0x1A, '\n'.code.toByte(),
+    )
+
+    private val BIG_ENDIAN_SHIFTS = intArrayOf(24, 16, 8, 0)
+
+    private const val BITS_PER_BYTE = 8
+    private const val HIGH_BIT = 0x80
+    private const val BIT_DEPTH: Byte = 1
+    private const val COLOR_TYPE_GREYSCALE: Byte = 0
 }

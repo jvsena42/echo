@@ -184,6 +184,9 @@ loopky/
 │   ├── Pubky/                 # IosPubkyClient + generated bindings
 │   └── iOSApp.swift
 │
+├── cli/                       # `loopky`, the headless client — a GraalVM binary on :shared's
+│                              # jvm() target, so an agent can drive Loopky without a screen
+│
 └── journeys/                  # scripted end-to-end journeys + results
 ```
 
