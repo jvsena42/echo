@@ -126,7 +126,19 @@ suspend fun cardAdd(args: Args, decks: DeckRepository, cards: CardRepository): C
     }
 
     return result(
-        CardWriteResult(deckId, written.map { it.toView() }, written.size, skipped, latest.cardCount),
+        // Named, every one of them. Constructed positionally, this call read
+        // `(…, written.size, skipped, latest.cardCount)` against a class whose fourth and fifth
+        // parameters are `skipped` and **`removed`** — so the deck's size was reported as the
+        // number of cards this call deleted, and `card_count` kept its default 0. `removed` was
+        // inserted between them by 9c0492524, which changed what those five positions mean
+        // without changing a line here or failing to compile.
+        CardWriteResult(
+            deckId = deckId,
+            cards = written.map { it.toView() },
+            written = written.size,
+            skipped = skipped,
+            cardCount = latest.cardCount,
+        ),
         "Added ${written.size} card(s)" + if (skipped > 0) ", skipped $skipped already present" else "",
     )
 }
@@ -169,7 +181,12 @@ suspend fun cardEdit(args: Args, decks: DeckRepository, cards: CardRepository): 
     }
 
     return result(
-        CardWriteResult(deckId, written.map { it.toView() }, written.size, cardCount = latest.cardCount),
+        CardWriteResult(
+            deckId = deckId,
+            cards = written.map { it.toView() },
+            written = written.size,
+            cardCount = latest.cardCount,
+        ),
         "Edited ${written.size} card(s)",
     )
 }
