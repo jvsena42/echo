@@ -1724,3 +1724,46 @@ a diagnostic flag is still set.
 The lesson worth keeping: a packaging check has to be run against the artifact the *release*
 builds, not one built the same way somewhere else. Round 1's `.deb` was correct and its test was
 not.
+
+## #211 — `.apkg` import, wired up — 2026-09-03, macOS arm64 (dev machine)
+
+The reader landed in #208 with no way to call it: `ApkgReaderJvmTest` was the only thing in the
+repo that ever ran it. This is the entry point, checked against real archives — a real zip around
+a real SQLite collection, built by `cli/tools/make-sample-apkg.py` and by `ApkgFixture` in the
+tests — through `cli/build/install/loopky/bin/loopky`.
+
+A `.apkg` shaped like the failure the field picker exists for: fields `SentenceId` / `Spanish` /
+`English` / `Picture`, five notes of which one is empty and one has only a front, one picture of
+12,000 bytes, and a two-template (reversed) note type.
+
+| Verified | Result |
+| --- | --- |
+| `import deck.apkg --dry-run` with no session | ✅ exit 0, nothing written — the dry run is deliberately outside `authed` |
+| Field list with a sample of each | ✅ `1 "SentenceId" 2528426`, `2 "Spanish" Hola`, `3 "English" Hello`, `4 "Picture" ""` |
+| The heuristic skips the id column | ✅ `front_index: 2` — the #96 failure, visible before the write instead of after |
+| `--back-field Picture` re-reads with the new mapping | ✅ front 2 "Spanish", back 4 "Picture", 1 card, `images: {imported: 1, bytes: 12000}` |
+| Drop accounting in the envelope | ✅ `{empty: 1, half_empty: 1, missing_media: 0, total: 2}` against `note_count: 5` |
+| Reversed note type | ✅ `reversible: true`, so `--reverse` defaults on |
+| Anki note tags | ✅ reported as `suggested_tags`, **not** applied to the deck |
+| `--front-field Nonsense` | ✅ exit 2, and the message lists all four fields with their numbers |
+| A `.apkg` that is not a zip | ✅ exit 9, "could not be opened as an .apkg: zip END header not found" |
+| A zip with no collection | ✅ exit 9, and the message names `collection.anki21b` and Notes in Plain Text |
+| `--separator` on an `.apkg` / `--front-field` on a `.tsv` | ✅ both exit 2 rather than being ignored |
+| `import x.apkg --title X` with no session | ✅ exit 3 — a real import still needs one |
+| A text import is unchanged | ✅ `format: "text"`, `separator: "tab"`, `apkg: null` |
+
+`:cli:test` is 40 tests up (97 total, 0 failures), `:shared:jvmTest` unchanged; `detektAll` clean.
+
+**Not verified: a real publish.** Everything above writes nothing. The upload half — blobs to the
+homeserver, the per-run memo, the sweep on an aborted publish and the deliberate *absence* of one
+on an aborted `--resume` append — is covered by `ApkgUploadTest` against fakes, and has **not** been
+run against a live homeserver, because `loopky login` needs a phone scanning a QR code and this
+machine has no session. That is the gap in this round: a first real Anki deck published from a
+terminal is still the next thing to do.
+
+**The native binary is the other gap, and CI is where it closes.** `.apkg` import is the first
+thing in the CLI to touch `org.sqlite`, whose JDBC driver extracts a native library from the
+image's own resources — reflective loading, which is exactly the shape that made JNA the hard part
+of #210. A `native-image` build needs a GraalVM this machine does not have, so `cli-binary` now
+generates the sample archive and runs `--dry-run --json` against the real binary. Nothing else the
+CLI does would have noticed.

@@ -101,10 +101,59 @@ loopky card rm <deckId> <cardId>
 loopky import cards.tsv --title "Biomas e Sub-ecossistemas Brasileiros" --resume
 cat cards.tsv | loopky import - --title "…" --separator tab
 
+loopky import deck.apkg --dry-run --json     # look before you publish. No session needed.
+loopky import deck.apkg --title "Japanese Core 2000" --front-field Expression --back-field Meaning
+
 loopky tag trending --limit 20
 ```
 
 `loopky --help` is the full surface. Every command takes `--json`.
+
+## Anki `.apkg`
+
+Bulk Anki import is the job this tool was built for (#46). `import` takes an `.apkg` on the same
+command and through the same parser spine as a text file — the shared reader turns the collection
+into notes and `parseBulkNotes` applies the same dedupe, caps and drop policy — so a deck imported
+here and one imported on a phone come out the same.
+
+```shell
+loopky import deck.apkg --dry-run --json
+loopky import deck.apkg --title "Japanese Core 2000" --front-field Expression --back-field Meaning
+```
+
+**Look first.** `--dry-run` reads the archive, reports what publishing it would do and writes
+nothing; it needs no session, because reading a local file is not a homeserver operation. It is
+worth doing every time, for three reasons that are all one reason — an `.apkg` is the import where
+being wrong is expensive and invisible:
+
+- **Which two fields become the card.** Anki decks routinely have fields called "Field 3". The
+  reader scores them and usually chooses well, but 9000 Spanish Sentences once imported 9,213 cards
+  reading `2528426` → `2760065`, because its first two fields are database ids. `--dry-run` shows
+  every field with a real sample value; `--front-field` / `--back-field` take a name or a **1-based**
+  number and disagree with the choice.
+- **What did not become a card.** `dropped` breaks the notes down into `empty`, `half_empty` and
+  `missing_media`. Reported rather than subtracted: 1,458 notes in and 1,338 cards out used to be
+  explained as "1 duplicate".
+- **What it will spend.** This is the **only** command that uploads bytes. Everywhere else a card's
+  picture is a URL (#167) — no quota at all — but an `.apkg`'s pictures are blobs, written against
+  a 1 GB homeserver allowance with no endpoint that reports what is left and a 507 that is
+  terminal. And `loopky` ships no image codec, so unlike the apps it cannot shrink them: they go up
+  **at full resolution**. `images.bytes` is that total, before it is spent.
+
+Anki's own deck description and note tags are **reported and never adopted** — the description is
+AnkiWeb boilerplate more often than not, and a tag is a public record indexed network-wide. Pass
+them back as `--description` / `--tag` if they are right. A reversed Anki note type does set
+`--reverse` on by default, since that is a fact about the deck rather than a label on the network;
+`--no-reverse` turns it off.
+
+Two failures have their own advice under exit code 9. A collection this build cannot unpack
+(`collection.anki21b`, zstd — see "not in scope" below) and an export holding only Anki's legacy
+compatibility stub both mean "re-export with *Support older Anki versions* ticked, or as Notes in
+Plain Text"; a corrupt archive means "download it again". They used to be one message that sent
+people hunting for a format problem they might not have had.
+
+`.apkg` cannot come from stdin: a SQLite driver opens a path, not a stream. `collection.anki21b`
+stays unsupported and reported — it is the one variant that would need a real dependency.
 
 ## Card and import files
 
@@ -161,6 +210,8 @@ deck it asked for does not exist.
 renews it: writes start failing, reads keep working, and from the outside that is
 indistinguishable from a network wobble. An agent told the wrong one either retries a dead session
 forever or abandons a working network.
+
+`--dry-run` is the one `import` mode that exits 0 without a session at all: it reads a local file.
 
 `whoami --json` reports `session_live`, asked rather than assumed — worth checking before starting
 an hour-long import rather than forty cards in. There is no `expires_at` to report: the session

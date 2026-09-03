@@ -144,7 +144,11 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   notice. It has already caught this twice — the `--qr-out` PNG writer (now a hand-rolled encoder
   in `TerminalQr`) and the Koin binding for `MediaProcessor` (now `PassThroughMediaProcessor`;
   `initKoinJvm` takes it as a **required** argument for exactly this reason, since a default would
-  make `JvmMediaProcessor` reachable again). Find the next one with
+  make `JvmMediaProcessor` reachable again). What that costs is real and is stated rather than
+  hidden: `loopky import deck.apkg` (#211) is the one command that uploads **bytes** rather than a
+  URL, and with no codec in the binary it uploads them at full resolution where a phone sends
+  1024px JPEG — so `--dry-run` reports the byte total against the 1 GB quota and a real run warns
+  on stderr. Do not "fix" that by binding `JvmMediaProcessor`; the fix is not available. Find the next one with
   `-H:AbortOnTypeReachable=<type>`. Three more things not to undo: the reachability metadata in
   `cli/src/main/resources/META-INF/native-image/` is hand-curated from a tracing-agent run against
   a *real* homeserver and the community metadata repository is deliberately **off** (it was a
