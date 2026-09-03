@@ -13,7 +13,6 @@ import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
-import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -93,19 +92,20 @@ suspend fun cardAdd(args: Args, decks: DeckRepository, cards: CardRepository): C
 
     val seen = existing.mapTo(mutableSetOf()) { it.identityOf() }
     val now = System.currentTimeMillis()
-    var ord = existing.maxOfOrNull { it.ord } ?: 0L
     val written = mutableListOf<Card>()
     var skipped = 0
     var latest = deck
 
     for (row in rows) {
-        val candidate = row.toCard(deckId, now, index = 0)
-        if (!seen.add(candidate.identityOf())) {
+        // No ord is computed here on purpose. `upsertCard` assigns one from the chunk the card
+        // lands in and ignores whatever the caller sent, so an ord invented here would be dead
+        // weight that *looks* meaningful — which is precisely how this command came to report a
+        // number the homeserver never stored.
+        val card = row.toCard(deckId, now, index = 0)
+        if (!seen.add(card.identityOf())) {
             skipped++
             continue
         }
-        ord += ORD_STRIDE
-        val card = candidate.copy(ord = ord)
         latest = decks.upsertCard(deckId, card).getOrElse { throw asCliError(it) }
         written += cards.stored(deckId, card)
     }

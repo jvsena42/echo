@@ -168,7 +168,19 @@ private suspend fun resumeState(
     title: String,
 ): ResumeState {
     if (!args.has("resume")) return ResumeState(null, emptySet())
-    val deck = decks.listOwned().firstOrNull { it.title == title } ?: return ResumeState(null, emptySet())
+    val matches = decks.listOwned().filter { it.title == title }
+    if (matches.size > 1) {
+        // Refused rather than resolved. `firstOrNull` over a listing in homeserver order would
+        // pick one of them arbitrarily and append somebody's cards to the wrong deck — a silent
+        // wrong answer, where this is a loud one the user can act on.
+        throw CliError(
+            ExitCode.BadInput,
+            "${matches.size} of your decks are called \"$title\", so --resume cannot tell which " +
+                "one to continue: ${matches.joinToString(", ") { it.id }}. Rename or delete one, " +
+                "or drop --resume to publish a new deck.",
+        )
+    }
+    val deck = matches.firstOrNull() ?: return ResumeState(null, emptySet())
     val present = cards.fetchByDeck(deck).getOrElse { throw asCliError(it) }
     return ResumeState(deck, present.mapTo(mutableSetOf()) { it.identityOf() })
 }
