@@ -38,6 +38,14 @@ data class ImportResult(
     val truncated: Int = 0,
     /** Cards already in the deck when `--resume` picked it up, and therefore not written again. */
     val resumed: Int = 0,
+    /**
+     * Columns past the front and back that the parser dropped, per row.
+     *
+     * A three-column file whose third column is not a URL is ordinary text, and spec §8 keeps
+     * fields 0 and 1. The import is a success and each card is missing something the file held —
+     * a loss worth naming rather than leaving for someone to notice in the app.
+     */
+    @SerialName("columns_dropped") val columnsDropped: Int = 0,
     val separator: String,
 )
 
@@ -67,7 +75,8 @@ suspend fun import(
     val title = args.requireOption("title").trim()
     if (title.isEmpty()) throw CliError(ExitCode.Usage, "--title cannot be empty.")
 
-    val draft = parseSource(args, imports, source, title)
+    val parsed = parseSource(args, imports, source, title)
+    val draft = parsed.draft
     val resume = resumeState(args, decks, cards, title)
     // Minted once and threaded down: every card carries its deck's id, so deriving it twice is how
     // a resumed run ends up writing cards addressed to a deck that does not exist.
@@ -94,6 +103,7 @@ suspend fun import(
             duplicatesCollapsed = draft.duplicatesCollapsed,
             truncated = draft.truncated,
             resumed = resume.alreadyThere.size,
+            columnsDropped = if (parsed.droppedColumns) 1 else 0,
             separator = draft.separator::class.simpleName.orEmpty().lowercase(),
         ),
         buildString {
@@ -103,21 +113,29 @@ suspend fun import(
             }
             if (draft.duplicatesCollapsed > 0) appendLine("Duplicates collapsed: ${draft.duplicatesCollapsed}")
             if (draft.truncated > 0) appendLine("DROPPED at the parser cap: ${draft.truncated}")
+            if (parsed.droppedColumns) {
+                appendLine(
+                    "DROPPED a third column on every row — it held text, not image URLs, so the " +
+                        "parser kept only front and back.",
+                )
+            }
             append("Separator: ${draft.separator::class.simpleName}")
         },
     )
 }
+
+private class ParsedSource(val draft: ImportDraft, val droppedColumns: Boolean)
 
 private suspend fun parseSource(
     args: Args,
     imports: ImportRepository,
     source: String,
     title: String,
-): ImportDraft {
+): ParsedSource {
     val text = readSource(source)
-    val withImages = imageColumnRows(text)
-    val draft = if (withImages != null) {
-        imports.parseBulkNotes(withImages, suggestedTitle = title)
+    val read = imageColumnRows(text)
+    val draft = if (read.notes != null) {
+        imports.parseBulkNotes(read.notes, suggestedTitle = title)
     } else {
         imports.parseBulk(text, args.option("separator")?.let(::separatorNamed), suggestedTitle = title)
     }.getOrElse { throw asCliError(it) }
@@ -126,7 +144,7 @@ private suspend fun parseSource(
         imports.clear()
         throw CliError(ExitCode.BadInput, "Nothing importable in $source.")
     }
-    return draft
+    return ParsedSource(draft, droppedColumns = read.extraColumns)
 }
 
 /**
@@ -259,21 +277,38 @@ private fun readSource(source: String): String = when (source) {
  * — a URL, no bytes on the wire, no media quota spent — and neither `.apkg` nor
  * TSV-through-the-parser can say "this side has text *and* a picture" (#54, finding 3).
  */
-private fun imageColumnRows(text: String): List<BulkNote>? {
+private fun imageColumnRows(text: String): ImageColumnRead {
     val lines = text.lineSequence().filter { it.isNotBlank() }.toList()
-    if (lines.isEmpty()) return null
+    if (lines.isEmpty()) return ImageColumnRead(null, extraColumns = false)
     val rows = lines.map { it.split('\t') }
-    if (rows.any { it.size < IMAGE_FORMAT_MIN_FIELDS }) return null
-    if (rows.any { !it.imageColumnsAreUrls() }) return null
-    return rows.map { fields ->
-        BulkNote(
-            front = fields[FRONT_COLUMN].trim(),
-            back = fields[BACK_COLUMN].trim(),
-            frontImage = fields.imageAt(FRONT_IMAGE_COLUMN),
-            backImage = fields.imageAt(BACK_IMAGE_COLUMN),
-        )
-    }
+    if (rows.any { it.size < IMAGE_FORMAT_MIN_FIELDS }) return ImageColumnRead(null, extraColumns = false)
+    // Three-plus columns, but not addresses: ordinary text with a column the shared parser will
+    // drop. Declining is right; declining *quietly* is not, so the caller is told.
+    if (rows.any { !it.imageColumnsAreUrls() }) return ImageColumnRead(null, extraColumns = true)
+    return ImageColumnRead(
+        notes = rows.map { fields ->
+            BulkNote(
+                front = fields[FRONT_COLUMN].trim(),
+                back = fields[BACK_COLUMN].trim(),
+                frontImage = fields.imageAt(FRONT_IMAGE_COLUMN),
+                backImage = fields.imageAt(BACK_IMAGE_COLUMN),
+            )
+        },
+        extraColumns = false,
+    )
 }
+
+/**
+ * What reading a file as the image format found.
+ *
+ * [extraColumns] is the case that has to be *reported* rather than merely handled: a file whose
+ * every line has three or more tab fields, none of them URLs, is ordinary text — and spec §8's
+ * parser keeps fields 0 and 1 and drops the rest. So the import succeeds while each card quietly
+ * loses a column. That is a quieter version of the loss `--json` exists to make visible: not fewer
+ * cards, less of each card. Nothing here changes what is parsed — diverging from the app's parser
+ * is the one thing this command must not do — only what is said about it.
+ */
+private class ImageColumnRead(val notes: List<BulkNote>?, val extraColumns: Boolean)
 
 /** An empty image column says nothing either way; a filled one has to look like an address. */
 private fun List<String>.imageColumnsAreUrls(): Boolean =
