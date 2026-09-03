@@ -2,7 +2,15 @@
 #
 # `loopky` installer.
 #
-#   curl -fsSL https://raw.githubusercontent.com/jvsena42/loopky/main/cli/install.sh | sh
+#   curl -fsSL https://github.com/jvsena42/loopky/releases/latest/download/install.sh | sh
+#
+# **From the release, not from `main`.** This file is published as a release asset at the tag, and
+# that is the URL to document (#209). The obvious alternative —
+# `raw.githubusercontent.com/jvsena42/loopky/main/cli/install.sh` — pipes whatever `main` happens
+# to be at that second into `sh`: an unreviewed commit, a half-finished branch merge or a rewritten
+# history all reach the user before anyone has released them. Every other artifact here is pinned
+# to a tag; the script that fetches them should be too. It still lives in the repository, and
+# running it from a checkout is fine — what changes is what the README tells strangers to pipe.
 #
 # There is nothing here you cannot do by hand, and doing it by hand is a supported answer — the
 # binary is one file and the release page lists a direct URL per host (#210):

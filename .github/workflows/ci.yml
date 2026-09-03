@@ -103,6 +103,10 @@ jobs:
       - name: Smoke-test the binary
         env:
           LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-ci
+          # The ambient update check is off for the assertions below, so a green PR never depends
+          # on github.com answering (#209). `update --check` further down is the one step that is
+          # allowed to reach the network, and it exits 0 whether or not it can.
+          LOOPKY_NO_UPDATE_CHECK: '1'
         run: |
           set -euo pipefail
           BIN=cli/build/install/loopky/bin/loopky
@@ -122,6 +126,11 @@ jobs:
           # Every result names the network it ran against, so an empty answer can never be
           # mistaken for an answer from the wrong one.
           echo "$OUT" | grep -q '"environment":"production"'
+
+          # `update_available` is on every envelope, and null when there is nothing to say — which
+          # is what makes a caller that ignores it stay correct, and what made adding it legal
+          # under `schema: 1` (#209).
+          echo "$OUT" | grep -q '"update_available":null'
 
           # An unknown command is a usage error, not a crash and not a silent success.
           set +e
@@ -177,6 +186,7 @@ jobs:
       - name: One file, and it works
         env:
           LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-native
+          LOOPKY_NO_UPDATE_CHECK: '1'
         run: |
           set -euo pipefail
           ls -la dist
@@ -194,8 +204,19 @@ jobs:
           echo "$OUT" | grep -q '"schema":1'
           echo "$OUT" | grep -q '"environment":"production"'
 
+          echo "$OUT" | grep -q '"update_available":null'
+
           set +e; dist/loopky frobnicate --json > /dev/null; CODE=$?; set -e
           test "$CODE" -eq 2
+
+          # `update --check` on the artifact people actually install (#209). Two properties, and
+          # the second is why this is here rather than in a unit test: it needs no session, and a
+          # release page it cannot reach — no egress, a proxy, a tag with no manifest on it yet —
+          # is reported and exits **0**. A self-updater that fails the shell it is called from
+          # because GitHub was slow is worse than one that never checks.
+          dist/loopky update --check --json | tee update.json
+          grep -q '"command":"update"' update.json
+          grep -q '"install":' update.json
 
           # The FFI, which is the whole of the difficulty and the one thing a JVM run cannot
           # vouch for: this reaches `_UniFFILib.INSTANCE`, so it loads `libpubkycore` out of the

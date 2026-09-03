@@ -80,6 +80,9 @@ jobs:
       - name: Smoke-test it
         env:
           LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-release
+          # Off, so a release cannot flake on github.com answering slowly (#209). The manifest this
+          # job is about to generate is the one a *released* binary will read.
+          LOOPKY_NO_UPDATE_CHECK: '1'
         run: |
           set -euo pipefail
           ls -la dist
@@ -104,6 +107,22 @@ jobs:
           mv dist/loopky dist/loopky-linux-x86-64
           ( cd dist && sha256sum loopky-linux-x86-64 > loopky-linux-x86-64.sha256 )
           cli/packaging/deb.sh dist/loopky-linux-x86-64 "$VERSION" dist
+
+      # The manifest `loopky`'s update check reads (#209), and the reason it is generated **here**
+      # rather than written by hand or grepped out of the source: it is derived from the binary
+      # this job just built, so it cannot announce a version or a `--json` schema the artifact
+      # beside it does not actually answer with. A manifest that over-promises is worse than none —
+      # it tells an agent its parser is stale when it is not, or the reverse.
+      #
+      # It is fetched through `releases/latest/download/latest.json`, the same path `install.sh`
+      # uses for the binary, so the check adds no host to anybody's allowlist.
+      - name: The release manifest the update check reads
+        run: |
+          set -euo pipefail
+          SCHEMA=$(dist/loopky-linux-x86-64 --version | sed -n 's/.*(schema \([0-9][0-9]*\)).*/\1/p')
+          test -n "$SCHEMA" || { echo "could not read the schema out of --version" >&2; exit 1; }
+          printf '{"version":"%s","schema":%s}\n' "${VERSION#v}" "$SCHEMA" > dist/latest.json
+          cat dist/latest.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -135,6 +154,7 @@ jobs:
       - name: Smoke-test it
         env:
           LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-release
+          LOOPKY_NO_UPDATE_CHECK: '1'
         run: |
           set -euo pipefail
           BIN=cli/build/native/nativeCompile/loopky
@@ -214,10 +234,21 @@ jobs:
     permissions:
       contents: write
     steps:
+      # The installer is published **as a release asset**, at the tag, and that is the point of
+      # checking the repository out here (#209). The documented one-liner used to pipe
+      # `raw.githubusercontent.com/.../main/cli/install.sh` into `sh` — whatever `main` happened to
+      # be at that second, which is a moving target for the one command in this project that runs
+      # unreviewed shell as the user. Everything else about a release is pinned to a tag; the
+      # script that installs it should be too.
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+
+      - name: Add the tagged installer to the assets
+        run: cp cli/install.sh dist/install.sh
 
       - name: Upload
         env:
