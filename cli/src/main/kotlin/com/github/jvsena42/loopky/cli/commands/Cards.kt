@@ -107,7 +107,7 @@ suspend fun cardAdd(args: Args, decks: DeckRepository, cards: CardRepository): C
         ord += ORD_STRIDE
         val card = candidate.copy(ord = ord)
         latest = decks.upsertCard(deckId, card).getOrElse { throw asCliError(it) }
-        written += card
+        written += cards.stored(deckId, card)
     }
 
     return result(
@@ -148,9 +148,9 @@ suspend fun cardEdit(args: Args, decks: DeckRepository, cards: CardRepository): 
         )
         val current = existing[id]
             ?: throw CliError(ExitCode.NotFound, "Deck $deckId has no card $id.")
-        val updated = current.applying(row, now)
+        val updated = current.applying(row, now).requireBothSides(id)
         latest = decks.upsertCard(deckId, updated).getOrElse { throw asCliError(it) }
-        written += updated
+        written += cards.stored(deckId, updated)
     }
 
     return result(
@@ -167,6 +167,41 @@ suspend fun cardRemove(args: Args, decks: DeckRepository): CommandResult {
         CardWriteResult(deckId, emptyList(), written = 0, cardCount = deck.cardCount),
         "Removed $cardId from $deckId (${deck.cardCount} cards left)",
     )
+}
+
+/**
+ * The card as the homeserver has it, falling back to what was sent.
+ *
+ * `upsertCard` **discards the caller's `ord`** and recomputes one from the chunk it lands in, so
+ * echoing the local `Card` reports intent rather than result — on an empty deck the CLI said 1000
+ * where 0 was stored. For a channel whose stated purpose is that a caller diffs intent against
+ * result from these bytes, echoing intent is the one thing it set out not to do.
+ *
+ * A cache read, not a round trip: the write just populated it.
+ */
+private suspend fun CardRepository.stored(deckId: String, sent: Card): Card =
+    get(deckId, sent.id) ?: sent
+
+/**
+ * Refuse a card an edit has emptied one side of.
+ *
+ * `--back=` is the CLI's own documented way to clear a side, so this is the supported gesture
+ * rather than misuse — and `DeckRepositoryImpl.upsertCard` `require`s both sides, throwing an
+ * `IllegalArgumentException` that `toErrorReason` classifies `Unknown`. The user got exit 1
+ * "internal" plus a Kotlin assertion string for a blank column in their own file. An agent told
+ * "internal" retries; told exit 9 it fixes its input.
+ *
+ * The row-level guard cannot cover this: an edit row is *allowed* to be partial, so what has to be
+ * checked is the card the edit produces.
+ */
+private fun Card.requireBothSides(id: String): Card = also {
+    if (front.isEmpty || back.isEmpty) {
+        throw CliError(
+            ExitCode.BadInput,
+            "Card $id would be left with an empty ${if (front.isEmpty) "front" else "back"}; " +
+                "a card needs both sides. An image counts as a side.",
+        )
+    }
 }
 
 private fun Card.applying(row: CardFileRow, now: Long): Card = copy(
