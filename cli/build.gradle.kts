@@ -300,15 +300,19 @@ val checkNativeImageIsOneFile = tasks.register("checkNativeImageIsOneFile") {
     description = "Fails if `nativeCompile` emitted anything beside the binary."
     val outputDir = layout.buildDirectory.dir("native/nativeCompile")
     doLast {
+        // Every entry, not just `isFile`. A stray *directory* — `reports/`, which a diagnostic
+        // flag produces — used to pass here and then fail CI's `ls | wc -l` instead, which is a
+        // bare exit code with none of the explanation below.
         val strays = outputDir.get().asFile.listFiles().orEmpty()
-            .filter { it.isFile && it.name != "loopky" }
-            .map { it.name }
+            .filter { it.name != "loopky" }
+            .map { if (it.isDirectory) "${it.name}/" else it.name }
             .sorted()
         check(strays.isEmpty()) {
-            "native-image emitted ${strays.size} file(s) beside the binary: ${strays.joinToString()}. " +
-                "`loopky` is installed by copying one file, so something now reachable needs a JDK " +
-                "native library — AWT via javax.imageio is the usual cause. Find it with " +
-                "-H:AbortOnTypeReachable=<type>."
+            "native-image emitted ${strays.size} entr(y/ies) beside the binary: " +
+                "${strays.joinToString()}. `loopky` is installed by copying one file, so " +
+                "something now reachable needs a JDK native library — AWT via javax.imageio is " +
+                "the usual cause. Find it with -H:AbortOnTypeReachable=<type>. A trailing `/` is " +
+                "a directory, which usually means a diagnostic flag is still set."
         }
     }
 }
