@@ -48,10 +48,13 @@ COPY . /src
 # and build without one. `--no-daemon` because the container exits with the build.
 RUN ./gradlew --no-daemon --stacktrace :cli:nativeCompile
 
-# The binary alone, so `--output type=local,dest=…` writes one file and nothing else.
-# `checkNativeImageIsOneFile` has already failed the build above if there is more than one.
+# **The whole of what `native-image` produced, not just the binary.** Copying `loopky` alone
+# would make any "is this one file?" check downstream a tautology — the answer would be 1 whatever
+# the build emitted. The real guard is `checkNativeImageIsOneFile` inside the builder above, which
+# fails the `docker build`; this stage copies the directory so a caller can *see* the property
+# rather than take it on trust, and so the assertion in CI is an assertion.
 FROM scratch AS export
-COPY --from=builder /src/cli/build/native/nativeCompile/loopky /loopky
+COPY --from=builder /src/cli/build/native/nativeCompile/ /
 
 # A runnable image.
 #

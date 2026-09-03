@@ -210,7 +210,15 @@ graalvmNative {
     binaries.all { verbose.set(false) }
 }
 
-/** The `native-image` arguments, split out so the reasoning fits beside each one. */
+/**
+ * The `native-image` arguments, split out so the reasoning fits beside each one.
+ *
+ * Empty for a host with no row, which is *not* the same as "build it anyway": that combination is
+ * refused by [checkNativeImageHostIsSupported] before the image builder runs. Without that check
+ * an unshipped host builds happily and emits exactly one file — with no `libpubkycore` embedded,
+ * no `libjnidispatch`, and no URL protocol handlers — and `checkNativeImageIsOneFile` passes,
+ * because it *is* one file.
+ */
 fun nativeBuildArgs(): List<String> {
     val row = hostNativeRow ?: return emptyList()
     return listOf(
@@ -262,6 +270,31 @@ fun nativeBuildArgs(): List<String> {
  * `-H:AbortOnTypeReachable=java.awt.image.BufferedImage`, which prints the call path that reached
  * it.
  */
+/**
+ * Refuse to build a binary for a host there is no `libpubkycore` row for.
+ *
+ * A task rather than an `error(…)` at configuration time, because configuration failing would
+ * take `:cli:test` and `:cli:installDist` down with it — and those are perfectly buildable on a
+ * host that cannot produce a *binary*. `native-image` does not cross-compile, so this is the same
+ * matrix `SupportedHost` refuses at runtime, enforced one step earlier for the one artifact where
+ * the mistake is unrecoverable: an image with no FFI in it looks exactly like a good one.
+ */
+val checkNativeImageHostIsSupported = tasks.register("checkNativeImageHostIsSupported") {
+    group = "verification"
+    description = "Fails if this host has no libpubkycore row to embed."
+    val row = hostNativeRow
+    val host = "${OperatingSystem.current().name} ${System.getProperty("os.arch")}"
+    val shipped = nativeRows.joinToString(" and ") { it.jnaPrefix }
+    doLast {
+        checkNotNull(row) {
+            "no libpubkycore row for $host, so a native binary built here would have no FFI and " +
+                "no HTTPS in it — and would still be exactly one file. The rows are $shipped. " +
+                "`native-image` does not cross-compile; build on the host you are targeting, or " +
+                "use `./gradlew :cli:installDist`, which runs anywhere a JRE 17 does."
+        }
+    }
+}
+
 val checkNativeImageIsOneFile = tasks.register("checkNativeImageIsOneFile") {
     group = "verification"
     description = "Fails if `nativeCompile` emitted anything beside the binary."
@@ -280,7 +313,16 @@ val checkNativeImageIsOneFile = tasks.register("checkNativeImageIsOneFile") {
     }
 }
 
-tasks.matching { it.name == "nativeCompile" }.configureEach { finalizedBy(checkNativeImageIsOneFile) }
+tasks.matching { it.name == "nativeCompile" }.configureEach {
+    dependsOn(checkNativeImageHostIsSupported)
+    finalizedBy(checkNativeImageIsOneFile)
+    // Clear the output directory first, so the check above sees this build's artifacts and not a
+    // previous one's. Without it a run that once emitted `libawt_xawt.so` leaves the file behind,
+    // `nativeCompile` never removes it, and the check goes on failing — blaming code that has
+    // already been fixed — until somebody runs `clean`.
+    val outputDir = layout.buildDirectory.dir("native/nativeCompile").get().asFile
+    doFirst { outputDir.deleteRecursively() }
+}
 
 /**
  * `:shared`'s desktop jar as the generated start script's `CLASSPATH` spells it.

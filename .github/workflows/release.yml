@@ -82,8 +82,12 @@ jobs:
           LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-release
         run: |
           set -euo pipefail
+          ls -la dist
+          # One file, or the install story is not one curl. `export` copies the whole
+          # `nativeCompile` directory precisely so this can be counted; the build has already
+          # failed at `:cli:checkNativeImageIsOneFile` if there is more than one.
+          test "$(ls dist | wc -l)" -eq 1
           chmod +x dist/loopky
-          test "$(ls dist | wc -l)" -eq 1   # one file, or the install story is not one curl
           dist/loopky --version
           set +e; OUT=$(dist/loopky whoami --json); CODE=$?; set -e
           echo "$OUT"
@@ -160,6 +164,12 @@ jobs:
     # The other half of the install story rather than an alternative to it: a sandbox that lets
     # you choose an image needs no install step at all, and one with restricted egress may have
     # no other way in.
+    #
+    # Behind both binary jobs, because this pushes to a registry the moment it succeeds and a
+    # registry push cannot be taken back the way an unpublished artifact can. It builds the same
+    # source through the same Dockerfile, so if the Linux smoke test is going to fail, it fails
+    # before anyone can pull this.
+    needs: [check-version, linux, macos]
     permissions:
       contents: read
       packages: write
@@ -176,15 +186,25 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/loopky"
-          docker build -f cli/Dockerfile --target runtime \
-            -t "$IMAGE:${VERSION#v}" -t "$IMAGE:latest" .
-          docker run --rm "$IMAGE:${VERSION#v}" --version
+          TAG="${VERSION#v}"
+          docker build -f cli/Dockerfile --target runtime -t "$IMAGE:$TAG" .
+          docker run --rm "$IMAGE:$TAG" --version
+
           # Only a real tag publishes. A `workflow_dispatch` run builds and tests the image and
-          # stops there, so the dry run cannot move `:latest` under everyone.
-          if [ "${{ github.event_name }}" = "push" ]; then
-            docker push "$IMAGE:${VERSION#v}"
-            docker push "$IMAGE:latest"
+          # stops there, so a dry run cannot move anything under anyone.
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "not a tag push — built and tested, publishing nothing"
+            exit 0
           fi
+          docker push "$IMAGE:$TAG"
+
+          # `:latest` only for a final version. `docker run … ghcr.io/…/loopky` is what the README
+          # tells people to run, so a `v1.0.0-rc1` tag moving it would silently hand every reader
+          # a release candidate.
+          case "$TAG" in
+            *[!0-9.]*) echo "$TAG is a pre-release — leaving :latest where it is" ;;
+            *) docker tag "$IMAGE:$TAG" "$IMAGE:latest" && docker push "$IMAGE:latest" ;;
+          esac
 
   release:
     name: Attach to the release

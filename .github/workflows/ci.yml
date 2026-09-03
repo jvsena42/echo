@@ -156,7 +156,10 @@ jobs:
     #  - **it is one file.** `native-image` does not fail when it cannot fold a JDK native library
     #    into the executable; it emits the library beside it and reports success. Reaching
     #    `javax.imageio` from anywhere adds three `libawt*.so`, and `curl … -o ~/.local/bin/loopky`
-    #    quietly stops being an install.
+    #    quietly stops being an install. The guard that *enforces* this is
+    #    `:cli:checkNativeImageIsOneFile` inside the builder, which fails the `docker build`; the
+    #    `export` stage copies the whole output directory so the count below is a real assertion
+    #    rather than a tautology about a stage that copies one named file.
     #  - **it runs.** JNA extracts `libpubkycore` from the image's own resources through a code
     #    path a closed-world binary has to be told about by hand, and a missing registration is a
     #    runtime failure with a green build behind it.
@@ -176,9 +179,9 @@ jobs:
           LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-native
         run: |
           set -euo pipefail
-          chmod +x dist/loopky
           ls -la dist
           test "$(ls dist | wc -l)" -eq 1
+          chmod +x dist/loopky
 
           dist/loopky --version
           dist/loopky --help > /dev/null
