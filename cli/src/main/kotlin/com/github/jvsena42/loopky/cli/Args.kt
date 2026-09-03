@@ -48,6 +48,19 @@ class Args private constructor(
     fun has(name: String): Boolean = name in switches || name in options
 
     /**
+     * A `--name` / `--no-name` pair as a tri-state: null when the caller said nothing about it.
+     *
+     * The difference matters wherever a value is being *overlaid* on something that already
+     * exists. "Absent" and "explicitly false" are the same to [Boolean], and treating them alike
+     * on a resumed import would turn every opt-in the deck already had off again.
+     */
+    fun flagOrNull(name: String): Boolean? = when {
+        has("no-$name") -> false
+        has(name) -> true
+        else -> null
+    }
+
+    /**
      * A count option, or [default] when it was not given.
      *
      * Refuses a value that is not a positive integer rather than falling back to the default.

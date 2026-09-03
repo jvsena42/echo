@@ -193,11 +193,7 @@ internal fun remoteImage(url: String): MediaRef.Image =
     MediaRef.Image(path = "", mime = "image/jpeg", sha256 = "", width = null, height = null, url = url)
 
 /** A `--name`/`--no-name` pair, since a deck opt-in has to be turnable *off* as well as on. */
-internal fun Args.flag(name: String, default: Boolean): Boolean = when {
-    has("no-$name") -> false
-    has(name) -> true
-    else -> default
-}
+internal fun Args.flag(name: String, default: Boolean): Boolean = flagOrNull(name) ?: default
 
 internal fun List<CardFileRow>.toCards(deckId: String, now: Long): List<Card> =
     mapIndexed { index, row -> row.toCard(deckId, now, index) }

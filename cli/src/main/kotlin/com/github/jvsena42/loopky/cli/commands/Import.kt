@@ -39,6 +39,15 @@ data class ImportResult(
     /** Cards already in the deck when `--resume` picked it up, and therefore not written again. */
     val resumed: Int = 0,
     /**
+     * Whether `--resume` found a deck to continue, or `null` when `--resume` was not asked for.
+     *
+     * `resumed: 0` cannot answer this: it is what a legitimate first `--resume` run reports *and*
+     * what a typo'd `--title` reports one character away from an existing deck — where the second
+     * silently publishes a duplicate, spends the quota twice and leaves two near-identical decks
+     * in the library. This is the field that tells them apart.
+     */
+    @SerialName("resume_matched") val resumeMatched: Boolean? = null,
+    /**
      * Columns past the front and back that the parser dropped, per row.
      *
      * A three-column file whose third column is not a URL is ordinary text, and spec §8 keeps
@@ -77,14 +86,14 @@ suspend fun import(
 
     val parsed = parseSource(args, imports, source, title)
     val draft = parsed.draft
-    val resume = resumeState(args, decks, cards, title)
+    val resume = resumeState(args, decks, cards, title, onProgress)
     // Minted once and threaded down: every card carries its deck's id, so deriving it twice is how
     // a resumed run ends up writing cards addressed to a deck that does not exist.
     val deckId = resume.deck?.id ?: generateId()
     val built = buildCards(imports, draft, resume, deckId)
 
     val published = if (resume.deck != null) {
-        appendMissing(decks, deckId, built, onProgress)
+        appendMissing(decks, deckId, built, resume.deck.overlaidWith(args), onProgress)
     } else {
         val deck = newDeck(args, draft, session, deckId, built.size)
         decks.publish(deck, built) { progress ->
@@ -103,6 +112,7 @@ suspend fun import(
             duplicatesCollapsed = draft.duplicatesCollapsed,
             truncated = draft.truncated,
             resumed = resume.alreadyThere.size,
+            resumeMatched = if (args.has("resume")) resume.deck != null else null,
             columnsDropped = if (parsed.droppedColumns) 1 else 0,
             separator = draft.separator::class.simpleName.orEmpty().lowercase(),
         ),
@@ -166,9 +176,23 @@ private suspend fun resumeState(
     decks: DeckRepository,
     cards: CardRepository,
     title: String,
+    onNote: (String) -> Unit,
 ): ResumeState {
     if (!args.has("resume")) return ResumeState(null, emptySet())
-    val matches = decks.listOwned().filter { it.title == title }
+    val owned = decks.listOwned()
+    val matches = owned.filter { it.title == title }
+    if (matches.isEmpty()) {
+        // Not an error: an agent that always passes `--resume` so its retries are safe has to be
+        // able to make the *first* run. But it is not silent either — this is the only signal that
+        // separates a first run from a `--title` typo about to publish a second copy of a deck the
+        // account already has, and `resumed: 0` says the same thing in both cases.
+        onNote(
+            "--resume found no deck titled \"$title\", so this is publishing a NEW deck. " +
+                "If that was a typo, delete it and re-run. Your decks: " +
+                owned.joinToString(", ") { it.title }.ifEmpty { "none" },
+        )
+        return ResumeState(null, emptySet())
+    }
     if (matches.size > 1) {
         // Refused rather than resolved. `firstOrNull` over a listing in homeserver order would
         // pick one of them arbitrarily and append somebody's cards to the wrong deck — a silent
@@ -211,6 +235,38 @@ private fun buildCards(
     }
 }
 
+/**
+ * The existing deck with whatever metadata this invocation actually specified applied on top.
+ *
+ * Null when nothing was specified, so a bare `--resume` costs no metadata write at all.
+ *
+ * Accepting `--tag`, `--description` or `--front-lang` on a resumed run and silently dropping them
+ * was the third of the resume findings, and the sharpest of the three: the natural way to use the
+ * feature is to re-run the *same command* with `--resume` appended, so an agent lost every flag
+ * but `--title` — and a dropped language pair means `Deck.speechReady` stays false and Listen and
+ * Speak never appear, with the CLI reporting success.
+ *
+ * Only what was given is overlaid. Absent is not the same as "set it to the default": that
+ * distinction is why the opt-ins go through [Args.flagOrNull] rather than [Args.flag], and
+ * without it a bare `--resume` would turn off every mode the deck already had.
+ */
+private fun Deck.overlaidWith(args: Args): Deck? {
+    val tags = args.options("tag").map { Tag(it) }
+    val updated = copy(
+        description = args.option("description")?.takeIf { it.isNotBlank() } ?: description,
+        coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() } ?: coverEmoji,
+        coverImageRef = args.option("cover-url")?.let(::remoteImage) ?: coverImageRef,
+        tags = tags.ifEmpty { this.tags },
+        listenEnabled = args.flagOrNull("listen") ?: listenEnabled,
+        speakEnabled = args.flagOrNull("speak") ?: speakEnabled,
+        typeEnabled = args.flagOrNull("type") ?: typeEnabled,
+        reverseEnabled = args.flagOrNull("reverse") ?: reverseEnabled,
+        frontLang = args.option("front-lang") ?: frontLang,
+        backLang = args.option("back-lang") ?: backLang,
+    )
+    return updated.takeIf { it != this }
+}
+
 @Suppress("LongParameterList")
 private fun newDeck(
     args: Args,
@@ -244,16 +300,29 @@ private fun newDeck(
     )
 }
 
+/**
+ * Write the cards a resumed run is missing, and bring the deck's metadata up to date.
+ *
+ * One `appendCards` rather than a loop of `upsertCard`. The loop cost a chunk write *plus* a full
+ * manifest read-modify-write per card — 60 writes for 30 cards where a publish spends 2 — which
+ * made the recovery path an order of magnitude slower than the attempt it was recovering, on the
+ * same one-hour session budget. A large import that died at 55 minutes could never finish.
+ */
 private suspend fun appendMissing(
     decks: DeckRepository,
     deckId: String,
     cards: List<Card>,
+    metadata: Deck?,
     onProgress: (String) -> Unit,
 ): Deck {
-    var deck = decks.getLocal(deckId) ?: decks.sync(deckId).getOrElse { throw asCliError(it) }
-    cards.forEachIndexed { index, card ->
-        deck = decks.upsertCard(deckId, card).getOrElse { throw asCliError(it) }
-        onProgress("${index + 1}/${cards.size} cards")
+    decks.getLocal(deckId) ?: decks.sync(deckId).getOrElse { throw asCliError(it) }
+    onProgress("writing ${cards.size} missing cards")
+    var deck = decks.appendCards(deckId, cards).getOrElse { throw asCliError(it) }
+    if (metadata != null) {
+        // Metadata last: a failed publish should not have renamed the deck it failed to fill.
+        onProgress("updating deck metadata")
+        deck = decks.updateMetadata(metadata.copy(id = deckId, cardCount = deck.cardCount))
+            .getOrElse { throw asCliError(it) }
     }
     return deck
 }
