@@ -8,17 +8,17 @@ import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.asCliError
 import com.github.jvsena42.loopky.cli.result
 import com.github.jvsena42.loopky.cli.toView
-import com.github.jvsena42.loopky.data.anki.BulkNote
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
+import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ImportDraft
-import com.github.jvsena42.loopky.domain.model.Separator
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.frontBackOf
@@ -26,7 +26,6 @@ import com.github.jvsena42.loopky.domain.model.ordForIndex
 import com.github.jvsena42.loopky.util.generateId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.io.File
 
 @Serializable
 data class ImportResult(
@@ -55,8 +54,53 @@ data class ImportResult(
      * a loss worth naming rather than leaving for someone to notice in the app.
      */
     @SerialName("columns_dropped") val columnsDropped: Int = 0,
+    /**
+     * How the file was split. `"none"` for a source that knows its own structure and was never
+     * split at all — an `.apkg` — because reporting the `Separator.Tab` the structured entry point
+     * carries would name a rule that did not run.
+     */
     val separator: String,
+    /** `"text"` or `"apkg"`. See [detectImportFormat]. */
+    val format: String = ImportFormat.Text.json,
+    /** The `.apkg` reader's own accounting, or null for a text import. See [ApkgSummary]. */
+    val apkg: ApkgSummary? = null,
 )
+
+/**
+ * What `--dry-run` reports: everything an import would do, and no deck.
+ *
+ * A separate shape from [ImportResult] rather than one with a nulled-out deck, because the two
+ * answer different questions and a caller must not be able to mistake one for the other. It exists
+ * mostly for the `.apkg` path, where guessing the field mapping wrong is the likeliest way to
+ * publish 9,000 cards of database ids (#96) — `--json`'s job is verification, and this is the one
+ * import where verifying *after* the write is too late.
+ *
+ * It needs **no session**: reading a local file is not a homeserver operation, and requiring a
+ * live one to look at a file would put a sign-in between an agent and the check that stops it
+ * spending someone's quota.
+ */
+@Serializable
+data class ImportPreview(
+    @SerialName("dry_run") val dryRun: Boolean = true,
+    val source: String,
+    val format: String,
+    /** `--title`, if it was given. Optional here: a preview may be what decides the title. */
+    val title: String? = null,
+    /** Cards this file would publish, after dedupe and the parser's caps. */
+    val cards: Int,
+    @SerialName("duplicates_collapsed") val duplicatesCollapsed: Int = 0,
+    val truncated: Int = 0,
+    @SerialName("columns_dropped") val columnsDropped: Int = 0,
+    val separator: String,
+    val apkg: ApkgSummary? = null,
+)
+
+/** The `--json` spelling of a format, kept beside the enum so the two cannot drift. */
+internal val ImportFormat.json: String
+    get() = when (this) {
+        ImportFormat.Text -> "text"
+        ImportFormat.Apkg -> "apkg"
+    }
 
 /**
  * Import a deck from a file, or from stdin.
@@ -66,24 +110,31 @@ data class ImportResult(
  * paste box's. A deck imported here and a deck imported on a phone are split the same way, which
  * is what "the Android app opens it without a repair step" actually rests on.
  *
+ * An **Anki `.apkg`** takes the same command and the same spine: the shared reader turns it into
+ * `BulkNote`s and `parseBulkNotes` — the entry point that exists for exactly this — carries them
+ * through the same dedupe, caps and drop policy. A second verb would have been a second import
+ * flow, which is the one thing #54 rules out. See `ApkgImport.kt`.
+ *
  * A tab-separated file carrying **image columns** takes the other entry point — see
  * [imageColumnRows].
  *
  * `--title` is required and beats any inference from the filename. See `deckCreate`.
  */
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "LongMethod")
 suspend fun import(
     args: Args,
     imports: ImportRepository,
     decks: DeckRepository,
     cards: CardRepository,
+    media: MediaRepository,
     session: Session,
     onProgress: (String) -> Unit,
     /**
      * Something the caller needs to know rather than a counter — reaches stderr even under
-     * `--json`. The one note today is that `--resume` matched no deck, and the titles it lists are
-     * what turns "no match" into "you meant *this* one"; suppressing it under `--json` withheld
-     * that exactly where a typo does its damage.
+     * `--json`. Two notes today: that `--resume` matched no deck, where the titles it lists are
+     * what turns "no match" into "you meant *this* one"; and what an `.apkg`'s pictures are about
+     * to spend against a quota nothing can read back. Suppressing either under `--json` withholds
+     * it exactly where the mistake is expensive.
      */
     onNote: (String) -> Unit,
 ): CommandResult {
@@ -91,78 +142,146 @@ suspend fun import(
     val title = args.requireOption("title").trim()
     if (title.isEmpty()) throw CliError(ExitCode.Usage, "--title cannot be empty.")
 
-    val parsed = parseSource(args, imports, source, title)
+    val parsed = parseSource(args, imports, source, title, keepImageBytes = true)
     val draft = parsed.draft
+    parsed.apkg?.let { warnAboutMediaSpend(it, onNote) }
     val resume = resumeState(args, decks, cards, title, onNote)
     // Minted once and threaded down: every card carries its deck's id, so deriving it twice is how
     // a resumed run ends up writing cards addressed to a deck that does not exist.
     val deckId = resume.deck?.id ?: generateId()
-    val built = buildCards(imports, draft, resume, deckId)
 
-    val published = if (resume.deck != null) {
-        appendMissing(decks, deckId, built, resume.deck.overlaidWith(args), onProgress)
-    } else {
-        val deck = newDeck(args, draft, session, deckId, built.size)
-        decks.publish(deck, built) { progress ->
-            onProgress(
-                "${progress.cardsWritten}/${progress.totalCards} cards, " +
-                    "${progress.chunksWritten}/${progress.totalChunks} chunks",
-            )
-        }.getOrElse { throw asCliError(it) }
+    // Blobs this invocation wrote, so an aborted publish of a *new* deck can take them back out.
+    val uploaded = mutableListOf<MediaRef>()
+    val written = try {
+        val built = buildCards(imports, draft, resume, deckId, media, uploaded, onProgress)
+        val published = if (resume.deck != null) {
+            appendMissing(decks, deckId, built, resume.deck.overlaidWith(args), onProgress)
+        } else {
+            val deck = newDeck(args, draft, session, deckId, built.size)
+            decks.publish(deck, built) { progress ->
+                onProgress(
+                    "${progress.cardsWritten}/${progress.totalCards} cards, " +
+                        "${progress.chunksWritten}/${progress.totalChunks} chunks",
+                )
+            }.getOrElse { throw asCliError(it) }
+        }
+        Written(published, built.size)
+    } catch (@Suppress("TooGenericExceptionCaught") error: Throwable) {
+        // Only for a deck that does not exist yet. Blobs are content-addressed per deck, so on a
+        // resumed run the shas this invocation uploaded are the same shas the *already published*
+        // cards point at — sweeping them there would strip the pictures off cards that were fine.
+        if (resume.deck == null) sweepUploadedMedia(media, deckId, uploaded, onNote)
+        throw error
     }
 
     imports.clear()
+    val published = written.deck
     return result(
         ImportResult(
             deck = published.toView(),
-            cardsWritten = built.size,
+            cardsWritten = written.cards,
             duplicatesCollapsed = draft.duplicatesCollapsed,
             truncated = draft.truncated,
             resumed = resume.alreadyThere.size,
             resumeMatched = if (args.has("resume")) resume.deck != null else null,
             columnsDropped = if (parsed.droppedColumns) 1 else 0,
-            separator = draft.separator::class.simpleName.orEmpty().lowercase(),
+            separator = draft.separatorName(),
+            format = parsed.format.json,
+            apkg = parsed.apkg,
+        ),
+        describeImport(written, title, parsed, resume),
+    )
+}
+
+/**
+ * The same numbers as [ImportResult], for a person.
+ *
+ * Deliberately the *same* numbers rather than a friendlier subset: `--json` and the plain output
+ * are two renderings of one result, and a loss that only one of them mentions is a loss somebody
+ * will miss. The capitalised DROPPED lines are the ones worth noticing in a scroll-back.
+ */
+private fun describeImport(
+    written: Written,
+    title: String,
+    parsed: ParsedSource,
+    resume: ResumeState,
+): String {
+    val draft = parsed.draft
+    return buildString {
+        appendLine("Imported ${written.cards} cards into ${written.deck.id} — $title")
+        if (resume.alreadyThere.isNotEmpty()) {
+            appendLine("Resumed: ${resume.alreadyThere.size} already present")
+        }
+        if (draft.duplicatesCollapsed > 0) appendLine("Duplicates collapsed: ${draft.duplicatesCollapsed}")
+        if (draft.truncated > 0) appendLine("DROPPED at the parser cap: ${draft.truncated}")
+        if (parsed.droppedColumns) {
+            appendLine(
+                "DROPPED a third column on every row — it held text, not image URLs, so the " +
+                    "parser kept only front and back.",
+            )
+        }
+        parsed.apkg?.let { appendLine(it.describe()) }
+        append("Separator: ${draft.separatorName()}")
+    }
+}
+
+/**
+ * `--dry-run`: read the file, report what publishing it would do, write nothing.
+ *
+ * Takes no [Session] on purpose — see [ImportPreview]. It is also where `--title` stops being
+ * mandatory: a preview is frequently what tells you what the deck is called, and demanding the
+ * answer before showing the question is the wrong way round.
+ */
+suspend fun importDryRun(args: Args, imports: ImportRepository): CommandResult {
+    val source = args.word(1) ?: throw CliError(ExitCode.Usage, "Missing <file>, or - for stdin.")
+    val title = args.option("title")?.trim()?.takeIf { it.isNotEmpty() }
+
+    // Nothing is uploaded, so the blobs are measured and dropped rather than held: a dry run of a
+    // 500-image deck should not need the deck's media in heap to answer how big it is.
+    val parsed = parseSource(args, imports, source, title, keepImageBytes = false)
+    val draft = parsed.draft
+    val cards = imports.keptRows().size
+    imports.clear()
+
+    return result(
+        ImportPreview(
+            source = source,
+            format = parsed.format.json,
+            title = title,
+            cards = cards,
+            duplicatesCollapsed = draft.duplicatesCollapsed,
+            truncated = draft.truncated,
+            columnsDropped = if (parsed.droppedColumns) 1 else 0,
+            separator = draft.separatorName(),
+            apkg = parsed.apkg,
         ),
         buildString {
-            appendLine("Imported ${built.size} cards into ${published.id} — $title")
-            if (resume.alreadyThere.isNotEmpty()) {
-                appendLine("Resumed: ${resume.alreadyThere.size} already present")
-            }
+            appendLine("$source would publish $cards ${if (cards == 1) "card" else "cards"}. Nothing was written.")
             if (draft.duplicatesCollapsed > 0) appendLine("Duplicates collapsed: ${draft.duplicatesCollapsed}")
             if (draft.truncated > 0) appendLine("DROPPED at the parser cap: ${draft.truncated}")
             if (parsed.droppedColumns) {
-                appendLine(
-                    "DROPPED a third column on every row — it held text, not image URLs, so the " +
-                        "parser kept only front and back.",
-                )
+                appendLine("A third column on every row holds text, not image URLs, and would be dropped.")
             }
-            append("Separator: ${draft.separator::class.simpleName}")
+            parsed.apkg?.let { summary ->
+                summary.deckName?.let { appendLine("Anki deck name: $it") }
+                appendLine(summary.describe())
+            }
+            append("Separator: ${draft.separatorName()}")
         },
     )
 }
 
-private class ParsedSource(val draft: ImportDraft, val droppedColumns: Boolean)
+/**
+ * A `Separator` as the envelope names it, with structured sources reported as having none.
+ *
+ * `parseBulkNotes` stamps `Separator.Tab` on a draft it never split, because the field is not
+ * nullable — reporting that for an `.apkg` would name a rule that did not run, on the one format
+ * where a caller checking "was this split the way I meant?" is asking a real question.
+ */
+private fun ImportDraft.separatorName(): String =
+    if (structured) "none" else separator::class.simpleName.orEmpty().lowercase()
 
-private suspend fun parseSource(
-    args: Args,
-    imports: ImportRepository,
-    source: String,
-    title: String,
-): ParsedSource {
-    val text = readSource(source)
-    val read = imageColumnRows(text)
-    val draft = if (read.notes != null) {
-        imports.parseBulkNotes(read.notes, suggestedTitle = title)
-    } else {
-        imports.parseBulk(text, args.option("separator")?.let(::separatorNamed), suggestedTitle = title)
-    }.getOrElse { throw asCliError(it) }
-
-    if (imports.keptRows().isEmpty()) {
-        imports.clear()
-        throw CliError(ExitCode.BadInput, "Nothing importable in $source.")
-    }
-    return ParsedSource(draft, droppedColumns = read.extraColumns)
-}
+private class Written(val deck: Deck, val cards: Int)
 
 /**
  * What a `--resume` run already found on the homeserver.
@@ -216,13 +335,37 @@ private suspend fun resumeState(
     return ResumeState(deck, present.mapTo(mutableSetOf()) { it.identityOf() })
 }
 
-private fun buildCards(
+/**
+ * The kept rows as [Card]s, with any blob-backed picture uploaded on the way through.
+ *
+ * A TSV's images are URLs and cost nothing to resolve; an `.apkg`'s are bytes and have to be
+ * written to the homeserver before a card can reference one, because the ref is content-addressed
+ * and the digest is [MediaRepository]'s to compute.
+ *
+ * **The upload happens before the `--resume` filter, not after, and it is worth knowing why it is
+ * that way round.** `identityOf` distinguishes two cards asking the same question about different
+ * pictures by the image's `sha256` — so deciding whether an image card is already published needs
+ * the sha, and the sha needs the upload. The cost is that a resumed image-heavy `.apkg` re-writes
+ * the archive's blobs: bounded (at most 500 distinct pictures, and [uploads] collapses repeats
+ * within a run), quota-neutral because a blob is stored under its own digest and a rewrite lands
+ * on the same path — but not free in wall-clock, on an hourly session budget.
+ */
+@Suppress("LongParameterList")
+private suspend fun buildCards(
     imports: ImportRepository,
     draft: ImportDraft,
     resume: ResumeState,
     deckId: String,
+    media: MediaRepository,
+    uploaded: MutableList<MediaRef>,
+    onProgress: (String) -> Unit,
 ): List<Card> {
     val now = System.currentTimeMillis()
+    // Keyed on the draft image itself. `DraftCardImage` is a data class over a `ByteArray`, whose
+    // equals and hashCode are identity — which is exactly the question being asked here, since
+    // `MediaIndex` hands back one instance per distinct blob. A picture on forty cards uploads
+    // once.
+    val uploads = mutableMapOf<DraftCardImage, MediaRef.Image>()
     return imports.keptRows().mapIndexedNotNull { index, row ->
         val (front, back) = draft.frontBackOf(row)
         Card(
@@ -231,14 +374,73 @@ private fun buildCards(
             updatedAt = now,
             front = CardSide(
                 text = front.takeIf { it.isNotBlank() },
-                imageRef = imports.rowImage(row.index, isFront = true)?.url?.let(::remoteImage),
+                imageRef = resolveImage(
+                    imports.rowImage(row.index, isFront = true),
+                    deckId, media, uploads, uploaded, onProgress,
+                ),
             ),
             back = CardSide(
                 text = back.takeIf { it.isNotBlank() },
-                imageRef = imports.rowImage(row.index, isFront = false)?.url?.let(::remoteImage),
+                imageRef = resolveImage(
+                    imports.rowImage(row.index, isFront = false),
+                    deckId, media, uploads, uploaded, onProgress,
+                ),
             ),
             ord = ordForIndex(index),
         ).takeIf { it.identityOf() !in resume.alreadyThere }
+    }
+}
+
+/**
+ * A draft picture as a [MediaRef.Image]: a URL wrapped, bytes uploaded, nothing left over.
+ *
+ * **A failed upload throws rather than degrading to `null`.** Swallowing it is how a publish comes
+ * back successful with the pictures quietly missing — a deck missing media the file held is a
+ * failed import (#91), and here it would be a failed import that `--json` reported as fine.
+ */
+@Suppress("LongParameterList")
+private suspend fun resolveImage(
+    image: DraftCardImage?,
+    deckId: String,
+    media: MediaRepository,
+    uploads: MutableMap<DraftCardImage, MediaRef.Image>,
+    uploaded: MutableList<MediaRef>,
+    onProgress: (String) -> Unit,
+): MediaRef.Image? {
+    val bytes = image?.bytes
+    if (image == null) return null
+    if (bytes == null) return image.url?.let(::remoteImage)
+    uploads[image]?.let { return it }
+
+    onProgress("uploading picture ${uploads.size + 1} (${formatBytes(bytes.size.toLong())})")
+    val ref = media.putImage(deckId, bytes, image.mime ?: DEFAULT_IMAGE_MIME)
+        .getOrElse { throw asCliError(it) }
+    uploads[image] = ref
+    uploaded += ref
+    return ref
+}
+
+private const val DEFAULT_IMAGE_MIME = "image/jpeg"
+
+/**
+ * Take back the blobs an aborted publish already wrote.
+ *
+ * By hand rather than through `DeckRepository.delete`, which walks a manifest to find what to
+ * sweep — and at this point there is no manifest, because media goes up before `publish` writes
+ * one. Best-effort and never fatal: the reason the import aborted is quite plausibly that storage
+ * is what ran out, and failing the failure would replace a useful error with a useless one.
+ */
+private suspend fun sweepUploadedMedia(
+    media: MediaRepository,
+    deckId: String,
+    uploaded: List<MediaRef>,
+    onNote: (String) -> Unit,
+) {
+    if (uploaded.isEmpty()) return
+    var failed = 0
+    uploaded.forEach { ref -> media.delete(deckId, ref).onFailure { failed++ } }
+    if (failed > 0) {
+        onNote("$failed of ${uploaded.size} pictures this run uploaded could not be removed again.")
     }
 }
 
@@ -338,101 +540,3 @@ private suspend fun appendMissing(
     }
     return deck
 }
-
-private fun readSource(source: String): String = when (source) {
-    "-" -> System.`in`.readBytes().toString(Charsets.UTF_8)
-    else -> File(source).takeIf { it.isFile }?.readText(Charsets.UTF_8)
-        ?: throw CliError(ExitCode.BadInput, "No such file: $source")
-}
-
-/**
- * The rows of a tab-separated file that carries image columns, or null when it does not.
- *
- * `front <TAB> back <TAB> front_image_url <TAB> back_image_url` is a format this client defines,
- * so splitting it on tabs is reading a format rather than reimplementing spec §6. The rows then go
- * through `parseBulkNotes`, which is the same body as `parseBulk` minus the splitting step —
- * dedupe, the caps, truncation reporting and the drop-incomplete policy are shared. That entry
- * point exists because dedupe *renumbers* rows, so a picture cannot be re-attached afterwards by
- * the index it was read at.
- *
- * It engages only when **every** non-blank line has at least three tab-separated fields *and*
- * every non-empty image column holds an http(s) URL. Both halves are needed. The first keeps one
- * stray third column in a two-column file from being read as a format; the second keeps a
- * three-column Anki export — Front / Back / Example sentence, a very common shape — from
- * publishing every card with `MediaRef.Image(url = "una manzana roja")`, which both apps then try
- * to load as a picture while the column's real content is lost and `--json` reports success.
- *
- * A file that fails either test is ordinary text and falls through to the shared parser, which is
- * the right answer here — unlike `card add --from-file`, where the four-column TSV is what the
- * user explicitly asked for and a non-URL is an error.
- *
- * Image columns are worth having from day one because since #167 a card image can be a remote ref
- * — a URL, no bytes on the wire, no media quota spent — and neither `.apkg` nor
- * TSV-through-the-parser can say "this side has text *and* a picture" (#54, finding 3).
- */
-private fun imageColumnRows(text: String): ImageColumnRead {
-    val lines = text.lineSequence().filter { it.isNotBlank() }.toList()
-    if (lines.isEmpty()) return ImageColumnRead(null, extraColumns = false)
-    val rows = lines.map { it.split('\t') }
-    if (rows.any { it.size < IMAGE_FORMAT_MIN_FIELDS }) return ImageColumnRead(null, extraColumns = false)
-    // Three-plus columns, but not addresses: ordinary text with a column the shared parser will
-    // drop. Declining is right; declining *quietly* is not, so the caller is told.
-    if (rows.any { !it.imageColumnsAreUrls() }) return ImageColumnRead(null, extraColumns = true)
-    return ImageColumnRead(
-        notes = rows.map { fields ->
-            BulkNote(
-                front = fields[FRONT_COLUMN].trim(),
-                back = fields[BACK_COLUMN].trim(),
-                frontImage = fields.imageAt(FRONT_IMAGE_COLUMN),
-                backImage = fields.imageAt(BACK_IMAGE_COLUMN),
-            )
-        },
-        extraColumns = false,
-    )
-}
-
-/**
- * What reading a file as the image format found.
- *
- * [extraColumns] is the case that has to be *reported* rather than merely handled: a file whose
- * every line has three or more tab fields, none of them URLs, is ordinary text — and spec §8's
- * parser keeps fields 0 and 1 and drops the rest. So the import succeeds while each card quietly
- * loses a column. That is a quieter version of the loss `--json` exists to make visible: not fewer
- * cards, less of each card. Nothing here changes what is parsed — diverging from the app's parser
- * is the one thing this command must not do — only what is said about it.
- */
-private class ImageColumnRead(val notes: List<BulkNote>?, val extraColumns: Boolean)
-
-/** An empty image column says nothing either way; a filled one has to look like an address. */
-private fun List<String>.imageColumnsAreUrls(): Boolean =
-    listOf(FRONT_IMAGE_COLUMN, BACK_IMAGE_COLUMN).all { column ->
-        getOrNull(column)?.trim()?.takeIf { it.isNotEmpty() }?.looksLikeImageUrl() ?: true
-    }
-
-private fun List<String>.imageAt(column: Int): DraftCardImage? =
-    getOrNull(column)?.trim()?.takeIf { it.isNotEmpty() }?.let { DraftCardImage(url = it) }
-
-private fun separatorNamed(name: String): Separator = when (name.lowercase()) {
-    "auto" -> Separator.Auto
-    "tab" -> Separator.Tab
-    "comma" -> Separator.Comma
-    "semicolon" -> Separator.Semicolon
-    "pipe" -> Separator.Pipe
-    "dash", "emdash" -> Separator.EmDash
-    "colon" -> Separator.Colon
-    "blank", "blankline" -> Separator.BlankLine
-    "markdown", "table" -> Separator.MarkdownTable
-    else -> throw CliError(
-        ExitCode.Usage,
-        "Unknown --separator '$name'. One of: auto, tab, comma, semicolon, pipe, dash, colon, " +
-            "blank, markdown.",
-    )
-}
-
-private const val FRONT_COLUMN = 0
-private const val BACK_COLUMN = 1
-private const val FRONT_IMAGE_COLUMN = 2
-private const val BACK_IMAGE_COLUMN = 3
-
-/** A file with fewer fields than this on any line is ordinary text for the shared parser. */
-private const val IMAGE_FORMAT_MIN_FIELDS = 3
