@@ -1481,7 +1481,7 @@ Run against the **live production and staging networks** with
 | `--json` failures land on **stdout** | ✅ a caller parsing one stream sees the errors too |
 | stdout stays clean | ✅ QR, prompts, progress and every log line on stderr; `RUST_LOG` defaulted to `warn` by the start script, so the SDK's four INFO lines no longer precede a login |
 | `--version` | ✅ `loopky 0.1.0 (schema 1)` |
-| Unit tests | ✅ 35 (`:cli:test`) — arg parsing, the card-file formats incl. accented round-trip, the JSON envelope, the exit-code mapping, the environment-mismatch guard |
+| Unit tests | ✅ 41 (`:cli:test`) — arg parsing, the card-file formats incl. accented round-trip, the JSON envelope, the exit-code mapping, the environment-mismatch guard |
 | `detektAll` | ✅ green |
 | Android and iOS unaffected by the source-set move | ✅ `:composeApp:assembleDebug` and `:shared:compileKotlinIosArm64` both build |
 
@@ -1512,3 +1512,30 @@ line: no Pubky Ring approval was completed, so `deck create`, `import`, `card ad
 acceptance criteria that turn on that — a deck the Android app opens without a repair step, an
 `import` killed mid-run and resumed without duplicating, a full run leaving no record under
 `/pub/pubky.app/` — are unmet until someone scans the QR.
+
+## Review round — 2026-09-03, staging, by hand on Linux
+
+A review of the branch drove the binary end to end against a real staging homeserver with a Pubky
+Ring session, importing 48 cards. **The run worked** — 48 cards in one shot, correct ords, tags
+applied, read back identical — and turned up eleven findings, four of them reproduced on the
+device rather than read off the diff. All eleven are fixed on this branch.
+
+| Finding | Where it bit |
+| --- | --- |
+| `login` stored `homeserver: ""` | The FFI payload has no such field, and the Ring path was the one that never backfilled it — so the environment-mismatch guard, its tests and its README paragraph all applied to a session shape `loopky login` never produces. It failed **open** in the common case. |
+| The desktop JDBC URL was never interpolated | `${'$'}` is a Kotlin template producing a literal `$`, so every desktop `.apkg` read failed and was reported as "that .apkg has no readable collection" — a wrong diagnosis pointing at the user's file. |
+| `card edit --back=` → exit 1 "internal" | The CLI's own documented way to clear a side answered with a Kotlin assertion string. |
+| `card add --json` echoed an `ord` the homeserver did not store | 1000 reported, 0 stored, on a fresh deck. Intent, not result, on the channel built for diffing the two. |
+| `whoami`/`login` emitted camelCase | Both docs told an agent to read `session_live`, which did not exist. |
+| A third TSV column stored as an image URL | A 3-column Anki export published every card with an image ref pointing at a sentence. |
+| `catch (Exception)` missed `Error` | `Native.load` on an unsupported host produced exit 1 with **nothing on stdout** — the one case the docs name. |
+| A malformed `LOOPKY_SESSION` → `session_expired` | A typo taught an agent "the hour is up". |
+| `--limit twenty` silently became 20 | For the one command whose whole output is a ranked list. |
+| A card fronted `#1 ranked` vanished | `startsWith("#")` swallowed it. |
+| Two doc comments contradicting the code | `--export` described as print-only; a command name that does not exist. |
+
+**Two of these had passing tests over them**, which is the part worth remembering:
+`EnvironmentMismatchTest` handed the guard a homeserver by hand, and the shared suite drives the
+`.apkg` reader's *callers* rather than its opener. Both now have tests that go through the real
+shape — a raw session payload, and a real zip around a real SQLite file — and both were confirmed
+to fail on the old code before the fix landed.
