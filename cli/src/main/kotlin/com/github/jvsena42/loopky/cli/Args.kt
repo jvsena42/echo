@@ -88,6 +88,8 @@ class Args private constructor(
         private val SWITCHES = setOf(
             "json", "verbose", "help", "version",
             "resume", "export", "url-only", "force", "yes", "dry-run",
+            // `update --check` asks without doing; `--no-update-check` is the global opt-out.
+            "check", "no-update-check",
             // The four deck study opt-ins, each with an explicit off form. A `--no-` switch is
             // not decoration: every one of these defaults to off here, and a caller editing an
             // existing deck needs a way to say so rather than only a way to agree.

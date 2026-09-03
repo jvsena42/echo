@@ -15,6 +15,7 @@ import com.github.jvsena42.loopky.cli.commands.importDryRun
 import com.github.jvsena42.loopky.cli.commands.login
 import com.github.jvsena42.loopky.cli.commands.logout
 import com.github.jvsena42.loopky.cli.commands.tagTrending
+import com.github.jvsena42.loopky.cli.commands.update
 import com.github.jvsena42.loopky.cli.commands.whoami
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.repository.CardRepository
@@ -25,6 +26,7 @@ import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.util.Log
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.koin.core.Koin
 import kotlin.system.exitProcess
@@ -74,33 +76,44 @@ private fun run(argv: Array<String>): ExitCode {
 
     Log.debugEnabled = args.has("verbose")
     val environment = CliEnvironment.resolve(args)
-    try {
-        // Inside the boundary, not before it: starting Koin resolves `PubkyClient`, which is where
-        // a host outside the shipped matrix fails at `Native.load` — so this is the last point at
-        // which such a host can still be told what is wrong with it rather than about a deck that
-        // does not exist. See `requireSupportedHost`.
-        requireSupportedHost()
-        val koin = startCli(environment)
-        val result = runBlocking { dispatch(args, koin.identity(), koin, environment) }
-        emit(args, environment, args.verb, result)
-        return ExitCode.Ok
-    } catch (error: CliError) {
-        fail(args, environment, args.verb, error.exitCode, error.message.orEmpty())
-        return error.exitCode
-    } catch (@Suppress("TooGenericExceptionCaught") error: Throwable) {
-        // `Throwable`, not `Exception`. An x86-64 Mac or a Windows box fails at `Native.load` with
-        // `UnsatisfiedLinkError` / `ExceptionInInitializerError` — both `Error`s — and catching
-        // only `Exception` let them past `fail()` to a bare exit 1 with **nothing on stdout**.
-        // That breaks the "results and failures both go there as --json" contract for precisely
-        // the case the README and `Platform.jvm.kt` both name as expected.
-        val code = ExitCode.of(error)
-        Log.e(TAG, "command failed", error)
-        fail(args, environment, args.verb, code, error.message ?: error::class.simpleName.orEmpty())
-        return code
-    } finally {
-        // Koin may never have started, in which case stopping it throws over the failure we are
-        // already reporting.
-        runCatching { stopCli() }
+    val updates = Updates(UpdateChecker(environment.configHome), detectInstallation())
+
+    // One `runBlocking` around the whole command rather than around `dispatch` alone, so the
+    // update check can run *concurrently* with the work (#209). On the one invocation a day that
+    // actually goes to the network, it overlaps a homeserver round trip instead of adding to it —
+    // and both outcomes need the answer, since `update_available` travels on a failure envelope
+    // as well as a success.
+    return runBlocking {
+        val update = async { if (UpdateChecker.enabled(args)) updates.checker.check() else null }
+        try {
+            // Inside the boundary, not before it: starting Koin resolves `PubkyClient`, which is
+            // where a host outside the shipped matrix fails at `Native.load` — so this is the last
+            // point at which such a host can still be told what is wrong with it rather than about
+            // a deck that does not exist. See `requireSupportedHost`.
+            requireSupportedHost()
+            val koin = startCli(environment)
+            val result = dispatch(args, koin.identity(), koin, environment, updates)
+            emit(args, environment, args.verb, result, updates.notice(update.await()))
+            ExitCode.Ok
+        } catch (error: CliError) {
+            fail(args, environment, args.verb, error, updates.notice(update.await()))
+            error.exitCode
+        } catch (@Suppress("TooGenericExceptionCaught") error: Throwable) {
+            // `Throwable`, not `Exception`. An x86-64 Mac or a Windows box fails at `Native.load`
+            // with `UnsatisfiedLinkError` / `ExceptionInInitializerError` — both `Error`s — and
+            // catching only `Exception` let them past `fail()` to a bare exit 1 with **nothing on
+            // stdout**. That breaks the "results and failures both go there as --json" contract for
+            // precisely the case the README and `Platform.jvm.kt` both name as expected.
+            val code = ExitCode.of(error)
+            Log.e(TAG, "command failed", error)
+            val message = error.message ?: error::class.simpleName.orEmpty()
+            fail(args, environment, args.verb, CliError(code, message), updates.notice(update.await()))
+            code
+        } finally {
+            // Koin may never have started, in which case stopping it throws over the failure we are
+            // already reporting.
+            runCatching { stopCli() }
+        }
     }
 }
 
@@ -118,6 +131,7 @@ private suspend fun dispatch(
     identity: IdentityRepository,
     koin: Koin,
     environment: CliEnvironment,
+    updates: Updates,
 ): CommandResult {
     // Two sinks, because they are two different things and collapsing them silenced a warning in
     // the mode an agent runs.
@@ -172,6 +186,12 @@ private suspend fun dispatch(
         // No session: a Nexus read is plain HTTP against a public index.
         "tag trending" -> tagTrending(args, koin.get<TagRepository>(), environment)
 
+        // No session and no homeserver either — this one talks to the release page and to the
+        // filesystem. It is dispatched like everything else so that its answer arrives in the same
+        // envelope, which is the whole point: an agent finds out it is stale the same way it finds
+        // out anything.
+        "update" -> update(args, updates.checker, updates.installation)
+
         // The message stays one line. `--json` puts it in an `error.message`, and pasting a
         // 60-line usage block into a JSON string helps nobody parsing it; `--help` is where the
         // usage lives, and the human path prints it below.
@@ -190,28 +210,55 @@ private fun Koin.identity() = get<IdentityRepository>()
 private fun Koin.decks() = get<DeckRepository>()
 private fun Koin.cards() = get<CardRepository>()
 
-private fun emit(args: Args, env: CliEnvironment, command: String, result: CommandResult) {
+private fun emit(
+    args: Args,
+    env: CliEnvironment,
+    command: String,
+    result: CommandResult,
+    notice: UpdateNotice,
+) {
     if (args.has("json")) {
-        println(successEnvelope(command, env.name, env.indexer, result.data))
+        println(successEnvelope(command, env.name, env.indexer, result.data, notice.available))
     } else if (result.text.isNotEmpty()) {
         println(result.text)
     }
+    noteUpdate(notice)
 }
 
 private fun emitEvent(args: Args, line: String) {
     if (args.has("json")) println(line)
 }
 
-private fun fail(args: Args, env: CliEnvironment, command: String, code: ExitCode, message: String) {
+private fun fail(
+    args: Args,
+    env: CliEnvironment,
+    command: String,
+    error: CliError,
+    notice: UpdateNotice,
+) {
     if (args.has("json")) {
         // The failure envelope goes to **stdout**, like a success: a caller parsing `--json` has to
         // be able to read the error out of the same stream, and splitting the two would make the
         // machine channel say nothing at all about half the outcomes.
-        println(failureEnvelope(command, env.name, env.indexer, code, message))
+        println(failureEnvelope(command, env.name, env.indexer, error, notice.available))
     } else {
-        System.err.println("loopky: $message")
-        if (code == ExitCode.Usage) System.err.println("\n" + USAGE)
+        System.err.println("loopky: ${error.message}")
+        if (error.exitCode == ExitCode.Usage) System.err.println("\n" + USAGE)
     }
+    noteUpdate(notice)
+}
+
+/**
+ * The update notice: **stderr, once, whatever `--json` says** (#209).
+ *
+ * Never stdout — that is the machine channel, and one extra line there makes `--json` undecodable,
+ * which is the rule everything else in this client follows. And not suppressed under `--json`
+ * either: stdout and stderr are two channels here rather than one that switches off, so an agent
+ * capturing stderr for diagnostics still learns its parser may be out of date.
+ */
+private fun noteUpdate(notice: UpdateNotice) {
+    val update = notice.available ?: return
+    System.err.println("loopky: " + updateNotice(update, notice.installation))
 }
 
 private const val TAG = "Loopky/Cli"
@@ -273,10 +320,17 @@ private val USAGE = """
     DISCOVERY
       tag trending [--limit N]  Read the Nexus indexer. No session, no capability.
 
+    UPDATE
+      update                    Replace this binary with the newest release, after checking the
+                                digest published beside it. Refuses, with the right command, on a
+                                Homebrew or .deb install, in a container, and on the jar.
+      update --check            Ask without doing.
+
     GLOBAL
       --json                    Machine-readable output on stdout. Stable, versioned schema.
       --dry-run                 Read and report; write nothing. `import` only.
       --env staging|production  Which network to talk to. Defaults to production.
+      --no-update-check         Do not look for a newer release on this invocation.
       --verbose                 Debug logging on stderr.
       --help, --version
 
@@ -286,6 +340,9 @@ private val USAGE = """
                                 `loopky login --export` on a machine with a human at it.
       LOOPKY_ENV                staging | production. --env wins. Defaults to production.
       LOOPKY_CONFIG_HOME        Where state lives. Defaults to ${'$'}XDG_CONFIG_HOME/loopky.
+      LOOPKY_NO_UPDATE_CHECK    Set to anything to never look for a newer release. The check is
+                                cached for a day, runs alongside the command, and can never fail
+                                it — but a pipeline that wants no surprises can switch it off.
 
     CARD FILES
       TSV:   front <TAB> back <TAB> front_image_url <TAB> back_image_url   (last two optional)
@@ -293,11 +350,12 @@ private val USAGE = """
              "id" is for `card edit`; a field that is absent is left unchanged.
 
     EXIT CODES
-      0 ok                      5 network
-      1 internal                6 not found
-      2 usage                   7 storage full (507 — terminal, never retried)
-      3 not signed in           8 environment mismatch
-      4 session expired         9 bad input
+      0 ok                      6 not found
+      1 internal                7 storage full (507 — terminal, never retried)
+      2 usage                   8 environment mismatch
+      3 not signed in           9 bad input
+      4 session expired        10 no build for this host
+      5 network                11 update found but not applied (a managed install)
 
     NOTES
       Sessions are stored as a mode-0600 file, not in an OS keyring. libsecret is usually absent
@@ -308,6 +366,11 @@ private val USAGE = """
       This client asks Ring for /pub/loopky/:rw and nothing else. It therefore cannot post,
       follow, or edit a profile under any bug or any prompt injection, and there is no announce
       flag to pass.
+
+      A newer release is reported on stderr and in the --json envelope's `update_available`,
+      never acted on by itself. The check is one cached-for-a-day HTTPS GET against the same
+      release page the installer uses, so it adds no host to an allowlist, and a check that fails
+      is silent rather than fatal.
 
       An .apkg's pictures are the one thing this tool uploads bytes for, and it uploads them at
       full resolution — it ships no image codec, where the apps shrink every picture to 1024px

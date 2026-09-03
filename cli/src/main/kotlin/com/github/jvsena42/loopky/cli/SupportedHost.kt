@@ -20,10 +20,14 @@ package com.github.jvsena42.loopky.cli
  * exit with something an agent can branch on. A native binary can barely reach it — macOS refuses
  * to exec an arm64 executable on Intel at all — but the jar distribution is architecture-blind and
  * runs anywhere a JRE does, which is exactly the shape that gets this wrong.
+ *
+ * [asset] is the release asset for the row, and it is the same table `cli/install.sh` carries in
+ * shell — `loopky update` downloads by that name, so the two have to stay in step. An unshipped
+ * host is refused here before either of them can ask for a file that was never built.
  */
-internal enum class SupportedHost(val jnaPrefix: String, val label: String) {
-    LinuxX64("linux-x86-64", "Linux x86_64"),
-    MacArm64("darwin-aarch64", "macOS on Apple Silicon"),
+internal enum class SupportedHost(val jnaPrefix: String, val label: String, val asset: String) {
+    LinuxX64("linux-x86-64", "Linux x86_64", "loopky-linux-x86-64"),
+    MacArm64("darwin-aarch64", "macOS on Apple Silicon", "loopky-macos-aarch64"),
 }
 
 /**
