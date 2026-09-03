@@ -68,7 +68,12 @@ fun detectInstallation(
     // file to swap and `update` says so instead of writing over the script.
     if (property("org.graalvm.nativeimage.imagecode") == null) return Installation(InstallMethod.Jar, null)
 
-    if (env("LOOPKY_CONTAINER") != null || exists("/.dockerenv") || exists("/run/.containerenv")) {
+    // `isNotBlank`, not `!= null`, and the same convention as `LOOPKY_NO_UPDATE_CHECK`. POSIX
+    // `export FOO=` and a `docker run --env LOOPKY_CONTAINER` passthrough from a host that has it
+    // unset both yield an **empty string**, not an absent variable — and an ordinary
+    // `~/.local/bin/loopky` classified `Container` refuses to update itself and recommends
+    // `docker pull` for an image it has nothing to do with.
+    if (env("LOOPKY_CONTAINER")?.isNotBlank() == true || exists("/.dockerenv") || exists("/run/.containerenv")) {
         return Installation(InstallMethod.Container, executable())
     }
 

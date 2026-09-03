@@ -26,6 +26,7 @@ import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.koin.core.Koin
@@ -84,15 +85,39 @@ private fun run(argv: Array<String>): ExitCode {
     // and both outcomes need the answer, since `update_available` travels on a failure envelope
     // as well as a success.
     return runBlocking {
-        val update = async { if (UpdateChecker.enabled(args)) updates.checker.check() else null }
+        // `runSuspendCatching`, and it is structural rather than defensive. `async` here is a child
+        // of `runBlocking`'s job, which is **not** a supervisor: an exception escaping this lambda
+        // cancels the in-flight command at its next suspension point, and the resulting
+        // `CancellationException` reaches the generic handler below — which calls `await()` inside
+        // its own catch block, re-throwing the original failure past `runBlocking` entirely, to
+        // exit 1 with **nothing on stdout**. That is the exact contract the `Throwable`-not-
+        // `Exception` note below exists to protect, broken by the update check. `check()` is
+        // written to return null on every path; this is what makes that impossible to undo.
+        val update = async {
+            if (UpdateChecker.enabled(args)) {
+                runSuspendCatching { updates.checker.check() }.getOrNull()
+            } else {
+                null
+            }
+        }
         try {
-            // Inside the boundary, not before it: starting Koin resolves `PubkyClient`, which is
-            // where a host outside the shipped matrix fails at `Native.load` — so this is the last
-            // point at which such a host can still be told what is wrong with it rather than about
-            // a deck that does not exist. See `requireSupportedHost`.
-            requireSupportedHost()
-            val koin = startCli(environment)
-            val result = dispatch(args, koin.identity(), koin, environment, updates)
+            // `update` before the boundary, because it is the command you reach for when the
+            // install is *broken*. Everything below starts Koin, which resolves `PubkyClient` and
+            // therefore loads `libpubkycore` — so on a host where that load fails (an old glibc, a
+            // truncated download, a half-written file from an interrupted install) the repair
+            // command would fail identically to the thing it repairs, with an error about the FFI.
+            // It needs no session, no homeserver and no native library; only `args` and `updates`.
+            val result = if (args.verb == UPDATE_VERB) {
+                update(args, updates.checker, updates.installation)
+            } else {
+                // Inside the boundary, not before it: starting Koin resolves `PubkyClient`, which
+                // is where a host outside the shipped matrix fails at `Native.load` — so this is
+                // the last point at which such a host can still be told what is wrong with it
+                // rather than about a deck that does not exist. See `requireSupportedHost`.
+                requireSupportedHost()
+                val koin = startCli(environment)
+                dispatch(args, koin.identity(), koin, environment)
+            }
             emit(args, environment, args.verb, result, updates.notice(update.await()))
             ExitCode.Ok
         } catch (error: CliError) {
@@ -131,7 +156,6 @@ private suspend fun dispatch(
     identity: IdentityRepository,
     koin: Koin,
     environment: CliEnvironment,
-    updates: Updates,
 ): CommandResult {
     // Two sinks, because they are two different things and collapsing them silenced a warning in
     // the mode an agent runs.
@@ -186,11 +210,9 @@ private suspend fun dispatch(
         // No session: a Nexus read is plain HTTP against a public index.
         "tag trending" -> tagTrending(args, koin.get<TagRepository>(), environment)
 
-        // No session and no homeserver either — this one talks to the release page and to the
-        // filesystem. It is dispatched like everything else so that its answer arrives in the same
-        // envelope, which is the whole point: an agent finds out it is stale the same way it finds
-        // out anything.
-        "update" -> update(args, updates.checker, updates.installation)
+        // `update` is deliberately absent: it is handled in `run` before Koin starts, since it is
+        // the one command that has to work on an install too broken to load the FFI. It is still
+        // one function taking plain values, so the MCP-binding shape below is unaffected.
 
         // The message stays one line. `--json` puts it in an `error.message`, and pasting a
         // 60-line usage block into a JSON string helps nobody parsing it; `--help` is where the
@@ -262,6 +284,9 @@ private fun noteUpdate(notice: UpdateNotice) {
 }
 
 private const val TAG = "Loopky/Cli"
+
+/** Handled in [run] rather than in [dispatch]; see the note at its call site. */
+private const val UPDATE_VERB = "update"
 
 /**
  * Two numbers that move independently, which is why both are printed.

@@ -52,6 +52,18 @@ class InstallTest {
         assertEquals(InstallMethod.Container, detect(markers = setOf("/run/.containerenv")).method)
     }
 
+    /**
+     * `export LOOPKY_CONTAINER=` and a `docker run --env LOOPKY_CONTAINER` passthrough from a host
+     * that has it unset both yield an **empty string**, not an absent variable — and an ordinary
+     * `~/.local/bin/loopky` classified `Container` refuses to update itself and recommends
+     * `docker pull` for an image it has nothing to do with.
+     */
+    @Test
+    fun `an empty LOOPKY_CONTAINER is not a container`() {
+        assertEquals(InstallMethod.Binary, detect(env = mapOf("LOOPKY_CONTAINER" to "")).method)
+        assertEquals(InstallMethod.Binary, detect(env = mapOf("LOOPKY_CONTAINER" to "  ")).method)
+    }
+
     @Test
     fun `a Cellar path is Homebrew's, on either prefix`() {
         assertEquals(

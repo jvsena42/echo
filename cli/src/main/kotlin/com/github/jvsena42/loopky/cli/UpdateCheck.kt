@@ -73,16 +73,25 @@ class UpdateChecker(
      */
     suspend fun latest(force: Boolean = false): ReleaseManifest? {
         val cached = readCache()
-        if (!force && cached != null && now() - cached.checkedAt < TTL_MS) {
-            return cached.manifest()
-        }
-        // A fetch that fails keeps the last answer and only moves the timestamp. A release that
-        // was published stays published, so a transient failure must never leave the client
-        // knowing *less* than it did a minute ago — and the timestamp still has to move, or an
+        // `age in 0 until TTL_MS`, not `age < TTL_MS`: a record written **in the future** — a
+        // container started before NTP settles, a VM restored from a snapshot, a bogus RTC — gives
+        // a negative age, which the naive bound reads as fresh. The check would then answer out of
+        // that record and never go to the network again for as long as the skew lasted, silently.
+        // A timestamp we cannot have written is treated as expired.
+        val fresh = cached != null && (now() - cached.checkedAt) in 0 until TTL_MS
+        if (!force && fresh) return requireNotNull(cached).manifest()
+        val fetched = fetch()
+        // The *cache* keeps the last answer when a refresh fails and only moves the timestamp: a
+        // release that was published stays published, so a wobble must never leave the client
+        // knowing less than it did a minute ago — and the timestamp still has to move, or an
         // offline box asks again on every invocation.
-        val known = fetch() ?: cached?.manifest()
+        val known = fetched ?: cached?.manifest()
         writeCache(CacheRecord(checkedAt = now(), version = known?.version, schema = known?.schema))
-        return known
+        // What is *returned* under [force] is only what was actually fetched. `loopky update` asks
+        // a direct question and then acts on the answer: handed a day-old 0.9.0 with the network
+        // down, it would sail past every refusal and spend the full 75-second download budget on a
+        // release it cannot reach — or 404 on a pinned URL, if 0.9.0 has since been yanked.
+        return if (force) fetched else known
     }
 
     /** [latest], reduced to the only thing most callers act on. */

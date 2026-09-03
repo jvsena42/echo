@@ -17,6 +17,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.AccessDeniedException
+import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -68,6 +70,17 @@ suspend fun update(
     args: Args,
     checker: UpdateChecker,
     installation: Installation,
+    /**
+     * The seam the tests replace: given a version, hand back a verified binary.
+     *
+     * A parameter rather than a call, because the applied path is the one that writes over an
+     * executable and it is worth being able to run it without a network — the alternative is that
+     * everything up to the download is tested and the write itself only ever runs on a user's
+     * machine.
+     */
+    fetchBinary: suspend (version: String) -> ByteArray = { version ->
+        fetchVerifiedBinary(checker, version, hostSupport() ?: throw CliError(ExitCode.UnsupportedHost, unsupportedHostMessage()))
+    },
 ): CommandResult {
     // Uncached: `--check` is a direct question and answering it out of a day-old file is the one
     // behaviour that would make this command less trustworthy than the ambient notice it exists
@@ -76,10 +89,12 @@ suspend fun update(
     val available = checker.available(manifest)
     val checkOnly = args.has("check")
 
-    val advice = when {
-        available == null -> ""
-        else -> updateAdvice(installation, available.version)
-    }
+    // Computed per report rather than once, because it is the *next* action and applying the
+    // update is what makes there be none. Reported unchanged on the success path, it comes back as
+    // `"applied": true, "advice": "Run \`loopky update\`."` — and an agent that treats `advice` as
+    // the next action, which is exactly what the field invites, runs the whole forced, uncached
+    // check again to be told it is current.
+    val advice = if (available == null) "" else updateAdvice(installation, available.version)
 
     fun report(applied: Boolean, verified: Boolean, text: String) = result(
         UpdateResult(
@@ -94,7 +109,7 @@ suspend fun update(
             canSelfUpdate = installation.canSelfUpdate,
             applied = applied,
             verified = verified,
-            advice = advice,
+            advice = if (applied) "" else advice,
         ),
         text,
     )
@@ -119,10 +134,8 @@ suspend fun update(
         throw CliError(ExitCode.UpdateUnsupported, "loopky ${available.version} is available, but $advice")
     }
 
-    val host = hostSupport() ?: throw CliError(ExitCode.UnsupportedHost, unsupportedHostMessage())
     val target = requireNotNull(installation.path) { "canSelfUpdate implies a path" }
-    val binary = fetchVerifiedBinary(checker, available.version, host)
-    replaceInPlace(target, binary)
+    replaceInPlace(target, fetchBinary(available.version))
     return report(
         applied = true,
         verified = true,
@@ -130,19 +143,31 @@ suspend fun update(
     )
 }
 
-/** Download the release asset for [host] and refuse it unless its digest is the published one. */
-private suspend fun fetchVerifiedBinary(
+/**
+ * Download the release asset for [host] and refuse it unless its digest is the published one.
+ *
+ * [get] is a seam so the verification policy — which is the security-critical part of this command
+ * — can be exercised without a network.
+ */
+internal suspend fun fetchVerifiedBinary(
     checker: UpdateChecker,
     version: String,
     host: SupportedHost,
+    get: (url: String) -> ByteArray = ::download,
 ): ByteArray = withContext(Dispatchers.IO) {
     val url = checker.assetUrl(version, host.asset)
-    val binary = download(url)
+    val binary = get(url)
     // A missing digest is a refusal, not a warning. The release workflow publishes one beside
     // every binary, so its absence means the release is malformed or something is answering for
     // github.com that should not be — and this is the one command where "carry on anyway" means
     // executing whatever came back.
-    val published = runCatching { download("$url.sha256").decodeToString() }.getOrElse {
+    val published = runCatching { get("$url.sha256").decodeToString() }.getOrElse { failure ->
+        // Only a genuine *absence* is a malformed release. A 503 or a read timeout from the object
+        // store is an ordinary blip, and reporting it as "something is answering for github.com
+        // that should not be" sends the reader at a supply-chain investigation — with exit 1,
+        // which tells an agent this is an internal bug rather than something to retry. The refusal
+        // is right either way; the diagnosis and the code are what would be wrong.
+        if (failure is CliError && failure.exitCode != ExitCode.NotFound) throw failure
         throw CliError(
             ExitCode.Internal,
             "no published checksum at $url.sha256, so the download was not verified and has been " +
@@ -175,11 +200,15 @@ private fun download(url: String): ByteArray {
         connection.connectTimeout = CONNECT_TIMEOUT_MS
         connection.readTimeout = READ_TIMEOUT_MS
         connection.instanceFollowRedirects = true
-        val code = connection.responseCode
-        if (code !in SUCCESS) {
-            throw CliError(ExitCode.Network, "HTTP $code fetching $url")
-        }
-        val bytes = connection.inputStream.use { it.readNBytes(MAX_DOWNLOAD_BYTES + 1) }
+        // Every failure leaves here already classified, and **404 is kept apart from the rest**:
+        // it is the only status that means the file is genuinely not published, which is what the
+        // caller needs to tell a malformed release from a bad minute on the network.
+        val code = runCatching { connection.responseCode }
+            .getOrElse { throw CliError(ExitCode.Network, "could not reach $url: ${it.message}") }
+        if (code == HTTP_NOT_FOUND) throw CliError(ExitCode.NotFound, "$url does not exist")
+        if (code !in SUCCESS) throw CliError(ExitCode.Network, "HTTP $code fetching $url")
+        val bytes = runCatching { connection.inputStream.use { it.readNBytes(MAX_DOWNLOAD_BYTES + 1) } }
+            .getOrElse { throw CliError(ExitCode.Network, "download of $url failed: ${it.message}") }
         if (bytes.size > MAX_DOWNLOAD_BYTES) {
             throw CliError(ExitCode.Internal, "$url is larger than ${MAX_DOWNLOAD_BYTES / MB} MB — refusing it.")
         }
@@ -203,7 +232,7 @@ internal fun sha256(bytes: ByteArray): String =
  */
 internal fun replaceInPlace(target: Path, bytes: ByteArray) {
     val temp = runCatching { Files.createTempFile(target.parent, target.fileName.toString(), ".new") }
-        .getOrElse { throw notWritable(target, it) }
+        .getOrElse { throw replaceFailed(target, it) }
     runCatching {
         Files.write(temp, bytes)
         // Best-effort, like every other 0600/0755 in this codebase: a filesystem with no POSIX
@@ -213,19 +242,46 @@ internal fun replaceInPlace(target: Path, bytes: ByteArray) {
         Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
     }.onFailure {
         Files.deleteIfExists(temp)
-        throw notWritable(target, it)
+        throw replaceFailed(target, it)
     }
 }
 
-private fun notWritable(target: Path, cause: Throwable) = CliError(
-    ExitCode.UpdateUnsupported,
-    "could not replace $target (${cause.message}). The file or its directory is not writable by " +
-        "this user — a read-only layer, or an install that needs the owner. Nothing was changed.",
-)
+/**
+ * Why the replace did not happen, and **only a permission problem is [ExitCode.UpdateUnsupported]**.
+ *
+ * 11 means one specific thing — "this install is owned by something else, use that tool" — so
+ * mapping every failure here to it is how a full disk gets reported as Homebrew. `Files.write` can
+ * fail with `ENOSPC`, and `ATOMIC_MOVE` can fail with `AtomicMoveNotSupportedException` on a
+ * filesystem that has no rename; an agent told 11 for either concludes it is on a managed install
+ * and stops retrying, when the fix is to free space or install somewhere else.
+ *
+ * `AccessDeniedException` is the JDK's typed `EACCES`/`EPERM`. `EROFS` — the read-only container
+ * layer this rule most exists for — arrives as a plain [FileSystemException] whose reason names
+ * it, so both are matched.
+ */
+internal fun replaceFailed(target: Path, cause: Throwable): CliError {
+    val readOnly = cause is FileSystemException &&
+        cause.reason?.contains("read-only", ignoreCase = true) == true
+    return if (cause is AccessDeniedException || readOnly) {
+        CliError(
+            ExitCode.UpdateUnsupported,
+            "could not replace $target (${cause.message}). The file or its directory is not " +
+                "writable by this user — a read-only layer, or an install that needs the owner. " +
+                "Nothing was changed.",
+        )
+    } else {
+        CliError(
+            ExitCode.Internal,
+            "could not replace $target: ${cause::class.simpleName}: ${cause.message}. Nothing was " +
+                "changed, and the old binary is untouched.",
+        )
+    }
+}
 
 private const val MODE = "rwxr-xr-x"
 private const val MB = 1024 * 1024
 private const val MAX_DOWNLOAD_BYTES = 256 * MB
+private const val HTTP_NOT_FOUND = 404
 private const val CONNECT_TIMEOUT_MS = 15_000
 private const val READ_TIMEOUT_MS = 60_000
 private val SUCCESS = 200..299

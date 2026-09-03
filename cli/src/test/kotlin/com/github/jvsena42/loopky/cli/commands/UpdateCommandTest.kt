@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.InstallMethod
 import com.github.jvsena42.loopky.cli.Installation
+import com.github.jvsena42.loopky.cli.SupportedHost
 import com.github.jvsena42.loopky.cli.UpdateChecker
 import com.github.jvsena42.loopky.data.nexus.HttpFetcher
 import com.github.jvsena42.loopky.data.nexus.HttpRequest
@@ -13,10 +14,14 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.IOException
+import java.nio.file.AccessDeniedException
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermissions
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -126,6 +131,36 @@ class UpdateCommandTest {
         assertEquals(ExitCode.UpdateUnsupported, error.exitCode)
     }
 
+    /**
+     * The applied path, end to end and without a network — the one that writes over an executable.
+     *
+     * `advice` has to come back **empty**: it is the *next* action, and applying the update is what
+     * makes there be none. Reported unchanged it reads "applied: true, advice: Run `loopky
+     * update`", and an agent treating the field as its next step — which is exactly what the field
+     * invites — runs the whole forced, uncached check again to be told it is current.
+     */
+    @Test
+    fun `a successful update replaces the binary and leaves no next action`() = runTest {
+        val dir = Files.createTempDirectory("loopky-applied")
+        val target = dir.resolve("loopky")
+        Files.writeString(target, "the old binary")
+
+        val result = update(
+            Args.parse(arrayOf("update")),
+            checker("""{"version":"0.9.0","schema":1}"""),
+            Installation(InstallMethod.Binary, target),
+        ) { version ->
+            assertEquals("0.9.0", version, "it downloads the version it reported, not `latest`")
+            "the new binary".toByteArray()
+        }
+
+        assertTrue(field(result, "applied").toBoolean())
+        assertTrue(field(result, "verified").toBoolean())
+        assertEquals("", field(result, "advice"), "there is no next action once it is applied")
+        assertEquals("the new binary", Files.readString(target))
+        assertTrue(Files.isExecutable(target))
+    }
+
     /** `--check` answers on a managed install too — asking is never refused, only doing. */
     @Test
     fun `--check on a managed install answers instead of refusing`() = runTest {
@@ -192,5 +227,95 @@ class ReplaceInPlaceTest {
         } finally {
             Files.setPosixFilePermissions(dir, PosixFilePermissions.fromString("rwxr-xr-x"))
         }
+    }
+}
+
+/**
+ * The verification policy, which is the security-critical half of `loopky update`: this is the one
+ * command that fetches an executable and then runs it as the user.
+ */
+class VerifiedDownloadTest {
+
+    private val checker = UpdateChecker(configHome = Files.createTempDirectory("loopky-verify"))
+    private val binary = "the new binary".toByteArray()
+    private val digest = sha256(binary)
+
+    private suspend fun fetch(get: (String) -> ByteArray) =
+        fetchVerifiedBinary(checker, "0.9.0", SupportedHost.LinuxX64, get)
+
+    @Test
+    fun `a matching digest is accepted, in the format sha256sum publishes`() = runTest {
+        // `sha256sum` writes `<hex>  <filename>`, so the filename has to be dropped.
+        val bytes = fetch { url -> if (url.endsWith(".sha256")) "$digest  loopky\n".toByteArray() else binary }
+        assertContentEquals(binary, bytes)
+    }
+
+    @Test
+    fun `a mismatched digest is refused and nothing is returned`() = runTest {
+        val error = assertFailsWith<CliError> {
+            fetch { url -> if (url.endsWith(".sha256")) "${"0".repeat(64)}  loopky".toByteArray() else binary }
+        }
+        assertEquals(ExitCode.Internal, error.exitCode)
+        assertTrue(error.message.orEmpty().contains("checksum mismatch"))
+    }
+
+    /**
+     * A genuinely absent digest is a malformed release, and refusing is right — `install.sh`
+     * degrades to "digest NOT checked" on a minimal host because its alternative is a plain `curl`
+     * with no check at all; here the alternative is simply not updating.
+     */
+    @Test
+    fun `a 404 on the digest is a malformed release`() = runTest {
+        val error = assertFailsWith<CliError> {
+            fetch { url ->
+                if (url.endsWith(".sha256")) throw CliError(ExitCode.NotFound, "$url does not exist")
+                binary
+            }
+        }
+        assertEquals(ExitCode.Internal, error.exitCode)
+        assertTrue(error.message.orEmpty().contains("no published checksum"))
+    }
+
+    /**
+     * But a 503 or a read timeout from the object store is an ordinary blip. Reported as a missing
+     * checksum it reads as a supply-chain warning and points at a release-integrity investigation,
+     * with exit 1 telling an agent this is an internal bug rather than something worth retrying.
+     */
+    @Test
+    fun `a transport failure on the digest keeps its own diagnosis and exit code`() = runTest {
+        val error = assertFailsWith<CliError> {
+            fetch { url ->
+                if (url.endsWith(".sha256")) throw CliError(ExitCode.Network, "HTTP 503 fetching $url")
+                binary
+            }
+        }
+        assertEquals(ExitCode.Network, error.exitCode)
+        assertTrue(error.message.orEmpty().contains("503"))
+    }
+
+    /**
+     * 11 means one thing — "this install is owned by something else, use that tool". A full disk or
+     * a filesystem with no atomic rename told 11 makes an agent conclude it is on Homebrew and stop
+     * retrying, when the fix is to free space.
+     */
+    @Test
+    fun `only a permission failure is exit 11`() {
+        val target = Path.of("/home/agent/.local/bin/loopky")
+        assertEquals(
+            ExitCode.UpdateUnsupported,
+            replaceFailed(target, AccessDeniedException(target.toString())).exitCode,
+        )
+        assertEquals(
+            ExitCode.UpdateUnsupported,
+            replaceFailed(target, FileSystemException(target.toString(), null, "Read-only file system")).exitCode,
+        )
+        assertEquals(
+            ExitCode.Internal,
+            replaceFailed(target, FileSystemException(target.toString(), null, "No space left on device")).exitCode,
+        )
+        assertEquals(
+            ExitCode.Internal,
+            replaceFailed(target, AtomicMoveNotSupportedException(target.toString(), null, "cross-device")).exitCode,
+        )
     }
 }
