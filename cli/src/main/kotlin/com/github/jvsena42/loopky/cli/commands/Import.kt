@@ -319,9 +319,14 @@ private suspend fun appendMissing(
     onProgress("writing ${cards.size} missing cards")
     var deck = decks.appendCards(deckId, cards).getOrElse { throw asCliError(it) }
     if (metadata != null) {
-        // Metadata last: a failed publish should not have renamed the deck it failed to fill.
+        // Metadata last: a failed append should not have renamed the deck it failed to fill.
         onProgress("updating deck metadata")
-        deck = decks.updateMetadata(metadata.copy(id = deckId, cardCount = deck.cardCount))
+        // `chunks` and `cardCount` are re-read inside `updateMetadata`'s lock, so the stale ones
+        // carried on this snapshot are discarded — but **`updatedAt` is not**, and it is what
+        // `hasUpdate` compares against a follower's last-seen mark. Writing the pre-append value
+        // would rewind the manifest's timestamp below what the append just set, and a follower
+        // who had already seen the deck would never be told the new cards exist.
+        deck = decks.updateMetadata(metadata.copy(updatedAt = deck.updatedAt))
             .getOrElse { throw asCliError(it) }
     }
     return deck

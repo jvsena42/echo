@@ -116,6 +116,35 @@ class DeckRepositoryAppendTest {
         assertTrue(stored.single { it.id == "a" }.ord > stored.filter { it.id != "a" }.maxOf { it.ord })
     }
 
+    /**
+     * `updateMetadata` writes the `updatedAt` it is handed — it re-reads `chunks` and `cardCount`
+     * inside the lock but not the timestamp.
+     *
+     * That is the contract, and it is a trap for the append-then-describe sequence `import
+     * --resume` runs: the metadata snapshot was taken *before* the append, so passing its
+     * timestamp rewinds the manifest below what the append set, and `hasUpdate` compares exactly
+     * that field against a follower's last-seen mark. A follower who had already seen the deck
+     * would never be told the new cards exist.
+     */
+    @Test
+    fun updateMetadataWritesTheTimestampItIsGiven() = runTest {
+        val before = seeded(cards = 2)
+        val appended = repo.appendCards("deck1", listOf(testCard("a"))).getOrThrow()
+        assertTrue(appended.updatedAt >= before.updatedAt)
+
+        // What a caller must *not* do: describe the deck with the snapshot it captured earlier.
+        val rewound = repo.updateMetadata(before.copy(title = "renamed")).getOrThrow()
+        assertEquals(before.updatedAt, rewound.updatedAt)
+
+        // And what it must do instead — carry the post-append timestamp across.
+        val carried = repo.updateMetadata(
+            before.copy(title = "renamed again", updatedAt = appended.updatedAt),
+        ).getOrThrow()
+        assertEquals(appended.updatedAt, carried.updatedAt)
+        // Either way the chunk table survives, because that half *is* re-read inside the lock.
+        assertEquals(appended.cardCount, carried.cardCount)
+    }
+
     @Test
     fun anEmptyBatchIsANoOpRatherThanAManifestWrite() = runTest {
         seeded(cards = 2)
