@@ -1613,6 +1613,7 @@ runs below were **emulated** — see "Not verified" at the foot.
 | Per-row jar tarballs | ✅ `loopky-linux-x86-64.tar` holds only `linux-x86-64/libpubkycore.so`, `loopky-darwin-aarch64.tar` only the dylib; the macOS one runs |
 | Shared suite on the JVM target | ✅ 1,305 tests, 0 failures |
 | `:cli:test`, `detektAll` | ✅ green |
+| The Linux binary on **real x86_64 hardware** | ✅ CI run 33783491387, `cli-binary` on `ubuntu-latest` (`gcc (linux, x86_64, 11.4.0)`, not emulated): one file, 64,817,416 bytes — byte-for-byte the size of the emulated build — `--version`, `whoami` → 3, and `login --url-only` printing a real `pubkyauth://…&secret=…`, i.e. the FFI loaded and its checksums matched on native hardware. This is the run that clears `-march`: a SIGILL from an over-specified target cannot be seen under emulation |
 
 **Start-up, measured rather than quoted.** 20 runs each, warm:
 
@@ -1644,7 +1645,6 @@ is off, and `com.sun.jna.NativeLong` was the single row worth merging in by hand
 
 | Path | Why |
 | --- | --- |
-| The Linux binary on **real x86_64 hardware** | every run above was under emulation on an Apple Silicon host. Nothing in the failure mode this would catch (SIGILL from an over-specified `-march`, which is why `-march=compatibility` is set) can be seen under emulation |
 | `.github/workflows/release.yml` end to end | it fires on a `v*` tag and nothing has been tagged. The Linux job runs the same `docker build` verified here; the macOS job runs the same `:cli:nativeCompile`; the upload steps are unexercised |
 | The **Homebrew** tap | `cli/packaging/loopky.rb` is a template. A tap is its own repository and this branch cannot create one — the file says what to do with it |
 | `install.sh` against a real release | the host matrix and the failure paths were driven; the download, checksum and install path stop at a 404 until something is published |
