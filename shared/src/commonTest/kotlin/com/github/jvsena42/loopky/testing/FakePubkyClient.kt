@@ -353,7 +353,18 @@ class FakePubkyClient : PubkyClient {
         return Result.success("ok")
     }
 
-    override suspend fun revalidateSession(sessionSecret: String): Result<String> = unused()
+    /**
+     * What [revalidateSession] answers. The session payload, exactly as the FFI returns it — which
+     * notably carries **no `homeserver` field**, so a test that hardcodes one here is not testing
+     * the shape the real flow produces.
+     */
+    var revalidateResult: Result<String>? = null
+    val revalidatedSecrets = mutableListOf<String>()
+
+    override suspend fun revalidateSession(sessionSecret: String): Result<String> {
+        revalidatedSecrets += sessionSecret
+        return revalidateResult ?: unused()
+    }
 
     override suspend fun startAuthFlow(capabilities: String): Result<String> {
         authFlowCapabilities.add(capabilities)

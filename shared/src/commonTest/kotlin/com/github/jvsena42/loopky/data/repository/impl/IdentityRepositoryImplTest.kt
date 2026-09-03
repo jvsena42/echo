@@ -132,6 +132,72 @@ class IdentityRepositoryImplTest {
         assertEquals(TEST_PUBKY, store.saved?.identity?.pubky)
     }
 
+    /**
+     * The FFI's session payload carries **no `homeserver` field** — the parser defaults it to `""`
+     * — so a Ring sign-in used to store a session that could not say which network it was on.
+     *
+     * Deliberately driven through `beginSignIn().complete()` with a raw payload rather than a
+     * hand-built `Session`: a fixture that supplies a homeserver tests the fixture. This is the
+     * shape the only flow that mints a session for the headless client actually produces, and the
+     * CLI's environment guard compares against exactly this field (#54).
+     */
+    @Test
+    fun anApprovedSignInResolvesTheHomeserverThePayloadOmits() = runTest {
+        pubky.approvalResult = Result.success(
+            """{"pubky":"$TEST_PUBKY","capabilities":["/pub/loopky/:rw"],"session_secret":"s3cret"}""",
+        )
+        pubky.homeserverLookups[TEST_PUBKY] = Result.success("homeserverpk")
+
+        val signedIn = repo.beginSignIn().getOrThrow().complete().getOrThrow()
+
+        assertEquals("homeserverpk", signedIn.homeserver)
+        assertEquals("homeserverpk", store.saved?.homeserver)
+    }
+
+    /** A DHT that will not answer leaves the blank rather than failing a sign-in that worked. */
+    @Test
+    fun aSignInStillSucceedsWhenTheHomeserverCannotBeResolved() = runTest {
+        pubky.approvalResult = Result.success(
+            """{"pubky":"$TEST_PUBKY","capabilities":["/pub/loopky/:rw"],"session_secret":"s3cret"}""",
+        )
+
+        val signedIn = repo.beginSignIn().getOrThrow().complete().getOrThrow()
+
+        assertEquals("", signedIn.homeserver)
+        assertEquals(TEST_PUBKY, store.saved?.identity?.pubky)
+    }
+
+    // ── an injected session (LOOPKY_SESSION) ─────────────────────────────
+
+    @Test
+    fun adoptingASessionSecretResolvesTheHomeserverToo() = runTest {
+        pubky.revalidateResult = Result.success(
+            """{"pubky":"$TEST_PUBKY","capabilities":["/pub/loopky/:rw"],"session_secret":"injected"}""",
+        )
+        pubky.homeserverLookups[TEST_PUBKY] = Result.success("homeserverpk")
+
+        val adopted = repo.adoptSession("injected").getOrThrow()
+
+        assertEquals("homeserverpk", adopted.homeserver)
+        assertEquals(listOf("injected"), pubky.revalidatedSecrets)
+    }
+
+    /**
+     * An injected session belongs to whoever injected it, for this process only. Persisting it
+     * would leave a container's credential on a machine whose own stored session it stood in for.
+     */
+    @Test
+    fun adoptingASessionDoesNotWriteItToDisk() = runTest {
+        pubky.revalidateResult = Result.success(
+            """{"pubky":"$TEST_PUBKY","capabilities":["/pub/loopky/:rw"],"session_secret":"injected"}""",
+        )
+
+        repo.adoptSession("injected").getOrThrow()
+
+        assertEquals(null, store.saved)
+        assertEquals(TEST_PUBKY, repo.currentSession()?.identity?.pubky)
+    }
+
     // ── the loopky-user self-tag ─────────────────────────────────────────
 
     @Test

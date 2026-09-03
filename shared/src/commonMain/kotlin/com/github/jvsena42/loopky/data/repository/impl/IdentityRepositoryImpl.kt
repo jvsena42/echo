@@ -130,6 +130,10 @@ internal class IdentityRepositoryImpl(
     override suspend fun adoptSession(sessionSecret: String): Result<Session> = runSuspendCatching {
         Log.d(TAG, "adoptSession: revalidating an injected session secret")
         val session = parseSessionPayload(pubky.revalidateSession(sessionSecret).getOrThrow(), loopkyJson)
+            // The same blank the deeplink path had — and it matters more here, because an injected
+            // session is the one shape a container runs on and `--env` is the only thing telling it
+            // which network it is on.
+            .withResolvedHomeserver()
         // Provider only, never the store — see IdentityRepository.adoptSession for why.
         sessionProvider.set(session)
         selfTagAsLoopkyUser(session)
@@ -184,10 +188,41 @@ internal class IdentityRepositoryImpl(
             // Shared with the local-key paths on purpose: everything after "we have a session" is
             // identical, and letting the two drift is how one of them stops self-tagging and
             // quietly falls out of the only global directory Loopky has.
-            persistSession(session).also { Log.d(TAG, "complete: session saved") }
+            persistSession(session.withResolvedHomeserver()).also { Log.d(TAG, "complete: session saved") }
         }.onFailure {
             Log.e(TAG, "complete: FAILED — ${it::class.simpleName}: ${it.message}", it)
         }
+    }
+
+    /**
+     * Fill in the homeserver the session payload does not carry.
+     *
+     * The FFI's session JSON has **no `homeserver` field**, so `parseSessionPayload` defaults it
+     * to `""`. Every other path that mints a session already backfills it — `signInWithKey` from
+     * the pre-flight lookup, `registerHeldKey` from the server it registered against — and the Ring
+     * deeplink path was the one that did not, so a Ring sign-in stored a session with a blank
+     * homeserver.
+     *
+     * That is worse than a cosmetic gap. The CLI refuses to run when a session and the requested
+     * `--env` disagree (#54), and it decides that by comparing the session's homeserver against the
+     * other environment's known default — which a blank value never matches, so the guard passed
+     * every time on exactly the sessions it was written for. Settings rendering "Unknown" was the
+     * visible half; a safety check that silently never fired was the other.
+     *
+     * Best-effort: a DHT lookup that fails leaves the blank in place rather than failing a
+     * sign-in that has otherwise succeeded.
+     */
+    private suspend fun Session.withResolvedHomeserver(): Session {
+        if (homeserver.isNotBlank()) return this
+        val resolved = (lookupHomeserver(identity.pubky) as? HomeserverLookup.Registered)
+            ?.homeserverPubky
+            ?.takeIf { it.isNotBlank() }
+        if (resolved == null) {
+            Log.w(TAG, "complete: session carries no homeserver and the DHT could not supply one")
+            return this
+        }
+        Log.d(TAG, "complete: resolved homeserver for the session")
+        return copy(homeserver = resolved)
     }
 
     // --- Local keys ------------------------------------------------------------
