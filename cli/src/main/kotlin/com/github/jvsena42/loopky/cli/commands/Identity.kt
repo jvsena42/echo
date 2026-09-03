@@ -247,11 +247,26 @@ suspend fun logout(
         // the same confusion between "the hour is up" and "that is not a session secret" that the
         // check exists to prevent.
         requireSessionSecretShape(injected)
+        // Asked, not assumed. "Nothing was stored on this machine" used to be asserted outright,
+        // and it is false in the flow the README itself describes: a secret minted with
+        // `login --export` *is* the stored one, so revoking it left a dead credential installed
+        // here — `whoami` still answered ok with only `session_live: false` to hint at it.
+        val stored = identity.loadPersistedSession()?.takeIf { it.sessionSecret == injected }
         identity.revokeSession(injected).getOrElse { throw asCliError(it, injected = true) }
+        if (stored != null) {
+            // The same credential, so clearing here takes nothing else with it — which is the one
+            // thing routing this through `revokeSession` rather than `signOut` was protecting.
+            identity.signOut(force = true).getOrElse { throw asCliError(it) }
+        }
         return result(
-            LogoutResult(revoked = true, clearedLocally = false),
-            "Revoked the session from LOOPKY_SESSION. Nothing was stored on this machine, so " +
-                "there is nothing here to clear — unset the variable too.",
+            LogoutResult(revoked = true, clearedLocally = stored != null),
+            if (stored != null) {
+                "Revoked the session from LOOPKY_SESSION, and cleared this machine's copy of it — " +
+                    "they were the same session. Unset the variable too."
+            } else {
+                "Revoked the session from LOOPKY_SESSION. This machine has no copy of that " +
+                    "session, so nothing here was cleared — unset the variable too."
+            },
         )
     }
 
