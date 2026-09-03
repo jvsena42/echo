@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.storage.ConfigHome
 import com.github.jvsena42.loopky.di.initKoinJvm
 import com.github.jvsena42.loopky.domain.model.Session
+import com.github.jvsena42.loopky.platform.PassThroughMediaProcessor
 import com.github.jvsena42.loopky.util.Log
 import org.koin.core.Koin
 import org.koin.core.context.stopKoin
@@ -40,9 +41,25 @@ class CliEnvironment(val pubky: PubkyEnvironment, val configHome: Path) {
     }
 }
 
-/** Starts Koin for this invocation and hands back the graph. */
+/**
+ * Starts Koin for this invocation and hands back the graph.
+ *
+ * Every argument is named and none is left to a default, which matters for exactly one of them:
+ * `mediaProcessor`. `JvmMediaProcessor` reaches `javax.imageio` and therefore `java.awt`, and a
+ * reachable AWT is what makes `native-image` ship five JDK `.so`s beside the executable instead of
+ * one file (#210). The CLI never compresses an image — a card's picture here is a URL — so
+ * [PassThroughMediaProcessor] costs nothing and `:cli:checkNativeImageIsOneFile` fails the build
+ * if this ever stops being true.
+ */
 fun startCli(environment: CliEnvironment): Koin {
-    initKoinJvm(pubkyEnvironment = environment.pubky, configHome = environment.configHome)
+    // Before Koin, because Koin is what resolves `PubkyClient` and the SDK reads `RUST_LOG` from
+    // the process environment on its way to the first network call.
+    defaultRustLogToWarn()
+    initKoinJvm(
+        pubkyEnvironment = environment.pubky,
+        mediaProcessor = PassThroughMediaProcessor(),
+        configHome = environment.configHome,
+    )
     return KoinPlatform.getKoin()
 }
 

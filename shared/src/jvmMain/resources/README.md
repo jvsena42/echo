@@ -18,10 +18,16 @@ installing the CLI fetches one by hand, sets `-Djna.library.path`, or runs `ldco
 for the four Android ABIs.
 
 Two hosts are absent on purpose. An **Intel Mac** is not a target, so there is one
-`darwin-aarch64` row rather than two and a `lipo`; a client should refuse it with a clear message
-rather than let the JNA lookup miss and report a transport error. **Windows** is deferred by
-decision, not omission — it would be `win32-x86-64/pubkycore.dll` and nothing in the design blocks
-it.
+`darwin-aarch64` row rather than two and a `lipo`; the CLI refuses it by name in `SupportedHost`,
+*before* the lookup, because a miss here is not merely unclassified — `Native.load` throws
+"…not found in resource path…" and the shared classifier reads those two words as a 404, so the
+machine that can never run the client reports that the deck does not exist. **Windows** is
+deferred by decision, not omission — it would be `win32-x86-64/pubkycore.dll` and nothing in the
+design blocks it.
+
+These files also decide the native binary's glibc floor, which is **2.34** — higher than anything
+`native-image` itself needs. That is why `cli/Dockerfile` builds inside `ubuntu:22.04`: matching
+the library's floor rather than the build runner's.
 
 `UniffiPubkyClientJvmTest` is what proves a row actually loads. The 1,271 shared tests run against
 a fake client and pass identically on a machine where this directory is empty, the architecture is
