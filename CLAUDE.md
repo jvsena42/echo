@@ -32,6 +32,11 @@ A fresh session has none of this in context, so establish it before the first ed
                                         # and the only one that loads the real libpubkycore
 ./gradlew :shared:compileKotlinMetadata # fast commonMain compile check
 ./gradlew :cli:installDist              # build `loopky` -> cli/build/install/loopky/bin/loopky
+./gradlew :cli:nativeCompile            # the shipped artifact: one binary, needs GRAALVM_HOME
+                                        # (GraalVM for JDK 25). native-image does NOT cross-compile;
+                                        # for Linux use:
+                                        #   docker build -f cli/Dockerfile --target export \
+                                        #     --output type=local,dest=cli/build/native/linux-x86-64 .
 ./gradlew detektAll                     # lint Kotlin on all subprojects (detekt + compose rules)
 ./gradlew lintSwift                     # lint iOS Swift (SwiftLint; needs `brew install swiftlint`)
 ```
@@ -129,6 +134,24 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   tag record lives in `/pub/loopky/tags/` (§7.7) — so widening the scope "so tagging works" fixes
   nothing and gives away everything. And `whoami` reports no display name, because that lives in
   `/pub/pubky.app/profile.json`; adding one means widening the scope.
+- **`loopky` ships as a single `native-image` binary, and "single" is a property that has to be
+  enforced rather than assumed.** `native-image` does **not** fail when it cannot fold a JDK native
+  library into the executable — it emits the library *beside* it and reports success. Anything that
+  reaches `javax.imageio` pulls in AWT, and on Linux the output becomes eight files including
+  `libawt_xawt.so`, an X11 library, in a sandbox with no display; `curl … -o ~/.local/bin/loopky`
+  quietly stops being an install with a green build behind it. `:cli:checkNativeImageIsOneFile`
+  fails the build, and CI builds the binary on every PR because nothing else in the suite would
+  notice. It has already caught this twice — the `--qr-out` PNG writer (now a hand-rolled encoder
+  in `TerminalQr`) and the Koin binding for `MediaProcessor` (now `PassThroughMediaProcessor`;
+  `initKoinJvm` takes it as a **required** argument for exactly this reason, since a default would
+  make `JvmMediaProcessor` reachable again). Find the next one with
+  `-H:AbortOnTypeReachable=<type>`. Three more things not to undo: the reachability metadata in
+  `cli/src/main/resources/META-INF/native-image/` is hand-curated from a tracing-agent run against
+  a *real* homeserver and the community metadata repository is deliberately **off** (it was a
+  subset, and it dragged AWT in); `-march=compatibility` is there because the default targets
+  x86-64-v3 and a downloaded binary dies with SIGILL on a host without AVX2; and the Linux build
+  runs inside `ubuntu:22.04` because a native image links against its builder's glibc and
+  `libpubkycore.so`'s floor is 2.34, not the runner's.
 - **A binary has no build type, so the network has to be an explicit input.** The apps pin it
   (debug → staging, release → production, #42); `:cli` reads `--env`/`LOOPKY_ENV` and defaults to
   **production**, one `PubkyEnvironment` value and never a `--nexus-url` beside a

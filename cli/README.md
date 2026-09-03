@@ -8,17 +8,70 @@ phone screen.
 Design decisions and their reasoning live in [`docs/Architecture.md` §13](../docs/Architecture.md).
 This file is how to build and use it.
 
+## Install
+
+One file, no JRE, nothing else on the machine.
+
+```shell
+curl -fsSL https://raw.githubusercontent.com/jvsena42/loopky/main/cli/install.sh | sh
+```
+
+That picks the right build, checks its digest and drops it in `~/.local/bin` — no root anywhere.
+By hand is a supported answer and is one line, because the artifact really is a single binary:
+
+```shell
+curl -fsSL https://github.com/jvsena42/loopky/releases/latest/download/loopky-linux-x86-64 \
+  -o ~/.local/bin/loopky && chmod +x ~/.local/bin/loopky
+```
+
+| | |
+| --- | --- |
+| Linux x86_64 | `loopky-linux-x86-64` · needs glibc 2.34+ (Debian 12, Ubuntu 22.04, RHEL 9 and newer) |
+| macOS, Apple Silicon | `loopky-macos-aarch64` |
+| Container | `docker run --rm -e LOOPKY_SESSION ghcr.io/jvsena42/loopky deck list --json` |
+| Debian/Ubuntu | `loopky_<version>_amd64.deb` on the release page — `dpkg -i`, no `Depends:` |
+| Homebrew | a tap, `cli/packaging/loopky.rb` — see the note in that file |
+
+**An Intel Mac and Windows are not targets**, by decision rather than omission (#54). Both are
+refused with a message that says which, rather than failing at the first homeserver call: there is
+one `darwin-aarch64` row of `libpubkycore` and no `lipo`, and Windows would need a
+`win32-x86-64/pubkycore.dll` that is not built.
+
+There is **no hosted apt repository** and there will not be one. Adding a third-party apt repo is
+four privileged commands and a GPG keyring on a machine that may not have root, where the same
+binary is one `curl` and needs none.
+
 ## Build
 
 ```shell
-./gradlew :cli:installDist          # -> cli/build/install/loopky/bin/loopky
-./gradlew :cli:distTar              # -> cli/build/distributions/loopky.tar
+./gradlew :cli:nativeCompile        # -> cli/build/native/nativeCompile/loopky, the shipped artifact
+./gradlew :cli:installDist          # -> cli/build/install/loopky/bin/loopky, jar + start script
+./gradlew :cli:linuxDistTar         # -> cli/build/distributions/loopky-linux-x86-64.tar
+./gradlew :cli:macosDistTar         # -> cli/build/distributions/loopky-darwin-aarch64.tar
 ./gradlew :cli:test                 # the CLI's own unit tests
 ./gradlew :shared:jvmTest           # the whole shared suite on the jvm() target, plus the
                                     # FFI smoke test that proves libpubkycore actually loads
 ```
 
-Needs a JRE 17 on the target machine — see "Packaging" below, which is the honest gap.
+`nativeCompile` needs a **GraalVM for JDK 25** and takes it from `GRAALVM_HOME` (or `JAVA_HOME`);
+compilation itself still runs on the toolchain's JDK 17. `native-image` does **not** cross-compile,
+so the machine you build on is the machine the binary runs on. For Linux that means a container,
+which is also how CI and the release do it — one recipe, no second one to drift:
+
+```shell
+docker build -f cli/Dockerfile --target export \
+  --output type=local,dest=cli/build/native/linux-x86-64 .
+docker build -f cli/Dockerfile --target runtime -t loopky .
+```
+
+**Ubuntu 22.04 is the base on purpose.** A native image links against the glibc of the machine that
+built it, and the floor is not ours to choose — `libpubkycore.so` already needs 2.34. Building on a
+newer runner produces a binary that will not start on hosts the library is perfectly happy on.
+
+The jar distributions are still built and are still worth having: they need a JRE 17, but they are
+produced for either row from either host, where a binary cannot be. `installDist` carries both
+native rows because cross-row is the point of a developer build; `linuxDistTar` and `macosDistTar`
+carry one each, so a Linux box no longer hauls 11 MB of macOS dylib it can never load.
 
 The native library ships inside the jar under JNA's resource layout, so nothing is installed by
 hand. Rebuild it in the fork with `./build_desktop.sh linux|macos|all` and copy
@@ -85,17 +138,24 @@ no media quota is spent.
 | `LOOPKY_SESSION` | A session secret — a **bearer token**, see the note below. Read **before** the stored session, and the only way in on a sandbox that has no stored one. Mint it with `loopky login --export` on a machine with a human at it, and revoke it with `loopky logout` while it is set. |
 | `LOOPKY_ENV` | `staging` or `production`. `--env` wins. Defaults to production. |
 | `LOOPKY_CONFIG_HOME` | Where state lives. Defaults to `$XDG_CONFIG_HOME/loopky`, then `~/.config/loopky`. |
-| `RUST_LOG` | The pubky SDK's own tracing. The start script defaults it to `warn`; `RUST_LOG=debug` is the first thing to try when a homeserver call fails for no visible reason. |
+| `RUST_LOG` | The pubky SDK's own tracing, defaulted to `warn` — by the start script in the jar distribution and through libc in the binary, which has no start script. `RUST_LOG=debug` is the first thing to try when a homeserver call fails for no visible reason. |
 
 ## Exit codes
 
 | | | | |
 | --- | --- | --- | --- |
-| 0 | ok | 5 | network |
-| 1 | internal | 6 | not found |
-| 2 | usage | 7 | storage full (507 — terminal, never retried) |
-| 3 | not signed in | 8 | environment mismatch |
-| 4 | **session expired** | 9 | bad input |
+| 0 | ok | 6 | not found |
+| 1 | internal | 7 | storage full (507 — terminal, never retried) |
+| 2 | usage | 8 | environment mismatch |
+| 3 | not signed in | 9 | bad input |
+| 4 | **session expired** | 10 | unsupported host |
+| 5 | network | | |
+
+10 is the machine, not the command: there is no `libpubkycore` for this OS/architecture pair, and
+no retry, no re-login and no second attempt can change that. It has a code of its own because
+without the check the answer is not vague but *wrong* — the JNA lookup misses with "…not found in
+resource path…", which the shared classifier reads as **6, not found**, and an agent is told the
+deck it asked for does not exist.
 
 4 has a code of its own because the homeserver session dies after roughly an hour and nothing
 renews it: writes start failing, reads keep working, and from the outside that is
@@ -141,12 +201,33 @@ payload does not carry one.
   aimed at the wrong network *successfully and empty*, so a mismatch would look like a failed write
   rather than a misconfiguration.
 
-## Packaging: what is not done
+## Packaging
 
-What ships is a jar plus a start script needing a JRE 17. For the audience this exists for — a
-cloud sandbox, non-root, ephemeral, configured by a setup script — "install a JDK" is exactly what
-a one-line install cannot be. The remaining work is GraalVM `native-image` (JNA's library
-extraction is the sharp edge), with `jlink` as the fallback, plus a container image. The tarball
-also carries both native rows today, so a Linux box hauls 11 MB of macOS dylib it will never load.
+`loopky` is a **GraalVM `native-image` binary**: one file, no runtime, ~5 ms to answer `--version`
+against the jar's ~50, and nothing installed on the machine it lands on. That last property is the
+one the whole thing is for — the audience is a cloud agent's sandbox, non-root, recreated per task,
+configured by a setup script, and "install a JDK" is exactly what a one-line install cannot be.
+
+Three things about it are worth knowing before changing anything here.
+
+**JNA was the entire difficulty, and it is solved by three files.** `libpubkycore` ships *inside*
+the jar under JNA's resource layout and `Native.load` extracts it at runtime — reflective resource
+loading, which is the one thing a closed-world image must be told about explicitly. The
+registrations live in `src/main/resources/META-INF/native-image/`, with a README of their own
+explaining where they came from and how to regenerate them.
+
+**The binary has to be one file, and that is checked rather than remembered.** `native-image` does
+not fail when it cannot fold a JDK native library into the executable; it emits the library beside
+it and reports success. Anything reaching `javax.imageio` pulls in AWT and adds `libawt.so`,
+`libawt_headless.so` and `libawt_xawt.so` — an X11 library, in a sandbox with no display — and the
+one-line install is quietly dead with a green build behind it. `:cli:checkNativeImageIsOneFile`
+fails the build instead. It has caught this twice already: the QR PNG writer (now ~30 lines of
+chunk-and-CRC in `TerminalQr`) and the Koin binding for `MediaProcessor` (now
+`PassThroughMediaProcessor`, since a card's picture here is a URL and nothing is ever decoded).
+
+**`-march=compatibility`, not the default.** `native-image` targets x86-64-v3 unless told
+otherwise, which needs AVX2; this binary is *downloaded*, onto a sandbox whose CPU nobody chose,
+and a v3 binary on a host without it dies with SIGILL. Irrelevant to a client that spends its life
+waiting on a homeserver.
 
 Windows is out of scope for v1 by decision, not omission.

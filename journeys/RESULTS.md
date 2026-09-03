@@ -1452,10 +1452,13 @@ a compact size class only.
 # CLI (`loopky`)
 
 The headless client has no `journeys/*.xml` and cannot have one: those scripts drive a screen with
-`android-cli`, and this has none. Its equivalent is the CI job — `cli-linux` in
-`.github/workflows/ci.yml` runs the shared suite on the `jvm()` target and asserts the exit-code
-and `--json` contract against the built binary on a headless Linux x86_64 runner, which is the
-environment #54 exists for. What follows is what was checked by hand beyond that.
+`android-cli`, and this has none. Its equivalent is two CI jobs in `.github/workflows/ci.yml`, on
+a headless Linux x86_64 runner, which is the environment #54 exists for: `cli-linux` runs the
+shared suite on the `jvm()` target and asserts the exit-code and `--json` contract against the jar
+distribution, and `cli-binary` builds the shipped `native-image` binary through `cli/Dockerfile`
+and asserts the same contract plus the two things only the binary can get wrong — that it is
+**one file**, and that the FFI loads out of its own resources. What follows is what was checked by
+hand beyond that.
 
 ## #54 — the Linux target and the CLI — 2026-09-02, macOS arm64 (dev machine)
 
@@ -1582,3 +1585,67 @@ the whole surface has been driven:
 `tanenbaum` / `computer-science`, ords ascending, read back identical to what went in. Extracted
 from chapter 1 of Tanenbaum, Feamster & Wetherall 6e and published end to end through `loopky`: no
 phone, no screen, one command. That is the branch's claim, demonstrated rather than argued.
+
+---
+
+## #210 — a binary, not a jar — 2026-09-03, macOS arm64 dev machine + linux/amd64 containers
+
+The one thing #54 called "the primary constraint" and did not deliver: an install that needs no
+JRE on the target machine. What ships now is a GraalVM `native-image` binary. Built with **GraalVM
+CE 25.0.2**; the Linux row built and run inside containers on an Apple Silicon host, so the x86_64
+runs below were **emulated** — see "Not verified" at the foot.
+
+| Verified | Result |
+| --- | --- |
+| macOS aarch64 binary | ✅ `:cli:nativeCompile`, 59.9 MB, **one file** |
+| Linux x86_64 binary | ✅ `docker build -f cli/Dockerfile --target export`, 64.8 MB, **one file** |
+| …and its glibc floor | ✅ `GLIBC_2.34` — the same floor `libpubkycore.so` already had, i.e. building in `ubuntu:22.04` costs nothing and reaches Debian 12 / RHEL 9 |
+| The FFI actually loads out of the binary | ✅ `login --url-only` printed a real `pubkyauth://signin?caps=%2Fpub%2Floopky%2F%3Arw&relay=…&secret=…` on both rows — that call reaches `_UniFFILib.INSTANCE`, so JNA extracted `libpubkycore`, checked the API checksums and registered the event-listener callback |
+| …with **no network at all** | ✅ same URL under `docker run --network none`; the failure that follows is an honest transport error on the relay poll. So the CI assertion is offline-safe |
+| Nexus read over TLS | ✅ `tag trending --limit 3 --json` → `stem, gcse, language`, both rows |
+| …on a base with **no trust store** | ✅ `debian:bookworm-slim` has no `/etc/ssl/certs` at all, and both Nexus and the auth relay were reached unchanged. Both halves carry their own roots — so `ca-certificates` in the image is belt-and-braces, not a requirement, and the Dockerfile now says which |
+| Exit codes on the binary | ✅ 3 `not_signed_in`, 2 unknown command, `"schema":1` and `"environment":"production"` on both |
+| `--qr-out` after dropping `ImageIO` | ✅ 512×512 1-bit PNG from `TerminalQr.toPng`, decodes under `ImageIO` in the test, dark-on-light the right way round, still 0600, still deleted on exit |
+| `RUST_LOG` default without a start script | ✅ unset → silent; `RUST_LOG=debug` → the SDK's tracing back. `RustLog.kt` sets it through libc |
+| Container image | ✅ `--target runtime`, 217 MB, runs as uid 1000, `--version` / `whoami` / `tag trending` all correct |
+| `.deb` | ✅ `cli/packaging/deb.sh` → 16 MB, `dpkg -i` into a clean `bookworm-slim`, `loopky --version` from `/usr/bin` |
+| `install.sh` host matrix | ✅ Intel Mac, Linux arm64 and an unknown host each refused by name with the reason; Linux x86_64 proceeds to the download (404 today — no release yet) |
+| Per-row jar tarballs | ✅ `loopky-linux-x86-64.tar` holds only `linux-x86-64/libpubkycore.so`, `loopky-darwin-aarch64.tar` only the dylib; the macOS one runs |
+| Shared suite on the JVM target | ✅ 1,305 tests, 0 failures |
+| `:cli:test`, `detektAll` | ✅ green |
+
+**Start-up, measured rather than quoted.** 20 runs each, warm:
+
+| | native | jar + start script |
+| --- | --- | --- |
+| `--version` | **5 ms** | 49 ms |
+| `whoami` (no session, starts Koin) | 133 ms | 139 ms |
+
+The second row is the honest one and it is not a disappointment about `native-image`: ~125 ms of
+it is JNA unpacking `libjnidispatch` so `RustLog.kt` can call `setenv`. Any command that reaches
+the homeserver pays that anyway. With `RUST_LOG` already set — the call returns immediately — the
+same command is **8 ms**.
+
+**What the one-file check caught, twice, in one sitting.** `native-image` does not fail when it
+cannot fold a JDK native library into the executable; it emits the library beside it and reports
+success. Both of these built green and produced eight files on Linux:
+
+| Reached AWT via | Fix |
+| --- | --- |
+| `TerminalQr.writePng` → `ImageIO` | a hand-rolled PNG encoder, ~30 lines of chunk-and-CRC. A QR code is two colours and no palette |
+| the Koin binding for `MediaProcessor` → `JvmMediaProcessor` → `ImageIO` | `PassThroughMediaProcessor`, and `initKoinJvm` now takes the processor as a **required** argument so a default cannot make the old one reachable again |
+
+A third source was subtler and is worth recording: enabling the **community reachability-metadata
+repository** — the obvious first move for JNA — pulled `java.awt` in on its own. Its JNA rows turned
+out to be a subset of what the tracing agent had already recorded against a real homeserver, so it
+is off, and `com.sun.jna.NativeLong` was the single row worth merging in by hand.
+
+### Not verified
+
+| Path | Why |
+| --- | --- |
+| The Linux binary on **real x86_64 hardware** | every run above was under emulation on an Apple Silicon host. Nothing in the failure mode this would catch (SIGILL from an over-specified `-march`, which is why `-march=compatibility` is set) can be seen under emulation |
+| `.github/workflows/release.yml` end to end | it fires on a `v*` tag and nothing has been tagged. The Linux job runs the same `docker build` verified here; the macOS job runs the same `:cli:nativeCompile`; the upload steps are unexercised |
+| The **Homebrew** tap | `cli/packaging/loopky.rb` is a template. A tap is its own repository and this branch cannot create one — the file says what to do with it |
+| `install.sh` against a real release | the host matrix and the failure paths were driven; the download, checksum and install path stop at a 404 until something is published |
+| A write against a homeserver **from the binary** | the FFI is proven loaded and the auth URL is real, but approving in Ring needs a phone. `#54`'s hand-run above covers the write path on the jar, and the code is identical |
