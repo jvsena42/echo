@@ -82,17 +82,21 @@ tasks.named<CreateStartScripts>("startScripts") {
  * A native row: the directory JNA looks a library up under, and the files it expects to find
  * there. Mirrors the table in `shared/src/jvmMain/resources/README.md` — the two halves of this
  * build have to agree on that layout or nothing links against anything.
+ *
+ * [distribution] is the Gradle distribution name, which is also the tarball's: `loopky-linux` and
+ * `loopky-macos` are what a person types, not `loopky-linux-x86-64`.
  */
 data class NativeRow(
     val jnaPrefix: String,
+    val distribution: String,
     val pubkyLib: String,
     val jnaLib: String,
     val sqliteDir: String,
 )
 
 val nativeRows = listOf(
-    NativeRow("linux-x86-64", "libpubkycore.so", "libjnidispatch.so", "Linux/x86_64"),
-    NativeRow("darwin-aarch64", "libpubkycore.dylib", "libjnidispatch.jnilib", "Mac/aarch64"),
+    NativeRow("linux-x86-64", "linux", "libpubkycore.so", "libjnidispatch.so", "Linux/x86_64"),
+    NativeRow("darwin-aarch64", "macos", "libpubkycore.dylib", "libjnidispatch.jnilib", "Mac/aarch64"),
 )
 
 /**
@@ -103,8 +107,8 @@ val nativeRows = listOf(
  * binary is built inside a container even on a Linux runner — the glibc it links against is the
  * builder's, and `libpubkycore.so` already needs 2.34.
  *
- * The jar distribution has no such restriction and runs anywhere a JRE 17 does, which is the whole
- * reason it is still worth having.
+ * The *jar* distributions below have no such restriction and are built for both rows from either
+ * host, which is the whole reason they are still worth having.
  */
 val hostNativeRow: NativeRow? = run {
     val os = OperatingSystem.current()
@@ -242,3 +246,62 @@ val checkNativeImageIsOneFile = tasks.register("checkNativeImageIsOneFile") {
 }
 
 tasks.matching { it.name == "nativeCompile" }.configureEach { finalizedBy(checkNativeImageIsOneFile) }
+
+/**
+ * `:shared`'s desktop jar as the generated start script's `CLASSPATH` spells it.
+ *
+ * No version in the name because `:shared` declares none, which is what lets a repacked copy stand
+ * in for it. If a version is ever set, both uses below stop matching — silently, producing a
+ * tarball with two shared jars in it.
+ */
+val sharedJvmJarName = "shared-jvm.jar"
+
+/**
+ * The jar distributions, one per native row rather than one carrying both (#210).
+ *
+ * `distTar` ships `shared-jvm.jar`, and that jar holds **every** row's `libpubkycore` because
+ * shipping the library inside the jar is what means nobody installs one by hand
+ * (`shared/src/jvmMain/resources/README.md`). Fine for the jar; wrong for a tarball, where a Linux
+ * box hauls 11 MB of macOS dylib it can never load. So each distribution gets a repacked copy of
+ * that jar with the other rows dropped — same filename, so the generated start script's
+ * `CLASSPATH` still resolves.
+ *
+ * These are the *portable* artifact, and the reason to keep them: they need a JRE 17, but they are
+ * built for either row from either host, where a binary cannot be. `installDist` is unchanged and
+ * still carries both, because it is the developer's build and cross-row is the point there.
+ */
+nativeRows.forEach { row ->
+    // Locals, not the script-level properties: a lambda that reads one of those captures the
+    // script object itself, which the configuration cache refuses to serialize.
+    val jarName = sharedJvmJarName
+    val foreignRows = nativeRows.filter { it != row }.map { "${it.jnaPrefix}/**" }
+
+    val repacked = tasks.register<Jar>("sharedJar${row.distribution.replaceFirstChar(Char::uppercase)}") {
+        description = "shared-jvm.jar with every native row but ${row.jnaPrefix} removed."
+        // The jar comes out of the runtime classpath rather than by reaching into `:shared`'s
+        // task graph, so this needs the dependency stated: `zipTree(provider)` reads the file, it
+        // does not carry the producer with it.
+        dependsOn(configurations.runtimeClasspath)
+        archiveFileName.set(jarName)
+        destinationDirectory.set(layout.buildDirectory.dir("nativeRows/${row.jnaPrefix}"))
+        from(zipTree(configurations.runtimeClasspath.map { cp -> cp.first { it.name == jarName } }))
+        exclude(foreignRows)
+    }
+
+    distributions.create(row.distribution) {
+        distributionBaseName.set("loopky-${row.jnaPrefix}")
+        contents {
+            into("bin") {
+                from(tasks.named("startScripts"))
+                filePermissions { unix("rwxr-xr-x") }
+            }
+            into("lib") {
+                from(tasks.named("jar"))
+                // Everything except the fat shared jar, which the repacked one replaces under the
+                // same name — the start script's CLASSPATH lists jars by name.
+                from(configurations.runtimeClasspath.map { cp -> cp.filter { it.name != jarName } })
+                from(repacked)
+            }
+        }
+    }
+}
