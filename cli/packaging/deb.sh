@@ -25,16 +25,27 @@ mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/bin" "$STAGE/usr/share/doc/loopky"
 install -m 0755 "$BINARY" "$STAGE/usr/bin/loopky"
 install -m 0644 cli/README.md "$STAGE/usr/share/doc/loopky/README.md"
 
-# No `Depends:` line, and that is the point of the whole exercise — the binary needs no JRE and
-# links only against glibc and libgcc, which nothing on Debian is without. The floor is glibc 2.34
-# (`libpubkycore.so`'s, not ours), which is Debian 12 and Ubuntu 22.04 upward; `dpkg` cannot
-# express that, so it is stated in the description instead of enforced.
+# **No JRE, and the two libraries there really are.** `ldd` on the binary reports `libz.so.1`,
+# `libc.so.6` and the loader, and nothing else — no JVM, no JNI stubs. That is the claim this
+# package exists to make, and stating the two real dependencies does not weaken it.
+#
+# The `libc6 (>= 2.34)` bound is load-bearing rather than tidy. The floor is `libpubkycore.so`'s,
+# not ours, and without the bound `dpkg -i` on an older release **succeeds** — then the binary
+# dies at exec with `/lib/x86_64-linux-gnu/libc.so.6: version 'GLIBC_2.34' not found`, a raw
+# loader error naming no package and no fix. That is the same misdiagnosis `SupportedHost` and
+# exit code 10 exist to prevent, one layer down; with the bound, dpkg refuses up front and says
+# which package is too old.
+#
+# `zlib1g` unversioned on purpose: the binary needs `ZLIB_1.2.2`, which predates every release
+# that could satisfy the libc bound anyway, and pinning it would mean guessing at the epoch
+# Debian carries on that package.
 cat > "$STAGE/DEBIAN/control" <<CONTROL
 Package: loopky
 Version: $VERSION
 Section: utils
 Priority: optional
 Architecture: amd64
+Depends: libc6 (>= 2.34), zlib1g
 Maintainer: Loopky <https://github.com/jvsena42/loopky>
 Homepage: https://github.com/jvsena42/loopky
 Description: Headless Loopky client for creating and managing flashcard decks
@@ -42,8 +53,9 @@ Description: Headless Loopky client for creating and managing flashcard decks
  agent can create and manage decks without a phone screen: every command takes --json,
  and the exit code is the primary result.
  .
- A single self-contained binary. No JRE is required. Needs glibc 2.34 or newer
- (Debian 12, Ubuntu 22.04, RHEL 9 and later).
+ A single self-contained binary. No JRE is required: it links only against libc and
+ zlib. The glibc 2.34 floor is Debian 12, Ubuntu 22.04, RHEL 9 and later, and is
+ enforced by the Depends line rather than left to fail at exec.
 CONTROL
 
 mkdir -p "$OUTDIR"

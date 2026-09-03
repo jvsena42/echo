@@ -33,8 +33,36 @@ env:
   VERSION: ${{ github.event.inputs.version || github.ref_name }}
 
 jobs:
+  check-version:
+    # The tag and `loopkyCliVersion` in gradle.properties have to be the same number, and this is
+    # where that is settled — before anything is built, let alone pushed.
+    #
+    # `--version` is compiled in from that property (`:cli:generateCliVersion`). Without this
+    # check, tagging `v0.2.0` without bumping the property ships a GitHub release, a
+    # `ghcr.io/…/loopky:0.2.0` image and a `loopky_0.2.0_amd64.deb` whose binary answers
+    # `loopky 0.1.0` — and `install.sh` ends by running `--version`, so the wrong number is the
+    # first thing a new user sees.
+    name: The tag and the source agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare
+        run: |
+          set -euo pipefail
+          DECLARED=$(sed -n 's/^loopkyCliVersion=//p' gradle.properties)
+          test -n "$DECLARED" || { echo "loopkyCliVersion is not set in gradle.properties"; exit 1; }
+          if [ "${VERSION#v}" != "$DECLARED" ]; then
+            echo "tag $VERSION does not match loopkyCliVersion=$DECLARED in gradle.properties." >&2
+            echo "Bump the property and tag the commit that does it — the binary's --version" >&2
+            echo "comes from the property, not from the tag." >&2
+            exit 1
+          fi
+          echo "$VERSION matches loopkyCliVersion=$DECLARED"
+
   linux:
     name: Linux x86_64 binary
+    needs: check-version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +90,9 @@ jobs:
           test "$CODE" -eq 3
           echo "$OUT" | grep -q '"code":"not_signed_in"'
           echo "$OUT" | grep -q '"schema":1'
+          # The number in the binary is the number on the release. `check-version` compared the
+          # tag with gradle.properties; this compares the tag with what was actually compiled.
+          dist/loopky --version | grep -qF "loopky ${VERSION#v} "
 
       - name: Name it, and check it
         run: |
@@ -78,6 +109,7 @@ jobs:
 
   macos:
     name: macOS aarch64 binary
+    needs: check-version
     # An arm64 runner, and only an arm64 runner: there is one `darwin-aarch64` row of
     # `libpubkycore` and an Intel build would have nothing to load (#54).
     runs-on: macos-14
@@ -107,6 +139,7 @@ jobs:
           echo "$OUT"
           test "$CODE" -eq 3
           echo "$OUT" | grep -q '"code":"not_signed_in"'
+          "$BIN" --version | grep -qF "loopky ${VERSION#v} "
 
       - name: Name it, and check it
         run: |
