@@ -37,7 +37,11 @@ suspend fun tagTrending(
     tags: TagRepository,
     environment: CliEnvironment,
 ): CommandResult {
-    val limit = args.option("limit")?.toIntOrNull() ?: DEFAULT_TRENDING_LIMIT
+    // Validated rather than defaulted: `--limit twenty` silently becoming 20, or `--limit 0`
+    // passing through, is a silently different N for the one command whose entire output is a
+    // ranked list — the same class of quiet wrongness the envelope's `indexer` field exists to
+    // prevent elsewhere.
+    val limit = args.positiveInt("limit", DEFAULT_TRENDING_LIMIT)
     // `trendingDeckTags` answers with labels in order, not with counts: Nexus ranks them and the
     // ranking is the information. A fabricated count beside each one would read as data.
     val trending = tags.trendingDeckTags(limit = limit).map { TrendingTagView(it.value) }

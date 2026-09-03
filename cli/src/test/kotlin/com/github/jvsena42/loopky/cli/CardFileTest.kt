@@ -117,6 +117,30 @@ class CardFileTest {
         assertEquals(rows, rows.requireBothSides())
     }
 
+    /**
+     * Every app-side constructor of a remote image ref gets its URL from a picker; this is the
+     * first path where an arbitrary string reaches one. Unchecked, a 3-column Anki export
+     * (Front / Back / Example sentence) publishes every card with `url = "una manzana roja"`,
+     * both apps try to load prose as a picture, the column's real content is lost, and `--json`
+     * reports success.
+     */
+    @Test
+    fun `an image column that is not a URL is refused`() {
+        val error = assertFailsWith<CliError> {
+            readCardFile(write(".tsv", "una manzana\ta red apple\tuna manzana roja\n"))
+        }
+        assertEquals(ExitCode.BadInput, error.exitCode)
+        assertTrue(error.message.orEmpty().contains("http(s) URL"), error.message.orEmpty())
+    }
+
+    /** `#` **followed by whitespace**. A card whose front is `#1 ranked` is a card, not a comment. */
+    @Test
+    fun `a hash without a space is a card, not a comment`() {
+        val rows = readCardFile(write(".tsv", "# front\tback\n#1 ranked\tprimeiro\n"))
+        assertEquals(1, rows.size)
+        assertEquals("#1 ranked", rows.single().front)
+    }
+
     @Test
     fun `a missing file is bad input rather than a crash`() {
         val error = assertFailsWith<CliError> { readCardFile("/no/such/file.tsv") }

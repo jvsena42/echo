@@ -82,6 +82,25 @@ class ArgsTest {
         assertEquals("", args.option("back"))
     }
 
+    /**
+     * `toIntOrNull() ?: default` answers a question nobody asked: `--limit twenty` silently
+     * becomes the default, and `--limit -5` passes straight through.
+     */
+    @Test
+    fun `a count option refuses anything that is not a positive whole number`() {
+        assertEquals(20, Args.parse(arrayOf("tag", "trending")).positiveInt("limit", 20))
+        assertEquals(5, Args.parse(arrayOf("tag", "trending", "--limit", "5")).positiveInt("limit", 20))
+        assertFailsWith<CliError> {
+            Args.parse(arrayOf("tag", "trending", "--limit", "twenty")).positiveInt("limit", 20)
+        }
+        assertFailsWith<CliError> {
+            Args.parse(arrayOf("tag", "trending", "--limit", "0")).positiveInt("limit", 20)
+        }
+        assertFailsWith<CliError> {
+            Args.parse(arrayOf("tag", "trending", "--limit", "-5")).positiveInt("limit", 20)
+        }
+    }
+
     @Test
     fun `an absent option reads as absent, not as blank`() {
         val args = Args.parse(arrayOf("card", "edit", "d1", "c1", "--front", "hola"))

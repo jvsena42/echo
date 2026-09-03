@@ -79,10 +79,14 @@ private val cardFileJson = Json { ignoreUnknownKeys = true }
 /**
  * Read [path] — or stdin, when it is `-` — as a batch of cards.
  *
- * Blank lines are skipped and `#` comments are honoured in TSV, so a generated file can carry a
- * header without a phantom first card. A row with nothing on either side is an error rather than a
- * silent skip: a file that produced fewer cards than it has lines is exactly the kind of loss
- * `--json` exists to make visible.
+ * Blank lines are skipped and `# ` comments are honoured in TSV, so a generated file can carry a
+ * header without a phantom first card — `#` **followed by whitespace**, so a card whose front is
+ * `#1 ranked` survives.
+ *
+ * A row with nothing on either side is an error rather than a silent skip, and so is an image
+ * column holding something that is not a URL: a file that produced fewer cards than it has lines,
+ * or a card carrying prose where a picture should be, is exactly the kind of loss `--json` exists
+ * to make visible.
  */
 fun readCardFile(path: String): List<CardFileRow> {
     val text = if (path == "-") {
@@ -119,7 +123,7 @@ private fun parseJsonl(text: String): List<CardFileRow> =
 private fun parseTsv(text: String): List<CardFileRow> =
     text.lineSequence()
         .withIndex()
-        .filter { (_, line) -> line.isNotBlank() && !line.startsWith("#") }
+        .filter { (_, line) -> line.isNotBlank() && !line.isComment() }
         .map { (index, line) ->
             // `split`, not a CSV reader: the separator is a tab, which is the one character a card
             // side reliably does not contain, and quoting rules would only add a way to get it
@@ -128,8 +132,8 @@ private fun parseTsv(text: String): List<CardFileRow> =
             CardFileRow(
                 front = fields.getOrNull(FRONT_COLUMN)?.trim(),
                 back = fields.getOrNull(BACK_COLUMN)?.trim(),
-                frontImageUrl = fields.getOrNull(FRONT_IMAGE_COLUMN)?.trim()?.takeIf { it.isNotEmpty() },
-                backImageUrl = fields.getOrNull(BACK_IMAGE_COLUMN)?.trim()?.takeIf { it.isNotEmpty() },
+                frontImageUrl = fields.imageUrlAt(FRONT_IMAGE_COLUMN, index),
+                backImageUrl = fields.imageUrlAt(BACK_IMAGE_COLUMN, index),
             ).also {
                 if (it.isEmpty) {
                     throw CliError(ExitCode.BadInput, "Line ${index + 1} has neither text nor an image.")
@@ -164,3 +168,50 @@ internal fun List<CardFileRow>.requireBothSides(): List<CardFileRow> = onEachInd
         )
     }
 }
+
+/**
+ * A comment line: `#` followed by whitespace, never a bare `#`.
+ *
+ * The space is load-bearing. `startsWith("#")` alone silently swallows a card whose front is
+ * `#1 ranked`, a markdown heading or a hashtag — and this file's own contract is that a batch
+ * producing fewer cards than it has lines is exactly the loss `--json` exists to make visible.
+ */
+private fun String.isComment(): Boolean =
+    startsWith("#") && (length == 1 || this[1].isWhitespace())
+
+/**
+ * The image column at [column], refused if it is not a URL.
+ *
+ * Every app-side constructor of a remote `MediaRef.Image` gets its URL from a picker; this is the
+ * first path where an arbitrary string reaches one. Without the check, a 3-column Anki export
+ * (Front / Back / Example sentence) publishes every card with
+ * `MediaRef.Image(url = "una manzana roja")`, both apps try to load prose as an image, the third
+ * column's real content is lost, and `--json` reports success.
+ *
+ * An error rather than a fall-through, unlike the import path: the four-column TSV is what this
+ * file *documents*, so a third column that is not a URL is a file that does not match the format
+ * its author asked for.
+ */
+private fun List<String>.imageUrlAt(column: Int, lineIndex: Int): String? {
+    val value = getOrNull(column)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    if (!value.looksLikeImageUrl()) {
+        throw CliError(
+            ExitCode.BadInput,
+            "Line ${lineIndex + 1}, column ${column + 1} is an image column but holds " +
+                "\"${value.take(IMAGE_URL_ERROR_EXCERPT)}\" — it must be an http(s) URL. " +
+                "A two-column file has no image columns at all.",
+        )
+    }
+    return value
+}
+
+/**
+ * Whether a value can be stored as a remote image reference.
+ *
+ * Scheme only, deliberately: this decides "is this a URL or is it prose", not "does this resolve".
+ * Anything stricter would start rejecting addresses that work.
+ */
+internal fun String.looksLikeImageUrl(): Boolean =
+    startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true)
+
+private const val IMAGE_URL_ERROR_EXCERPT = 40

@@ -1370,6 +1370,18 @@ then go through `parseBulkNotes`, which is the same body minus the splitting ste
 point exists because dedupe *renumbers* rows, so a picture cannot be re-attached afterwards by the
 index it was read at.
 
+**Two tests decide whether a file is in that format, and both are needed**: every non-blank line
+has three or more tab fields, *and* every non-empty image column holds an `http(s)` URL. The first
+keeps a stray third column from being read as a format. The second keeps a three-column Anki
+export — Front / Back / Example sentence, a very common shape — from publishing every card with
+`MediaRef.Image(url = "una manzana roja")`, which both apps then try to load as a picture while
+the column's real content is lost and `--json` reports success. Every app-side constructor of a
+remote image ref takes its URL from a picker; this is the first path where an arbitrary string
+reaches one. A file failing either test falls through to the shared parser — the right answer for
+`import`, where the file is text somebody wants imported, and the wrong one for
+`card add --from-file`, where the four-column TSV is what the user explicitly asked for and a
+non-URL is an error.
+
 The columns are there from day one because they close the gap neither bulk path can express: both
 `.apkg` and TSV carry an image only when a field is *nothing but* that image
 (`AnkiField.imageSrc`), so "this side has text **and** a picture" had no representation, and ~190

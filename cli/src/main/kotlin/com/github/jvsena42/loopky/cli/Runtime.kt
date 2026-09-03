@@ -68,6 +68,7 @@ suspend fun requireSession(
     val injected = env("LOOPKY_SESSION")?.trim()?.takeIf { it.isNotEmpty() }
     val session = if (injected != null) {
         Log.d(TAG, "using the session from LOOPKY_SESSION")
+        requireSessionSecretShape(injected)
         identity.adoptSession(injected).getOrElse { throw asCliError(it, injected = true) }
     } else {
         identity.loadPersistedSession()
@@ -79,6 +80,30 @@ suspend fun requireSession(
     checkEnvironmentAgrees(session, environment)
     return session
 }
+
+/**
+ * Refuse a `LOOPKY_SESSION` that is not a session secret at all.
+ *
+ * A session secret is `<pubkey>:<cookie>`. Without this check the FFI rejects the string and the
+ * failure classifies as [ExitCode.SessionExpired] — which is precisely the code the README makes a
+ * point of meaning "the hour is up, mint a new one", and the reason it has a code of its own is so
+ * an agent can tell a dead session from a wobbly network. A typo'd environment variable teaching
+ * it "expired" is that same confusion one layer up.
+ *
+ * Shape only. Whether the secret is *live* is the homeserver's answer, and `adoptSession` asks it.
+ */
+private fun requireSessionSecretShape(secret: String) {
+    val parts = secret.split(':')
+    if (parts.size != SESSION_SECRET_PARTS || parts.any { it.isBlank() }) {
+        throw CliError(
+            ExitCode.BadInput,
+            "LOOPKY_SESSION is not a session secret — it should look like `<pubkey>:<cookie>`. " +
+                "Mint one with `loopky login --export`.",
+        )
+    }
+}
+
+private const val SESSION_SECRET_PARTS = 2
 
 /**
  * Refuse to run when the session and the requested environment disagree.

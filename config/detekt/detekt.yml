@@ -20,6 +20,8 @@ complexity:
     excludes:
       - '**/commonTest/**'
       - '**/androidUnitTest/**'
+      - '**/jvmTest/**'
+      - '**/src/test/kotlin/**'
       - '**/testing/**'
       # Seven injected collaborators, not a parameter-object smell: the widest repository in the
       # app plus an injectable coroutine scope, which exists so a test can await a deletion that
@@ -37,6 +39,12 @@ complexity:
     thresholdInObjects: 15
     thresholdInEnums: 15
     excludes:
+      # A test class's function count is how much behaviour it pins down, not a cohesion problem.
+      # Splitting one to satisfy a threshold makes the suite harder to read for nothing.
+      - '**/commonTest/**'
+      - '**/androidUnitTest/**'
+      - '**/jvmTest/**'
+      - '**/src/test/kotlin/**'
       - '**/data/pubky/PubkyClient.kt'
       - '**/data/pubky/UniffiPubkyClient.kt'
       # Same reason as the two above: a wide interface, and the count is the interface's, not a
@@ -126,6 +134,7 @@ style:
       - '**/data/pubky/Hashing.ios.kt'
       - '**/commonTest/**'
       - '**/androidUnitTest/**'
+      - '**/jvmTest/**'
       - '**/src/test/kotlin/**'
       - '**/testing/**'
   UnusedPrivateMember:

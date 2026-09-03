@@ -244,9 +244,16 @@ private fun readSource(source: String): String = when (source) {
  * point exists because dedupe *renumbers* rows, so a picture cannot be re-attached afterwards by
  * the index it was read at.
  *
- * It engages only when **every** non-blank line has at least three tab-separated fields, which is
- * a statement about the format rather than a guess: one stray third column in a two-column file is
- * a card whose back got split, not a picture.
+ * It engages only when **every** non-blank line has at least three tab-separated fields *and*
+ * every non-empty image column holds an http(s) URL. Both halves are needed. The first keeps one
+ * stray third column in a two-column file from being read as a format; the second keeps a
+ * three-column Anki export — Front / Back / Example sentence, a very common shape — from
+ * publishing every card with `MediaRef.Image(url = "una manzana roja")`, which both apps then try
+ * to load as a picture while the column's real content is lost and `--json` reports success.
+ *
+ * A file that fails either test is ordinary text and falls through to the shared parser, which is
+ * the right answer here — unlike `card add --from-file`, where the four-column TSV is what the
+ * user explicitly asked for and a non-URL is an error.
  *
  * Image columns are worth having from day one because since #167 a card image can be a remote ref
  * — a URL, no bytes on the wire, no media quota spent — and neither `.apkg` nor
@@ -255,9 +262,10 @@ private fun readSource(source: String): String = when (source) {
 private fun imageColumnRows(text: String): List<BulkNote>? {
     val lines = text.lineSequence().filter { it.isNotBlank() }.toList()
     if (lines.isEmpty()) return null
-    if (lines.any { it.split('\t').size < IMAGE_FORMAT_MIN_FIELDS }) return null
-    return lines.map { line ->
-        val fields = line.split('\t')
+    val rows = lines.map { it.split('\t') }
+    if (rows.any { it.size < IMAGE_FORMAT_MIN_FIELDS }) return null
+    if (rows.any { !it.imageColumnsAreUrls() }) return null
+    return rows.map { fields ->
         BulkNote(
             front = fields[FRONT_COLUMN].trim(),
             back = fields[BACK_COLUMN].trim(),
@@ -266,6 +274,12 @@ private fun imageColumnRows(text: String): List<BulkNote>? {
         )
     }
 }
+
+/** An empty image column says nothing either way; a filled one has to look like an address. */
+private fun List<String>.imageColumnsAreUrls(): Boolean =
+    listOf(FRONT_IMAGE_COLUMN, BACK_IMAGE_COLUMN).all { column ->
+        getOrNull(column)?.trim()?.takeIf { it.isNotEmpty() }?.looksLikeImageUrl() ?: true
+    }
 
 private fun List<String>.imageAt(column: Int): DraftCardImage? =
     getOrNull(column)?.trim()?.takeIf { it.isNotEmpty() }?.let { DraftCardImage(url = it) }

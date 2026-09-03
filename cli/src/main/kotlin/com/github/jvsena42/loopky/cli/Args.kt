@@ -47,6 +47,20 @@ class Args private constructor(
 
     fun has(name: String): Boolean = name in switches || name in options
 
+    /**
+     * A count option, or [default] when it was not given.
+     *
+     * Refuses a value that is not a positive integer rather than falling back to the default.
+     * `toIntOrNull() ?: default` turns `--limit twenty` into the default and `--limit -5` into
+     * whatever the caller does with a negative — both of which answer a question nobody asked,
+     * which is the failure mode this surface exists to avoid.
+     */
+    fun positiveInt(name: String, default: Int): Int {
+        val raw = option(name) ?: return default
+        return raw.toIntOrNull()?.takeIf { it > 0 }
+            ?: throw CliError(ExitCode.Usage, "--$name must be a positive whole number, not '$raw'.")
+    }
+
     companion object {
         /** Commands that are a noun plus a verb. Everything else is one word. */
         private val GROUPS = setOf("deck", "card", "tag")

@@ -60,6 +60,13 @@ TSV     front <TAB> back <TAB> front_image_url <TAB> back_image_url    (last two
 JSONL   {"id":"…","front":"…","back":"…","front_image_url":"…","back_image_url":"…"}
 ```
 
+An image column must be an `http(s)` URL — a third column holding prose is refused rather than
+stored as a picture, because a 3-column Anki export (Front / Back / Example sentence) would
+otherwise publish every card with an image ref pointing at a sentence. `loopky import` is more
+forgiving with the same file: it falls through to the text parser instead, since there the third
+column is content somebody wants imported. Blank lines and `# ` comments are skipped in TSV — hash
+**plus whitespace**, so a card whose front is `#1 ranked` survives.
+
 The format is chosen by extension, then by content, never by a flag. JSONL is for the two things
 TSV cannot hold: a side containing a tab or a newline, and — for `card edit` — naming which card to
 change and which fields to leave alone. A field that is absent in an edit row is left unchanged;
