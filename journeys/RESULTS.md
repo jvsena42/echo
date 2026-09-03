@@ -1761,9 +1761,20 @@ run against a live homeserver, because `loopky login` needs a phone scanning a Q
 machine has no session. That is the gap in this round: a first real Anki deck published from a
 terminal is still the next thing to do.
 
-**The native binary is the other gap, and CI is where it closes.** `.apkg` import is the first
-thing in the CLI to touch `org.sqlite`, whose JDBC driver extracts a native library from the
-image's own resources — reflective loading, which is exactly the shape that made JNA the hard part
-of #210. A `native-image` build needs a GraalVM this machine does not have, so `cli-binary` now
-generates the sample archive and runs `--dry-run --json` against the real binary. Nothing else the
-CLI does would have noticed.
+**The native binary was the other gap, and CI closed it** (run 33804571528, all four checks green).
+`.apkg` import is the first thing in the CLI to touch `org.sqlite`, whose JDBC driver extracts a
+native library from the image's own resources — reflective loading, exactly the shape that made JNA
+the hard part of #210. A `native-image` build needs a GraalVM this machine does not have, so
+`cli-binary` generates the sample archive and runs `--dry-run --json` against the real binary. It
+read a real SQLite collection out of a real zip and answered:
+
+```json
+{"format":"apkg","cards":3,"apkg":{"deck_name":"Spanish Sentences","note_count":3,
+ "fields":[{"index":1,"name":"SentenceId","sample":"2528426"},{"index":2,"name":"Spanish","sample":"Hola"},
+ {"index":3,"name":"English","sample":"Hello"}],"mapping":{"front_index":2,"front_name":"Spanish"}}}
+```
+
+`front_index: 2` in the shipped binary is the whole assertion in one number: the driver loaded, the
+collection opened, and the field heuristic skipped the id column. Nothing else the CLI does would
+have exercised any of it, and `checkNativeImageIsOneFile` passed in the same build — so reaching
+SQLite did not drag a JDK native library out beside the executable.
