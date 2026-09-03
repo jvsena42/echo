@@ -214,3 +214,17 @@ jobs:
           # export RUST_LOG, so this is `RustLog.kt` doing it through libc — verified here because
           # the failure is four ANSI-coloured lines on the channel an agent captures.
           test "$(grep -c 'DEBUG\|INFO' qr.log || true)" -eq 0
+
+          # SQLite, which is JNA's problem all over again in a second library (#211). `.apkg`
+          # import opens its collection through the JDBC driver, which extracts a native library
+          # from the image's own resources — reflective loading, the one thing a closed-world
+          # binary has to be told about by hand. Nothing else the CLI does touches `org.sqlite`,
+          # so without this the first Anki import on a user's machine is the first time anyone
+          # finds out. `--dry-run` needs no session and no network, so it cannot flake.
+          python3 cli/tools/make-sample-apkg.py sample.apkg
+          dist/loopky import sample.apkg --dry-run --json | tee apkg.json
+          # Three notes in, three cards out, and the front is field **2** — the deck's first
+          # column is database ids, which is the failure the headless field picker exists for.
+          grep -q '"cards":3' apkg.json
+          grep -q '"front_index":2' apkg.json
+          grep -q '"format":"apkg"' apkg.json

@@ -11,6 +11,7 @@ import com.github.jvsena42.loopky.cli.commands.deckList
 import com.github.jvsena42.loopky.cli.commands.deckShow
 import com.github.jvsena42.loopky.cli.commands.deckSync
 import com.github.jvsena42.loopky.cli.commands.import
+import com.github.jvsena42.loopky.cli.commands.importDryRun
 import com.github.jvsena42.loopky.cli.commands.login
 import com.github.jvsena42.loopky.cli.commands.logout
 import com.github.jvsena42.loopky.cli.commands.tagTrending
@@ -20,6 +21,7 @@ import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
+import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.util.Log
@@ -146,16 +148,25 @@ private suspend fun dispatch(
         "card edit" -> authed(identity, environment) { cardEdit(args, koin.decks(), koin.cards()) }
         "card rm" -> authed(identity, environment) { cardRemove(args, koin.decks()) }
 
-        "import" -> authed(identity, environment) { session ->
-            import(
-                args = args,
-                imports = koin.get<ImportRepository>(),
-                decks = koin.decks(),
-                cards = koin.cards(),
-                session = session,
-                onProgress = progress,
-                onNote = note,
-            )
+        // `--dry-run` deliberately sits outside `authed`: it reads a local file and writes
+        // nothing, so requiring a live session would put a sign-in between an agent and the check
+        // that stops it publishing 9,000 cards of database ids (#96) or spending its whole media
+        // quota on one deck.
+        "import" -> if (args.has("dry-run")) {
+            importDryRun(args, koin.get<ImportRepository>())
+        } else {
+            authed(identity, environment) { session ->
+                import(
+                    args = args,
+                    imports = koin.get<ImportRepository>(),
+                    decks = koin.decks(),
+                    cards = koin.cards(),
+                    media = koin.get<MediaRepository>(),
+                    session = session,
+                    onProgress = progress,
+                    onNote = note,
+                )
+            }
         }
 
         // No session: a Nexus read is plain HTTP against a public index.
@@ -250,12 +261,21 @@ private val USAGE = """
     IMPORT
       import <file|-> --title T [--separator auto|tab|comma|semicolon|pipe|dash|colon|blank|markdown]
                       [--description D] [--tag T]... [--resume]
+      import <deck.apkg> --title T [--front-field N|name] [--back-field N|name]
+                      An Anki export. Same command, same parser spine; the fields are named, so
+                      --front-field/--back-field pick which two become the card. Numbers are
+                      1-based, matching the labels an unnamed field is shown under.
+      import <file> --dry-run [--json]
+                      Report what would be published — for an .apkg, its field names with a
+                      sample of each, the note count, the dropped-note breakdown and what its
+                      pictures would spend. Writes nothing and needs no session.
 
     DISCOVERY
       tag trending [--limit N]  Read the Nexus indexer. No session, no capability.
 
     GLOBAL
       --json                    Machine-readable output on stdout. Stable, versioned schema.
+      --dry-run                 Read and report; write nothing. `import` only.
       --env staging|production  Which network to talk to. Defaults to production.
       --verbose                 Debug logging on stderr.
       --help, --version
@@ -288,4 +308,10 @@ private val USAGE = """
       This client asks Ring for /pub/loopky/:rw and nothing else. It therefore cannot post,
       follow, or edit a profile under any bug or any prompt injection, and there is no announce
       flag to pass.
+
+      An .apkg's pictures are the one thing this tool uploads bytes for, and it uploads them at
+      full resolution — it ships no image codec, where the apps shrink every picture to 1024px
+      JPEG. That is spent against a 1 GB homeserver quota nothing can read back, so `--dry-run`
+      reports the total first. An .apkg's own deck description and note tags are reported and
+      never adopted; pass them back as --description / --tag if they are right.
 """.trimIndent()

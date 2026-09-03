@@ -3,11 +3,14 @@ package com.github.jvsena42.loopky.cli
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.CompactionOutcome
 import com.github.jvsena42.loopky.data.repository.DeckRepository
+import com.github.jvsena42.loopky.data.repository.MediaRepository
+import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.RehostOutcome
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckSource
+import com.github.jvsena42.loopky.domain.model.MediaRef
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 
@@ -22,11 +25,35 @@ import kotlinx.coroutines.flow.SharedFlow
 class FakeDeckRepository(
     private var deck: Deck,
     private val onUpsert: (Card) -> Deck = { deck.copy(cardCount = deck.cardCount + 1) },
+    /**
+     * What `publish` does. A `.apkg` import is the only command that publishes, and the failing
+     * case is as load-bearing as the succeeding one: an aborted publish is what decides whether
+     * the blobs it already uploaded get swept back out.
+     */
+    private val onPublish: (Deck, List<Card>) -> Result<Deck> = { published, cards ->
+        Result.success(published.copy(cardCount = cards.size))
+    },
+    /** Decks `import --resume` matches its `--title` against. */
+    private val owned: List<Deck> = emptyList(),
 ) : DeckRepository {
 
     val upserted = mutableListOf<Card>()
 
+    /** The cards handed to `publish`, so a test can read back what a card ended up referencing. */
+    val published = mutableListOf<Card>()
+
     override suspend fun sync(deckId: String): Result<Deck> = Result.success(deck)
+
+    override suspend fun publish(
+        deck: Deck,
+        cards: List<Card>,
+        onProgress: (PublishProgress) -> Unit,
+    ): Result<Deck> {
+        published += cards
+        return onPublish(deck, cards)
+    }
+
+    override suspend fun listOwned(): List<Deck> = owned
 
     override suspend fun upsertCard(deckId: String, card: Card): Result<Deck> {
         upserted += card
@@ -41,11 +68,6 @@ class FakeDeckRepository(
     override suspend fun getLocal(id: String): Deck? = no("getLocal")
     override suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck> = no("fetchRemote")
     override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> = no("publish")
-    override suspend fun publish(
-        deck: Deck,
-        cards: List<Card>,
-        onProgress: (PublishProgress) -> Unit,
-    ): Result<Deck> = no("publish")
     override suspend fun updateMetadata(deck: Deck): Result<Deck> = no("updateMetadata")
     override suspend fun delete(deckId: String): Result<Unit> = no("delete")
     override suspend fun appendCards(deckId: String, cards: List<Card>): Result<Deck> = no("appendCards")
@@ -58,7 +80,6 @@ class FakeDeckRepository(
     override suspend fun compactDeck(deckId: String, maxMerges: Int): Result<CompactionOutcome> =
         no("compactDeck")
     override suspend fun decksPendingCompaction(): List<Deck> = no("decksPendingCompaction")
-    override suspend fun listOwned(): List<Deck> = no("listOwned")
     override suspend fun listByAuthor(authorPubky: String): List<Deck> = no("listByAuthor")
     override suspend fun followDeck(deck: Deck): Result<Unit> = no("followDeck")
     override suspend fun unfollowDeck(authorPubky: String, deckId: String): Result<Unit> = no("unfollowDeck")
@@ -97,3 +118,39 @@ fun testDeck(id: String = "d1", cardCount: Int = 0) = Deck(
     cardCount = cardCount,
     source = null as DeckSource?,
 )
+
+/**
+ * Blob storage that records rather than writes.
+ *
+ * The one place a fake has to be faithful about *identity*: `putImage` hands back a content
+ * addressed ref, and both the per-run upload memo and `--resume`'s dedupe are built on that being
+ * the same sha for the same bytes.
+ */
+class FakeMediaRepository(private val failAfter: Int = Int.MAX_VALUE) : MediaRepository {
+
+    val puts = mutableListOf<ByteArray>()
+    val deleted = mutableListOf<String>()
+
+    override val pinnedFetches: SharedFlow<PinnedBlob> = MutableSharedFlow()
+
+    override suspend fun putImage(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Image> {
+        if (puts.size >= failAfter) return Result.failure(IllegalStateException("no space left"))
+        puts += bytes
+        val sha = bytes.fold(7) { acc, byte -> acc * 31 + byte }.toString()
+        return Result.success(
+            MediaRef.Image(path = "media/$sha.jpg", mime = mime, sha256 = sha, width = null, height = null),
+        )
+    }
+
+    override suspend fun delete(deckId: String, ref: MediaRef): Result<Unit> {
+        deleted += ref.sha256
+        return Result.success(Unit)
+    }
+
+    private fun no(name: String): Nothing = error("FakeMediaRepository.$name is not part of this test")
+
+    override suspend fun putAudio(deckId: String, bytes: ByteArray, mime: String): Result<MediaRef.Audio> =
+        no("putAudio")
+    override suspend fun get(authorPubky: String, deckId: String, ref: MediaRef): Result<ByteArray> = no("get")
+    override suspend fun rehost(deckId: String, ref: MediaRef): Result<MediaRef> = no("rehost")
+}

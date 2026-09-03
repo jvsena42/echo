@@ -1167,7 +1167,7 @@ emulator, and SRS flush failures that only appear when the network goes away mid
 - **Plugins (actual):** `org.jetbrains.kotlin.multiplatform`, `org.jetbrains.kotlin.jvm` (`:cli` only), `com.android.library`/`com.android.application`, `org.jetbrains.kotlin.plugin.serialization`, the Compose Multiplatform + Compose-compiler plugins (Android-only Compose), `application` (`:cli`), and `io.gitlab.arturbosch.detekt`. Koin is a runtime dependency (no plugin). **No `app.cash.sqldelight` plugin** — SQLDelight is not adopted (§8.1).
 - **iOS framework packaging:** `shared` is consumed as a static framework (`baseName = "Shared"`, `isStatic = true`) per `shared/build.gradle.kts`; an XCFramework / SPM packaging step can come later.
 - **Notable runtime dependencies** beyond the ones §3 lists: Coil 3 (`coil-compose`, `coil-network-okhttp`) for images, `androidx-navigation-compose`, `androidx-core-splashscreen`, `play-services-code-scanner` for the Ring QR scan, `androidx.work:work-runtime-ktx` (§9.6), `com.google.zxing:core` (the tablet sign-in panel and the CLI's terminal QR), `org.xerial:sqlite-jdbc` (the desktop `.apkg` reader only — Android uses platform SQLite), and JNA for the UniFFI bindings. **SKIE is not in the build and is not planned** — the Swift↔Flow bridge is hand-rolled (§9.2).
-- **`:cli` packaging:** `./gradlew :cli:installDist` produces `cli/build/install/loopky/bin/loopky`; `:cli:distTar` produces a tarball. Both need a JRE 17 on the target machine, which is short of the goal — see §13.10.
+- **`:cli` packaging:** `./gradlew :cli:installDist` produces `cli/build/install/loopky/bin/loopky`; `:cli:distTar` produces a tarball. Both need a JRE 17 on the target machine, which is short of the goal — see §13.11.
 - **Lint:** detekt with `detekt-formatting` + `detekt-compose-rules` (`config/detekt/detekt.yml`) via `./gradlew detektAll`; SwiftLint via `./gradlew lintSwift` (`iosApp/.swiftlint.yml`, generated `pubkycore.swift` excluded).
 - **CI** (`.github/workflows/ci.yml`), on PR and push to `main`: `detektAll`, then `:shared:testDebugUnitTest :composeApp:testDebugUnitTest`, then `:composeApp:assembleDebug`. **No iOS job** — there is no test target and no `xcodebuild` step, so iOS breakage is caught only by building locally.
 
@@ -1275,7 +1275,7 @@ always says which network answered.
 | 7 | storage full (507 — terminal, never retried; §8.5) |
 | 8 | environment mismatch |
 | 9 | bad input |
-| 10 | unsupported host (no `libpubkycore` for this OS/arch; §13.10) |
+| 10 | unsupported host (no `libpubkycore` for this OS/arch; §13.11) |
 
 4 is the reason this table is not three rows long. The homeserver session dies after roughly an
 hour and nothing renews it (#165): writes start failing, reads keep working, and from outside it
@@ -1406,7 +1406,76 @@ pictures had to go through the card editor by hand even though the decks importe
 Since #167 an image can be a remote ref — a URL, no bytes on the wire, no media quota — which is
 what makes fixing it cheap.
 
-### 13.9 Login on a machine with no phone in it
+### 13.9 Anki `.apkg`, headlessly
+
+Bulk Anki import is the most CLI-shaped job there is (#46), and it is why a JVM `ApkgReader` actual
+was on the critical path rather than a nice-to-have — the field notes behind #54 are eleven AnkiWeb
+decks imported by driving a phone with `adb`. #208 built the reader; #211 gave it an entry point.
+
+**One verb, not two.** `import` sniffs the operand — extension, then the zip magic `ApkgReader
+.canRead` reads from four bytes, the same order `readCardFile` picks its format in — and routes to
+the shared reader or the paste parser. Both converge on `parseBulkNotes`, which is §13.8's rule
+rather than a coincidence: every import source reuses one spine, and that entry point exists for a
+source that knows its own structure. The extension is the *stronger* test on purpose, so a file
+named `.apkg` that is not a zip fails as an `.apkg` rather than as "nothing importable". `.apkg`
+cannot arrive on stdin at all, because a SQLite driver opens a path.
+
+**The field picker, as a flag and a dry run.** `readNotes(path, mapping = null, …)` calls
+`chooseDefaultFields`, which scores fields on what is in them; the app's answer to disagreeing with
+it is a picker screen. Here it is `--front-field` / `--back-field`, taking a field's name or its
+**1-based** number — 1-based because an unnamed field arrives from `RawCollection.fieldNames`
+labelled "Field 1", and a surface where `Field 1` is `--front-field 0` is a trap. Naming a field
+costs a second pass over the archive, which is the app's design too ("a second pass over an already
+spooled file, not a second pipeline"): field *names* are only knowable by reading the collection,
+so a name cannot be resolved before the first read. That probe pass discards its blobs, so the cost
+is a re-read rather than a second copy of the deck's media in heap.
+
+**`--dry-run` is `--json`-as-verification-channel applied to the import where guessing wrong is
+likeliest.** It reports the field names with a real sample of each, the note count, the chosen
+mapping, the drop breakdown and the image spend, and writes nothing. It deliberately requires **no
+session** — reading a local file is not a homeserver operation, and putting a sign-in between an
+agent and the check that stops it publishing 9,213 cards of database ids (#96) inverts the point.
+It is also where `--title` stops being mandatory, since a preview is frequently what decides it.
+
+**The drop accounting reaches the envelope**, which is most of the value of doing this on a CLI:
+`ApkgDropped`'s `empty` / `halfEmpty` / `missingMedia`, `noteCount`, `imagesImported`,
+`imagesSkipped`, `reversible` and `isLegacyStub` all travel on the result, not only on a dry run.
+#96 exists because those counts were computed from rows that no longer existed.
+
+**This is the one command that uploads bytes, and it uploads them uncompressed.** Everywhere else a
+card's picture is a remote ref (#167) — a URL, no quota. An `.apkg`'s pictures are blobs written
+against the 1 GB allowance §8.5 describes, with no endpoint that reports what is left and a 507
+that is terminal. And the CLI cannot re-encode them: `JvmMediaProcessor` reaches `javax.imageio` and
+therefore AWT, which is what makes `native-image` ship five JDK `.so`s beside the executable
+(§13.11) — so the binding is `PassThroughMediaProcessor` and the `.apkg` path does not reach for it
+at all, taking the reader's `compressImage` parameter directly. A phone sends 1024px JPEG where this
+sends the original. So the byte total is reported before the spend and warned about on stderr in
+both modes, and that is the whole mitigation: there is no "compress it anyway" available.
+
+Three consequences of that upload worth not undoing. Blobs are **memoised per run**, because
+`MediaIndex` hands back one `DraftCardImage` per distinct `src` and a picture on forty cards must
+cost one write. A failed publish of a **new** deck sweeps what it uploaded, since media goes up
+before the manifest exists and orphans it otherwise — but a failed `--resume` **append does not**,
+because blobs are content-addressed per deck and the shas this run wrote are the shas the already
+published cards point at. And `--resume` on an image-heavy `.apkg` re-uploads the archive's blobs:
+`identityOf` distinguishes cards by their image's `sha256`, so deciding whether one is already
+published needs the sha, and the sha needs the upload. Bounded (500 pictures, memoised) and
+quota-neutral (same digest, same path), but not free in wall-clock on an hourly session.
+
+**Anki's deck description and note tags are reported, never adopted.** The description is "Please
+see the shared deck page for more info" on every AnkiWeb deck, and a tag is a **public** record
+Nexus indexes network-wide (§7.7) — neither is something a headless client should write on a deck
+nobody asked it to. `--description` / `--tag` are the channels. A reversed note type *does* set
+`--reverse` by default, because that is a fact about the deck rather than a label on the network.
+
+**The three `ApkgFailure` reasons keep one exit code and three messages.** `BadInput` (9) already
+means "an input file could not be read, or held nothing importable", which is true of a zstd
+`collection.anki21b`, a legacy-stub-only export and a corrupt zip alike; what differs is the advice,
+and that is what `ApkgFailure` exists to carry. Adding codes would have split a category that is
+genuinely one — every one of them is "give me a different file" — while leaving an agent to branch
+on which flavour of unusable it got.
+
+### 13.10 Login on a machine with no phone in it
 
 `beginSignIn(returnToApp = false)`. The mobile flow appends Ring's `x-success`/`x-cancel`/
 `x-error` callbacks so Ring can deeplink back into the app; a CLI must not, because there is no app
@@ -1427,7 +1496,7 @@ retry: recovering means running `loopky login` again, which mints a new secret a
 CLI says that rather than looping, because a retry loop would silently invalidate the code already
 on screen.
 
-### 13.10 Native library and packaging
+### 13.11 Native library and packaging
 
 `libpubkycore` ships **inside the jar**, under JNA's own resource layout
 (`linux-x86-64/libpubkycore.so`, `darwin-aarch64/libpubkycore.dylib`), which `Native.load` extracts
@@ -1504,7 +1573,7 @@ DPAPI session store, a UTF-8 console for the QR) and nothing in the design block
 of the agent workload that motivated this runs there. An **Intel Mac** is out for a different
 reason: there is one `darwin-aarch64` row and no `lipo`, deliberately (#54).
 
-### 13.11 Shape for a second front end
+### 13.12 Shape for a second front end
 
 The chat-only audience — Claude's analysis tool, ChatGPT's code interpreter — has no shell and no
 network egress, so a client needing a homeserver, a relay and DHT resolution cannot function there
@@ -1521,7 +1590,7 @@ implies — or runs on the user's own machine over stdio is open. Finding 1 push
 a different reason: a process that outlives one command is the natural place to renew a session
 before it expires, which a per-invocation CLI can never be.
 
-### 13.12 Still open
+### 13.13 Still open
 
 - **Can Loopky run behind an allowlist proxy at all?** A hard blocker for cloud sandboxes, not a
   polish item. Homegate and Nexus are fixed hosts, but the homeserver is resolved from its pubky

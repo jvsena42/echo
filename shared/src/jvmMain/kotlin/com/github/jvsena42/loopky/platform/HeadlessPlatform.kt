@@ -52,12 +52,19 @@ class NoPasswordManagerPresence : PasswordManagerPresence {
  * `libjavajpeg.so`, `liblcms.so`. Seven files where the install story is one `curl` into
  * `~/.local/bin`, and one of them an X11 library, in a sandbox with no display.
  *
- * Nothing is given up, because nothing in the CLI ever calls this. A card's picture there is a
- * **URL** (#167) — no bytes cross the wire and no media quota is spent — and the two callers that
- * do compress (`BulkImportViewModel`, the `.apkg` reader's `compressImage` parameter) are
- * presentation-layer code a headless client never touches. Pass-through rather than a throw for
- * the reason [JvmMediaProcessor] gives for its own decode failure: a caller that reaches here
- * should upload a picture that is merely larger than intended, not lose it.
+ * Nothing is given up for a card whose picture is a **URL** (#167) — no bytes cross the wire and
+ * no media quota is spent — which is every path but one. The exception is `.apkg` import (#211),
+ * which uploads the archive's blobs, and there this **is** given up: those pictures go to the
+ * homeserver at full resolution where a phone would send 1024px JPEG. The CLI says so rather than
+ * hiding it — `import --dry-run` reports the byte total and a real run warns on stderr — because
+ * the alternative is not "compress them anyway", it is "there is no single-file binary".
+ *
+ * That path does not route through here at all: `ApkgBlobs` in `:cli` takes the reader's
+ * `compressImage` parameter directly. Reaching through the Koin graph for a call that must never
+ * do anything is an invitation to bind something that does, and this binding is the one thing
+ * standing between the build and five `libawt*.so` files. Pass-through rather than a throw for the
+ * reason [JvmMediaProcessor] gives for its own decode failure: a caller that reaches here should
+ * upload a picture that is merely larger than intended, not lose it.
  *
  * The result is byte-for-byte what `JvmMediaProcessor.passThrough` returns, deliberately — two
  * degrade paths that answer differently for the same input are a bug waiting to be found by

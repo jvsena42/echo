@@ -47,9 +47,13 @@ class CliEnvironment(val pubky: PubkyEnvironment, val configHome: Path) {
  * Every argument is named and none is left to a default, which matters for exactly one of them:
  * `mediaProcessor`. `JvmMediaProcessor` reaches `javax.imageio` and therefore `java.awt`, and a
  * reachable AWT is what makes `native-image` ship five JDK `.so`s beside the executable instead of
- * one file (#210). The CLI never compresses an image — a card's picture here is a URL — so
- * [PassThroughMediaProcessor] costs nothing and `:cli:checkNativeImageIsOneFile` fails the build
- * if this ever stops being true.
+ * one file (#210). `:cli:checkNativeImageIsOneFile` fails the build if that ever stops being true.
+ *
+ * The CLI does compress one thing: nothing. A card's picture is a URL everywhere but `.apkg`
+ * import (#211), and that path takes the reader's `compressImage` parameter directly rather than
+ * reaching through this graph — see `ApkgBlobs`, which also records what is given up by not being
+ * able to shrink an Anki blob. [PassThroughMediaProcessor] is what any *other* caller would get,
+ * and it is bound here so that a caller which appears later degrades rather than resurrecting AWT.
  */
 fun startCli(environment: CliEnvironment): Koin {
     // Before Koin, because Koin is what resolves `PubkyClient` and the SDK reads `RUST_LOG` from
