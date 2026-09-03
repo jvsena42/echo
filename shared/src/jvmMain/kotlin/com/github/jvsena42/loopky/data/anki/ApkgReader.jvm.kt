@@ -22,7 +22,7 @@ actual object ApkgReader {
                 // `mode=ro` rather than a plain path: nothing here writes, and a read-write open
                 // of a collection whose journal is missing is how a driver ends up modifying a
                 // file we spooled out of somebody's archive.
-                DriverManager.getConnection("jdbc:sqlite:file:${'$'}{file.absolutePath}?mode=ro")
+                DriverManager.getConnection("jdbc:sqlite:file:${file.absolutePath}?mode=ro")
                     .use { connection -> read(JdbcAnkiDb(connection)) }
         },
     )
