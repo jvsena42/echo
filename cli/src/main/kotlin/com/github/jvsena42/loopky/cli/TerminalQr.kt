@@ -7,6 +7,9 @@ import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import java.awt.image.BufferedImage
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.attribute.PosixFilePermissions
 import javax.imageio.ImageIO
 
 /**
@@ -49,7 +52,19 @@ object TerminalQr {
         return builder.toString()
     }
 
-    /** The same code as a PNG, for a box with no terminal anyone is looking at. */
+    /**
+     * The same code as a PNG, for a box with no terminal anyone is looking at.
+     *
+     * **Created 0600 before a byte is written.** A QR code is an encoding, not a protection: this
+     * file *is* the `pubkyauth://` URL, `secret=` included, and that secret is what the auth
+     * token is encrypted to — anyone who reads it before the user approves in Ring can poll the
+     * relay and take the session instead of the legitimate client. Written at the ambient umask on
+     * a shared host, `--qr-out /tmp/qr.png` publishes a live credential to every uid on the machine
+     * for the length of the approval window.
+     *
+     * Same order as `JsonFileStore.persist` and for the same reason: permissions first, content
+     * second, so the readable window never exists. The caller deletes it once approval lands.
+     */
     fun writePng(text: String, file: File) {
         val matrix = encode(text, PNG_SIZE)
         val image = BufferedImage(matrix.width, matrix.height, BufferedImage.TYPE_INT_RGB)
@@ -58,8 +73,27 @@ object TerminalQr {
                 image.setRGB(x, y, if (matrix.get(x, y)) BLACK else WHITE)
             }
         }
-        file.absoluteFile.parentFile?.mkdirs()
-        ImageIO.write(image, "png", file)
+        val target = file.absoluteFile
+        target.parentFile?.mkdirs()
+        val path = createOwnerOnly(target.toPath())
+        // A stream on the file we just created, **not** `ImageIO.write(…, File)`: that overload
+        // deletes the file and recreates it, which throws away the mode set above and puts the
+        // credential back at the ambient umask. Caught by QrCredentialTest, not by reading the API.
+        Files.newOutputStream(path).use { output -> ImageIO.write(image, "png", output) }
+    }
+
+    /**
+     * An empty file only its owner can read.
+     *
+     * Best-effort on the mode, like the session store: a filesystem with no POSIX permissions
+     * cannot express it, and refusing to write there would cost a capability the host was never
+     * going to give anyway.
+     */
+    private fun createOwnerOnly(path: Path): Path {
+        Files.deleteIfExists(path)
+        return runCatching {
+            Files.createFile(path, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString(FILE_MODE)))
+        }.getOrElse { Files.createFile(path) }
     }
 
     private fun encode(text: String, size: Int): BitMatrix =
@@ -91,6 +125,8 @@ object TerminalQr {
 
     private const val ANSI_BLACK_ON_WHITE = "\u001B[30;47m"
     private const val ANSI_RESET = "\u001B[0m"
+
+    private const val FILE_MODE = "rw-------"
 
     private const val BLACK = 0x000000
     private const val WHITE = 0xFFFFFF

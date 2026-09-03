@@ -82,7 +82,7 @@ no media quota is spent.
 
 | Variable | What it does |
 | --- | --- |
-| `LOOPKY_SESSION` | A session secret. Read **before** the stored session, and the only way in on a sandbox that has no stored one. Mint it with `loopky login --export` on a machine with a human at it. |
+| `LOOPKY_SESSION` | A session secret — a **bearer token**, see the note below. Read **before** the stored session, and the only way in on a sandbox that has no stored one. Mint it with `loopky login --export` on a machine with a human at it, and revoke it with `loopky logout` while it is set. |
 | `LOOPKY_ENV` | `staging` or `production`. `--env` wins. Defaults to production. |
 | `LOOPKY_CONFIG_HOME` | Where state lives. Defaults to `$XDG_CONFIG_HOME/loopky`, then `~/.config/loopky`. |
 | `RUST_LOG` | The pubky SDK's own tracing. The start script defaults it to `warn`; `RUST_LOG=debug` is the first thing to try when a homeserver call fails for no visible reason. |
@@ -124,6 +124,17 @@ payload does not carry one.
   usually absent on the headless box this is built for. A session secret on that machine is
   protected by file permissions and nothing else. What is stored is a capability-scoped, expiring
   session — never a secret key, which never leaves Pubky Ring.
+- **`LOOPKY_SESSION` is the weaker channel of the two**, and worth knowing before you reach for it
+  on a shared host. An environment variable is readable by any same-uid process through
+  `/proc/<pid>/environ`, is inherited by every child the CLI spawns, and lands in shell history
+  when set inline. `LOOPKY_SESSION=… loopky …` as a one-shot prefix keeps it out of unrelated
+  processes' environments but **not** out of `history`. It is still the right tool for an
+  ephemeral sandbox, which has no stored session and no human to scan a code — the point is that
+  it is a bearer token, so `loopky logout` with it set now *revokes* it rather than refusing.
+- **`--qr-out` writes a live credential.** The PNG is the `pubkyauth://` URL, secret included — a
+  QR code is an encoding, not a protection. It is created `0600` and deleted once approval lands,
+  but for the length of the approval window that file is a session anyone who can read it can
+  take.
 - **A session and an `--env` that disagree is a hard error**, not a warning. Nexus answers a query
   aimed at the wrong network *successfully and empty*, so a mismatch would look like a failed write
   rather than a misconfiguration.

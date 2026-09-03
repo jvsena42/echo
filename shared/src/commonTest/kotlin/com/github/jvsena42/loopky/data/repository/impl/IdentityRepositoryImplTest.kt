@@ -167,6 +167,79 @@ class IdentityRepositoryImplTest {
         assertEquals(TEST_PUBKY, store.saved?.identity?.pubky)
     }
 
+    /**
+     * The fix has to reach sessions that are **already stored**, not only new ones.
+     *
+     * Every account signed in through Ring before the backfill — on either app as well as the CLI
+     * — has a blank homeserver on disk. Nothing prompts them to sign in again and `session_live`
+     * reports the session as healthy, so without this the environment guard stays open for exactly
+     * the installs that exist.
+     */
+    @Test
+    fun aStoredSessionWithNoHomeserverIsHealedOnLoad() = runTest {
+        store.saved = fakeSession().copy(homeserver = "")
+        pubky.homeserverLookups[TEST_PUBKY] = Result.success("homeserverpk")
+
+        val loaded = repo.loadPersistedSession()
+
+        assertEquals("homeserverpk", loaded?.homeserver)
+        // Written back, so the DHT is asked once rather than on every load.
+        assertEquals("homeserverpk", store.saved?.homeserver)
+    }
+
+    @Test
+    fun aStoredSessionThatAlreadyKnowsItsHomeserverIsNotLookedUp() = runTest {
+        store.saved = fakeSession()
+
+        repo.loadPersistedSession()
+
+        assertEquals(expected = 0, actual = pubky.homeserverLookupCount)
+    }
+
+    // ── sign-out: the local half and the remote half ─────────────────────
+
+    /**
+     * Clearing locally regardless is right — a user asking to sign out should end up signed out
+     * here whatever the network is doing. Reporting that as an unqualified success while the
+     * bearer token is still live is not.
+     */
+    @Test
+    fun signOutReportsWhetherTheHomeserverConfirmedRevocation() = runTest {
+        store.saved = fakeSession()
+        repo.loadPersistedSession()
+        pubky.signOutResult = Result.failure(PubkyError("HTTP transport error: error sending request"))
+
+        val outcome = repo.signOut(force = true).getOrThrow()
+
+        assertEquals(false, outcome.revokedRemotely)
+        // Local state still goes, which is the half that must not depend on the network.
+        assertEquals(null, store.saved)
+        assertEquals(null, repo.currentSession())
+    }
+
+    @Test
+    fun signOutReportsSuccessWhenTheHomeserverAcceptedIt() = runTest {
+        store.saved = fakeSession()
+        repo.loadPersistedSession()
+
+        assertEquals(true, repo.signOut(force = true).getOrThrow().revokedRemotely)
+    }
+
+    /**
+     * The only revocation an injected session has. It must not touch the store: on a developer's
+     * machine both credentials exist at once, and clearing there would revoke one and wipe the
+     * other.
+     */
+    @Test
+    fun revokingAnInjectedSessionLeavesAStoredOneAlone() = runTest {
+        store.saved = fakeSession()
+
+        repo.revokeSession("injected-secret").getOrThrow()
+
+        assertEquals(listOf("injected-secret"), pubky.signOuts)
+        assertEquals(TEST_PUBKY, store.saved?.identity?.pubky)
+    }
+
     // ── an injected session (LOOPKY_SESSION) ─────────────────────────────
 
     @Test

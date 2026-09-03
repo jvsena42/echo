@@ -348,9 +348,13 @@ class FakePubkyClient : PubkyClient {
         signInFailure?.let { return Result.failure(it) }
         return Result.success(grantSessionJson(fakePubkyFor(secretKey)))
     }
+
+    /** What [signOut] answers. A failure models a revoke the homeserver never confirmed. */
+    var signOutResult: Result<String> = Result.success("ok")
+
     override suspend fun signOut(sessionSecret: String): Result<String> {
         signOuts.add(sessionSecret)
-        return Result.success("ok")
+        return signOutResult
     }
 
     /**

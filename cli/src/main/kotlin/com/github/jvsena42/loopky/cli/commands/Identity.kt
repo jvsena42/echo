@@ -2,13 +2,10 @@ package com.github.jvsena42.loopky.cli.commands
 
 import com.github.jvsena42.loopky.cli.Args
 import com.github.jvsena42.loopky.cli.CliEnvironment
-import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.CommandResult
-import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.TerminalQr
 import com.github.jvsena42.loopky.cli.asCliError
 import com.github.jvsena42.loopky.cli.eventEnvelope
-import com.github.jvsena42.loopky.cli.ok
 import com.github.jvsena42.loopky.cli.requireSession
 import com.github.jvsena42.loopky.cli.result
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
@@ -107,29 +104,54 @@ suspend fun login(
     val handle = identity.beginSignIn(capabilities = CLI_CAPABILITIES, returnToApp = false)
         .getOrElse { throw asCliError(it) }
 
-    args.option("qr-out")?.let { path ->
-        TerminalQr.writePng(handle.authUrl, File(path))
-        stderr("QR code written to $path")
+    val qrFile = args.option("qr-out")?.let { path ->
+        File(path).also {
+            TerminalQr.writePng(handle.authUrl, it)
+            stderr("QR code written to $path (owner-readable only; deleted when this command ends)")
+        }
     }
+    // A `finally` is not enough on its own. `login` blocks on the relay for as long as it takes
+    // somebody to reach for their phone, so the ordinary way it ends is **^C** — which is a signal,
+    // not an exception, and takes the JVM down without unwinding. Without a hook the live
+    // credential simply stays on disk, which is the failure the 0600 mode is only half of.
+    val sweep = qrFile?.let { file -> Thread { file.delete() } }
+    sweep?.let { Runtime.getRuntime().addShutdownHook(it) }
     emitEvent(eventEnvelope("login", "auth_url", buildJsonObject { put("auth_url", handle.authUrl) }))
 
     // The prompt goes to stderr, all of it: stdout carries the result and nothing else, and a
     // half-megabyte of block characters in front of the JSON would make it undecodable. A caller
     // that wants the URL programmatically reads the `auth_url` event on stdout under `--json`.
     //
-    // `--url-only` drops the picture, for a box whose terminal cannot draw one or whose output is
-    // going into a log somebody will read later.
-    if (!args.has("url-only")) {
+    // **The plaintext URL is printed only under `--url-only`**, where it is the deliverable. It
+    // carries the client secret the auth token is encrypted to, so leaking it turns the relay's
+    // encrypted blob back into a usable session — and stderr is precisely the stream an agent
+    // harness captures into a transcript that may be logged, uploaded or pasted into an issue.
+    // A user who scans the code gets no benefit from having it in their scrollback as well.
+    if (args.has("url-only")) {
+        stderr("This URL is a credential until you approve it in Ring — treat it like a password.")
+        stderr(handle.authUrl)
+    } else {
         stderr(TerminalQr.render(handle.authUrl))
+        stderr("Scan this with Pubky Ring. `--url-only` prints the link instead of the code.")
     }
-    stderr("Scan this with Pubky Ring, or open it there:")
-    stderr(handle.authUrl)
     stderr("")
     stderr("Requesting $CLI_CAPABILITIES only — this session cannot post, follow or edit a profile.")
     stderr("Waiting for approval…")
 
-    val session = handle.complete().getOrElse { throw asCliError(it) }
+    val session = try {
+        handle.complete().getOrElse { throw asCliError(it) }
+    } finally {
+        // Whether approval landed or not: the URL in that file is either spent or dead, and
+        // leaving a live one on disk is the point. Best-effort — a file the user cannot delete is
+        // not a reason to fail a sign-in that worked.
+        qrFile?.let { file -> runCatching { file.delete() } }
+        sweep?.let { hook -> runCatching { Runtime.getRuntime().removeShutdownHook(hook) } }
+    }
     val export = args.has("export")
+    if (export) {
+        stderr("")
+        stderr("--export prints a live session secret below. It is also stored under ${environment.configHome}.")
+    }
     return result(
         LoginResult(
             pubky = session.identity.pubky,
@@ -185,27 +207,58 @@ suspend fun whoami(
     )
 }
 
+@Serializable
+data class LogoutResult(
+    /** True when the homeserver confirmed the session is dead, rather than merely forgotten here. */
+    val revoked: Boolean,
+    /** False for a `LOOPKY_SESSION`, which was never written to this machine in the first place. */
+    @SerialName("cleared_locally") val clearedLocally: Boolean,
+)
+
 /**
- * Forget the stored session.
+ * End the session — on the homeserver, and on this machine where there is one.
  *
- * Refuses when the session came from `LOOPKY_SESSION`: there is nothing on disk to clear, and
- * silently succeeding would tell a caller its credential had been revoked when it has not.
+ * The `LOOPKY_SESSION` case used to be refused outright, on the grounds that there is nothing
+ * stored to clear. True, and beside the point: sign-out does **two** things, and only the local
+ * half was missing. The result was that a secret minted with `login --export` and carried into a
+ * sandbox could never be withdrawn from this tool — `logout` refused, unsetting the variable
+ * changed nothing server-side, and the session stayed live until it expired on its own. For a
+ * credential whose whole story is "hand this to an ephemeral agent box", revocation is the wrong
+ * end to be missing.
+ *
+ * So an injected session is *revoked* rather than cleared, and the result says which happened. It
+ * goes through `revokeSession` rather than `signOut` for a reason worth keeping: on a developer's
+ * machine both credentials can exist at once, and `signOut` would revoke the injected one while
+ * wiping the stored one.
  */
 suspend fun logout(
     identity: IdentityRepository,
     env: (String) -> String? = System::getenv,
 ): CommandResult {
-    if (!env("LOOPKY_SESSION").isNullOrBlank()) {
-        throw CliError(
-            ExitCode.Usage,
-            "This session comes from LOOPKY_SESSION, so there is nothing stored to clear. " +
-                "Unset the variable instead.",
+    val injected = env("LOOPKY_SESSION")?.trim()?.takeIf { it.isNotEmpty() }
+    if (injected != null) {
+        identity.revokeSession(injected).getOrElse { throw asCliError(it, injected = true) }
+        return result(
+            LogoutResult(revoked = true, clearedLocally = false),
+            "Revoked the session from LOOPKY_SESSION. Nothing was stored on this machine, so " +
+                "there is nothing here to clear — unset the variable too.",
         )
     }
+
     identity.loadPersistedSession()
     // force = true: the sign-out guard exists to stop a phone destroying the only copy of a
     // locally-minted key. This client never mints one — it holds a Ring-issued session and
     // nothing else — so there is no key here for the guard to protect.
-    identity.signOut(force = true).getOrElse { throw asCliError(it) }
-    return ok("Signed out.")
+    val outcome = identity.signOut(force = true).getOrElse { throw asCliError(it) }
+    return result(
+        LogoutResult(revoked = outcome.revokedRemotely, clearedLocally = true),
+        if (outcome.revokedRemotely) {
+            "Signed out."
+        } else {
+            // Said plainly rather than folded into a success: the token is still live, and a user
+            // told "signed out" would reasonably believe otherwise.
+            "Cleared this machine's session, but the homeserver did not confirm it was revoked — " +
+                "the session may still be usable until it expires. Try again when you are online."
+        },
+    )
 }

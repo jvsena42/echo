@@ -1305,6 +1305,22 @@ proves it is still live in the same round trip. An injected session is deliberat
 persisted**: it is the caller's, for this process, and writing it to `$XDG_CONFIG_HOME` would
 leave a container's credential behind on the machine whose own session it was standing in for.
 
+**The two channels are not equally exposed, and the weaker one is the one the docs recommend.** An
+environment variable is readable by any same-uid process through `/proc/<pid>/environ`, is
+inherited by every child the CLI spawns, and lands in shell history when set inline — where the
+file is 0600 and nothing else can open it. That is still the right trade for an ephemeral sandbox,
+which has neither a stored session nor a human to scan a code; what it means is that an injected
+secret needs a way to be *withdrawn*, which is `IdentityRepository.revokeSession` and `logout`
+with the variable set. Without it, a secret carried into a sandbox could not be revoked from this
+tool at all and stayed live until it expired.
+
+The same reasoning covers `--qr-out`: that PNG **is** the `pubkyauth://` URL, secret included, and
+a QR code is an encoding rather than a protection. It is created 0600 before a byte is written and
+deleted once approval lands, but for the length of the approval window it is a session anyone who
+can read the file can take instead of the legitimate client. For the same reason the plaintext auth
+URL is printed only under `--url-only`, where it is the deliverable — stderr is what an agent
+harness captures into a transcript.
+
 On disk it is a **mode-0600 file, as the default rather than the fallback**. libsecret is usually
 present on a desktop Linux and usually absent on the headless box an agent runs on, so making a
 keyring the default and the file the fallback would fail exactly where the tool is meant to work.

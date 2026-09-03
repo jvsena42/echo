@@ -50,7 +50,21 @@ interface IdentityRepository {
      * The guard lives here rather than only in the dialog so no future caller can sign out
      * silently and take an un-backed-up account with it.
      */
-    suspend fun signOut(force: Boolean = false): Result<Unit>
+    suspend fun signOut(force: Boolean = false): Result<SignOutOutcome>
+
+    /**
+     * End a session held by its secret alone, without touching anything stored on this machine.
+     *
+     * The counterpart of [adoptSession], and the only revocation a `LOOPKY_SESSION` has (#54). An
+     * injected session is never written to disk, so [signOut] is the wrong tool for it twice over:
+     * there is nothing local to clear, and on a machine that *also* has a stored session it would
+     * clear the wrong one.
+     *
+     * A credential the docs tell you to copy into an ephemeral sandbox needs a way to be withdrawn
+     * before its hour is up; without this there is none, and a leaked secret stays live until it
+     * expires on its own.
+     */
+    suspend fun revokeSession(sessionSecret: String): Result<Unit>
 
     /**
      * Who holds the key for the account we are signed in as, and whether it has been backed up.
@@ -278,6 +292,19 @@ interface IdentityRepository {
  * secret, so nothing here logs and nothing returns key material that is not immediately destined
  * for a `FLAG_SECURE` screen or the platform's own share/save sheet.
  */
+/**
+ * What a sign-out actually managed to do.
+ *
+ * The local half always happens — a user who asks to sign out ends up signed out on this machine,
+ * whatever the network is doing. The **remote** half is a homeserver call that can fail, and
+ * reporting an unqualified success when the bearer token is still live tells the user the opposite
+ * of the truth. Callers that only care about the local half can keep ignoring this.
+ */
+data class SignOutOutcome(
+    /** True when the homeserver confirmed the session is dead. */
+    val revokedRemotely: Boolean,
+)
+
 interface KeyBackupRepository {
 
     /** Who holds the key and what has been done about it. Carries no secret. */

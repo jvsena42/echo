@@ -17,6 +17,7 @@ import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.RehostOutcome
 import com.github.jvsena42.loopky.data.repository.SettingsOrigin
 import com.github.jvsena42.loopky.data.repository.SettingsRepository
+import com.github.jvsena42.loopky.data.repository.SignOutOutcome
 import com.github.jvsena42.loopky.data.repository.SignupAvailability
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
@@ -142,12 +143,24 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
     var signOutRefusal: Throwable? = null
     val forcedSignOuts = mutableListOf<Boolean>()
 
-    override suspend fun signOut(force: Boolean): Result<Unit> {
+    /** Whether the homeserver confirms revocation. False models a revoke that could not be made. */
+    var revokesRemotely = true
+
+    /** Secrets handed to [revokeSession], and what it should answer with. */
+    val revokedSecrets = mutableListOf<String>()
+    var revokeSessionResult: Result<Unit> = Result.success(Unit)
+
+    override suspend fun signOut(force: Boolean): Result<SignOutOutcome> {
         forcedSignOuts.add(force)
         signOutRefusal?.takeIf { !force }?.let { return Result.failure(it) }
         signOutCount++
         session = null
-        return Result.success(Unit)
+        return Result.success(SignOutOutcome(revokedRemotely = revokesRemotely))
+    }
+
+    override suspend fun revokeSession(sessionSecret: String): Result<Unit> {
+        revokedSecrets += sessionSecret
+        return revokeSessionResult
     }
 
     /** Records what [createLocalAccount] was asked for, and how many keys were minted. */
