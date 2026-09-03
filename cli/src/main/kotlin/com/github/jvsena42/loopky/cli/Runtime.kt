@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.storage.ConfigHome
 import com.github.jvsena42.loopky.di.initKoinJvm
 import com.github.jvsena42.loopky.domain.model.Session
+import com.github.jvsena42.loopky.platform.PassThroughMediaProcessor
 import com.github.jvsena42.loopky.util.Log
 import org.koin.core.Koin
 import org.koin.core.context.stopKoin
@@ -40,9 +41,22 @@ class CliEnvironment(val pubky: PubkyEnvironment, val configHome: Path) {
     }
 }
 
-/** Starts Koin for this invocation and hands back the graph. */
+/**
+ * Starts Koin for this invocation and hands back the graph.
+ *
+ * Every argument is named and none is left to a default, which matters for exactly one of them:
+ * `mediaProcessor`. `JvmMediaProcessor` reaches `javax.imageio` and therefore `java.awt`, which a
+ * headless client has no use for and which a future `native-image` build cannot fold into a single
+ * executable on Linux (#210). So
+ * [PassThroughMediaProcessor] costs nothing, and the CLI never compresses an image anyway — a
+ * card's picture here is a URL.
+ */
 fun startCli(environment: CliEnvironment): Koin {
-    initKoinJvm(pubkyEnvironment = environment.pubky, configHome = environment.configHome)
+    initKoinJvm(
+        pubkyEnvironment = environment.pubky,
+        mediaProcessor = PassThroughMediaProcessor(),
+        configHome = environment.configHome,
+    )
     return KoinPlatform.getKoin()
 }
 
