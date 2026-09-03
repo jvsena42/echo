@@ -79,6 +79,13 @@ suspend fun import(
     cards: CardRepository,
     session: Session,
     onProgress: (String) -> Unit,
+    /**
+     * Something the caller needs to know rather than a counter — reaches stderr even under
+     * `--json`. The one note today is that `--resume` matched no deck, and the titles it lists are
+     * what turns "no match" into "you meant *this* one"; suppressing it under `--json` withheld
+     * that exactly where a typo does its damage.
+     */
+    onNote: (String) -> Unit,
 ): CommandResult {
     val source = args.word(1) ?: throw CliError(ExitCode.Usage, "Missing <file>, or - for stdin.")
     val title = args.requireOption("title").trim()
@@ -86,7 +93,7 @@ suspend fun import(
 
     val parsed = parseSource(args, imports, source, title)
     val draft = parsed.draft
-    val resume = resumeState(args, decks, cards, title, onProgress)
+    val resume = resumeState(args, decks, cards, title, onNote)
     // Minted once and threaded down: every card carries its deck's id, so deriving it twice is how
     // a resumed run ends up writing cards addressed to a deck that does not exist.
     val deckId = resume.deck?.id ?: generateId()

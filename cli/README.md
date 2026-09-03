@@ -112,8 +112,10 @@ payload does not carry one.
   because this client never requests the capability a post would need. `login` is the only command
   that blocks on a human, and `--qr-out` / `--url-only` exist for a box with no terminal anyone is
   watching.
-- **stdout is the machine channel.** Results and failures both go there as `--json`; progress, the
-  QR code, prompts and every log line go to stderr.
+- **stdout is the machine channel.** Results and failures both go there as `--json`; the QR code,
+  prompts, progress and every log line go to stderr. `--json` silences **progress counters** on
+  stderr, because the result carries the same numbers — it does not silence stderr. Warnings still
+  arrive there, so capturing stderr for diagnostics is worth doing in either mode.
 - **`card add` is idempotent** by front/back-plus-image, and reports what it skipped. `import
   --resume` checkpoints against the deck on the homeserver rather than a local cursor, matched on
   `--title` — which is why `--title` is mandatory and never derived from a filename.

@@ -114,7 +114,16 @@ private suspend fun dispatch(
     koin: Koin,
     environment: CliEnvironment,
 ): CommandResult {
+    // Two sinks, because they are two different things and collapsing them silenced a warning in
+    // the mode an agent runs.
+    //
+    // `progress` is a counter — thousands of lines on a large import, and noise in a scripted run,
+    // so it is suppressed under `--json` where the result carries the same numbers.
+    // `note` is something the caller needs to *know*, and goes to stderr always. The README's model
+    // is that stdout and stderr are separate channels, not one that switches off: an agent
+    // capturing stderr for diagnostics must not get an empty file because it asked for JSON.
     val progress: (String) -> Unit = { line -> if (!args.has("json")) System.err.println(line) }
+    val note: (String) -> Unit = System.err::println
     return when (val verb = args.verb) {
         "login" -> login(args, identity, environment, { line -> emitEvent(args, line) }, System.err::println)
         "logout" -> logout(identity)
@@ -135,7 +144,15 @@ private suspend fun dispatch(
         "card rm" -> authed(identity, environment) { cardRemove(args, koin.decks()) }
 
         "import" -> authed(identity, environment) { session ->
-            import(args, koin.get<ImportRepository>(), koin.decks(), koin.cards(), session, progress)
+            import(
+                args = args,
+                imports = koin.get<ImportRepository>(),
+                decks = koin.decks(),
+                cards = koin.cards(),
+                session = session,
+                onProgress = progress,
+                onNote = note,
+            )
         }
 
         // No session: a Nexus read is plain HTTP against a public index.
