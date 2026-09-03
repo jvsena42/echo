@@ -8,7 +8,8 @@ package com.github.jvsena42.loopky.data.pubky
  * Higher-level domain operations (e.g. "publish a deck") compose these primitives inside
  * the repositories layer — do not add deck/card concepts here.
  *
- * - Android actual: [com.github.jvsena42.loopky.data.pubky.AndroidPubkyClient] (JNA + UniFFI).
+ * - JVM actual (Android and the desktop `jvm()` target the CLI runs on):
+ *   [com.github.jvsena42.loopky.data.pubky.UniffiPubkyClient] (JNA + UniFFI).
  * - iOS actual: implemented in Swift in `iosApp/iosApp/Pubky/IosPubkyClient.swift`,
  *   injected into the shared layer at app start.
  */

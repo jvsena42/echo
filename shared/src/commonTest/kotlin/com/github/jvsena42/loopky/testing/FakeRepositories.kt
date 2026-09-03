@@ -17,6 +17,7 @@ import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.RehostOutcome
 import com.github.jvsena42.loopky.data.repository.SettingsOrigin
 import com.github.jvsena42.loopky.data.repository.SettingsRepository
+import com.github.jvsena42.loopky.data.repository.SignOutOutcome
 import com.github.jvsena42.loopky.data.repository.SignupAvailability
 import com.github.jvsena42.loopky.data.repository.SignupRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
@@ -142,12 +143,27 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
     var signOutRefusal: Throwable? = null
     val forcedSignOuts = mutableListOf<Boolean>()
 
-    override suspend fun signOut(force: Boolean): Result<Unit> {
+    /** Whether the homeserver confirms revocation. False models a revoke that could not be made. */
+    var revokesRemotely = true
+
+    /** Secrets handed to [revokeSession], and what it should answer with. */
+    val revokedSecrets = mutableListOf<String>()
+    var revokeSessionResult: Result<Unit> = Result.success(Unit)
+
+    override suspend fun signOut(force: Boolean): Result<SignOutOutcome> {
         forcedSignOuts.add(force)
         signOutRefusal?.takeIf { !force }?.let { return Result.failure(it) }
         signOutCount++
+        val had = session != null
         session = null
-        return Result.success(Unit)
+        return Result.success(
+            SignOutOutcome(revokedRemotely = revokesRemotely && had, hadSession = had),
+        )
+    }
+
+    override suspend fun revokeSession(sessionSecret: String): Result<Unit> {
+        revokedSecrets += sessionSecret
+        return revokeSessionResult
     }
 
     /** Records what [createLocalAccount] was asked for, and how many keys were minted. */
@@ -212,8 +228,16 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
         return deleteAccountResult
     }
 
-    override suspend fun beginSignIn(capabilities: String): Result<AuthFlowHandle> {
+    /** What the last [beginSignIn] asked for, so a caller can be shown to have suppressed them. */
+    var lastBeginSignInReturnToApp: Boolean? = null
+        private set
+
+    override suspend fun beginSignIn(
+        capabilities: String,
+        returnToApp: Boolean,
+    ): Result<AuthFlowHandle> {
         beginSignInCount++
+        lastBeginSignInReturnToApp = returnToApp
         beginSignInError?.let { return Result.failure(it) }
         return Result.success(
             object : AuthFlowHandle {
@@ -224,6 +248,17 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
                 }
             },
         )
+    }
+
+    /** Secrets handed to [adoptSession], and what it should answer with. */
+    val adoptedSecrets = mutableListOf<String>()
+    var adoptSessionResult: Result<Session>? = null
+
+    override suspend fun adoptSession(sessionSecret: String): Result<Session> {
+        adoptedSecrets += sessionSecret
+        val result = adoptSessionResult ?: completionResult
+        result.onSuccess { session = it }
+        return result
     }
 
     /** Records what [beginSignUp] was asked for, so a retry can be shown to reuse the token. */
@@ -371,6 +406,20 @@ class FakeDeckRepository : DeckRepository {
         upsertedCards.add(deckId to card)
         val deck = decks[deckId] ?: return Result.failure(IllegalStateException("deck $deckId not found"))
         val updated = deck.copy(cardCount = deck.cardCount + 1)
+        decks[deckId] = updated
+        _changes.tryEmit(Unit)
+        return Result.success(updated)
+    }
+
+    /** Batches handed to [appendCards], so a caller can be shown to send one rather than a loop. */
+    val appendedBatches = mutableListOf<Pair<String, List<Card>>>()
+    var appendCardsError: Throwable? = null
+
+    override suspend fun appendCards(deckId: String, cards: List<Card>): Result<Deck> {
+        appendCardsError?.let { return Result.failure(it) }
+        appendedBatches.add(deckId to cards)
+        val deck = decks[deckId] ?: return Result.failure(IllegalStateException("deck $deckId not found"))
+        val updated = deck.copy(cardCount = deck.cardCount + cards.size)
         decks[deckId] = updated
         _changes.tryEmit(Unit)
         return Result.success(updated)

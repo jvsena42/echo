@@ -1,6 +1,6 @@
 # Journey results
 
-Android runs first, then an iOS section at the foot of the file.
+Android runs first, then an iOS section, then the CLI at the foot of the file.
 
 ## Android
 
@@ -1446,3 +1446,139 @@ four endpoints and cannot be talked into staging (#42).
 
 **Not verified:** the iPad. The change is DI wiring with no layout in it, and Discover was read on
 a compact size class only.
+
+---
+
+# CLI (`loopky`)
+
+The headless client has no `journeys/*.xml` and cannot have one: those scripts drive a screen with
+`android-cli`, and this has none. Its equivalent is the CI job — `cli-linux` in
+`.github/workflows/ci.yml` runs the shared suite on the `jvm()` target and asserts the exit-code
+and `--json` contract against the built binary on a headless Linux x86_64 runner, which is the
+environment #54 exists for. What follows is what was checked by hand beyond that.
+
+## #54 — the Linux target and the CLI — 2026-09-02, macOS arm64 (dev machine)
+
+Run against the **live production and staging networks** with
+`cli/build/install/loopky/bin/loopky`, `LOOPKY_CONFIG_HOME` pointed at a scratch directory.
+
+| Verified | Result |
+| --- | --- |
+| `libpubkycore` loads from the jar through JNA | ✅ `UniffiPubkyClientJvmTest` — mnemonic generated, keypair derived twice to the same pubky, an invalid phrase answered `false` |
+| Whole shared suite on the desktop target | ✅ 1,271 tests, 0 failures (`:shared:jvmTest`) |
+| `login` mints a real auth URL | ✅ `pubkyauth://signin?caps=%2Fpub%2Floopky%2F%3Arw&relay=https%3A%2F%2Fhttprelay.pubky.app%2Finbox&secret=…` |
+| …with **no Ring return-callbacks** | ✅ no `x-success`/`x-cancel`/`x-error`/`x-source` in the URL — there is no app to return to |
+| …and the capability is loopky-only | ✅ `caps=/pub/loopky/:rw`, not `DEFAULT_CAPABILITIES` |
+| Relay poll starts and blocks | ✅ `Starting auth flow polling for relay channel https://httprelay.pubky.app/inbox/…` |
+| Terminal QR renders | ✅ half-blocks, black-on-white, scannable in a dark-themed terminal |
+| `--qr-out` | ✅ 512×512 PNG written |
+| `--url-only` | ✅ prints the bare URL and no picture |
+| Nexus read, production | ✅ `tag trending --limit 8 --json` → `stem, gcse, language, portuguese, 🇧🇷, english, biology, geografia` |
+| Nexus read, staging | ✅ `--env staging` → a *different* list (`language, stem, gcse, bosnian, english`), i.e. the environment really does route the indexer |
+| Exit code: no session | ✅ 3, `"code":"not_signed_in"` |
+| Exit code: unknown command | ✅ 2, one-line message (not the whole usage block) |
+| Exit code: dead `LOOPKY_SESSION` | ✅ 4, with the right advice — "mint a new one with `loopky login --export`", not "run `loopky login`" |
+| `--json` failures land on **stdout** | ✅ a caller parsing one stream sees the errors too |
+| stdout stays clean | ✅ QR, prompts, progress and every log line on stderr; `RUST_LOG` defaulted to `warn` by the start script, so the SDK's four INFO lines no longer precede a login |
+| `--version` | ✅ `loopky 0.1.0 (schema 1)` |
+| Unit tests | ✅ 41 (`:cli:test`) — arg parsing, the card-file formats incl. accented round-trip, the JSON envelope, the exit-code mapping, the environment-mismatch guard |
+| `detektAll` | ✅ green |
+| Android and iOS unaffected by the source-set move | ✅ `:composeApp:assembleDebug` and `:shared:compileKotlinIosArm64` both build |
+
+**Two bugs the hand-run caught that a green build did not.** `--version` printed the usage block,
+because the "you gave me nothing" branch fires on a command line with no positional words. And
+`import cards.tsv` dispatched under the verb `"import cards.tsv"` — the verb was "the first two
+words", which is right for `deck create` and wrong the moment a command takes an operand; it
+matched nothing and reported an unknown command. Both fixed, both now covered by `ArgsTest`.
+
+## The Linux row itself — 2026-09-02, `ubuntu-latest` (CI run 33689406560)
+
+The `.so` was cross-built from macOS in a container, so until this ran nothing had loaded it on a
+real glibc host. The `cli-linux` job did, and passed in 2m30s.
+
+| Verified on Linux x86_64 | Result |
+| --- | --- |
+| `linux-x86-64/libpubkycore.so` loads through JNA from the jar | ✅ — `:shared:jvmTest` passed, and `UniffiPubkyClientJvmTest` is in it, so the alternative was a failing task |
+| Whole shared suite on the desktop target, on Linux | ✅ `> Task :shared:jvmTest` |
+| `loopky --version` from the built binary | ✅ `loopky 0.1.0 (schema 1)` |
+| `whoami --json` with no session | ✅ exit 3, `{"schema":1,"ok":false,…"code":"not_signed_in","exit":3,…}` |
+| The envelope names the network | ✅ `"environment":"production","indexer":"https://nexus.pubky.app"` |
+| Unknown command → 2, missing input → distinguishable | ✅ |
+| A headless box with no desktop session and no libsecret | ✅ — which is what a GitHub runner is, and the reason the file store is the default rather than the fallback |
+
+**Not verified, and it needs a Linux box with a phone next to it.** Everything above the sign-in
+line: no Pubky Ring approval was completed, so `deck create`, `import`, `card add/edit/rm`,
+`deck sync/compact` and `whoami` against a real session are **untested end to end**. The
+acceptance criteria that turn on that — a deck the Android app opens without a repair step, an
+`import` killed mid-run and resumed without duplicating, a full run leaving no record under
+`/pub/pubky.app/` — are unmet until someone scans the QR.
+
+## Review round — 2026-09-03, staging, by hand on Linux
+
+A review of the branch drove the binary end to end against a real staging homeserver with a Pubky
+Ring session, importing 48 cards. **The run worked** — 48 cards in one shot, correct ords, tags
+applied, read back identical — and turned up eleven findings, four of them reproduced on the
+device rather than read off the diff. All eleven are fixed on this branch.
+
+| Finding | Where it bit |
+| --- | --- |
+| `login` stored `homeserver: ""` | The FFI payload has no such field, and the Ring path was the one that never backfilled it — so the environment-mismatch guard, its tests and its README paragraph all applied to a session shape `loopky login` never produces. It failed **open** in the common case. |
+| The desktop JDBC URL was never interpolated | `${'$'}` is a Kotlin template producing a literal `$`, so every desktop `.apkg` read failed and was reported as "that .apkg has no readable collection" — a wrong diagnosis pointing at the user's file. |
+| `card edit --back=` → exit 1 "internal" | The CLI's own documented way to clear a side answered with a Kotlin assertion string. |
+| `card add --json` echoed an `ord` the homeserver did not store | 1000 reported, 0 stored, on a fresh deck. Intent, not result, on the channel built for diffing the two. |
+| `whoami`/`login` emitted camelCase | Both docs told an agent to read `session_live`, which did not exist. |
+| A third TSV column stored as an image URL | A 3-column Anki export published every card with an image ref pointing at a sentence. |
+| `catch (Exception)` missed `Error` | `Native.load` on an unsupported host produced exit 1 with **nothing on stdout** — the one case the docs name. |
+| A malformed `LOOPKY_SESSION` → `session_expired` | A typo taught an agent "the hour is up". |
+| `--limit twenty` silently became 20 | For the one command whose whole output is a ranked list. |
+| A card fronted `#1 ranked` vanished | `startsWith("#")` swallowed it. |
+| Two doc comments contradicting the code | `--export` described as print-only; a command name that does not exist. |
+
+**Two of these had passing tests over them**, which is the part worth remembering:
+`EnvironmentMismatchTest` handed the guard a homeserver by hand, and the shared suite drives the
+`.apkg` reader's *callers* rather than its opener. Both now have tests that go through the real
+shape — a raw session payload, and a real zip around a real SQLite file — and both were confirmed
+to fail on the old code before the fix landed.
+
+## Review rounds — 2026-09-03, eight rounds against live staging
+
+The branch was reviewed and **re-driven on a real staging homeserver** eight times, not signed off
+from the diff. 2 HIGH, 15 MEDIUM and 10 LOW found and closed. The full round-by-round record is on
+[PR #208](https://github.com/jvsena42/loopky/pull/208); what belongs here is what a later reader
+needs.
+
+**Two defects had passing tests sitting over them, and it was the same mistake twice.** A test
+built on a *fixture* rather than on the shape the real flow produces:
+
+- `EnvironmentMismatchTest` handed the guard a homeserver by hand, so the CLI's headline safety
+  check was green while having **never once fired** — the Ring sign-in path stored a blank
+  homeserver, and the guard compares against exactly that field.
+- The `.apkg` suite drove `JvmApkgReader`'s *callers* rather than its opener, so a JDBC URL that
+  was never interpolated went unnoticed and every desktop `.apkg` read failed.
+
+Both now have tests that go through the real shape — a raw session payload, and a real zip around
+a real SQLite file — and both were confirmed to fail on the old code before the fix landed. **If
+you add a safety check here, test it through the path that mints the value, not through a
+fixture.**
+
+**Five of the last six fixes found a further bug while being written**: the batched append
+scrambling study order across a chunk seam, `logout` claiming `revoked: true` on a machine that had
+never signed in, absent-vs-false collapsing the study opt-ins on a bare `--resume`. Worth expecting
+if you touch these paths.
+
+### Two corners are deliberately untested
+
+Both need a condition that cannot be created cheaply. Do not read the rest of this file as meaning
+the whole surface has been driven:
+
+| Path | What it needs |
+| --- | --- |
+| `signOut` reporting a **failed** remote revoke (S4) | the homeserver to refuse a revoke. The user is told "Signed out" while the token is still live — the branch's one remaining path that could mislead about a credential. |
+| `logout`'s "same session" branch (R5-1) | reaches its message only *after* revoking, so exercising it costs a fresh Ring sign-in. |
+
+### The deliverable
+
+`avskolydfy2q` — **"Computer Networks — Ch. 1: Introduction", 48 cards**, tagged `networking` /
+`tanenbaum` / `computer-science`, ords ascending, read back identical to what went in. Extracted
+from chapter 1 of Tanenbaum, Feamster & Wetherall 6e and published end to end through `loopky`: no
+phone, no screen, one command. That is the branch's claim, demonstrated rather than argued.

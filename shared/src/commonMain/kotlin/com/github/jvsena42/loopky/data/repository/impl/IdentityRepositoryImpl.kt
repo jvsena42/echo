@@ -18,6 +18,7 @@ import com.github.jvsena42.loopky.data.pubky.toDomain
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.data.repository.SignOutOutcome
 import com.github.jvsena42.loopky.data.repository.TagRepository
 import com.github.jvsena42.loopky.data.storage.KeyOrigin
 import com.github.jvsena42.loopky.data.storage.LocalKey
@@ -82,12 +83,24 @@ internal class IdentityRepositoryImpl(
 
     override suspend fun loadPersistedSession(): Session? {
         val persisted = sessionStore.load() ?: return null
-        sessionProvider.set(persisted)
-        selfTagAsLoopkyUser(persisted)
-        return persisted
+        // Heal a session stored before the homeserver was backfilled. Every account signed in
+        // through Ring before that fix — on either app as well as the CLI — has a blank one on
+        // disk, nothing prompts them to sign in again, and `session_live` reports it as perfectly
+        // healthy. Without this the environment guard stays open for exactly those installs, which
+        // is every existing one.
+        //
+        // Persisted, so the DHT is asked once rather than on every load.
+        val session = persisted.withResolvedHomeserver()
+        if (session.homeserver != persisted.homeserver) {
+            Log.d(TAG, "loadPersistedSession: backfilled the stored session's homeserver")
+            sessionStore.save(session)
+        }
+        sessionProvider.set(session)
+        selfTagAsLoopkyUser(session)
+        return session
     }
 
-    override suspend fun signOut(force: Boolean): Result<Unit> = runSuspendCatching {
+    override suspend fun signOut(force: Boolean): Result<SignOutOutcome> = runSuspendCatching {
         // Refused rather than warned-about-in-the-dialog, so no future caller can sign out
         // silently and take the only copy of an identity with it. The UI catches this, raises a
         // confirm, and calls back with force = true.
@@ -97,9 +110,14 @@ internal class IdentityRepositoryImpl(
         }
 
         val current = sessionProvider.current()
-        if (current != null) {
+        // The revoke can fail — offline, homeserver down, a session already on the edge — and the
+        // local clear happens either way, because a user asking to sign out should end up signed
+        // out here whatever the network is doing. What must *not* happen is reporting that as an
+        // unqualified success while the bearer token is still live, so the outcome travels back.
+        val revokedRemotely = current != null &&
             pubky.signOut(current.sessionSecret)
-        }
+                .onFailure { Log.w(TAG, "signOut: the homeserver did not confirm revocation", it) }
+                .isSuccess
         sessionStore.clear()
         // The key goes with the session: a signed-out device holding a secret key is a credential
         // nobody is watching. Safe to do unguarded *today* because the only keys that exist are
@@ -110,16 +128,47 @@ internal class IdentityRepositoryImpl(
         sessionProvider.set(null)
         selfTaggedThisProcess = false
         profileCacheLock.withLock { profileCache.clear() }
+        SignOutOutcome(revokedRemotely = revokedRemotely, hadSession = current != null)
     }
 
-    override suspend fun beginSignIn(capabilities: String): Result<AuthFlowHandle> {
-        Log.d(TAG, "beginSignIn: capabilities=$capabilities")
+    override suspend fun revokeSession(sessionSecret: String): Result<Unit> = runSuspendCatching {
+        Log.d(TAG, "revokeSession: ending a session held by its secret alone")
+        pubky.signOut(sessionSecret).getOrThrow()
+        // The provider only: an injected session was never on this machine's disk, and clearing the
+        // store here would take a *different*, stored session with it.
+        if (sessionProvider.current()?.sessionSecret == sessionSecret) sessionProvider.set(null)
+    }.onFailure {
+        Log.e(TAG, "revokeSession: FAILED — ${it::class.simpleName}: ${it.message}", it)
+    }
+
+    override suspend fun beginSignIn(
+        capabilities: String,
+        returnToApp: Boolean,
+    ): Result<AuthFlowHandle> {
+        Log.d(TAG, "beginSignIn: capabilities=$capabilities returnToApp=$returnToApp")
         return pubky.startAuthFlow(capabilities)
             .onSuccess { Log.d(TAG, "beginSignIn: startAuthFlow ok — authUrl=${it.redactAuthUrl()}") }
             .onFailure {
                 Log.e(TAG, "beginSignIn: startAuthFlow FAILED — ${it::class.simpleName}: ${it.message}", it)
             }
-            .map { authUrl -> RingAuthFlowHandle(authUrl.withRingCallbacks()) }
+            .map { authUrl ->
+                RingAuthFlowHandle(if (returnToApp) authUrl.withRingCallbacks() else authUrl)
+            }
+    }
+
+    override suspend fun adoptSession(sessionSecret: String): Result<Session> = runSuspendCatching {
+        Log.d(TAG, "adoptSession: revalidating an injected session secret")
+        val session = parseSessionPayload(pubky.revalidateSession(sessionSecret).getOrThrow(), loopkyJson)
+            // The same blank the deeplink path had — and it matters more here, because an injected
+            // session is the one shape a container runs on and `--env` is the only thing telling it
+            // which network it is on.
+            .withResolvedHomeserver()
+        // Provider only, never the store — see IdentityRepository.adoptSession for why.
+        sessionProvider.set(session)
+        selfTagAsLoopkyUser(session)
+        session
+    }.onFailure {
+        Log.e(TAG, "adoptSession: FAILED — ${it::class.simpleName}: ${it.message}", it)
     }
 
     override suspend fun beginSignUp(
@@ -168,10 +217,41 @@ internal class IdentityRepositoryImpl(
             // Shared with the local-key paths on purpose: everything after "we have a session" is
             // identical, and letting the two drift is how one of them stops self-tagging and
             // quietly falls out of the only global directory Loopky has.
-            persistSession(session).also { Log.d(TAG, "complete: session saved") }
+            persistSession(session.withResolvedHomeserver()).also { Log.d(TAG, "complete: session saved") }
         }.onFailure {
             Log.e(TAG, "complete: FAILED — ${it::class.simpleName}: ${it.message}", it)
         }
+    }
+
+    /**
+     * Fill in the homeserver the session payload does not carry.
+     *
+     * The FFI's session JSON has **no `homeserver` field**, so `parseSessionPayload` defaults it
+     * to `""`. Every other path that mints a session already backfills it — `signInWithKey` from
+     * the pre-flight lookup, `registerHeldKey` from the server it registered against — and the Ring
+     * deeplink path was the one that did not, so a Ring sign-in stored a session with a blank
+     * homeserver.
+     *
+     * That is worse than a cosmetic gap. The CLI refuses to run when a session and the requested
+     * `--env` disagree (#54), and it decides that by comparing the session's homeserver against the
+     * other environment's known default — which a blank value never matches, so the guard passed
+     * every time on exactly the sessions it was written for. Settings rendering "Unknown" was the
+     * visible half; a safety check that silently never fired was the other.
+     *
+     * Best-effort: a DHT lookup that fails leaves the blank in place rather than failing a
+     * sign-in that has otherwise succeeded.
+     */
+    private suspend fun Session.withResolvedHomeserver(): Session {
+        if (homeserver.isNotBlank()) return this
+        val resolved = (lookupHomeserver(identity.pubky) as? HomeserverLookup.Registered)
+            ?.homeserverPubky
+            ?.takeIf { it.isNotBlank() }
+        if (resolved == null) {
+            Log.w(TAG, "complete: session carries no homeserver and the DHT could not supply one")
+            return this
+        }
+        Log.d(TAG, "complete: resolved homeserver for the session")
+        return copy(homeserver = resolved)
     }
 
     // --- Local keys ------------------------------------------------------------
@@ -452,6 +532,15 @@ internal class IdentityRepositoryImpl(
      */
     private suspend fun selfTagAsLoopkyUser(session: Session) {
         if (selfTaggedThisProcess) return
+        // The subject is a *profile*, so the record goes to `/pub/pubky.app/tags/` (§7.7) — which
+        // a session scoped to `/pub/loopky/:rw` was never granted. Asked rather than attempted:
+        // the headless client (#54) holds exactly that session, and firing the write anyway would
+        // buy a doomed round trip on every command plus a warning about the scope working as
+        // designed. A capability the session does not hold is not an error to report.
+        if (!session.canWritePubkyApp) {
+            Log.d(TAG, "selfTag: skipped — this session has no pubky.app write capability")
+            return
+        }
         val profileUri = PubkyUri(PubkyPaths.profile(session.identity.pubky))
         tagRepository.putReservedTag(profileUri, ReservedTags.USER)
             .onSuccess {

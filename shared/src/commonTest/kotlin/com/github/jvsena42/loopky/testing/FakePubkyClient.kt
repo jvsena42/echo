@@ -348,12 +348,27 @@ class FakePubkyClient : PubkyClient {
         signInFailure?.let { return Result.failure(it) }
         return Result.success(grantSessionJson(fakePubkyFor(secretKey)))
     }
+
+    /** What [signOut] answers. A failure models a revoke the homeserver never confirmed. */
+    var signOutResult: Result<String> = Result.success("ok")
+
     override suspend fun signOut(sessionSecret: String): Result<String> {
         signOuts.add(sessionSecret)
-        return Result.success("ok")
+        return signOutResult
     }
 
-    override suspend fun revalidateSession(sessionSecret: String): Result<String> = unused()
+    /**
+     * What [revalidateSession] answers. The session payload, exactly as the FFI returns it — which
+     * notably carries **no `homeserver` field**, so a test that hardcodes one here is not testing
+     * the shape the real flow produces.
+     */
+    var revalidateResult: Result<String>? = null
+    val revalidatedSecrets = mutableListOf<String>()
+
+    override suspend fun revalidateSession(sessionSecret: String): Result<String> {
+        revalidatedSecrets += sessionSecret
+        return revalidateResult ?: unused()
+    }
 
     override suspend fun startAuthFlow(capabilities: String): Result<String> {
         authFlowCapabilities.add(capabilities)

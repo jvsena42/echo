@@ -50,7 +50,21 @@ interface IdentityRepository {
      * The guard lives here rather than only in the dialog so no future caller can sign out
      * silently and take an un-backed-up account with it.
      */
-    suspend fun signOut(force: Boolean = false): Result<Unit>
+    suspend fun signOut(force: Boolean = false): Result<SignOutOutcome>
+
+    /**
+     * End a session held by its secret alone, without touching anything stored on this machine.
+     *
+     * The counterpart of [adoptSession], and the only revocation a `LOOPKY_SESSION` has (#54). An
+     * injected session is never written to disk, so [signOut] is the wrong tool for it twice over:
+     * there is nothing local to clear, and on a machine that *also* has a stored session it would
+     * clear the wrong one.
+     *
+     * A credential the docs tell you to copy into an ephemeral sandbox needs a way to be withdrawn
+     * before its hour is up; without this there is none, and a leaked secret stays live until it
+     * expires on its own.
+     */
+    suspend fun revokeSession(sessionSecret: String): Result<Unit>
 
     /**
      * Who holds the key for the account we are signed in as, and whether it has been backed up.
@@ -156,8 +170,32 @@ interface IdentityRepository {
      * 1. [beginSignIn] calls `startAuthFlow` and returns the auth URL to hand to the OS.
      * 2. The caller opens the URL and then awaits [AuthFlowHandle.complete], which blocks on
      *    `awaitAuthApproval`, parses the callback URL, persists the session, and returns it.
+     *
+     * @param returnToApp appends Pubky Ring's `x-success`/`x-cancel`/`x-error` return-callbacks to
+     *   the auth URL, so Ring re-opens Loopky once the user has approved. **A headless client must
+     *   pass false** (#54): there is no app to return to, and a dangling `x-success` pointing at
+     *   `loopky://` bounces the user into the mobile app after a desktop login. It changes nothing
+     *   about how the session arrives — that is the relay, in step 2, either way.
      */
-    suspend fun beginSignIn(capabilities: String = DEFAULT_CAPABILITIES): Result<AuthFlowHandle>
+    suspend fun beginSignIn(
+        capabilities: String = DEFAULT_CAPABILITIES,
+        returnToApp: Boolean = true,
+    ): Result<AuthFlowHandle>
+
+    /**
+     * Take a session secret handed in from outside — `LOOPKY_SESSION` in a container — and make it
+     * this process's session.
+     *
+     * The secret alone is not a [Session]: the pubky, homeserver and granted capabilities are not
+     * in it. `revalidateSession` returns all of them, so one round trip turns the secret into the
+     * real thing *and* proves it is still live, which is why this is a suspend call and not a
+     * parse.
+     *
+     * Deliberately **not persisted**. An injected session is the caller's, for this process only;
+     * writing it to `$XDG_CONFIG_HOME` would leave a container's credential behind on a machine
+     * whose own stored session it was standing in for.
+     */
+    suspend fun adoptSession(sessionSecret: String): Result<Session>
 
     /**
      * Ring-mediated **sign-up**: the same relay handshake as [beginSignIn], but the deeplink asks
@@ -254,6 +292,27 @@ interface IdentityRepository {
  * secret, so nothing here logs and nothing returns key material that is not immediately destined
  * for a `FLAG_SECURE` screen or the platform's own share/save sheet.
  */
+/**
+ * What a sign-out actually managed to do.
+ *
+ * The local half always happens — a user who asks to sign out ends up signed out on this machine,
+ * whatever the network is doing. The **remote** half is a homeserver call that can fail, and
+ * reporting an unqualified success when the bearer token is still live tells the user the opposite
+ * of the truth. Callers that only care about the local half can keep ignoring this.
+ */
+data class SignOutOutcome(
+    /**
+     * True when the homeserver confirmed the session is dead.
+     *
+     * False when there was no session to revoke — see [hadSession]. Signing out of nothing is a
+     * success, but it is not a revocation, and a caller that reports it as one is claiming
+     * something happened to a credential that was never there.
+     */
+    val revokedRemotely: Boolean,
+    /** Whether there was a session at all. Sign-out is idempotent; saying so is not. */
+    val hadSession: Boolean,
+)
+
 interface KeyBackupRepository {
 
     /** Who holds the key and what has been done about it. Carries no secret. */
@@ -398,6 +457,29 @@ interface DeckRepository {
      * refresh their view of `cardCount` / `chunks`.
      */
     suspend fun upsertCard(deckId: String, card: Card): Result<Deck>
+
+    /**
+     * Append [cards] to the end of the deck, chunk by chunk rather than card by card.
+     *
+     * [upsertCard] is the right shape for an edit and the wrong one for a batch: each call is a
+     * chunk write **plus** a full manifest read-modify-write, and the manifest carries the whole
+     * chunk table, so the per-card cost climbs with deck size. Adding 30 cards that way is 60
+     * writes where [publish] would spend 2.
+     *
+     * That matters most on the path it was measured on. `import --resume` exists so an import
+     * killed by the hourly session expiry (#165) can finish — and looping [upsertCard] made the
+     * recovery an order of magnitude slower than the attempt that just ran out of time, on the
+     * same one-hour budget. A large import dying at 55 minutes could never finish; each retry
+     * would die earlier in the file. The mechanism made the failure it exists for *more* likely.
+     *
+     * Fills the last chunk with room, then adds trailing chunks, and describes the lot in a single
+     * manifest patch. Ords continue from the deck's current maximum, so the appended cards land at
+     * the end in the order given.
+     *
+     * **New cards only.** Ids already in the deck are rejected rather than silently duplicated —
+     * replacing a card is [upsertCard], which knows how to find the chunk it lives in.
+     */
+    suspend fun appendCards(deckId: String, cards: List<Card>): Result<Deck>
 
     /** Remove a single card, rewriting its chunk and patching the manifest. */
     suspend fun deleteCard(deckId: String, cardId: String): Result<Deck>

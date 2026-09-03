@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.data.pubky
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.ChunkMeta
 import com.github.jvsena42.loopky.domain.model.ORD_STRIDE
+import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import com.github.jvsena42.loopky.domain.model.ordForIndex
 
 /**
@@ -43,6 +44,38 @@ internal object CardChunking {
     fun appendTarget(chunks: List<ChunkMeta>): Int {
         val last = chunks.maxByOrNull { it.n } ?: return 0
         return if (last.count < CHUNK_SIZE) last.n else last.n + 1
+    }
+
+    /**
+     * How a batch of new cards lands: which chunk numbers get which cards, tail chunk first.
+     *
+     * The counterpart of [appendTarget] for more than one card. Adding cards through
+     * `upsertCard` in a loop costs a chunk write **plus** a whole-manifest read-modify-write each
+     * time; planning the batch lets the caller write the chunks and describe the lot in a single
+     * manifest patch, which is what `publish` has always done.
+     *
+     * Ords continue from [ordFloor] rather than restarting per chunk, because study order is the
+     * card's `ord` across the whole deck — numbering each chunk from zero would interleave the
+     * appended cards with the ones already there.
+     *
+     * [tail] is [firstChunk]'s current contents, empty when it is a chunk that does not exist yet.
+     */
+    fun planAppend(
+        cards: List<Card>,
+        firstChunk: Int,
+        tail: List<Card>,
+        ordFloor: Long,
+    ): List<Pair<Int, List<Card>>> {
+        var ord = ordFloor
+        val ordered = cards.map { card ->
+            ord += ORD_STRIDE
+            card.copy(ord = ord)
+        }
+        val room = (CHUNK_SIZE - tail.size).coerceAtLeast(0)
+        val head = firstChunk to (tail + ordered.take(room)).inStudyOrder()
+        val rest = ordered.drop(room).chunked(CHUNK_SIZE)
+            .mapIndexed { index, batch -> (firstChunk + 1 + index) to batch }
+        return listOf(head) + rest
     }
 
     /**

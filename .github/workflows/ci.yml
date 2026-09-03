@@ -68,3 +68,79 @@ jobs:
           name: test-reports
           path: '**/build/reports/tests/'
           if-no-files-found: ignore
+
+  cli-linux:
+    # The row that matters most for #54: a headless Linux x86_64 box with no desktop session and
+    # no libsecret, which is exactly what a GitHub runner is. Verified here rather than assumed —
+    # the 1,271 shared tests run against a fake client and would pass on a machine where
+    # `linux-x86-64/libpubkycore.so` is missing or the wrong architecture, and that failure only
+    # shows up at the first homeserver call as an ordinary-looking transport error.
+    name: CLI on Linux x86_64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Runs the whole shared suite on the jvm() target, including the FFI smoke test that loads
+      # the real .so and derives a keypair through it.
+      - name: Shared tests on the JVM target
+        run: ./gradlew :shared:jvmTest :cli:test
+
+      - name: Build the distribution
+        run: ./gradlew :cli:installDist
+
+      # The contract an agent branches on, asserted on the actual binary rather than in a unit
+      # test: distinguishable exit codes, and a parseable failure envelope on stdout. Deliberately
+      # offline — nothing here needs a homeserver, so a network blip cannot make it flake.
+      - name: Smoke-test the binary
+        env:
+          LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-ci
+        run: |
+          set -euo pipefail
+          BIN=cli/build/install/loopky/bin/loopky
+
+          "$BIN" --version
+          "$BIN" --help > /dev/null
+
+          # No session anywhere: exit 3, and the JSON says so in words as well as a number.
+          set +e
+          OUT=$("$BIN" whoami --json)
+          CODE=$?
+          set -e
+          echo "$OUT"
+          test "$CODE" -eq 3
+          echo "$OUT" | grep -q '"code":"not_signed_in"'
+          echo "$OUT" | grep -q '"schema":1'
+          # Every result names the network it ran against, so an empty answer can never be
+          # mistaken for an answer from the wrong one.
+          echo "$OUT" | grep -q '"environment":"production"'
+
+          # An unknown command is a usage error, not a crash and not a silent success.
+          set +e
+          "$BIN" frobnicate --json > /dev/null
+          CODE=$?
+          set -e
+          test "$CODE" -eq 2
+
+          # A bad input file is its own code, distinct from both of the above.
+          set +e
+          "$BIN" import /no/such/file.tsv --title T --json > /dev/null
+          CODE=$?
+          set -e
+          test "$CODE" -eq 3   # not signed in is checked first, before the file is read
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-test-reports
+          path: '**/build/reports/tests/'
+          if-no-files-found: ignore
