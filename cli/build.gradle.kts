@@ -1,6 +1,9 @@
+import org.gradle.internal.os.OperatingSystem
+
 plugins {
     alias(libs.plugins.kotlinJvm)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.graalvmNative)
     application
 }
 
@@ -23,6 +26,11 @@ dependencies {
     // QR encoding for `loopky login`. Already in the catalog for the tablet sign-in panel; core
     // only, so it brings no camera/scanner stack.
     implementation(libs.zxing.core)
+    // Directly, for one call: `RustLog.kt` sets `RUST_LOG` through libc, which is the only way a
+    // binary with no start script can default it. JNA is already on the runtime classpath via
+    // `:shared`'s FFI bindings — this makes the compile-time dependency honest rather than
+    // borrowed from a transitive `implementation`.
+    implementation(libs.jna)
     testImplementation(libs.kotlin.test)
 }
 
@@ -69,3 +77,168 @@ tasks.named<CreateStartScripts>("startScripts") {
         )
     }
 }
+
+/**
+ * A native row: the directory JNA looks a library up under, and the files it expects to find
+ * there. Mirrors the table in `shared/src/jvmMain/resources/README.md` — the two halves of this
+ * build have to agree on that layout or nothing links against anything.
+ */
+data class NativeRow(
+    val jnaPrefix: String,
+    val pubkyLib: String,
+    val jnaLib: String,
+    val sqliteDir: String,
+)
+
+val nativeRows = listOf(
+    NativeRow("linux-x86-64", "libpubkycore.so", "libjnidispatch.so", "Linux/x86_64"),
+    NativeRow("darwin-aarch64", "libpubkycore.dylib", "libjnidispatch.jnilib", "Mac/aarch64"),
+)
+
+/**
+ * The row this machine can build a *binary* for, or null.
+ *
+ * `native-image` does not cross-compile: the host **is** the target. That is why the release
+ * workflow runs one job per row rather than one job with a matrix of flags, and why the Linux
+ * binary is built inside a container even on a Linux runner — the glibc it links against is the
+ * builder's, and `libpubkycore.so` already needs 2.34.
+ *
+ * The jar distribution has no such restriction and runs anywhere a JRE 17 does, which is the whole
+ * reason it is still worth having.
+ */
+val hostNativeRow: NativeRow? = run {
+    val os = OperatingSystem.current()
+    val arch = System.getProperty("os.arch")
+    when {
+        os.isLinux && (arch == "amd64" || arch == "x86_64") -> nativeRows[0]
+        os.isMacOsX && arch == "aarch64" -> nativeRows[1]
+        else -> null
+    }
+}
+
+/**
+ * `loopky` as a single self-contained binary (#210).
+ *
+ * The install story #54 called "the primary constraint" is a one-line `curl` into a cloud agent's
+ * sandbox: non-root, ephemeral, configured by a setup script. "Install a JDK" is exactly what that
+ * cannot be, and a jar plus a start script needs one. So: `native-image`, ~20-40 ms of start-up
+ * against the JVM's ~200, and nothing on the target machine.
+ *
+ * **JNA is the whole of the difficulty**, and worth being precise about why. `libpubkycore` ships
+ * *inside the jar* under JNA's resource layout and `Native.load` extracts it to a temp file at
+ * runtime — reflective resource loading, which is the one thing a closed-world image has to be
+ * told about explicitly. Three separate registrations carry it, all in
+ * `src/main/resources/META-INF/native-image/`:
+ *
+ * - the `.so`/`.dylib` itself as an embedded **resource**, so there is something to extract;
+ * - JNA's `Structure` subclasses and `Callback` interfaces for **reflection**, because JNA reads
+ *   their fields and synthesises their implementations;
+ * - `_UniFFILib` as a **dynamic proxy**, which is what `Native.load(name, Interface::class.java)`
+ *   actually returns.
+ *
+ * Everything else here is ordinary: kotlinx.serialization is compile-time, Koin's DSL is explicit
+ * constructor calls rather than reflection, and the CLI has no classpath scanning anywhere.
+ */
+graalvmNative {
+    // The plugin's toolchain search wants a GraalVM registered as a Java toolchain; this build
+    // pins `jvmToolchain(17)` for compilation and takes the image builder from `GRAALVM_HOME`
+    // (falling back to `JAVA_HOME`) instead, which is what both the release workflow and a
+    // developer with a downloaded GraalVM already have set.
+    toolchainDetection.set(false)
+
+    // **Off, and that is a decision.** The community metadata repository is the usual answer for
+    // JNA, but its rows are per-library and applied wholesale, and switching it on here pulled
+    // `java.awt` into the image — which on Linux is not a size problem but a *shape* problem: the
+    // build then emits `libawt.so`, `libawt_headless.so` and `libawt_xawt.so` beside the binary
+    // and `loopky` stops being one file. Its JNA rows turned out to be a subset of what the
+    // tracing agent had already recorded from a real FFI run, so the only thing lost was
+    // `com.sun.jna.NativeLong`, now merged into `reflect-config.json`. See the README beside it.
+    //
+    // A build that fetches nothing is the other half of the trade: the release image is produced
+    // from this repository and a GraalVM tarball, and nothing else.
+    metadataRepository { enabled.set(false) }
+
+    binaries.named("main") {
+        imageName.set("loopky")
+        mainClass.set("com.github.jvsena42.loopky.cli.MainKt")
+        // Every reflective access is registered, so a fallback image — a binary that silently
+        // ships a JVM inside itself — is a build failure rather than a shipped surprise.
+        fallback.set(false)
+        buildArgs.addAll(nativeBuildArgs())
+    }
+
+    // The image builder is a long-running JVM; without this the plugin also builds a test image.
+    binaries.all { verbose.set(false) }
+}
+
+/** The `native-image` arguments, split out so the reasoning fits beside each one. */
+fun nativeBuildArgs(): List<String> {
+    val row = hostNativeRow ?: return emptyList()
+    return listOf(
+        // `HttpURLConnection` over TLS is how `JvmHttpFetcher` reaches Nexus and the Homegate.
+        // Native images ship no URL protocol handlers unless asked, and the failure is a
+        // `MalformedURLException` at the first read rather than anything about TLS.
+        "--enable-url-protocols=http,https",
+        // The three native rows that have to survive into the image, all extracted at runtime by
+        // a loader that reads them off the classpath.
+        "-H:IncludeResources=${Regex.escape(row.jnaPrefix)}/${Regex.escape(row.pubkyLib)}",
+        "-H:IncludeResources=com/sun/jna/${Regex.escape(row.jnaPrefix)}/${Regex.escape(row.jnaLib)}",
+        "-H:IncludeResources=org/sqlite/native/${row.sqliteDir}/.*",
+        // `ServiceLoader` files: the SQLite JDBC driver registers itself through one, and the
+        // `.apkg` reader opens its collection through `DriverManager`.
+        "-H:IncludeResources=META-INF/services/.*",
+        // A deck's text is whatever its author pasted. The default image carries Latin-1 and
+        // UTF-8 only, and a `--separator` or an `.apkg` in another encoding would decode to
+        // mojibake rather than fail.
+        "-H:+AddAllCharsets",
+        // Names in stack traces, so an `--verbose` report from a user's machine is readable.
+        "-H:+UnlockExperimentalVMOptions",
+        "-H:-ReduceImplicitExceptionStackTraceInformation",
+        // JNA calls `System.load`, which JDK 24 made a restricted method: without this the binary
+        // prints four `WARNING: A restricted method …` lines to stderr before it prints anything
+        // of its own. Exactly the noise the jar's start script exists to suppress, arriving by a
+        // different door, on the channel an agent harness captures into its transcript.
+        "--enable-native-access=ALL-UNNAMED",
+        // Baseline x86-64 rather than `native-image`'s x86-64-v3 default. A binary compiled for
+        // v3 needs AVX2 and dies with SIGILL on a host without it — and this one is *downloaded*,
+        // onto a sandbox whose CPU nobody chose. Irrelevant to a client that spends its life
+        // waiting on a homeserver.
+        *(if (row.jnaPrefix == "linux-x86-64") arrayOf("-march=compatibility") else emptyArray()),
+    )
+}
+
+/**
+ * The binary has to be **one file**, and this is what says so out loud.
+ *
+ * A `native-image` build does not fail when it cannot fold a JDK native library into the
+ * executable — it emits the library *beside* it and reports success. Reaching `javax.imageio` from
+ * anywhere pulls in `java.awt`, and on Linux that turns the output into eight files:
+ * `libawt.so`, `libawt_headless.so`, `libawt_xawt.so`, `libjavajpeg.so`, `liblcms.so`,
+ * `libjava.so`, `libjvm.so` and `loopky`. The build stays green, the tests stay green, and the
+ * one-line `curl … -o ~/.local/bin/loopky` install this whole issue exists for is quietly dead.
+ *
+ * It has already happened twice in one sitting — the QR PNG writer and the Koin binding for
+ * `MediaProcessor` — so it is checked rather than remembered. The two fixes are in
+ * `TerminalQr.toPng` and `PassThroughMediaProcessor`; the way to find the third is
+ * `-H:AbortOnTypeReachable=java.awt.image.BufferedImage`, which prints the call path that reached
+ * it.
+ */
+val checkNativeImageIsOneFile = tasks.register("checkNativeImageIsOneFile") {
+    group = "verification"
+    description = "Fails if `nativeCompile` emitted anything beside the binary."
+    val outputDir = layout.buildDirectory.dir("native/nativeCompile")
+    doLast {
+        val strays = outputDir.get().asFile.listFiles().orEmpty()
+            .filter { it.isFile && it.name != "loopky" }
+            .map { it.name }
+            .sorted()
+        check(strays.isEmpty()) {
+            "native-image emitted ${strays.size} file(s) beside the binary: ${strays.joinToString()}. " +
+                "`loopky` is installed by copying one file, so something now reachable needs a JDK " +
+                "native library — AWT via javax.imageio is the usual cause. Find it with " +
+                "-H:AbortOnTypeReachable=<type>."
+        }
+    }
+}
+
+tasks.matching { it.name == "nativeCompile" }.configureEach { finalizedBy(checkNativeImageIsOneFile) }

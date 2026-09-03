@@ -27,6 +27,9 @@ material3 = "1.10.0-alpha05"
 # material3 itself (it tracks the AndroidX adaptive 1.x line), which is why it is a separate ref.
 material3Adaptive = "1.2.0"
 detekt = "1.23.8"
+# GraalVM `native-image` Gradle plugin (#210). Builds `loopky` as a single self-contained binary
+# so the machine it lands on needs no JRE — see cli/build.gradle.kts.
+graalvmNative = "1.1.11"
 detektComposeRules = "0.4.22"
 koin = "4.0.2"
 navigationCompose = "2.9.0-beta03"
@@ -98,3 +101,4 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+graalvmNative = { id = "org.graalvm.buildtools.native", version.ref = "graalvmNative" }

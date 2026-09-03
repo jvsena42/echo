@@ -45,13 +45,16 @@ class CliEnvironment(val pubky: PubkyEnvironment, val configHome: Path) {
  * Starts Koin for this invocation and hands back the graph.
  *
  * Every argument is named and none is left to a default, which matters for exactly one of them:
- * `mediaProcessor`. `JvmMediaProcessor` reaches `javax.imageio` and therefore `java.awt`, which a
- * headless client has no use for and which a future `native-image` build cannot fold into a single
- * executable on Linux (#210). So
- * [PassThroughMediaProcessor] costs nothing, and the CLI never compresses an image anyway — a
- * card's picture here is a URL.
+ * `mediaProcessor`. `JvmMediaProcessor` reaches `javax.imageio` and therefore `java.awt`, and a
+ * reachable AWT is what makes `native-image` ship five JDK `.so`s beside the executable instead of
+ * one file (#210). The CLI never compresses an image — a card's picture here is a URL — so
+ * [PassThroughMediaProcessor] costs nothing and `:cli:checkNativeImageIsOneFile` fails the build
+ * if this ever stops being true.
  */
 fun startCli(environment: CliEnvironment): Koin {
+    // Before Koin, because Koin is what resolves `PubkyClient` and the SDK reads `RUST_LOG` from
+    // the process environment on its way to the first network call.
+    defaultRustLogToWarn()
     initKoinJvm(
         pubkyEnvironment = environment.pubky,
         mediaProcessor = PassThroughMediaProcessor(),
