@@ -177,13 +177,14 @@ merge commit.
       Note that **omitting** `--latest` does not do this. Its default is "automatic based on date
       and version", and GitHub reads a new highest version as the latest one. Only
       `--latest=false` holds it back.
-    - **If that fails because the release already exists**, the workflow got there first — which
-      means it created the release *with* the CLI assets already attached (`gh release create`
-      with assets uploads to a draft and publishes only when they are all up), so there is no
-      window to worry about and the release is already latest. What it does not have is your
-      changelog: `gh release edit <version> --title "Loopky <version>" --notes-file <file>`, then
+    - **If that fails because the release already exists**, the workflow got there first. It
+      builds its release as a draft, uploads the assets, and publishes only then, so what you are
+      looking at already has the CLI binaries in it and is already latest — there is no window to
+      worry about on that path. What it does not have is your changelog:
+      `gh release edit <version> --title "Loopky <version>" --notes-file <file>`, then
       `gh release upload <version> Loopky-<numeric_version>.apk --clobber`. Do not pass
-      `--latest=false` on this path; the assets are already there.
+      `--latest=false` here, and do not re-mark it in step 11: the assets are already there and
+      the flag is already right.
     - Verify it exists and carries the APK:
       `gh release view <version> --json tagName,name,isDraft,isPrerelease,assets` — not a draft,
       not a prerelease, and `Loopky-<numeric_version>.apk` listed.

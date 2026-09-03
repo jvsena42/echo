@@ -227,18 +227,35 @@ jobs:
           set -euo pipefail
           ls -la dist
 
-          # **Assets in the same `create` call, not a create followed by an upload.** `gh` handles
-          # that form by creating the release as a *draft*, uploading, and publishing only then —
-          # so there is no moment where a published release exists with nothing in it. Created
-          # empty and filled afterwards, the release is briefly the newest one on the repo with no
-          # binaries attached, and `releases/latest/download/loopky-linux-x86-64` — the URL
-          # `cli/install.sh` and the README both use — 404s for exactly that long.
-          if gh release create "$VERSION" dist/* --title "$VERSION" --generate-notes --verify-tag; then
+          # **Never publish a release that has nothing in it.** `latest` is what both documented
+          # install paths resolve through — `cli/install.sh` defaults to
+          # `releases/latest/download/loopky-linux-x86-64`, as does the README's one-liner — so a
+          # release that exists before its assets do is a 404 for everyone who runs them.
+          #
+          # Which branch we are in matters, so it is asked rather than inferred from an exit code.
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            # The normal case: whoever ran the `release` skill created it with the curated
+            # changelog moments after pushing the tag, and is holding it back from `latest` until
+            # these assets land. Fill it in; touch neither the notes nor the latest flag.
+            echo "release $VERSION already exists — uploading assets into it"
+            gh release upload "$VERSION" dist/* --clobber
             exit 0
           fi
-          # The release already exists, which is the normal case: the human running the `release`
-          # skill created it with the curated changelog moments after pushing the tag, and is
-          # holding it back from `latest` until these assets land. Fill it in and leave the notes
-          # and the latest flag alone.
-          echo "release already exists, uploading into it"
-          gh release upload "$VERSION" dist/* --clobber
+
+          # No release yet, so this tag was pushed without the runbook. Draft, upload, publish —
+          # three explicit commands rather than `gh release create <tag> <assets>`, which does the
+          # same thing internally but as an implementation detail of a convenience form. It is
+          # documented in gh 2.98's help and the runner's `gh` is whatever its image ships, so the
+          # short form would make a no-window guarantee out of an unpinned dependency. The extra
+          # line costs nothing and depends on nothing.
+          echo "no release $VERSION yet — creating one"
+          EXTRA=()
+          # A pre-release must say so, or GitHub's automatic latest picks it up on publish and
+          # `curl …/releases/latest/download/…` starts handing everyone an RC. Same guard the
+          # image job uses for the `:latest` tag.
+          case "${VERSION#v}" in
+            *[!0-9.]*) EXTRA+=(--prerelease) ;;
+          esac
+          gh release create "$VERSION" --draft --title "$VERSION" --generate-notes --verify-tag "${EXTRA[@]}"
+          gh release upload "$VERSION" dist/*
+          gh release edit "$VERSION" --draft=false
