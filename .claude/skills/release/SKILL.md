@@ -206,7 +206,19 @@ merge commit.
       ```
 
       must include `loopky-linux-x86-64`, `loopky-linux-x86-64.sha256`, `loopky-macos-aarch64`,
-      `loopky-macos-aarch64.sha256` and `loopky_<numeric_version>_amd64.deb`.
+      `loopky-macos-aarch64.sha256`, `loopky_<numeric_version>_amd64.deb`, `install.sh` and
+      `latest.json`.
+
+      The last two are newer and are what the documented one-liner and every installed binary
+      resolve through (#209). `install.sh` is the installer *at this tag* — the README tells
+      strangers to pipe `releases/latest/download/install.sh` into `sh`, so a release missing it
+      breaks the primary install path outright. `latest.json` is the manifest every `loopky` in
+      the world reads to learn it is out of date; a release without one is silently the release
+      after which nobody is told anything. Check what it says, too — it must name this version:
+
+      ```shell
+      curl -fsSL https://github.com/jvsena42/loopky/releases/download/<version>/latest.json
+      ```
     - Sanity-check the published binary rather than trusting the job: download it and run it.
       It is one file and needs nothing installed, which is the entire claim being shipped:
 
@@ -218,6 +230,11 @@ merge commit.
       On macOS, use `loopky-macos-aarch64` instead — the Linux binary will not exec there. If
       `--version` disagrees with the tag, stop: the release is publishing a binary that lies about
       what it is.
+    - While that binary is downloaded, check the update path answers: `/tmp/loopky update --check
+      --json` must exit 0 and report `"latest"` as the *previous* release until `latest` moves,
+      and this version after it. It is allowed to report nothing (`"latest":null`) on a host with
+      no egress — a check that cannot complete is never a failure — but on a machine that can
+      reach github.com, a null here means `latest.json` is missing or unreadable.
     - **Only now, mark it latest**: `gh release edit <version> --latest`. This is the step that
       makes `cli/install.sh` and the README's one-liner point at this release, so it comes after
       the assets are listed *and* after one of them has been run — never before. Skip it if the

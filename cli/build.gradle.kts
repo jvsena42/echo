@@ -67,6 +67,7 @@ dependencies {
     // borrowed from a transitive `implementation`.
     implementation(libs.jna)
     testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 application {

@@ -54,6 +54,7 @@ fun successEnvelope(
     environment: String,
     indexer: String,
     data: JsonElement,
+    update: UpdateAvailable? = null,
 ): String = cliJson.encodeToString(
     JsonElement.serializer(),
     buildJsonObject {
@@ -62,6 +63,7 @@ fun successEnvelope(
         put("command", command)
         put("environment", environment)
         put("indexer", indexer)
+        put("update_available", updateJson(update))
         put("data", data)
     },
 )
@@ -76,8 +78,8 @@ fun failureEnvelope(
     command: String,
     environment: String,
     indexer: String,
-    exitCode: ExitCode,
-    message: String,
+    error: CliError,
+    update: UpdateAvailable? = null,
 ): String = cliJson.encodeToString(
     JsonElement.serializer(),
     buildJsonObject {
@@ -86,16 +88,41 @@ fun failureEnvelope(
         put("command", command)
         put("environment", environment)
         put("indexer", indexer)
+        put("update_available", updateJson(update))
         put(
             "error",
             buildJsonObject {
-                put("code", exitCode.json)
-                put("exit", exitCode.code)
-                put("message", message)
+                put("code", error.exitCode.json)
+                put("exit", error.exitCode.code)
+                put("message", error.message.orEmpty())
             },
         )
     },
 )
+
+/**
+ * `update_available`, the envelope's newest field (#209).
+ *
+ * A **nullable object**, not a boolean, and both halves of that are deliberate. Null covers every
+ * "nothing to say" — up to date, the check is off, the check failed, no release page yet — so a
+ * caller branches on truthiness in any language without a special case. And when there *is*
+ * something to say it is not one bit: `schema_changed` is a different severity from a version
+ * bump, because a newer CLI at a different envelope schema means the reader's own parser may be
+ * wrong, which is what versioning this envelope from the first release was for.
+ *
+ * Adding a field is allowed under `schema: 1`; changing one's meaning is not. It landed before the
+ * schema had consumers rather than after, which was the point of doing it early.
+ */
+private fun updateJson(update: UpdateAvailable?): JsonElement =
+    if (update == null) {
+        JsonNull
+    } else {
+        buildJsonObject {
+            put("version", update.version)
+            put("schema", update.schema)
+            put("schema_changed", update.schemaChanged)
+        }
+    }
 
 /**
  * An out-of-band event, for the one command that has something to say before it finishes.

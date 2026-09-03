@@ -40,10 +40,42 @@ class OutputTest {
         assertEquals("https://nexus.staging.pubky.app", json.getValue("indexer").jsonPrimitive.content)
     }
 
+    /**
+     * `update_available` is null in the ordinary case, and a caller that ignores the field stays
+     * correct — which is what makes adding it legal under `schema: 1`.
+     */
+    @Test
+    fun `every envelope carries update_available, null when there is nothing to say`() {
+        val success = parse(successEnvelope("deck list", "production", "x", JsonNull))
+        assertEquals(JsonNull, success.getValue("update_available"))
+        val failure = parse(failureEnvelope("deck list", "production", "x", CliError(ExitCode.Network, "down")))
+        assertEquals(JsonNull, failure.getValue("update_available"))
+    }
+
+    /**
+     * When there *is* something to say it is an object, not a bare `true`: a newer CLI at a
+     * different envelope schema means the reader's own parser may be wrong, which is a different
+     * severity from a version bump and gets its own field rather than being folded into one bit.
+     */
+    @Test
+    fun `an available update reports its version and whether the schema moved`() {
+        val update = UpdateAvailable(version = "0.9.0", schema = 2, schemaChanged = true)
+        val json = parse(successEnvelope("deck list", "production", "x", JsonNull, update))
+            .getValue("update_available").jsonObject
+        assertEquals("0.9.0", json.getValue("version").jsonPrimitive.content)
+        assertEquals("2", json.getValue("schema").jsonPrimitive.content)
+        assertTrue(json.getValue("schema_changed").jsonPrimitive.content.toBoolean())
+
+        // And on a failure too: an agent whose command just failed is exactly the one that wants
+        // to know its client is stale.
+        val failed = parse(failureEnvelope("deck list", "production", "x", CliError(ExitCode.Network, "down"), update))
+        assertEquals("0.9.0", failed.getValue("update_available").jsonObject.getValue("version").jsonPrimitive.content)
+    }
+
     @Test
     fun `a failure repeats the exit status inside the payload`() {
         val json = parse(
-            failureEnvelope("deck show", "production", "x", ExitCode.SessionExpired, "gone"),
+            failureEnvelope("deck show", "production", "x", CliError(ExitCode.SessionExpired, "gone")),
         )
         assertFalse(json.getValue("ok").jsonPrimitive.content.toBoolean())
         val error = json.getValue("error").jsonObject

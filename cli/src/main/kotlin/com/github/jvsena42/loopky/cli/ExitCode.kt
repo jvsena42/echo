@@ -70,6 +70,19 @@ enum class ExitCode(val code: Int, val json: String) {
      * `SupportedHostTest` pins that, because it is the reason this row exists.
      */
     UnsupportedHost(10, "unsupported_host"),
+
+    /**
+     * `loopky update` found a newer release and may not install it here (#209).
+     *
+     * Its own code rather than 0 or 1. Zero would tell an agent that asked for an update that it
+     * has one, which is the single most expensive thing this command could get wrong — the whole
+     * reason the check exists is that a stale client writes an old shape while believing it is
+     * current. [Internal] would be wrong in the other direction: a Homebrew install, a
+     * `dpkg`-owned file, a container layer and a read-only directory are all correct states of the
+     * world, and the command's answer in each is a different, correct instruction rather than a
+     * bug. Nothing was downloaded and nothing was replaced.
+     */
+    UpdateUnsupported(11, "update_unsupported"),
     ;
 
     companion object {

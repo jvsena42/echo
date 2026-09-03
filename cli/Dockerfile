@@ -79,6 +79,15 @@ USER loopky
 ENV HOME=/home/loopky \
     XDG_CONFIG_HOME=/home/loopky/.config
 
+# The image says what it is, rather than being guessed at (#209). `loopky update` replaces a file,
+# which inside a container is a change that vanishes with the container — so it refuses here and
+# says `docker pull` instead. The two marker files (`/.dockerenv`, `/run/.containerenv`) cover an
+# image somebody else built this binary into; this covers ours, exactly, on any runtime.
+#
+# The version *check* still runs: an image pinned to an old tag in a long-lived sandbox is
+# precisely the stale-client problem, and being told which command to run beats being told nothing.
+ENV LOOPKY_CONTAINER=1
+
 # `LOOPKY_SESSION` is how a container signs in — there is no stored session in an image and nobody
 # is watching its terminal to scan a QR code (Architecture.md §13.5).
 ENTRYPOINT ["loopky"]
