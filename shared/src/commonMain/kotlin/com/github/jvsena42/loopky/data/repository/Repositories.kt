@@ -458,6 +458,29 @@ interface DeckRepository {
      */
     suspend fun upsertCard(deckId: String, card: Card): Result<Deck>
 
+    /**
+     * Append [cards] to the end of the deck, chunk by chunk rather than card by card.
+     *
+     * [upsertCard] is the right shape for an edit and the wrong one for a batch: each call is a
+     * chunk write **plus** a full manifest read-modify-write, and the manifest carries the whole
+     * chunk table, so the per-card cost climbs with deck size. Adding 30 cards that way is 60
+     * writes where [publish] would spend 2.
+     *
+     * That matters most on the path it was measured on. `import --resume` exists so an import
+     * killed by the hourly session expiry (#165) can finish — and looping [upsertCard] made the
+     * recovery an order of magnitude slower than the attempt that just ran out of time, on the
+     * same one-hour budget. A large import dying at 55 minutes could never finish; each retry
+     * would die earlier in the file. The mechanism made the failure it exists for *more* likely.
+     *
+     * Fills the last chunk with room, then adds trailing chunks, and describes the lot in a single
+     * manifest patch. Ords continue from the deck's current maximum, so the appended cards land at
+     * the end in the order given.
+     *
+     * **New cards only.** Ids already in the deck are rejected rather than silently duplicated —
+     * replacing a card is [upsertCard], which knows how to find the chunk it lives in.
+     */
+    suspend fun appendCards(deckId: String, cards: List<Card>): Result<Deck>
+
     /** Remove a single card, rewriting its chunk and patching the manifest. */
     suspend fun deleteCard(deckId: String, cardId: String): Result<Deck>
 

@@ -411,6 +411,20 @@ class FakeDeckRepository : DeckRepository {
         return Result.success(updated)
     }
 
+    /** Batches handed to [appendCards], so a caller can be shown to send one rather than a loop. */
+    val appendedBatches = mutableListOf<Pair<String, List<Card>>>()
+    var appendCardsError: Throwable? = null
+
+    override suspend fun appendCards(deckId: String, cards: List<Card>): Result<Deck> {
+        appendCardsError?.let { return Result.failure(it) }
+        appendedBatches.add(deckId to cards)
+        val deck = decks[deckId] ?: return Result.failure(IllegalStateException("deck $deckId not found"))
+        val updated = deck.copy(cardCount = deck.cardCount + cards.size)
+        decks[deckId] = updated
+        _changes.tryEmit(Unit)
+        return Result.success(updated)
+    }
+
     override suspend fun deleteCard(deckId: String, cardId: String): Result<Deck> {
         deletedCards.add(deckId to cardId)
         val deck = decks[deckId] ?: return Result.failure(IllegalStateException("deck $deckId not found"))

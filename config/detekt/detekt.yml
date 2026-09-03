@@ -14,6 +14,22 @@ console-reports:
   active: true
 
 complexity:
+  LargeClass:
+    active: true
+    excludes:
+      # The widest interface in the app, and the count is the interface's rather than a cohesion
+      # problem: one class owns publish, single-card edits, batched appends, delete, move, media
+      # re-hosting, compaction, listing, sync, following and cloning — because every one of them
+      # is a manifest read-modify-write that has to serialize behind the same per-deck lock
+      # (Architecture.md §8.0). The parts that could leave already have: `DeckMediaSweeper` and
+      # `AccountEraser` are collaborators, and `CardChunking` owns the chunk arithmetic.
+      #
+      # The real seam is the "following someone else's deck" block, and `DeckRepository`'s own
+      # KDoc records why it is not taken: `listFollowed` has to merge with `listOwned` behind one
+      # `changes` flow, and `DiscoveryRepository` already depends on this one. Splitting it means
+      # deciding where that flow lives, which is the `core`/`presentation` question (#54, open
+      # question 5), not a lint fix.
+      - '**/data/repository/impl/DeckRepositoryImpl.kt'
   LongParameterList:
     active: true
     ignoreAnnotated: ['Composable', 'Preview']

@@ -332,6 +332,58 @@ class DeckRepositoryImpl(
         }
     }
 
+    override suspend fun appendCards(deckId: String, cards: List<Card>): Result<Deck> =
+        runSuspendCatching {
+            cards.forEach {
+                require(!it.front.isEmpty && !it.back.isEmpty) { "Card ${it.id} has an empty side" }
+            }
+            requireOwnedDeck(deckId)
+
+            withDeckWrite(deckId) {
+                val deck = requireNotNull(getLocal(deckId)) { "Deck $deckId is not loaded" }
+                if (cards.isEmpty()) return@withDeckWrite deck
+
+                // The chunk with room, read once. Everything after it is a fresh trailing chunk,
+                // so this is the only existing record the batch has to merge into.
+                val firstChunk = CardChunking.appendTarget(deck.chunks)
+                val tail = cardRepo.readChunk(deck, firstChunk).getOrDefault(emptyList())
+                val existingIds = tail.mapTo(mutableSetOf()) { it.id }
+                cards.forEach {
+                    require(it.id !in existingIds) { "Card ${it.id} is already in chunk $firstChunk" }
+                }
+
+                writeChunksAndManifestLocked(
+                    deck,
+                    CardChunking.planAppend(
+                        cards = cards,
+                        firstChunk = firstChunk,
+                        tail = tail,
+                        ordFloor = highestOrdLocked(deck, tail, firstChunk),
+                    ),
+                )
+            }
+        }
+
+    /**
+     * The highest `ord` in the deck, for an append to continue past.
+     *
+     * Under sequential append the last chunk holds the highest ords, so [tail] answers it — except
+     * when the append target is a **new** chunk because the last one filled up, and then [tail] is
+     * empty. Guessing a floor there (from the chunk count, say) puts the appended cards *before*
+     * ones already in the deck and silently scrambles study order, so the previous chunk is read
+     * instead. One extra read, only at the boundary.
+     *
+     * **The caller must hold [Deck.id]'s write lock.**
+     */
+    private suspend fun highestOrdLocked(deck: Deck, tail: List<Card>, firstChunk: Int): Long {
+        tail.maxOfOrNull { it.ord }?.let { return it }
+        // `chunks[].n`, never `0 until size`: compaction leaves gaps in the numbering (#51).
+        val previous = deck.chunks.filter { it.n < firstChunk }.maxByOrNull { it.n } ?: return 0L
+        return cardRepo.readChunk(deck, previous.n).getOrDefault(emptyList())
+            .maxOfOrNull { it.ord }
+            ?: 0L
+    }
+
     override suspend fun deleteCard(deckId: String, cardId: String): Result<Deck> = runSuspendCatching {
         requireOwnedDeck(deckId)
 
