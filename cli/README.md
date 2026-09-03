@@ -13,10 +13,16 @@ This file is how to build and use it.
 One file, no JRE, nothing else on the machine.
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/jvsena42/loopky/main/cli/install.sh | sh
+curl -fsSL https://github.com/jvsena42/loopky/releases/latest/download/install.sh | sh
 ```
 
 That picks the right build, checks its digest and drops it in `~/.local/bin` — no root anywhere.
+
+**The installer comes from the release, not from `main`.** It is published as an asset at the tag
+alongside the binaries it fetches. `raw.githubusercontent.com/.../main/cli/install.sh` is the
+obvious URL and the wrong one: it pipes whatever `main` is at that second into `sh`, which is a
+moving target for the one command here that runs unreviewed shell as the user.
+
 By hand is a supported answer and is one line, because the artifact really is a single binary:
 
 ```shell
@@ -84,6 +90,9 @@ loopky login                        # QR for Pubky Ring, then waits for approval
 loopky login --export               # also prints the session secret, for LOOPKY_SESSION
 loopky whoami --json
 loopky logout
+
+loopky update --check            # is there a newer release?
+loopky update                    # fetch it, check its digest, replace this binary
 
 loopky deck list
 loopky deck create --title "Capitais" --tag geografia --tag "português" --from-file cards.tsv
@@ -187,6 +196,7 @@ no media quota is spent.
 | `LOOPKY_SESSION` | A session secret — a **bearer token**, see the note below. Read **before** the stored session, and the only way in on a sandbox that has no stored one. Mint it with `loopky login --export` on a machine with a human at it, and revoke it with `loopky logout` while it is set. |
 | `LOOPKY_ENV` | `staging` or `production`. `--env` wins. Defaults to production. |
 | `LOOPKY_CONFIG_HOME` | Where state lives. Defaults to `$XDG_CONFIG_HOME/loopky`, then `~/.config/loopky`. |
+| `LOOPKY_NO_UPDATE_CHECK` | Set to anything to never look for a newer release. The check is cached for a day, runs alongside the command, and can never fail it — but a pipeline that wants no surprises can switch it off. `--no-update-check` does the same for one invocation. |
 | `RUST_LOG` | The pubky SDK's own tracing, defaulted to `warn` — by the start script in the jar distribution and through libc in the binary, which has no start script. `RUST_LOG=debug` is the first thing to try when a homeserver call fails for no visible reason. |
 
 ## Exit codes
@@ -198,7 +208,12 @@ no media quota is spent.
 | 2 | usage | 8 | environment mismatch |
 | 3 | not signed in | 9 | bad input |
 | 4 | **session expired** | 10 | unsupported host |
-| 5 | network | | |
+| 5 | network | 11 | update found, not applied |
+
+11 is `loopky update` refusing honestly: there *is* a newer release and this copy is not ours to
+replace — a Homebrew or `.deb` install, a container layer, the jar directory, a file the user
+cannot write. Never 0, because an agent that asked for an update and got a zero would carry on
+believing it had one. The message names the command that does own it.
 
 10 is the machine, not the command: there is no `libpubkycore` for this OS/architecture pair, and
 no retry, no re-login and no second attempt can change that. It has a code of its own because
@@ -248,6 +263,15 @@ payload does not carry one.
   QR code is an encoding, not a protection. It is created `0600` and deleted once approval lands,
   but for the length of the approval window that file is a session anyone who can read it can
   take.
+- **You are told when the client is stale, and never updated behind your back.** A newer release
+  arrives as one line on stderr and as `update_available` in the `--json` envelope — null when
+  there is nothing to say, otherwise `{version, schema, schema_changed}`. The last of those is
+  worth branching on separately: a newer CLI at the *same* schema is a convenience, one at a
+  different schema means your parser may be wrong. The check is one cached-for-a-day HTTPS GET
+  against the release page the installer already uses, it runs alongside the command, and a check
+  that fails is silent rather than fatal. `loopky update` is the one command that acts on it, and
+  it refuses — with the right command, and exit 11 — on a Homebrew or `.deb` install, in a
+  container, and on the jar.
 - **A session and an `--env` that disagree is a hard error**, not a warning. Nexus answers a query
   aimed at the wrong network *successfully and empty*, so a mismatch would look like a failed write
   rather than a misconfiguration.
