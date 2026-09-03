@@ -144,3 +144,70 @@ jobs:
           name: cli-test-reports
           path: '**/build/reports/tests/'
           if-no-files-found: ignore
+
+  cli-binary:
+    # The packaging, checked on every change rather than at a tag (#210). Everything above this
+    # job passes on a build that needs a JRE 17 installed, which is the thing the binary exists to
+    # remove — so a regression here is invisible to all of it.
+    #
+    # Two properties, both of which have already broken once and neither of which a green
+    # `assembleDebug` says anything about:
+    #
+    #  - **it is one file.** `native-image` does not fail when it cannot fold a JDK native library
+    #    into the executable; it emits the library beside it and reports success. Reaching
+    #    `javax.imageio` from anywhere adds three `libawt*.so`, and `curl … -o ~/.local/bin/loopky`
+    #    quietly stops being an install.
+    #  - **it runs.** JNA extracts `libpubkycore` from the image's own resources through a code
+    #    path a closed-world binary has to be told about by hand, and a missing registration is a
+    #    runtime failure with a green build behind it.
+    #
+    # Built through `cli/Dockerfile` rather than on the runner, so this is the same recipe the
+    # release uses and there is no second one to drift.
+    name: CLI as a native binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the binary
+        run: docker build -f cli/Dockerfile --target export --output type=local,dest=dist .
+
+      - name: One file, and it works
+        env:
+          LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-native
+        run: |
+          set -euo pipefail
+          chmod +x dist/loopky
+          ls -la dist
+          test "$(ls dist | wc -l)" -eq 1
+
+          dist/loopky --version
+          dist/loopky --help > /dev/null
+
+          # Same assertions as the jar's smoke test, on the artifact people actually install.
+          set +e; OUT=$(dist/loopky whoami --json); CODE=$?; set -e
+          echo "$OUT"
+          test "$CODE" -eq 3
+          echo "$OUT" | grep -q '"code":"not_signed_in"'
+          echo "$OUT" | grep -q '"schema":1'
+          echo "$OUT" | grep -q '"environment":"production"'
+
+          set +e; dist/loopky frobnicate --json > /dev/null; CODE=$?; set -e
+          test "$CODE" -eq 2
+
+          # The FFI, which is the whole of the difficulty and the one thing a JVM run cannot
+          # vouch for: this reaches `_UniFFILib.INSTANCE`, so it loads `libpubkycore` out of the
+          # binary's own resources, checks its API checksums and registers a JNA callback. A
+          # missing reachability registration dies here and nowhere earlier.
+          #
+          # It then blocks on a human approving in Ring, so it is killed after a moment — the URL
+          # *is* the pass. Offline-safe on purpose: the URL is built locally from a generated
+          # secret and printed before the relay is polled, so this asserts the FFI and nothing
+          # about the network, and a relay wobble cannot fail a PR.
+          timeout -s TERM 25 dist/loopky login --url-only > /dev/null 2> qr.log || true
+          cat qr.log
+          grep -q '^pubkyauth://' qr.log
+
+          # And the SDK's tracing stays quiet by default. There is no start script on a binary to
+          # export RUST_LOG, so this is `RustLog.kt` doing it through libc — verified here because
+          # the failure is four ANSI-coloured lines on the channel an agent captures.
+          test "$(grep -c 'DEBUG\|INFO' qr.log || true)" -eq 0

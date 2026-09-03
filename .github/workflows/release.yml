@@ -1,0 +1,178 @@
+# Publish `loopky` as something you can install without installing anything else (#210).
+#
+# What comes out of a tag:
+#
+#   loopky-linux-x86-64      a single binary, glibc 2.34+, built inside ubuntu:22.04
+#   loopky-macos-aarch64     a single binary, Apple Silicon
+#   loopky_<version>_amd64.deb
+#   ghcr.io/<owner>/loopky   a container image
+#
+# plus a `.sha256` beside each binary, which `cli/install.sh` checks.
+#
+# **One job per host, because `native-image` does not cross-compile.** There is no matrix of
+# `--target` flags to be had: the machine that builds the binary is the machine it runs on, which
+# is also why the Linux job builds inside a container rather than on the runner — a binary linked
+# against the runner's glibc refuses to start on anything older, and the floor that matters is
+# `libpubkycore.so`'s 2.34, not the runner's.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. v0.2.0). Artifacts are uploaded, no release is made.'
+        required: true
+        default: 'v0.0.0-dev'
+
+permissions:
+  contents: read
+
+env:
+  VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+jobs:
+  linux:
+    name: Linux x86_64 binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # `cli/Dockerfile` is the whole build definition, so this step is identical to what a
+      # developer runs locally and there is no second recipe to drift.
+      - name: Build the binary
+        run: |
+          docker build -f cli/Dockerfile --target export \
+            --output type=local,dest=dist .
+
+      # The contract an agent branches on, asserted on the artifact rather than on a jar that
+      # resembles it. Deliberately offline: nothing here needs a homeserver, so a network blip
+      # cannot make a release flake.
+      - name: Smoke-test it
+        env:
+          LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-release
+        run: |
+          set -euo pipefail
+          chmod +x dist/loopky
+          test "$(ls dist | wc -l)" -eq 1   # one file, or the install story is not one curl
+          dist/loopky --version
+          set +e; OUT=$(dist/loopky whoami --json); CODE=$?; set -e
+          echo "$OUT"
+          test "$CODE" -eq 3
+          echo "$OUT" | grep -q '"code":"not_signed_in"'
+          echo "$OUT" | grep -q '"schema":1'
+
+      - name: Name it, and check it
+        run: |
+          set -euo pipefail
+          mv dist/loopky dist/loopky-linux-x86-64
+          ( cd dist && sha256sum loopky-linux-x86-64 > loopky-linux-x86-64.sha256 )
+          cli/packaging/deb.sh dist/loopky-linux-x86-64 "$VERSION" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: loopky-linux
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS aarch64 binary
+    # An arm64 runner, and only an arm64 runner: there is one `darwin-aarch64` row of
+    # `libpubkycore` and an Intel build would have nothing to load (#54).
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the binary
+        run: ./gradlew :cli:nativeCompile
+
+      - name: Smoke-test it
+        env:
+          LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-release
+        run: |
+          set -euo pipefail
+          BIN=cli/build/native/nativeCompile/loopky
+          "$BIN" --version
+          set +e; OUT=$("$BIN" whoami --json); CODE=$?; set -e
+          echo "$OUT"
+          test "$CODE" -eq 3
+          echo "$OUT" | grep -q '"code":"not_signed_in"'
+
+      - name: Name it, and check it
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp cli/build/native/nativeCompile/loopky dist/loopky-macos-aarch64
+          ( cd dist && shasum -a 256 loopky-macos-aarch64 > loopky-macos-aarch64.sha256 )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: loopky-macos
+          path: dist/*
+          if-no-files-found: error
+
+  image:
+    name: Container image
+    runs-on: ubuntu-latest
+    # The other half of the install story rather than an alternative to it: a sandbox that lets
+    # you choose an image needs no install step at all, and one with restricted egress may have
+    # no other way in.
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/loopky"
+          docker build -f cli/Dockerfile --target runtime \
+            -t "$IMAGE:${VERSION#v}" -t "$IMAGE:latest" .
+          docker run --rm "$IMAGE:${VERSION#v}" --version
+          # Only a real tag publishes. A `workflow_dispatch` run builds and tests the image and
+          # stops there, so the dry run cannot move `:latest` under everyone.
+          if [ "${{ github.event_name }}" = "push" ]; then
+            docker push "$IMAGE:${VERSION#v}"
+            docker push "$IMAGE:latest"
+          fi
+
+  release:
+    name: Attach to the release
+    needs: [linux, macos]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ls -la dist
+          gh release create "$VERSION" --title "$VERSION" --generate-notes --verify-tag \
+            || echo "release already exists, uploading into it"
+          gh release upload "$VERSION" dist/* --clobber
