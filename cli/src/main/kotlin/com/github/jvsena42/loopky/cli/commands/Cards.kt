@@ -284,4 +284,16 @@ internal fun Card.identityOf(): String = listOf(
     back.text.orEmpty().trim().lowercase(),
     front.imageRef?.let { it.url ?: it.sha256 }.orEmpty(),
     back.imageRef?.let { it.url ?: it.sha256 }.orEmpty(),
-).joinToString(" ")
+).joinToString(IDENTITY_SEPARATOR)
+
+/**
+ * The separator between a card's four identity fields: `NUL`, because no card text can contain it,
+ * so `"ab" + "c"` and `"a" + "bc"` cannot collide.
+ *
+ * **Written as an escape, and that is the point of the constant.** It used to be a literal NUL
+ * *byte* in the source, which made this file binary as far as `grep` is concerned — `grep -rn
+ * CardWriteResult` over the repo found nothing at all, silently, and exited 1. Anyone looking for
+ * a type declared thirty lines above concluded it did not exist. `grep -a` finds it; nobody thinks
+ * to reach for `-a` when the answer is simply empty.
+ */
+private const val IDENTITY_SEPARATOR = "\u0000"
