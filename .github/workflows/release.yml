@@ -226,6 +226,19 @@ jobs:
         run: |
           set -euo pipefail
           ls -la dist
-          gh release create "$VERSION" --title "$VERSION" --generate-notes --verify-tag \
-            || echo "release already exists, uploading into it"
+
+          # **Assets in the same `create` call, not a create followed by an upload.** `gh` handles
+          # that form by creating the release as a *draft*, uploading, and publishing only then —
+          # so there is no moment where a published release exists with nothing in it. Created
+          # empty and filled afterwards, the release is briefly the newest one on the repo with no
+          # binaries attached, and `releases/latest/download/loopky-linux-x86-64` — the URL
+          # `cli/install.sh` and the README both use — 404s for exactly that long.
+          if gh release create "$VERSION" dist/* --title "$VERSION" --generate-notes --verify-tag; then
+            exit 0
+          fi
+          # The release already exists, which is the normal case: the human running the `release`
+          # skill created it with the curated changelog moments after pushing the tag, and is
+          # holding it back from `latest` until these assets land. Fill it in and leave the notes
+          # and the latest flag alone.
+          echo "release already exists, uploading into it"
           gh release upload "$VERSION" dist/* --clobber

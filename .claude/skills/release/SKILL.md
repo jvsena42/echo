@@ -163,16 +163,33 @@ merge commit.
     - Write the approved changelog to a temp file and pass it with `--notes-file` — `--notes` is
       unwieldy for multi-line bodies.
     - `gh release create <version> Loopky-<numeric_version>.apk --title "Loopky <version>"
-      --notes-file <file> --latest`.
-    - **If that fails because the release already exists**, the workflow got there first and the
-      notes are auto-generated. Do not leave them: `gh release edit <version> --title
-      "Loopky <version>" --notes-file <file> --latest`, then
-      `gh release upload <version> Loopky-<numeric_version>.apk --clobber`.
-    - Verify it published as intended:
-      `gh release view <version> --json tagName,name,isDraft,isPrerelease,assets` — the APK must
-      be listed as `Loopky-<numeric_version>.apk` — and
-      `gh api repos/jvsena42/loopky/releases/latest -q '.tag_name'`. Note there is no `isLatest`
-      JSON field — query the `releases/latest` endpoint instead.
+      --notes-file <file> --latest=false`.
+
+      **`--latest=false`, and it is the whole point of splitting this across two steps.** The CLI
+      assets are still ten minutes away, and `latest` is not decoration: `cli/install.sh` defaults
+      to `https://github.com/jvsena42/loopky/releases/latest/download/loopky-linux-x86-64`, and so
+      does the one-liner in `cli/README.md`. Mark this release latest now and the documented
+      install 404s until the workflow finishes — a bounded outage on every release, self-healing,
+      and therefore one nobody ever catches. Held back, `latest` keeps pointing at the previous
+      release, so the one-liner installs an older working binary instead of nothing. Step 11 moves
+      it once the assets are there and the binary has been run.
+
+      Note that **omitting** `--latest` does not do this. Its default is "automatic based on date
+      and version", and GitHub reads a new highest version as the latest one. Only
+      `--latest=false` holds it back.
+    - **If that fails because the release already exists**, the workflow got there first — which
+      means it created the release *with* the CLI assets already attached (`gh release create`
+      with assets uploads to a draft and publishes only when they are all up), so there is no
+      window to worry about and the release is already latest. What it does not have is your
+      changelog: `gh release edit <version> --title "Loopky <version>" --notes-file <file>`, then
+      `gh release upload <version> Loopky-<numeric_version>.apk --clobber`. Do not pass
+      `--latest=false` on this path; the assets are already there.
+    - Verify it exists and carries the APK:
+      `gh release view <version> --json tagName,name,isDraft,isPrerelease,assets` — not a draft,
+      not a prerelease, and `Loopky-<numeric_version>.apk` listed.
+
+      Do **not** check `releases/latest` here. It still points at the previous release, on purpose,
+      and will until step 11 — that is the fix, not a failure.
 
 11. **Wait for the CLI artifacts, and check they arrived**:
     - `gh run watch $(gh run list --workflow=release.yml --limit 1 --json databaseId -q '.[0].databaseId')`.
@@ -200,6 +217,20 @@ merge commit.
       On macOS, use `loopky-macos-aarch64` instead — the Linux binary will not exec there. If
       `--version` disagrees with the tag, stop: the release is publishing a binary that lies about
       what it is.
+    - **Only now, mark it latest**: `gh release edit <version> --latest`. This is the step that
+      makes `cli/install.sh` and the README's one-liner point at this release, so it comes after
+      the assets are listed *and* after one of them has been run — never before. Skip it if the
+      workflow created the release itself (step 10's fallback branch), where it is already latest.
+      Skip it deliberately for a pre-release: a `v1.0.0-rc1` should not become what a bare
+      `curl … /releases/latest/download/…` installs.
+    - Confirm the move landed, and that the install path a new user takes now resolves. There is
+      no `isLatest` JSON field on a release — query the endpoint instead:
+
+      ```shell
+      gh api repos/jvsena42/loopky/releases/latest -q '.tag_name'          # <version>
+      curl -fsIL https://github.com/jvsena42/loopky/releases/latest/download/loopky-linux-x86-64 \
+        -o /dev/null -w '%{http_code}\n'                                  # 200
+      ```
     - Confirm the image: `docker pull ghcr.io/jvsena42/loopky:<numeric_version>`. `:latest` moves
       only for a final version — a pre-release tag such as `v1.0.0-rc1` deliberately leaves it
       where it is, so do not treat an unmoved `:latest` as a failure.
@@ -236,6 +267,11 @@ merge commit.
   those exact names, so a workflow that failed after the release was created leaves every
   documented install path returning 404 while the page reads fine. Check the names, and run the
   binary you actually published.
+- **Nothing is `latest` until it is complete.** `latest` is what both documented install paths
+  resolve through, so moving it is the act of publishing, not a flag on the way past. Step 10
+  creates with `--latest=false` and step 11 moves it after the assets are listed and one has been
+  run. Doing it in one step gives every release a ten-minute window where the one-liner 404s —
+  bounded, self-healing, and therefore never noticed.
 - **`loopkyCliVersion` and the tag are one number.** The release workflow refuses the build when
   they disagree, which is the good failure; the bad one is skipping the bump, having the workflow
   stop, and hand-fixing the release page so the binary and the tag say different things.
