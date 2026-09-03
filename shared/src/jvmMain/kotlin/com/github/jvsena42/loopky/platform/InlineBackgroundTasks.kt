@@ -14,7 +14,7 @@ import com.github.jvsena42.loopky.util.Log
  * So this records the ask and drops it. Neither job is required for correctness — a clone's media
  * stays pinned to the source author's blobs and reads fine (#53), and a deck with holes in its
  * chunks is a deck with holes, which every reader already handles (#51). What the CLI owes the
- * user instead is an explicit way to run them, which is `loopky deck sync --compact`, not a
+ * user instead is an explicit way to run them, which is `loopky deck compact <deckId>`, not a
  * surprise pass in the middle of something else.
  */
 class InlineBackgroundTasks : BackgroundTasks {

@@ -72,21 +72,30 @@ private fun run(argv: Array<String>): ExitCode {
 
     Log.debugEnabled = args.has("verbose")
     val environment = CliEnvironment.resolve(args)
-    val koin = startCli(environment)
     try {
+        // Inside the boundary, not before it: starting Koin resolves `PubkyClient`, which is where
+        // a host outside the shipped matrix fails at `Native.load`.
+        val koin = startCli(environment)
         val result = runBlocking { dispatch(args, koin.identity(), koin, environment) }
         emit(args, environment, args.verb, result)
         return ExitCode.Ok
     } catch (error: CliError) {
         fail(args, environment, args.verb, error.exitCode, error.message.orEmpty())
         return error.exitCode
-    } catch (error: Exception) {
+    } catch (@Suppress("TooGenericExceptionCaught") error: Throwable) {
+        // `Throwable`, not `Exception`. An x86-64 Mac or a Windows box fails at `Native.load` with
+        // `UnsatisfiedLinkError` / `ExceptionInInitializerError` — both `Error`s — and catching
+        // only `Exception` let them past `fail()` to a bare exit 1 with **nothing on stdout**.
+        // That breaks the "results and failures both go there as --json" contract for precisely
+        // the case the README and `Platform.jvm.kt` both name as expected.
         val code = ExitCode.of(error)
         Log.e(TAG, "command failed", error)
         fail(args, environment, args.verb, code, error.message ?: error::class.simpleName.orEmpty())
         return code
     } finally {
-        stopCli()
+        // Koin may never have started, in which case stopping it throws over the failure we are
+        // already reporting.
+        runCatching { stopCli() }
     }
 }
 
