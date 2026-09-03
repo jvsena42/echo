@@ -1539,3 +1539,46 @@ device rather than read off the diff. All eleven are fixed on this branch.
 `.apkg` reader's *callers* rather than its opener. Both now have tests that go through the real
 shape — a raw session payload, and a real zip around a real SQLite file — and both were confirmed
 to fail on the old code before the fix landed.
+
+## Review rounds — 2026-09-03, eight rounds against live staging
+
+The branch was reviewed and **re-driven on a real staging homeserver** eight times, not signed off
+from the diff. 2 HIGH, 15 MEDIUM and 10 LOW found and closed. The full round-by-round record is on
+[PR #208](https://github.com/jvsena42/loopky/pull/208); what belongs here is what a later reader
+needs.
+
+**Two defects had passing tests sitting over them, and it was the same mistake twice.** A test
+built on a *fixture* rather than on the shape the real flow produces:
+
+- `EnvironmentMismatchTest` handed the guard a homeserver by hand, so the CLI's headline safety
+  check was green while having **never once fired** — the Ring sign-in path stored a blank
+  homeserver, and the guard compares against exactly that field.
+- The `.apkg` suite drove `JvmApkgReader`'s *callers* rather than its opener, so a JDBC URL that
+  was never interpolated went unnoticed and every desktop `.apkg` read failed.
+
+Both now have tests that go through the real shape — a raw session payload, and a real zip around
+a real SQLite file — and both were confirmed to fail on the old code before the fix landed. **If
+you add a safety check here, test it through the path that mints the value, not through a
+fixture.**
+
+**Five of the last six fixes found a further bug while being written**: the batched append
+scrambling study order across a chunk seam, `logout` claiming `revoked: true` on a machine that had
+never signed in, absent-vs-false collapsing the study opt-ins on a bare `--resume`. Worth expecting
+if you touch these paths.
+
+### Two corners are deliberately untested
+
+Both need a condition that cannot be created cheaply. Do not read the rest of this file as meaning
+the whole surface has been driven:
+
+| Path | What it needs |
+| --- | --- |
+| `signOut` reporting a **failed** remote revoke (S4) | the homeserver to refuse a revoke. The user is told "Signed out" while the token is still live — the branch's one remaining path that could mislead about a credential. |
+| `logout`'s "same session" branch (R5-1) | reaches its message only *after* revoking, so exercising it costs a fresh Ring sign-in. |
+
+### The deliverable
+
+`avskolydfy2q` — **"Computer Networks — Ch. 1: Introduction", 48 cards**, tagged `networking` /
+`tanenbaum` / `computer-science`, ords ascending, read back identical to what went in. Extracted
+from chapter 1 of Tanenbaum, Feamster & Wetherall 6e and published end to end through `loopky`: no
+phone, no screen, one command. That is the branch's claim, demonstrated rather than argued.
