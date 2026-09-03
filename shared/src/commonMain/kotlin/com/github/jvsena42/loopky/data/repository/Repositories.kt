@@ -301,8 +301,16 @@ interface IdentityRepository {
  * of the truth. Callers that only care about the local half can keep ignoring this.
  */
 data class SignOutOutcome(
-    /** True when the homeserver confirmed the session is dead. */
+    /**
+     * True when the homeserver confirmed the session is dead.
+     *
+     * False when there was no session to revoke — see [hadSession]. Signing out of nothing is a
+     * success, but it is not a revocation, and a caller that reports it as one is claiming
+     * something happened to a credential that was never there.
+     */
     val revokedRemotely: Boolean,
+    /** Whether there was a session at all. Sign-out is idempotent; saying so is not. */
+    val hadSession: Boolean,
 )
 
 interface KeyBackupRepository {

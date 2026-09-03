@@ -114,7 +114,7 @@ internal class IdentityRepositoryImpl(
         // local clear happens either way, because a user asking to sign out should end up signed
         // out here whatever the network is doing. What must *not* happen is reporting that as an
         // unqualified success while the bearer token is still live, so the outcome travels back.
-        val revokedRemotely = current == null ||
+        val revokedRemotely = current != null &&
             pubky.signOut(current.sessionSecret)
                 .onFailure { Log.w(TAG, "signOut: the homeserver did not confirm revocation", it) }
                 .isSuccess
@@ -128,7 +128,7 @@ internal class IdentityRepositoryImpl(
         sessionProvider.set(null)
         selfTaggedThisProcess = false
         profileCacheLock.withLock { profileCache.clear() }
-        SignOutOutcome(revokedRemotely = revokedRemotely)
+        SignOutOutcome(revokedRemotely = revokedRemotely, hadSession = current != null)
     }
 
     override suspend fun revokeSession(sessionSecret: String): Result<Unit> = runSuspendCatching {

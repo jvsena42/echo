@@ -154,8 +154,11 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
         forcedSignOuts.add(force)
         signOutRefusal?.takeIf { !force }?.let { return Result.failure(it) }
         signOutCount++
+        val had = session != null
         session = null
-        return Result.success(SignOutOutcome(revokedRemotely = revokesRemotely))
+        return Result.success(
+            SignOutOutcome(revokedRemotely = revokesRemotely && had, hadSession = had),
+        )
     }
 
     override suspend fun revokeSession(sessionSecret: String): Result<Unit> {

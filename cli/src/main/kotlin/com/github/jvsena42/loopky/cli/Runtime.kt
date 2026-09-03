@@ -92,7 +92,7 @@ suspend fun requireSession(
  *
  * Shape only. Whether the secret is *live* is the homeserver's answer, and `adoptSession` asks it.
  */
-private fun requireSessionSecretShape(secret: String) {
+internal fun requireSessionSecretShape(secret: String) {
     val parts = secret.split(':')
     if (parts.size != SESSION_SECRET_PARTS || parts.any { it.isBlank() }) {
         throw CliError(

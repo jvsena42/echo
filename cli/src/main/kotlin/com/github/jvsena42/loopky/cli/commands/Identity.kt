@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.cli.TerminalQr
 import com.github.jvsena42.loopky.cli.asCliError
 import com.github.jvsena42.loopky.cli.eventEnvelope
 import com.github.jvsena42.loopky.cli.requireSession
+import com.github.jvsena42.loopky.cli.requireSessionSecretShape
 import com.github.jvsena42.loopky.cli.result
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
@@ -209,7 +210,11 @@ suspend fun whoami(
 
 @Serializable
 data class LogoutResult(
-    /** True when the homeserver confirmed the session is dead, rather than merely forgotten here. */
+    /**
+     * True when the homeserver confirmed the session is dead, rather than merely forgotten here.
+     *
+     * False when there was nothing to revoke, which is a success but not a revocation.
+     */
     val revoked: Boolean,
     /** False for a `LOOPKY_SESSION`, which was never written to this machine in the first place. */
     @SerialName("cleared_locally") val clearedLocally: Boolean,
@@ -237,6 +242,11 @@ suspend fun logout(
 ): CommandResult {
     val injected = env("LOOPKY_SESSION")?.trim()?.takeIf { it.isNotEmpty() }
     if (injected != null) {
+        // Checked here as well as in `requireSession`: `logout` is the one command that does not
+        // go through it, and without this a typo'd variable comes back as `session_expired` —
+        // the same confusion between "the hour is up" and "that is not a session secret" that the
+        // check exists to prevent.
+        requireSessionSecretShape(injected)
         identity.revokeSession(injected).getOrElse { throw asCliError(it, injected = true) }
         return result(
             LogoutResult(revoked = true, clearedLocally = false),
@@ -251,14 +261,18 @@ suspend fun logout(
     // nothing else — so there is no key here for the guard to protect.
     val outcome = identity.signOut(force = true).getOrElse { throw asCliError(it) }
     return result(
-        LogoutResult(revoked = outcome.revokedRemotely, clearedLocally = true),
-        if (outcome.revokedRemotely) {
-            "Signed out."
-        } else {
+        LogoutResult(revoked = outcome.revokedRemotely, clearedLocally = outcome.hadSession),
+        when {
+            // Idempotent, and says so. Reporting a revocation here would claim something happened
+            // to a credential that was never there.
+            !outcome.hadSession -> "Not signed in — nothing to revoke."
+            outcome.revokedRemotely -> "Signed out."
             // Said plainly rather than folded into a success: the token is still live, and a user
             // told "signed out" would reasonably believe otherwise.
-            "Cleared this machine's session, but the homeserver did not confirm it was revoked — " +
-                "the session may still be usable until it expires. Try again when you are online."
+            else ->
+                "Cleared this machine's session, but the homeserver did not confirm it was " +
+                    "revoked — the session may still be usable until it expires. Try again when " +
+                    "you are online."
         },
     )
 }
