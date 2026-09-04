@@ -462,7 +462,8 @@ private fun ReviewingContent(
                             frontImageRef = state.frontImageRef,
                             backImageRef = state.backImageRef.takeUnless { state.answerHidden },
                             revealed = state.revealed,
-                            answerHidden = state.answerHidden,
+                            typePhase = state.typePhase,
+                            typedAnswer = state.typedAnswer,
                         ),
                         // Keyed on the card, so revealing swaps content in place (the flip) and only a
                         // card change runs the enter/exit transition.
@@ -492,12 +493,12 @@ private fun ReviewingContent(
                             onReveal = onReveal,
                             onSpeak = onSpeak,
                             onSpeakTest = onSpeakTest,
-                            answerInput = (state.typePhase as? TypePhase.Answering)?.let { phase ->
+                            answerInput = (card.typePhase as? TypePhase.Answering)?.let { phase ->
                                 {
                                     TypeAnswerInput(
-                                        value = state.typedAnswer,
+                                        value = card.typedAnswer,
                                         languageTag = state.backLang,
-                                        cardKey = state.position,
+                                        cardKey = card.position,
                                         onValueChange = onAnswerChange,
                                         onCheck = onCheckAnswer,
                                         onGiveUp = onGiveUp,
@@ -505,7 +506,7 @@ private fun ReviewingContent(
                                     )
                                 }
                             },
-                            answerNote = if (state.typePhase is TypePhase.Correct) {
+                            answerNote = if (card.typePhase is TypePhase.Correct) {
                                 { TypeCorrectNote() }
                             } else {
                                 null
@@ -625,9 +626,18 @@ private data class CardSnapshot(
     val frontImageRef: MediaRef.Image?,
     val backImageRef: MediaRef.Image?,
     val revealed: Boolean,
+    /**
+     * **This card's** place in the type-the-answer flow, not the session's. An outgoing card is
+     * still composed while it fades, holding the back face it was graded on — so reading the live
+     * phase there would draw the *next* card's input, and its `FocusRequester` would raise the
+     * keyboard over a front that has nothing to type into.
+     */
+    val typePhase: TypePhase = TypePhase.Off,
+    val typedAnswer: String = "",
+) {
     /** The back is turned but its words are a placeholder — see `Reviewing.answerHidden`. */
-    val answerHidden: Boolean = false,
-)
+    val answerHidden: Boolean get() = typePhase is TypePhase.Answering
+}
 
 /**
  * One card, owning its own flip. Composed per [CardSnapshot] by the advance `AnimatedContent`,

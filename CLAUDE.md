@@ -302,7 +302,11 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   Give up reports nothing at all, and all four SRS buttons stay equally available — an escape hatch that pre-selects Again is a punishment wearing an
   escape hatch's label. Matching is `AnswerMatcher` with an `AnswerStrictness`: typing is `Strict`
   (accents count — typing them is the point), `SpeakMatcher` is the `Lenient` view. Cards with no
-  back text (an image-only Anki answer) or no prompt fall back to tap-to-reveal.
+  back text (an image-only Anki answer) or no prompt fall back to tap-to-reveal. On Android the
+  input is drawn from the card's own `CardSnapshot` — phase and typed text included — never from the
+  live state: `AnimatedContent` keeps the outgoing card composed through its fade *and* re-runs the
+  content lambda, so reading the session's phase there drew the **next** card's input, and its
+  `FocusRequester` raised the keyboard over a front with nothing to type into.
 - **The study loop's haptics are decided in the ViewModel, never fired on tap by a screen.**
   `StudySessionEffect.Haptic(StudyHaptic)` rides the ordinary effect flow, and the platforms only
   map it — `HapticFeedbackType` on Android, `UIImpactFeedbackGenerator`/
