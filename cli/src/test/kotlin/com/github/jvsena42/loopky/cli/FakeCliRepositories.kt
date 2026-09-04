@@ -43,7 +43,18 @@ class FakeDeckRepository(
      * blobs where they are.
      */
     private val onAppend: ((List<Card>) -> Result<Deck>)? = null,
+    /**
+     * What `upsertCard` should fail with for a given attempt, or null to let it through.
+     *
+     * Takes the attempt number as well as the card, because a batch's whole point is what it does
+     * *between* attempts — a 500 that clears on the retry and one that does not are different
+     * outcomes, and only the count tells them apart.
+     */
+    private val upsertFails: (Card, Int) -> Throwable? = { _, _ -> null },
 ) : DeckRepository {
+
+    /** Every `upsertCard` call, failed ones included — `upserted` holds only the ones that landed. */
+    val upsertAttempts = mutableListOf<Card>()
 
     val upserted = mutableListOf<Card>()
 
@@ -73,6 +84,9 @@ class FakeDeckRepository(
     override suspend fun listOwned(): List<Deck> = owned
 
     override suspend fun upsertCard(deckId: String, card: Card): Result<Deck> {
+        upsertAttempts += card
+        val attempt = upsertAttempts.count { it.id == card.id }
+        upsertFails(card, attempt)?.let { return Result.failure(it) }
         upserted += card
         deck = onUpsert(card)
         return Result.success(deck)

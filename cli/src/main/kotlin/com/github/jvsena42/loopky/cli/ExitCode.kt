@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.cli
 
 import com.github.jvsena42.loopky.data.pubky.toErrorReason
 import com.github.jvsena42.loopky.domain.model.ErrorReason
+import kotlinx.serialization.json.JsonElement
 
 /**
  * What `loopky` exits with, and what an agent is supposed to do about it.
@@ -83,6 +84,20 @@ enum class ExitCode(val code: Int, val json: String) {
      * bug. Nothing was downloaded and nothing was replaced.
      */
     UpdateUnsupported(11, "update_unsupported"),
+
+    /**
+     * The homeserver answered with a 5xx of its own (#229, item 2).
+     *
+     * Split out of [Internal], which this CLI documents as "worth reporting as a bug" — and a 500
+     * from the homeserver is not a bug in the client, is not the caller's input, and unlike every
+     * other row here it may well succeed on the next attempt. A batch that reports `internal` sends
+     * an agent looking through its own file for the row that broke; told `server_error` it retries
+     * the rows that did not land.
+     *
+     * Deliberately not [Network], which promises the request never arrived: it did, and it may have
+     * been applied. That distinction is what makes a resumed write safe to attempt.
+     */
+    ServerError(12, "server_error"),
     ;
 
     companion object {
@@ -106,10 +121,44 @@ enum class ExitCode(val code: Int, val json: String) {
             ErrorReason.NotFound, ErrorReason.NoHomeserverAccount -> NotFound
             ErrorReason.StorageFull -> StorageFull
             ErrorReason.RingNotInstalled, ErrorReason.AuthFailed -> Internal
-            ErrorReason.Unknown -> Internal
+            // Last, and only over `Unknown`: `toErrorReason` has already claimed 429, 507 and every
+            // transport failure, so what is left to match a 5xx on is a homeserver that answered
+            // with one.
+            ErrorReason.Unknown -> if (error.isServerError()) ServerError else Internal
         }
     }
 }
 
-/** A failure that already knows what the process should exit with. */
-class CliError(val exitCode: ExitCode, message: String) : RuntimeException(message)
+/**
+ * The homeserver answered a 5xx.
+ *
+ * Substring matching, like every classifier in `PubkyErrors` and for the same reason: the FFI's
+ * error text is not a stable contract, so a miss degrades to [ExitCode.Internal] rather than to
+ * anything wrong. 507 is not here — it is out of storage, and terminal, and [toErrorReason] has
+ * already claimed it.
+ */
+private fun Throwable.isServerError(): Boolean {
+    val message = message?.lowercase() ?: return false
+    return "internal server error" in message || SERVER_STATUS.containsMatchIn(message)
+}
+
+/**
+ * `500`, `502`, `503` or `504` as a status code rather than as three digits inside something else.
+ * Same hazard as `STATUS_507` in `PubkyErrors`: every failure message carries a `pubky://` URL, and
+ * deck and card ids are random alphanumerics.
+ */
+private val SERVER_STATUS = Regex("(?<![0-9a-z])50[0234](?![0-9a-z])")
+
+/**
+ * A failure that already knows what the process should exit with.
+ *
+ * [data] is what the command had managed to do before it failed, in the `--json` shape that
+ * command's success would have used. A batch write is the case it exists for: 35 of 665 rows had
+ * landed when the homeserver 500'd, and an envelope carrying only a message left a caller with no
+ * way to tell which (#229, item 2). Null everywhere else — a failure with nothing to report.
+ */
+class CliError(
+    val exitCode: ExitCode,
+    message: String,
+    val data: JsonElement? = null,
+) : RuntimeException(message)

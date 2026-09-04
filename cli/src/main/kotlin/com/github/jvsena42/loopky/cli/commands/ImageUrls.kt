@@ -58,7 +58,6 @@ internal fun String.requireRenderableImageUrl(where: String): String {
     throw CliError(ExitCode.BadInput, "$where holds \"${take(IMAGE_URL_EXCERPT)}\" — $why")
 }
 
-
 /**
  * Notes worth putting on stderr about [url], or null when there is nothing to say.
  *

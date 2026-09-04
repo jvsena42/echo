@@ -73,7 +73,8 @@ class CardFileTest {
     /** A key that is absent still means "leave this alone", in either shape. */
     @Test
     fun `an omitted key in a stored-shape side leaves that field unchanged`() {
-        val rows = readCardFile(write(".jsonl", """{"id":"c1","front":{"image":{"url":"https://x.test/a.jpg"}}}""" + "\n"))
+        val rows =
+            readCardFile(write(".jsonl", """{"id":"c1","front":{"image":{"url":"https://x.test/a.jpg"}}}""" + "\n"))
         val row = rows.single()
         assertNull(row.front)
         assertNull(row.back)

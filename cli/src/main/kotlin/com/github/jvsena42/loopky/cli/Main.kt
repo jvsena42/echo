@@ -177,8 +177,8 @@ private suspend fun dispatch(
         "deck compact" -> authed(identity, environment) { deckCompact(args, koin.decks()) }
 
         "card list" -> authed(identity, environment) { cardList(args, koin.decks(), koin.cards()) }
-        "card add" -> authed(identity, environment) { cardAdd(args, koin.decks(), koin.cards()) }
-        "card edit" -> authed(identity, environment) { cardEdit(args, koin.decks(), koin.cards()) }
+        "card add" -> authed(identity, environment) { cardAdd(args, koin.decks(), koin.cards(), note) }
+        "card edit" -> authed(identity, environment) { cardEdit(args, koin.decks(), koin.cards(), note) }
         "card rm" -> authed(identity, environment) { cardRemove(args, koin.decks()) }
 
         // `--dry-run` deliberately sits outside `authed`: it reads a local file and writes
@@ -348,6 +348,12 @@ internal val USAGE = """
       card add <deckId> --from-file cards.tsv|cards.jsonl
       card edit <deckId> <cardId> [--front F] [--back B] [--front-image URL] [--back-image URL]
       card edit <deckId> --from-file edits.jsonl
+                                A batch is idempotent, so re-running the same file is the way to
+                                pick one back up: a row already holding what it asks for is
+                                skipped, not rewritten. Everything is validated before anything is
+                                written, one refused row does not end the batch, and the result —
+                                on the failure envelope too — reports written / skipped / failed
+                                with the card id and reason for each failure.
       card rm <deckId> <cardId>
 
     IMPORT
@@ -437,6 +443,7 @@ internal val USAGE = """
       3 not signed in           9 bad input
       4 session expired        10 no build for this host
       5 network                11 update found but not applied (a managed install)
+                              12 the homeserver answered 5xx — not your input, and worth retrying
 
     NOTES
       Sessions are stored as a mode-0600 file, not in an OS keyring. libsecret is usually absent

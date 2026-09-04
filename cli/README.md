@@ -346,6 +346,14 @@ file never has the problem.
 | 3 | not signed in | 9 | bad input |
 | 4 | **session expired** | 10 | unsupported host |
 | 5 | network | 11 | update found, not applied |
+| | | 12 | homeserver 5xx |
+
+12 is the homeserver answering with a server error of its own. It used to be **1, internal**, which
+this table documents as "worth reporting as a bug" — and a 500 is not a bug in the client, not the
+caller's input, and unlike every other row here it may well work on the next attempt. A batch told
+`internal` sends an agent looking through its own file for the row that broke it; told
+`server_error` it retries the rows that did not land. Deliberately not 5, which promises the request
+never arrived: it did, and it may have been applied.
 
 11 is `loopky update` refusing honestly: there *is* a newer release and this copy is not ours to
 replace — a Homebrew or `.deb` install, a container layer, the jar directory, a file the user
@@ -390,6 +398,23 @@ payload does not carry one.
 - **`card add` is idempotent** by front/back-plus-image, and reports what it skipped. `import
   --resume` checkpoints against the deck on the homeserver rather than a local cursor, matched on
   `--title` — which is why `--title` is mandatory and never derived from a filename.
+- **`card edit --from-file` is idempotent too, which is why it has no `--resume`.** A row already
+  holding what it asks for is skipped rather than rewritten, so re-running the same file *is* the
+  resume: no cursor to keep, nothing to pass, and no `updated_at` churn on rows that did not change.
+  Three more properties come with it, and all three come from one 665-row batch that 500'd after 35
+  writes and said nothing about the 35:
+
+  - **Everything is validated before anything is written.** Ids, both-sides, image URLs. A bad row
+    400 fails the command with the homeserver untouched rather than 399 rows in.
+  - **One refused row does not end the batch.** The rows after it are attempted — when a batch fails
+    and the same rows apply singly, the row is not the problem. A failure that *will* refuse
+    everything (an expired session, a full disk) does stop it, and so does a run of five in a row;
+    the result says how many were never reached.
+  - **A failed batch still reports what it wrote.** The same result shape travels on the failure
+    envelope as `data`, with `written` / `skipped` / `failed` / `not_attempted` and, per failed row,
+    its file line, card id, exit code and message. A homeserver 500 is also retried twice before it
+    counts as a failure — the shared layer already recovers an expiry, a 429 and an unreachable
+    session round trip, and a 500 was the gap.
 - **The session can only write `/pub/loopky/`.** Not `/pub/pubky.app/`. It cannot post, follow, or
   edit a profile under any bug or any prompt injection, because it was never handed the capability.
   Deck tags still work — a deck manifest's tag record lives in the loopky namespace.
