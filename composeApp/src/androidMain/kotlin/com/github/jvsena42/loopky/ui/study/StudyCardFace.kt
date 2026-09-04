@@ -119,9 +119,16 @@ internal fun CardFace(
             )
         }
         if (answerInput != null) {
-            // Scrolls rather than clips: with the keyboard up the card is barely taller than the
-            // input block, and a Give up button sheared off by the card's rounded corner is the
-            // one control in this mode that must never be unreachable.
+            // Deliberately un-padded for the keyboard, and centred rather than pinned. The screen
+            // does not resize for the IME any more (see `StudySessionScreen`), so the card keeps
+            // its height and its lower edge simply passes behind the keyboard — the block sits at
+            // the card's middle, which is clear of it. `imePadding()` here is not the fix it looks
+            // like: it pads by the keyboard's *whole* height rather than the part that overlaps,
+            // which shrank this viewport to less than the block and sheared Give up off the bottom.
+            //
+            // It scrolls rather than clips, for the windows where the middle is not clear either: a
+            // Give up button that cannot be reached is the one control in this mode that must never
+            // be unreachable.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

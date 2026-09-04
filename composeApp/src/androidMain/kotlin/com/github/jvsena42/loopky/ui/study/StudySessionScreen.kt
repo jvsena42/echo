@@ -38,7 +38,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -249,7 +248,11 @@ fun StudySessionScreen(
             .fillMaxSize()
             .background(colors.surfaceSecondary)
             .windowInsetsPadding(WindowInsets.systemBars)
-            .imePadding()
+            // Deliberately *not* `imePadding()`. The card is `weight(1f)` of this column, so
+            // padding the whole screen for the keyboard resized the card every time the keyboard
+            // came or went — a ~145 dp jump on a phone, landing exactly when a typed answer opened
+            // the card and the grades appeared. The keyboard is held off the field itself instead,
+            // inside the card (`CardFace`), which leaves the frame where it was.
             .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         when (state) {
@@ -697,16 +700,14 @@ private fun AnimatedContentScope.FlippableCard(
  * The grade row and the flip hint, under the card.
  *
  * Everything typing adds lives on the card itself, so these two are exactly what they were before
- * the mode existed. They are reserved rather than conditional so the card keeps one size across the
- * flip — with one exception: on a flipped typing card the grades are not on offer yet and the hint
- * has nothing to say, so both are *certainly* empty, and holding ~140 dp open for them steals it
- * from the card at the one moment the keyboard has already taken half the screen.
+ * the mode existed: **reserved in every state**, empty or not, so that the card above — which is
+ * the `weight(1f)` this height comes out of — is the same size on both faces and before and after
+ * the grades arrive. Collapsing them while a typing card was masked bought the card 132 dp and then
+ * took it back the moment the answer was checked, which is a card that jumps and re-flows its text
+ * under the finger that just earned it.
  *
- * That swap is a **cut, not an animation**, and has to stay one. This height is the card's, so
- * animating it re-measures the card on every frame — and the card re-measures `TextAutoSize` text,
- * a full layout per step down the size range. Spread over the 700 ms flip that is a visible stutter
- * in the one animation the whole screen is built around; the single-frame jump it replaced is the
- * cheaper of the two.
+ * It is also why this is a cut and not an animation: animating this height re-measures the card on
+ * every frame, and the card re-measures `TextAutoSize` text — a full layout per step.
  */
 @Composable
 private fun BelowCardRows(
@@ -717,10 +718,6 @@ private fun BelowCardRows(
     onNextCard: () -> Unit,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        if (state.answerHidden && state.revealed) {
-            Spacer(modifier = Modifier.height(8.dp))
-            return@Column
-        }
         Spacer(modifier = Modifier.height(20.dp))
 
         // Only when the grades are not already standing in a column to the right. The buttons
