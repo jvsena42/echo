@@ -1,10 +1,12 @@
 package com.github.jvsena42.loopky
 
 import android.app.Application
+import coil3.SingletonImageLoader
 import com.github.jvsena42.loopky.data.homegate.PubkyEnvironment
 import com.github.jvsena42.loopky.data.storage.resolveStartupEnvironment
 import com.github.jvsena42.loopky.data.unsplash.deobfuscateUnsplashKey
 import com.github.jvsena42.loopky.di.initKoinAndroid
+import com.github.jvsena42.loopky.ui.components.loopkyImageLoader
 import com.github.jvsena42.loopky.ui.importflow.sweepImportSpools
 import com.github.jvsena42.loopky.util.Log
 import org.koin.android.ext.koin.androidContext
@@ -22,6 +24,10 @@ class LoopkyApp : Application() {
         // Before anything can spool a file of its own: whatever is there belongs to a process
         // that is gone, and a 500 MB deck is not something to leave in someone's cache.
         cacheDir.sweepImportSpools()
+        // Every card picture set from an address goes through this loader, and the only thing
+        // it changes is the User-Agent — hosts that refuse a generic `okhttp/4.x` (Wikimedia
+        // answers 403) otherwise render as a blank half-card with nothing reporting why.
+        SingletonImageLoader.setSafe(::loopkyImageLoader)
         // The one place that knows whether this is a debug build: `commonMain` cannot read
         // BuildConfig and `:shared` generates none. Log.d is a no-op until this runs, which is
         // the safe direction to fail in.

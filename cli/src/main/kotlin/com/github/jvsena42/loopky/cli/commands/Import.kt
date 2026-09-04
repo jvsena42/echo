@@ -464,7 +464,8 @@ private fun Deck.overlaidWith(args: Args): Deck? {
     val updated = copy(
         description = args.option("description")?.takeIf { it.isNotBlank() } ?: description,
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() } ?: coverEmoji,
-        coverImageRef = args.option("cover-url")?.let(::remoteImage) ?: coverImageRef,
+        coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage)
+            ?: coverImageRef,
         tags = tags.ifEmpty { this.tags },
         listenEnabled = args.flagOrNull("listen") ?: listenEnabled,
         speakEnabled = args.flagOrNull("speak") ?: speakEnabled,
@@ -491,7 +492,7 @@ private fun newDeck(
         title = args.requireOption("title").trim(),
         description = args.option("description")?.takeIf { it.isNotBlank() },
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() },
-        coverImageRef = args.option("cover-url")?.let(::remoteImage),
+        coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage),
         tags = args.options("tag").map { Tag(it) },
         createdAt = now,
         updatedAt = now,

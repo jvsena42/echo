@@ -97,8 +97,8 @@ suspend fun cardAdd(args: Args, decks: DeckRepository, cards: CardRepository): C
             CardFileRow(
                 front = args.option("front"),
                 back = args.option("back"),
-                frontImageUrl = args.option("front-image"),
-                backImageUrl = args.option("back-image"),
+                frontImageUrl = args.option("front-image")?.checkedImageUrl("--front-image"),
+                backImageUrl = args.option("back-image")?.checkedImageUrl("--back-image"),
             ).also {
                 if (it.isEmpty) throw CliError(ExitCode.Usage, "Give --front/--back, or --from-file.")
             },
@@ -160,8 +160,8 @@ suspend fun cardEdit(args: Args, decks: DeckRepository, cards: CardRepository): 
             id = args.requireWord(3, "cardId"),
             front = args.option("front"),
             back = args.option("back"),
-            frontImageUrl = args.option("front-image"),
-            backImageUrl = args.option("back-image"),
+            frontImageUrl = args.option("front-image")?.checkedImageUrl("--front-image"),
+            backImageUrl = args.option("back-image")?.checkedImageUrl("--back-image"),
         ),
     )
 

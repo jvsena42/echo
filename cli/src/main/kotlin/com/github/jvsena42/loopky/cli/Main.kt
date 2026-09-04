@@ -374,6 +374,22 @@ private val USAGE = """
       JSONL: {"id":"…","front":"…","back":"…","front_image_url":"…","back_image_url":"…"}
              "id" is for `card edit`; a field that is absent is left unchanged.
 
+    CARD IMAGES
+      A card picture is a URL. Nothing is uploaded and no media quota is spent — but nothing is
+      fetched either, so this client cannot tell you the picture loads. It can only tell you what
+      is knowably wrong, and these two account for most of it:
+
+        https:// only.  Android and iOS both refuse cleartext, so an http:// address is a card
+                        whose picture cannot render on either. Refused, not stored.
+
+        Wikimedia serves thumbnails at 120, 250, 330, 500, 960 and 1280 px and answers 400 for
+        every other width, so .../thumb/…/800px-Name.jpg is a blank card on both apps. Drop the
+        /thumb/ segment and the NNNpx- prefix to get the full-size original, which is always
+        served. Warned about on stderr, never fatal — the list is theirs to change.
+
+      Beyond that, prefer a host that serves images to anyone: some refuse an unfamiliar client
+      outright, and the result is the same blank card with nothing reporting it.
+
     EXIT CODES
       0 ok                      6 not found
       1 internal                7 storage full (507 — terminal, never retried)

@@ -189,6 +189,34 @@ representation at all — which is why ~190 images had to go through the card ed
 though the decks imported in one shot. An image here is a **URL**, so no bytes cross the wire and
 no media quota is spent.
 
+### What can be checked about a picture, and what cannot
+
+Nothing is fetched, which is what makes an image column free — and it is also the one place this
+client cannot tell you it worked. Every other way into Loopky puts a human in front of the picture
+before it is stored: the image sheet's Done button waits on a preview that actually loaded. `loopky`
+has no such moment, so a deck of 200 cards can be built entirely out of addresses that answer 403,
+with `--json` reporting success on every one. That is not hypothetical — it is where these checks
+came from.
+
+Making it a crawler is not the fix: a hundred round trips against hosts that rate-limit, and still
+nothing said about the ones that answer 200 today. So the line is drawn at what a string can be
+*known* to be wrong about, without asking anyone.
+
+**Refused** — `https://` only. Android blocks cleartext at targetSdk 28 and up and iOS ATS does the
+same, so an `http://` address is a card whose picture cannot render on either client. Exit 9, with
+the scheme named, rather than a stored ref that is broken by construction.
+
+**Warned about, on stderr, never fatal** — Wikimedia serves thumbnails at **120, 250, 330, 500, 960
+and 1280 px** and answers `400, Use thumbnail sizes listed on https://w.wiki/GHai` for every other
+width. An agent writes `320px-` or `800px-` as readily as `250px-`; they look equally plausible and
+most of them are a blank card on both apps. Drop the `/thumb/` segment and the `NNNpx-` prefix
+altogether to get the full-size original, which is always served. A warning and not an error
+because the list is Wikimedia's to change, and a stale check must not be able to fail an import.
+
+Beyond those two, prefer a host that serves images to anyone. Some refuse an unfamiliar client
+outright — Wikimedia answers `403 Please set a user-agent` to a generic one — and the result is the
+same blank card with nothing reporting it.
+
 ## Environment
 
 | Variable | What it does |

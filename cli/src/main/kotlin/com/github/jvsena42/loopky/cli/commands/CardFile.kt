@@ -115,8 +115,14 @@ private fun parseJsonl(text: String): List<CardFileRow> =
                 throw CliError(ExitCode.BadInput, "Line ${index + 1} is not a card object: ${it.message}")
             }
         }
-        .onEach { row ->
+        .onEachIndexed { index, row ->
             if (row.isEmpty) throw CliError(ExitCode.BadInput, "A row has neither text nor an image.")
+            // Checked here and not only in the TSV columns: a JSONL row names its image fields
+            // outright, so there is no "is this a picture or prose" question to answer — but an
+            // unrenderable URL still has to be refused before `toCard` turns it into a ref, or it
+            // surfaces as exit 1 "internal" plus a Kotlin assertion for a typo in someone's file.
+            row.frontImageUrl?.checkedImageUrl("Line ${index + 1}, front_image_url")
+            row.backImageUrl?.checkedImageUrl("Line ${index + 1}, back_image_url")
         }
         .toList()
 
@@ -198,18 +204,22 @@ private fun List<String>.imageUrlAt(column: Int, lineIndex: Int): String? {
         throw CliError(
             ExitCode.BadInput,
             "Line ${lineIndex + 1}, column ${column + 1} is an image column but holds " +
-                "\"${value.take(IMAGE_URL_ERROR_EXCERPT)}\" — it must be an http(s) URL. " +
+                "\"${value.take(IMAGE_URL_ERROR_EXCERPT)}\" — it must be an https:// URL. " +
                 "A two-column file has no image columns at all.",
         )
     }
-    return value
+    return value.checkedImageUrl("Line ${lineIndex + 1}, column ${column + 1}")
 }
 
 /**
- * Whether a value can be stored as a remote image reference.
+ * Whether a value is *shaped* like an image column — a scheme and nothing else.
  *
- * Scheme only, deliberately: this decides "is this a URL or is it prose", not "does this resolve".
- * Anything stricter would start rejecting addresses that work.
+ * Deliberately looser than [isRenderableImageUrl], and the two are not interchangeable. This one
+ * answers "is this column pictures or prose", which decides how a whole file is read; the strict
+ * one answers "could this ever render", which decides whether a single card is written. An
+ * `http://` address is a perfectly clear *answer to the first question* — the file is still a
+ * four-column card file — and refusing it as an image column would send the whole import through
+ * the text parser instead, silently turning every picture into a third card side.
  */
 internal fun String.looksLikeImageUrl(): Boolean =
     startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true)

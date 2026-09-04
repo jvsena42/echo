@@ -17,6 +17,7 @@ import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.Tag
+import com.github.jvsena42.loopky.domain.model.remoteImageRef
 import com.github.jvsena42.loopky.util.generateId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -119,7 +120,7 @@ suspend fun deckCreate(
         title = title,
         description = args.option("description")?.takeIf { it.isNotBlank() },
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() },
-        coverImageRef = args.option("cover-url")?.let(::remoteImage),
+        coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage),
         tags = args.options("tag").map { Tag(it) },
         createdAt = now,
         updatedAt = now,
@@ -193,11 +194,14 @@ suspend fun deckCompact(args: Args, decks: DeckRepository): CommandResult {
 /**
  * A remote image reference — a URL, with no blob and no upload.
  *
- * Built exactly as the apps build one (`path`/`sha256` empty, `image/jpeg`), because a ref written
- * a second way is a ref one of the two clients cannot render.
+ * Delegates to the shared factory rather than rebuilding the shape, because a ref written a second
+ * way is a ref one of the clients cannot render — and a validation added to one copy is a
+ * validation the other copies do not have. The URL is already checked by the time it arrives (see
+ * `requireRenderableImageUrl`), so a rejection here is a bug rather than bad input.
  */
-internal fun remoteImage(url: String): MediaRef.Image =
-    MediaRef.Image(path = "", mime = "image/jpeg", sha256 = "", width = null, height = null, url = url)
+internal fun remoteImage(url: String): MediaRef.Image = requireNotNull(remoteImageRef(url)) {
+    "not a renderable image URL: $url"
+}
 
 /** A `--name`/`--no-name` pair, since a deck opt-in has to be turnable *off* as well as on. */
 internal fun Args.flag(name: String, default: Boolean): Boolean = flagOrNull(name) ?: default

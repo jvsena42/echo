@@ -1778,3 +1778,87 @@ read a real SQLite collection out of a real zip and answered:
 collection opened, and the field heuristic skipped the id column. Nothing else the CLI does would
 have exercised any of it, and `checkNativeImageIsOneFile` passed in the same build — so reaching
 SQLite did not drag a JDK native library out beside the executable.
+
+## Remote card images do not render — 2026-09-04, staging, `emulator-5554` + Linux
+
+Reported as "an agent created a deck with images through the CLI in production and the images are
+not rendering". Reproduced on staging with a deliberately mixed deck — `loopky deck create
+--from-file` with seven cards spanning four hosts — and the answer is **two independent failures**,
+neither of which the CLI can see, because it stores a URL and never fetches it. `--json` reported
+success on every card.
+
+`loopky card list --json` read every URL back byte-identical, so nothing is lost or mangled on the
+write side. The refs are correct; they are unfetchable.
+
+### 1. Coil's user-agent is refused — Android only
+
+`CardMediaImage` hands a remote ref straight to `AsyncImage`, and nothing in `composeApp` installed
+an `ImageLoader`, so requests went out as `okhttp/4.12.0`. Wikimedia refuses that outright:
+
+```
+HTTP/2 403   server: HAProxy   content-type: text/plain
+Please set a user-agent and respect our robot policy https://w.wiki/4wJS.
+See also https://phabricator.wikimedia.org/T400119.
+```
+
+It is not the URL and not the image — the *same* URL returns `200 image/jpeg` (718902 b) to a
+descriptive agent. Probed on one URL, varying only the header:
+
+| User-Agent | Result |
+| --- | --- |
+| `okhttp/4.12.0` | **403**, every URL tried |
+| *(empty)* | **403** |
+| `Loopky/0.7.1 (+https://github.com/jvsena42/loopky)` | **200 image/jpeg** |
+| `iosApp/1 CFNetwork/1568.100.1 Darwin/24.0.0` | **200 image/jpeg** |
+
+Fixed by `loopkyImageLoader` — a singleton Coil `ImageLoader` whose only job is a descriptive
+`User-Agent`, installed with `SingletonImageLoader.setSafe` in `LoopkyApp`. Verified on device:
+card 09 (a 250px Wikimedia thumb) rendered the gull where it had been a blank half-card.
+
+**iOS is not affected by this one.** `AsyncImage(url:)` goes through `URLSession`, whose default
+agent carries the bundle name, and Wikimedia answers that with 200 (row 4 above). Not verified on
+a simulator — this machine is Linux and has no Xcode — so it is a code-and-protocol reading, not a
+device run. What iOS *does* share is the silent failure: `AsyncImage`'s placeholder is
+indistinguishable from a slow load, and it offers no way to set a header if a host ever demands one.
+
+### 2. Wikimedia rejects arbitrary thumbnail widths — both platforms
+
+Independent of the agent, and unfixable from the client: `upload.wikimedia.org` now serves only a
+fixed set of thumbnail widths and answers everything else with `400, Use thumbnail sizes listed on
+https://w.wiki/GHai`. Measured with a known-good user-agent:
+
+| Width | 120 | 180 | 200 | 220 | 250 | 280 | 300 | 320 | 330 | 400 | 440 | 500 | 640 | 800 | 1024 | 1280 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ |
+
+So **120 / 250 / 330 / 500 / 1280**, and the original (un-thumbed) file always works. This matters
+more than it looks: an agent asked for pictures writes `320px-…` or `800px-…` as readily as `250px-`,
+and four of those five are a blank card on both platforms with the UA fix in place. Card 10 in the
+matrix is the control and stayed blank after the fix, exactly as intended.
+
+### The matrix, as it rendered on device
+
+| Card | Host / shape | Before | After |
+| --- | --- | --- | --- |
+| 01 | `upload.wikimedia.org`, 320px thumb | ❌ blank | ❌ blank (width, not UA) |
+| 02 | `upload.wikimedia.org`, 280px thumb | ❌ blank | ❌ blank (width, not UA) |
+| 03 | `dummyimage.com` png | ✅ | ✅ |
+| 04 | `picsum.photos`, 302 redirect | ✅ | ✅ |
+| 05 | `fastly.picsum.photos`, direct | ✅ | ✅ |
+| 06 | text **and** picture on the front | ✅ | ✅ |
+| 07 | both sides pictured | ✅ | ✅ |
+| 08 | `upload.wikimedia.org`, original file | ❌ blank | ✅ |
+| 09 | `upload.wikimedia.org`, 250px thumb | ❌ blank | ✅ |
+| 10 | `upload.wikimedia.org`, 320px thumb | ❌ blank | ❌ blank (control) |
+
+Redirects, query strings and the text-plus-picture shape were never the problem — 03–07 passed
+throughout, which is what made the host the only variable left.
+
+### Still open
+
+The CLI accepts `http://` as readily as `https://` (`looksLikeImageUrl`), and Android at
+targetSdk 36 blocks cleartext while iOS ATS does the same — so an `http://` ref is unloadable on
+both clients by construction, written without complaint. Not exercised in this run; found by
+reading `CardFile.kt`. And more broadly, nothing on the write path tells an agent that the picture
+it just attached will not render — `--json` says success either way, which is the gap that let a
+whole production deck get built on 403s.
