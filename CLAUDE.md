@@ -302,11 +302,21 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   Give up reports nothing at all, and all four SRS buttons stay equally available — an escape hatch that pre-selects Again is a punishment wearing an
   escape hatch's label. Matching is `AnswerMatcher` with an `AnswerStrictness`: typing is `Strict`
   (accents count — typing them is the point), `SpeakMatcher` is the `Lenient` view. Cards with no
-  back text (an image-only Anki answer) or no prompt fall back to tap-to-reveal. On Android the
-  input is drawn from the card's own `CardSnapshot` — phase and typed text included — never from the
-  live state: `AnimatedContent` keeps the outgoing card composed through its fade *and* re-runs the
-  content lambda, so reading the session's phase there drew the **next** card's input, and its
-  `FocusRequester` raised the keyboard over a front with nothing to type into.
+  back text (an image-only Anki answer) or no prompt fall back to tap-to-reveal.
+
+  Three things about the Android screen that only a device shows. The input is drawn from the card's
+  own `CardSnapshot` — phase and typed text included — never from the live state: `AnimatedContent`
+  keeps the outgoing card composed through its fade *and* re-runs the content lambda, so reading the
+  session's phase there drew the **next** card's input, and its `FocusRequester` raised the keyboard
+  over a front with nothing to type into. The field then takes focus **after** the flip, not when it
+  composes: showing the IME makes SurfaceFlinger allocate a window surface, and asking for it at the
+  90° crossing blocked the card's own frames on `eglSwapBuffers` for ~430 ms — the turn dropped every
+  other frame. And the study screen is deliberately **not** `imePadding()`ed: the card is a
+  `weight(1f)`, so padding the screen resized it every time the keyboard came or went — a 174 px jump
+  landing exactly when a checked answer brought the grades in. The card's height clears the keyboard
+  on its own and its lower edge simply passes behind it; the rows under the card stay reserved in
+  every state for the same reason. Read the flip section of `journeys/RESULTS.md` before touching any
+  of it — seven other explanations were measured and all seven were wrong.
 - **The study loop's haptics are decided in the ViewModel, never fired on tap by a screen.**
   `StudySessionEffect.Haptic(StudyHaptic)` rides the ordinary effect flow, and the platforms only
   map it — `HapticFeedbackType` on Android, `UIImpactFeedbackGenerator`/
