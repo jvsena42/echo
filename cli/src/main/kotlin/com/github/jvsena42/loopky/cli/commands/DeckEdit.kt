@@ -144,15 +144,21 @@ private fun Args.editedCover(clearCover: Boolean, current: MediaRef.Image?): Med
  * nicety here: the session dies hourly (#165) and re-running is the documented recovery, so a
  * command that grew its own tag list on every retry would be one a session expiry corrupts.
  *
- * The labels a declared language contributes are reconciled **only when the pair actually moves**
- * (`LanguageTags.retag` — the drop is the half that is easy to miss: retyping a deck away from
- * Spanish has to take `"spanish"` off it). Doing it unconditionally would put `"language"` back on
- * a deck the caller had just emptied with `--clear-tags`, and these are ordinary author-removable
- * tags rather than a reserved family, so that gesture has to be believed.
+ * The labels a declared language contributes are reconciled **only when the invocation names a
+ * pair** (`LanguageTags.retag` — the drop is the half that is easy to miss: retyping a deck away
+ * from Spanish has to take `"spanish"` off it). Doing it unconditionally would put `"language"`
+ * back on a deck the caller had just emptied with `--clear-tags`, and these are ordinary
+ * author-removable tags rather than a reserved family, so that gesture has to be believed.
+ *
+ * Named rather than *moved*, which is the narrower rule this started with. Restating the pair a
+ * deck already has is how a deck published before the CLI derived labels at all (#225) gains
+ * them — otherwise the only way was to retype it to a different *region* of the same language and
+ * back, which is a trick rather than a command. It costs nothing when there is nothing to do:
+ * a reconciliation that changes no tag is not a write, because `changedFieldsFrom` diffs.
  */
 private fun Args.editedTags(deck: Deck, frontLang: String?, backLang: String?): List<Tag> {
     val clearTags = has("clear-tags")
-    val requested = options("tag").mapNotNull { it.trim().takeIf(String::isNotEmpty) }.distinct()
+    val requested = options("tag").normalizedTags()
     if (clearTags && requested.isNotEmpty()) {
         throw CliError(ExitCode.Usage, "--clear-tags and --tag say opposite things; pass one of them.")
     }
@@ -162,8 +168,8 @@ private fun Args.editedTags(deck: Deck, frontLang: String?, backLang: String?): 
         requested.isNotEmpty() -> requested
         else -> deck.tags.map { it.value }
     }
-    val retyped = frontLang != deck.frontLang || backLang != deck.backLang
-    val labelled = if (retyped) {
+    val named = has("front-lang") || has("back-lang")
+    val labelled = if (named) {
         LanguageTags.retag(tags, deck.frontLang, deck.backLang, frontLang, backLang)
     } else {
         tags

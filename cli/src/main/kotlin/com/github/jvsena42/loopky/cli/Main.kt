@@ -320,6 +320,9 @@ private val USAGE = """
                   [--cover-emoji E] [--from-file F]
                   [--listen] [--speak] [--type] [--reverse]
                   [--front-lang BCP47] [--back-lang BCP47]
+                                A declared pair also labels the deck — "spanish" plus the
+                                "language" umbrella — so someone learning it can find the deck.
+                                Ordinary tags you can remove. A deck with no pair gets neither.
       deck edit <deckId> [--title T] [--description D] [--cover-url URL] [--cover-emoji E]
                   [--tag T]... [--clear-tags] [--clear-cover]
                   [--listen|--no-listen] [--speak|--no-speak]
@@ -328,6 +331,8 @@ private val USAGE = """
                                 One manifest write; cards are never read or rewritten. A flag you
                                 do not pass leaves that field alone, `--description=` clears it,
                                 and --tag replaces the tag set rather than appending to it.
+                                Naming a pair reconciles its language labels, which is also how a
+                                deck published before they existed gains them: restate the pair.
       deck delete <deckId>
       deck sync <deckId>
       deck compact <deckId>     Fold away the holes card deletes leave in the chunk table.
@@ -343,6 +348,7 @@ private val USAGE = """
     IMPORT
       import <file|-> --title T [--separator auto|tab|comma|semicolon|pipe|dash|colon|blank|markdown]
                       [--description D] [--tag T]... [--resume]
+                      [--front-lang BCP47] [--back-lang BCP47]
       import <deck.apkg> --title T [--front-field N|name] [--back-field N|name]
                       An Anki export. Same command, same parser spine; the fields are named, so
                       --front-field/--back-field pick which two become the card. Numbers are
