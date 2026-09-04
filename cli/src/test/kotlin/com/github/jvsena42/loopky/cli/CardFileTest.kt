@@ -45,6 +45,71 @@ class CardFileTest {
         assertNull(rows.single().backImageUrl)
     }
 
+    /**
+     * The shape `card list --json` emits, fed straight back. The two shapes disagreeing is what
+     * made "has this row already been applied?" a shape check plus a percent-decode, and getting
+     * it wrong rewrote all 665 rows on every pass (#229, item 3).
+     */
+    @Test
+    fun `reads a row in the shape card list --json emits`() {
+        val rows = readCardFile(
+            write(
+                ".jsonl",
+                """{"id":"c1","deck_id":"d1","ord":1000,"updated_at":7,""" +
+                    """"front":{"text":"Brasília","image":{"url":"https://example.test/a.jpg",""" +
+                    """"sha256":null,"mime":"image/jpeg"}},"back":{"text":"Capital","image":null}}""" + "\n",
+            ),
+        )
+        val row = rows.single()
+        assertEquals("c1", row.id)
+        assertEquals("Brasília", row.front)
+        assertEquals("https://example.test/a.jpg", row.frontImageUrl)
+        assertEquals("Capital", row.back)
+        // An explicit null image is "clear it", not "leave it": card list writes explicit nulls,
+        // so feeding its output back has to mean exactly what it read.
+        assertEquals("", row.backImageUrl)
+    }
+
+    /** A key that is absent still means "leave this alone", in either shape. */
+    @Test
+    fun `an omitted key in a stored-shape side leaves that field unchanged`() {
+        val rows =
+            readCardFile(write(".jsonl", """{"id":"c1","front":{"image":{"url":"https://x.test/a.jpg"}}}""" + "\n"))
+        val row = rows.single()
+        assertNull(row.front)
+        assertNull(row.back)
+        assertNull(row.backImageUrl)
+        assertEquals("https://x.test/a.jpg", row.frontImageUrl)
+    }
+
+    /**
+     * A blob picture has no URL a card file can carry, so it is left alone rather than cleared —
+     * otherwise round-tripping an .apkg-imported deck through `card list` strips every picture.
+     */
+    @Test
+    fun `a blob image round-trips as unchanged and is reported once`() {
+        val notes = mutableListOf<String>()
+        val rows = readCardFile(
+            write(
+                ".jsonl",
+                """{"id":"c1","front":{"text":"a","image":{"url":null,"sha256":"ab12"}},"back":{"text":"b"}}""" + "\n",
+            ),
+            notes::add,
+        )
+        assertNull(rows.single().frontImageUrl)
+        assertTrue(notes.any { "blob" in it }, "the caller has to be told those pictures were skipped")
+    }
+
+    @Test
+    fun `the two shapes may be mixed within a row`() {
+        val rows = readCardFile(
+            write(".jsonl", """{"id":"c1","front":{"text":"a"},"back":"b","back_image_url":"https://x.test/b.jpg"}""" + "\n"),
+        )
+        assertEquals("a", rows.single().front)
+        assertEquals("b", rows.single().back)
+        assertEquals("https://x.test/b.jpg", rows.single().backImageUrl)
+    }
+
     @Test
     fun `skips blank lines and comments so a generated file can carry a header`() {
         val rows = readCardFile(write(".tsv", "# front\tback\n\nhola\thello\n\n"))

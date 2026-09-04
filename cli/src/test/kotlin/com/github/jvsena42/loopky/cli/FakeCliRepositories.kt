@@ -8,6 +8,7 @@ import com.github.jvsena42.loopky.data.repository.PinnedBlob
 import com.github.jvsena42.loopky.data.repository.PublishProgress
 import com.github.jvsena42.loopky.data.repository.RehostOutcome
 import com.github.jvsena42.loopky.domain.model.Card
+import com.github.jvsena42.loopky.domain.model.ChunkMeta
 import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.MediaRef
@@ -43,7 +44,18 @@ class FakeDeckRepository(
      * blobs where they are.
      */
     private val onAppend: ((List<Card>) -> Result<Deck>)? = null,
+    /**
+     * What `upsertCard` should fail with for a given attempt, or null to let it through.
+     *
+     * Takes the attempt number as well as the card, because a batch's whole point is what it does
+     * *between* attempts — a 500 that clears on the retry and one that does not are different
+     * outcomes, and only the count tells them apart.
+     */
+    private val upsertFails: (Card, Int) -> Throwable? = { _, _ -> null },
 ) : DeckRepository {
+
+    /** Every `upsertCard` call, failed ones included — `upserted` holds only the ones that landed. */
+    val upsertAttempts = mutableListOf<Card>()
 
     val upserted = mutableListOf<Card>()
 
@@ -73,6 +85,9 @@ class FakeDeckRepository(
     override suspend fun listOwned(): List<Deck> = owned
 
     override suspend fun upsertCard(deckId: String, card: Card): Result<Deck> {
+        upsertAttempts += card
+        val attempt = upsertAttempts.count { it.id == card.id }
+        upsertFails(card, attempt)?.let { return Result.failure(it) }
         upserted += card
         deck = onUpsert(card)
         return Result.success(deck)
@@ -120,7 +135,17 @@ class FakeDeckRepository(
     override suspend fun clone(source: Deck): Result<Deck> = no("clone")
 }
 
-class FakeCardRepository(private val existing: List<Card> = emptyList()) : CardRepository {
+class FakeCardRepository(
+    private val existing: List<Card> = emptyList(),
+    /**
+     * The deck laid out as records, for the paged `card list`. Null means no chunk may be read —
+     * which is the assertion that matters for the unpaged path: it must not walk the table.
+     */
+    private val chunks: Map<Int, List<Card>>? = null,
+) : CardRepository {
+
+    /** Which chunks a listing actually fetched, in order. The whole point of `--limit` is this list. */
+    val chunksRead = mutableListOf<Int>()
 
     override suspend fun listByDeck(deckId: String): List<Card> = existing
     override suspend fun fetchByDeck(deck: Deck): Result<List<Card>> = Result.success(existing)
@@ -129,13 +154,17 @@ class FakeCardRepository(private val existing: List<Card> = emptyList()) : CardR
     private fun no(name: String): Nothing = error("FakeCardRepository.$name is not part of this test")
 
     override suspend fun writeChunk(deckId: String, chunk: Int, cards: List<Card>): Result<Unit> = no("writeChunk")
-    override suspend fun readChunk(deck: Deck, chunk: Int): Result<List<Card>> = no("readChunk")
+    override suspend fun readChunk(deck: Deck, chunk: Int): Result<List<Card>> {
+        val table = chunks ?: no("readChunk")
+        chunksRead += chunk
+        return Result.success(table[chunk].orEmpty())
+    }
     override suspend fun chunkOf(deckId: String, cardId: String): Int? = no("chunkOf")
     override suspend fun evict(deckId: String, cardId: String) = no("evict")
 }
 
 /** A deck with nothing interesting in it but the fields a card command reads. */
-fun testDeck(id: String = "d1", cardCount: Int = 0) = Deck(
+fun testDeck(id: String = "d1", cardCount: Int = 0, chunks: List<ChunkMeta> = emptyList()) = Deck(
     id = id,
     authorPubky = "pk:test",
     title = "Test deck",
@@ -145,6 +174,7 @@ fun testDeck(id: String = "d1", cardCount: Int = 0) = Deck(
     createdAt = 0L,
     updatedAt = 0L,
     cardCount = cardCount,
+    chunks = chunks,
     source = null as DeckSource?,
 )
 

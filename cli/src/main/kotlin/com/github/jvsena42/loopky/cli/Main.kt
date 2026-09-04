@@ -169,16 +169,16 @@ private suspend fun dispatch(
         "deck list" -> authed(identity, environment) { deckList(koin.decks()) }
         "deck show" -> authed(identity, environment) { deckShow(args, koin.decks()) }
         "deck create" -> authed(identity, environment) { session ->
-            deckCreate(args, koin.decks(), session, progress)
+            deckCreate(args, koin.decks(), session, note, progress)
         }
         "deck edit" -> authed(identity, environment) { deckEdit(args, koin.decks()) }
         "deck delete" -> authed(identity, environment) { deckDelete(args, koin.decks()) }
         "deck sync" -> authed(identity, environment) { deckSync(args, koin.decks(), koin.cards()) }
         "deck compact" -> authed(identity, environment) { deckCompact(args, koin.decks()) }
 
-        "card list" -> authed(identity, environment) { cardList(args, koin.decks(), koin.cards()) }
-        "card add" -> authed(identity, environment) { cardAdd(args, koin.decks(), koin.cards()) }
-        "card edit" -> authed(identity, environment) { cardEdit(args, koin.decks(), koin.cards()) }
+        "card list" -> authed(identity, environment) { cardList(args, koin.decks(), koin.cards(), note) }
+        "card add" -> authed(identity, environment) { cardAdd(args, koin.decks(), koin.cards(), note) }
+        "card edit" -> authed(identity, environment) { cardEdit(args, koin.decks(), koin.cards(), note) }
         "card rm" -> authed(identity, environment) { cardRemove(args, koin.decks()) }
 
         // `--dry-run` deliberately sits outside `authed`: it reads a local file and writes
@@ -322,7 +322,7 @@ internal val USAGE = """
       deck list
       deck show <deckId>
       deck create --title T [--description D] [--tag T]... [--cover-url URL]
-                  [--cover-emoji E] [--from-file F]
+                  [--cover-emoji E] [--from-file F] [--check-images]
                   [--listen] [--speak] [--type] [--reverse]
                   [--front-lang BCP47] [--back-lang BCP47]
                                 A declared pair also labels the deck — "spanish" plus the
@@ -343,11 +343,25 @@ internal val USAGE = """
       deck compact <deckId>     Fold away the holes card deletes leave in the chunk table.
 
     CARDS
-      card list <deckId>
+      card list <deckId> [--limit N] [--cursor TOKEN] [--missing-image|--has-image]
+                                Plain, it reads the whole deck. --limit/--cursor walk the manifest's
+                                chunk table and fetch only the records a page needs, which is what
+                                makes a 4,000-card deck affordable to iterate on; --json carries
+                                next_cursor while there is more. The two filters narrow what comes
+                                back and compose with both — there is no server-side filter to ask
+                                for instead, so without --limit they save the output, not the fetch.
       card add <deckId> --front F --back B [--front-image URL] [--back-image URL]
+                                Add --check-images to any of these to HEAD every distinct picture
+                                URL first. Warns, never refuses; see CARD IMAGES.
       card add <deckId> --from-file cards.tsv|cards.jsonl
       card edit <deckId> <cardId> [--front F] [--back B] [--front-image URL] [--back-image URL]
       card edit <deckId> --from-file edits.jsonl
+                                A batch is idempotent, so re-running the same file is the way to
+                                pick one back up: a row already holding what it asks for is
+                                skipped, not rewritten. Everything is validated before anything is
+                                written, one refused row does not end the batch, and the result —
+                                on the failure envelope too — reports written / skipped / failed
+                                with the card id and reason for each failure.
       card rm <deckId> <cardId>
 
     IMPORT
@@ -358,7 +372,7 @@ internal val USAGE = """
                       An Anki export. Same command, same parser spine; the fields are named, so
                       --front-field/--back-field pick which two become the card. Numbers are
                       1-based, matching the labels an unnamed field is shown under.
-      import <file> --dry-run [--json]
+      import <file> --dry-run [--json] [--check-images]
                       Report what would be published — for an .apkg, its field names with a
                       sample of each, the note count, the dropped-note breakdown and what its
                       pictures would spend. Writes nothing and needs no session.
@@ -408,6 +422,12 @@ internal val USAGE = """
       JSONL: {"id":"…","front":"…","back":"…","front_image_url":"…","back_image_url":"…"}
              "id" is for `card edit`; a field that is absent is left unchanged.
 
+             A row may also be a card in the shape `card list --json` emits —
+             {"id":"…","front":{"text":"…","image":{"url":"…"}},"back":{…}} — so a deck can be
+             read, edited with jq and fed straight back. Absent still means unchanged; an
+             explicit null clears. An image with no url is a homeserver blob this format cannot
+             name, so it is left alone and reported.
+
     CARD IMAGES
       A card picture is a URL. Nothing is uploaded and no media quota is spent — but nothing is
       fetched either, so this client cannot tell you the picture loads. It can only tell you what
@@ -424,6 +444,14 @@ internal val USAGE = """
       Beyond that, prefer a host that serves images to anyone: some refuse an unfamiliar client
       outright, and the result is the same blank card with nothing reporting it.
 
+      --check-images asks. One HEAD per DISTINCT URL, on deck create, card add, card edit and
+      import (including --dry-run, where it is worth the most). It reports the status and the content type of
+      everything that is not a 2xx image — a dead link, a renamed file, a host refusing an
+      unfamiliar client, or a .stl behind a perfectly ordinary-looking address. Opt-in because it
+      is the only flag here that makes requests of its own, and it warns rather than refusing: a
+      host having a bad minute must not be able to fail an import. Findings also travel in --json
+      as image_checks.
+
     EXIT CODES
       0 ok                      6 not found
       1 internal                7 storage full (507 — terminal, never retried)
@@ -431,6 +459,7 @@ internal val USAGE = """
       3 not signed in           9 bad input
       4 session expired        10 no build for this host
       5 network                11 update found but not applied (a managed install)
+                              12 the homeserver answered 5xx — not your input, and worth retrying
 
     NOTES
       Sessions are stored as a mode-0600 file, not in an OS keyring. libsecret is usually absent

@@ -49,8 +49,10 @@ class CliEnvironment(val pubky: PubkyEnvironment, val configHome: Path) {
  * `compressImage` parameter directly rather than reaching through this graph.
  */
 fun startCli(environment: CliEnvironment): Koin {
-    // Before Koin, because Koin is what resolves `PubkyClient` and the SDK reads `RUST_LOG` from
-    // the process environment on its way to the first network call.
+    // Both before Koin, because Koin is what resolves `PubkyClient`: the SDK reads `RUST_LOG` from
+    // the process environment on its way to the first network call, and its `tracing` subscriber
+    // writes to fd 1 — which has to already be pointing somewhere other than the result channel.
+    reserveStdoutForResults()
     defaultRustLogToWarn()
     initKoinJvm(
         pubkyEnvironment = environment.pubky,

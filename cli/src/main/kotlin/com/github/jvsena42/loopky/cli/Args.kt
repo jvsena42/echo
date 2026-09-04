@@ -98,6 +98,12 @@ class Args private constructor(
             // existing deck needs a way to say so rather than only a way to agree.
             "listen", "no-listen", "speak", "no-speak",
             "type", "no-type", "reverse", "no-reverse",
+            // `card list`'s two filters. Opposites, so passing both is a usage error rather than
+            // a precedence rule nobody would remember.
+            "missing-image", "has-image",
+            // Opt-in, because it is the one flag here that makes network requests of its own —
+            // one HEAD per distinct picture URL, against hosts this client otherwise never talks to.
+            "check-images",
             // `deck edit`'s two emptiers. Switches rather than options taking an empty value,
             // because "remove every tag" is a different gesture from "set the tags to this" and
             // `--tag ""` would have to be read as both.

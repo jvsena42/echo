@@ -103,6 +103,7 @@ loopky deck compact <deckId>
 loopky deck delete <deckId>
 
 loopky card list <deckId> --json
+loopky card list <deckId> --json --missing-image --limit 50    # a page, not the whole deck
 loopky card add <deckId> --front "Brasília" --back "Capital do Brasil"
 loopky card add <deckId> --from-file more.tsv
 loopky card edit <deckId> --from-file edits.jsonl
@@ -208,7 +209,27 @@ stays unsupported and reported — it is the one variant that would need a real 
 ```
 TSV     front <TAB> back <TAB> front_image_url <TAB> back_image_url    (last two optional)
 JSONL   {"id":"…","front":"…","back":"…","front_image_url":"…","back_image_url":"…"}
+JSONL   {"id":"…","front":{"text":"…","image":{"url":"…"}},"back":{…}}    what card list emits
 ```
+
+**Both JSONL shapes are read, which is what makes the round trip work.** `card list --json` emits a
+card with sides as objects and the picture as `{"url":…}`; a card file takes flat `front` and
+`front_image_url`. Answering "has this row already been applied?" across that gap needed a shape
+check *and* a percent-decode, and getting it wrong silently rewrites every row on every pass. So a
+deck can now be read, edited with `jq` and fed straight back:
+
+```shell
+loopky card list <deckId> --json \
+  | jq -c '.data.cards[] | select(.front.image == null) | {id, front: {image: {url: ("https://…/" + .front.text + ".jpg")}}}' \
+  > edits.jsonl
+loopky card edit <deckId> --from-file edits.jsonl
+```
+
+The tri-state survives the translation: an **absent** key leaves that field alone, an explicit
+`null` clears it. `card list --json` writes explicit nulls, so feeding its output back sets every
+field to exactly what it read. The one thing a card file cannot name is a **blob** picture — an
+image with a `sha256` and no `url`, which is what an `.apkg` import produces — so those are left
+unchanged rather than cleared, and counted in a note on stderr.
 
 An image column must be an `http(s)` URL — a third column holding prose is refused rather than
 stored as a picture, because a 3-column Anki export (Front / Back / Example sentence) would
@@ -252,9 +273,64 @@ most of them are a blank card on both apps. Drop the `/thumb/` segment and the `
 altogether to get the full-size original, which is always served. A warning and not an error
 because the list is Wikimedia's to change, and a stale check must not be able to fail an import.
 
-Beyond those two, prefer a host that serves images to anyone. Some refuse an unfamiliar client
+**Warned about, on stderr, never fatal** — a file type neither client decodes. Android loads with
+Coil, which ships no SVG decoder here, and iOS with `UIImage`, which decodes neither vectors nor
+`.tif`, `.webm`, `.ogv` or `.stl`. That is not an exotic case: a Wikipedia lead image is frequently
+one of them — every flag and colour swatch is an `.svg`, and `Dente`, `Piede`, `Tostapane`,
+`Rotonda` and `Tastiera` resolve to `.stl`, `.tiff`, `.webm` and `.ogv`. All are valid
+`upload.wikimedia.org` addresses that answer 200, and all are blank cards.
+
+For these the thumbnail rule above is **inverted**, which is why the two are decided together. The
+original of a vector is `image/svg+xml`, so "drop the `/thumb/` segment for the original, which is
+always served" is precisely the wrong advice — the thumbnail is the only rendered raster there is.
+The warning rewrites it for you:
+
+```
+https://upload.wikimedia.org/wikipedia/commons/0/03/Flag_of_Italy.svg
+  -> https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Flag_of_Italy.svg/500px-Flag_of_Italy.svg.png
+```
+
+Wikimedia renders `.tif` and `.webm` under `/thumb/` too, but with prefixes of their own
+(`lossy-page1-`, a frame marker), so those are named rather than rewritten — an address invented
+here that 404s would be worse than the sentence.
+
+Beyond those, prefer a host that serves images to anyone. Some refuse an unfamiliar client
 outright — Wikimedia answers `403 Please set a user-agent` to a generic one — and the result is the
 same blank card with nothing reporting it.
+
+### `--check-images`, when a string is not enough
+
+Three things no rule above can see produce exactly the same blank card: a Wikipedia lead image that
+resolves to `.stl` or `.webm` behind an ordinary-looking address, a file that has been renamed or
+deleted, and a host that refuses an unfamiliar client. One `HEAD` catches all three.
+
+```shell
+loopky import cards.tsv --title "…" --dry-run --check-images   # worth the most here
+loopky card edit <deckId> --from-file edits.jsonl --check-images
+```
+
+Available on `deck create`, `card add`, `card edit` and `import`, `--dry-run` included. It reports
+the status and content type of everything that is not a 2xx picture, on stderr and in `--json` as
+`image_checks` — and reports **nothing** about a URL that is fine, because a finding buried in 900
+lines of "this one is fine" is no better than the check you wrote by hand.
+
+An `image/` prefix is not the same as a decodable picture, and that distinction is load-bearing
+here: Wikimedia serves an SVG original as `image/svg+xml` with an entirely ordinary 200, so a
+prefix check would call a whole deck of flags fine. `image/svg+xml` and `image/tiff` are findings.
+
+Four properties, and each is a decision rather than an omission:
+
+- **Opt-in**, because it is the only flag here that makes requests of its own. An ordinary
+  `card add` stays one write and no round trips.
+- **A warning, never a refusal.** A host having a bad minute must not be able to fail an import; the
+  picture may well be fine. The write goes ahead and the note says so.
+- **One request per distinct URL**, not per card, at eight at a time — a picture on forty cards is
+  one question, and 900 simultaneous connections to one host is a way to be rate-limited into a
+  false negative.
+- **It sends a real user agent.** `403 Please set a user-agent` is Wikimedia's answer to a generic
+  client, which is the very failure this exists to catch; a probe that produced it on every
+  Wikimedia URL would be worse than no probe. A host that refuses `HEAD` outright is asked again
+  with a one-byte ranged `GET`, so a working picture is not condemned by a quirk of the method.
 
 ## Tab completion
 
@@ -305,6 +381,14 @@ file never has the problem.
 | 3 | not signed in | 9 | bad input |
 | 4 | **session expired** | 10 | unsupported host |
 | 5 | network | 11 | update found, not applied |
+| | | 12 | homeserver 5xx |
+
+12 is the homeserver answering with a server error of its own. It used to be **1, internal**, which
+this table documents as "worth reporting as a bug" — and a 500 is not a bug in the client, not the
+caller's input, and unlike every other row here it may well work on the next attempt. A batch told
+`internal` sends an agent looking through its own file for the row that broke it; told
+`server_error` it retries the rows that did not land. Deliberately not 5, which promises the request
+never arrived: it did, and it may have been applied.
 
 11 is `loopky update` refusing honestly: there *is* a newer release and this copy is not ours to
 replace — a Homebrew or `.deb` install, a container layer, the jar directory, a file the user
@@ -334,13 +418,38 @@ payload does not carry one.
   because this client never requests the capability a post would need. `login` is the only command
   that blocks on a human, and `--qr-out` / `--url-only` exist for a box with no terminal anyone is
   watching.
-- **stdout is the machine channel.** Results and failures both go there as `--json`; the QR code,
-  prompts, progress and every log line go to stderr. `--json` silences **progress counters** on
-  stderr, because the result carries the same numbers — it does not silence stderr. Warnings still
-  arrive there, so capturing stderr for diagnostics is worth doing in either mode.
+- **stdout is the machine channel, and it is held that way at the descriptor.** Results and
+  failures both go there as `--json`; the QR code, prompts, progress and every log line go to
+  stderr. `--json` silences **progress counters** on stderr, because the result carries the same
+  numbers — it does not silence stderr. Warnings still arrive there, so capturing stderr for
+  diagnostics is worth doing in either mode.
+
+  That is enforced rather than agreed: `libpubkycore` installs a `tracing` subscriber whose default
+  writer is stdout, so a DHT bootstrap error — routine on a box that reaches the homeserver fine —
+  used to land ahead of the envelope where `2>/dev/null` could not remove it. fd 1 is now pointed at
+  stderr before the FFI loads and Kotlin keeps a duplicate of the real one, so anything writing to
+  the raw descriptor goes to stderr no matter which layer it came from. `| jq` needs no `grep '^{'`
+  in front of it.
 - **`card add` is idempotent** by front/back-plus-image, and reports what it skipped. `import
   --resume` checkpoints against the deck on the homeserver rather than a local cursor, matched on
   `--title` — which is why `--title` is mandatory and never derived from a filename.
+- **`card edit --from-file` is idempotent too, which is why it has no `--resume`.** A row already
+  holding what it asks for is skipped rather than rewritten, so re-running the same file *is* the
+  resume: no cursor to keep, nothing to pass, and no `updated_at` churn on rows that did not change.
+  Three more properties come with it, and all three come from one 665-row batch that 500'd after 35
+  writes and said nothing about the 35:
+
+  - **Everything is validated before anything is written.** Ids, both-sides, image URLs. A bad row
+    400 fails the command with the homeserver untouched rather than 399 rows in.
+  - **One refused row does not end the batch.** The rows after it are attempted — when a batch fails
+    and the same rows apply singly, the row is not the problem. A failure that *will* refuse
+    everything (an expired session, a full disk) does stop it, and so does a run of five in a row;
+    the result says how many were never reached.
+  - **A failed batch still reports what it wrote.** The same result shape travels on the failure
+    envelope as `data`, with `written` / `skipped` / `failed` / `not_attempted` and, per failed row,
+    its file line, card id, exit code and message. A homeserver 500 is also retried twice before it
+    counts as a failure — the shared layer already recovers an expiry, a 429 and an unreachable
+    session round trip, and a 500 was the gap.
 - **The session can only write `/pub/loopky/`.** Not `/pub/pubky.app/`. It cannot post, follow, or
   edit a profile under any bug or any prompt injection, because it was never handed the capability.
   Deck tags still work — a deck manifest's tag record lives in the loopky namespace.
@@ -368,6 +477,19 @@ payload does not carry one.
   that fails is silent rather than fatal. `loopky update` is the one command that acts on it, and
   it refuses — with the right command, and exit 11 — on a Homebrew or `.deb` install, in a
   container, and on the jar.
+- **`card list` can page, and a page really is cheaper.** Plain `card list` means the whole deck.
+  `--limit` and `--cursor` walk the manifest's chunk table and fetch only the records the page
+  needs, so deciding which of 4,000 cards still want a picture no longer costs ~700 KB per pass;
+  `--json` carries `next_cursor` while there is more, and the human path says so on stderr rather
+  than adding a line to stdout that a `cut` would count as a card. `--missing-image` /
+  `--has-image` narrow what comes back and compose with both.
+
+  There is **no server-side filter** to ask for instead, and that is structural: the homeserver
+  stores opaque records and Nexus indexes tags, not cards. So a filter without `--limit` saves the
+  output and the caller's work, not the fetch. A page comes back in chunk order, which is study
+  order wherever the two could differ — chunk `n` owns a private slice of the ord line, so cards
+  cannot sort across chunks. A cursor is a place in the deck rather than a snapshot of it: one
+  naming a chunk that compaction has since folded away resumes at the next one that exists.
 - **A session and an `--env` that disagree is a hard error**, not a warning. Nexus answers a query
   aimed at the wrong network *successfully and empty*, so a mismatch would look like a failed write
   rather than a misconfiguration.

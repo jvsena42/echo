@@ -73,6 +73,11 @@ fun successEnvelope(
  *
  * `exit` repeats the process's exit status inside the payload so a caller that only reads stdout —
  * a pipe, a log, an MCP wrapper handed the string — has the same information as a shell.
+ *
+ * `data` is the success shape of whatever the command *had* done when it failed, or null. It is on
+ * the failure envelope for the same reason `error` is: a partly-applied batch is the one outcome
+ * where the exit code alone leaves a caller unable to act, since "nothing happened" and "35 of your
+ * 665 rows are now on the homeserver" are the same exit 12 without it.
  */
 fun failureEnvelope(
     command: String,
@@ -89,6 +94,7 @@ fun failureEnvelope(
         put("environment", environment)
         put("indexer", indexer)
         put("update_available", updateJson(update))
+        put("data", error.data ?: JsonNull)
         put(
             "error",
             buildJsonObject {
