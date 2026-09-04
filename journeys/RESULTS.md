@@ -103,6 +103,22 @@ permission dialog at the right time. This emulator image has no on-device speech
 service, so `SpeechRecognizer` reports unavailable and the flow returns to the card without
 crashing — the Listening/Correct/Wrong outcome is a manual check on a device with Google speech.
 
+**Re-run 2026-09-04, `emulator-5554`, after the silent-close fix.** Reported symptom: the Speak
+sheet sometimes closed without showing a success or an error. Both halves reproduced here on the
+"Spanish basics" deck (es-ES → en-US, Speak on):
+
+| Step | Result |
+| --- | --- |
+| Tap **Speak** → rationale → RECORD_AUDIO grant | PASSED — unchanged |
+| Listening sheet | PASSED — `speak_mic` + "Buenos dias" |
+| Say nothing, wait | PASSED — sheet now shows **"Didn't catch that"** (`speak_failed_title`) with the reason and **Try again**. It used to sit on "Say the word" for good: this emulator's recognition service reports `onReadyForSpeech`/`onBeginningOfSpeech` and then never returns a result *or* an error, so nothing ended the listen |
+| **Try again** from the failure sheet | PASSED — straight back to Listening, no `ERROR_RECOGNIZER_BUSY`; a second failure reports the same way |
+| Dismiss | PASSED — back to the card |
+
+Still a manual check on a device with Google speech: the Correct/Wrong outcome, and which language
+each engine actually uses. The `LanguageUnavailable` sheet (Close instead of Try again) was not
+reachable here — this image raises no language error.
+
 ## 10 — Listen/Speak fixes + design polish — ✅ PASS (re-run 2026-06-17, emulator-5554)
 
 Verified after the Listen/Speak + fidelity fixes (RECORD_AUDIO revoked first to test the fresh
