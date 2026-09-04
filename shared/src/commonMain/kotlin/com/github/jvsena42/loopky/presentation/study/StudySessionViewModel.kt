@@ -19,6 +19,7 @@ import com.github.jvsena42.loopky.domain.model.SpeakMatcher
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.domain.model.TypedAnswerOutcome
+import com.github.jvsena42.loopky.platform.SpeechError
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Job
@@ -409,9 +410,18 @@ class StudySessionViewModel(
         )
     }
 
-    fun onSpeechError() {
-        // Treat recognition errors (no match, timeout, etc.) as a dismissal back to the card.
-        setSpeakPhase(SpeakPhase.Idle)
+    /**
+     * A recognition that produced no answer is *reported*, never dismissed. Closing the sheet on
+     * an error is indistinguishable from the app having dropped the tap, and the common Android
+     * errors — nothing matched, the engine busy on a fast retry, no model for the deck's declared
+     * language — are exactly the ones the reader can act on.
+     *
+     * Late errors after a dismissal are dropped, like a late result: [speakTarget] is null once
+     * the sheet is gone, so nothing can reopen it.
+     */
+    fun onSpeechError(reason: SpeechError) {
+        val target = speakTarget ?: return
+        setSpeakPhase(SpeakPhase.Failed(reason = reason, expected = target.expected))
     }
 
     /** Another go at the same target — never re-derived, so a retry cannot change what it grades. */
@@ -792,6 +802,17 @@ sealed interface SpeakPhase {
 
     data class Correct(val heard: String) : SpeakPhase
     data class Wrong(val heard: String, val expected: String) : SpeakPhase
+
+    /**
+     * Recognition ended without an attempt to grade. Carries [expected] so a retry keeps prompting
+     * with the same target the failed listen was for.
+     */
+    data class Failed(val reason: SpeechError, val expected: String) : SpeakPhase {
+        /** Neither a refused permission nor a missing language model changes by trying again. */
+        val retryable: Boolean
+            get() = reason !in
+                setOf(SpeechError.Permission, SpeechError.Unavailable, SpeechError.LanguageUnavailable)
+    }
 }
 
 /**

@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.presentation.study
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.StudySettings
+import com.github.jvsena42.loopky.platform.SpeechError
 import com.github.jvsena42.loopky.testing.FakeCardRepository
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
@@ -499,6 +500,81 @@ class StudySessionViewModelTest {
 
         val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
         assertIs<SpeakPhase.Correct>(state.speakPhase)
+    }
+
+    @Test
+    fun aRecognitionFailureIsReportedInTheSheetRatherThanClosingIt() = runTest {
+        // A sheet that vanishes on ERROR_NO_MATCH is indistinguishable from the app having dropped
+        // the tap — which is exactly how the bug was reported.
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onSpeakTest()
+        advanceUntilIdle()
+        vm.onSpeechError(SpeechError.NoMatch)
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        val failed = assertIs<SpeakPhase.Failed>(state.speakPhase)
+        assertEquals(SpeechError.NoMatch, failed.reason)
+        assertEquals("hola", failed.expected)
+        assertTrue(failed.retryable, "Nothing matched — another go is the whole point")
+    }
+
+    @Test
+    fun retryingAfterAFailureKeepsTheSameTarget() = runTest {
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val effects = mutableListOf<StudySessionEffect>()
+        val job = launch { vm.effects.toList(effects) }
+
+        vm.onSpeakTest()
+        advanceUntilIdle()
+        vm.onSpeechError(SpeechError.Busy)
+        advanceUntilIdle()
+        vm.onSpeakRetry()
+        advanceUntilIdle()
+
+        assertEquals(StudySessionEffect.StartSpeechRecognition("hola", "es-ES"), effects.last())
+        job.cancel()
+    }
+
+    @Test
+    fun aFailureNothingCanRetryOffersNoRetry() = runTest {
+        // A refused permission and a missing language model do not change by trying again, so the
+        // sheet offers a way out instead of a button that repeats the same failure.
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onSpeakTest()
+        advanceUntilIdle()
+        vm.onSpeechError(SpeechError.LanguageUnavailable)
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertFalse(assertIs<SpeakPhase.Failed>(state.speakPhase).retryable)
+    }
+
+    @Test
+    fun aLateFailureAfterDismissalIsIgnored() = runTest {
+        // The mirror of the late-transcript guard: an error landing after the sheet is gone must
+        // not reopen it over a card the user has moved on from.
+        seedSpeechDeck()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onSpeakTest()
+        advanceUntilIdle()
+        vm.onSpeakDismiss()
+        vm.onSpeechError(SpeechError.NoMatch)
+        advanceUntilIdle()
+
+        val state = assertIs<StudySessionUiState.Reviewing>(vm.state.value)
+        assertEquals(SpeakPhase.Idle, state.speakPhase)
     }
 
     @Test
