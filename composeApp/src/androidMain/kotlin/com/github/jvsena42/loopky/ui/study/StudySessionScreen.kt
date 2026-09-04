@@ -12,12 +12,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -705,9 +702,11 @@ private fun AnimatedContentScope.FlippableCard(
  * has nothing to say, so both are *certainly* empty, and holding ~140 dp open for them steals it
  * from the card at the one moment the keyboard has already taken half the screen.
  *
- * That height is the card's, so the swap is animated rather than cut: `revealed` turns true on the
- * tap, and an un-animated branch resized the card in one frame and then flipped it over the next
- * 700 ms — the jump arriving before the gesture it belongs to.
+ * That swap is a **cut, not an animation**, and has to stay one. This height is the card's, so
+ * animating it re-measures the card on every frame — and the card re-measures `TextAutoSize` text,
+ * a full layout per step down the size range. Spread over the 700 ms flip that is a visible stutter
+ * in the one animation the whole screen is built around; the single-frame jump it replaced is the
+ * cheaper of the two.
  */
 @Composable
 private fun BelowCardRows(
@@ -717,12 +716,7 @@ private fun BelowCardRows(
     onGrade: (SrsGrade) -> Unit,
     onNextCard: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier.animateContentSize(
-            animationSpec = if (reduceMotion) snap() else spring(stiffness = Spring.StiffnessMediumLow),
-        ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         if (state.answerHidden && state.revealed) {
             Spacer(modifier = Modifier.height(8.dp))
             return@Column
