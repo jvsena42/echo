@@ -72,7 +72,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -137,6 +139,7 @@ fun StudySessionRoute(
     }
     val speaker = koinInject<Speaker>()
     val speechRecognizer = koinInject<SpeechRecognizer>()
+    val haptics: HapticFeedback = LocalHapticFeedback.current
 
     val currentClose by rememberUpdatedState(onClose)
     val context = LocalContext.current
@@ -181,6 +184,9 @@ fun StudySessionRoute(
                         }
                     }
                 }
+                is StudySessionEffect.Haptic ->
+                    haptics.performHapticFeedback(effect.pattern.feedbackType())
+
                 StudySessionEffect.Close -> currentClose()
             }
         }
