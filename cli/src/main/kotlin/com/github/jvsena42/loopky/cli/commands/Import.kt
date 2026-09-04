@@ -62,6 +62,8 @@ data class ImportResult(
     val format: String = ImportFormat.Text.json,
     /** The `.apkg` reader's own accounting, or null for a text import. See [ApkgSummary]. */
     val apkg: ApkgSummary? = null,
+    /** What `--check-images` found, and only what is worth reporting. Empty without the flag. */
+    @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
 )
 
 /**
@@ -89,6 +91,11 @@ data class ImportPreview(
     @SerialName("columns_dropped") val columnsDropped: Int = 0,
     val separator: String,
     val apkg: ApkgSummary? = null,
+    /**
+     * What `--check-images` found. Most useful here of anywhere: a dry run is the one moment an
+     * agent can still fix 900 addresses before a single card carries one.
+     */
+    @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
 )
 
 /** The `--json` spelling of a format, kept beside the enum so the two cannot drift. */
@@ -143,8 +150,10 @@ suspend fun import(
 
     // Blobs this invocation wrote, so an aborted publish of a *new* deck can take them back out.
     val uploaded = mutableListOf<MediaRef>()
+    var imageChecks = emptyList<ImageCheck>()
     val written = try {
         val built = buildCards(imports, draft, resume, deckId, media, uploaded, onProgress)
+        imageChecks = built.remoteImageUrls().checkedIfAsked(args, onNote)
         val published = if (resume.deck != null) {
             appendMissing(decks, deckId, built, resume.deck.overlaidWith(args), onProgress)
         } else {
@@ -179,6 +188,7 @@ suspend fun import(
             separator = draft.separatorName(),
             format = parsed.format.json,
             apkg = parsed.apkg,
+            imageChecks = imageChecks,
         ),
         describeImport(written, title, parsed, resume),
     )
@@ -219,7 +229,11 @@ private fun describeImport(
  * Takes no [Session] on purpose — see [ImportPreview]. Also where `--title` stops being mandatory:
  * a preview is frequently what tells you what the deck is called.
  */
-suspend fun importDryRun(args: Args, imports: ImportRepository): CommandResult {
+suspend fun importDryRun(
+    args: Args,
+    imports: ImportRepository,
+    onNote: (String) -> Unit = System.err::println,
+): CommandResult {
     val source = args.word(1) ?: throw CliError(ExitCode.Usage, "Missing <file>, or - for stdin.")
     val title = args.option("title")?.trim()?.takeIf { it.isNotEmpty() }
 
@@ -227,7 +241,11 @@ suspend fun importDryRun(args: Args, imports: ImportRepository): CommandResult {
     // 500-image deck should not need the deck's media in heap to answer how big it is.
     val parsed = parseSource(args, imports, source, title, keepImageBytes = false)
     val draft = parsed.draft
-    val cards = imports.keptRows().size
+    val kept = imports.keptRows()
+    val cards = kept.size
+    val imageChecks = kept
+        .flatMap { row -> listOf(true, false).mapNotNull { imports.rowImage(row.index, isFront = it)?.url } }
+        .checkedIfAsked(args, onNote)
     imports.clear()
 
     return result(
@@ -241,6 +259,7 @@ suspend fun importDryRun(args: Args, imports: ImportRepository): CommandResult {
             columnsDropped = if (parsed.droppedColumns) 1 else 0,
             separator = draft.separatorName(),
             apkg = parsed.apkg,
+            imageChecks = imageChecks,
         ),
         buildString {
             appendLine("$source would publish $cards ${if (cards == 1) "card" else "cards"}. Nothing was written.")
@@ -267,6 +286,14 @@ private fun ImportDraft.separatorName(): String =
     if (structured) "none" else separator::class.simpleName.orEmpty().lowercase()
 
 private class Written(val deck: Deck, val cards: Int)
+
+/** Every remote picture these cards reference. A blob has no URL to ask a host about. */
+private fun List<Card>.remoteImageUrls(): List<String> =
+    flatMap { listOfNotNull(it.front.imageRef?.url, it.back.imageRef?.url) }
+
+/** `--check-images` over these URLs, or nothing. See [checkImageUrls]. */
+private suspend fun List<String>.checkedIfAsked(args: Args, onNote: (String) -> Unit): List<ImageCheck> =
+    if (args.checksImages()) checkImageUrls(this, onNote) else emptyList()
 
 /**
  * What a `--resume` run already found on the homeserver.

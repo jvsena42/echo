@@ -29,6 +29,17 @@ data class DeckListResult(val decks: List<DeckView>, val count: Int)
 @Serializable
 data class DeckShowResult(val deck: DeckView)
 
+/**
+ * `deck create`'s own shape, so it can report `--check-images` findings that `deck show` has no
+ * way to produce. Same `deck` field either way — a caller reading the deck out of the envelope
+ * does not have to know which command wrote it.
+ */
+@Serializable
+data class DeckCreateResult(
+    val deck: DeckView,
+    @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
+)
+
 @Serializable
 data class DeckDeleteResult(val id: String, val deleted: Boolean)
 
@@ -107,6 +118,7 @@ suspend fun deckCreate(
     args: Args,
     decks: DeckRepository,
     session: Session,
+    onNote: (String) -> Unit = System.err::println,
     onProgress: (String) -> Unit,
 ): CommandResult {
     val title = args.requireOption("title").trim()
@@ -117,8 +129,13 @@ suspend fun deckCreate(
     val frontLang = args.option("front-lang")
     val backLang = args.option("back-lang")
     val cards = args.option("from-file")
-        ?.let { readCardFile(it).requireBothSides().toCards(deckId, now) }
+        ?.let { readCardFile(it, onNote).requireBothSides().toCards(deckId, now) }
         .orEmpty()
+    val imageChecks = if (args.checksImages()) {
+        checkImageUrls(cards.flatMap { listOfNotNull(it.front.imageRef?.url, it.back.imageRef?.url) }, onNote)
+    } else {
+        emptyList()
+    }
 
     val deck = Deck(
         id = deckId,
@@ -126,7 +143,7 @@ suspend fun deckCreate(
         title = title,
         description = args.option("description")?.takeIf { it.isNotBlank() },
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() },
-        coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage),
+        coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url", onNote)?.let(::remoteImage),
         tags = deckTags(args.options("tag"), frontLang, backLang),
         createdAt = now,
         updatedAt = now,
@@ -145,7 +162,7 @@ suspend fun deckCreate(
     }.getOrElse { throw asCliError(it) }
 
     return result(
-        DeckShowResult(published.toView()),
+        DeckCreateResult(published.toView(), imageChecks),
         "Created ${published.id} — ${published.title} (${published.cardCount} cards)",
     )
 }

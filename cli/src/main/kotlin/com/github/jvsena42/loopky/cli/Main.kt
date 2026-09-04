@@ -169,7 +169,7 @@ private suspend fun dispatch(
         "deck list" -> authed(identity, environment) { deckList(koin.decks()) }
         "deck show" -> authed(identity, environment) { deckShow(args, koin.decks()) }
         "deck create" -> authed(identity, environment) { session ->
-            deckCreate(args, koin.decks(), session, progress)
+            deckCreate(args, koin.decks(), session, note, progress)
         }
         "deck edit" -> authed(identity, environment) { deckEdit(args, koin.decks()) }
         "deck delete" -> authed(identity, environment) { deckDelete(args, koin.decks()) }
@@ -322,7 +322,7 @@ internal val USAGE = """
       deck list
       deck show <deckId>
       deck create --title T [--description D] [--tag T]... [--cover-url URL]
-                  [--cover-emoji E] [--from-file F]
+                  [--cover-emoji E] [--from-file F] [--check-images]
                   [--listen] [--speak] [--type] [--reverse]
                   [--front-lang BCP47] [--back-lang BCP47]
                                 A declared pair also labels the deck — "spanish" plus the
@@ -345,6 +345,8 @@ internal val USAGE = """
     CARDS
       card list <deckId>
       card add <deckId> --front F --back B [--front-image URL] [--back-image URL]
+                                Add --check-images to any of these to HEAD every distinct picture
+                                URL first. Warns, never refuses; see CARD IMAGES.
       card add <deckId> --from-file cards.tsv|cards.jsonl
       card edit <deckId> <cardId> [--front F] [--back B] [--front-image URL] [--back-image URL]
       card edit <deckId> --from-file edits.jsonl
@@ -364,7 +366,7 @@ internal val USAGE = """
                       An Anki export. Same command, same parser spine; the fields are named, so
                       --front-field/--back-field pick which two become the card. Numbers are
                       1-based, matching the labels an unnamed field is shown under.
-      import <file> --dry-run [--json]
+      import <file> --dry-run [--json] [--check-images]
                       Report what would be published — for an .apkg, its field names with a
                       sample of each, the note count, the dropped-note breakdown and what its
                       pictures would spend. Writes nothing and needs no session.
@@ -435,6 +437,14 @@ internal val USAGE = """
 
       Beyond that, prefer a host that serves images to anyone: some refuse an unfamiliar client
       outright, and the result is the same blank card with nothing reporting it.
+
+      --check-images asks. One HEAD per DISTINCT URL, on deck create, card add, card edit and
+      import (including --dry-run, where it is worth the most). It reports the status and the content type of
+      everything that is not a 2xx image — a dead link, a renamed file, a host refusing an
+      unfamiliar client, or a .stl behind a perfectly ordinary-looking address. Opt-in because it
+      is the only flag here that makes requests of its own, and it warns rather than refusing: a
+      host having a bad minute must not be able to fail an import. Findings also travel in --json
+      as image_checks.
 
     EXIT CODES
       0 ok                      6 not found

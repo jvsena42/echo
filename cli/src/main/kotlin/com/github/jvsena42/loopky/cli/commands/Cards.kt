@@ -66,6 +66,11 @@ data class CardWriteResult(
     val failures: List<CardWriteFailure> = emptyList(),
     /** Rows the batch never reached, because it stopped at a failure nothing could recover from. */
     @SerialName("not_attempted") val notAttempted: Int = 0,
+    /**
+     * What `--check-images` found, and only what is worth reporting: a URL that answered 2xx with
+     * an image type produces no row. Empty when the flag was not passed.
+     */
+    @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
 )
 
 /** One row the homeserver refused. [row] is 1-based, matching the file the caller handed in. */
@@ -147,7 +152,8 @@ suspend fun cardAdd(
         planned += PlannedWrite(row = index + 1, card = card)
     }
 
-    return applyBatch(deckId, deck, decks, cards, planned, skipped, "Added")
+    val checks = planned.checkedImages(args, onNote)
+    return applyBatch(deckId, deck, decks, cards, planned, skipped, "Added", checks)
 }
 
 /**
@@ -204,11 +210,25 @@ suspend fun cardEdit(
         planned += PlannedWrite(row = index + 1, card = updated)
     }
 
-    return applyBatch(deckId, deck, decks, cards, planned, skipped, "Edited")
+    val checks = planned.checkedImages(args, onNote)
+    return applyBatch(deckId, deck, decks, cards, planned, skipped, "Edited", checks)
 }
 
 /** One row of a batch, resolved into the card it will write. [row] is 1-based, as the file counts. */
 private class PlannedWrite(val row: Int, val card: Card)
+
+/**
+ * `--check-images` over the pictures this batch is about to write, or nothing.
+ *
+ * The rows the batch **skipped** are deliberately not probed: their pictures are already on the
+ * homeserver and were not asked about, so checking them would turn a two-row edit of a 4,000-card
+ * deck into 4,000 requests.
+ */
+private suspend fun List<PlannedWrite>.checkedImages(args: Args, onNote: (String) -> Unit): List<ImageCheck> {
+    if (!args.checksImages()) return emptyList()
+    val urls = flatMap { listOfNotNull(it.card.front.imageRef?.url, it.card.back.imageRef?.url) }
+    return checkImageUrls(urls, onNote)
+}
 
 /**
  * Write a planned batch, and report what landed whether or not all of it did.
@@ -234,6 +254,7 @@ private suspend fun applyBatch(
     planned: List<PlannedWrite>,
     skipped: Int,
     verb: String,
+    imageChecks: List<ImageCheck>,
 ): CommandResult {
     val written = mutableListOf<Card>()
     val failures = mutableListOf<CardWriteFailure>()
@@ -276,6 +297,7 @@ private suspend fun applyBatch(
         failed = failures.size,
         failures = failures,
         notAttempted = notAttempted,
+        imageChecks = imageChecks,
     )
     val text = buildString {
         append("$verb ${written.size} card(s)")

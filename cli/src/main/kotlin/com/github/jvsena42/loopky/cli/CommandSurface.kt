@@ -116,6 +116,7 @@ private val CARD_FIELDS = listOf(
     CliOption("front-image", "https URL for a picture on the front"),
     CliOption("back-image", "https URL for a picture on the back"),
     CliOption("from-file", "a TSV or JSONL card file instead of the flags above", OptionValue.Path),
+    CliOption("check-images", "HEAD each picture URL and warn about the ones that are not images", OptionValue.Switch),
 )
 
 private val DECK_METADATA = listOf(
@@ -155,6 +156,11 @@ internal fun cliCommands(): List<CliCommand> = listOf(
         summary = "publish a new deck",
         options = DECK_METADATA +
             CliOption("from-file", "a TSV or JSONL card file to publish with it", OptionValue.Path) +
+            CliOption(
+                "check-images",
+                "HEAD each picture URL and warn about the ones that are not images",
+                OptionValue.Switch,
+            ) +
             STUDY_OPT_INS + LANGUAGE_OPTIONS,
     ),
     CliCommand(
@@ -193,6 +199,11 @@ internal fun cliCommands(): List<CliCommand> = listOf(
             CliOption("dry-run", "report what would be published and write nothing", OptionValue.Switch),
             CliOption("front-field", "which .apkg field becomes the front, by number or name"),
             CliOption("back-field", "which .apkg field becomes the back, by number or name"),
+            CliOption(
+                "check-images",
+                "HEAD each picture URL and warn about the ones that are not images",
+                OptionValue.Switch,
+            ),
         ) + STUDY_OPT_INS + LANGUAGE_OPTIONS,
     ),
 

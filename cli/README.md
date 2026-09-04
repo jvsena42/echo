@@ -297,6 +297,36 @@ Beyond those, prefer a host that serves images to anyone. Some refuse an unfamil
 outright — Wikimedia answers `403 Please set a user-agent` to a generic one — and the result is the
 same blank card with nothing reporting it.
 
+### `--check-images`, when a string is not enough
+
+Three things no rule above can see produce exactly the same blank card: a Wikipedia lead image that
+resolves to `.stl` or `.webm` behind an ordinary-looking address, a file that has been renamed or
+deleted, and a host that refuses an unfamiliar client. One `HEAD` catches all three.
+
+```shell
+loopky import cards.tsv --title "…" --dry-run --check-images   # worth the most here
+loopky card edit <deckId> --from-file edits.jsonl --check-images
+```
+
+Available on `deck create`, `card add`, `card edit` and `import`, `--dry-run` included. It reports
+the status and content type of everything that is not a 2xx `image/…`, on stderr and in `--json` as
+`image_checks` — and reports **nothing** about a URL that is fine, because a finding buried in 900
+lines of "this one is fine" is no better than the check you wrote by hand.
+
+Four properties, and each is a decision rather than an omission:
+
+- **Opt-in**, because it is the only flag here that makes requests of its own. An ordinary
+  `card add` stays one write and no round trips.
+- **A warning, never a refusal.** A host having a bad minute must not be able to fail an import; the
+  picture may well be fine. The write goes ahead and the note says so.
+- **One request per distinct URL**, not per card, at eight at a time — a picture on forty cards is
+  one question, and 900 simultaneous connections to one host is a way to be rate-limited into a
+  false negative.
+- **It sends a real user agent.** `403 Please set a user-agent` is Wikimedia's answer to a generic
+  client, which is the very failure this exists to catch; a probe that produced it on every
+  Wikimedia URL would be worse than no probe. A host that refuses `HEAD` outright is asked again
+  with a one-byte ranged `GET`, so a working picture is not condemned by a quirk of the method.
+
 ## Tab completion
 
 ```shell
