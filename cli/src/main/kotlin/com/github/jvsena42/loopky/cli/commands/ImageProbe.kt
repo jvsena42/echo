@@ -104,9 +104,13 @@ private suspend fun probeImage(url: String): ImageCheck = withContext(Dispatcher
     answer.classified(url)
 }
 
-private class Answer(val status: Int?, val contentType: String?, val failure: String?)
+/**
+ * What one request came back with, before it is judged. `internal` so the judging — which is the
+ * whole of the check's opinion — is testable without a host to answer.
+ */
+internal class ProbeAnswer(val status: Int?, val contentType: String?, val failure: String? = null)
 
-private fun Answer.classified(url: String): ImageCheck {
+internal fun ProbeAnswer.classified(url: String): ImageCheck {
     val type = contentType?.substringBefore(';')?.trim()?.lowercase()
     return when {
         failure != null -> ImageCheck(url, reason = "could not be reached: $failure")
@@ -115,13 +119,23 @@ private fun Answer.classified(url: String): ImageCheck {
         !type.startsWith(IMAGE_PREFIX) ->
             ImageCheck(url, status, type, reason = "this is not an image — both apps will render a blank card")
 
+        // An `image/` type is not the same as a decodable one, and this is where the difference
+        // bites: Wikimedia serves an SVG original as `image/svg+xml` with a perfectly ordinary
+        // 200, so a prefix check calls the whole flags deck fine. See `imageUrlAdvice`.
+        type in UNDECODABLE_IMAGE_TYPES -> ImageCheck(
+            url,
+            status,
+            type,
+            reason = "neither app decodes this — use a JPEG, PNG or WebP (a Wikimedia /thumb/ URL renders one)",
+        )
+
         else -> ImageCheck(url, status, type, ok = true)
     }
 }
 
-private fun request(url: String, method: String, ranged: Boolean = false): Answer {
+private fun request(url: String, method: String, ranged: Boolean = false): ProbeAnswer {
     val connection = runCatching { URL(url).openConnection() as HttpURLConnection }
-        .getOrElse { return Answer(null, null, it.message ?: "bad URL") }
+        .getOrElse { return ProbeAnswer(null, null, it.message ?: "bad URL") }
     return try {
         connection.requestMethod = method
         connection.connectTimeout = PROBE_CONNECT_TIMEOUT_MS
@@ -132,11 +146,11 @@ private fun request(url: String, method: String, ranged: Boolean = false): Answe
         // One byte, so the fallback for a host that refuses HEAD still transfers nothing.
         if (ranged) connection.setRequestProperty("Range", "bytes=0-0")
         val status = connection.responseCode
-        Answer(status, connection.contentType, null)
+        ProbeAnswer(status, connection.contentType)
     } catch (@Suppress("TooGenericExceptionCaught") error: Exception) {
         // Every failure here is "the host did not answer", which is the finding. Nothing is
         // rethrown: the probe is advisory, and an unreachable host must not fail the write.
-        Answer(null, null, error.message ?: error::class.simpleName)
+        ProbeAnswer(null, null, error.message ?: error::class.simpleName)
     } finally {
         runCatching { connection.disconnect() }
     }
@@ -154,6 +168,9 @@ private val METHOD_REFUSED = setOf(403, 405, 501)
 private val SUCCESS = 200..299
 
 private const val IMAGE_PREFIX = "image/"
+
+/** `image/` types that are still a blank card: Coil ships no SVG decoder here and UIImage has none. */
+private val UNDECODABLE_IMAGE_TYPES = setOf("image/svg+xml", "image/svg", "image/tiff", "image/x-tiff")
 
 /** Enough to be quick on 900 URLs, few enough not to be rate-limited into a false negative. */
 private const val PROBE_CONCURRENCY = 8

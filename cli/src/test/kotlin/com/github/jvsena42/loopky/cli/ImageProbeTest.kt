@@ -1,7 +1,9 @@
 package com.github.jvsena42.loopky.cli
 
 import com.github.jvsena42.loopky.cli.commands.ImageCheck
+import com.github.jvsena42.loopky.cli.commands.ProbeAnswer
 import com.github.jvsena42.loopky.cli.commands.checkImageUrls
+import com.github.jvsena42.loopky.cli.commands.classified
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -79,6 +81,33 @@ class ImageProbeTest {
         }
 
         assertContains(notes.last(), "writing anyway")
+    }
+
+    /**
+     * The classification, which is where the check has an opinion. An `image/` prefix is not the
+     * same as a decodable picture: Wikimedia serves an SVG original as `image/svg+xml` with an
+     * ordinary 200, so a prefix check calls a whole deck of flags fine.
+     */
+    @Test
+    fun `an image content type neither app decodes is still a finding`() {
+        val svg = ProbeAnswer(status = 200, contentType = "image/svg+xml").classified("https://x.test/f.svg")
+
+        assertEquals(false, svg.ok)
+        assertContains(svg.reason.orEmpty(), "neither app decodes")
+    }
+
+    @Test
+    fun `a jpeg with a charset parameter is still a jpeg`() {
+        val jpeg = ProbeAnswer(status = 200, contentType = "image/jpeg; charset=binary")
+            .classified("https://x.test/a.jpg")
+
+        assertTrue(jpeg.ok)
+        assertEquals("image/jpeg", jpeg.contentType)
+    }
+
+    @Test
+    fun `a 200 that names no type at all is reported rather than assumed fine`() {
+        assertEquals(false, ProbeAnswer(status = 200, contentType = null).classified("https://x.test/a").ok)
     }
 
     @Test

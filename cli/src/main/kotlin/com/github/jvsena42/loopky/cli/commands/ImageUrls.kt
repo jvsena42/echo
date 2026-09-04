@@ -2,6 +2,7 @@ package com.github.jvsena42.loopky.cli.commands
 
 import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.ExitCode
+import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.domain.model.isRenderableImageUrl
 
 /**
@@ -213,3 +214,21 @@ private const val THUMB_SEGMENT = "/thumb/"
 private const val PX_MARKER = "px-"
 private const val SVG_EXTENSION = ".svg"
 private const val IMAGE_URL_EXCERPT = 60
+
+/**
+ * Every remote picture this draft carries, labelled by the card and side it is on.
+ *
+ * A blob has no URL to say anything about — an `.apkg`'s pictures are bytes, already read.
+ */
+internal suspend fun ImportRepository.draftImageUrls(): List<Pair<String, String>> =
+    keptRows().flatMapIndexed { index, row ->
+        listOfNotNull(
+            rowImage(row.index, isFront = true)?.url?.let { "Card ${index + 1} front image" to it },
+            rowImage(row.index, isFront = false)?.url?.let { "Card ${index + 1} back image" to it },
+        )
+    }
+
+/** Refuse what could never render and warn about what probably will not. See `ImageUrls.kt`. */
+internal fun List<Pair<String, String>>.checkedStatically(
+    onNote: (String) -> Unit,
+): List<Pair<String, String>> = onEach { (where, url) -> url.checkedImageUrl(where, onNote) }

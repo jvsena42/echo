@@ -310,9 +310,13 @@ loopky card edit <deckId> --from-file edits.jsonl --check-images
 ```
 
 Available on `deck create`, `card add`, `card edit` and `import`, `--dry-run` included. It reports
-the status and content type of everything that is not a 2xx `image/…`, on stderr and in `--json` as
+the status and content type of everything that is not a 2xx picture, on stderr and in `--json` as
 `image_checks` — and reports **nothing** about a URL that is fine, because a finding buried in 900
 lines of "this one is fine" is no better than the check you wrote by hand.
+
+An `image/` prefix is not the same as a decodable picture, and that distinction is load-bearing
+here: Wikimedia serves an SVG original as `image/svg+xml` with an entirely ordinary 200, so a
+prefix check would call a whole deck of flags fine. `image/svg+xml` and `image/tiff` are findings.
 
 Four properties, and each is a decision rather than an omission:
 

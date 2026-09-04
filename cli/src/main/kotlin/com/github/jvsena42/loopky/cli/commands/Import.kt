@@ -143,6 +143,11 @@ suspend fun import(
     val parsed = parseSource(args, imports, source, title, keepImageBytes = true)
     val draft = parsed.draft
     parsed.apkg?.let { warnAboutMediaSpend(it, onNote) }
+    // Before anything is built, because `remoteImage` refuses an http:// address by throwing an
+    // assertion no classifier recognises — so an unrenderable column in someone's file reached the
+    // user as exit 1 "internal" plus a Kotlin message. This is also where the /thumb/ and
+    // undecodable-format advice reaches an import at all; only `card add` ever ran it before.
+    val images = imports.draftImageUrls().checkedStatically(onNote)
     val resume = resumeState(args, decks, cards, title, onNote)
     // Minted once and threaded down: every card carries its deck's id, so deriving it twice is how
     // a resumed run writes cards addressed to a deck that does not exist.
@@ -153,7 +158,7 @@ suspend fun import(
     var imageChecks = emptyList<ImageCheck>()
     val written = try {
         val built = buildCards(imports, draft, resume, deckId, media, uploaded, onProgress)
-        imageChecks = built.remoteImageUrls().checkedIfAsked(args, onNote)
+        imageChecks = images.map { it.second }.checkedIfAsked(args, onNote)
         val published = if (resume.deck != null) {
             appendMissing(decks, deckId, built, resume.deck.overlaidWith(args), onProgress)
         } else {
@@ -241,10 +246,10 @@ suspend fun importDryRun(
     // 500-image deck should not need the deck's media in heap to answer how big it is.
     val parsed = parseSource(args, imports, source, title, keepImageBytes = false)
     val draft = parsed.draft
-    val kept = imports.keptRows()
-    val cards = kept.size
-    val imageChecks = kept
-        .flatMap { row -> listOf(true, false).mapNotNull { imports.rowImage(row.index, isFront = it)?.url } }
+    val cards = imports.keptRows().size
+    val imageChecks = imports.draftImageUrls()
+        .checkedStatically(onNote)
+        .map { it.second }
         .checkedIfAsked(args, onNote)
     imports.clear()
 
@@ -286,10 +291,6 @@ private fun ImportDraft.separatorName(): String =
     if (structured) "none" else separator::class.simpleName.orEmpty().lowercase()
 
 private class Written(val deck: Deck, val cards: Int)
-
-/** Every remote picture these cards reference. A blob has no URL to ask a host about. */
-private fun List<Card>.remoteImageUrls(): List<String> =
-    flatMap { listOfNotNull(it.front.imageRef?.url, it.back.imageRef?.url) }
 
 /** `--check-images` over these URLs, or nothing. See [checkImageUrls]. */
 private suspend fun List<String>.checkedIfAsked(args: Args, onNote: (String) -> Unit): List<ImageCheck> =
