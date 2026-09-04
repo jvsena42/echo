@@ -84,8 +84,11 @@ class Args private constructor(
          * Declared rather than inferred from "the next token starts with `--`". Inference gets
          * `--front --back x` wrong in the direction that matters: it would silently read the
          * *flag* as the front of a card and write it to the homeserver.
+         *
+         * `internal` so `CompletionTest` can hold it against the completion table: a switch the
+         * shell offers that the parser does not know here eats the next word as its value.
          */
-        private val SWITCHES = setOf(
+        internal val SWITCHES = setOf(
             "json", "verbose", "help", "version",
             "resume", "export", "url-only", "force", "yes", "dry-run",
             // `update --check` asks without doing; `--no-update-check` is the global opt-out.
