@@ -411,21 +411,6 @@ internal fun LoopkyNavHost(
 }
 
 /**
- * The card editor, reached either on an existing card or on one that does not exist yet. Two routes
- * rather than a flag on one: the "new" route has a segment fewer, so the two patterns cannot both
- * match the same URL.
- */
-/**
- * The signup flow: obtain a token, then hand it to Pubky Ring. Flat like the import flow — the token
- * in flight lives in `SignupRepository`, so no step needs a nav argument and every back press is a
- * plain pop.
- */
-/**
- * Where a finished verification goes: Ring's deeplink handoff, or Loopky's own redemption. Read off
- * the back stack rather than passed down through the three method screens, so those stay
- * byte-identical between the two spenders.
- */
-/**
  * Land on the tabbed app with nothing behind it. Every path that ends in a session goes through here.
  *
  * `popUpTo(ONBOARDING)` is not enough on its own: a visitor who signed in from inside the guest shell
@@ -438,7 +423,9 @@ private fun NavHostController.goHomeSignedIn() {
 }
 
 /**
- * Hand off to the terminal step, carrying the `adopt` intent from the door the user came through.
+ * Where a finished verification goes: Ring's deeplink handoff, or Loopky's own redemption. The
+ * `adopt` intent is read off the back stack rather than passed down through the three method
+ * screens, so those stay byte-identical between the two spenders.
  *
  * **`lastOrNull`, not `firstOrNull`.** A start-over pushes a fresh `SIGNUP_START`, and reading the
  * oldest entry would let an abandoned one outvote the screen the user is standing on.
@@ -590,6 +577,11 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
     }
 }
 
+/**
+ * The signup flow: obtain a token, then hand it to Pubky Ring. Flat like the import flow — the token
+ * in flight lives in `SignupRepository`, so no step needs a nav argument and every back press is a
+ * plain pop.
+ */
 private fun NavGraphBuilder.signupDestinations(navController: NavHostController) {
     composable(
         route = Routes.SIGNUP_START,
@@ -669,6 +661,11 @@ private fun NavGraphBuilder.signupMethodDestinations(navController: NavHostContr
     }
 }
 
+/**
+ * The card editor, reached either on an existing card or on one that does not exist yet. Two routes
+ * rather than a flag on one: the "new" route has a segment fewer, so the two patterns cannot both
+ * match the same URL.
+ */
 private fun NavGraphBuilder.cardEditorDestinations(navController: NavHostController) {
     composable(
         route = Routes.EDIT_CARD,

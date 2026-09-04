@@ -146,12 +146,6 @@ class OnboardingViewModel(
     }
 
     /**
-     * Classify a failed approval. The only network the completion touches is the auth relay — the
-     * profile fetch inside it is best-effort — so a transport failure here is the relay being
-     * unreachable, not the user being offline. Anything we cannot classify is still an auth
-     * failure from the user's point of view, not a mystery.
-     */
-    /**
      * The pubky Ring authorised, when we managed to learn it.
      *
      * Null on the paths where the failure happened before a session was ever parsed — the screen
@@ -160,6 +154,12 @@ class OnboardingViewModel(
     private suspend fun sessionPubkyOrNull(): Session? =
         runSuspendCatching { identityRepository.currentSession() }.getOrNull()
 
+    /**
+     * Classify a failed approval. The only network the completion touches is the auth relay — the
+     * profile fetch inside it is best-effort — so a transport failure here is the relay being
+     * unreachable, not the user being offline. Anything we cannot classify is still an auth failure
+     * from the user's point of view, not a mystery.
+     */
     private fun Throwable.toSignInReason(): ErrorReason {
         // Matched by type, not message: `toErrorReason` classifies "timed out"/"timeout" as a
         // transport failure, which would render "the relay isn't responding". Ring going quiet
