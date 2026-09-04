@@ -9,6 +9,11 @@ import com.github.jvsena42.loopky.util.generateId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.io.File
 
 /**
@@ -84,7 +89,7 @@ private val cardFileJson = Json { ignoreUnknownKeys = true }
  * holding something that is not a URL: a file producing fewer cards than it has lines is exactly the
  * kind of loss `--json` exists to make visible.
  */
-fun readCardFile(path: String): List<CardFileRow> {
+fun readCardFile(path: String, onNote: (String) -> Unit = System.err::println): List<CardFileRow> {
     val text = if (path == "-") {
         System.`in`.readBytes().toString(Charsets.UTF_8)
     } else {
@@ -92,7 +97,7 @@ fun readCardFile(path: String): List<CardFileRow> {
         if (!file.isFile) throw CliError(ExitCode.BadInput, "No such file: $path")
         file.readText(Charsets.UTF_8)
     }
-    val rows = if (looksLikeJsonl(path, text)) parseJsonl(text) else parseTsv(text)
+    val rows = if (looksLikeJsonl(path, text)) parseJsonl(text, onNote) else parseTsv(text)
     if (rows.isEmpty()) throw CliError(ExitCode.BadInput, "$path held no cards.")
     return rows
 }
@@ -102,13 +107,18 @@ private fun looksLikeJsonl(path: String, text: String): Boolean =
         path.endsWith(".ndjson", ignoreCase = true) ||
         text.lineSequence().firstOrNull { it.isNotBlank() }?.trimStart()?.startsWith("{") == true
 
-private fun parseJsonl(text: String): List<CardFileRow> =
-    text.lineSequence()
+private fun parseJsonl(text: String, onNote: (String) -> Unit): List<CardFileRow> {
+    var blobImages = 0
+    val rows = text.lineSequence()
         .withIndex()
         .filter { (_, line) -> line.isNotBlank() }
         .map { (index, line) ->
-            runCatching { cardFileJson.decodeFromString<CardFileRow>(line) }.getOrElse {
-                throw CliError(ExitCode.BadInput, "Line ${index + 1} is not a card object: ${it.message}")
+            val where = "Line ${index + 1}"
+            val json = runCatching { cardFileJson.parseToJsonElement(line) as? JsonObject }.getOrNull()
+                ?: throw CliError(ExitCode.BadInput, "$where is not a card object.")
+            val flat = json.flattened { blobImages++ }
+            runCatching { cardFileJson.decodeFromJsonElement(CardFileRow.serializer(), flat) }.getOrElse {
+                throw CliError(ExitCode.BadInput, "$where is not a card object: ${it.message}")
             }
         }
         .onEachIndexed { index, row ->
@@ -117,10 +127,79 @@ private fun parseJsonl(text: String): List<CardFileRow> =
             // outright, so there is no "is this a picture or prose" question to answer — but an
             // unrenderable URL still has to be refused before `toCard` turns it into a ref, or it
             // surfaces as exit 1 "internal" plus a Kotlin assertion for a typo in someone's file.
-            row.frontImageUrl?.checkedImageUrl("Line ${index + 1}, front_image_url")
-            row.backImageUrl?.checkedImageUrl("Line ${index + 1}, back_image_url")
+            // Blank is the documented way to clear a picture, here as at `--back-image=`, so it
+            // skips the check rather than being refused as an address that could never render.
+            row.frontImageUrl?.takeIf { it.isNotBlank() }
+                ?.checkedImageUrl("Line ${index + 1}, front_image_url", onNote)
+            row.backImageUrl?.takeIf { it.isNotBlank() }
+                ?.checkedImageUrl("Line ${index + 1}, back_image_url", onNote)
         }
         .toList()
+    if (blobImages > 0) {
+        onNote(
+            "loopky: $blobImages side(s) carry a homeserver blob image rather than a URL, which " +
+                "this format cannot express — those pictures were left as they are. Only a URL " +
+                "image can be set from a card file.",
+        )
+    }
+    return rows
+}
+
+/**
+ * A row in the flat shape, whichever of the two it arrived in.
+ *
+ * `card list --json` emits `{"front":{"text":…,"image":{"url":…}},…}` while a card file takes
+ * `{"front":"…","front_image_url":"…"}`, so answering "has this row already been applied?" needed
+ * a shape check *and* a decode of the URL — and getting it wrong rewrites every row on every pass
+ * (#229, item 3). Both shapes are accepted here, per side, so `card list --json | jq` output can
+ * be edited and fed straight back.
+ *
+ * The tri-state survives the translation, which is the part worth getting right: a **key that is
+ * absent** leaves that field alone, and a key present and null clears it. `card list --json`
+ * writes explicit nulls, so feeding its output back sets every field to exactly what it read —
+ * which is what makes the round trip idempotent rather than merely accepted.
+ */
+private fun JsonObject.flattened(onBlobImage: () -> Unit): JsonObject {
+    val fields = mutableMapOf<String, JsonElement>()
+    // The flat keys first, so a nested side overrides them rather than racing them.
+    FLAT_KEYS.forEach { key -> this[key]?.takeIf { it !is JsonObject }?.let { fields[key] = it } }
+    SIDES.forEach { (side, imageKey) ->
+        val nested = this[side] as? JsonObject ?: return@forEach
+        nested.textOverride()?.let { fields[side] = it }
+        nested.imageOverride(onBlobImage)?.let { fields[imageKey] = it }
+    }
+    return JsonObject(fields)
+}
+
+/** A side object's `text`, as the flat shape spells it: absent stays absent, null becomes "clear". */
+private fun JsonObject.textOverride(): JsonElement? = when (val text = this["text"]) {
+    null -> null
+    JsonNull -> JsonPrimitive("")
+    else -> text
+}
+
+/**
+ * A side object's `image`, as a URL.
+ *
+ * A blob ref — `sha256` set, no `url` — is left **unchanged** rather than cleared, and counted so
+ * the caller can be told once. A card file has no way to name a blob, so treating "I cannot
+ * express this" as "remove it" would strip the pictures off every `.apkg`-imported card the moment
+ * someone round-tripped a deck through `card list`.
+ */
+private fun JsonObject.imageOverride(onBlobImage: () -> Unit): JsonElement? {
+    val image = this["image"] ?: return null
+    if (image is JsonNull) return JsonPrimitive("")
+    if (image !is JsonObject) return image
+    val url = (image["url"] as? JsonPrimitive)?.contentOrNull
+    if (url == null) onBlobImage()
+    return url?.let(::JsonPrimitive)
+}
+
+/** The flat card-file keys, copied through untouched. */
+private val FLAT_KEYS = listOf("id", "front", "back", "front_image_url", "back_image_url")
+
+/** Each side and the flat key its picture lands under. */
+private val SIDES = listOf("front" to "front_image_url", "back" to "back_image_url")
 
 private fun parseTsv(text: String): List<CardFileRow> =
     text.lineSequence()

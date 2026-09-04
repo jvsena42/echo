@@ -408,6 +408,12 @@ internal val USAGE = """
       JSONL: {"id":"…","front":"…","back":"…","front_image_url":"…","back_image_url":"…"}
              "id" is for `card edit`; a field that is absent is left unchanged.
 
+             A row may also be a card in the shape `card list --json` emits —
+             {"id":"…","front":{"text":"…","image":{"url":"…"}},"back":{…}} — so a deck can be
+             read, edited with jq and fed straight back. Absent still means unchanged; an
+             explicit null clears. An image with no url is a homeserver blob this format cannot
+             name, so it is left alone and reported.
+
     CARD IMAGES
       A card picture is a URL. Nothing is uploaded and no media quota is spent — but nothing is
       fetched either, so this client cannot tell you the picture loads. It can only tell you what

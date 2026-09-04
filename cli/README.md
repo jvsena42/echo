@@ -208,7 +208,27 @@ stays unsupported and reported — it is the one variant that would need a real 
 ```
 TSV     front <TAB> back <TAB> front_image_url <TAB> back_image_url    (last two optional)
 JSONL   {"id":"…","front":"…","back":"…","front_image_url":"…","back_image_url":"…"}
+JSONL   {"id":"…","front":{"text":"…","image":{"url":"…"}},"back":{…}}    what card list emits
 ```
+
+**Both JSONL shapes are read, which is what makes the round trip work.** `card list --json` emits a
+card with sides as objects and the picture as `{"url":…}`; a card file takes flat `front` and
+`front_image_url`. Answering "has this row already been applied?" across that gap needed a shape
+check *and* a percent-decode, and getting it wrong silently rewrites every row on every pass. So a
+deck can now be read, edited with `jq` and fed straight back:
+
+```shell
+loopky card list <deckId> --json \
+  | jq -c '.data.cards[] | select(.front.image == null) | {id, front: {image: {url: ("https://…/" + .front.text + ".jpg")}}}' \
+  > edits.jsonl
+loopky card edit <deckId> --from-file edits.jsonl
+```
+
+The tri-state survives the translation: an **absent** key leaves that field alone, an explicit
+`null` clears it. `card list --json` writes explicit nulls, so feeding its output back sets every
+field to exactly what it read. The one thing a card file cannot name is a **blob** picture — an
+image with a `sha256` and no `url`, which is what an `.apkg` import produces — so those are left
+unchanged rather than cleared, and counted in a note on stderr.
 
 An image column must be an `http(s)` URL — a third column holding prose is refused rather than
 stored as a picture, because a 3-column Anki export (Front / Back / Example sentence) would
