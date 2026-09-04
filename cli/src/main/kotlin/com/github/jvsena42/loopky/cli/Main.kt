@@ -176,7 +176,7 @@ private suspend fun dispatch(
         "deck sync" -> authed(identity, environment) { deckSync(args, koin.decks(), koin.cards()) }
         "deck compact" -> authed(identity, environment) { deckCompact(args, koin.decks()) }
 
-        "card list" -> authed(identity, environment) { cardList(args, koin.decks(), koin.cards()) }
+        "card list" -> authed(identity, environment) { cardList(args, koin.decks(), koin.cards(), note) }
         "card add" -> authed(identity, environment) { cardAdd(args, koin.decks(), koin.cards(), note) }
         "card edit" -> authed(identity, environment) { cardEdit(args, koin.decks(), koin.cards(), note) }
         "card rm" -> authed(identity, environment) { cardRemove(args, koin.decks()) }
@@ -343,7 +343,13 @@ internal val USAGE = """
       deck compact <deckId>     Fold away the holes card deletes leave in the chunk table.
 
     CARDS
-      card list <deckId>
+      card list <deckId> [--limit N] [--cursor TOKEN] [--missing-image|--has-image]
+                                Plain, it reads the whole deck. --limit/--cursor walk the manifest's
+                                chunk table and fetch only the records a page needs, which is what
+                                makes a 4,000-card deck affordable to iterate on; --json carries
+                                next_cursor while there is more. The two filters narrow what comes
+                                back and compose with both — there is no server-side filter to ask
+                                for instead, so without --limit they save the output, not the fetch.
       card add <deckId> --front F --back B [--front-image URL] [--back-image URL]
                                 Add --check-images to any of these to HEAD every distinct picture
                                 URL first. Warns, never refuses; see CARD IMAGES.

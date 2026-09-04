@@ -1,99 +1,19 @@
 package com.github.jvsena42.loopky.cli.commands
 
 import com.github.jvsena42.loopky.cli.Args
-import com.github.jvsena42.loopky.cli.CardView
 import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.CommandResult
 import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.asCliError
 import com.github.jvsena42.loopky.cli.cliJson
 import com.github.jvsena42.loopky.cli.result
-import com.github.jvsena42.loopky.cli.toLine
 import com.github.jvsena42.loopky.cli.toView
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
 import com.github.jvsena42.loopky.domain.model.Deck
-import com.github.jvsena42.loopky.domain.model.inStudyOrder
 import kotlinx.coroutines.delay
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-
-@Serializable
-data class CardListResult(
-    @SerialName("deck_id") val deckId: String,
-    val cards: List<CardView>,
-    val count: Int,
-)
-
-@Serializable
-data class CardWriteResult(
-    @SerialName("deck_id") val deckId: String,
-    val cards: List<CardView>,
-    val written: Int,
-    /**
-     * Rows that matched a card already in the deck and were therefore not written again.
-     *
-     * `card add` twice with the same front and back has to be *detectable*, or an agent retrying
-     * after a session expiry double-posts every card it had already written (#54). Reported rather
-     * than merely skipped, so a caller can tell "already there" from "did nothing".
-     */
-    val skipped: Int = 0,
-    /**
-     * Cards this call actually removed — 0 when the id was not in the deck.
-     *
-     * `card rm` used to answer identically whether it deleted a card or did nothing: `deleteCard`
-     * treats a missing card as a no-op and the CLI reported that as success, so an agent pruning ids
-     * could not tell which were real without re-reading the deck between every delete.
-     *
-     * Reported rather than turned into an error, and the asymmetry with `card edit` — which does
-     * return `not_found` — is deliberate: removing a card that is already gone leaves the deck in the
-     * state the caller asked for, so failing it would break the retry-after-expiry pattern the whole
-     * surface is built around. An *edit* has no such reading.
-     */
-    val removed: Int = 0,
-    @SerialName("card_count") val cardCount: Int = 0,
-    /**
-     * Rows the homeserver refused, with the id and the reason for each.
-     *
-     * A batch used to stop at the first failure and report only a message, so 35 of 665 rows had
-     * landed with no way to tell which — and no `--resume` to pick it back up (#229, item 2). This
-     * travels on the *failure* envelope as well as the success one, which is the point: it is the
-     * only thing that tells a caller where the write stopped.
-     */
-    val failed: Int = 0,
-    val failures: List<CardWriteFailure> = emptyList(),
-    /** Rows the batch never reached, because it stopped at a failure nothing could recover from. */
-    @SerialName("not_attempted") val notAttempted: Int = 0,
-    /**
-     * What `--check-images` found, and only what is worth reporting: a URL that answered 2xx with
-     * an image type produces no row. Empty when the flag was not passed.
-     */
-    @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
-)
-
-/** One row the homeserver refused. [row] is 1-based, matching the file the caller handed in. */
-@Serializable
-data class CardWriteFailure(
-    val row: Int,
-    @SerialName("card_id") val cardId: String? = null,
-    /** The [ExitCode] this row's failure classifies as, by name — `server_error`, `not_found`. */
-    val code: String,
-    val message: String,
-)
-
-suspend fun cardList(args: Args, decks: DeckRepository, cards: CardRepository): CommandResult {
-    val deckId = args.requireWord(2, "deckId")
-    val deck = decks.sync(deckId).getOrElse { throw asCliError(it) }
-    val list = cards.fetchByDeck(deck).getOrElse { throw asCliError(it) }
-        .inStudyOrder()
-        .map { it.toView() }
-    return result(
-        CardListResult(deckId, list, list.size),
-        if (list.isEmpty()) "No cards." else list.joinToString("\n") { it.toLine() },
-    )
-}
 
 /**
  * Add one card, or a fileful.

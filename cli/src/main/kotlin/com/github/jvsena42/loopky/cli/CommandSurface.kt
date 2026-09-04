@@ -176,7 +176,17 @@ internal fun cliCommands(): List<CliCommand> = listOf(
     CliCommand("deck sync", "re-read a deck from the homeserver", Operand.Opaque("deckId")),
     CliCommand("deck compact", "fold away the holes card deletes leave in the chunk table", Operand.Opaque("deckId")),
 
-    CliCommand("card list", "every card in a deck", Operand.Opaque("deckId")),
+    CliCommand(
+        path = "card list",
+        summary = "every card in a deck, or a page of them",
+        operand = Operand.Opaque("deckId"),
+        options = listOf(
+            CliOption("limit", "how many cards to return - reads only the chunks a page needs"),
+            CliOption("cursor", "carry on from a previous page, as its next_cursor said"),
+            CliOption("missing-image", "only cards with no picture on either side", OptionValue.Switch),
+            CliOption("has-image", "only cards with a picture", OptionValue.Switch),
+        ),
+    ),
     CliCommand("card add", "add one card, or a file of them", Operand.Opaque("deckId"), CARD_FIELDS),
     CliCommand(
         path = "card edit",

@@ -103,6 +103,7 @@ loopky deck compact <deckId>
 loopky deck delete <deckId>
 
 loopky card list <deckId> --json
+loopky card list <deckId> --json --missing-image --limit 50    # a page, not the whole deck
 loopky card add <deckId> --front "Brasília" --back "Capital do Brasil"
 loopky card add <deckId> --from-file more.tsv
 loopky card edit <deckId> --from-file edits.jsonl
@@ -472,6 +473,19 @@ payload does not carry one.
   that fails is silent rather than fatal. `loopky update` is the one command that acts on it, and
   it refuses — with the right command, and exit 11 — on a Homebrew or `.deb` install, in a
   container, and on the jar.
+- **`card list` can page, and a page really is cheaper.** Plain `card list` means the whole deck.
+  `--limit` and `--cursor` walk the manifest's chunk table and fetch only the records the page
+  needs, so deciding which of 4,000 cards still want a picture no longer costs ~700 KB per pass;
+  `--json` carries `next_cursor` while there is more, and the human path says so on stderr rather
+  than adding a line to stdout that a `cut` would count as a card. `--missing-image` /
+  `--has-image` narrow what comes back and compose with both.
+
+  There is **no server-side filter** to ask for instead, and that is structural: the homeserver
+  stores opaque records and Nexus indexes tags, not cards. So a filter without `--limit` saves the
+  output and the caller's work, not the fetch. A page comes back in chunk order, which is study
+  order wherever the two could differ — chunk `n` owns a private slice of the ord line, so cards
+  cannot sort across chunks. A cursor is a place in the deck rather than a snapshot of it: one
+  naming a chunk that compaction has since folded away resumes at the next one that exists.
 - **A session and an `--env` that disagree is a hard error**, not a warning. Nexus answers a query
   aimed at the wrong network *successfully and empty*, so a mismatch would look like a failed write
   rather than a misconfiguration.
