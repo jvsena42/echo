@@ -7,6 +7,7 @@ import com.github.jvsena42.loopky.cli.commands.cardRemove
 import com.github.jvsena42.loopky.cli.commands.deckCompact
 import com.github.jvsena42.loopky.cli.commands.deckCreate
 import com.github.jvsena42.loopky.cli.commands.deckDelete
+import com.github.jvsena42.loopky.cli.commands.deckEdit
 import com.github.jvsena42.loopky.cli.commands.deckList
 import com.github.jvsena42.loopky.cli.commands.deckShow
 import com.github.jvsena42.loopky.cli.commands.deckSync
@@ -177,6 +178,7 @@ private suspend fun dispatch(
         "deck create" -> authed(identity, environment) { session ->
             deckCreate(args, koin.decks(), session, progress)
         }
+        "deck edit" -> authed(identity, environment) { deckEdit(args, koin.decks()) }
         "deck delete" -> authed(identity, environment) { deckDelete(args, koin.decks()) }
         "deck sync" -> authed(identity, environment) { deckSync(args, koin.decks(), koin.cards()) }
         "deck compact" -> authed(identity, environment) { deckCompact(args, koin.decks()) }
@@ -318,6 +320,14 @@ private val USAGE = """
                   [--cover-emoji E] [--from-file F]
                   [--listen] [--speak] [--type] [--reverse]
                   [--front-lang BCP47] [--back-lang BCP47]
+      deck edit <deckId> [--title T] [--description D] [--cover-url URL] [--cover-emoji E]
+                  [--tag T]... [--clear-tags] [--clear-cover]
+                  [--listen|--no-listen] [--speak|--no-speak]
+                  [--type|--no-type] [--reverse|--no-reverse]
+                  [--front-lang BCP47] [--back-lang BCP47]
+                                One manifest write; cards are never read or rewritten. A flag you
+                                do not pass leaves that field alone, `--description=` clears it,
+                                and --tag replaces the tag set rather than appending to it.
       deck delete <deckId>
       deck sync <deckId>
       deck compact <deckId>     Fold away the holes card deletes leave in the chunk table.

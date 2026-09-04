@@ -1862,3 +1862,46 @@ both clients by construction, written without complaint. Not exercised in this r
 reading `CardFile.kt`. And more broadly, nothing on the write path tells an agent that the picture
 it just attached will not render — `--json` says success either way, which is the gap that let a
 whole production deck get built on 403s.
+
+---
+
+## #222 — `deck edit` — 2026-09-04, Linux x86_64, staging
+
+Driven against a **real homeserver** with the live session
+(`kfezy17…`, `/pub/loopky/:rw`, `--env staging`), from `cli/build/install/loopky/bin/loopky`, on a
+throwaway deck (`wtgnffybom5q`) created and deleted in the same run. Two cards were added partway
+through, so the "cards are untouched" rows are about a deck that actually had some.
+
+| Step | Result |
+| --- | --- |
+| No field flag at all | ✅ exit 2, `usage`, and the message names every flag that would count |
+| `--title` + `--description` + `--cover-url` | ✅ `changed: true`, `fields: [title, description, cover_image]` |
+| …and the fields nobody named | ✅ `cover_emoji` 🧪 and `tags: [alpha]` survived the write |
+| The same edit again | ✅ `changed: false`, `fields: []`, `updated_at` **unmoved** — no manifest write |
+| `--tag beta --tag gamma` | ✅ replaced, not appended: `[beta, gamma]` |
+| `--front-lang en-US --back-lang es-ES` | ✅ `[beta, gamma, language, english, spanish]` |
+| `--back-lang fr-FR` | ✅ `spanish` dropped, `french` added, `beta`/`gamma` kept |
+| `--description= --clear-cover` | ✅ description, `cover_emoji` and `cover_image` all null |
+| `--clear-tags` on a language deck | ✅ `[]` — the derived labels are **not** put back |
+| Edit a deck with 2 cards in it | ✅ same deck id, `card_count: 2`, chunk table `[{n:0,count:2}]` unchanged |
+| `deck show` in a fresh process | ✅ every change is on the homeserver, not just in the cache |
+| `card list` after the edit | ✅ both cards still there, untouched |
+| `--cover-url http://…` | ✅ exit 9 `bad_input`, refused before the write |
+| `--cover-url` at a 800px Wikimedia thumb | ✅ warned on stderr, stored anyway (advisory, never fatal) |
+| `--clear-tags --tag x` | ✅ exit 2 — refused rather than guessed at |
+| `--title=` | ✅ exit 2, "a deck cannot have no title" |
+| `--clear-cover --cover-emoji 🧪` | ✅ exit 2 |
+| A deck id that does not exist | ✅ exit 6 `not_found` |
+
+### Worth knowing
+
+**`--tag` replacing is visible in row 9 and is the intended trade.** Setting the tags to exactly
+`[français]` on a deck with a declared pair drops `language`/`english`/`french` too, because the
+pair did not move on that call — the labels are ordinary author-removable tags (Architecture §7.7),
+so "the tags are exactly these" has to be believed. Re-declaring the pair puts them back.
+
+**The issue asked for `--cover-url` and `--cover-emoji` to be mutually exclusive "as in
+`deck create`", and they are not exclusive there either.** `MediaRef.Image` and `coverEmoji` are
+separate manifest fields and `DeckTile` layers them — the image is drawn *over* the emoji, which
+is the fallback when it fails to load. So both are settable in one call here, and `--clear-cover`
+removes both halves; refusing the pair would have broken the fallback the tile is built on.
