@@ -22,12 +22,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * KMP ViewModel for the onboarding / Pubky Ring login screen.
- *
- * Owns the state machine documented in the plan: Idle → Starting → AwaitingApproval →
- * Verifying → Success / Error. Side effects (open deeplink, install page, navigate home)
- * are pushed through [effects] so platform UIs can react without leaking platform APIs
- * into the VM.
+ * The onboarding / Pubky Ring login screen: Idle → Starting → AwaitingApproval → Verifying →
+ * Success / Error. Side effects (open deeplink, install page, navigate home) go through [effects]
+ * so platform UIs react without leaking platform APIs into the VM.
  */
 class OnboardingViewModel(
     private val identityRepository: IdentityRepository,
@@ -62,13 +59,9 @@ class OnboardingViewModel(
     }
 
     /**
-     * Begin a Pubky Ring authorisation.
-     *
-     * [handoff] decides only whether we *also* fire the deeplink. The relay poll underneath is
-     * identical either way — Ring posts the approval back over the relay whether it was opened by
-     * a deeplink on this device or by scanning the QR on another one — which is why a tablet can
-     * be signed in from a phone at all, and why this is a branch in the effect rather than a
-     * second flow.
+     * Begin a Pubky Ring authorisation. [handoff] decides only whether we *also* fire the deeplink
+     * — the relay poll underneath is identical either way, which is why a tablet can be signed in
+     * from a phone, and why this is a branch in the effect rather than a second flow.
      */
     fun onSignInClick(handoff: RingHandoff = RingHandoff.ThisDevice) {
         if (signInJob?.isActive == true) {
@@ -146,10 +139,9 @@ class OnboardingViewModel(
     }
 
     /**
-     * The pubky Ring authorised, when we managed to learn it.
-     *
-     * Null on the paths where the failure happened before a session was ever parsed — the screen
-     * then shows the error without the follow-up, rather than inventing a key to talk about.
+     * The pubky Ring authorised, when we managed to learn it. Null where the failure happened
+     * before a session was ever parsed, so the screen shows the error without the follow-up rather
+     * than inventing a key to talk about.
      */
     private suspend fun sessionPubkyOrNull(): Session? =
         runSuspendCatching { identityRepository.currentSession() }.getOrNull()
@@ -157,8 +149,8 @@ class OnboardingViewModel(
     /**
      * Classify a failed approval. The only network the completion touches is the auth relay — the
      * profile fetch inside it is best-effort — so a transport failure here is the relay being
-     * unreachable, not the user being offline. Anything we cannot classify is still an auth failure
-     * from the user's point of view, not a mystery.
+     * unreachable, not the user being offline. Anything unclassified is still an auth failure from
+     * the user's point of view, not a mystery.
      */
     private fun Throwable.toSignInReason(): ErrorReason {
         // Matched by type, not message: `toErrorReason` classifies "timed out"/"timeout" as a
@@ -169,23 +161,20 @@ class OnboardingViewModel(
         return when (val reason = toErrorReason()) {
             ErrorReason.Offline -> ErrorReason.AuthRelayUnreachable
             ErrorReason.Unknown -> ErrorReason.AuthFailed
-            // The homeserver answers 404 when it has no account for the pubky Ring just
-            // authorised (pubky-homeserver `routes/auth.rs::signin` → `get_or_http_error`).
-            // Nothing else on this path can 404 for a *record* — no deck or profile is being
-            // fetched yet — so here, and only here, a not-found is always the account. That is
-            // why the remap lives in the sign-in path rather than in `toErrorReason`, which
-            // classifies reads too and would turn "your library is empty" into "no account".
+            // The homeserver answers 404 when it has no account for the pubky Ring just authorised.
+            // Nothing else on this path can 404 for a *record* — no deck or profile is fetched yet
+            // — so here, and only here, a not-found is always the account. That is why the remap
+            // lives in the sign-in path rather than `toErrorReason`, which classifies reads too and
+            // would turn "your library is empty" into "no account".
             ErrorReason.NotFound -> ErrorReason.NoHomeserverAccount
             else -> reason
         }
     }
 
     /**
-     * Escape hatch from the QR panel: approve on *this* device after all, without restarting.
-     *
-     * The same live authorisation, so the QR stays valid and the relay poll keeps running — a
-     * fresh [onSignInClick] would abandon the in-flight flow and invalidate the code the user may
-     * already be pointing a phone at.
+     * Escape hatch from the QR panel: approve on *this* device after all, without restarting. The
+     * same live authorisation, so the QR stays valid and the relay poll keeps running — a fresh
+     * [onSignInClick] would invalidate a code the user may already be pointing a phone at.
      */
     fun onOpenRingOnThisDevice() {
         val awaiting = _state.value as? OnboardingUiState.AwaitingApproval ?: run {
@@ -196,13 +185,10 @@ class OnboardingViewModel(
     }
 
     /**
-     * Back out of a sign-in that is still waiting on Ring, without leaving an error behind.
-     *
-     * Distinct from [onDeeplinkUnavailable], which also cancels the job but lands on
-     * [ErrorReason.RingNotInstalled]: the user closing the QR panel has not hit a problem, so the
-     * screen goes back to [OnboardingUiState.Idle] and the CTA is live again. The abandoned
-     * authorisation is left to expire on the relay — there is nothing to revoke, and the URL is
-     * useless to anyone who did not already have it.
+     * Back out of a sign-in still waiting on Ring, without leaving an error behind. Distinct from
+     * [onDeeplinkUnavailable], which also cancels but lands on [ErrorReason.RingNotInstalled]:
+     * closing the QR panel is not a problem. The abandoned authorisation expires on the relay —
+     * there is nothing to revoke, and the URL is useless to anyone who did not already have it.
      */
     fun onCancelSignIn() {
         Log.d(TAG, "onCancelSignIn: user dismissed the handoff")
@@ -244,10 +230,8 @@ class OnboardingViewModel(
 }
 
 /**
- * Pubky Ring never came back within the approval window.
- *
- * A distinct type rather than a message string because the message-based classifier in
- * `PubkyErrors` reads "timed out" as a transport failure, and this is not one — the relay is
- * usually fine and simply has nothing to deliver.
+ * Pubky Ring never came back within the approval window. A distinct type rather than a message
+ * string because the message-based classifier in `PubkyErrors` reads "timed out" as a transport
+ * failure, and this is not one — the relay is usually fine and simply has nothing to deliver.
  */
 internal class RingApprovalTimeout : RuntimeException("Pubky Ring did not complete the authorisation")

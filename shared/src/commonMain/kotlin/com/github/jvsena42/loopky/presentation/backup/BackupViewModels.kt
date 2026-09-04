@@ -27,8 +27,8 @@ private const val TAG = "Loopky/BackupVM"
  * The backup menu: which methods exist, and which are done.
  *
  * Skippable on purpose. A user who has just created an account is the least equipped person in the
- * app to evaluate four key-custody options, and blocking them here to make that choice is how a
- * flashcards app loses someone before they see a card. The nag in Settings is the follow-up.
+ * app to evaluate four key-custody options, and blocking them here is how a flashcards app loses
+ * someone before they see a card. The Settings nag is the follow-up.
  */
 class BackupStartViewModel(
     private val keyBackup: KeyBackupRepository,
@@ -80,10 +80,8 @@ data class BackupStartUiState(
 }
 
 /**
- * Show the twelve words, then send the user to confirm them.
- *
- * The words are loaded on demand and dropped in [onLeave]; they are never in this state longer
- * than the screen is on top.
+ * Show the twelve words, then send the user to confirm them. The words are loaded on demand and
+ * dropped in [onLeave]; they are never in this state longer than the screen is on top.
  */
 class BackupPhraseViewModel(
     private val keyBackup: KeyBackupRepository,
@@ -103,13 +101,11 @@ class BackupPhraseViewModel(
     }
 
     /**
-     * Load the words, unless they are already here.
-     *
-     * Called on every entry, not only from `init`, because [onLeave] empties a ViewModel that
-     * **outlives the screen**: it is retained across a configuration change and kept on the
-     * back stack while the confirm quiz is on top. With loading in `init` alone, rotating the
-     * phone or stepping back from the quiz left a live ViewModel holding no words and nothing
-     * that would ever fetch them again — an empty grid with Continue permanently disabled.
+     * Load the words, unless they are already here. Called on every entry, not only from `init`,
+     * because [onLeave] empties a ViewModel that **outlives the screen** — retained across a
+     * configuration change and kept on the back stack while the confirm quiz is on top. With
+     * loading in `init` alone, rotating the phone left a live ViewModel holding no words and
+     * nothing that would ever fetch them: an empty grid with Continue permanently disabled.
      */
     fun onEnter() {
         if (loadJob?.isActive == true || _state.value.words.isNotEmpty()) return
@@ -129,10 +125,9 @@ class BackupPhraseViewModel(
     fun onRevealClick() = _state.update { it.copy(revealed = true) }
 
     /**
-     * Hand the phrase to the platform's credential sheet.
-     *
-     * Offered only after the words are on screen. Saving a secret the user has not been shown,
-     * from a button beside a blurred grid, asks them to trust a backup of something they never saw.
+     * Hand the phrase to the platform's credential sheet. Offered only after the words are on
+     * screen: saving a secret the user has not been shown, from a button beside a blurred grid,
+     * asks them to trust a backup of something they never saw.
      */
     fun onSaveToPasswordManagerClick() {
         val words = _state.value.words
@@ -147,9 +142,9 @@ class BackupPhraseViewModel(
      * The credential sheet closed. [saved] is false for a cancel *and* for a provider that refused.
      *
      * A save is **not** recorded here. What proves this backup is reading the credential back and
-     * finding the right phrase in it, which [onPasswordManagerReadBack] does — a sheet that
-     * reported success while storing nothing retrievable would otherwise retire the nag on an
-     * account that is still one lost phone from gone.
+     * finding the right phrase in it ([onPasswordManagerReadBack]) — a sheet that reported success
+     * while storing nothing retrievable would otherwise retire the nag on an account that is still
+     * one lost phone from gone.
      */
     fun onPasswordManagerSaveResult(saved: Boolean) {
         if (!saved) {
@@ -160,10 +155,8 @@ class BackupPhraseViewModel(
     }
 
     /**
-     * What the credential manager handed back, compared against the real phrase.
-     *
-     * The comparison is the whole point: it is the difference between "a sheet appeared" and "this
-     * account is recoverable from the password manager".
+     * What the credential manager handed back, compared against the real phrase. The comparison is
+     * the point: it is the difference between "a sheet appeared" and "this account is recoverable".
      */
     fun onPasswordManagerReadBack(secret: String?) {
         val expected = _state.value.words.joinToString(" ")
@@ -204,10 +197,9 @@ data class BackupPhraseUiState(
 
 sealed interface BackupPhraseEffect {
     /**
-     * Raise the platform's "save a password" sheet for [secret].
-     *
-     * Carries the phrase, so it goes straight to the platform layer and is never logged, cached or
-     * held in a field — the same rule as `ringExportUrl`.
+     * Raise the platform's "save a password" sheet for [secret]. Carries the phrase, so it goes
+     * straight to the platform layer and is never logged, cached or held in a field — the same rule
+     * as `ringExportUrl`.
      */
     data class SaveToPasswordManager(val secret: String) : BackupPhraseEffect
 
@@ -216,10 +208,9 @@ sealed interface BackupPhraseEffect {
 }
 
 /**
- * The confirm quiz. **Passing this is what marks the phrase backed up, not seeing it.**
- *
- * Someone who tapped through a screen of words has not written them down, and recording that as a
- * backup is how the nag stops for an account that is still one lost phone from gone.
+ * The confirm quiz. **Passing this is what marks the phrase backed up, not seeing it.** Someone who
+ * tapped through a screen of words has not written them down, and recording that as a backup is how
+ * the nag stops for an account that is still one lost phone from gone.
  */
 class BackupQuizViewModel(
     private val keyBackup: KeyBackupRepository,
@@ -297,11 +288,10 @@ class BackupQuizViewModel(
     /**
      * Confirm a phrase that lives in a password manager, by reading it back out of one.
      *
-     * The recall quiz asks whether the user copied twelve words down correctly. Someone who put
-     * the phrase in a password manager did not copy anything, so that question tests nothing they
-     * did and fails for a reason that is not a problem. What is worth checking on this path is the
-     * thing that would actually lose the account: that the credential is still there and still
-     * says the right words.
+     * The recall quiz asks whether the user copied twelve words down correctly. Someone who used a
+     * password manager copied nothing, so that question tests nothing they did. What is worth
+     * checking here is what would actually lose the account: that the credential is still there and
+     * still says the right words.
      */
     fun onCheckSavedClick() {
         if (_state.value.isChecking) return
@@ -325,10 +315,9 @@ class BackupQuizViewModel(
 }
 
 /**
- * How the confirm step proves the phrase is safe.
- *
- * Two different claims, so two different checks: [Recall] tests that the words were written down,
- * [PasswordManager] tests that they can be read back out of the manager they were saved to.
+ * How the confirm step proves the phrase is safe. Two different claims, so two different checks:
+ * [Recall] tests that the words were written down, [PasswordManager] that they can be read back out
+ * of the manager they were saved to.
  */
 enum class ConfirmMode { Recall, PasswordManager }
 
@@ -409,11 +398,9 @@ data class BackupFileUiState(
 }
 
 /**
- * Export the key into Pubky Ring.
- *
- * **Loopky keeps its copy.** Ring imports the key; it does not take custody of it, and the phrase
- * the user wrote down is still valid. Copy that implies otherwise describes something that did not
- * happen.
+ * Export the key into Pubky Ring. **Loopky keeps its copy** — Ring imports the key, it does not take
+ * custody of it, and the phrase the user wrote down is still valid. Copy implying otherwise
+ * describes something that did not happen.
  */
 class BackupRingViewModel(
     private val keyBackup: KeyBackupRepository,
@@ -458,10 +445,9 @@ class BackupRingViewModel(
     fun onRingUnavailable() = _state.update { it.copy(ringInstalled = false) }
 
     /**
-     * Send the user to install Ring.
-     *
-     * The screen used to state that Ring was missing beside a *disabled* button and stop there —
-     * a dead end on the one screen whose entire purpose is getting the key into Ring.
+     * Send the user to install Ring. The screen used to state that Ring was missing beside a
+     * *disabled* button and stop there — a dead end on the one screen whose purpose is getting the
+     * key into Ring.
      */
     fun onInstallRingClick() {
         viewModelScope.launch { _effects.emit(BackupEffect.OpenInstallPage(_state.value.installUrl)) }

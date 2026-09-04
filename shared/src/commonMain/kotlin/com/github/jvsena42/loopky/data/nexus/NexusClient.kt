@@ -8,25 +8,23 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 
 /**
- * Read-only client for the Pubky Nexus indexer (`/v0` REST API). Nexus aggregates the whole
- * network — it is the only way to answer global questions (trending tags, prefix search) that
- * a single homeserver cannot. All calls are unauthenticated public reads.
+ * Read-only client for the Pubky Nexus indexer (`/v0` REST API), which aggregates the whole network
+ * — the only way to answer global questions a single homeserver cannot. All calls are
+ * unauthenticated public reads.
  *
- * Loopky writes tag records to the user's homeserver in the pubky-app-specs format
- * (see [com.github.jvsena42.loopky.data.repository.impl.TagRepositoryImpl]); Nexus indexes them
- * from there, so reads and writes meet without Loopky running its own backend.
+ * Loopky writes tag records to the user's homeserver in the pubky-app-specs format and Nexus indexes
+ * them from there, so reads and writes meet without Loopky running a backend.
  */
 class NexusClient(
     private val http: HttpFetcher,
     /**
-     * Which indexer this build talks to. Deliberately has no default: staging and production
-     * index different networks, so a missing wire-up must fail to compile rather than quietly
-     * ship a release pointed at staging (#42). Platform modules supply it from the injected
+     * Which indexer this build talks to. Deliberately has no default: staging and production index
+     * different networks, so a missing wire-up must fail to compile rather than quietly ship a
+     * release pointed at staging (#42). Platform modules supply it from the injected
      * `PubkyEnvironment.nexusBaseUrl`, so it cannot end up on a different network from the
-     * homeserver the app publishes to (#205) — see `androidPlatformModule` / `doInitKoin`.
+     * homeserver the app publishes to (#205).
      *
-     * Public because the indexer also serves profile pictures, which callers build URLs for
-     * themselves (see [com.github.jvsena42.loopky.domain.model.avatarDisplayUrl]).
+     * Public because the indexer also serves profile pictures, which callers build URLs for.
      */
     val baseUrl: String,
 ) {
@@ -43,13 +41,9 @@ class NexusClient(
 
     /**
      * Pubkys whose profile name starts with [prefix] — the people half of Loopky's search box.
-     *
-     * Indexes every pubky.app profile, not only accounts that have opened Loopky, so callers
-     * decide which matches are worth showing (see
-     * [com.github.jvsena42.loopky.data.repository.DiscoveryRepository.searchPeople]).
-     *
-     * Lexicographic on the indexed name: a prefix, not a substring. Searching "ada" finds "Ada
-     * Lovelace" and never "Grace Ada".
+     * Indexes every pubky.app profile, not only accounts that have opened Loopky, so callers decide
+     * which matches are worth showing. Lexicographic on the indexed name: a prefix, not a substring,
+     * so "ada" finds "Ada Lovelace" and never "Grace Ada".
      */
     suspend fun searchUsersByName(
         prefix: String,
@@ -62,11 +56,9 @@ class NexusClient(
     }
 
     /**
-     * The same search over pubkys rather than names — someone who was handed part of a key rather
-     * than a name.
-     *
-     * Nexus rejects a prefix shorter than [MIN_USER_ID_PREFIX] characters outright, so callers
-     * must not ask below it; a full pubky needs no search at all and should be opened directly.
+     * The same search over pubkys rather than names. Nexus rejects a prefix shorter than
+     * [MIN_USER_ID_PREFIX] outright, so callers must not ask below it; a full pubky needs no search
+     * and should be opened directly.
      */
     suspend fun searchUsersById(
         prefix: String,
@@ -80,11 +72,9 @@ class NexusClient(
 
     /**
      * Loopky resources carrying [label], most-tagged first — the label → URIs read behind global
-     * browse.
-     *
-     * Only tag records written outside the pubky.app namespace reach this index, which is why
-     * deck tags live under `/pub/loopky/tags/` (see `TagRepositoryImpl`). `app` is that namespace,
-     * so this cannot return another app's resources.
+     * browse. Only tag records written outside the pubky.app namespace reach this index, which is
+     * why deck tags live under `/pub/loopky/tags/`. `app` is that namespace, so this cannot return
+     * another app's resources.
      */
     suspend fun resourcesByTag(
         label: String,
@@ -119,23 +109,18 @@ class NexusClient(
     /**
      * Pubkys whose **profile** carries [label] — the read the `loopky-user` directory is built on.
      *
-     * Replaces `/v0/tags/taggers/{label}`, which looked like this query and is not one: without a
-     * `user_id` that endpoint answers out of the hot-tags Redis cache
-     * (`nexus-common/src/models/tag/global.rs:119-135`), so a label that never reached the top-N
-     * network-wide misses the map and comes back `[]` — indistinguishable from nobody having used
-     * it. Prod's `User` hot list bottomed out at 66 tagged users while `loopky-user` had 2, and
-     * `bitkit-user` reads empty for the same reason, so every app-directory label hits it (#134).
-     * The reach-scoped branch of the same endpoint is no better: it is hardcoded to `Post`
-     * subjects, so it cannot see a profile tag at any count (pubky/pubky-nexus#1036).
+     * Replaces `/v0/tags/taggers/{label}`, which looks like this query and is not one: without a
+     * `user_id` that endpoint answers out of the hot-tags Redis cache, so a label that never reached
+     * the top-N network-wide comes back `[]`, indistinguishable from nobody having used it. Prod's
+     * `User` hot list bottomed out at 66 tagged users while `loopky-user` had 2 (#134). Its
+     * reach-scoped branch is hardcoded to `Post` subjects (pubky/pubky-nexus#1036).
      *
-     * **Fails with a 404 [HttpError] on an indexer that predates the endpoint** — it landed in
-     * pubky/pubky-nexus#1030 and is live on staging but not yet on prod, so callers must fall back
-     * rather than treat the failure as "no Loopky users" (see
-     * [com.github.jvsena42.loopky.data.repository.impl.DiscoveryRepositoryImpl.loopkyUsers]).
+     * **Fails with a 404 [HttpError] on an indexer that predates the endpoint** (pubky-nexus#1030,
+     * live on staging but not prod), so callers must fall back rather than treat it as "no Loopky
+     * users".
      *
      * Untrusted like every other tag read: `score` counts taggers and says nothing about *who*
-     * tagged, so a stranger labelling someone else scores the same as a self-tag. Verify with
-     * [userTaggers].
+     * tagged. Verify with [userTaggers].
      */
     suspend fun usersByProfileTag(
         label: String,
@@ -152,11 +137,9 @@ class NexusClient(
     }
 
     /**
-     * Authors of the posts carrying [label], most recent first, each pubky once.
-     *
-     * Post tags are the one Loopky label that reaches the global tag index (Architecture.md §7.7
-     * point 5), and a `post_key` is `{author}:{post_id}` — so the authors of every deck
-     * announcement fall out of the index without fetching a single post.
+     * Authors of the posts carrying [label], most recent first, each pubky once. Post tags are the
+     * one Loopky label that reaches the global tag index (§7.7 point 5), and a `post_key` is
+     * `{author}:{post_id}` — so every deck announcement's author falls out without fetching a post.
      */
     suspend fun postAuthorsByTag(
         label: String,
@@ -186,12 +169,10 @@ class NexusClient(
     }
 
     /**
-     * Pubkys that follow [userId], most recent first.
-     *
-     * The one social read a homeserver cannot answer: a follow record lives on the *follower's*
-     * homeserver, so "who follows me" is a network-wide reverse lookup and only the indexer holds
-     * it. The forward direction needs nothing from here — list `/pub/pubky.app/follows/` on the
-     * user's own homeserver instead, which is both cheaper and first-hand.
+     * Pubkys that follow [userId], most recent first. The one social read a homeserver cannot
+     * answer: a follow record lives on the *follower's* homeserver, so this is a network-wide
+     * reverse lookup. The forward direction needs nothing from here — list
+     * `/pub/pubky.app/follows/` on the user's own homeserver, which is cheaper and first-hand.
      */
     suspend fun followers(
         userId: String,
