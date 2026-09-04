@@ -95,6 +95,10 @@ class Args private constructor(
             // existing deck needs a way to say so rather than only a way to agree.
             "listen", "no-listen", "speak", "no-speak",
             "type", "no-type", "reverse", "no-reverse",
+            // `deck edit`'s two emptiers. Switches rather than options taking an empty value,
+            // because "remove every tag" is a different gesture from "set the tags to this" and
+            // `--tag ""` would have to be read as both.
+            "clear-tags", "clear-cover",
         )
 
         fun parse(argv: Array<String>): Args {

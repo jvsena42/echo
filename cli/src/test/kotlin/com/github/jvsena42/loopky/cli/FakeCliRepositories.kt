@@ -39,6 +39,12 @@ class FakeDeckRepository(
 
     val upserted = mutableListOf<Card>()
 
+    /**
+     * Every deck handed to `updateMetadata`, so a test can assert on what `deck edit` *wrote*
+     * rather than only on what it printed — including that it wrote nothing at all.
+     */
+    val metadataWrites = mutableListOf<Deck>()
+
     /** The cards handed to `publish`, so a test can read back what a card ended up referencing. */
     val published = mutableListOf<Card>()
 
@@ -61,6 +67,16 @@ class FakeDeckRepository(
         return Result.success(deck)
     }
 
+    /**
+     * Mirrors the real one where it matters to a caller: the chunk table and `card_count` come
+     * from the deck on the homeserver, never from the deck the caller assembled.
+     */
+    override suspend fun updateMetadata(deck: Deck): Result<Deck> {
+        metadataWrites += deck
+        this.deck = deck.copy(chunks = this.deck.chunks, cardCount = this.deck.cardCount)
+        return Result.success(this.deck)
+    }
+
     override val changes: SharedFlow<Unit> = MutableSharedFlow()
 
     private fun no(name: String): Nothing = error("FakeDeckRepository.$name is not part of this test")
@@ -68,7 +84,6 @@ class FakeDeckRepository(
     override suspend fun getLocal(id: String): Deck? = no("getLocal")
     override suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck> = no("fetchRemote")
     override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> = no("publish")
-    override suspend fun updateMetadata(deck: Deck): Result<Deck> = no("updateMetadata")
     override suspend fun delete(deckId: String): Result<Unit> = no("delete")
     override suspend fun appendCards(deckId: String, cards: List<Card>): Result<Deck> = no("appendCards")
     override suspend fun deleteCard(deckId: String, cardId: String): Result<Deck> = no("deleteCard")

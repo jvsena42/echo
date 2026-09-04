@@ -1363,6 +1363,20 @@ agent's normal recovery is to re-run the command.
   and it cannot disagree with reality the way a cursor can. It costs one deck read. It is matched
   on the deck's **title**, which is why `--title` is mandatory and never derived from a filename:
   a resumed run has to name the same deck it named the first time.
+- **`deck edit` overlays and replaces, and a no-op is not a write** (#222). Editing a deck's
+  metadata used to mean `deck delete` plus `deck create --from-file` — a **new deck id**, so every
+  `pubky://…/decks/<id>/` link breaks and every card goes back to new in the scheduler, and only
+  possible at all if the original card file still exists, which a deck built with `card add` never
+  had. It is one `updateMetadata` call: the manifest and the tag records, never the chunks, so it
+  costs the same on a 20k-card deck as on an empty one. A flag that is absent leaves its field
+  alone (`card edit`'s rule) and an explicitly empty value clears it (`--description=`, which is
+  `--back=`); `--tag` **replaces** the set rather than appending, because appending makes "the tags
+  are exactly these" unsayable and makes a retry after an expiry grow the list. And an edit whose
+  fields all already hold that value writes nothing and reports `changed: false` — a manifest write
+  bumps `updated_at`, which is what every follower's "the author published changes" badge reads.
+  The language labels a declared pair contributes are reconciled only when the pair actually moves,
+  so `--clear-tags` on a language deck stays empty; they are ordinary author-removable tags (§7.7),
+  not a reserved family.
 - **Batch mutation, not just batch creation.** `card edit --from-file` exists for the same reason
   the surface steers agents away from `card add` in a loop, with more force: editing is what you
   do *after* an import, and it is the shape an agent naturally reaches for. One card write is one

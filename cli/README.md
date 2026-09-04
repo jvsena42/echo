@@ -97,6 +97,7 @@ loopky update                    # fetch it, check its digest, replace this bina
 loopky deck list
 loopky deck create --title "Capitais" --tag geografia --tag "português" --from-file cards.tsv
 loopky deck show <deckId> --json
+loopky deck edit <deckId> --cover-url https://…/capitais.jpg --tag geografia --tag capitais
 loopky deck sync <deckId>
 loopky deck compact <deckId>
 loopky deck delete <deckId>
