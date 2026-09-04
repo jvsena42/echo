@@ -2025,3 +2025,34 @@ the one that catches a regression here.
 `UIImpactFeedbackGenerator`/`UINotificationFeedbackGenerator`, and `StudySessionScreen` plays it off
 the same effect. There is no macOS on this machine — no `xcodebuildmcp`, no simulator — so the Swift
 half has not been compiled, let alone felt. It owes a run.
+
+## The keyboard on the front of a card — 2026-09-04, `emulator-5554`
+
+Journey 03, re-run with **Type the answer** on (48-card "Computer Networks" deck, portrait and
+landscape). An emulator shows the keyboard the same way a phone does but says so out loud, so every
+row below was read back from `adb shell dumpsys input_method | grep mInputShown` — polled ~12 times
+over the second after each grade, because what this bug does is *flash*.
+
+| Step | Before | After |
+| --- | --- | --- |
+| Flip a typing card | ✅ input on the back, `mInputShown=true` | ✅ unchanged |
+| Wrong answer → Check | ✅ miss line, text kept, no grades | ✅ unchanged, and the line now grows in |
+| Correct → Check, or Give up | ✅ card opens, `mInputShown=false` | ✅ unchanged |
+| Grade → next card's front | ❌ `mInputShown=true` on **8 of 8** advances — one sample most times, four in a row (several hundred ms) on two of them | ✅ `.` on all 14 advances (8 portrait, 6 more after the refactor) |
+| Same at expanded width (landscape, `w914dp`, grade column) | — | ✅ 3 of 3 advances clean, grade column intact |
+
+### Worth knowing
+
+**The keyboard was the *next* card's, drawn by the *previous* one.** `AnimatedContent` keeps the
+outgoing card composed for its 100 ms fade, and it re-runs the enclosing content lambda — which read
+`state.typePhase`, by then already `Answering` for the card that had just arrived. So the card on
+its way out drew the incoming card's input, its `FocusRequester` fired, and the keyboard came up over
+a front with nothing to type into. It then usually went away when that card was disposed a frame or
+two later, which is what made it look intermittent rather than constant. The fix is that
+`CardSnapshot` now carries the card's own `typePhase` and typed text, so an outgoing card can only
+ever draw its own.
+
+**A phone in landscape cannot type on a card, and could not before this either.** At `h411dp` the
+keyboard takes two thirds of the window and the card is left a ~40 px strip with the input inside it
+unreachable. Not touched here — it is the same layout on `main`, and it is a height problem, not the
+width-class kind (#173). A tablet in landscape has the room and is fine.
