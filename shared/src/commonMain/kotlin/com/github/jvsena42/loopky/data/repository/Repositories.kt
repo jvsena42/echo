@@ -39,158 +39,158 @@ interface IdentityRepository {
     suspend fun currentSession(): Session?
     suspend fun loadPersistedSession(): Session?
 
-/**
- * Sign out, clearing the session **and** any key Loopky holds.
- *
- * Fails with [UnbackedUpLocalKey] when the key has never been backed up, so the UI must confirm
- * before destroying the only copy of an identity; pass [force] once the user has said yes. The
- * guard is here, not only in the dialog, so no caller can sign out an un-backed-up account.
- */
+    /**
+     * Sign out, clearing the session **and** any key Loopky holds.
+     *
+     * Fails with [UnbackedUpLocalKey] when the key has never been backed up, so the UI must confirm
+     * before destroying the only copy of an identity; pass [force] once the user has said yes. The
+     * guard is here, not only in the dialog, so no caller can sign out an un-backed-up account.
+     */
     suspend fun signOut(force: Boolean = false): Result<SignOutOutcome>
 
-/**
- * End a session held by its secret alone, without touching anything stored on this machine.
- *
- * The only revocation a `LOOPKY_SESSION` has (#54). [signOut] is wrong for it twice over: there is
- * nothing local to clear, and on a machine with its own stored session it would clear that one.
- */
+    /**
+     * End a session held by its secret alone, without touching anything stored on this machine.
+     *
+     * The only revocation a `LOOPKY_SESSION` has (#54). [signOut] is wrong for it twice over: there is
+     * nothing local to clear, and on a machine with its own stored session it would clear that one.
+     */
     suspend fun revokeSession(sessionSecret: String): Result<Unit>
 
-/**
- * Who holds the key for the signed-in account, and whether it has been backed up. Emits
- * immediately, then on change. Carries no key material, so it is safe in a `UiState`.
- */
+    /**
+     * Who holds the key for the signed-in account, and whether it has been backed up. Emits
+     * immediately, then on change. Carries no key material, so it is safe in a `UiState`.
+     */
     val keyCustody: Flow<KeyCustody>
 
-/**
- * Derive the pubky for [source] without touching the network. The secret crosses this boundary in
- * one direction only, as part of [KeySource], and never comes back out.
- */
+    /**
+     * Derive the pubky for [source] without touching the network. The secret crosses this boundary in
+     * one direction only, as part of [KeySource], and never comes back out.
+     */
     suspend fun derivePubky(source: KeySource): Result<String>
 
-/**
- * Ask the DHT whether [pubky] has a homeserver account.
- *
- * **Call on explicit submit only** — a lookup per completed phrase makes the restore screen an
- * enumeration oracle. "No account" is [HomeserverLookup.NoRecord], a value, never a throw.
- */
+    /**
+     * Ask the DHT whether [pubky] has a homeserver account.
+     *
+     * **Call on explicit submit only** — a lookup per completed phrase makes the restore screen an
+     * enumeration oracle. "No account" is [HomeserverLookup.NoRecord], a value, never a throw.
+     */
     suspend fun lookupHomeserver(pubky: String): HomeserverLookup
 
-/**
- * Sign in with a key Loopky derives from [source], persisting both the key and the session.
- *
- * Deliberately does **not** run [lookupHomeserver] first — that would hide a DHT outage inside a
- * sign-in failure.
- *
- * @param knownHomeserver the answer a caller already has. The grant flow's session JSON carries no
- *   `homeserver` field, so without this it costs a second DHT round trip (~3s on device).
- */
+    /**
+     * Sign in with a key Loopky derives from [source], persisting both the key and the session.
+     *
+     * Deliberately does **not** run [lookupHomeserver] first — that would hide a DHT outage inside a
+     * sign-in failure.
+     *
+     * @param knownHomeserver the answer a caller already has. The grant flow's session JSON carries no
+     *   `homeserver` field, so without this it costs a second DHT round trip (~3s on device).
+     */
     suspend fun signInWithKey(source: KeySource, knownHomeserver: String? = null): Result<Session>
 
-/**
- * Mint a key inside the FFI, register it against [homeserverPubky] with [signupToken], and sign in.
- *
- * Never falls back to weaker entropy: a key failing its own round-trip validation is terminal (see
- * `KeyMinting`). Asserts the returned session's pubky is the key we minted before returning.
- */
+    /**
+     * Mint a key inside the FFI, register it against [homeserverPubky] with [signupToken], and sign in.
+     *
+     * Never falls back to weaker entropy: a key failing its own round-trip validation is terminal (see
+     * `KeyMinting`). Asserts the returned session's pubky is the key we minted before returning.
+     */
     suspend fun createLocalAccount(homeserverPubky: String, signupToken: String): Result<LocalAccount>
 
-/**
- * Register the key Loopky **already holds** — from a restore, or a mint whose `signUp` failed.
- *
- * Never mints. Ring's signup deeplink hardcodes minting, so redeeming through it for a pubky the
- * user already has registers a *different* identity and leaves theirs account-less forever.
- */
+    /**
+     * Register the key Loopky **already holds** — from a restore, or a mint whose `signUp` failed.
+     *
+     * Never mints. Ring's signup deeplink hardcodes minting, so redeeming through it for a pubky the
+     * user already has registers a *different* identity and leaves theirs account-less forever.
+     */
     suspend fun registerHeldKey(homeserverPubky: String, signupToken: String): Result<Session>
 
-/**
- * Store the key [source] derives, marked as having no account, and return its pubky. Without it
- * [registerHeldKey] has nothing to register.
- */
+    /**
+     * Store the key [source] derives, marked as having no account, and return its pubky. Without it
+     * [registerHeldKey] has nothing to register.
+     */
     suspend fun holdKeyForRegistration(source: KeySource): Result<String>
 
-/**
- * Drop a key held only so it could be registered, when the user walks away instead.
- *
- * **Only a restored key** — one with an account, or one this app minted, is untouched; a minted
- * key exists nowhere else. Otherwise an abandoned signup leaves an orphan secret in the keystore
- * that every later launch reports as `KeyCustody.Loopky` and offers to whoever signs in next.
- *
- * Not a suspend function: the caller is a ViewModel's `onCleared`, which runs after
- * `viewModelScope` is cancelled, so a suspending version was measured never to run.
- */
+    /**
+     * Drop a key held only so it could be registered, when the user walks away instead.
+     *
+     * **Only a restored key** — one with an account, or one this app minted, is untouched; a minted
+     * key exists nowhere else. Otherwise an abandoned signup leaves an orphan secret in the keystore
+     * that every later launch reports as `KeyCustody.Loopky` and offers to whoever signs in next.
+     *
+     * Not a suspend function: the caller is a ViewModel's `onCleared`, which runs after
+     * `viewModelScope` is cancelled, so a suspending version was measured never to run.
+     */
     fun discardUnregisteredKey()
 
-/**
- * Two-step Pubky Ring sign-in: [beginSignIn] returns the auth URL for the caller to hand to the
- * OS, then [AuthFlowHandle.complete] awaits approval over the relay and persists the session.
- *
- * @param returnToApp appends Ring's `x-success`/`x-cancel`/`x-error` callbacks. **A headless
- *   client must pass false** (#54): a dangling `x-success` bounces a desktop login into the mobile
- *   app. It changes nothing about how the session arrives.
- */
+    /**
+     * Two-step Pubky Ring sign-in: [beginSignIn] returns the auth URL for the caller to hand to the
+     * OS, then [AuthFlowHandle.complete] awaits approval over the relay and persists the session.
+     *
+     * @param returnToApp appends Ring's `x-success`/`x-cancel`/`x-error` callbacks. **A headless
+     *   client must pass false** (#54): a dangling `x-success` bounces a desktop login into the mobile
+     *   app. It changes nothing about how the session arrives.
+     */
     suspend fun beginSignIn(
         capabilities: String = DEFAULT_CAPABILITIES,
         returnToApp: Boolean = true,
     ): Result<AuthFlowHandle>
 
-/**
- * Take a session secret handed in from outside — `LOOPKY_SESSION` in a container — and make it
- * this process's session. Suspends because only `revalidateSession` can supply the pubky,
- * homeserver and capabilities the secret does not carry.
- *
- * Deliberately **not persisted**: writing it out would leave a container's credential behind on a
- * machine whose own stored session it was standing in for.
- */
+    /**
+     * Take a session secret handed in from outside — `LOOPKY_SESSION` in a container — and make it
+     * this process's session. Suspends because only `revalidateSession` can supply the pubky,
+     * homeserver and capabilities the secret does not carry.
+     *
+     * Deliberately **not persisted**: writing it out would leave a container's credential behind on a
+     * machine whose own stored session it was standing in for.
+     */
     suspend fun adoptSession(sessionSecret: String): Result<Session>
 
-/**
- * Ring-mediated **sign-up**: the same relay handshake as [beginSignIn], but the deeplink asks Ring
- * to mint a key and redeem [signupToken] against [homeserverPubky] first.
- *
- * @param homeserverPubky the homeserver the token was issued *for*, never a configured default —
- *   a token spent against the wrong one is rejected and, being single-use, is gone. Retrying with
- *   the same token is the intended recovery; Ring re-uses the key it minted against it.
- *
- * **No production caller and unproven.** Signup redeems locally now ([createLocalAccount]); this
- * is kept because bringing the Ring path back is a live option (Architecture.md §7.8), but nothing
- * has driven it against a real Ring since. The tests below prove only the string it produces.
- */
+    /**
+     * Ring-mediated **sign-up**: the same relay handshake as [beginSignIn], but the deeplink asks Ring
+     * to mint a key and redeem [signupToken] against [homeserverPubky] first.
+     *
+     * @param homeserverPubky the homeserver the token was issued *for*, never a configured default —
+     *   a token spent against the wrong one is rejected and, being single-use, is gone. Retrying with
+     *   the same token is the intended recovery; Ring re-uses the key it minted against it.
+     *
+     * **No production caller and unproven.** Signup redeems locally now ([createLocalAccount]); this
+     * is kept because bringing the Ring path back is a live option (Architecture.md §7.8), but nothing
+     * has driven it against a real Ring since. The tests below prove only the string it produces.
+     */
     suspend fun beginSignUp(
         homeserverPubky: String,
         signupToken: String,
         capabilities: String = DEFAULT_CAPABILITIES,
     ): Result<AuthFlowHandle>
 
-/**
- * Fetch the pubky.app profile for any user (public read). Session-cached, so a deck grid resolves
- * every author without a round trip per tile. Pass [forceRefresh] where staleness would show.
- */
+    /**
+     * Fetch the pubky.app profile for any user (public read). Session-cached, so a deck grid resolves
+     * every author without a round trip per tile. Pass [forceRefresh] where staleness would show.
+     */
     suspend fun fetchProfile(pubky: String, forceRefresh: Boolean = false): Result<PubkyIdentity>
 
     /** Update the current user's pubky.app profile via session-authenticated PUT. */
     suspend fun updateProfile(name: String?, bio: String?): Result<PubkyIdentity>
 
-/**
- * Erase everything Loopky has written for the signed-in user, then sign out.
- *
- * **This does not delete the Pubky account, and nothing may tell the user it does.** The keypair
- * and homeserver account belong to Ring; [PubkyClient] has no account-delete primitive.
- *
- * What goes: every owned deck via [DeckRepository.delete] (reused so the per-deck lock and tag
- * records are handled), everything else under `/pub/loopky/`, the `loopky-user` self-tag in the
- * **pubky.app** namespace (the only thing listing this account in Loopky's directory), and
- * announcement posts embedding this user's decks.
- *
- * Deliberately **kept**: any unspent signup token — it was paid for, never expires, and still
- * redeems against a new account. Deliberately **untouched**: `profile.json` and pubky.app follows,
- * which are the user's presence in the wider network and not Loopky's to erase.
- *
- * Each homeserver step is best-effort so one 404 cannot strand the rest, but the local wipe and
- * sign-out happen only if the sweep ran to the end.
- *
- * @param onProgress `(done, total)`, coarse and advisory — the sweep may find more than `total`.
- */
+    /**
+     * Erase everything Loopky has written for the signed-in user, then sign out.
+     *
+     * **This does not delete the Pubky account, and nothing may tell the user it does.** The keypair
+     * and homeserver account belong to Ring; [PubkyClient] has no account-delete primitive.
+     *
+     * What goes: every owned deck via [DeckRepository.delete] (reused so the per-deck lock and tag
+     * records are handled), everything else under `/pub/loopky/`, the `loopky-user` self-tag in the
+     * **pubky.app** namespace (the only thing listing this account in Loopky's directory), and
+     * announcement posts embedding this user's decks.
+     *
+     * Deliberately **kept**: any unspent signup token — it was paid for, never expires, and still
+     * redeems against a new account. Deliberately **untouched**: `profile.json` and pubky.app follows,
+     * which are the user's presence in the wider network and not Loopky's to erase.
+     *
+     * Each homeserver step is best-effort so one 404 cannot strand the rest, but the local wipe and
+     * sign-out happen only if the sweep ran to the end.
+     *
+     * @param onProgress `(done, total)`, coarse and advisory — the sweep may find more than `total`.
+     */
     suspend fun deleteAccount(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): Result<Unit>
 
     companion object {
