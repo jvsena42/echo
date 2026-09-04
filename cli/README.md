@@ -119,6 +119,42 @@ loopky tag trending --limit 20
 
 `loopky --help` is the full surface. Every command takes `--json`.
 
+### Language decks
+
+A deck that declares a language pair is also **labelled** with it, and the label is the whole
+reason to declare one beyond the audio:
+
+```shell
+loopky deck create --title "Verbos" --front-lang en-US --back-lang es-ES --listen --speak
+# tags: language, english, spanish
+```
+
+`--front-lang`/`--back-lang` in the manifest are what `Deck.speechReady` gates Listen and Speak on
+— without them the OS engines fall back to the *reader's* device locale, and a Spanish deck is read
+aloud with English phonetics. But a manifest is not something a network-wide index can answer
+questions about; a **tag record** is. So the pair also contributes `"spanish"` and the `"language"`
+umbrella (base subtag, named not coded — `es-ES` and `es-MX` are both `"spanish"`), which is what
+puts the deck in front of someone learning it through tag browse and `tag trending`. This is what
+the apps do on the language pick; the CLI did not until #225, and a deck published before that
+carries the pair and no labels.
+
+Four rules:
+
+- **A deck that declares no pair gets nothing**, umbrella included. Most decks are not language
+  decks, and `"language"` on a deck of capital cities would be a lie the index repeats.
+- **They are ordinary tags you can remove.** Nothing reserved: `deck edit --tag verbos` replaces
+  the set and drops them, deliberately, because `--tag` means "the tags are exactly these".
+- **Retyping swaps them.** Moving a deck from Spanish to French takes `"spanish"` off as it adds
+  `"french"`, or the deck stays listed as Spanish forever.
+- **Naming the pair reconciles them**, whether or not it moved — which is the repair for a deck
+  published before this existed, and for one whose labels a `--tag` replaced:
+
+  ```shell
+  loopky deck edit <deckId> --front-lang en-US --back-lang es-ES --json   # restate; labels return
+  ```
+
+  Naming *no* pair leaves them alone, so `--clear-tags` on a language deck really does empty it.
+
 ## Anki `.apkg`
 
 Bulk Anki import is the job this tool was built for (#46). `import` takes an `.apkg` on the same

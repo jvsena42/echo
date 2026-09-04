@@ -1905,3 +1905,36 @@ so "the tags are exactly these" has to be believed. Re-declaring the pair puts t
 separate manifest fields and `DeckTile` layers them — the image is drawn *over* the emoji, which
 is the fallback when it fails to load. So both are settable in one call here, and `--clear-cover`
 removes both halves; refusing the pair would have broken the fallback the tile is built on.
+
+---
+
+## #225 — language labels on every CLI write path — 2026-09-04, Linux x86_64, staging
+
+Driven against a **real homeserver** with the live session (`kfezy17…`, `/pub/loopky/:rw`,
+`--env staging`), from `cli/build/install/loopky/bin/loopky`, on three throwaway decks created and
+deleted in the same run. The first row is the issue's own probe, re-run.
+
+| Step | Result |
+| --- | --- |
+| `deck create --front-lang en-US --back-lang es-ES --listen --speak` | ✅ `[language, english, spanish]` — was `[]` |
+| `deck show` in a fresh process | ✅ the labels are on the **homeserver**, not just in the cache |
+| `deck create --tag geografia`, no pair | ✅ `[geografia]` — no `language` umbrella on a deck that is not a language deck |
+| `deck edit --clear-tags` on that language deck | ✅ `[]` — naming no pair leaves the labels alone, so the gesture still empties the set |
+| `deck edit --front-lang en-US --back-lang es-ES` (the pair it already had) | ✅ `[language, english, spanish]` — restating is the repair |
+| `import x.tsv --tag core --front-lang ja-JP --back-lang en-US` | ✅ `[core, language, japanese, english]` |
+| `import --resume --front-lang ja-JP --back-lang pt-BR` | ✅ `english` dropped, `portuguese` added, `core` kept |
+| `import --resume` with no flags at all | ✅ unchanged, and no metadata write |
+| `tag trending --env staging` | ✅ `language`, `english`, `portuguese`, `spanish` rank on Nexus — ordinary tags, indexed like any other |
+
+### Worth knowing
+
+**The workaround the issue described is gone rather than documented.** Retyping a deck to a
+different *region* of the same language to make the labels materialise was a trick, not a command;
+`deck edit` now reconciles whenever the invocation **names** a pair, so restating the one the deck
+already has does it. That is also the fix for the `--tag` interaction noted at the foot of the #222
+section above — where "re-declaring the pair puts them back" was true only if the pair actually
+moved.
+
+**The `--clear-tags` row is the one that had to keep failing to change.** These are ordinary
+author-removable tags (Architecture §7.7 point 4), so an edit that names no pair must not put
+`language` back on a set the caller just emptied.

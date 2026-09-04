@@ -442,6 +442,14 @@ follow relationship to the author. Three details:
 - **Retyping swaps the label.** `LanguageTags.retag` drops what the previous pair contributed as
   it adds the new pair's, or a deck retyped from Spanish to French stays listed as Spanish
   forever. It runs in the ViewModel, on the pick, so the tag chips show what will be published.
+- **Every path that sets a pair derives them, the headless ones included** (#225). `deck create`,
+  `import`, `import --resume` and `deck edit` each go through `LanguageTags` where the apps go
+  through it on the pick — see §13.7. They did not, for one release: a deck published with
+  `--front-lang ja-JP` carried the pair in its manifest and no label at all, so it was invisible to
+  tag browse, to `tag trending` and to every Nexus query, while the byte-identical deck published
+  from a phone was not. Nothing reported it — the deck published, `--json` said ok, and the symptom
+  was an empty search somewhere else entirely. Bulk `.apkg` import is the path most decks arrive
+  by (#46), which made it the one where the most decks were the least discoverable.
 
 **5. Announcement posts (#39) are how deck topics reach the global index.** A post is a `Post`
 target where a manifest can only be a resource, so `DiscoveryRepository.announceDeck` writes the
@@ -1374,9 +1382,22 @@ agent's normal recovery is to re-run the command.
   are exactly these" unsayable and makes a retry after an expiry grow the list. And an edit whose
   fields all already hold that value writes nothing and reports `changed: false` — a manifest write
   bumps `updated_at`, which is what every follower's "the author published changes" badge reads.
-  The language labels a declared pair contributes are reconciled only when the pair actually moves,
-  so `--clear-tags` on a language deck stays empty; they are ordinary author-removable tags (§7.7),
-  not a reserved family.
+  The language labels a declared pair contributes are reconciled whenever the invocation **names**
+  a pair (`--front-lang`/`--back-lang`), not only when the pair moves — restating the pair a deck
+  already has is the repair for a deck published before the CLI derived labels at all (#225), and
+  the alternative was retyping it to a different *region* of the same language and back, which is
+  a trick rather than a command. Reconciling changes no tag when there is nothing to do, and a
+  no-op is still not a write. An edit that names **no** pair leaves the labels entirely alone, so
+  `--clear-tags` on a language deck stays empty: they are ordinary author-removable tags (§7.7),
+  not a reserved family, and that gesture has to be believed. The same rule is why `--tag` on a
+  language deck may drop them — the set is exactly what was asked for — and why passing the pair
+  alongside puts them back.
+- **A declared language pair labels the deck here too, and a deck that declares none is left
+  alone.** `deck create` and `import` derive `"spanish"` and the `"language"` umbrella from
+  `--front-lang`/`--back-lang` (`deckTags`, §7.7 point 4) exactly as `PublishDeckViewModel` does on
+  the pick. The second half matters as much as the first: most decks are not language decks, and
+  `LanguageTags.forPair` returning nothing for an undeclared deck is what keeps `"language"` off a
+  deck of capital cities. A hand-typed `--tag spanish` beside a declared pair stays one chip.
 - **Batch mutation, not just batch creation.** `card edit --from-file` exists for the same reason
   the surface steers agents away from `card add` in a loop, with more force: editing is what you
   do *after* an import, and it is the shape an agent naturally reaches for. One card write is one
