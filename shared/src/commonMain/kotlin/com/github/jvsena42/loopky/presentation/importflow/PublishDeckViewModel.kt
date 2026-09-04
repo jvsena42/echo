@@ -25,6 +25,7 @@ import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.SpeechLanguages
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.frontBackOf
+import com.github.jvsena42.loopky.domain.model.remoteImageRef
 import com.github.jvsena42.loopky.presentation.share.DeckSharePrompt
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
@@ -558,8 +559,7 @@ class PublishDeckViewModel(
                 .getOrThrow()
                 .also { uploaded.add(it) }
 
-        image.url != null ->
-            MediaRef.Image(path = "", mime = "image/jpeg", sha256 = "", width = null, height = null, url = image.url)
+        image.url != null -> remoteImageRef(image.url)
 
         else -> null
     }
@@ -576,8 +576,7 @@ class PublishDeckViewModel(
                 .getOrThrow()
                 .also { uploaded.add(it) }
 
-        s.coverImageUrl != null ->
-            MediaRef.Image(path = "", mime = "image/jpeg", sha256 = "", width = null, height = null, url = s.coverImageUrl)
+        s.coverImageUrl != null -> remoteImageRef(s.coverImageUrl)
 
         else -> null
     }

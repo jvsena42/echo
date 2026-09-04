@@ -22,6 +22,7 @@ import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.SpeechLanguages
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.inStudyOrder
+import com.github.jvsena42.loopky.domain.model.remoteImageRef
 import com.github.jvsena42.loopky.presentation.share.DeckSharePrompt
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.epochMillis
@@ -696,14 +697,7 @@ private suspend fun resolveCoverImage(
     // Only a URL the user actually picked builds a new ref. Since #166 the editor opens with the
     // stored cover's URL already in state, and rebuilding from it would throw away whatever the
     // saved ref carries beyond the URL (its mime, its dimensions) on every metadata save.
-    s.coverImageUrl != null && s.coverImageUrl != existing?.url -> MediaRef.Image(
-        path = "",
-        mime = DEFAULT_IMAGE_MIME,
-        sha256 = "",
-        width = null,
-        height = null,
-        url = s.coverImageUrl,
-    )
+    s.coverImageUrl != null && s.coverImageUrl != existing?.url -> remoteImageRef(s.coverImageUrl)
 
     else -> null
 }

@@ -130,7 +130,7 @@ class CardFileTest {
             readCardFile(write(".tsv", "una manzana\ta red apple\tuna manzana roja\n"))
         }
         assertEquals(ExitCode.BadInput, error.exitCode)
-        assertTrue(error.message.orEmpty().contains("http(s) URL"), error.message.orEmpty())
+        assertTrue(error.message.orEmpty().contains("https:// URL"), error.message.orEmpty())
     }
 
     /** `#` **followed by whitespace**. A card whose front is `#1 ranked` is a card, not a comment. */
