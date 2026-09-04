@@ -108,8 +108,8 @@ android {
         applicationId = "com.github.jvsena42.loopky"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 19
-        versionName = "0.7.2"
+        versionCode = 20
+        versionName = "0.8.0"
 
         // Unsplash key for the "from web" image search; blank → gallery-only fallback.
         //
