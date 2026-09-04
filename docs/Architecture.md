@@ -109,7 +109,7 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 
 | Repository | Responsibilities | Backing |
 |---|---|---|
-| `IdentityRepository` | Current session, pubky, capabilities, `signInWithRing()` / `signOut()` (§7.8) | Pubky FFI + `SecureSessionStore` (KVault) |
+| `IdentityRepository` | Current session, pubky, capabilities; the Ring deeplink pair `beginSignIn()`/`AuthFlowHandle.complete()`, the local-key paths `signInWithKey()`/`createLocalAccount()`/`registerHeldKey()`, `adoptSession()` for an injected `LOOPKY_SESSION`, and `signOut()`/`revokeSession()` (§7.8) | Pubky FFI + `SecureSessionStore` (KVault) |
 | `DeckRepository` | CRUD + `publish(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule. Also owns **deck** following — `followDeck()` / `unfollowDeck()` / `listFollowed()` — and `clone()` (§8.0). Deck follows live here rather than on `DiscoveryRepository` because `listFollowed()` merges with `listOwned()` behind one `changes` flow, `sync()` resolves a followed deck's author from the subscription, and `DiscoveryRepositoryImpl` already depends on this repo | Pubky FFI + in-memory cache |
 | `CardRepository` | CRUD cards within a deck | Pubky FFI + in-memory cache |
 | `ImportRepository` | `parse(rawText, separator)` per spec §6/§7 (col 1 → front, col 2 → back, extras dropped — spec §8), `setDecision()` / `keptRows()` triage, in-memory drafts, dedupe | In-memory |
@@ -117,6 +117,8 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 | `DiscoveryRepository` | Decks by followed **users**, `followUser()` / `unfollowUser()` — deck-level following is on `DeckRepository`, plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
 | `SrsRepository` | Per-card SRS state; the study queue (**due reviews then never-seen cards** — `isNew` is not `isDue`, §8.6), per-deck `DeckCounts`, `mastery()`, `review(card, grade)`, and today's `dailyProgress` | Pubky FFI + in-memory cache |
 | `MediaRepository` | Image + audio blob storage for cards | Pubky FFI (blobs) + platform file I/O |
+| `KeyBackupRepository` | Backing up a key Loopky itself holds: the recovery phrase, the confirm quiz, the encrypted recovery file, the Ring export deeplink. Split from `IdentityRepository` because nothing here produces or consumes a `Session` | `LocalKeyStore` (KVault) + Pubky FFI |
+| `SignupRepository` | Getting a homeserver account: SMS, Lightning or invite-code approval, and the in-flight token (§7.8). Stops at the token — redeeming it is `IdentityRepository` | Homegate REST + `SignupTokenStore` |
 | `SettingsRepository` | The user's own study settings (`/pub/loopky/settings.json`) — the new-cards-per-day goal and the Hard/Good/Easy intervals (§8.6) | Pubky FFI + `AppPreferences` mirror |
 
 All repositories are interfaces in `commonMain` with implementations in `commonMain` (`data/repository/impl/`); only the FFI- and file-touching parts drop into `androidMain`/`iosMain` actuals.
@@ -1143,7 +1145,7 @@ real homeserver.
 
 ## 10. Testing strategy
 
-**`commonTest` is the whole automated suite** — 73 files, ~680 tests across targets, run with
+**`commonTest` is the whole automated suite** — 105 files, ~1,300 tests per target, run with
 `./gradlew :shared:allTests`. There is no Compose UI test tier, no iOS test target, and no
 integration smoke target; earlier drafts of this doc listed all three as though they existed.
 
@@ -1157,7 +1159,7 @@ integration smoke target; earlier drafts of this doc listed all three as though 
 - Scheduler and parser units (`SrsScheduler`, `CardChunking`, `SpeakMatcher`, `LanguageTags`) are
   pure functions and tested directly.
 
-**End-to-end is manual, and scripted.** `journeys/*.xml` holds 19 numbered journeys — onboarding and
+**End-to-end is manual, and scripted.** `journeys/*.xml` holds 25 numbered journeys — onboarding and
 Ring auth, paste import, the study loop, discovery, deck management, offline errors, signup — driven
 on a device or emulator with `android-cli` (`android run`, `adb shell input tap`, `android layout` to
 assert on text). Results and their dates are recorded in `journeys/RESULTS.md`, including the

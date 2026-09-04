@@ -135,7 +135,7 @@ record what could not be reached there and why.
 
 iPad and every width but a phone is [#173](https://github.com/jvsena42/loopky/issues/173).
 
-Roughly 680 shared tests run on every PR. Two known blockers before a Play release: the native
+Roughly 1,300 shared tests run on every PR. Two known blockers before a Play release: the native
 Pubky libraries fail 16 KB page-size alignment, and release packaging is still an unsigned
 universal APK with no R8.
 
@@ -226,7 +226,7 @@ Open [`/iosApp`](./iosApp) in Xcode and run. `shared` is consumed as a static fr
 ### Tests and checks
 
 ```shell
-./gradlew :shared:allTests              # shared KMP tests (~680)
+./gradlew :shared:allTests              # shared KMP tests (~1,300)
 ./gradlew :shared:compileKotlinMetadata # fast commonMain compile check
 ./gradlew detektAll                     # Kotlin lint (add --auto-correct to fix formatting)
 ./gradlew lintSwift                     # Swift lint (needs `brew install swiftlint`)
@@ -234,7 +234,7 @@ Open [`/iosApp`](./iosApp) in Xcode and run. `shared` is consumed as a static fr
 
 CI runs detekt, the unit tests, and an Android debug build on every PR.
 
-End-to-end coverage is manual and scripted: [`journeys/`](./journeys) holds 19 numbered journeys
+End-to-end coverage is manual and scripted: [`journeys/`](./journeys) holds 25 numbered journeys
 driven on a device with `android-cli`, with results and dates in
 [`journeys/RESULTS.md`](./journeys/RESULTS.md). A green build says nothing about what the screen
 renders.
