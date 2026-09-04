@@ -115,6 +115,8 @@ loopky import deck.apkg --dry-run --json     # look before you publish. No sessi
 loopky import deck.apkg --title "Japanese Core 2000" --front-field Expression --back-field Meaning
 
 loopky tag trending --limit 20
+
+loopky completion bash               # a completion script on stdout, for eval or a file
 ```
 
 `loopky --help` is the full surface. Every command takes `--json`.
@@ -253,6 +255,35 @@ because the list is Wikimedia's to change, and a stale check must not be able to
 Beyond those two, prefer a host that serves images to anyone. Some refuse an unfamiliar client
 outright — Wikimedia answers `403 Please set a user-agent` to a generic one — and the result is the
 same blank card with nothing reporting it.
+
+## Tab completion
+
+```shell
+eval "$(loopky completion bash)"                                 # in ~/.bashrc
+loopky completion zsh > "${fpath[1]}/_loopky"                    # then restart the shell
+loopky completion fish > ~/.config/fish/completions/loopky.fish
+```
+
+Commands, subcommands, every flag, and the values of the flags that have a closed set — `--env`,
+`--separator`, the shell name itself. `import` completes filenames; so do `--from-file` and
+`--qr-out`.
+
+The `.deb` and the Homebrew formula install all three for you. The `curl` installer does not: it
+says the command exists and stops there, because enabling completions means writing to a shell rc
+file or a system directory, and an installer that edits `~/.bashrc` behind you is one you cannot
+cleanly undo.
+
+Two things it deliberately does not do.
+
+**A deck id is never completed.** It would be a homeserver round trip on a keypress — a tab that
+hangs for a second on a good network, and forever on the hourly-expired session — in the one place
+you cannot interrupt without losing the line you were typing. zsh and fish name the word they want
+(`deckId`) and offer nothing; bash offers the flags and stays quiet.
+
+**The script describes the binary that printed it.** It is generated from the same command table
+the binary dispatches on, so it cannot offer a flag this build refuses — but that also means a
+copy written to a file goes stale on upgrade. Regenerate after `loopky update`; `eval` in an rc
+file never has the problem.
 
 ## Environment
 
