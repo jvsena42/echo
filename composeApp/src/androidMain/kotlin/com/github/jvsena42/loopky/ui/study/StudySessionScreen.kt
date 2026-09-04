@@ -336,12 +336,7 @@ private fun ReviewingContent(
     // "Next", which is the wrong shape for a 120dp column beside the card and belongs in the row
     // under it at every width. So the wide branch is about the *grades*, not about the window.
     val wide = widthClass.isExpanded && !state.isPreview
-    // How tall the card is allowed to get. The cap exists so a one-word prompt doesn't stretch
-    // into a near-full-screen rectangle — but a phone's ceiling on a portrait tablet left a third
-    // of the screen as empty cream above and below the card, which is the same mistake in the
-    // other direction. Keyed on the width class because that is what tells the two apart: a
-    // portrait tablet is Medium and has ~980dp to give, a landscape one is Expanded and has ~610,
-    // and a phone is Compact where the old ceiling never bit in the first place.
+    // See studyCardMaxHeight: the ceiling is keyed on the width class, not fixed.
     val cardMaxHeight = studyCardMaxHeight(widthClass)
     Column(
         // Studying is a single-focus task, so it gets a narrow ceiling rather than the reading
@@ -506,18 +501,16 @@ private fun ReviewingContent(
                     }
                 }
 
-                // Everything typing adds lives on the card itself — the input, the miss line, Check,
-                // Give up and the "Correct!" note — so the two rows below are exactly what they were
-                // before the mode existed. They are reserved rather than conditional so the card keeps
-                // one size across the flip.
+                // Everything typing adds lives on the card itself, so the two rows below are exactly
+                // what they were before the mode existed. They are reserved rather than conditional
+                // so the card keeps one size across the flip.
                 //
-                // With one exception. On a flipped typing card the grades are not on offer yet and the
-                // flip hint has nothing left to say, so both rows are *certainly* empty — and holding
-                // ~140 dp open for them steals it from the card at the one moment the keyboard has
-                // already taken half the screen. Nothing can pop in to fill that space, so there is no
-                // stability left to protect; the card takes it.
-                // An `if` rather than the early return this used to be: the content below the card now
-                // sits inside the left pane, so returning here would abandon the grade column too.
+                // With one exception. On a flipped typing card the grades are not on offer yet and
+                // the flip hint has nothing to say, so both rows are *certainly* empty — and holding
+                // ~140dp open for them steals it from the card at the one moment the keyboard has
+                // already taken half the screen. An `if` rather than an early return: the content
+                // below the card sits inside the left pane, so returning would abandon the grade
+                // column too.
                 if (state.answerHidden && state.revealed) {
                     Spacer(modifier = Modifier.height(8.dp))
                 } else {
@@ -593,12 +586,12 @@ private fun ReviewingContent(
 /**
  * How tall the study card may grow, given how much room the window has.
  *
- * The cap exists so a one-word prompt does not stretch into a near-full-screen rectangle. Keyed on
- * the width class because that is what separates the cases: a portrait tablet is Medium and has
- * ~980dp of column to give, a landscape one is Expanded and has ~620, and a phone is Compact where
- * the original ceiling was never the binding constraint anyway. The two tablet ceilings are set
- * *above* what those layouts actually offer, so there the card simply fills its share — the cap is
- * a guard against a stretched card, not a second, tighter layout.
+ * The cap stops a one-word prompt stretching into a near-full-screen rectangle. Keyed on the width
+ * class because that separates the cases: a portrait tablet is Medium with ~980dp of column to give,
+ * a landscape one is Expanded with ~620, and a phone is Compact where the original ceiling was never
+ * the binding constraint. The two tablet ceilings sit *above* what those layouts actually offer, so
+ * there the card simply fills its share — this is a guard against a stretched card, not a second
+ * layout.
  */
 private fun studyCardMaxHeight(widthClass: WindowWidthClass): Dp = when (widthClass) {
     WindowWidthClass.Compact -> COMPACT_CARD_MAX_HEIGHT
@@ -607,11 +600,9 @@ private fun studyCardMaxHeight(widthClass: WindowWidthClass): Dp = when (widthCl
 }
 
 /**
- * Everything the card face renders, plus the identity the advance transition keys on.
- *
- * `position` is unique per presentation, which is what the advance transition needs: the VM only
- * moves forward (`index++`), and a card studied both ways sits at two distinct positions rather
- * than being re-queued at one.
+ * Everything the card face renders, plus the identity the advance transition keys on. `position` is
+ * unique per presentation: the VM only moves forward, and a card studied both ways sits at two
+ * distinct positions rather than being re-queued at one.
  */
 private data class CardSnapshot(
     val position: Int,
@@ -673,13 +664,10 @@ private fun AnimatedContentScope.FlippableCard(
         contentAlignment = Alignment.Center,
     ) {
         if (rotation < 90f) {
-            // Listen/Speak sit on the front as well as the back — both faces carry them.
-            // They act on the side facing the user, so on the
-            // front they practise the prompt in the *front* language — which is the side a
-            // foreign word usually sits on, and hearing it before answering is the point.
-            // The reveal cue lives in the hint row below. The prompt's picture belongs here too
-            // — an Anki front is often nothing else, and passing it only to the back left those
-            // cards asking the question with a blank card (#96).
+            // Listen/Speak sit on both faces. They act on the side facing the user, so on the front
+            // they practise the prompt in the *front* language — the side a foreign word usually sits
+            // on. The prompt's picture belongs here too: an Anki front is often nothing else, and
+            // passing it only to the back left those cards asking the question with a blank card (#96).
             CardFace(
                 label = null,
                 text = card.frontText,
@@ -749,11 +737,9 @@ private val StudySessionUiState.syncError: ErrorReason?
     }
 
 /**
- * Warns that graded reviews are not being written, without ending the session.
- *
- * The failure this exists for is a full homeserver, where the copy has to say the one thing the
- * generic error did not: retrying will not help, and the fix is to free space. The reviews
- * themselves are safe — buffered, journalled to disk, and re-sent by the next flush that can.
+ * Warns that graded reviews are not being written, without ending the session. The failure this
+ * exists for is a full homeserver, where the copy has to say what the generic error did not: retrying
+ * will not help. The reviews are safe — buffered, journalled, re-sent by the next flush that can.
  */
 @Composable
 private fun SyncErrorBanner(
@@ -786,11 +772,10 @@ private fun SyncErrorBanner(
 }
 
 /**
- * The daily goal, met. Covers the session because it happens once a day and is worth stopping for.
+ * The daily goal, met. Covers the session because it happens once a day.
  *
- * Both ways out are offered as equals in weight but not in emphasis: "Keep studying" is the filled
- * button, because the card behind this is already loaded and the goal withholds nothing. "Back to
- * home" exists so the moment can also be a natural place to stop.
+ * Both ways out are equal in weight but not emphasis: "Keep studying" is the filled button, because
+ * the card behind this is already loaded and the goal withholds nothing.
  */
 @Composable
 private fun BoxScope.GoalCelebrationScreen(
@@ -1012,12 +997,9 @@ private fun MicPermissionDialogs(
 }
 
 /**
- * How wide the study column is allowed to get.
- *
- * Between [com.github.jvsena42.loopky.ui.layout.PaneWidth.Focused] and `Reading`: a card wants
- * more room than a sign-in form, because the text on it auto-sizes and a wider box lets a long
- * sentence stay large — but less than a settings list, because the grade row underneath is four
- * buttons that should stay thumb-sized rather than growing into banners.
+ * How wide the study column may get. Between `PaneWidth.Focused` and `Reading`: a card wants more
+ * room than a sign-in form, because its text auto-sizes and a wider box keeps a long sentence large —
+ * but less than a settings list, because the grade row is four buttons that should stay thumb-sized.
  */
 private val STUDY_PANE_WIDTH = 640.dp
 

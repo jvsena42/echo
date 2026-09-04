@@ -49,11 +49,10 @@ import com.github.jvsena42.loopky.ui.study.StudySessionRoute
 import com.github.jvsena42.loopky.ui.tagbrowse.TagBrowseRoute
 
 /**
- * [pendingOpen] is what the app was opened with — a `pubky://` address or a deck file, if any. It
- * is held rather than navigated to immediately: a cold start lands on onboarding while the
- * session is restored, and pushing a profile on top of that would put a screen the user cannot
- * use behind the sign-in flow. [onPendingOpenHandled] fires once it has been consumed, so a
- * second tap on the same link still opens it.
+ * [pendingOpen] is what the app was opened with — a `pubky://` address or a deck file. It is held
+ * rather than navigated to immediately: a cold start lands on onboarding while the session is
+ * restored, and pushing a profile on top of that would put an unusable screen behind the sign-in
+ * flow. [onPendingOpenHandled] fires once it is consumed, so a second tap still opens it.
  */
 @Composable
 internal fun LoopkyNavHost(
@@ -68,15 +67,13 @@ internal fun LoopkyNavHost(
      * Whether the launch has already been routed off the onboarding screen.
      *
      * Onboarding is the start destination because the persisted session can only be read
-     * asynchronously, so every launch lands here first and then steps aside — to the tabbed app
-     * if a session came back, to the browsing shell if none did. This flips as soon as either
-     * happens, and it is what tells the *second* and later arrivals apart from the first: those
-     * are all deliberate (the guest banner, a sign-in prompt raised by a write, signing out), and
-     * a screen that steps aside when it is asked for is a screen that cannot be reached.
+     * asynchronously, so every launch lands here first and then steps aside. This flips as soon as it
+     * does, which is what tells the *second* and later arrivals apart from the first: those are all
+     * deliberate (the guest banner, a sign-in prompt, signing out), and a screen that steps aside
+     * when it is asked for is a screen that cannot be reached.
      *
-     * Held here rather than as a nav argument on the route so the existing
-     * `navigateTo(Routes.ONBOARDING)` call sites keep their duplicate-destination guard, which
-     * compares against the bare route pattern.
+     * Held here rather than as a nav argument so the existing `navigateTo(Routes.ONBOARDING)` call
+     * sites keep their duplicate-destination guard, which compares against the bare route pattern.
      */
     var launchRouted by rememberSaveable { mutableStateOf(false) }
 
@@ -104,15 +101,13 @@ internal fun LoopkyNavHost(
     NavHost(navController = navController, startDestination = Routes.ONBOARDING) {
         composable(Routes.ONBOARDING) {
             OnboardingRoute(
-                // Browsing, not an account. Discover, deck detail, profiles and a deck's cards
-                // are all public records, so a visitor is shown the app before being asked for
-                // the most expensive thing on this screen. Every write past that point raises a
-                // sign-in prompt from the action itself.
+                // Browsing, not an account. Discover, deck detail, profiles and a deck's cards are
+                // public records, so a visitor is shown the app before being asked for the most
+                // expensive thing on this screen; every write past that point raises its own prompt.
                 //
-                // Automatic on the launch that finds no session, which is the only time this
-                // screen is reached without being asked for — see [launchRouted]. The onboarding
-                // entry is popped rather than left underneath: it would hand off again the moment
-                // a back gesture returned to it.
+                // Automatic on the launch that finds no session — see [launchRouted]. The onboarding
+                // entry is popped rather than left underneath: it would hand off again the moment a
+                // back gesture returned to it.
                 autoExplore = !launchRouted,
                 onExplore = {
                     launchRouted = true
@@ -416,43 +411,37 @@ internal fun LoopkyNavHost(
 }
 
 /**
- * The card editor, reached either on an existing card or on one that does not exist yet.
- *
- * Two routes rather than a flag on one: the "new" route has a segment fewer, so the two patterns
- * cannot both match the same URL.
+ * The card editor, reached either on an existing card or on one that does not exist yet. Two routes
+ * rather than a flag on one: the "new" route has a segment fewer, so the two patterns cannot both
+ * match the same URL.
  */
 /**
- * The signup flow: obtain a token, then hand it to Pubky Ring.
- *
- * Grouped like [cardEditorDestinations] and flat like the import flow — the token in flight lives
- * in `SignupRepository`, so no step needs a nav argument and every back press is a plain pop.
+ * The signup flow: obtain a token, then hand it to Pubky Ring. Flat like the import flow — the token
+ * in flight lives in `SignupRepository`, so no step needs a nav argument and every back press is a
+ * plain pop.
  */
 /**
- * Where a finished verification goes: Ring's deeplink handoff, or Loopky's own redemption.
- *
- * Read off the back stack rather than passed down through the three method screens, so those stay
+ * Where a finished verification goes: Ring's deeplink handoff, or Loopky's own redemption. Read off
+ * the back stack rather than passed down through the three method screens, so those stay
  * byte-identical between the two spenders.
  */
 /**
- * Land on the tabbed app with nothing behind it.
+ * Land on the tabbed app with nothing behind it. Every path that ends in a session goes through here.
  *
- * Every path that ends in a session goes through here. `popUpTo(ONBOARDING)` is not enough on its
- * own any more: a visitor who signed in from inside the guest shell has a browsing `MAIN` *below*
- * the onboarding screen they signed in on, and popping to the nearest onboarding entry would
- * leave it there — signed in, one back gesture from a shell with no library in it. Clearing the
- * graph is also what makes the tab screens rebuild, which is how they pick up the new session.
+ * `popUpTo(ONBOARDING)` is not enough on its own: a visitor who signed in from inside the guest shell
+ * has a browsing `MAIN` *below* the onboarding screen, and popping to the nearest onboarding entry
+ * would leave it there — signed in, one back gesture from a shell with no library in it. Clearing the
+ * graph is also what makes the tab screens rebuild and pick up the new session.
  */
 private fun NavHostController.goHomeSignedIn() {
     navigateTo(Routes.main()) { popUpTo(graph.id) { inclusive = true } }
 }
 
 /**
- * Hand off to the terminal step, carrying the `adopt` intent from the door the user came through
- * so it knows whether it is registering a key they confirmed or minting a new one.
+ * Hand off to the terminal step, carrying the `adopt` intent from the door the user came through.
  *
- * **`lastOrNull`, not `firstOrNull`.** This is the only place that decision is made, and a
- * start-over pushes a fresh `SIGNUP_START` — reading the oldest entry would let an abandoned one
- * outvote the screen the user is actually standing on.
+ * **`lastOrNull`, not `firstOrNull`.** A start-over pushes a fresh `SIGNUP_START`, and reading the
+ * oldest entry would let an abandoned one outvote the screen the user is standing on.
  */
 private fun NavHostController.navigateToRedemption() {
     val entry = currentBackStack.value.lastOrNull { it.destination.route == Routes.SIGNUP_START }
@@ -577,12 +566,10 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
             onUnregistered = { pubky ->
                 navController.navigateTo(Routes.unregisteredKey(pubky, loopkyHoldsKey = true))
             },
-            // Straight home. Someone who just typed in a passphrase and opened their recovery file
-            // has this second demonstrated that they hold a backup, and answering that with "Back
-            // up your account" is a screen arguing with what the user just did. The menu used to
-            // sit here to surface Pubky Ring, which was then reachable only from a Settings row
-            // nobody opens — but the backup card now sits on Profile, directly above Sign out, so
-            // Ring is one deliberate tap away whenever the user actually wants it.
+            // Straight home. Someone who just typed a passphrase and opened their recovery file has
+            // this second demonstrated they hold a backup, and answering that with "Back up your
+            // account" is a screen arguing with what the user just did. Ring is one deliberate tap
+            // away on the Profile backup card.
             onRestored = { navController.goHomeSignedIn() },
         )
     }
@@ -595,11 +582,9 @@ private fun NavGraphBuilder.restoreFileDestination(navController: NavHostControl
                 navController.navigateTo(Routes.unregisteredKey(pubky, loopkyHoldsKey = true))
             },
             // The whole restore stack goes: coming "back" into it after signing in would offer to
-            // restore an account the user is already using.
-            //
-            // Home rather than the backup menu, for the reason given on the file route above: the
-            // twelve words the user just typed *are* the backup, and Ring now lives on the Profile
-            // backup card rather than behind an unopened Settings row.
+            // restore an account the user is already using. Home rather than the backup menu, for
+            // the reason on the file route above — the twelve words the user just typed *are* the
+            // backup.
             onRestored = { navController.goHomeSignedIn() },
         )
     }
@@ -637,14 +622,14 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
         LocalSignupRoute(
             registerHeldKey = adoptHeldKey,
             onBack = { navController.popBackStack() },
-            // Pops the whole spent attempt — the old `SIGNUP_START` included — rather than just
-            // this screen. Popping to `SIGNUP_LOCAL` left the verification screen the dead token
-            // came from *and* the original start entry underneath the fresh one, so "back" walked
-            // into a spent flow and `navigateToRedemption` had two start entries to choose from.
+            // Pops the whole spent attempt — the old `SIGNUP_START` included. Popping to
+            // `SIGNUP_LOCAL` left the verification screen the dead token came from *and* the original
+            // start entry underneath the fresh one, so "back" walked into a spent flow and
+            // `navigateToRedemption` had two start entries to choose from.
             //
-            // `adoptHeldKey` is carried, not defaulted away: the refused token says nothing about
-            // the key, which is still held and still the pubky the user confirmed by name. Losing
-            // it here would let the retry mint a *different* identity than the one they approved.
+            // `adoptHeldKey` is carried, not defaulted away: the refused token says nothing about the
+            // key, which is still the pubky the user confirmed by name. Losing it here would let the
+            // retry mint a *different* identity than the one they approved.
             onStartOver = {
                 navController.navigateTo(Routes.signupStart(adoptHeldKey = adoptHeldKey)) {
                     popUpTo(Routes.SIGNUP_START) { inclusive = true }

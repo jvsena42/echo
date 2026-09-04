@@ -4,26 +4,20 @@ import kotlinx.coroutines.delay
 import kotlin.random.Random
 
 /**
- * Returns true if this failure looks like a session-expired error from the homeserver.
- * The FFI surfaces this as a [PubkyError] with a message containing "session" plus
- * one of the common verbs. We match defensively on substrings because the FFI error
- * text is not a stable API contract.
+ * Whether this failure looks like a session-expired error from the homeserver. Matched defensively on
+ * substrings, because the FFI's error text is not a stable API contract.
  *
  * **A transport failure is never an expiry, however it is worded.** Offline, the FFI reports
- * `"Failed to import session: Request failed: HTTP transport error: error sending request for
- * url (…/session)"` — which contains both "session" and "import" and so matched here. The request
- * never reached the homeserver, so nothing can be concluded about the session; treating it as an
- * expiry told an offline user to sign in with Pubky Ring again, and `requiresReauth` would have
- * signed them out over a dropped connection. Checked first, because the wording overlaps.
+ * `"Failed to import session: Request failed: HTTP transport error…"` — which contains both "session"
+ * and "import". The request never reached the homeserver, so nothing can be concluded about the
+ * session; treating it as an expiry told an offline user to sign in again, and `requiresReauth` would
+ * have signed them out over a dropped connection. Checked first, because the wording overlaps.
  *
- * **A homeserver that answered with a status is never an expiry either**, for the same reason and
- * with the same wording problem: the FFI wraps *whatever* went wrong while importing the session
- * as `"Failed to import session: …"`, so a 429 arrived here reading as an expiry. That was worse
- * than a bad label. [withWriteRetry] routes an expiry into [SessionRevalidator.revalidate], which
- * is itself a homeserver call — so it hit the same rate limit, failed, and returned terminally,
- * never reaching the backoff branch that exists precisely for a 429. Deleting a deck, which fires
- * one session-authenticated delete per record, tripped this every time and reported "session
- * expired" for a session that was fine.
+ * **A homeserver that answered with a status is never an expiry either.** The FFI wraps *whatever*
+ * went wrong while importing the session as `"Failed to import session: …"`, so a 429 read as an
+ * expiry — and [withWriteRetry] routes an expiry into [SessionRevalidator.revalidate], itself a
+ * homeserver call, which hit the same rate limit and returned terminally without ever reaching the
+ * backoff branch that exists for a 429.
  */
 internal fun Throwable.isSessionExpired(): Boolean {
     if (this !is PubkyError) return false
@@ -34,39 +28,30 @@ internal fun Throwable.isSessionExpired(): Boolean {
 }
 
 /**
- * Public helper for ViewModels: returns true when a repository failure means the stored
- * session could not be refreshed and the user has to sign in again. Repos already retry
- * once via [putWithSessionRetry] and friends, so by the time a failure reaches a ViewModel
- * a session-expired error is terminal.
+ * For ViewModels: true when the stored session could not be refreshed and the user has to sign in
+ * again. Repos already retry once, so by the time a failure reaches a ViewModel an expiry is terminal.
  */
 fun Throwable.requiresReauth(): Boolean = isSessionExpired()
 
 /**
- * Run a session-authenticated write, retrying the three failures that are worth retrying.
+ * Run a session-authenticated write, retrying the three failures worth retrying.
  *
- * **Session expiry:** revalidate once and try again. The secret is read from [session] on each
- * attempt rather than captured, so the retry naturally picks up the refreshed one.
+ * **Session expiry:** revalidate once and try again. The secret is read from [session] on each attempt
+ * rather than captured, so the retry picks up the refreshed one.
  *
- * **Rate limiting:** back off and retry, up to [MAX_RATE_LIMIT_RETRIES] times with an
- * exponentially growing delay. Measured behaviour, not speculation — a homeserver returns 429
- * when a publish pushes several writes at once, and without this a large import fails outright
- * partway through. The failure is transient and the request well-formed, so surfacing it to the
- * user would be wrong.
+ * **Rate limiting:** back off up to [MAX_RATE_LIMIT_RETRIES] times. Measured, not speculative — a
+ * homeserver returns 429 when a publish pushes several writes at once, and without this a large import
+ * fails outright partway through.
  *
- * **An unreachable session round trip:** re-import once, then try again. This is the failure of
- * #165 — every authenticated write opens with `POST https://_pubky.<pubky>/session`, and when that
- * round trip starts failing it takes down the whole write path while reads keep working. Nothing
- * retried it, so the app parked there: publish reported "check your connection" about a connection
- * that was fine, and only a sign-out/sign-in cleared it. [SessionRevalidator.revalidate] is the one
- * lever the client has — on the FFI side it *forgets* the cached session and imports a fresh one —
- * so it is worth exactly one attempt. Its own failure is **not** terminal here, unlike an expiry:
- * the request never reached the homeserver either time, so it says nothing new, and the write is
- * retried once regardless in case the blip was momentary. Bounded at one recovery because each
- * attempt costs a ~5s connect timeout, and a wedge that survives it is not going to yield to a
- * fourth try — it needs the user, which is what `ErrorReason.SessionUnreachable` is for.
+ * **An unreachable session round trip:** re-import once, then try again. This is #165 — every
+ * authenticated write opens with `POST https://_pubky.<pubky>/session`, and when that fails it takes
+ * down the whole write path while reads keep working. [SessionRevalidator.revalidate] is the one lever
+ * the client has, so it is worth exactly one attempt; its own failure is **not** terminal here, unlike
+ * an expiry, because the request never reached the homeserver either time. Bounded at one recovery
+ * because each attempt costs a ~5s connect timeout, and a wedge surviving that needs the user — which
+ * is what `ErrorReason.SessionUnreachable` is for.
  *
- * **Not** retried: a 507 out-of-storage. It is terminal until the user deletes something, so a
- * retry chain against it only spends time reaching the same answer.
+ * **Not** retried: a 507 out-of-storage, which is terminal until the user deletes something.
  *
  * [attempt] must re-read the session secret itself; it is invoked afresh for every try.
  */
@@ -153,16 +138,14 @@ internal suspend fun PubkyClient.deleteWithSessionRetry(
 }
 
 /**
- * Enough to ride out a burst without leaving the user staring at a stalled progress bar.
+ * Enough to ride out a burst without leaving the user at a stalled progress bar.
  *
- * 8 rather than 5 because a *sweep* is not a publish: deleting a 9,000-card deck is ~90 records
- * back to back, and measured on device the 5-retry budget (~8s) ran out mid-sweep — the delete
- * failed, the deck stayed, and retrying only repeated it. With jitter, the doubling chain spans
- * ~64s in the worst case.
+ * 8 rather than 5 because a *sweep* is not a publish: deleting a 9,000-card deck is ~90 records back to
+ * back, and on device the 5-retry budget (~8s) ran out mid-sweep — the delete failed and retrying only
+ * repeated it. With jitter the chain spans ~64s at worst.
  *
- * Kept at 8 after #105 halved the request count, rather than trimmed back with it. The budget is
- * insurance against a rate limit whose threshold is not ours to know, and the cost of an unused
- * retry is nothing; the cost of one too few is a deck that will not delete.
+ * Kept at 8 after #105 halved the request count: the budget is insurance against a threshold that is
+ * not ours to know, and an unused retry costs nothing where one too few is a deck that will not delete.
  */
 private const val MAX_RATE_LIMIT_RETRIES = 8
 
