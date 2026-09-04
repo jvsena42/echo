@@ -17,7 +17,7 @@ A fresh session has none of this in context, so establish it before the first ed
   iOS is the XcodeBuildMCP CLI / `xcodebuildmcp` MCP server (see Build & run below), never bare
   `xcodebuild`, `xcrun` or `simctl`. Their skills — `android-cli` and `xcodebuildmcp-cli` — are
   installed; invoke the relevant one rather than reconstructing commands from memory.
-- **`journeys/` is the end-to-end suite, and it is how UI work is verified.** 23 numbered
+- **`journeys/` is the end-to-end suite, and it is how UI work is verified.** 25 numbered
   `journeys/*.xml` scripts (onboarding, import, study, discovery, signup/restore …) driven by hand
   on a device, with dated outcomes in `journeys/RESULTS.md`. Read `RESULTS.md` first for the current
   known-good/known-broken state — it records blockers a green build says nothing about — then
@@ -91,7 +91,7 @@ grep for bare `Text("key")` uses of them; that check has caught three separate i
 
 **Five bridge traps worth knowing before touching Swift here.** Kotlin enum entries export lowercased with no separators (`ErrorReason.sessionexpired`, `RingHandoff.thisdevice`), and getting one wrong produces a misleading error pointing at the enclosing view. Kotlin's `description` property exports as `description_`; plain `.description` compiles and returns the object dump. A sealed interface crosses as an ObjC *protocol*, so casting an erased value to a generic parameter bound to it silently yields `nil` — hold state as `Any?` and match the concrete classes. And a text field must own its own `@State` while typing: binding `get` to state that round-trips through a ViewModel drops characters. Finally, a **`value class` is treated differently on the two sides of a call** — boxed as an element of a `List<Tag>`, but erased to its underlying `String` at a *parameter* position — so handing a `Tag` taken out of state back to a function expecting one passes a Kotlin object where the bridge wants an `NSString`; the pointer is reinterpreted, `value` reads back null, and Kotlin segfaults on a null it believes cannot exist. Give any such function a `String`-taking entry point for Swift (`onTagLabelSelected`) and rebuild the value class on the Kotlin side.
 
-Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `detekt-compose-rules`); run `./gradlew detektAll` (use `--auto-correct` to fix formatting findings). Swift lint is SwiftLint (`iosApp/.swiftlint.yml`, generated `pubkycore.swift` excluded); run `./gradlew lintSwift` or `swiftlint` from `iosApp/`. `shared/src/commonTest` holds a real suite (~680 tests across targets): repository tests over a `FakePubkyClient`, ViewModel tests over `FakeRepositories`, and parser/scheduler tests. Run `./gradlew :shared:allTests`.
+Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `detekt-compose-rules`); run `./gradlew detektAll` (use `--auto-correct` to fix formatting findings). Swift lint is SwiftLint (`iosApp/.swiftlint.yml`, generated `pubkycore.swift` excluded); run `./gradlew lintSwift` or `swiftlint` from `iosApp/`. `shared/src/commonTest` holds a real suite (~1,300 tests per target, 105 files): repository tests over a `FakePubkyClient`, ViewModel tests over `FakeRepositories`, and parser/scheduler tests. Run `./gradlew :shared:allTests`.
 
 ## Architecture
 
@@ -99,9 +99,20 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
 
 - `shared/src/commonMain/kotlin/com/github/jvsena42/loopky/` holds all cross-platform code:
   - `domain/model/` — pure Kotlin data classes (`Deck`, `Card`, `ImportDraft`, `SrsState`, `AppError`, etc.). No framework imports.
-  - `data/repository/` — repository interfaces (all 9 in `Repositories.kt`: Identity, Deck, Card, Import, Media, Tag, Discovery, Srs, Settings), implementations under `data/repository/impl/`. **Repositories own the business logic** — parsing, triage, publishing, SRS grading, follow/unfollow, sign-in/out all live as methods on the relevant repo rather than in a separate use-case layer. **All 9 are implemented** (`IdentityRepositoryImpl`, `DeckRepositoryImpl`, `CardRepositoryImpl`, `ImportRepositoryImpl` — the paste parser, spec §6 rules + §9 edge cases —, `MediaRepositoryImpl`, `SrsRepositoryImpl`, `DiscoveryRepositoryImpl`, `TagRepositoryImpl`, `SettingsRepositoryImpl`), plus `SessionRevalidatorImpl`. `TagRepositoryImpl` writes pubky-app-specs tag records to the homeserver and reads trending, tagged subjects and tagger counts from the Nexus indexer (`data/nexus/NexusClient`, see Architecture.md §7.6). **Which namespace a tag record goes in depends on its subject** — a profile subject in `/pub/pubky.app/tags/`, a deck manifest in `/pub/loopky/tags/` — because that is what decides whether and how Nexus indexes it; read Architecture.md §7.7 before touching tag writes. The impls are Pubky-only: they write/read through `PubkyClient` and hold an in-memory per-session cache. No SQLDelight yet — the app is not offline-first, Pubky is the single source of truth.
+  - `data/repository/` — the 11 repository interfaces in `Repositories.kt` (Identity, KeyBackup,
+    Deck, Card, Signup, Import, Tag, Discovery, Srs, Media, Settings), all implemented under
+    `data/repository/impl/` alongside `SessionRevalidatorImpl`, `AccountEraser`, `DeckCompactor`
+    and `DeckMediaSweeper`. **Repositories own the business logic** — parsing, triage, publishing,
+    SRS grading, follow/unfollow and sign-in/out are methods on the relevant repo, not a use-case
+    layer. They are Pubky-only: writes and reads go through `PubkyClient`, with an in-memory
+    per-session cache. No SQLDelight — the app is not offline-first, Pubky is the single source of
+    truth. `TagRepositoryImpl` also reads trending, tagged subjects and tagger counts from the
+    Nexus indexer (`data/nexus/NexusClient`, §7.6). **Which namespace a tag record goes in depends
+    on its subject** — a profile in `/pub/pubky.app/tags/`, a deck manifest in `/pub/loopky/tags/`
+    — because that decides whether Nexus indexes it at all; read Architecture.md §7.7 before
+    touching tag writes.
   - `data/pubky/` — `PubkyClient` interface + DTOs (`ManifestDto`, `CardDto`, `MediaRefDto` in `DeckDtos.kt`, `ProfileDto`) and path helpers (`PubkyPaths`, `Hashing`) that map between domain models and the on-homeserver JSON layout defined in `docs/Architecture.md §8.0`. `SessionProvider`/`MutableSessionProvider` is the tiny read-only abstraction repos use to author writes without depending on `IdentityRepository`. `SessionRevalidator` + `SessionRetry` + `SessionPayloadParser` handle expired-session retry.
-  - `data/pubky/PubkyClient.kt` — the single interface that wraps `pubky-core-ffi-fork`. All Pubky calls must route through this. It is a **thin** 1:1 mirror of the FFI surface (keys, mnemonics, recovery, auth, records, DHT). Do not add deck/card concepts here — those belong in repositories. The `actual` impl is `AndroidPubkyClient` (androidMain); on iOS, Swift's `IosPubkyClient` is a `[status, payload]` pass-through that `IosPubkyClientAdapter` wraps into the contract (see Build & run above) — it is real, and has been driven against a homeserver.
+  - `data/pubky/PubkyClient.kt` — the single interface that wraps `pubky-core-ffi-fork`. All Pubky calls must route through this. It is a **thin** 1:1 mirror of the FFI surface (keys, mnemonics, recovery, auth, records, DHT). Do not add deck/card concepts here — those belong in repositories. It is a plain interface Koin-binds per platform, not `expect`/`actual`: Android and desktop share `UniffiPubkyClient` (jvmSharedMain, over the JNA bindings); on iOS, Swift's `IosPubkyClient` implements the `[status, payload]` `RawPubkyClient` pass-through and `IosPubkyClientAdapter` wraps it into the contract (see Build & run above) — it is real, and has been driven against a homeserver.
   - `data/storage/` — `SecureSessionStore` interface for persisting the signed-in `Session`, backed by the platform keystore via Liftric KVault (`AndroidSecureSessionStore` wraps EncryptedSharedPreferences; `IosSecureSessionStore` wraps Keychain). This resolves the secret-storage open question — see "Non-obvious rules" below. Non-secret preferences use the separate `AppPreferences` (SharedPreferences / NSUserDefaults) in the same package — don't put a plain setting through the keystore, or a secret through `AppPreferences`.
   - `di/SharedModule.kt` — Koin graph binding repos, ViewModels, and `SessionProvider`; platforms override `PubkyClient` + `SecureSessionStore` via `PlatformModule.{android,ios}.kt`.
   - `presentation/` — KMP ViewModels, one per screen, each extending the multiplatform `androidx.lifecycle.ViewModel` (`viewModelScope`) and exposing `StateFlow<UiState>` + `SharedFlow<UiEffect>` (see "Coding conventions" below). **Implemented** across `onboarding/` (`OnboardingViewModel` + UiState/Effect), `home/` (`HomeViewModel`), `decks/` (`DecksLibraryViewModel`, `DeckDetailViewModel`, `DeckEditorViewModel`, `EditCardViewModel`), `import/` (`PasteImportViewModel`, `PublishDeckViewModel`), and `profile/` (`ProfileViewModel`). Coroutines + Koin are wired (no longer blocked).
@@ -316,7 +327,7 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
 - **Paste-to-Import is the v1 primary import flow.** The implemented spine is `PasteImportViewModel` (parse + live preview) → `PublishDeckViewModel` (commit to Pubky). Every other import source (AI, OCR, URL) listed in spec §14 must reuse this same spine. Don't build parallel commit flows.
 - **Parser rules are prescriptive.** The paste parser (on `ImportRepository`) must follow the exact rule order in spec §6 and the edge-case table in spec §9. Use them as the test matrix.
 - **No use-case layer.** Don't introduce `*UseCase` interfaces or a `domain/usecase/` package. If a piece of logic doesn't fit any existing repo, extend the most relevant repo or add a new one — keep the surface area flat.
-- **Pubky bindings are UniFFI-generated and checked in.** Android: `shared/src/androidMain/kotlin/uniffi/pubkycore/pubkycore.kt` + `shared/src/androidMain/jniLibs/`. iOS: `iosApp/iosApp/Frameworks/PubkyCore.xcframework` + `iosApp/iosApp/Pubky/pubkycore.swift`. Regeneration steps live in `docs/Architecture.md §7.4`; do not edit the generated files.
+- **Pubky bindings are UniFFI-generated and checked in.** JVM family: `shared/src/jvmSharedMain/kotlin/uniffi/pubkycore/pubkycore.kt` (one copy, shared by Android and desktop) + `shared/src/androidMain/jniLibs/` for the Android `.so`s. iOS: `iosApp/iosApp/Frameworks/PubkyCore.xcframework` + `iosApp/iosApp/Pubky/pubkycore.swift`. Regeneration steps live in `docs/Architecture.md §7.4`; do not edit the generated files.
 - **Session storage is resolved** via `SecureSessionStore` (Liftric KVault → Android Keystore / iOS Keychain). Persist the signed-in `Session` only through this interface — do not wire multiplatform-settings or ad-hoc storage for secrets.
 - **The Android app is real and feature-built; iOS is wired but unproven.** Onboarding → home → decks → paste-import → publish → profile all work on Android (Compose screens in `composeApp/src/androidMain/.../ui/`, nav in `ui/nav/`, DI in `di/`). The leftover `Greeting`/`Platform` template stubs still exist in `shared` but are no longer the running UI. iOS has its SwiftUI screens (`iosApp/iosApp/Views/`), a live Koin bootstrap, and the `IosFlowWatcher`/`FlowObserver` state bridge — but nobody has driven it against a real homeserver, so nothing there is verified (see Build & run).
 
@@ -329,6 +340,36 @@ Root package is `com.github.jvsena42.loopky`. Android namespace is `com.github.j
 Prescriptive rules, adapted from the sibling Bitkit apps' `AGENTS.md` to Loopky's
 shared-logic / native-UI split. These are the canonical conventions — `docs/Architecture.md`
 points here rather than restating them.
+
+### Comments (all languages)
+
+**A comment earns its place by saying something the code cannot.** Comments had grown to a fifth of
+every Kotlin line here, most of it the signature restated in prose or a bug's whole history retold;
+the heaviest files have been pruned and the rest are still being worked through. Re-growing this is
+the easy direction, so when you touch a file, leave its comments under these rules:
+
+- **The name is the documentation.** If a KDoc's first line is the method's name in a sentence,
+  delete it — rename the method instead when the name is not carrying its weight. `/** Point at the
+  next card and clear everything the current one accumulated. */` on `advanceIndex()` is noise.
+- **No KDoc on private declarations**, unless it records something genuinely non-obvious — a lock
+  precondition (`**The caller must hold [Deck.id]'s write lock.**`), an ordering constraint, a
+  measured number, or a bug the shape exists to prevent. Those are worth keeping and are the reason
+  this is a default rather than a ban. A private helper whose name describes it gets nothing.
+- **Comment the "why", never the "what".** The load-bearing content is the constraint a reader
+  cannot recover by reading the code: what must *not* happen, what was tried and failed, which
+  issue number it came from. Everything else is the code said twice.
+- **One tight paragraph, not an essay.** Keep the invariant and the issue number; drop the
+  retelling of how the bug was found, the alternative that was rejected, and the measurement
+  narrative — `git log`/`git blame` holds that, and CLAUDE.md's "Non-obvious rules" holds the
+  cross-cutting ones. If a comment needs three paragraphs to explain a decision, it belongs in
+  `docs/Architecture.md` with a one-line pointer here.
+- **Public interfaces get real KDoc**, because callers do not read the implementation — but the
+  same limits apply: the contract and its gates, not a tour.
+- **Never leave a KDoc orphaned.** A `/** … */` separated from its declaration by another comment
+  or a blank documents the *wrong* thing, silently. Three of those were found during the prune;
+  nothing in the build reports them.
+
+The same rules apply to Swift.
 
 ### Shared (Kotlin · `shared/commonMain`)
 
@@ -382,7 +423,8 @@ points here rather than restating them.
   Architecture §9.2 decision; call the VM's generated `clear()` on disappear (there is no `onDispose()`).
 - Reuse the project's text/components instead of raw `Text().font().foregroundColor()` chains; use
   `.task` (not `.onAppear`) for async tied to a view's lifetime; mutate state on `@MainActor`; use
-  self-documenting names (`isLoadingDecks`, not `loading`); comment only non-obvious "why".
+  self-documenting names (`isLoadingDecks`, not `loading`). Comments follow the **Comments** rules
+  above — the name is the documentation, and only the non-obvious "why" is written down.
 
 ## Git
 

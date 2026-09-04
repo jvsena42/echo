@@ -16,40 +16,32 @@ import java.io.File
 /**
  * `.apkg` — an Anki export — as an input to `loopky import`.
  *
- * Bulk Anki import is the most CLI-shaped job there is (#46, #54): the field notes behind the
- * headless client are eleven AnkiWeb decks imported by driving a phone with `adb`. The reader
- * itself is shared with both apps (`ApkgReader`, `ApkgCollection.kt`) and is not re-implemented
- * here; what lives in this file is the part a terminal needs and a picker screen does not.
+ * The reader itself is shared with both apps (`ApkgReader`, `ApkgCollection.kt`); what lives here is
+ * the part a terminal needs and a picker screen does not. Three things, each because of a way this
+ * import goes wrong quietly:
  *
- * Three of those, and each exists because of a way this import goes wrong quietly:
- *
- * - **The field picker, headlessly.** Anki decks routinely carry fields called "Field 3", and
- *   9000 Spanish Sentences imported 9,213 cards reading `2528426` → `2760065` because its first
- *   two fields are database ids (#96). `chooseDefaultFields` scores the fields and usually gets
- *   this right; [ApkgFieldMapping] is how you disagree, and `--dry-run` is how you *look* before
- *   you have to.
- * - **The drop accounting, in the envelope.** 1,458 notes in and 1,338 cards out used to be
- *   explained by "1 duplicate", because the other 119 were dropped inside the reader and every
- *   count downstream was computed from rows that no longer existed. [ApkgSummary] carries them.
- * - **What a run will spend.** This is the one import path that **uploads bytes**. A TSV's image
- *   columns are remote refs and cost no quota (#167); an `.apkg`'s pictures are blobs written
- *   against a 1 GB homeserver allowance with no endpoint that reports what is left (§8.5). Worse,
- *   they go up **at full resolution** — see [ApkgBlobs] — so the number is large and has to be on
- *   screen before it is spent, not after.
+ * - **The field picker, headlessly.** Anki decks routinely carry fields called "Field 3", and 9000
+ *   Spanish Sentences imported 9,213 cards reading `2528426` → `2760065` because its first two
+ *   fields are database ids (#96). `chooseDefaultFields` usually gets this right; [ApkgFieldMapping]
+ *   is how you disagree, and `--dry-run` is how you look first.
+ * - **The drop accounting.** 1,458 notes in and 1,338 cards out used to be explained by "1
+ *   duplicate", because the other 119 were dropped inside the reader. [ApkgSummary] carries them.
+ * - **What a run will spend.** This is the one import path that **uploads bytes**, against a 1 GB
+ *   quota with no endpoint reporting what is left (§8.5) — and at full resolution (see [ApkgBlobs]),
+ *   so the number has to be on screen before it is spent.
  */
 
 /** Which reader an `import` operand goes to. */
 internal enum class ImportFormat { Text, Apkg }
 
 /**
- * Extension first, then content — the same order [readCardFile] picks its format in, and for the
- * same reason: a caller that has to remember a `--apkg` flag will one day not, and an `.apkg` read
- * as text is a deck of cards whose fronts are fragments of a SQLite header.
+ * Extension first, then content — the same order [readCardFile] picks its format in: a caller that
+ * has to remember a `--apkg` flag will one day not, and an `.apkg` read as text is a deck whose
+ * fronts are fragments of a SQLite header.
  *
- * The content half is [ApkgReader.canRead], which answers the zip question from four bytes. It is
- * deliberately the weaker of the two: a file *named* `.apkg` goes to the `.apkg` reader even when
- * it is not a zip at all, so the failure names the format the user asked for rather than reporting
- * "nothing importable" about a file they know perfectly well is an Anki deck.
+ * The content half, [ApkgReader.canRead], is deliberately the weaker of the two: a file *named*
+ * `.apkg` goes to the `.apkg` reader even when it is not a zip, so the failure names the format the
+ * user asked for rather than reporting "nothing importable" about a file they know is an Anki deck.
  */
 internal fun detectImportFormat(source: String, header: () -> ByteArray): ImportFormat = when {
     source.endsWith(".apkg", ignoreCase = true) -> ImportFormat.Apkg
@@ -76,12 +68,10 @@ internal class ApkgRead(val import: ApkgImport, val imageBytes: Long)
 /**
  * Read [path], resolving `--front-field` / `--back-field` against the deck's own field names.
  *
- * At most two passes over the archive, and the second one happens only when fields were named.
- * That is the same design as the app's picker — "a second pass over an already spooled file, not a
- * second pipeline" — for a reason that is sharper here: field *names* are only knowable by reading
- * the collection, so a mapping given as a name cannot be resolved before the first read. The probe
- * pass therefore throws its blobs away ([ApkgBlobs] with `keepBytes = false`), so naming a field
- * costs a re-read rather than a second copy of the deck's media in heap.
+ * At most two passes over the archive, and the second only when fields were named — field *names*
+ * are knowable only by reading the collection, so a mapping given as a name cannot be resolved
+ * before the first read. The probe pass throws its blobs away, so naming a field costs a re-read
+ * rather than a second copy of the deck's media in heap.
  *
  * [keepBytes] is false for a dry run, which measures the pictures without holding them.
  */
@@ -111,17 +101,15 @@ private suspend fun readApkgWith(
  * about to be uploaded.
  *
  * **Nothing is compressed here, and that is a packaging constraint rather than an oversight.** The
- * apps run every imported picture through `MediaProcessor` (1024 px, JPEG q80 — call it 100-200 KB
- * from a full-resolution photograph). The desktop implementation of that reaches `javax.imageio`,
- * which reaches `java.awt`, which `native-image` cannot fold into the executable: it emits five
- * JDK `.so`s beside the binary instead and `loopky` stops being one file (#210,
- * `:cli:checkNativeImageIsOneFile`). So the Koin binding here is `PassThroughMediaProcessor`, and
- * this deliberately does not reach for it at all — going through the graph for a call that must
- * never do anything is an invitation to bind something that does.
+ * apps run every imported picture through `MediaProcessor` (1024 px, JPEG q80). The desktop
+ * implementation reaches `javax.imageio` → `java.awt`, which `native-image` cannot fold into the
+ * executable: it emits five JDK `.so`s beside the binary and `loopky` stops being one file (#210,
+ * `:cli:checkNativeImageIsOneFile`). The Koin binding here is `PassThroughMediaProcessor`, and this
+ * deliberately does not reach for it at all — going through the graph for a call that must never do
+ * anything is an invitation to bind something that does.
  *
- * What follows is that an `.apkg`'s media costs an order of magnitude more from a terminal than
- * from a phone, which is exactly why [ApkgImagesView.bytes] is reported before the spend and
- * `import` warns on stderr in both modes.
+ * So an `.apkg`'s media costs an order of magnitude more from a terminal than from a phone, which is
+ * why [ApkgImagesView.bytes] is reported before the spend and `import` warns on stderr.
  */
 internal class ApkgBlobs(private val keepBytes: Boolean) {
 
@@ -143,13 +131,12 @@ internal class ApkgBlobs(private val keepBytes: Boolean) {
  * Which two fields to import, from `--front-field` / `--back-field`.
  *
  * Either may be given alone: "the front is right and the back is wrong" is the common half-correct
- * case, and refusing it would make the caller restate a choice the heuristic already got right.
- * [chosen] — what `chooseDefaultFields` picked — fills in whichever was not named.
+ * case. [chosen] fills in whichever was not named.
  *
- * A value is matched as a **name** first and only then as a 1-based index, so a deck whose fields
- * are called "1" and "2" can still be addressed by name. Indices are 1-based because that is what
- * the deck itself shows: an unnamed field arrives from `RawCollection.fieldNames` labelled
- * "Field 1", and a surface where `Field 1` is selected by `--front-field 0` is a trap.
+ * A value is matched as a **name** first and only then as a 1-based index, so a deck whose fields are
+ * called "1" and "2" can still be addressed by name. Indices are 1-based because that is what the
+ * deck shows: an unnamed field arrives labelled "Field 1", and a surface where `Field 1` is selected
+ * by `--front-field 0` is a trap.
  */
 internal fun resolveFieldMapping(
     args: Args,
@@ -207,12 +194,10 @@ internal const val BACK_FIELD_OPTION = "back-field"
 /**
  * A failed `.apkg` read, as something a caller can act on.
  *
- * The three [ApkgFailure] reasons keep **one** exit code — [ExitCode.BadInput], whose meaning is
- * already "an input file could not be read, or held nothing importable", and which is true of all
- * three. What they do not share is the *advice*, and that is what `ApkgFailure` exists to carry:
- * a zstd collection, an export holding nothing but Anki's compatibility stub and a corrupt zip
- * used to surface as one string, which sent people hunting for a format problem they might not
- * have. So the reason picks the message, and the message names the next move.
+ * The three [ApkgFailure] reasons keep **one** exit code — [ExitCode.BadInput] is true of all three.
+ * What they do not share is the *advice*: a zstd collection, an export holding only Anki's
+ * compatibility stub, and a corrupt zip used to surface as one string, which sent people hunting for
+ * a format problem they might not have.
  */
 private fun apkgFailure(source: String, error: Throwable): CliError =
     when ((error as? ApkgException)?.reason) {
@@ -281,31 +266,27 @@ data class ApkgImagesView(
     /** Pictures left behind at the reader's per-deck ceiling of 500. */
     val skipped: Int,
     /**
-     * Raw bytes of those pictures — the ceiling on what publishing this deck spends against the
-     * 1 GB homeserver quota, since the CLI uploads them **uncompressed** (see [ApkgBlobs]).
-     *
-     * A ceiling rather than an exact figure: a picture on a card that dedupe collapses, or that
-     * `--resume` finds already published, is counted here and not uploaded.
+     * Raw bytes of those pictures — the ceiling on what publishing this deck spends against the 1 GB
+     * quota, since the CLI uploads them **uncompressed** (see [ApkgBlobs]). A ceiling rather than an
+     * exact figure: a picture on a card that dedupe collapses, or that `--resume` finds already
+     * published, is counted here and not uploaded.
      */
     val bytes: Long,
 )
 
 /**
- * What the `.apkg` reader found, in the `--json` envelope.
- *
- * On a dry run this is the whole answer. On a real import it travels beside the deck, because the
- * counts are the point of doing this on a CLI at all: an agent cannot look at a summary screen,
- * and every one of these numbers was invisible in the version of this import that produced 1,338
- * cards from 1,458 notes and called the difference "1 duplicate" (#96).
+ * What the `.apkg` reader found, in the `--json` envelope. On a dry run this is the whole answer; on
+ * a real import it travels beside the deck, because an agent cannot look at a summary screen — and
+ * every one of these numbers was invisible in the version of this import that produced 1,338 cards
+ * from 1,458 notes and called the difference "1 duplicate" (#96).
  */
 @Serializable
 data class ApkgSummary(
     /** Anki's own name for the deck. Reported, never adopted — `--title` is the CLI's channel. */
     @SerialName("deck_name") val deckName: String? = null,
     /**
-     * Anki's own deck description. Reported, never adopted: every deck exported from AnkiWeb
-     * carries the same "Please see the shared deck page for more info", which is about the AnkiWeb
-     * listing and not about the deck. Pass `--description` if this one is worth keeping.
+     * Anki's own deck description. Reported, never adopted: every AnkiWeb export carries the same
+     * "Please see the shared deck page for more info", which is about the listing and not the deck.
      */
     @SerialName("deck_description") val deckDescription: String? = null,
     /** Notes read out of the collection, before any were dropped or a cloze note expanded. */
@@ -316,16 +297,16 @@ data class ApkgSummary(
     val images: ApkgImagesView,
     /**
      * The deck's dominant note type generates more than one card per note. Loopky still writes one
-     * card per note — a reverse is a way of studying a card, not a second card — so this becomes
-     * the default for `--reverse`, still overridable with `--no-reverse`.
+     * card per note — a reverse is a way of studying a card, not a second card — so this becomes the
+     * default for `--reverse`, still overridable with `--no-reverse`.
      */
     val reversible: Boolean,
     /** The collection read held notes, but every one was Anki's compatibility placeholder. */
     @SerialName("legacy_stub") val legacyStub: Boolean,
     /**
-     * Labels derived from the notes' own tags. Reported, never adopted: a tag is a **public**
-     * record indexed network-wide by Nexus (§7.7), and this client does not put one on a deck
-     * nobody asked it to. Pass them back as `--tag` if they are right.
+     * Labels derived from the notes' own tags. Reported, never adopted: a tag is a **public** record
+     * indexed network-wide by Nexus (§7.7), and this client does not put one on a deck nobody asked
+     * it to. Pass them back as `--tag` if they are right.
      */
     @SerialName("suggested_tags") val suggestedTags: List<String>,
 )
@@ -393,11 +374,8 @@ internal fun ApkgSummary.describe(): String = buildString {
 }.trimEnd()
 
 /**
- * Bytes as a person reads them, so a quota warning is legible at a glance.
- *
- * Decimal units, matching how a homeserver quota is quoted ("1 GB"), rather than the binary ones —
- * a number the reader is meant to compare against their allowance must use the same scale as the
- * allowance.
+ * Bytes as a person reads them. Decimal units, matching how a homeserver quota is quoted ("1 GB"):
+ * a number meant to be compared against an allowance must use the allowance's scale.
  */
 internal fun formatBytes(bytes: Long): String = when {
     bytes >= GIGA -> "${bytes / (GIGA / TENTHS) / TENTHS.toDouble()} GB"

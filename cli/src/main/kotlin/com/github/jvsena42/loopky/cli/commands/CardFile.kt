@@ -12,28 +12,26 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 /**
- * A batch of cards, from a file — the shape both `card add --from-file` and `card edit
- * --from-file` take.
+ * A batch of cards, from a file — the shape both `card add --from-file` and `card edit --from-file`
+ * take.
  *
  * **Batch mutation is a v1 requirement, not a convenience.** One card write is one chunk
- * read-modify-write plus a manifest patch plus a `/session` round trip (#105); 190 image
- * attachments done one at a time cost ~30–40 s each end to end. A surface offering only
- * `card edit <deckId> <cardId>` gets used in a loop, and editing is precisely what an agent does
- * *after* an import.
+ * read-modify-write plus a manifest patch plus a `/session` round trip (#105); 190 image attachments
+ * done one at a time cost ~30–40 s each. A surface offering only `card edit <deckId> <cardId>` gets
+ * used in a loop, and editing is precisely what an agent does *after* an import.
  *
  * Two formats, and the choice is not stylistic:
  *
  * - **TSV**, `front <TAB> back <TAB> front_image_url <TAB> back_image_url`, the last two optional.
- *   Image columns are here from day one because since #167 a card image can be a **remote ref** —
- *   a URL, no bytes on the wire, no media quota spent — which is the gap neither `.apkg` nor
- *   TSV-through-the-paste-parser can express: both carry a picture only when a field is *nothing
- *   but* that image, so "this side has text and a picture" had no representation at all.
- * - **JSONL**, one object per line, for the cases TSV cannot hold: a side containing a tab or a
- *   newline, and — for `card edit` — naming which card to change and which fields to leave alone.
+ *   Image columns are here from day one because since #167 a card image can be a **remote ref** — a
+ *   URL, no bytes on the wire, no quota spent — which is the gap neither `.apkg` nor
+ *   TSV-through-the-paste-parser can express: both carry a picture only when a field is *nothing but*
+ *   that image, so "this side has text and a picture" had no representation.
+ * - **JSONL**, one object per line, for what TSV cannot hold: a side containing a tab or newline, and
+ *   — for `card edit` — naming which card to change and which fields to leave alone.
  *
- * The format is chosen by extension, then by content, never by a flag: a caller that has to
- * remember to pass `--jsonl` will one day not, and a JSON object read as TSV is a card whose front
- * is `{"id":`.
+ * The format is chosen by extension, then content, never by a flag: a caller that has to remember
+ * `--jsonl` will one day not, and a JSON object read as TSV is a card whose front is `{"id":`.
  */
 @Serializable
 data class CardFileRow(
@@ -49,10 +47,9 @@ data class CardFileRow(
             frontImageUrl.isNullOrBlank() && backImageUrl.isNullOrBlank()
 
     /**
-     * A row that could become a card: something on **both** sides, text or a picture.
-     *
-     * False is not the same as [isEmpty]. An edit row is allowed to carry one side and mean "leave
-     * the other alone", so this is asked only where a row becomes a *new* card.
+     * A row that could become a card: something on **both** sides, text or a picture. False is not
+     * the same as [isEmpty] — an edit row may carry one side and mean "leave the other alone", so
+     * this is asked only where a row becomes a *new* card.
      */
     val hasBothSides: Boolean
         get() = !(front.isNullOrBlank() && frontImageUrl.isNullOrBlank()) &&
@@ -79,14 +76,13 @@ private val cardFileJson = Json { ignoreUnknownKeys = true }
 /**
  * Read [path] — or stdin, when it is `-` — as a batch of cards.
  *
- * Blank lines are skipped and `# ` comments are honoured in TSV, so a generated file can carry a
- * header without a phantom first card — `#` **followed by whitespace**, so a card whose front is
- * `#1 ranked` survives.
+ * Blank lines are skipped and `# ` comments honoured in TSV, so a generated file can carry a header
+ * without a phantom first card — `#` **followed by whitespace**, so a card whose front is `#1 ranked`
+ * survives.
  *
- * A row with nothing on either side is an error rather than a silent skip, and so is an image
- * column holding something that is not a URL: a file that produced fewer cards than it has lines,
- * or a card carrying prose where a picture should be, is exactly the kind of loss `--json` exists
- * to make visible.
+ * A row with nothing on either side is an error rather than a silent skip, and so is an image column
+ * holding something that is not a URL: a file producing fewer cards than it has lines is exactly the
+ * kind of loss `--json` exists to make visible.
  */
 fun readCardFile(path: String): List<CardFileRow> {
     val text = if (path == "-") {
@@ -155,15 +151,12 @@ private const val FRONT_IMAGE_COLUMN = 2
 private const val BACK_IMAGE_COLUMN = 3
 
 /**
- * Refuse a batch that holds a card with nothing on one of its sides.
+ * Refuse a batch holding a card with nothing on one of its sides.
  *
- * Checked here rather than left to `publish`, which `require`s the same thing: that throws an
- * `IllegalArgumentException` no classifier recognises, so it would reach the user as exit 1
- * "internal" plus a Kotlin assertion message — for a blank column in their own file. The import
- * path needs none of this, because the shared parser already drops half-empty rows.
- *
- * The message names the row, since the whole point of a batch is that nobody is reading it line by
- * line.
+ * Checked here rather than left to `publish`, which `require`s the same thing but throws an
+ * `IllegalArgumentException` no classifier recognises — so it would reach the user as exit 1
+ * "internal" plus a Kotlin assertion message, for a blank column in their own file. The message names
+ * the row, since the point of a batch is that nobody reads it line by line.
  */
 internal fun List<CardFileRow>.requireBothSides(): List<CardFileRow> = onEachIndexed { index, row ->
     if (!row.hasBothSides) {
@@ -176,11 +169,9 @@ internal fun List<CardFileRow>.requireBothSides(): List<CardFileRow> = onEachInd
 }
 
 /**
- * A comment line: `#` followed by whitespace, never a bare `#`.
- *
- * The space is load-bearing. `startsWith("#")` alone silently swallows a card whose front is
- * `#1 ranked`, a markdown heading or a hashtag — and this file's own contract is that a batch
- * producing fewer cards than it has lines is exactly the loss `--json` exists to make visible.
+ * A comment line: `#` followed by whitespace, never a bare `#`. The space is load-bearing —
+ * `startsWith("#")` alone silently swallows a card whose front is `#1 ranked`, a markdown heading or
+ * a hashtag.
  */
 private fun String.isComment(): Boolean =
     startsWith("#") && (length == 1 || this[1].isWhitespace())
@@ -191,12 +182,11 @@ private fun String.isComment(): Boolean =
  * Every app-side constructor of a remote `MediaRef.Image` gets its URL from a picker; this is the
  * first path where an arbitrary string reaches one. Without the check, a 3-column Anki export
  * (Front / Back / Example sentence) publishes every card with
- * `MediaRef.Image(url = "una manzana roja")`, both apps try to load prose as an image, the third
- * column's real content is lost, and `--json` reports success.
+ * `MediaRef.Image(url = "una manzana roja")`, both apps try to load prose as an image, and `--json`
+ * reports success.
  *
- * An error rather than a fall-through, unlike the import path: the four-column TSV is what this
- * file *documents*, so a third column that is not a URL is a file that does not match the format
- * its author asked for.
+ * An error rather than a fall-through, unlike the import path: the four-column TSV is what this file
+ * *documents*.
  */
 private fun List<String>.imageUrlAt(column: Int, lineIndex: Int): String? {
     val value = getOrNull(column)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
@@ -214,12 +204,11 @@ private fun List<String>.imageUrlAt(column: Int, lineIndex: Int): String? {
 /**
  * Whether a value is *shaped* like an image column — a scheme and nothing else.
  *
- * Deliberately looser than [isRenderableImageUrl], and the two are not interchangeable. This one
- * answers "is this column pictures or prose", which decides how a whole file is read; the strict
- * one answers "could this ever render", which decides whether a single card is written. An
- * `http://` address is a perfectly clear *answer to the first question* — the file is still a
- * four-column card file — and refusing it as an image column would send the whole import through
- * the text parser instead, silently turning every picture into a third card side.
+ * Deliberately looser than [isRenderableImageUrl], and not interchangeable with it. This one answers
+ * "is this column pictures or prose", which decides how a whole file is read; the strict one answers
+ * "could this ever render", which decides whether a single card is written. An `http://` address is a
+ * clear answer to the first question, and refusing it here would send the whole import through the
+ * text parser, silently turning every picture into a third card side.
  */
 internal fun String.looksLikeImageUrl(): Boolean =
     startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true)

@@ -21,20 +21,17 @@ import java.io.File
 /**
  * The capabilities a headless client asks Pubky Ring for, and the whole of them.
  *
- * **Not `DEFAULT_CAPABILITIES`**, which is what the two apps request
- * (`/pub/loopky/:rw,/pub/pubky.app/:rw`). An agent session therefore cannot write a post, a follow
- * or a profile edit under any bug or any prompt injection, because it was never handed the
- * capability at all — the guarantee is structural rather than a flag somebody remembered to set.
+ * **Not `DEFAULT_CAPABILITIES`**, which is what the two apps request. An agent session therefore
+ * cannot write a post, a follow or a profile edit under any bug or any prompt injection, because it
+ * was never handed the capability — the guarantee is structural rather than a flag someone set.
  *
- * It costs less than it looks. Deck tagging routes on the *subject*: a deck manifest's tag record
- * goes to `/pub/loopky/tags/`, and only a profile or post subject needs the pubky.app namespace
- * (Architecture.md §7.7). So `deck create --tag …` and the language tags a declared pair puts on a
- * deck both work unchanged. What is given up is exactly the pubky.app-native writes a headless
- * deck tool has no business making: announcing a deck (#39), tagging a profile, and editing
- * `profile.json`.
+ * It costs less than it looks: deck tagging routes on the *subject*, so a deck manifest's tag record
+ * goes to `/pub/loopky/tags/` and `deck create --tag …` works unchanged (§7.7). What is given up is
+ * the pubky.app-native writes a headless deck tool has no business making — announcing a deck (#39),
+ * tagging a profile, editing `profile.json`.
  *
  * One visible consequence, and it is why `whoami` reports no display name: that lives in
- * `/pub/pubky.app/profile.json`, and this client is a loopky-namespace client in both directions.
+ * `/pub/pubky.app/profile.json`.
  */
 const val CLI_CAPABILITIES = "/pub/loopky/:rw"
 
@@ -44,18 +41,14 @@ data class LoginResult(
     val homeserver: String,
     val capabilities: List<String>,
     /**
-     * The session secret, printed **only** for `--export`.
-     *
-     * It is what `LOOPKY_SESSION` takes, and the reason `login` is a local-machine command: a
-     * sandbox recreated per task has no stored session and nobody at its terminal to scan a code,
-     * so the secret has to be minted somewhere with a human and carried in.
+     * The session secret, printed **only** for `--export`. It is what `LOOPKY_SESSION` takes, and the
+     * reason `login` is a local-machine command: a sandbox recreated per task has no stored session
+     * and nobody at its terminal to scan a code.
      */
     @SerialName("session_secret") val sessionSecret: String? = null,
     /**
-     * Where the session was written.
-     *
-     * Always set: `--export` *also* prints the secret, it does not print it instead of storing it.
-     * A caller reading this to decide whether a credential reached the disk gets the truth.
+     * Where the session was written. Always set: `--export` *also* prints the secret, it does not
+     * print it instead of storing it.
      */
     @SerialName("stored_at") val storedAt: String? = null,
 )
@@ -73,9 +66,8 @@ data class WhoamiResult(
     /**
      * Whether the homeserver still honours this session, right now, asked rather than assumed.
      *
-     * There is no `expires_at` to report: the FFI's session payload carries a pubky, a secret, a
-     * homeserver and capabilities, and no expiry — so a client cannot plan around the wall, only
-     * discover it. This is the honest substitute, and it is what an agent should check before
+     * There is no `expires_at` to report — the FFI's session payload carries no expiry, so a client
+     * can only discover the wall, not plan around it. This is what an agent should check before
      * starting an hour-long import rather than 40 cards in (#165).
      */
     @SerialName("session_live") val sessionLive: Boolean,
@@ -86,14 +78,14 @@ data class WhoamiResult(
 /**
  * Sign in by printing a QR code for Pubky Ring, then blocking on the relay until it is approved.
  *
- * The auth URL carries **no Ring return-callbacks**. Mobile appends `x-success`/`x-cancel` so Ring
- * can deeplink back into the app; there is no app here to return to, and a dangling `x-success`
- * pointing at `loopky://` would bounce the user into Loopky on their phone after a desktop login.
+ * The auth URL carries **no Ring return-callbacks**: there is no app here to return to, and a
+ * dangling `x-success` pointing at `loopky://` would bounce the user into Loopky on their phone
+ * after a desktop login.
  *
  * The FFI's auth flow is a single global slot that `awaitAuthApproval` *takes*, so a failed poll
- * consumes it and there is no in-place retry: recovering means running `loopky login` again, which
- * mints a new secret and a new code to scan. Said plainly in the failure rather than papered over
- * with a retry loop that would silently invalidate the code already on screen.
+ * consumes it and there is no in-place retry — recovering means running `loopky login` again. Said
+ * plainly in the failure rather than papered over with a retry loop that would silently invalidate
+ * the code already on screen.
  */
 suspend fun login(
     args: Args,
@@ -120,14 +112,12 @@ suspend fun login(
     emitEvent(eventEnvelope("login", "auth_url", buildJsonObject { put("auth_url", handle.authUrl) }))
 
     // The prompt goes to stderr, all of it: stdout carries the result and nothing else, and a
-    // half-megabyte of block characters in front of the JSON would make it undecodable. A caller
-    // that wants the URL programmatically reads the `auth_url` event on stdout under `--json`.
+    // half-megabyte of block characters in front of the JSON would make it undecodable.
     //
     // **The plaintext URL is printed only under `--url-only`**, where it is the deliverable. It
     // carries the client secret the auth token is encrypted to, so leaking it turns the relay's
     // encrypted blob back into a usable session — and stderr is precisely the stream an agent
-    // harness captures into a transcript that may be logged, uploaded or pasted into an issue.
-    // A user who scans the code gets no benefit from having it in their scrollback as well.
+    // harness captures into a transcript that may be logged or pasted into an issue.
     if (args.has("url-only")) {
         stderr("This URL is a credential until you approve it in Ring — treat it like a password.")
         stderr(handle.authUrl)
@@ -223,18 +213,15 @@ data class LogoutResult(
 /**
  * End the session — on the homeserver, and on this machine where there is one.
  *
- * The `LOOPKY_SESSION` case used to be refused outright, on the grounds that there is nothing
- * stored to clear. True, and beside the point: sign-out does **two** things, and only the local
- * half was missing. The result was that a secret minted with `login --export` and carried into a
- * sandbox could never be withdrawn from this tool — `logout` refused, unsetting the variable
- * changed nothing server-side, and the session stayed live until it expired on its own. For a
- * credential whose whole story is "hand this to an ephemeral agent box", revocation is the wrong
- * end to be missing.
+ * The `LOOPKY_SESSION` case used to be refused outright on the grounds that there is nothing stored
+ * to clear. True, and beside the point: sign-out does **two** things, and only the local half was
+ * missing, so a secret minted with `login --export` and carried into a sandbox could never be
+ * withdrawn. For a credential whose whole story is "hand this to an ephemeral agent box", revocation
+ * is the wrong end to be missing.
  *
- * So an injected session is *revoked* rather than cleared, and the result says which happened. It
- * goes through `revokeSession` rather than `signOut` for a reason worth keeping: on a developer's
- * machine both credentials can exist at once, and `signOut` would revoke the injected one while
- * wiping the stored one.
+ * So an injected session is *revoked* rather than cleared, through `revokeSession` rather than
+ * `signOut`: on a developer's machine both credentials can exist at once, and `signOut` would revoke
+ * the injected one while wiping the stored one.
  */
 suspend fun logout(
     identity: IdentityRepository,

@@ -26,11 +26,9 @@ import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
 
 /**
- * What `loopky update` reports, in `--json`.
- *
- * One shape for `--check` and for a real run, because a caller should not have to branch on which
- * flag it passed to find out what happened: [applied] is the answer either way, and it is false
- * for `--check`, for "already current", and for an installation this command may not touch.
+ * What `loopky update` reports, in `--json`. One shape for `--check` and for a real run, so a caller
+ * need not branch on which flag it passed: [applied] is the answer either way, and false for
+ * `--check`, for "already current", and for an installation this command may not touch.
  */
 @Serializable
 data class UpdateResult(
@@ -54,16 +52,15 @@ data class UpdateResult(
 /**
  * Replace this binary with the newest release (#209).
  *
- * The shape of the command is set by one fact: **a self-updater is the only command that fetches
- * an executable and then runs it as the user.** So it verifies the download against the digest
- * published beside it and refuses on a mismatch rather than warning — where `cli/install.sh`
- * degrades to "digest NOT checked" on a host with no `sha256sum`, because there its alternative is
- * a plain `curl` with no check at all, here the alternative is simply not updating.
+ * The shape of the command follows from one fact: **a self-updater is the only command that fetches an
+ * executable and then runs it as the user.** So it verifies the download against the published digest
+ * and refuses on a mismatch rather than warning — where `cli/install.sh` degrades to "digest NOT
+ * checked" on a host with no `sha256sum`, because there the alternative is a plain `curl` with no
+ * check at all; here the alternative is simply not updating.
  *
  * It also refuses, with the right command, wherever the file is not ours to replace — a Homebrew
- * Cellar file, a `dpkg`-owned `/usr/bin/loopky`, a container layer, the jar distribution's
- * directory. See [com.github.jvsena42.loopky.cli.InstallMethod]. That refusal exits
- * [ExitCode.UpdateUnsupported] rather than 0: an agent that asked for an update and got a zero
+ * Cellar file, a `dpkg`-owned `/usr/bin/loopky`, a container layer, the jar distribution. That refusal
+ * exits [ExitCode.UpdateUnsupported] rather than 0: an agent that asked for an update and got a zero
  * would carry on believing it had one.
  */
 suspend fun update(
@@ -71,12 +68,9 @@ suspend fun update(
     checker: UpdateChecker,
     installation: Installation,
     /**
-     * The seam the tests replace: given a version, hand back a verified binary.
-     *
-     * A parameter rather than a call, because the applied path is the one that writes over an
-     * executable and it is worth being able to run it without a network — the alternative is that
-     * everything up to the download is tested and the write itself only ever runs on a user's
-     * machine.
+     * The seam the tests replace: given a version, hand back a verified binary. A parameter rather than
+     * a call, because the applied path is the one that writes over an executable and it is worth being
+     * able to run it without a network.
      */
     fetchBinary: suspend (version: String) -> ByteArray = { version ->
         fetchVerifiedBinary(checker, version, hostSupport() ?: throw CliError(ExitCode.UnsupportedHost, unsupportedHostMessage()))
@@ -144,10 +138,8 @@ suspend fun update(
 }
 
 /**
- * Download the release asset for [host] and refuse it unless its digest is the published one.
- *
- * [get] is a seam so the verification policy — which is the security-critical part of this command
- * — can be exercised without a network.
+ * Download the release asset for [host] and refuse it unless its digest is the published one. [get] is
+ * a seam so the verification policy can be exercised without a network.
  */
 internal suspend fun fetchVerifiedBinary(
     checker: UpdateChecker,
@@ -187,12 +179,9 @@ internal suspend fun fetchVerifiedBinary(
 }
 
 /**
- * A plain GET for **bytes**.
- *
- * Not [com.github.jvsena42.loopky.data.nexus.HttpFetcher], which decodes a body as UTF-8 — that is
- * right for the JSON everything else here fetches and would silently corrupt a 60 MB executable.
- * Redirects are followed because `releases/download/…` is a 302 into GitHub's object store; both
- * hops are HTTPS, which is the only kind [HttpURLConnection] will follow.
+ * A plain GET for **bytes**. Not [HttpFetcher], which decodes a body as UTF-8 — right for the JSON
+ * everything else fetches, and silent corruption for a 60 MB executable. Redirects are followed because
+ * `releases/download/…` is a 302 into GitHub's object store.
  */
 private fun download(url: String): ByteArray {
     val connection = URL(url).openConnection() as HttpURLConnection
@@ -222,13 +211,10 @@ internal fun sha256(bytes: ByteArray): String =
     MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
 /**
- * Write [bytes] over [target], whole or not at all.
- *
- * A temp file in the same directory and then an atomic rename, so a process killed mid-write
- * cannot leave a half-written executable under a name the user's next command will try to run —
- * and so a `loopky` already running from that path keeps its open file. Same directory rather than
- * the system temp because `ATOMIC_MOVE` cannot cross a filesystem, and `~/.local/bin` and `/tmp`
- * frequently are two.
+ * Write [bytes] over [target], whole or not at all: a temp file in the same directory, then an atomic
+ * rename, so a process killed mid-write cannot leave a half-written executable under a name the next
+ * command will run — and a `loopky` already running from that path keeps its open file. Same directory
+ * rather than system temp because `ATOMIC_MOVE` cannot cross a filesystem.
  */
 internal fun replaceInPlace(target: Path, bytes: ByteArray) {
     val temp = runCatching { Files.createTempFile(target.parent, target.fileName.toString(), ".new") }
@@ -249,15 +235,13 @@ internal fun replaceInPlace(target: Path, bytes: ByteArray) {
 /**
  * Why the replace did not happen, and **only a permission problem is [ExitCode.UpdateUnsupported]**.
  *
- * 11 means one specific thing — "this install is owned by something else, use that tool" — so
- * mapping every failure here to it is how a full disk gets reported as Homebrew. `Files.write` can
- * fail with `ENOSPC`, and `ATOMIC_MOVE` can fail with `AtomicMoveNotSupportedException` on a
- * filesystem that has no rename; an agent told 11 for either concludes it is on a managed install
- * and stops retrying, when the fix is to free space or install somewhere else.
+ * 11 means one specific thing — "this install is owned by something else, use that tool" — so mapping
+ * every failure to it is how a full disk gets reported as Homebrew. `Files.write` can fail with
+ * `ENOSPC`, and `ATOMIC_MOVE` with `AtomicMoveNotSupportedException`; an agent told 11 for either
+ * concludes it is on a managed install and stops retrying.
  *
- * `AccessDeniedException` is the JDK's typed `EACCES`/`EPERM`. `EROFS` — the read-only container
- * layer this rule most exists for — arrives as a plain [FileSystemException] whose reason names
- * it, so both are matched.
+ * `AccessDeniedException` is the JDK's typed `EACCES`/`EPERM`; `EROFS` — the read-only container layer
+ * this rule most exists for — arrives as a plain [FileSystemException] whose reason names it.
  */
 internal fun replaceFailed(target: Path, cause: Throwable): CliError {
     val readOnly = cause is FileSystemException &&

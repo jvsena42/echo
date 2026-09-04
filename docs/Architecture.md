@@ -109,7 +109,7 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 
 | Repository | Responsibilities | Backing |
 |---|---|---|
-| `IdentityRepository` | Current session, pubky, capabilities, `signInWithRing()` / `signOut()` (§7.8) | Pubky FFI + `SecureSessionStore` (KVault) |
+| `IdentityRepository` | Current session, pubky, capabilities; the Ring deeplink pair `beginSignIn()`/`AuthFlowHandle.complete()`, the local-key paths `signInWithKey()`/`createLocalAccount()`/`registerHeldKey()`, `adoptSession()` for an injected `LOOPKY_SESSION`, and `signOut()`/`revokeSession()` (§7.8) | Pubky FFI + `SecureSessionStore` (KVault) |
 | `DeckRepository` | CRUD + `publish(deck, cards)` / fetch decks; enforces the "each side has at least one populated field" rule. Also owns **deck** following — `followDeck()` / `unfollowDeck()` / `listFollowed()` — and `clone()` (§8.0). Deck follows live here rather than on `DiscoveryRepository` because `listFollowed()` merges with `listOwned()` behind one `changes` flow, `sync()` resolves a followed deck's author from the subscription, and `DiscoveryRepositoryImpl` already depends on this repo | Pubky FFI + in-memory cache |
 | `CardRepository` | CRUD cards within a deck | Pubky FFI + in-memory cache |
 | `ImportRepository` | `parse(rawText, separator)` per spec §6/§7 (col 1 → front, col 2 → back, extras dropped — spec §8), `setDecision()` / `keptRows()` triage, in-memory drafts, dedupe | In-memory |
@@ -117,6 +117,8 @@ Repositories are the only layer that talks to Pubky, and they also **own the bus
 | `DiscoveryRepository` | Decks by followed **users**, `followUser()` / `unfollowUser()` — deck-level following is on `DeckRepository`, plus verified network-wide reads: `decksByTagGlobal()`, `loopkyUsers()` and `suggestedPeople()` | Pubky FFI + Nexus REST |
 | `SrsRepository` | Per-card SRS state; the study queue (**due reviews then never-seen cards** — `isNew` is not `isDue`, §8.6), per-deck `DeckCounts`, `mastery()`, `review(card, grade)`, and today's `dailyProgress` | Pubky FFI + in-memory cache |
 | `MediaRepository` | Image + audio blob storage for cards | Pubky FFI (blobs) + platform file I/O |
+| `KeyBackupRepository` | Backing up a key Loopky itself holds: the recovery phrase, the confirm quiz, the encrypted recovery file, the Ring export deeplink. Split from `IdentityRepository` because nothing here produces or consumes a `Session` | `LocalKeyStore` (KVault) + Pubky FFI |
+| `SignupRepository` | Getting a homeserver account: SMS, Lightning or invite-code approval, and the in-flight token (§7.8). Stops at the token — redeeming it is `IdentityRepository` | Homegate REST + `SignupTokenStore` |
 | `SettingsRepository` | The user's own study settings (`/pub/loopky/settings.json`) — the new-cards-per-day goal and the Hard/Good/Easy intervals (§8.6) | Pubky FFI + `AppPreferences` mirror |
 
 All repositories are interfaces in `commonMain` with implementations in `commonMain` (`data/repository/impl/`); only the FFI- and file-touching parts drop into `androidMain`/`iosMain` actuals.
@@ -252,10 +254,10 @@ Bulk file import (`BulkImportViewModel`) rejoins this flow at the publish step, 
 
 ### 7.2 Android wiring
 
-- UniFFI-generated `pubkycore.kt` is checked in at `shared/src/androidMain/kotlin/uniffi/pubkycore/pubkycore.kt` (package `uniffi.pubkycore`).
+- UniFFI-generated `pubkycore.kt` is checked in at `shared/src/jvmSharedMain/kotlin/uniffi/pubkycore/pubkycore.kt` (package `uniffi.pubkycore`) — one copy, shared by `androidMain` and `jvmMain`.
 - Native libraries live at `shared/src/androidMain/jniLibs/{arm64-v8a,armeabi-v7a,x86,x86_64}/libpubkycore.so`. AGP picks them up automatically and merges them into the APK.
 - JNA is required by the generated bindings and declared as an `@aar` dependency on `androidMain` (see `libs.versions.toml` → `jna`).
-- `AndroidPubkyClient` (`shared/src/androidMain/kotlin/com/github/jvsena42/loopky/data/pubky/AndroidPubkyClient.kt`) is the `PubkyClient` implementation. Blocking FFI calls are dispatched to `Dispatchers.IO`.
+- `UniffiPubkyClient` (`shared/src/jvmSharedMain/kotlin/com/github/jvsena42/loopky/data/pubky/UniffiPubkyClient.kt`) is the `PubkyClient` implementation, shared with the desktop/`:cli` target and Koin-bound in `PlatformModule.android.kt`. Blocking FFI calls are dispatched off the caller's thread.
 
 ### 7.3 iOS wiring
 
@@ -593,16 +595,12 @@ screens `PhoneVerificationViewModel`, `LightningVerificationViewModel`, `InviteC
 one terminal step, `LocalSignupViewModel`. **Nothing has to be installed to get through it**, and
 nothing is gated on Pubky Ring.
 
-**Pubky Ring is offered after the account exists, not before it.** #147 introduced the local path
-beside a Ring one, chosen by a `TokenRedeemer` nav argument decided at the door the user came
-through: Ring minted the key and redeemed the token over the auth relay (`beginSignUp` rewriting
-the sign-in deeplink into its signup form via `asSignupUrl`), Loopky did it locally, and
-`SignupStartViewModel` gated every method on `PubkyRingPresence` whenever Ring was the spender.
-That is gone. It cost a Ring install gate in front of the only way into the app, and — because the
-spender was a route argument — an "create an account in Loopky instead" link that navigated to a
-byte-identical second copy of the same screen. Ring is now reached from the **backup step**
+**Pubky Ring is offered after the account exists, not before it.** #147 briefly ran a Ring-redeems
+path beside the local one, selected by a nav argument. It is gone: it put a Ring install gate in
+front of the only way into the app. Ring is now reached from the **backup step**
 (`BackupRingViewModel`, straight after the account is created) and the Settings nag, where it is a
-*second copy* of a key that already exists rather than a prerequisite to satisfy.
+*second copy* of a key that already exists rather than a prerequisite to satisfy. `beginSignUp` and
+`asSignupUrl` survive unused for the same reason — see `IdentityRepository.beginSignUp`.
 
 **That offer is a backup, not a custody transfer, and the distinction is load-bearing.**
 `ringExportUrl` builds a `pubkyring://` import link and `onExportConfirmed` records
@@ -1143,7 +1141,7 @@ real homeserver.
 
 ## 10. Testing strategy
 
-**`commonTest` is the whole automated suite** — 73 files, ~680 tests across targets, run with
+**`commonTest` is the whole automated suite** — 105 files, ~1,300 tests per target, run with
 `./gradlew :shared:allTests`. There is no Compose UI test tier, no iOS test target, and no
 integration smoke target; earlier drafts of this doc listed all three as though they existed.
 
@@ -1157,7 +1155,7 @@ integration smoke target; earlier drafts of this doc listed all three as though 
 - Scheduler and parser units (`SrsScheduler`, `CardChunking`, `SpeakMatcher`, `LanguageTags`) are
   pure functions and tested directly.
 
-**End-to-end is manual, and scripted.** `journeys/*.xml` holds 19 numbered journeys — onboarding and
+**End-to-end is manual, and scripted.** `journeys/*.xml` holds 25 numbered journeys — onboarding and
 Ring auth, paste import, the study loop, discovery, deck management, offline errors, signup — driven
 on a device or emulator with `android-cli` (`android run`, `adb shell input tap`, `android layout` to
 assert on text). Results and their dates are recorded in `journeys/RESULTS.md`, including the

@@ -36,10 +36,6 @@ object Routes {
      */
     const val NEW_CARD = "deck/{deckId}/card/new"
 
-    /**
-     * Getting a homeserver account. Flat siblings rather than a nested graph, matching the import
-     * flow: the in-flight token lives in `SignupRepository`, not in nav arguments.
-     */
     /** Restore an existing account from a backup — the door for a user with no working Ring. */
     const val RESTORE_START = "restore"
     const val RESTORE_PHRASE = "restore/phrase"
@@ -49,9 +45,11 @@ object Routes {
     const val ACCOUNT_UNREGISTERED = "account/unregistered/{pubky}?local={local}"
 
     /**
-     * The human check. `adopt` says the terminal step must register the key already on the
-     * device — set by the unregistered-key screen, where the user confirmed that pubky by name —
-     * rather than minting a new one.
+     * Getting a homeserver account. Flat siblings rather than a nested graph, matching the import
+     * flow: the in-flight token lives in `SignupRepository`, not in nav arguments.
+     *
+     * `adopt` says the terminal step must register the key already on the device — set by the
+     * unregistered-key screen, where the user confirmed that pubky by name — rather than minting one.
      */
     const val SIGNUP_START = "signup?adopt={adopt}"
     const val SIGNUP_LOCAL = "signup/local?adopt={adopt}"

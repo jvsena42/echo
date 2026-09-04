@@ -39,15 +39,14 @@ import kotlin.system.exitProcess
  *
  * Three properties everything here is arranged around:
  *
- * - **stdout is a machine channel.** Results go there and nothing else does; progress, prompts,
- *   the QR code and every log line go to stderr. One stray line on stdout makes `--json`
- *   undecodable, which is why the JVM `Log` actual writes to stderr even for debug.
- * - **Nothing prompts.** There is no interactive question anywhere, including the nice ones: the
- *   "announce this deck?" confirmation is gone *by construction* rather than behind a flag,
- *   because this client never requests the capability a post would need (see `CLI_CAPABILITIES`).
- * - **The exit code is the primary result.** See [ExitCode] — session expiry has its own, because
- *   it is hourly and unrecoverable without a human, and an agent that cannot tell it from a
- *   network wobble either retries forever or gives up on a working network.
+ * - **stdout is a machine channel.** Results go there and nothing else does; progress, prompts, the
+ *   QR code and every log line go to stderr. One stray line makes `--json` undecodable, which is why
+ *   the JVM `Log` actual writes to stderr even for debug.
+ * - **Nothing prompts.** The "announce this deck?" confirmation is gone *by construction* rather
+ *   than behind a flag, because this client never requests the capability a post would need.
+ * - **The exit code is the primary result.** Session expiry has its own, because it is hourly and
+ *   unrecoverable without a human, and an agent that cannot tell it from a network wobble either
+ *   retries forever or gives up on a working network.
  */
 fun main(argv: Array<String>) {
     val exit = runCatching { run(argv) }.getOrElse { error ->
@@ -91,10 +90,8 @@ private fun run(argv: Array<String>): ExitCode {
         // of `runBlocking`'s job, which is **not** a supervisor: an exception escaping this lambda
         // cancels the in-flight command at its next suspension point, and the resulting
         // `CancellationException` reaches the generic handler below — which calls `await()` inside
-        // its own catch block, re-throwing the original failure past `runBlocking` entirely, to
-        // exit 1 with **nothing on stdout**. That is the exact contract the `Throwable`-not-
-        // `Exception` note below exists to protect, broken by the update check. `check()` is
-        // written to return null on every path; this is what makes that impossible to undo.
+        // its own catch, re-throwing past `runBlocking` entirely, to exit 1 with **nothing on
+        // stdout**. `check()` returns null on every path; this makes that impossible to undo.
         val update = async {
             if (UpdateChecker.enabled(args)) {
                 runSuspendCatching { updates.checker.check() }.getOrNull()
@@ -104,13 +101,10 @@ private fun run(argv: Array<String>): ExitCode {
         }
         try {
             // Two commands before the boundary. Everything below starts Koin, which resolves
-            // `PubkyClient` and therefore loads `libpubkycore` — so on a host where that load
-            // fails (an old glibc, a truncated download, a half-written file from an interrupted
-            // install) anything past this point fails with an error about the FFI. `update` is
-            // the command you reach for when the install is *broken*, so failing identically to
-            // the thing it repairs would be useless; `completion` prints a static string that a
-            // shell rc file evaluates on every new shell. Neither needs a session, a homeserver
-            // or a native library. See `preKoin`.
+            // `PubkyClient` and therefore loads `libpubkycore` — so on a host where that load fails
+            // (an old glibc, a truncated download) anything past this point fails with an error
+            // about the FFI. `update` is the command you reach for when the install is *broken*, and
+            // `completion` prints a static string a shell rc file evaluates. See `preKoin`.
             val result = if (args.verb in PRE_KOIN_VERBS) {
                 preKoin(args, updates)
             } else {
@@ -149,10 +143,9 @@ private fun run(argv: Array<String>): ExitCode {
 /**
  * Route to a command function.
  *
- * Every arm is one call to one function that takes plain values and returns its `--json` shape.
- * That is deliberate and load-bearing: a remote MCP server serves an audience the CLI cannot reach
- * at all — a chat-only agent has no shell and no egress — and it should be a binding over these
- * functions rather than a second implementation of them (#54, open question 2).
+ * Every arm is one call to one function taking plain values and returning its `--json` shape. That
+ * is load-bearing: a remote MCP server serves an audience the CLI cannot reach — a chat-only agent
+ * has no shell — and should be a binding over these functions rather than a second implementation.
  */
 @Suppress("CyclomaticComplexMethod")
 private suspend fun dispatch(
@@ -161,14 +154,11 @@ private suspend fun dispatch(
     koin: Koin,
     environment: CliEnvironment,
 ): CommandResult {
-    // Two sinks, because they are two different things and collapsing them silenced a warning in
-    // the mode an agent runs.
-    //
-    // `progress` is a counter — thousands of lines on a large import, and noise in a scripted run,
-    // so it is suppressed under `--json` where the result carries the same numbers.
-    // `note` is something the caller needs to *know*, and goes to stderr always. The README's model
-    // is that stdout and stderr are separate channels, not one that switches off: an agent
-    // capturing stderr for diagnostics must not get an empty file because it asked for JSON.
+    // Two sinks, because they are two different things and collapsing them silenced a warning in the
+    // mode an agent runs. `progress` is a counter — thousands of lines on a large import — so it is
+    // suppressed under `--json`, where the result carries the same numbers. `note` is something the
+    // caller needs to *know* and goes to stderr always: an agent capturing stderr for diagnostics
+    // must not get an empty file because it asked for JSON.
     val progress: (String) -> Unit = { line -> if (!args.has("json")) System.err.println(line) }
     val note: (String) -> Unit = System.err::println
     return when (val verb = args.verb) {
@@ -277,12 +267,9 @@ private fun fail(
 }
 
 /**
- * The update notice: **stderr, once, whatever `--json` says** (#209).
- *
- * Never stdout — that is the machine channel, and one extra line there makes `--json` undecodable,
- * which is the rule everything else in this client follows. And not suppressed under `--json`
- * either: stdout and stderr are two channels here rather than one that switches off, so an agent
- * capturing stderr for diagnostics still learns its parser may be out of date.
+ * The update notice: **stderr, once, whatever `--json` says** (#209). Never stdout, the machine
+ * channel — and not suppressed under `--json` either, since stdout and stderr are two channels here
+ * rather than one that switches off.
  */
 private fun noteUpdate(notice: UpdateNotice) {
     val update = notice.available ?: return
@@ -300,12 +287,10 @@ private const val COMPLETION_VERB = "completion"
 private val PRE_KOIN_VERBS = setOf(UPDATE_VERB, COMPLETION_VERB)
 
 /**
- * The two commands that run before Koin, and therefore before `libpubkycore` is loaded.
- *
- * Neither needs a session, a homeserver or a native library, and both have a reason to work
- * without one: `update` is what you reach for when the install is *broken*, and `completion`
- * prints a static string that a shell rc file will `eval` on a machine this binary may not even
- * be shipped for.
+ * The two commands that run before Koin, and therefore before `libpubkycore` is loaded. Neither needs
+ * a session, a homeserver or a native library, and both have a reason to work without one: `update`
+ * is what you reach for when the install is *broken*, and `completion` prints a static string a shell
+ * rc file will `eval` on a machine this binary may not even be shipped for.
  */
 private suspend fun preKoin(args: Args, updates: Updates): CommandResult = when (args.verb) {
     COMPLETION_VERB -> completion(args)
@@ -313,11 +298,8 @@ private suspend fun preKoin(args: Args, updates: Updates): CommandResult = when 
 }
 
 /**
- * Two numbers that move independently, which is why both are printed.
- *
- * [CLI_VERSION] is generated from `loopkyCliVersion` in `gradle.properties` — see
- * `:cli:generateCliVersion`, and the release workflow's refusal to accept a tag that disagrees
- * with it. [SCHEMA_VERSION] is the `--json` envelope's, and it is the one a caller branches on.
+ * Two numbers that move independently. [CLI_VERSION] is generated from `loopkyCliVersion` in
+ * `gradle.properties`; [SCHEMA_VERSION] is the `--json` envelope's, and the one a caller branches on.
  */
 private val VERSION = "loopky $CLI_VERSION (schema $SCHEMA_VERSION)"
 
