@@ -65,9 +65,8 @@ class DeckRepositoryImpl(
     private val mediaRepo: MediaRepository,
     private val backgroundTasks: BackgroundTasks,
     /**
-     * App-scoped, like `SrsRepositoryImpl`'s: re-hosting outlives whatever screen triggered it, so
-     * it cannot run on a `viewModelScope` that dies in `onCleared()`. Injectable so tests can pass
-     * `backgroundScope` instead of leaking work onto `Dispatchers.Default` under `runTest`.
+     * App-scoped: re-hosting outlives whatever screen triggered it, so it cannot run on a
+     * `viewModelScope` that dies in `onCleared()`. Injectable so tests can pass `backgroundScope`.
      */
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob()),
 ) : DeckRepository {
@@ -88,8 +87,7 @@ class DeckRepositoryImpl(
     private val cacheLock = Mutex()
 
     /**
-     * deckId → subscription, or null until first loaded from the homeserver. Mirrors
-     * `DiscoveryRepositoryImpl`'s follow-set cache: null and empty mean different things, so
+     * deckId → subscription, or null until first loaded. Null and empty mean different things, so
      * "you follow nothing" is never confused with "we haven't looked yet".
      */
     private var subscriptions: MutableMap<String, SubscriptionDto>? = null
@@ -101,22 +99,18 @@ class DeckRepositoryImpl(
     /**
      * One write lock per deck, guarding the read-manifest → write-chunk → write-manifest sequence.
      *
-     * Deliberately not [cacheLock]: that one is held only for map access, and holding it across
-     * network I/O would serialize `getLocal` app-wide — which is on the study hot path.
-     *
-     * `kotlinx` [Mutex] is **not reentrant**, so the lock is taken at exactly one level: the public
-     * entry points. Anything named `…Locked` assumes the caller already holds it.
+     * Not [cacheLock]: that is held only for map access, and holding it across network I/O would
+     * serialize `getLocal` app-wide. `kotlinx` [Mutex] is **not reentrant**, so the lock is taken at
+     * exactly one level — the public entry points. Anything named `…Locked` assumes it is held.
      */
     private val deckWriteLocks = mutableMapOf<String, Mutex>()
     private val deckWriteLocksGuard = Mutex()
 
     /**
-     * (deckId, sha256) pairs already attempted this session, successful or not.
-     *
-     * Success has to be recorded or a card that stays on screen re-copies its blob on every
-     * render — idempotent PUTs, so silent waste rather than corruption, which is worse because
-     * nobody would notice. Failure is recorded too: retrying a dangling origin on every render
-     * is the same waste. A fresh session, or the deferred sweep, tries again.
+     * (deckId, sha256) pairs already attempted this session, successful or not. Success has to be
+     * recorded or a card left on screen re-copies its blob every render — idempotent PUTs, so
+     * silent waste rather than corruption, which is worse because nobody would notice. Failure too:
+     * retrying a dangling origin costs the same. A fresh session, or the sweep, tries again.
      */
     private val rehostAttempted = mutableSetOf<Pair<String, String>>()
     private val rehostLock = Mutex()
@@ -132,8 +126,8 @@ class DeckRepositoryImpl(
 
     override suspend fun getLocal(id: String): Deck? = cacheLock.withLock { cache[id] }
 
-    // A runSuspendCatching block rather than mapCatching: mapCatching is inline, so its lambda
-    // inherits the suspend context and catches the cancellation that cacheLock.withLock can throw.
+    // runSuspendCatching rather than mapCatching: mapCatching is inline, so its lambda inherits the
+    // suspend context and catches the cancellation cacheLock.withLock can throw.
     override suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck> =
         runSuspendCatching {
             val json = pubky.get(PubkyPaths.manifest(authorPubky, deckId)).getOrThrow()
@@ -158,7 +152,7 @@ class DeckRepositoryImpl(
         withDeckWrite(deck.id) { publishLocked(deck, cards, author, onProgress) }
     }
 
-    /** [publish]'s body. **The caller must hold [Deck.id]'s write lock.** */
+    /** **The caller must hold [Deck.id]'s write lock.** */
     private suspend fun publishLocked(
         deck: Deck,
         cards: List<Card>,
@@ -175,21 +169,18 @@ class DeckRepositoryImpl(
         val chunkMeta = CardChunking.metaFor(batches, deck.updatedAt)
         val manifestUrl = PubkyPaths.manifest(author, deck.id)
 
-        // A deck that shrank leaves chunk records past the new tail, and a tag dropped in the
-        // editor leaves a tag record behind. Read what the deck was before writing, since the
-        // cache entry is replaced below.
+        // A deck that shrank leaves chunk records past the new tail, and a tag dropped in the editor
+        // leaves a tag record behind. Read what the deck was before the cache entry is replaced.
         val previous = getLocal(deck.id)
-        // By chunk number, not `0 until previous.chunks.size`: compaction leaves gaps in the
-        // numbering (#51), so a count would miss exactly the high-numbered records a compacted
-        // deck still has lying around.
+        // By chunk number, not `0 until previous.chunks.size`: compaction leaves gaps (#51), so a
+        // count would miss exactly the high-numbered records a compacted deck has lying around.
         val staleChunks = previous?.chunks.orEmpty().map { it.n }.filter { it >= batches.size }
 
         val manifestDeck = deck.copy(cardCount = cards.size, chunks = chunkMeta)
 
-        // Claim the deck *before* uploading its cards. Previously the manifest was written last,
-        // so a failure partway through left orphaned chunk records under a deck root with no
-        // manifest: listByAuthor could not see the deck, so the user had no way to reach it and
-        // delete it. The marker manifest makes an interrupted publish visible and deletable.
+        // Claim the deck *before* uploading its cards. With the manifest written last, a failure
+        // partway left orphaned chunks under a deck root with no manifest — invisible to
+        // listByAuthor, so the user could neither reach nor delete it.
         val marker = manifestDeck.copy(incomplete = true)
         pubky.putWithSessionRetry(
             manifestUrl,
@@ -202,14 +193,11 @@ class DeckRepositoryImpl(
             PublishProgress(0, batches.size, 0, cards.size),
         )
 
-        // Written through CardRepository rather than encoded here: it is the one place that knows
-        // the chunk record's shape, and routing through it leaves the card cache warm so opening
-        // the deck straight after publishing doesn't re-download what we just uploaded.
-        //
-        // Chunk PUTs are idempotent overwrites, so a re-run after a failure simply rewrites them.
-        // Chunks complete out of order, so the counter is shared state across the writers and
-        // needs the lock — an unguarded `written++` would drop increments and report a progress
-        // bar that never reaches the end.
+        // Written through CardRepository rather than encoded here: it owns the chunk record's shape,
+        // and routing through it leaves the card cache warm. Chunk PUTs are idempotent overwrites,
+        // so a re-run after a failure just rewrites them. Chunks complete out of order, so the
+        // shared counter needs the lock — an unguarded `written++` drops increments and reports a
+        // progress bar that never reaches the end.
         val progressLock = Mutex()
         var written = 0
         batches.withIndex().toList().mapConcurrently { (n, batch) ->
@@ -226,15 +214,15 @@ class DeckRepositoryImpl(
         }
 
         // Unreachable from the manifest once it shrinks, but left behind they would be served to
-        // anyone listing the deck's `cards/` directory directly. An empty write deletes the record
-        // and drops the cards it held from the cache in one step.
+        // anyone listing the deck's `cards/` directly. An empty write deletes the record and drops
+        // its cards from the cache in one step.
         staleChunks.mapConcurrently { n ->
             cardRepo.writeChunk(deck.id, n, emptyList())
                 .onFailure { Log.e(TAG, "publish: stale chunk $n not removed — ${it.message}", it) }
         }
 
-        // Every chunk is up: clear the marker. A reader that arrives between the two manifest
-        // writes sees `incomplete`, which is honest — the deck is mid-publish.
+        // Every chunk is up: clear the marker. A reader arriving between the two manifest writes
+        // sees `incomplete`, which is honest — the deck is mid-publish.
         val manifestBody = loopkyJson.encodeToString(manifestDeck.toDto())
         pubky.putWithSessionRetry(manifestUrl, manifestBody, session, revalidator).getOrThrow()
         onProgress(
@@ -249,26 +237,18 @@ class DeckRepositoryImpl(
     }
 
     /**
-     * Bring the deck's tag records in line with [deck]'s tag list so Nexus indexes them
-     * network-wide, and add the `loopky-deck` marker that puts the deck in the global list —
-     * without it the deck is only reachable by people who already follow the author (#40).
+     * Bring the deck's tag records in line with [deck]'s tags so Nexus indexes them, and add the
+     * `loopky-deck` marker that puts the deck in the global list — without it the deck is only
+     * reachable by people who already follow the author (#40).
      *
      * Called from **every** manifest write that can carry a tag change, not just the first publish
-     * (#47). Tag records are separate records, so a manifest write alone changes nothing an indexer
-     * sees: a label dropped in the editor would stay indexed forever, and one added after the
-     * initial publish would never appear.
+     * (#47): tag records are separate records, so a manifest write alone changes nothing an indexer
+     * sees. [previous] is the deck as the manifest carried it before this write; any label it has
+     * that [deck] no longer does gets its record removed. Reserved labels are excluded from both
+     * ends of the user diff. Language labels need nothing special — they are ordinary
+     * [Deck.tags] entries.
      *
-     * [previous] is the deck as the manifest carried it before this write — any label it has that
-     * [deck] no longer does gets its record removed. Reserved labels are Loopky's own index, never
-     * user-authored, so they are excluded from both ends of the user diff and only the deck marker
-     * is (idempotently) re-asserted.
-     *
-     * The labels a deck's declared languages contribute (`LanguageTags`) need nothing special
-     * here: they are ordinary labels in [Deck.tags], put there when the author picks a language,
-     * so the diff above adds and drops them like any other.
-     *
-     * Best-effort throughout: discoverability is a bonus on top of a save, not a precondition, so
-     * a failed tag write must not fail the write that triggered it.
+     * Best-effort throughout: a failed tag write must not fail the write that triggered it.
      */
     private suspend fun syncTags(previous: Deck?, deck: Deck) {
         tagRepo.putReservedTag(deck.pubkyUri, ReservedTags.DECK).onFailure {
@@ -295,8 +275,7 @@ class DeckRepositoryImpl(
      * Write the deck's metadata, keeping whatever chunk table is current rather than the caller's.
      *
      * A ViewModel holds the `Deck` it loaded when the editor opened; anything that rewrote a chunk
-     * in the meantime — a card edit on another screen, a media re-host — is invisible to it, and
-     * writing its `chunks`/`cardCount` back would orphan those chunks.
+     * since is invisible to it, and writing its `chunks`/`cardCount` back would orphan those chunks.
      */
     override suspend fun updateMetadata(deck: Deck): Result<Deck> = runSuspendCatching {
         requireOwnedDeck(deck.id)
@@ -343,8 +322,8 @@ class DeckRepositoryImpl(
                 val deck = requireNotNull(getLocal(deckId)) { "Deck $deckId is not loaded" }
                 if (cards.isEmpty()) return@withDeckWrite deck
 
-                // The chunk with room, read once. Everything after it is a fresh trailing chunk,
-                // so this is the only existing record the batch has to merge into.
+                // The chunk with room, read once. Everything after it is a fresh trailing chunk, so
+                // this is the only existing record the batch has to merge into.
                 val firstChunk = CardChunking.appendTarget(deck.chunks)
                 val tail = cardRepo.readChunk(deck, firstChunk).getOrDefault(emptyList())
                 val existingIds = tail.mapTo(mutableSetOf()) { it.id }
@@ -369,9 +348,8 @@ class DeckRepositoryImpl(
      *
      * Under sequential append the last chunk holds the highest ords, so [tail] answers it — except
      * when the append target is a **new** chunk because the last one filled up, and then [tail] is
-     * empty. Guessing a floor there (from the chunk count, say) puts the appended cards *before*
-     * ones already in the deck and silently scrambles study order, so the previous chunk is read
-     * instead. One extra read, only at the boundary.
+     * empty. Guessing a floor there puts the appended cards *before* ones already in the deck and
+     * silently scrambles study order, so the previous chunk is read instead.
      *
      * **The caller must hold [Deck.id]'s write lock.**
      */
@@ -395,9 +373,9 @@ class DeckRepositoryImpl(
 
             cardRepo.evict(deckId, cardId)
             writeChunkAndManifestLocked(deck, chunk, remaining).also { updated ->
-                // Requested, never performed inline: compacting here would cost a merge per card
-                // in a bulk delete, and rewrite records followers have cached, in the middle of
-                // the user's edit. The job is unique work with KEEP, so asking repeatedly is free.
+                // Requested, never performed inline: compacting here would cost a merge per card in
+                // a bulk delete, and rewrite records followers have cached, mid-edit. The job is
+                // unique work with KEEP, so asking repeatedly is free.
                 if (CardChunking.isSparse(updated.chunks)) backgroundTasks.scheduleDeckCompaction()
             }
         }
@@ -425,9 +403,9 @@ class DeckRepositoryImpl(
                         .inStudyOrder()
                         .toMutableList()
                         .apply { add(target.offset.coerceIn(0, size), card) }
-                    // Landing chunk first. Between the two writes the card is in both chunks,
-                    // which reads as one card because membership is keyed by id — whereas the
-                    // other order would leave it in neither, and a failure there loses it.
+                    // Landing chunk first. Between the two writes the card is in both, which reads
+                    // as one because membership is keyed by id — the other order leaves it in
+                    // neither, and a failure there loses it.
                     writeChunksAndManifestLocked(
                         deck,
                         listOf(
@@ -444,8 +422,7 @@ class DeckRepositoryImpl(
             val key = deckId to sha256
             // "Attempted" is recorded before the ownership check below, so an attempt made while
             // following a deck would go on suppressing re-hosts of it after signing in as the
-            // account that owns it — for the rest of the session, on the one path that would
-            // actually have work to do.
+            // account that owns it — on the one path that would actually have work to do.
             val firstAttempt = rehostLock.withLock {
                 if (rehostAccount.changed()) rehostAttempted.clear()
                 rehostAccount.mark()
@@ -453,8 +430,8 @@ class DeckRepositoryImpl(
             }
             if (!firstAttempt) return@runSuspendCatching
 
-            // Cache reads only. requireOwnedDeck would fetch the manifest, and a blob that is not
-            // already on screen is the sweep's job, not this path's.
+            // Cache reads only. requireOwnedDeck would fetch the manifest, and a blob not already
+            // on screen is the sweep's job, not this path's.
             val deck = getLocal(deckId) ?: return@runSuspendCatching
             if (deck.authorPubky != session.current()?.identity?.pubky) return@runSuspendCatching
 
@@ -463,8 +440,8 @@ class DeckRepositoryImpl(
             val sample = cover ?: cards.firstNotNullOfOrNull { it.pinnedRef(sha256) }
                 ?: return@runSuspendCatching
 
-            // One copy, however many cards reference it — the blob is content-addressed, so the
-            // digest is unchanged and every ref carrying that sha stays valid.
+            // One copy, however many cards reference it — the blob is content-addressed, so every
+            // ref carrying that sha stays valid.
             val rehosted = mediaRepo.rehost(deckId, sample).getOrThrow()
             if (rehosted.uri != null) return@runSuspendCatching
 
@@ -509,14 +486,13 @@ class DeckRepositoryImpl(
      *
      * **The caller must hold [Deck.id]'s write lock.** Deliberately not routed through
      * [writeChunksAndManifestLocked]: every other chunk write pairs "chunk, then manifest", but a
-     * merge *removes* a record, and emptying it before the manifest drops its entry would leave a
-     * window where the manifest points at a chunk that 404s. Landing record, then manifest, then
-     * the source record — that order only ever over-counts, and between the first two writes the
-     * moved cards sit in both records, which reads as one card because membership is keyed by id.
+     * merge *removes* a record, and emptying it first would leave the manifest pointing at a 404.
+     * Landing record, then manifest, then source — that order only ever over-counts, and between
+     * the first two the moved cards sit in both records, which reads as one card.
      *
      * `updated_at` is not bumped and no change is emitted: compaction moves cards between records
-     * without changing one of them, so telling every follower the author published would be a lie.
-     * The per-chunk stamps *are* bumped, which is what makes a follower re-fetch the pair.
+     * without changing one, so telling every follower the author published would be a lie. The
+     * per-chunk stamps *are* bumped, which is what makes a follower re-fetch the pair.
      */
     private suspend fun mergeChunksLocked(
         deck: Deck,
@@ -566,7 +542,6 @@ class DeckRepositoryImpl(
     private val sweeper = DeckMediaSweeper(cardRepo, mediaRepo, writeAccess)
     private val compactor = DeckCompactor(cardRepo, writeAccess)
 
-    /** Rewrite [cards]' refs to the re-hosted blob, one chunk write per chunk they live in. */
     private suspend fun writeRehostedCards(
         deck: Deck,
         cards: List<Card>,
@@ -584,19 +559,17 @@ class DeckRepositoryImpl(
             val updated = stored.map { card ->
                 if (card.id in ids) card.relocatedTo(rehosted, sha256) else card
             }
-            // touchDeck = false: re-hosting rewrites refs to blobs the deck already had, so
-            // nothing user-visible changed. Bumping updated_at would tell every follower the
-            // author published changes, and emitting `changes` would reload the library.
+            // touchDeck = false: re-hosting rewrites refs to blobs the deck already had, so nothing
+            // user-visible changed. Bumping updated_at would tell every follower the author
+            // published changes, and emitting `changes` would reload the library.
             writeChunkAndManifestLocked(deck, chunk, updated, touchDeck = false)
         }
     }
 
     /**
-     * The chunk holding [cardId], or null if the deck doesn't contain it.
-     *
-     * Uses the mapping the card cache recorded when it read the deck. Only when that is cold does
-     * it fall back to walking chunks, and it stops at the first hit rather than reading them all —
-     * a scan of a 20k-card deck is 200 requests, which would undo the point of chunking.
+     * The chunk holding [cardId], or null if the deck doesn't contain it. Uses the mapping the card
+     * cache recorded; only on a cold cache does it walk chunks, stopping at the first hit — a scan
+     * of a 20k-card deck is 200 requests, which would undo the point of chunking.
      */
     private suspend fun locateChunk(deck: Deck, cardId: String): Int? {
         cardRepo.chunkOf(deck.id, cardId)?.let { return it }
@@ -607,7 +580,7 @@ class DeckRepositoryImpl(
         return null
     }
 
-    /** Run [block] holding [deckId]'s write lock, so its manifest read-modify-write is atomic. */
+    /** So the manifest read-modify-write inside [block] is atomic. */
     private suspend fun <T> withDeckWrite(deckId: String, block: suspend () -> T): T {
         val lock = deckWriteLocksGuard.withLock { deckWriteLocks.getOrPut(deckId) { Mutex() } }
         return lock.withLock { block() }
@@ -616,13 +589,12 @@ class DeckRepositoryImpl(
     /**
      * Read-modify-write the manifest. **The caller must hold [deckId]'s write lock.**
      *
-     * The deck is re-read from the cache rather than taken from a snapshot the caller captured:
-     * every manifest write serializes the *whole* record, so patching a `Deck` fetched before a
-     * concurrent write would silently restore its chunk table. A dropped chunk entry orphans the
-     * chunk record — the cards in it stay on the homeserver but vanish from the deck.
+     * The deck is re-read from the cache rather than taken from a caller's snapshot: every manifest
+     * write serializes the *whole* record, so patching a `Deck` fetched before a concurrent write
+     * would silently restore its chunk table, orphaning the chunk records — their cards stay on the
+     * homeserver but vanish from the deck.
      *
-     * [emitChange] is false for writes with nothing user-visible in them (media re-hosting), so a
-     * sweep does not trigger a library reload per chunk.
+     * [emitChange] is false for writes with nothing user-visible in them (media re-hosting).
      */
     private suspend fun patchDeckLocked(
         deckId: String,
@@ -645,16 +617,15 @@ class DeckRepositoryImpl(
     }
 
     /**
-     * Write one chunk and the manifest entry that describes it, as a pair. Deliberately a single
-     * function: the old layout let a card record and its manifest entry be written independently,
-     * which is why a single-card edit could leave the manifest stale forever.
+     * Write one chunk and the manifest entry describing it, as a pair. A single function because
+     * the old layout let the two be written independently, which is why a single-card edit could
+     * leave the manifest stale forever.
      *
-     * The chunk is written first — a chunk the manifest doesn't yet describe is invisible, whereas
-     * a manifest pointing at a chunk that was never written is a broken deck.
+     * The chunk goes first — one the manifest doesn't yet describe is invisible, whereas a manifest
+     * pointing at a chunk that was never written is a broken deck.
      *
-     * **The caller must hold [Deck.id]'s write lock.** [touchDeck] is false for a write that
-     * changes no content — re-hosting media rewrites refs to blobs the deck already had, and
-     * bumping `updated_at` would light up every follower's "the author published changes" badge.
+     * **The caller must hold [Deck.id]'s write lock.** [touchDeck] is false for a write that changes
+     * no content, so re-hosting does not light up every follower's "author published" badge.
      */
     private suspend fun writeChunkAndManifestLocked(
         deck: Deck,
@@ -664,10 +635,9 @@ class DeckRepositoryImpl(
     ): Deck = writeChunksAndManifestLocked(deck, listOf(chunk to cards), touchDeck)
 
     /**
-     * [writeChunkAndManifestLocked] for a write that spans more than one chunk — a card moved
-     * across a chunk boundary. The chunks are written in the order given, then described by a
-     * **single** manifest patch: two patches would leave a window where the manifest counts the
-     * card twice, and would cost a second full-record write of the whole chunk table.
+     * [writeChunkAndManifestLocked] for a write spanning more than one chunk. The chunks are written
+     * in the order given, then described by a **single** manifest patch: two patches would leave a
+     * window where the manifest counts the card twice, and cost a second write of the whole table.
      *
      * **The caller must hold [Deck.id]'s write lock.**
      */
@@ -691,7 +661,6 @@ class DeckRepositoryImpl(
         }
     }
 
-    /** The deck, confirmed to exist and to belong to the signed-in user. */
     private suspend fun requireOwnedDeck(deckId: String): Deck {
         val author = session.requireSession().identity.pubky
         val deck = getLocal(deckId) ?: fetchRemote(author, deckId).getOrThrow()
@@ -703,20 +672,19 @@ class DeckRepositoryImpl(
 
     override suspend fun delete(deckId: String): Result<Unit> = runSuspendCatching {
         // Guarded like every other write since decks you don't own became reachable (#33). Without
-        // it, deleting a followed deck built its sweep paths from *your* pubky and quietly ranged
-        // over your own namespace looking for a deck that was never there.
+        // it, deleting a followed deck built its sweep paths from *your* pubky and ranged over your
+        // own namespace looking for a deck that was never there.
         val cached = requireOwnedDeck(deckId)
         withDeckWrite(deckId) { deleteLocked(cached) }
     }
 
-    /** [delete]'s body. **The caller must hold the deck's write lock.** */
+    /** **The caller must hold the deck's write lock.** */
     private suspend fun deleteLocked(cached: Deck) {
         val deckId = cached.id
         val author = cached.authorPubky
 
-        // Sweep everything under the deck root (cards, manifest, media blobs, SRS records)
-        // so nothing orphans on the homeserver. The listing itself is the fallback source of
-        // paths when the cache is cold.
+        // Sweep everything under the deck root (cards, manifest, media, SRS) so nothing orphans.
+        // The listing is the fallback source of paths when the cache is cold.
         val deckRoot = "${PubkyPaths.deckRoot(author, deckId)}/"
         val listedPaths = pubky.listAllEntriesOrEmpty(deckRoot)
         val fallbackPaths = buildList {
@@ -729,18 +697,16 @@ class DeckRepositoryImpl(
         // listings instead of resurfacing as corrupt, so it must not be racing the rest.
         val (manifests, contents) = all.partition { it.endsWith("/manifest.json") }
         // At the ordinary write width. A sweep used to run at half of it, because the FFI
-        // re-imported and revalidated the session on *every* authenticated call: one delete cost
-        // two requests, so a sweep pushed twice its own length at the homeserver and 429'd right
-        // through the retry budget, leaving the deck behind. The session is reused now (#105), a
-        // delete costs one request like any other write, and the exception has nothing left to
-        // justify it — narrowing it again only serializes the sweep.
+        // revalidated the session on *every* authenticated call: one delete cost two requests, so a
+        // sweep 429'd through the retry budget and left the deck behind. The session is reused now
+        // (#105), so narrowing it again only serializes the sweep.
         contents.mapConcurrently { path -> deleteRecordLocked(path) }
         for (path in manifests) {
             deleteRecordLocked(path)
         }
 
-        // Remove the tag records pointing at the deleted deck (best-effort). The loopky-deck
-        // marker goes too, or global browse keeps offering a deck that no longer resolves.
+        // Best-effort. The loopky-deck marker goes too, or global browse keeps offering a deck that
+        // no longer resolves.
         tagRepo.removeReservedTag(cached.pubkyUri, ReservedTags.DECK).onFailure {
             Log.e(TAG, "delete: ${ReservedTags.DECK.value} removal failed — ${it.message}", it)
         }
@@ -758,12 +724,11 @@ class DeckRepositoryImpl(
      * Delete one record on the sweep, treating a 404 as done. **The caller must hold the lock.**
      *
      * The paths come from the cached manifest as much as from the listing, so the sweep routinely
-     * names a record that is not there: an import that died mid-upload leaves chunk entries whose
-     * records were never written, and a delete that failed part-way already removed some of them.
-     * Gone is the outcome being asked for. Throwing instead abandoned the sweep before the
-     * manifest — deleted last, deliberately — so the deck kept listing and the next attempt hit
-     * the same missing record, which is how a half-uploaded deck became undeletable. It surfaced
-     * as "this deck no longer exists" on top of a deck that very much did.
+     * names a record that is not there — an import that died mid-upload leaves chunk entries whose
+     * records were never written. Gone is the outcome being asked for. Throwing instead abandoned
+     * the sweep before the manifest, so the deck kept listing and the next attempt hit the same
+     * missing record: a half-uploaded deck became undeletable, reported as "this deck no longer
+     * exists" on top of a deck that very much did.
      */
     private suspend fun deleteRecordLocked(path: String) {
         pubky.deleteWithSessionRetry(path, session, revalidator).getOrElse { err ->
@@ -780,15 +745,13 @@ class DeckRepositoryImpl(
         val owned = listByAuthor(author)
 
         // The self-heal. There is no single app-start hook — session restore is spread across
-        // ViewModels — but this runs whenever Home or the library loads, and the job is unique
-        // work with KEEP, so asking again costs nothing. Recovers a dropped inline signal or a
-        // sweep the system cancelled.
+        // ViewModels — but this runs whenever Home or the library loads, and the job is unique work
+        // with KEEP. Recovers a dropped inline signal or a sweep the system cancelled.
         if (owned.any { it.source?.kind == DeckSource.Kind.Clone && !it.mediaRehosted }) {
             backgroundTasks.scheduleMediaRehost()
         }
-        // Same self-heal, and free: the density question is answered by the manifests this
-        // listing already fetched. Recovers a deck whose delete-time signal was dropped, and
-        // catches one compacted on another device down to a table this one can shrink further.
+        // Same self-heal, and free: the density question is answered by the manifests this listing
+        // already fetched. Also catches a deck compacted on another device.
         if (owned.any { CardChunking.isSparse(it.chunks) }) {
             backgroundTasks.scheduleDeckCompaction()
         }
@@ -796,22 +759,20 @@ class DeckRepositoryImpl(
     }
 
     /**
-     * Throws when the homeserver could not be reached. Swallowing that into an empty list
-     * would make an offline device indistinguishable from an account with no decks — and
-     * since Pubky is the only source of truth, that reads to the user as "my decks are gone".
-     * A genuinely absent path (nothing published yet) is still an empty list.
+     * Throws when the homeserver could not be reached: swallowing that into an empty list would make
+     * an offline device indistinguishable from an account with no decks, which reads to the user as
+     * "my decks are gone". A genuinely absent path is still an empty list.
      */
     override suspend fun listByAuthor(authorPubky: String): List<Deck> {
-        // `shallow` asks for one entry per deck directory rather than every record beneath it.
-        // Paged regardless: the homeserver's default page is 100 records, which a single
-        // 3,700-card deck overruns on its own, and a truncated listing renders as "my decks are
-        // gone". If the flag is ignored, the loop still collects the whole deep listing.
+        // `shallow` asks for one entry per deck directory rather than every record beneath it. Paged
+        // regardless: the homeserver's default page is 100 records, which a single 3,700-card deck
+        // overruns on its own. If the flag is ignored, the loop still collects the deep listing.
         val entries = pubky.listAllEntries(PubkyPaths.decksList(authorPubky), shallow = true)
             .getOrElse { if (it.isNotFound()) return emptyList() else throw it }
         val deckIds = parseDeckIdsFrom(entries)
         Log.d(TAG, "listByAuthor: $authorPubky entries=${entries.size} decks=${deckIds.size}")
-        // Concurrent: this was one manifest GET per deck, serially, so a library of ten decks
-        // paid ten round trips end to end before anything could render.
+        // Concurrent: this was one manifest GET per deck, serially, so a library of ten decks paid
+        // ten round trips end to end before anything could render.
         val results = deckIds.mapConcurrently { deckId ->
             deckId to fetchRemote(authorPubky, deckId)
         }
@@ -825,8 +786,8 @@ class DeckRepositoryImpl(
                     if (firstFailure == null) firstFailure = err
                 }
         }
-        // One unreadable deck shouldn't hide the rest, but if the listing had decks and none
-        // of them could be read, that is a connectivity failure — not an empty library.
+        // One unreadable deck shouldn't hide the rest, but a listing with decks in it and none
+        // readable is a connectivity failure, not an empty library.
         if (decks.isEmpty() && firstFailure != null) throw requireNotNull(firstFailure)
         return decks
     }
@@ -834,11 +795,10 @@ class DeckRepositoryImpl(
     override suspend fun sync(deckId: String): Result<Deck> = runSuspendCatching {
         val remote = fetchRemote(authorOf(deckId), deckId).getOrThrow()
 
-        // fetchByDeck re-reads only the chunks whose `updated_at` moved, and rebuilds the deck's
-        // cache entry from what it read. Cards dropped remotely simply aren't in any chunk any
-        // more, so they fall out of the cache without a separate reconciliation pass — the old
-        // index-diff-then-delete loop issued homeserver DELETEs for them, which meant a stale
-        // local cache could delete a card that was still live for its author.
+        // fetchByDeck re-reads only the chunks whose `updated_at` moved and rebuilds the cache entry
+        // from what it read, so cards dropped remotely fall out without a reconciliation pass — the
+        // old index-diff-then-delete loop issued homeserver DELETEs for them, which let a stale
+        // local cache delete a card that was still live for its author.
         cardRepo.fetchByDeck(remote).getOrThrow()
         remote
     }
@@ -846,13 +806,12 @@ class DeckRepositoryImpl(
     /**
      * Whose homeserver [deckId] lives on.
      *
-     * This used to be the signed-in user, unconditionally, which meant [sync] read
-     * `pubky://me/…` for a deck belonging to someone else and always failed — silently, because its
-     * only caller ([com.github.jvsena42.loopky.data.repository.SrsRepository.dueForDeck]) logs the
-     * failure and falls back to the local cache. Following a deck is worthless without this (#33).
+     * This used to be the signed-in user unconditionally, so [sync] read `pubky://me/…` for someone
+     * else's deck and always failed — silently, because its only caller logs and falls back to the
+     * local cache. Following a deck is worthless without this (#33).
      *
-     * The cache knows for any deck that has been opened this session. Falling back to the session
-     * keeps a cold-cache sync of your own deck working, which is the only case that ever worked.
+     * The cache knows for any deck opened this session; the session fallback keeps a cold-cache sync
+     * of your own deck working.
      */
     private suspend fun authorOf(deckId: String): String =
         getLocal(deckId)?.authorPubky
@@ -881,8 +840,8 @@ class DeckRepositoryImpl(
         loadSubscriptions()
         subscriptionLock.withLock { subscriptions?.put(deck.id, record) }
 
-        // Best-effort, like mirrorTags: the reserved label is what makes "N people follow this"
-        // fall out of the indexer's tagger count, but discoverability must not fail a follow.
+        // Best-effort: the reserved label is what makes "N people follow this" fall out of the
+        // indexer's tagger count, but discoverability must not fail a follow.
         tagRepo.putReservedTag(deck.pubkyUri, ReservedTags.FOLLOWED).onFailure {
             Log.e(TAG, "followDeck: ${ReservedTags.FOLLOWED.value} write failed — ${it.message}", it)
         }
@@ -899,9 +858,8 @@ class DeckRepositoryImpl(
             ).getOrThrow()
             subscriptionLock.withLock { subscriptions?.remove(deckId) }
 
-            // The subscription and its label go; the SRS state does not. Re-following must not
-            // reset your progress, and review state was never the author's data to begin with
-            // (Architecture.md §8.3).
+            // The subscription and its label go; the SRS state does not. Re-following must not reset
+            // your progress, and review state was never the author's data (Architecture.md §8.3).
             val uri = PubkyUri(PubkyPaths.manifest(authorPubky, deckId))
             tagRepo.removeReservedTag(uri, ReservedTags.FOLLOWED).onFailure {
                 Log.e(TAG, "unfollowDeck: ${ReservedTags.FOLLOWED.value} removal failed — ${it.message}", it)
@@ -917,7 +875,7 @@ class DeckRepositoryImpl(
 
     override suspend fun listFollowedBy(ownerPubky: String): List<Deck> {
         // The signed-in user's own answer comes from the session cache, which also holds a follow
-        // made a moment ago — reading their homeserver here would sometimes be a step behind it.
+        // made a moment ago — reading their homeserver here would sometimes be a step behind.
         if (ownerPubky == session.current()?.identity?.pubky) return listFollowed()
         return resolveSubscriptions(readSubscriptions(ownerPubky))
     }
@@ -925,10 +883,9 @@ class DeckRepositoryImpl(
     /**
      * Fetch the deck each of [subs] points at, dropping the ones that have gone.
      *
-     * A deck its author deleted is gone, not a failure — the subscription simply outlived it.
-     * Anything else may be transient, so one unreachable deck must not hide the rest while a set
-     * where nothing at all could be read still throws: that is a connectivity failure, not an
-     * empty library — the same rule [listByAuthor] follows, and for the same reason.
+     * A deck its author deleted is gone, not a failure. Anything else may be transient, so one
+     * unreachable deck must not hide the rest — while a set where nothing at all read still throws,
+     * the same rule [listByAuthor] follows.
      */
     private suspend fun resolveSubscriptions(subs: List<SubscriptionDto>): List<Deck> {
         if (subs.isEmpty()) return emptyList()
@@ -985,8 +942,8 @@ class DeckRepositoryImpl(
 
         val cards = sourceCards.inStudyOrder().map { card ->
             card.copy(
-                // A fresh id per card, so grading the clone never moves the original's review
-                // state and vice versa — they are keyed by (author, deck, card).
+                // A fresh id per card, so grading the clone never moves the original's review state
+                // and vice versa — they are keyed by (author, deck, card).
                 id = generateId(),
                 deckId = newId,
                 updatedAt = now,
@@ -1020,37 +977,32 @@ class DeckRepositoryImpl(
             Log.e(TAG, "clone: ${ReservedTags.CLONED.value} write failed — ${it.message}", it)
         }
 
-        // You own a copy now, so tracking the author's edits on theirs is noise. Best-effort: a
-        // failed unfollow leaves you with both, which is untidy rather than broken.
+        // You own a copy now, so tracking the author's edits is noise. Best-effort: a failed
+        // unfollow leaves you with both, which is untidy rather than broken.
         if (isFollowingDeck(source.id)) {
             unfollowDeck(source.authorPubky, source.id).onFailure {
                 Log.e(TAG, "clone: unfollowing ${source.id} failed — ${it.message}", it)
             }
         }
 
-        // A fresh clone's media is entirely pinned to the source author. Scheduled from the repo
-        // rather than a ViewModel so it is not a screen's responsibility to remember, and so it is
-        // testable in commonTest.
+        // A fresh clone's media is entirely pinned to the source author. Scheduled from the repo so
+        // it is not a screen's responsibility to remember, and so it is testable in commonTest.
         backgroundTasks.scheduleMediaRehost()
 
         Log.d(TAG, "clone: ${source.id} -> $newId (${cards.size} cards)")
         published
     }
 
-    /**
-     * A card side whose media refs point at [source]'s blobs rather than at paths under a deck the
-     * blobs were never uploaded to.
-     */
+    /** Refs pointing at [source]'s blobs rather than at paths under a deck they were never uploaded to. */
     private fun CardSide.absolutizedTo(source: Deck): CardSide = copy(
         imageRef = imageRef?.absolutizedTo(source.authorPubky, source.id),
         audioRef = audioRef?.absolutizedTo(source.authorPubky, source.id),
     )
 
-    /** The subscription set for this session, read from the homeserver on first use. */
     private suspend fun loadSubscriptions(): Map<String, SubscriptionDto> {
         // The account check comes *before* the cache is served, not after. The other way round —
-        // which is how this read, and what the bug was — hands a freshly created pubky the
-        // previous user's subscriptions, and Home shows it decks it never followed.
+        // which is what this was — hands a freshly created pubky the previous user's subscriptions,
+        // and Home shows it decks it never followed.
         subscriptionLock.withLock {
             if (subscriptionAccount.changed()) subscriptions = null
             subscriptions
@@ -1066,16 +1018,15 @@ class DeckRepositoryImpl(
     }
 
     /**
-     * [owner]'s subscription records straight off their homeserver, uncached.
-     *
-     * Uncached on purpose: the session cache is the *signed-in* account's, and this also answers
-     * for strangers ([listFollowedBy]). A record that will not read or parse is skipped — one
-     * corrupt entry is not a reason to report that somebody follows nothing.
+     * [owner]'s subscription records straight off their homeserver, uncached on purpose: the session
+     * cache is the *signed-in* account's, and this also answers for strangers ([listFollowedBy]). A
+     * record that will not read or parse is skipped — one corrupt entry is not a reason to report
+     * that somebody follows nothing.
      */
     private suspend fun readSubscriptions(owner: String): List<SubscriptionDto> {
         val loaded = mutableListOf<SubscriptionDto>()
         // Deep, and it must stay deep: subscriptions nest as `subscriptions/{author}/{deckId}.json`,
-        // so a shallow listing here would return author directories rather than records.
+        // so a shallow listing would return author directories rather than records.
         for (path in pubky.listAllEntriesOrEmpty(PubkyPaths.subscriptionsRoot(owner))) {
             val json = pubky.get(path).getOrElse {
                 Log.e(TAG, "readSubscriptions: $path unreadable — ${it.message}", it)
@@ -1089,14 +1040,12 @@ class DeckRepositoryImpl(
     }
 
     /**
-     * Deck ids out of a `decks/` listing, from either shape the homeserver can return:
-     * `…/decks/{id}/` when it honours `shallow`, or `…/decks/{id}/manifest.json` and
-     * `…/decks/{id}/cards/3.json` when it does not.
+     * Deck ids out of a `decks/` listing, from either shape the homeserver can return: `…/decks/{id}/`
+     * when it honours `shallow`, or `…/decks/{id}/manifest.json` when it does not.
      *
-     * Decoded per entry rather than scanned across the raw payload, for the reason spelled out on
-     * [DiscoveryRepositoryImpl]'s sibling parser: a substring scan of a JSON array cannot tell
-     * where one URL ends, so a marker hit with no following `/` runs on into the *next* entry and
-     * yields debris. A deep listing never produces that; a shallow one can.
+     * Decoded per entry rather than scanned across the raw payload: a substring scan of a JSON array
+     * cannot tell where one URL ends, so a marker hit with no following `/` runs into the next entry
+     * and yields debris. A deep listing never produces that; a shallow one can.
      */
     private fun parseDeckIdsFrom(entries: List<String>): List<String> {
         val marker = "/${PubkyPaths.APP_NAMESPACE}/decks/"

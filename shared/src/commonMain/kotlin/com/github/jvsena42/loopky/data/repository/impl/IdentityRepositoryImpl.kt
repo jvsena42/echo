@@ -60,19 +60,15 @@ internal class IdentityRepositoryImpl(
     private val sessionProvider: MutableSessionProvider,
     private val tagRepository: TagRepository,
     /**
-     * The homeserver sweep behind [deleteAccount], which needs half a dozen collaborators nothing
-     * else here touches. Injecting it is safe in both directions: it reaches `DeckRepository`,
-     * which depends on the session *provider* rather than on this repository, so there is no Koin
-     * cycle to create.
+     * The homeserver sweep behind [deleteAccount]. Injecting it creates no Koin cycle: it reaches
+     * `DeckRepository`, which depends on the session *provider* rather than on this repository.
      */
     private val eraser: AccountEraser,
     private val localKeyStore: LocalKeyStore,
     /**
      * Fire-and-forget cleanup that has to outlive its caller — see [discardUnregisteredKey].
-     *
-     * Injectable, because a hardcoded scope is invisible to `runTest`: the one thing it runs is a
-     * *deletion*, and a test that cannot await it cannot tell "did not delete" from "has not
-     * deleted yet". Same pattern as `DeckRepositoryImpl`.
+     * Injectable because the one thing it runs is a *deletion*, and a test that cannot await it
+     * cannot tell "did not delete" from "has not deleted yet".
      */
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob()),
 ) : IdentityRepository {
@@ -84,12 +80,9 @@ internal class IdentityRepositoryImpl(
     override suspend fun loadPersistedSession(): Session? {
         val persisted = sessionStore.load() ?: return null
         // Heal a session stored before the homeserver was backfilled. Every account signed in
-        // through Ring before that fix — on either app as well as the CLI — has a blank one on
-        // disk, nothing prompts them to sign in again, and `session_live` reports it as perfectly
-        // healthy. Without this the environment guard stays open for exactly those installs, which
-        // is every existing one.
-        //
-        // Persisted, so the DHT is asked once rather than on every load.
+        // through Ring before that fix has a blank one on disk, nothing prompts them to sign in
+        // again, and `session_live` reports it as healthy — so the environment guard stays open for
+        // exactly those installs. Persisted, so the DHT is asked once rather than on every load.
         val session = persisted.withResolvedHomeserver()
         if (session.homeserver != persisted.homeserver) {
             Log.d(TAG, "loadPersistedSession: backfilled the stored session's homeserver")
@@ -101,29 +94,26 @@ internal class IdentityRepositoryImpl(
     }
 
     override suspend fun signOut(force: Boolean): Result<SignOutOutcome> = runSuspendCatching {
-        // Refused rather than warned-about-in-the-dialog, so no future caller can sign out
-        // silently and take the only copy of an identity with it. The UI catches this, raises a
-        // confirm, and calls back with force = true.
+        // Refused rather than warned about in the dialog, so no future caller can sign out silently
+        // and take the only copy of an identity with it. The UI catches this and calls back forced.
         val held = localKeyStore.current()
         if (!force && held != null && held.backedUpBy.isEmpty()) {
             throw UnbackedUpLocalKey(held.pubky)
         }
 
         val current = sessionProvider.current()
-        // The revoke can fail — offline, homeserver down, a session already on the edge — and the
-        // local clear happens either way, because a user asking to sign out should end up signed
-        // out here whatever the network is doing. What must *not* happen is reporting that as an
-        // unqualified success while the bearer token is still live, so the outcome travels back.
+        // The revoke can fail and the local clear happens either way, because a user asking to sign
+        // out should end up signed out here whatever the network is doing. What must *not* happen is
+        // reporting that as success while the bearer token is still live, so the outcome travels back.
         val revokedRemotely = current != null &&
             pubky.signOut(current.sessionSecret)
                 .onFailure { Log.w(TAG, "signOut: the homeserver did not confirm revocation", it) }
                 .isSuccess
         sessionStore.clear()
         // The key goes with the session: a signed-out device holding a secret key is a credential
-        // nobody is watching. Safe to do unguarded *today* because the only keys that exist are
-        // restored ones, and their owner demonstrably holds the phrase or file they restored from.
-        // Minting a key here (#147 phase 3) introduces the first key nobody has a copy of, and
-        // that is what the sign-out confirm is for — it arrives with the code that creates the risk.
+        // nobody is watching. Safe unguarded *today* because the only keys that exist are restored
+        // ones, whose owner demonstrably holds the phrase or file. Minting here (#147 phase 3)
+        // introduces the first key nobody has a copy of — that is what the sign-out confirm is for.
         localKeyStore.clear()
         sessionProvider.set(null)
         selfTaggedThisProcess = false
@@ -178,8 +168,8 @@ internal class IdentityRepositoryImpl(
     ): Result<AuthFlowHandle> {
         Log.d(TAG, "beginSignUp: capabilities=$capabilities homeserver=$homeserverPubky")
         return pubky.startAuthFlow(capabilities)
-            // `mapCatching`, not `runSuspendCatching`: `asSignupUrl` is pure and synchronous, so
-            // it cannot swallow a cancellation.
+            // `mapCatching`, not `runSuspendCatching`: `asSignupUrl` is pure and synchronous, so it
+            // cannot swallow a cancellation.
             .mapCatching { it.asSignupUrl(homeserverPubky, signupToken) }
             .onSuccess { Log.d(TAG, "beginSignUp: startAuthFlow ok — authUrl=${it.redactAuthUrl()}") }
             .onFailure {
@@ -189,9 +179,8 @@ internal class IdentityRepositoryImpl(
     }
 
     /**
-     * Append Pubky Ring return-callback params so Ring re-opens Loopky after the user approves
-     * (the session itself still arrives over the relay via [AuthFlowHandle.complete]). Ring opens
-     * the matching `x-*` deeplink; [CALLBACK_URL] is registered in the platform manifest/Info.plist.
+     * Append Ring return-callback params so Ring re-opens Loopky after approval; the session itself
+     * still arrives over the relay. [CALLBACK_URL] is registered in the platform manifest/Info.plist.
      */
     private fun String.withRingCallbacks(): String {
         val separator = if (contains('?')) "&" else "?"
@@ -200,11 +189,10 @@ internal class IdentityRepositoryImpl(
     }
 
     /**
-     * A single-use handle: the FFI's auth flow is global state that `awaitAuthApproval` *takes*,
-     * so the first poll — successful or not — consumes it, and a second poll on the same handle can
-     * only answer "No auth flow in progress". A failed approval therefore has no in-place retry;
-     * recovering means a fresh [beginSignIn], which mints a new secret and a new `pubkyauth://` URL
-     * and so requires the user to approve in Ring again (#59).
+     * Single-use: the FFI's auth flow is global state that `awaitAuthApproval` *takes*, so the first
+     * poll consumes it and a second can only answer "No auth flow in progress". A failed approval
+     * has no in-place retry — recovering means a fresh [beginSignIn], which mints a new secret and
+     * so requires the user to approve in Ring again (#59).
      */
     private inner class RingAuthFlowHandle(override val authUrl: String) : AuthFlowHandle {
         override suspend fun complete(): Result<Session> = runSuspendCatching {
@@ -215,8 +203,8 @@ internal class IdentityRepositoryImpl(
             val session = parseSessionPayload(sessionJson, loopkyJson)
             Log.d(TAG, "complete: parsed session pubky=${session.identity.pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
             // Shared with the local-key paths on purpose: everything after "we have a session" is
-            // identical, and letting the two drift is how one of them stops self-tagging and
-            // quietly falls out of the only global directory Loopky has.
+            // identical, and letting the two drift is how one stops self-tagging and quietly falls
+            // out of the only global directory Loopky has.
             persistSession(session.withResolvedHomeserver()).also { Log.d(TAG, "complete: session saved") }
         }.onFailure {
             Log.e(TAG, "complete: FAILED — ${it::class.simpleName}: ${it.message}", it)
@@ -226,20 +214,16 @@ internal class IdentityRepositoryImpl(
     /**
      * Fill in the homeserver the session payload does not carry.
      *
-     * The FFI's session JSON has **no `homeserver` field**, so `parseSessionPayload` defaults it
-     * to `""`. Every other path that mints a session already backfills it — `signInWithKey` from
-     * the pre-flight lookup, `registerHeldKey` from the server it registered against — and the Ring
-     * deeplink path was the one that did not, so a Ring sign-in stored a session with a blank
-     * homeserver.
+     * The FFI's session JSON has **no `homeserver` field**, so `parseSessionPayload` defaults it to
+     * `""`. Every other path backfills it; the Ring deeplink path did not, so a Ring sign-in stored
+     * a blank one.
      *
-     * That is worse than a cosmetic gap. The CLI refuses to run when a session and the requested
-     * `--env` disagree (#54), and it decides that by comparing the session's homeserver against the
-     * other environment's known default — which a blank value never matches, so the guard passed
-     * every time on exactly the sessions it was written for. Settings rendering "Unknown" was the
-     * visible half; a safety check that silently never fired was the other.
+     * That is worse than cosmetic: the CLI refuses to run when a session and `--env` disagree (#54),
+     * decided by comparing the session's homeserver against the other environment's default — which
+     * a blank never matches, so the guard passed every time on exactly the sessions it was written
+     * for. Settings rendering "Unknown" was the visible half.
      *
-     * Best-effort: a DHT lookup that fails leaves the blank in place rather than failing a
-     * sign-in that has otherwise succeeded.
+     * Best-effort: a failed DHT lookup leaves the blank rather than failing the sign-in.
      */
     private suspend fun Session.withResolvedHomeserver(): Session {
         if (homeserver.isNotBlank()) return this
@@ -273,13 +257,10 @@ internal class IdentityRepositoryImpl(
                     HomeserverLookup.NoRecord
                 } else {
                     Log.w(TAG, "lookupHomeserver: could not check — ${error::class.simpleName}")
-                    // An unclassified failure here is still a *known* failure: the one call this
-                    // function makes is the DHT lookup, so "we couldn't check that" is the honest
-                    // answer and "Something went wrong. Please try again." is not — it tells a
-                    // user staring at their own recovery file nothing about what to try, and the
-                    // remedy (a network that does not block peer-to-peer traffic) is one the
-                    // lookup copy already gives. Specific reasons still win where the classifier
-                    // has one.
+                    // An unclassified failure here is still a *known* one: the only call this
+                    // function makes is the DHT lookup, so "we couldn't check that" is honest and
+                    // "Something went wrong" is not — it tells a user staring at their own recovery
+                    // file nothing to try. Specific reasons still win where the classifier has one.
                     val reason = error.toErrorReason()
                         .takeUnless { it == ErrorReason.Unknown }
                         ?: ErrorReason.HomeserverLookupFailed
@@ -299,11 +280,10 @@ internal class IdentityRepositoryImpl(
         val payload = pubky.signIn(keypair.secretKeyHex).getOrThrow()
         val session = parseSessionPayload(payload, loopkyJson)
 
-        // The homeserver we actually landed on is not in the payload — the grant flow's session
-        // JSON carries no `homeserver` field at all, so parseSessionPayload defaults it to "".
-        // Resolving it here keeps Settings from showing "Unknown" for every restored account.
-        // Prefer what the caller already learned: on the restore path the pre-flight resolved this
-        // moments ago, and asking the DHT twice costs a second round trip on the critical path.
+        // The homeserver we landed on is not in the payload, so resolving it here keeps Settings
+        // from showing "Unknown" for every restored account. Prefer what the caller already learned:
+        // on the restore path the pre-flight resolved this moments ago, and asking the DHT twice
+        // costs a second round trip on the critical path.
         val resolved = session.homeserver.takeIf { it.isNotBlank() }
             ?: knownHomeserver
             ?: (lookupHomeserver(keypair.pubky) as? HomeserverLookup.Registered)?.homeserverPubky
@@ -317,9 +297,9 @@ internal class IdentityRepositoryImpl(
                 pubky = keypair.pubky,
                 mnemonic = keypair.mnemonic,
                 // A restored key is already backed up, and recording that is not a shortcut: the
-                // user just demonstrated they hold the phrase or the file by signing in with it.
-                // Nagging them to back up what they only just typed in would be describing a risk
-                // that does not exist. A *minted* key is the un-backed-up case.
+                // user just demonstrated they hold the phrase or file. Nagging them to back up what
+                // they only just typed in describes a risk that does not exist. A *minted* key is
+                // the un-backed-up case.
                 backedUpBy = setOf(source.backupMethod()),
                 registered = true,
                 origin = KeyOrigin.Restored,
@@ -327,16 +307,15 @@ internal class IdentityRepositoryImpl(
         )
         persistSession(session.copy(homeserver = resolved))
     }.onFailure {
-        // Never the message, and never the throwable: `toResult` wraps the FFI string
-        // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
+        // Never the message, and never the throwable: `toResult` wraps the FFI string verbatim, and
+        // these calls were handed a mnemonic, a passphrase or a secret key.
         Log.e(TAG, "signInWithKey: FAILED — ${it::class.simpleName}")
     }
 
     /**
-     * Derive a keypair from [source] off the caller's thread.
-     *
-     * The FFI's key calls are synchronous and un-dispatched, and a recovery file is Argon2id, so
-     * this hop is what keeps a ViewModel from running a key-derivation function on the main thread.
+     * Derive a keypair from [source] off the caller's thread. The FFI's key calls are synchronous
+     * and un-dispatched, and a recovery file is Argon2id, so this hop is what keeps a ViewModel from
+     * running a key-derivation function on the main thread.
      */
     private suspend fun deriveKeypair(source: KeySource): Result<MintedKeypair> =
         withContext(Dispatchers.Default) {
@@ -352,34 +331,29 @@ internal class IdentityRepositoryImpl(
         homeserverPubky: String,
         signupToken: String,
     ): Result<LocalAccount> = runSuspendCatching {
-        // **Reuses an unregistered key before minting one.** Three separate paths land here with a
-        // key already on the device and no account for it: a retry after a failed `signUp`, the
-        // "start over" that follows a refused token, and the unregistered-key screen sending a
-        // user through verification to get one. Minting unconditionally overwrote that key in all
-        // three — so the user confirmed "publish *this* pubky", got a different one, and the
-        // original was stranded with no way back to it.
+        // **Reuses an unregistered key before minting one.** Three paths land here with a key on the
+        // device and no account for it: a retry after a failed `signUp`, the "start over" after a
+        // refused token, and the unregistered-key screen. Minting unconditionally overwrote that key
+        // in all three — the user confirmed "publish *this* pubky", got a different one, and the
+        // original was stranded.
         //
-        // Only an *unregistered* key is reused. One that already has an account is somebody's
-        // working identity and must not be re-registered.
-        // **Only a key this flow minted.** Adopting a *restored* one meant "Create an account in
-        // Loopky" could silently register whatever phrase the user had typed on the restore screen
-        // earlier and abandoned — they ask for a new identity and get an old one, and if it came
-        // from a recovery file it has no mnemonic, so the phrase backup step vanishes too.
-        // Registering a restored key is a real thing to want; it goes through `registerHeldKey`,
-        // reached from the screen that shows the user which pubky they are registering.
+        // Only an *unregistered* key is reused: one with an account is somebody's working identity.
+        // And only one this flow **minted** — adopting a restored key meant "Create an account"
+        // could silently register a phrase typed on the restore screen and abandoned, handing back
+        // an old identity with no mnemonic to back up. Registering a restored key is `registerHeldKey`.
         val held = localKeyStore.current()?.takeIf { !it.registered && it.origin == KeyOrigin.Minted }
 
         val account = if (held != null) {
             Log.d(TAG, "createLocalAccount: registering the key already held")
             LocalAccount(pubky = held.pubky, mnemonic = held.mnemonic.orEmpty())
         } else {
-            // Minting validates the key against its own phrase before we ever see it; a failure
-            // here is terminal and is never retried with a weaker source.
+            // Minting validates the key against its own phrase before we ever see it; a failure here
+            // is terminal and is never retried with a weaker source.
             val minted = withContext(Dispatchers.Default) { pubky.mintValidatedKeypair() }.getOrThrow()
             val mnemonic = requireNotNull(minted.mnemonic) { "a minted keypair must carry its phrase" }
 
-            // Stored *before* signUp, and marked unregistered. If the registration fails halfway
-            // the key survives, and the next attempt finds it above rather than minting again.
+            // Stored *before* signUp and marked unregistered: if registration fails halfway the key
+            // survives, and the next attempt finds it above rather than minting again.
             localKeyStore.save(
                 LocalKey(
                     secretKeyHex = minted.secretKeyHex,
@@ -396,8 +370,7 @@ internal class IdentityRepositoryImpl(
         registerKey(secretKey, account.pubky, homeserverPubky, signupToken)
         account
     }.onFailure {
-        // Never the message, and never the throwable: `toResult` wraps the FFI string
-        // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
+        // Never the message or the throwable — see signInWithKey.
         Log.e(TAG, "createLocalAccount: FAILED — ${it::class.simpleName}")
     }
 
@@ -409,18 +382,16 @@ internal class IdentityRepositoryImpl(
         check(!held.registered) { "This key already has an account" }
         registerKey(held.secretKeyHex, held.pubky, homeserverPubky, signupToken)
     }.onFailure {
-        // Never the message, and never the throwable: `toResult` wraps the FFI string
-        // verbatim, and these calls were handed a mnemonic, a passphrase or a secret key.
+        // Never the message or the throwable — see signInWithKey.
         Log.e(TAG, "registerHeldKey: FAILED — ${it::class.simpleName}")
     }
 
     /**
      * `signUp` for [secretKeyHex], then verify the account we actually landed on.
      *
-     * The assertion is not paranoia. A session coming back is not proof the token was spent on the
-     * key we meant: Architecture.md §7.8 records Pubky Ring quietly authorising a *different*
-     * already-signed-up pubky when its own signup fails. The same shape is possible here, and a
-     * pubky we did not set out to register is a failure to surface rather than a session to keep.
+     * The assertion is not paranoia: Architecture.md §7.8 records Ring quietly authorising a
+     * *different* already-signed-up pubky when its own signup fails. A pubky we did not set out to
+     * register is a failure to surface rather than a session to keep.
      */
     private suspend fun registerKey(
         secretKeyHex: String,
@@ -436,23 +407,22 @@ internal class IdentityRepositoryImpl(
             "signUp returned a different pubky than the key we registered"
         }
 
-        // Marked here, not after persistSession. The account exists the moment signUp returns for
-        // the right pubky; if the session save or the profile fetch below then throws, a key left
-        // reading `registered = false` would be re-registered on the next attempt — spending a
-        // second token on an account that already exists.
+        // Marked here, not after persistSession. The account exists the moment signUp returns for the
+        // right pubky; if the save or profile fetch below throws, a key left reading
+        // `registered = false` would be re-registered — spending a second token on an existing account.
         localKeyStore.markRegistered()
 
-        // The grant flow's session JSON has no `homeserver` field, so it is filled from the value
-        // we registered against rather than left blank for Settings to render as "Unknown".
+        // The grant flow's session JSON has no `homeserver` field, so it is filled from the value we
+        // registered against rather than left blank for Settings to render as "Unknown".
         return persistSession(session.copy(homeserver = session.homeserver.ifBlank { homeserverPubky }))
     }
 
     override suspend fun holdKeyForRegistration(source: KeySource): Result<String> =
         runSuspendCatching {
             val keypair = deriveKeypair(source).getOrThrow()
-            // Marked unregistered on purpose: this is a key whose pre-flight said no account
-            // exists. Without storing it, "Register this key" on the next screen has nothing to
-            // register and fails on a `requireNotNull` the user never caused.
+            // Marked unregistered on purpose: the pre-flight said no account exists. Without storing
+            // it, "Register this key" on the next screen has nothing to register and fails on a
+            // `requireNotNull` the user never caused.
             localKeyStore.save(
                 LocalKey(
                     secretKeyHex = keypair.secretKeyHex,
@@ -474,9 +444,8 @@ internal class IdentityRepositoryImpl(
         scope.launch {
             val held = localKeyStore.current() ?: return@launch
             if (held.registered) return@launch
-            // Restored only. A minted key exists nowhere else on earth, so if its signup was
-            // interrupted the right answer is to let the user finish it, not to delete it behind
-            // their back. A restored one can be re-derived from what they already hold.
+            // Restored only. A minted key exists nowhere else on earth, so an interrupted signup is
+            // something to let the user finish, not to delete behind their back.
             if (held.origin != KeyOrigin.Restored) return@launch
             Log.d(TAG, "discardUnregisteredKey: dropping an unregistered restored key")
             localKeyStore.clear()
@@ -491,10 +460,8 @@ internal class IdentityRepositoryImpl(
 
     /**
      * Save a session, publish it, announce the account, and enrich it from the published profile.
-     *
-     * Extracted so the Ring path and the local-key paths cannot drift: everything after "we have a
-     * session" is identical, and duplicating it is how one of them ends up not self-tagging and
-     * quietly staying out of the only global directory Loopky has.
+     * Extracted so the Ring path and the local-key paths cannot drift — duplicating it is how one
+     * ends up not self-tagging and quietly staying out of the only global directory Loopky has.
      */
     private suspend fun persistSession(session: Session): Session {
         sessionStore.save(session)
@@ -521,22 +488,19 @@ internal class IdentityRepositoryImpl(
      * Announce this account as a Loopky user by tagging its own `profile.json` with
      * [ReservedTags.USER].
      *
-     * This is the whole reason a stranger can find a brand-new account: with no backend, the tag
-     * index is the only global directory Loopky has, and a user who tags nothing is invisible to
-     * it no matter how many decks they publish (#40). Tagger and subject are the same account,
-     * which is what makes the entry verifiable rather than someone's claim about someone else.
+     * The whole reason a stranger can find a brand-new account: with no backend the tag index is the
+     * only global directory, and a user who tags nothing is invisible to it however many decks they
+     * publish (#40). Tagger and subject are the same account, which makes the entry verifiable.
      *
-     * Best-effort and idempotent — the tag id is derived from subject + label, so every write
-     * lands on the same record. Once per process is enough; repeating it on each login and each
-     * app start is how accounts that predate this get into the directory.
+     * Best-effort and idempotent — the tag id is derived from subject + label. Repeating it on each
+     * login is how accounts that predate this get into the directory.
      */
     private suspend fun selfTagAsLoopkyUser(session: Session) {
         if (selfTaggedThisProcess) return
-        // The subject is a *profile*, so the record goes to `/pub/pubky.app/tags/` (§7.7) — which
-        // a session scoped to `/pub/loopky/:rw` was never granted. Asked rather than attempted:
-        // the headless client (#54) holds exactly that session, and firing the write anyway would
-        // buy a doomed round trip on every command plus a warning about the scope working as
-        // designed. A capability the session does not hold is not an error to report.
+        // The subject is a *profile*, so the record goes to `/pub/pubky.app/tags/` (§7.7) — which a
+        // session scoped to `/pub/loopky/:rw` was never granted. Asked rather than attempted: the
+        // headless client (#54) holds exactly that session, and firing anyway would buy a doomed
+        // round trip per command plus a warning about the scope working as designed.
         if (!session.canWritePubkyApp) {
             Log.d(TAG, "selfTag: skipped — this session has no pubky.app write capability")
             return
@@ -554,8 +518,8 @@ internal class IdentityRepositoryImpl(
     private var selfTaggedThisProcess = false
 
     /**
-     * Successful lookups only. A miss (no profile published yet) stays uncached so a profile
-     * created later still shows up without restarting the app.
+     * Successful lookups only. A miss stays uncached so a profile created later still shows up
+     * without restarting the app.
      */
     private val profileCache = mutableMapOf<String, PubkyIdentity>()
     private val profileCacheLock = Mutex()
@@ -570,10 +534,9 @@ internal class IdentityRepositoryImpl(
             val dto = loopkyJson.decodeFromString<ProfileDto>(json)
             dto.toDomain(pubky).also { cacheProfile(it) }
         }.onFailure {
-            // A 404 is the answer "this account has published no profile" — the ordinary state of
-            // any pubky created outside pubky.app, and one every caller already handles by falling
-            // back to the pubky itself. Reporting it as an error with a stack trace made a clean
-            // sign-in read as a broken one and buried the failures that do matter (#174).
+            // A 404 means "this account has published no profile" — the ordinary state of any pubky
+            // created outside pubky.app, which every caller already handles. Reporting it as an
+            // error made a clean sign-in read as broken and buried the failures that matter (#174).
             if (it.isNotFound()) {
                 Log.d(TAG, "fetchProfile: none published by ${pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
             } else {
@@ -591,11 +554,10 @@ internal class IdentityRepositoryImpl(
         val currentPubky = session.identity.pubky
         Log.d(TAG, "updateProfile: pubky=${currentPubky.take(PUBKY_LOG_PREFIX_LEN)}…")
 
-        // The picture comes off the *published* profile, not the session. Sign-in only enriches
-        // the session when the profile has a name or a bio (see RingAuthFlowHandle.complete), so
-        // an account with a picture and neither carries avatarUrl = null — and echoing that back
-        // here wrote `image: null`, deleting the user's avatar the first time they renamed
-        // themselves. Falling back to the session covers a homeserver that cannot be reached.
+        // The picture comes off the *published* profile, not the session. Sign-in only enriches the
+        // session when the profile has a name or bio, so an account with a picture and neither
+        // carries avatarUrl = null — echoing that back wrote `image: null`, deleting the user's
+        // avatar the first time they renamed themselves.
         val publishedAvatar = fetchProfile(currentPubky, forceRefresh = true).getOrNull()?.avatarUrl
         val dto = ProfileDto(
             name = name,
@@ -632,17 +594,14 @@ internal class IdentityRepositoryImpl(
         val pubky = requireNotNull(sessionProvider.current()) { "Not signed in" }.identity.pubky
         Log.d(TAG, "deleteAccount: starting for ${pubky.take(PUBKY_LOG_PREFIX_LEN)}…")
 
-        // Throws unless every record Loopky owns is gone, which is what keeps the sign-out below
-        // from stranding a half-deleted account: signing back in is what a retry needs.
+        // Throws unless every record Loopky owns is gone, which keeps the sign-out below from
+        // stranding a half-deleted account: signing back in is what a retry needs.
         eraser.erase(pubky, onProgress)
 
-        // So a later sign-in on this same process announces the account again rather than
-        // believing it already did.
+        // So a later sign-in on this process announces the account again rather than believing it did.
         selfTaggedThisProcess = false
-        // Forced: the account's records are already gone, so refusing here would strand a
-        // half-deleted account behind a backup prompt. The confirm that matters happens before
-        // deletion starts — after the sweep, the phrase is the only thing that could ever reach
-        // this identity again.
+        // Forced: the records are already gone, so refusing would strand a half-deleted account
+        // behind a backup prompt. The confirm that matters happens before deletion starts.
         signOut(force = true).getOrThrow()
         Log.d(TAG, "deleteAccount: done")
     }.onFailure {
