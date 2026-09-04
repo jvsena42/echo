@@ -21,6 +21,61 @@ class ImageUrlAdviceTest {
         assertContains(advice, "blank")
     }
 
+    /**
+     * The inversion, and the reason the two rules are one function. For a raster the original is
+     * the answer; for a vector it is the problem, and advising someone to reach for it is how a
+     * whole deck of flags became blank cards.
+     */
+    @Test
+    fun `a wikimedia svg original is pointed at its raster thumbnail`() {
+        val advice = imageUrlAdvice("https://upload.wikimedia.org/wikipedia/commons/0/03/Flag_of_Italy.svg")
+        assertTrue(advice != null)
+        assertContains(
+            advice,
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Flag_of_Italy.svg/" +
+                "500px-Flag_of_Italy.svg.png",
+        )
+    }
+
+    @Test
+    fun `an svg thumbnail at a served width is what the advice asked for and is left alone`() {
+        assertNull(
+            imageUrlAdvice(
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Flag_of_Italy.svg/" +
+                    "500px-Flag_of_Italy.svg.png",
+            ),
+        )
+    }
+
+    /** The width is still wrong here, but "drop /thumb/" would hand back the vector. */
+    @Test
+    fun `a bad width over an svg source withholds the drop-the-thumb advice`() {
+        val advice = imageUrlAdvice(
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Flag_of_Italy.svg/" +
+                "800px-Flag_of_Italy.svg.png",
+        )
+        assertTrue(advice != null)
+        assertContains(advice, "800px")
+        assertContains(advice, "Do not drop the /thumb/ segment")
+    }
+
+    /** The other four the deck hit: a Wikipedia lead image is not necessarily a picture. */
+    @Test
+    fun `the file types neither app decodes are called out wherever they are hosted`() {
+        listOf("tiff", "webm", "ogv", "stl").forEach { extension ->
+            val advice = imageUrlAdvice("https://example.test/Tostapane.$extension")
+            assertTrue(advice != null, ".$extension should be called out")
+            assertContains(advice, "blank")
+        }
+    }
+
+    @Test
+    fun `an ordinary raster keeps the advice that the original is always served`() {
+        val advice = imageUrlAdvice("$gull/800px-Gull.jpg")
+        assertTrue(advice != null)
+        assertContains(advice, "drop the /thumb/ segment")
+    }
+
     @Test
     fun `the widths wikimedia actually serves are left alone`() {
         for (width in listOf(120, 250, 330, 500, 960, 1280)) {

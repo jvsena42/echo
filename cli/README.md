@@ -252,7 +252,28 @@ most of them are a blank card on both apps. Drop the `/thumb/` segment and the `
 altogether to get the full-size original, which is always served. A warning and not an error
 because the list is Wikimedia's to change, and a stale check must not be able to fail an import.
 
-Beyond those two, prefer a host that serves images to anyone. Some refuse an unfamiliar client
+**Warned about, on stderr, never fatal** — a file type neither client decodes. Android loads with
+Coil, which ships no SVG decoder here, and iOS with `UIImage`, which decodes neither vectors nor
+`.tif`, `.webm`, `.ogv` or `.stl`. That is not an exotic case: a Wikipedia lead image is frequently
+one of them — every flag and colour swatch is an `.svg`, and `Dente`, `Piede`, `Tostapane`,
+`Rotonda` and `Tastiera` resolve to `.stl`, `.tiff`, `.webm` and `.ogv`. All are valid
+`upload.wikimedia.org` addresses that answer 200, and all are blank cards.
+
+For these the thumbnail rule above is **inverted**, which is why the two are decided together. The
+original of a vector is `image/svg+xml`, so "drop the `/thumb/` segment for the original, which is
+always served" is precisely the wrong advice — the thumbnail is the only rendered raster there is.
+The warning rewrites it for you:
+
+```
+https://upload.wikimedia.org/wikipedia/commons/0/03/Flag_of_Italy.svg
+  -> https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Flag_of_Italy.svg/500px-Flag_of_Italy.svg.png
+```
+
+Wikimedia renders `.tif` and `.webm` under `/thumb/` too, but with prefixes of their own
+(`lossy-page1-`, a frame marker), so those are named rather than rewritten — an address invented
+here that 404s would be worse than the sentence.
+
+Beyond those, prefer a host that serves images to anyone. Some refuse an unfamiliar client
 outright — Wikimedia answers `403 Please set a user-agent` to a generic one — and the result is the
 same blank card with nothing reporting it.
 
