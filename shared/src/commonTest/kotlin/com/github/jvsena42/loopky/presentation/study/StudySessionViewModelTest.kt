@@ -343,12 +343,12 @@ class StudySessionViewModelTest {
 
         vm.onSpeak()
         advanceUntilIdle()
-        assertEquals(StudySessionEffect.Speak("hola", "es-ES"), effects.single())
+        assertEquals(StudySessionEffect.Speak("hola", "es-ES"), effects.excludingHaptics().single())
 
         vm.onReveal()
         vm.onSpeak()
         advanceUntilIdle()
-        assertEquals(StudySessionEffect.Speak("hello", "en-US"), effects.last())
+        assertEquals(StudySessionEffect.Speak("hello", "en-US"), effects.excludingHaptics().last())
 
         job.cancel()
     }
@@ -366,12 +366,12 @@ class StudySessionViewModelTest {
 
         vm.onSpeak()
         advanceUntilIdle()
-        assertEquals(StudySessionEffect.Speak("hola", "es-ES"), effects.single())
+        assertEquals(StudySessionEffect.Speak("hola", "es-ES"), effects.excludingHaptics().single())
 
         vm.onReveal()
         vm.onSpeak()
         advanceUntilIdle()
-        assertEquals(StudySessionEffect.Speak("hello", "en-US"), effects.last())
+        assertEquals(StudySessionEffect.Speak("hello", "en-US"), effects.excludingHaptics().last())
 
         job.cancel()
     }
@@ -393,7 +393,7 @@ class StudySessionViewModelTest {
 
         assertEquals(
             StudySessionEffect.StartSpeechRecognition("hello", "en-US"),
-            effects.single(),
+            effects.excludingHaptics().single(),
         )
         job.cancel()
     }
@@ -414,7 +414,7 @@ class StudySessionViewModelTest {
 
         assertEquals(
             StudySessionEffect.StartSpeechRecognition("hola", "es-ES"),
-            effects.single(),
+            effects.excludingHaptics().single(),
         )
         job.cancel()
     }
@@ -479,7 +479,7 @@ class StudySessionViewModelTest {
 
         assertEquals(
             StudySessionEffect.StartSpeechRecognition("hola", "es-ES"),
-            effects.last(),
+            effects.excludingHaptics().last(),
         )
         job.cancel()
     }
@@ -538,7 +538,7 @@ class StudySessionViewModelTest {
         vm.onSpeakRetry()
         advanceUntilIdle()
 
-        assertEquals(StudySessionEffect.StartSpeechRecognition("hola", "es-ES"), effects.last())
+        assertEquals(StudySessionEffect.StartSpeechRecognition("hola", "es-ES"), effects.excludingHaptics().last())
         job.cancel()
     }
 

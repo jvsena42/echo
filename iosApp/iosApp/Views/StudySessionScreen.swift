@@ -60,7 +60,10 @@ struct StudySessionScreen: View {
                 onDismiss: { viewModel?.onSpeakDismiss() }
             )
         }
-        .onAppear { attach() }
+        .onAppear {
+            attach()
+            Haptics.prepare()
+        }
         .onDisappear {
             // The microphone stops with the screen, whatever phase the sheet was in.
             SpeechListener.shared.stop()
@@ -164,6 +167,8 @@ struct StudySessionScreen: View {
                 SpeechSpeaker.shared.speak(speak.text, languageTag: speak.languageTag)
             case let listen as StudySessionEffectStartSpeechRecognition:
                 startListening(languageTag: listen.languageTag, vm: vm)
+            case let haptic as StudySessionEffectHaptic:
+                Haptics.play(haptic.pattern)
             case is StudySessionEffectClose:
                 onClose()
             default:

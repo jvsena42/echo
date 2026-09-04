@@ -1996,3 +1996,32 @@ per-arm dispatch was additionally driven directly by stubbing `_describe`/`_file
 
 **Nothing was checked against a network on purpose.** A test asserts no generated script contains
 an address — completing a deck id would be a homeserver round trip on a keypress.
+
+## Haptics in the study loop — 2026-09-04, `emulator-5554`
+
+Journeys 03 and 09, re-run for the haptics. An emulator has no actuator, so "did it buzz" was read
+back from `adb shell dumpsys vibrator_manager` — `Recent vibrations` names the calling package, the
+`performHapticFeedback` constant and the pattern the framework actually played, which is the only
+evidence available short of holding a phone.
+
+| Step | Result |
+| --- | --- |
+| Flip a card (`study_card`) | ✅ `constant=6` (ContextClick) → `Prebaked=TICK`, attributed to `com.github.jvsena42.loopky` |
+| Tap the already-flipped card again | ✅ **no** second entry — the ViewModel drops the reveal, so nothing buzzes |
+| Grade (`study_good`) | ✅ one ContextClick per grade |
+| Grade the 8 presentations of "Spanish Nouns" through to the end | ✅ 15 ticks and then `constant=16` (Confirm) → `Prebaked=CLICK`. Fifteen, not sixteen: the last grade's own tick is suppressed so the session ends on one buzz rather than a tick and a Confirm a few ms apart |
+| Enable **Type the answer** on a deck, flip, type a wrong answer, Check | ✅ `constant=17` (Reject) → `Prebaked=DOUBLE_CLICK` |
+| Toggle typing back off | ✅ deck restored |
+
+### Worth knowing
+
+**The buzz is decided in `StudySessionViewModel`, not on tap in the screens.** Whether a tap did
+anything is known there and nowhere else — a grade arriving while the previous one is still writing,
+a Check on an untypable card and a second reveal are all ignored — and buzzing for one of those
+tells the reader something happened when nothing did. The "tap the flipped card again" row above is
+the one that catches a regression here.
+
+**iOS is written but unrun.** `Haptics.swift` maps the same `StudyHaptic` onto
+`UIImpactFeedbackGenerator`/`UINotificationFeedbackGenerator`, and `StudySessionScreen` plays it off
+the same effect. There is no macOS on this machine — no `xcodebuildmcp`, no simulator — so the Swift
+half has not been compiled, let alone felt. It owes a run.

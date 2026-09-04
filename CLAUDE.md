@@ -303,6 +303,20 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   escape hatch's label. Matching is `AnswerMatcher` with an `AnswerStrictness`: typing is `Strict`
   (accents count — typing them is the point), `SpeakMatcher` is the `Lenient` view. Cards with no
   back text (an image-only Anki answer) or no prompt fall back to tap-to-reveal.
+- **The study loop's haptics are decided in the ViewModel, never fired on tap by a screen.**
+  `StudySessionEffect.Haptic(StudyHaptic)` rides the ordinary effect flow, and the platforms only
+  map it — `HapticFeedbackType` on Android, `UIImpactFeedbackGenerator`/
+  `UINotificationFeedbackGenerator` on iOS. The reason is that whether a tap *did* anything is known
+  in the VM and nowhere else: a grade arriving while the previous one is still writing, a Check on
+  an untypable card and a second reveal are all ignored, and buzzing for one of those tells the
+  reader something happened when nothing did. Three things not to undo. The vocabulary is four
+  patterns because that is what both platforms can distinguish — `Warning` (a missed check, a
+  mispronounced word) and `Failure` (a listen that produced no answer) are `.warning` and `.error`
+  on iOS and both land on Android's one `Reject`. The **last card's grade does not tick**: it and
+  the completion's `Success` would land a few milliseconds apart and read as one smeared buzz
+  rather than two events. And haptics are `tryEmit`ed, not emitted from a launched coroutine — one
+  that has to queue for buffer space is better dropped than fired late against the next card, which
+  is also why the shared tests have to `runCurrent()` before the first tap.
 - **A parenthesized aside is never part of the answer, in any of the three modes.** `"hello
   (formal)"` is a card asking for `"hello"`: the bracket is an editorial note about which sense is
   meant. `AnswerMatcher.stripParentheticals` drops it inside `matches`/`isTypable`, so typing and
