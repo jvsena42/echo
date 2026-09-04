@@ -10,11 +10,13 @@
     <action>Tap the element with resource-id "deck_study" to start a session</action>
     <action>Verify a study card is shown with a position indicator like "1 of 3" and the card front text visible</action>
     <action>Tap the element with resource-id "study_card" to reveal the answer</action>
+    <action>Verify the flip buzzed once. On an emulator there is no actuator to feel, so read it back with `adb shell dumpsys vibrator_manager | grep loopky` — a ContextClick (constant=6) attributed to com.github.jvsena42.loopky. Tap the already-flipped card again and verify NO second entry appears: a tap that changed nothing must not buzz</action>
     <action>Verify the card back is revealed and four grade buttons are shown (resource-ids: study_again, study_hard, study_good, study_easy)</action>
     <action>Tap the element with resource-id "study_good"</action>
     <action>Verify the session advanced to the next card ("2 of 3")</action>
     <action>Reveal each remaining card (study_card) and grade it with study_good</action>
     <action>Verify a session-complete state is shown (summary or return affordance)</action>
+    <action>Verify the session ended on a single Confirm (constant=16) and that the LAST grade did not also tick — the final tap's acknowledgement is the completion's own buzz, because two a few milliseconds apart read as one smeared one</action>
     <action>Tap the element with resource-id "study_close" and verify the app returns to the previous screen</action>
   </actions>
 </journey>
