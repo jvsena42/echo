@@ -66,6 +66,14 @@ class StudySessionViewModel(
     private val _effects = MutableSharedFlow<StudySessionEffect>(extraBufferCapacity = 4)
     val effects: SharedFlow<StudySessionEffect> = _effects.asSharedFlow()
 
+    /**
+     * `tryEmit`, not a launched `emit`: a haptic belongs to the moment of the tap, so one that has
+     * to queue for buffer space is worse dropped than fired late against the next card.
+     */
+    private fun haptic(pattern: StudyHaptic) {
+        _effects.tryEmit(StudySessionEffect.Haptic(pattern))
+    }
+
     private var queue: List<StudyPresentation> = emptyList()
     private var index = 0
     private var revealed = false
@@ -225,6 +233,7 @@ class StudySessionViewModel(
     fun onReveal() {
         if (!revealed) {
             revealed = true
+            haptic(StudyHaptic.Tick)
             emitCurrent()
         }
     }
@@ -232,6 +241,7 @@ class StudySessionViewModel(
     /** The counterpart to [onGrade] — same advance, no scheduling, since nothing is recorded. */
     fun onNextCard() {
         if (!isPreview || gradeJob?.isActive == true) return
+        tapHaptic()
         current?.let { gradedCardIds += it.card.id }
         advanceIndex()
         emitCurrent()
@@ -240,6 +250,7 @@ class StudySessionViewModel(
     fun onGrade(grade: SrsGrade) {
         if (isPreview || gradeJob?.isActive == true) return
         val presentation = current ?: return
+        tapHaptic()
         gradeJob = viewModelScope.launch {
             gradeResultFor(presentation, grade)
                 .onFailure { err ->
@@ -290,6 +301,15 @@ class StudySessionViewModel(
     private fun hasReverseAhead(cardId: String): Boolean =
         queue.drop(index + 1).any { it.reversed && it.card.id == cardId }
 
+    /**
+     * Acknowledge a tap that moves the queue on — unless it is the last card, whose acknowledgement
+     * is the completion's own Success a moment later. Two buzzes that close together read as one
+     * smeared one rather than as two events.
+     */
+    private fun tapHaptic() {
+        if (index < queue.lastIndex) haptic(StudyHaptic.Tick)
+    }
+
     private fun advanceIndex() {
         index++
         revealed = false
@@ -310,6 +330,7 @@ class StudySessionViewModel(
         // shown here would spend the day's one celebration on a screen that never appeared.
         if (queue.getOrNull(index) == null) return
         goalReached = true
+        haptic(StudyHaptic.Success)
         goalCelebration = GoalCelebration(
             newCardsToday = srsRepository.dailyProgress.value.newCards,
             goal = goal,
@@ -360,7 +381,9 @@ class StudySessionViewModel(
         if (outcome == TypedAnswerOutcome.Correct) {
             typePhase = TypePhase.Correct(typed)
             revealed = true
+            haptic(StudyHaptic.Success)
         } else {
+            haptic(StudyHaptic.Warning)
             // `revealed` is deliberately untouched: a card already flipped stays flipped, still
             // showing the input — a miss changes what is said, not what is shown.
             typePhase = TypePhase.Answering(lastMiss = TypeMiss(typed, outcome))
@@ -378,6 +401,7 @@ class StudySessionViewModel(
         if (typePhase !is TypePhase.Answering) return
         typePhase = TypePhase.GaveUp
         revealed = true
+        haptic(StudyHaptic.Tick)
         emitCurrent()
     }
 
@@ -401,6 +425,7 @@ class StudySessionViewModel(
         // The target's own language, not the deck's front: it decides which language's number words
         // "10" may be spoken as, and the two sides of a card rarely share one.
         val result = SpeakMatcher.match(text, target.expected, target.languageTag)
+        haptic(if (result.correct) StudyHaptic.Success else StudyHaptic.Warning)
         setSpeakPhase(
             if (result.correct) {
                 SpeakPhase.Correct(result.heard)
@@ -421,6 +446,7 @@ class StudySessionViewModel(
      */
     fun onSpeechError(reason: SpeechError) {
         val target = speakTarget ?: return
+        haptic(StudyHaptic.Failure)
         setSpeakPhase(SpeakPhase.Failed(reason = reason, expected = target.expected))
     }
 
@@ -447,6 +473,9 @@ class StudySessionViewModel(
 
     private fun startRecognition(target: SpeakTarget) {
         speakTarget = target
+        // The one cue that the microphone is open: the sheet is the same sheet, and there is no
+        // sound to confirm it.
+        haptic(StudyHaptic.Tick)
         setSpeakPhase(SpeakPhase.Listening(target.expected))
         viewModelScope.launch {
             _effects.emit(
@@ -583,6 +612,7 @@ class StudySessionViewModel(
      * not record.
      */
     private fun emitComplete() {
+        haptic(StudyHaptic.Success)
         if (isPreview) {
             _state.update {
                 StudySessionUiState.Complete(
@@ -856,4 +886,36 @@ sealed interface StudySessionEffect {
         val languageTag: String,
     ) : StudySessionEffect
     data object Close : StudySessionEffect
+
+    /**
+     * Buzz the phone. An effect rather than something the screens do on tap, because whether a tap
+     * *did* anything is known here and nowhere else — a grade arriving while the previous one is
+     * still writing, a Check on an untypable card and a second reveal are all ignored, and a buzz
+     * for one of those tells the reader something happened when nothing did.
+     */
+    data class Haptic(val pattern: StudyHaptic) : StudySessionEffect
+}
+
+/**
+ * The study loop's haptic vocabulary, sized to what both platforms can actually distinguish.
+ *
+ * PascalCase like every enum that crosses to Swift here: Kotlin exports entries lowercased with the
+ * separators dropped, so a SCREAMING_SNAKE entry crosses under a name nothing can predict.
+ */
+enum class StudyHaptic {
+    /** The card moved: flipped, graded, given up on, or the microphone opened. */
+    Tick,
+
+    /** Right — a correct check, a correct utterance, the goal met, the session finished. */
+    Success,
+
+    /** Wrong, but the reader's turn continues: a missed check, a mispronounced word. */
+    Warning,
+
+    /**
+     * The app could not do the thing at all — a listen that produced no answer. Distinct from
+     * [Warning] because on iOS it is: `.error` against `.warning`. Android has one "that did not
+     * work" pattern and both land on it.
+     */
+    Failure,
 }
