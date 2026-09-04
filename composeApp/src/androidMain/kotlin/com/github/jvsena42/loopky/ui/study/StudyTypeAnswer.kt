@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.ui.study
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,7 +38,9 @@ import androidx.compose.ui.unit.sp
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.TypedAnswerOutcome
 import com.github.jvsena42.loopky.presentation.study.TypeMiss
+import com.github.jvsena42.loopky.ui.components.rememberReduceMotion
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import kotlinx.coroutines.delay
 
 /**
  * The input the answer is written into, drawn **on the card back** — in the very space the answer
@@ -63,7 +66,17 @@ internal fun TypeAnswerInput(
 ) {
     val colors = LoopkyTheme.colors
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(cardKey) { focusRequester.requestFocus() }
+    // Not on composition: this field appears as the card crosses 90°, and taking focus there raises
+    // the keyboard *during* the turn. The IME is a window — showing it makes SurfaceFlinger allocate
+    // its surface, and every frame the card is drawing then blocks behind that swap. Traced at
+    // ~430 ms of `dequeueBuffer`/`present` landing squarely mid-flip, which is the stutter that was
+    // visible on every typing card. So the field waits for the card to land, and the keyboard comes
+    // up after it rather than through it.
+    val reduceMotion = rememberReduceMotion()
+    LaunchedEffect(cardKey) {
+        if (!reduceMotion) delay(REMAINING_FLIP_MS)
+        focusRequester.requestFocus()
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -109,16 +122,20 @@ internal fun TypeAnswerInput(
         )
         // Between the field and Check, because it is about what is still in the field. What was
         // typed is not repeated back: it has not been cleared, so it is right there.
-        lastMiss?.let { miss ->
+        //
+        // It grows in rather than appearing: the line sits above Check, so a hard cut moves the
+        // button out from under the finger that is already reaching for it.
+        AnimatedVisibility(visible = lastMiss != null) {
+            val outcome = lastMiss?.outcome
             Text(
-                text = when (miss.outcome) {
+                text = when (outcome) {
                     TypedAnswerOutcome.NearMiss -> stringResource(R.string.study_type_near_miss)
                     else -> stringResource(R.string.study_type_wrong)
                 },
                 fontSize = 14.sp,
                 fontWeight = FontWeight.W700,
                 textAlign = TextAlign.Center,
-                color = when (miss.outcome) {
+                color = when (outcome) {
                     TypedAnswerOutcome.NearMiss -> colors.srsHard
                     else -> colors.srsAgain
                 },
@@ -189,3 +206,9 @@ internal fun TypeCorrectNote(modifier: Modifier = Modifier) {
         modifier = modifier.testTag("study_type_result"),
     )
 }
+
+/**
+ * What is left of the card's 700 ms turn once the back face — and with it this field — is composed,
+ * which happens as the card passes 90°. See [TypeAnswerInput]: the keyboard waits it out.
+ */
+private const val REMAINING_FLIP_MS = 350L

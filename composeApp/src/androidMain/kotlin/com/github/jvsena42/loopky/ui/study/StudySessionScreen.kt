@@ -38,7 +38,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -249,7 +248,11 @@ fun StudySessionScreen(
             .fillMaxSize()
             .background(colors.surfaceSecondary)
             .windowInsetsPadding(WindowInsets.systemBars)
-            .imePadding()
+            // Deliberately *not* `imePadding()`. The card is `weight(1f)` of this column, so
+            // padding the whole screen for the keyboard resized the card every time the keyboard
+            // came or went — a ~145 dp jump on a phone, landing exactly when a typed answer opened
+            // the card and the grades appeared. The keyboard is held off the field itself instead,
+            // inside the card (`CardFace`), which leaves the frame where it was.
             .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         when (state) {
@@ -462,7 +465,8 @@ private fun ReviewingContent(
                             frontImageRef = state.frontImageRef,
                             backImageRef = state.backImageRef.takeUnless { state.answerHidden },
                             revealed = state.revealed,
-                            answerHidden = state.answerHidden,
+                            typePhase = state.typePhase,
+                            typedAnswer = state.typedAnswer,
                         ),
                         // Keyed on the card, so revealing swaps content in place (the flip) and only a
                         // card change runs the enter/exit transition.
@@ -492,12 +496,12 @@ private fun ReviewingContent(
                             onReveal = onReveal,
                             onSpeak = onSpeak,
                             onSpeakTest = onSpeakTest,
-                            answerInput = (state.typePhase as? TypePhase.Answering)?.let { phase ->
+                            answerInput = (card.typePhase as? TypePhase.Answering)?.let { phase ->
                                 {
                                     TypeAnswerInput(
-                                        value = state.typedAnswer,
+                                        value = card.typedAnswer,
                                         languageTag = state.backLang,
-                                        cardKey = state.position,
+                                        cardKey = card.position,
                                         onValueChange = onAnswerChange,
                                         onCheck = onCheckAnswer,
                                         onGiveUp = onGiveUp,
@@ -505,7 +509,7 @@ private fun ReviewingContent(
                                     )
                                 }
                             },
-                            answerNote = if (state.typePhase is TypePhase.Correct) {
+                            answerNote = if (card.typePhase is TypePhase.Correct) {
                                 { TypeCorrectNote() }
                             } else {
                                 null
@@ -514,45 +518,13 @@ private fun ReviewingContent(
                     }
                 }
 
-                // Everything typing adds lives on the card itself, so the two rows below are exactly
-                // what they were before the mode existed. They are reserved rather than conditional
-                // so the card keeps one size across the flip.
-                //
-                // With one exception. On a flipped typing card the grades are not on offer yet and
-                // the flip hint has nothing to say, so both rows are *certainly* empty — and holding
-                // ~140dp open for them steals it from the card at the one moment the keyboard has
-                // already taken half the screen. An `if` rather than an early return: the content
-                // below the card sits inside the left pane, so returning would abandon the grade
-                // column too.
-                if (state.answerHidden && state.revealed) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                } else {
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // SRS grade row — reserved always, and only when the grades are not already standing
-                    // in a column to the right. The buttons appear once the answer is legible, which on a
-                    // typing card is later than the flip. (Listen/Speak, by contrast, are on both faces —
-                    // they live inside the card, not here.)
-                    if (!wide) {
-                        GradeOrNextRow(
-                            state = state,
-                            onGrade = onGrade,
-                            onNextCard = onNextCard,
-                            reduceMotion = reduceMotion,
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-                    }
-
-                    // Flip hint — shown on the front only; space is reserved on the back too so the
-                    // card above keeps the same size across the flip.
-                    Box(modifier = Modifier.fillMaxWidth().height(20.dp)) {
-                        if (!state.revealed) {
-                            FlipHint(modifier = Modifier.align(Alignment.Center))
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+                BelowCardRows(
+                    state = state,
+                    wide = wide,
+                    reduceMotion = reduceMotion,
+                    onGrade = onGrade,
+                    onNextCard = onNextCard,
+                )
             }
             // The column's width *is* the animation. As it expands the row re-centres, which
             // slides the card left by half the gutter under the same easing — one spring, two
@@ -625,9 +597,18 @@ private data class CardSnapshot(
     val frontImageRef: MediaRef.Image?,
     val backImageRef: MediaRef.Image?,
     val revealed: Boolean,
+    /**
+     * **This card's** place in the type-the-answer flow, not the session's. An outgoing card is
+     * still composed while it fades, holding the back face it was graded on — so reading the live
+     * phase there would draw the *next* card's input, and its `FocusRequester` would raise the
+     * keyboard over a front that has nothing to type into.
+     */
+    val typePhase: TypePhase = TypePhase.Off,
+    val typedAnswer: String = "",
+) {
     /** The back is turned but its words are a placeholder — see `Reviewing.answerHidden`. */
-    val answerHidden: Boolean = false,
-)
+    val answerHidden: Boolean get() = typePhase is TypePhase.Answering
+}
 
 /**
  * One card, owning its own flip. Composed per [CardSnapshot] by the advance `AnimatedContent`,
@@ -712,6 +693,55 @@ private fun AnimatedContentScope.FlippableCard(
                 modifier = Modifier.graphicsLayer { rotationY = 180f },
             )
         }
+    }
+}
+
+/**
+ * The grade row and the flip hint, under the card.
+ *
+ * Everything typing adds lives on the card itself, so these two are exactly what they were before
+ * the mode existed: **reserved in every state**, empty or not, so that the card above — which is
+ * the `weight(1f)` this height comes out of — is the same size on both faces and before and after
+ * the grades arrive. Collapsing them while a typing card was masked bought the card 132 dp and then
+ * took it back the moment the answer was checked, which is a card that jumps and re-flows its text
+ * under the finger that just earned it.
+ *
+ * It is also why this is a cut and not an animation: animating this height re-measures the card on
+ * every frame, and the card re-measures `TextAutoSize` text — a full layout per step.
+ */
+@Composable
+private fun BelowCardRows(
+    state: StudySessionUiState.Reviewing,
+    wide: Boolean,
+    reduceMotion: Boolean,
+    onGrade: (SrsGrade) -> Unit,
+    onNextCard: () -> Unit,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Only when the grades are not already standing in a column to the right. The buttons
+        // appear once the answer is legible, which on a typing card is later than the flip.
+        // (Listen/Speak, by contrast, are on both faces — they live inside the card, not here.)
+        if (!wide) {
+            GradeOrNextRow(
+                state = state,
+                onGrade = onGrade,
+                onNextCard = onNextCard,
+                reduceMotion = reduceMotion,
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+        }
+
+        // Shown on the front only; space is reserved on the back too so the card above keeps the
+        // same size across the flip.
+        Box(modifier = Modifier.fillMaxWidth().height(20.dp)) {
+            if (!state.revealed) {
+                FlipHint(modifier = Modifier.align(Alignment.Center))
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 

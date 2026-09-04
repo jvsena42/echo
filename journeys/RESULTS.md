@@ -2025,3 +2025,81 @@ the one that catches a regression here.
 `UIImpactFeedbackGenerator`/`UINotificationFeedbackGenerator`, and `StudySessionScreen` plays it off
 the same effect. There is no macOS on this machine — no `xcodebuildmcp`, no simulator — so the Swift
 half has not been compiled, let alone felt. It owes a run.
+
+## The keyboard on the front of a card — 2026-09-04, `emulator-5554`
+
+Journey 03, re-run with **Type the answer** on (48-card "Computer Networks" deck, portrait and
+landscape). An emulator shows the keyboard the same way a phone does but says so out loud, so every
+row below was read back from `adb shell dumpsys input_method | grep mInputShown` — polled ~12 times
+over the second after each grade, because what this bug does is *flash*.
+
+| Step | Before | After |
+| --- | --- | --- |
+| Flip a typing card | ✅ input on the back, `mInputShown=true` | ✅ unchanged |
+| Wrong answer → Check | ✅ miss line, text kept, no grades | ✅ unchanged, and the line now grows in |
+| Correct → Check, or Give up | ✅ card opens, `mInputShown=false` | ✅ unchanged |
+| Grade → next card's front | ❌ `mInputShown=true` on **8 of 8** advances — one sample most times, four in a row (several hundred ms) on two of them | ✅ `.` on all 14 advances (8 portrait, 6 more after the refactor) |
+| Same at expanded width (landscape, `w914dp`, grade column) | — | ✅ 3 of 3 advances clean, grade column intact |
+
+### Worth knowing
+
+**The keyboard was the *next* card's, drawn by the *previous* one.** `AnimatedContent` keeps the
+outgoing card composed for its 100 ms fade, and it re-runs the enclosing content lambda — which read
+`state.typePhase`, by then already `Answering` for the card that had just arrived. So the card on
+its way out drew the incoming card's input, its `FocusRequester` fired, and the keyboard came up over
+a front with nothing to type into. It then usually went away when that card was disposed a frame or
+two later, which is what made it look intermittent rather than constant. The fix is that
+`CardSnapshot` now carries the card's own `typePhase` and typed text, so an outgoing card can only
+ever draw its own.
+
+**A phone in landscape cannot type on a card, and could not before this either.** At `h411dp` the
+keyboard takes two thirds of the window and the card is left a ~40 px strip with the input inside it
+unreachable. Not touched here — it is the same layout on `main`, and it is a height problem, not the
+width-class kind (#173). A tablet in landscape has the room and is fine.
+
+## The flip, and what was actually stuttering — 2026-09-04, `emulator-5554`
+
+Journey 03 with **Type the answer** on, re-run after the keyboard-on-the-front fix, because the
+turn itself was visibly juddering and the card jumped when the grades arrived. Frame data from
+`dumpsys gfxinfo <pkg>` sampled over the 750 ms of one flip, geometry from `uiautomator dump`.
+
+| | Before | After |
+| --- | --- | --- |
+| Frames rendered per flip | 21 | **44** — it had been dropping every other one |
+| Janky frames | 13.6% | **7.1%** |
+| p90 frame | 32 ms | **16 ms** |
+| Worst frame in the turn | ~435 ms ×3 | none; the IME's ~445 ms now lands after the card has settled |
+| Card y across front / answering / graded | 405 → 579 → 405 | **405 in all three** |
+| Same at `w914dp` (landscape) | card squeezed to a ~40 px strip, controls unreachable | 332..869 throughout, and typing is usable there for the first time |
+| Reveal transition | 3.2% janky | 3.2% janky — the "flash" was never dropped frames |
+
+### Worth knowing
+
+**It was the keyboard, and `atrace` is what said so.** Seven guesses were measured and all seven
+were wrong: a height animation on the rows under the card, composing the back face at the 90°
+crossing, `TextAutoSize`, the rounded clip sitting outside the 3D layer, `rotationY` itself, the
+reveal haptic, and the card's ripple. Each was built and benched; p99 stayed at 400–450 ms through
+every one of them. One `atrace --async_start view gfx` over a single flip named it in three lines:
+
+    460 ms  putmethod.latin   Choreographer#doFrame
+    446 ms  putmethod.latin   draw-VRI[InputMethod]
+    426 ms  RenderThread      dequeueBuffer / allocateHelper
+    433 ms  surfaceflinger    present
+    425 ms  jvsena42.loopky   eglSwapBuffersWithDamageKHR
+
+The answer field took focus the moment the back face composed — the frame the rotation crosses 90° —
+and showing the IME makes SurfaceFlinger allocate its window surface, which every frame the card was
+drawing then blocked behind. The card was never slow; the keyboard was landing on top of it.
+
+**A control experiment is what turned guessing into measuring.** Tab switches on the same build
+measured 1–4% janky with a p99 of 16–65 ms while the flip sat at 13% and 400 ms, which is what
+established the cost was the flip's own rather than the emulator waking up. Worth doing early: two
+A/B runs of the *same* build had disagreed by 10 points before that, and one of them nearly sent a
+"fixed" claim out on noise.
+
+**`imePadding()` pads by the keyboard's whole height, not the overlapping part.** Moving it from the
+screen onto the input block inside the card looks like the surgical version of this fix and is not:
+the block's viewport shrank below the block's own height and Give up was sheared off the bottom —
+laid out at [368,1002][712,1076], drawn nowhere, and answering no tap there. It is in the tree and
+absent from the screen, which is the failure mode nothing reports. The card's own height already
+clears the keyboard; that is what the fix relies on, with the block's scroll as the fallback.
