@@ -1676,7 +1676,44 @@ from there rather than from `raw.githubusercontent.com/.../main/cli/install.sh`.
 `sh` makes the one command that runs unreviewed shell as the user track a moving branch, while
 every artifact it installs is pinned to a tag.
 
-### 13.13 Shape for a second front end
+### 13.13 Tab completion, generated rather than shipped
+
+`loopky completion bash|zsh|fish` prints a completion script on stdout. Four decisions in it.
+
+**It is generated from a table, not checked in as three files.** `CommandSurface.kt` describes the
+commands, their options and what each option accepts; the three generators read that and nothing
+else. Checked-in scripts would be right on the day they were written and wrong from the first flag
+added afterwards — in the direction nobody notices, because a completion cannot fail loudly. It
+offers a flag the parser refuses, or stays silent about one that works, and the user shrugs and
+types it out. `CompletionTest` holds the table against `Args.SWITCHES` and against the usage
+block, so a new flag that nothing describes fails the build instead. The `.deb` and the Homebrew
+formula generate their copies by *running the binary they are packaging*, for the same reason.
+
+**Nothing it offers touches the network.** The obvious next feature is completing a deck id after
+`deck show`, and it would put a homeserver round trip on a keypress: a tab that hangs for a second
+on a good network and forever on a dead session, in the one place the user cannot interrupt
+without losing the line. Deck ids are `Operand.Opaque` — zsh and fish name the word, and offer
+nothing. A test asserts no generated script contains an address.
+
+**`completion` runs before Koin, beside `update`, and with the update check off.** Before Koin
+because generating a static string must not depend on `libpubkycore` loading — a host outside the
+shipped matrix can still install completions. With the check off because the script's documented
+home is a line in `.bashrc`, which puts this command in the path of every new shell; the check is
+awaited before exit, and a terminal that opens a second slower once a day is a bug nobody would
+trace back to a completion script.
+
+**Each script walks the line rather than counting words.** `loopky --env staging deck create` is
+legal, so "the command is the first one or two words" reads `staging` as the command and completes
+nothing. All three step over every option and the value it consumes. fish's own
+`__fish_seen_subcommand_from` has the same flaw one layer up — it answers yes to a word anywhere
+on the line, including one that is an option's *value* — so the fish script computes the command
+itself.
+
+The installer only *mentions* completions. Enabling them means writing to a shell rc file or a
+system directory, and an installer that edits `~/.bashrc` behind you is one you cannot cleanly
+undo — on a box where the whole install is "copy one file", that is the wrong trade.
+
+### 13.14 Shape for a second front end
 
 The chat-only audience — Claude's analysis tool, ChatGPT's code interpreter — has no shell and no
 network egress, so a client needing a homeserver, a relay and DHT resolution cannot function there
@@ -1693,7 +1730,7 @@ implies — or runs on the user's own machine over stdio is open. Finding 1 push
 a different reason: a process that outlives one command is the natural place to renew a session
 before it expires, which a per-invocation CLI can never be.
 
-### 13.14 Still open
+### 13.15 Still open
 
 - **Can Loopky run behind an allowlist proxy at all?** A hard blocker for cloud sandboxes, not a
   polish item. Homegate and Nexus are fixed hosts, but the homeserver is resolved from its pubky

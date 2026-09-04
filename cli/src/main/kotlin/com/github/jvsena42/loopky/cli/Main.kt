@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.cli.commands.cardAdd
 import com.github.jvsena42.loopky.cli.commands.cardEdit
 import com.github.jvsena42.loopky.cli.commands.cardList
 import com.github.jvsena42.loopky.cli.commands.cardRemove
+import com.github.jvsena42.loopky.cli.commands.completion
 import com.github.jvsena42.loopky.cli.commands.deckCompact
 import com.github.jvsena42.loopky.cli.commands.deckCreate
 import com.github.jvsena42.loopky.cli.commands.deckDelete
@@ -102,14 +103,16 @@ private fun run(argv: Array<String>): ExitCode {
             }
         }
         try {
-            // `update` before the boundary, because it is the command you reach for when the
-            // install is *broken*. Everything below starts Koin, which resolves `PubkyClient` and
-            // therefore loads `libpubkycore` — so on a host where that load fails (an old glibc, a
-            // truncated download, a half-written file from an interrupted install) the repair
-            // command would fail identically to the thing it repairs, with an error about the FFI.
-            // It needs no session, no homeserver and no native library; only `args` and `updates`.
-            val result = if (args.verb == UPDATE_VERB) {
-                update(args, updates.checker, updates.installation)
+            // Two commands before the boundary. Everything below starts Koin, which resolves
+            // `PubkyClient` and therefore loads `libpubkycore` — so on a host where that load
+            // fails (an old glibc, a truncated download, a half-written file from an interrupted
+            // install) anything past this point fails with an error about the FFI. `update` is
+            // the command you reach for when the install is *broken*, so failing identically to
+            // the thing it repairs would be useless; `completion` prints a static string that a
+            // shell rc file evaluates on every new shell. Neither needs a session, a homeserver
+            // or a native library. See `preKoin`.
+            val result = if (args.verb in PRE_KOIN_VERBS) {
+                preKoin(args, updates)
             } else {
                 // Inside the boundary, not before it: starting Koin resolves `PubkyClient`, which
                 // is where a host outside the shipped matrix fails at `Native.load` — so this is
@@ -212,9 +215,10 @@ private suspend fun dispatch(
         // No session: a Nexus read is plain HTTP against a public index.
         "tag trending" -> tagTrending(args, koin.get<TagRepository>(), environment)
 
-        // `update` is deliberately absent: it is handled in `run` before Koin starts, since it is
-        // the one command that has to work on an install too broken to load the FFI. It is still
-        // one function taking plain values, so the MCP-binding shape below is unaffected.
+        // `update` and `completion` are deliberately absent: both are handled in `run` before
+        // Koin starts, since neither may depend on an install healthy enough to load the FFI.
+        // Both are still one function taking plain values, so the MCP-binding shape below is
+        // unaffected.
 
         // The message stays one line. `--json` puts it in an `error.message`, and pasting a
         // 60-line usage block into a JSON string helps nobody parsing it; `--help` is where the
@@ -290,6 +294,24 @@ private const val TAG = "Loopky/Cli"
 /** Handled in [run] rather than in [dispatch]; see the note at its call site. */
 private const val UPDATE_VERB = "update"
 
+/** The same, for the one other command that must work on an install too broken to load the FFI. */
+private const val COMPLETION_VERB = "completion"
+
+private val PRE_KOIN_VERBS = setOf(UPDATE_VERB, COMPLETION_VERB)
+
+/**
+ * The two commands that run before Koin, and therefore before `libpubkycore` is loaded.
+ *
+ * Neither needs a session, a homeserver or a native library, and both have a reason to work
+ * without one: `update` is what you reach for when the install is *broken*, and `completion`
+ * prints a static string that a shell rc file will `eval` on a machine this binary may not even
+ * be shipped for.
+ */
+private suspend fun preKoin(args: Args, updates: Updates): CommandResult = when (args.verb) {
+    COMPLETION_VERB -> completion(args)
+    else -> update(args, updates.checker, updates.installation)
+}
+
 /**
  * Two numbers that move independently, which is why both are printed.
  *
@@ -299,7 +321,8 @@ private const val UPDATE_VERB = "update"
  */
 private val VERSION = "loopky $CLI_VERSION (schema $SCHEMA_VERSION)"
 
-private val USAGE = """
+/** `internal` so `CompletionTest` can check that every command in the table is documented here. */
+internal val USAGE = """
     loopky — a headless Loopky client for decks and cards.
 
     USAGE
@@ -366,6 +389,19 @@ private val USAGE = """
                                 digest published beside it. Refuses, with the right command, on a
                                 Homebrew or .deb install, in a container, and on the jar.
       update --check            Ask without doing.
+
+    SHELL
+      completion bash|zsh|fish  Print a completion script on stdout, generated from this binary's
+                                own command table — so it cannot describe a surface the binary
+                                does not have. Nothing it offers touches the network: a deck id
+                                would be a homeserver round trip on a keypress.
+
+                                  eval "${'$'}(loopky completion bash)"        # in ~/.bashrc
+                                  loopky completion zsh > "${'$'}{fpath[1]}/_loopky"
+                                  loopky completion fish > ~/.config/fish/completions/loopky.fish
+
+                                Regenerate it after an upgrade; a stale script offers flags that
+                                are refused.
 
     GLOBAL
       --json                    Machine-readable output on stdout. Stable, versioned schema.

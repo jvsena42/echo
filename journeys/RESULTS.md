@@ -1938,3 +1938,45 @@ moved.
 **The `--clear-tags` row is the one that had to keep failing to change.** These are ordinary
 author-removable tags (Architecture §7.7 point 4), so an edit that names no pair must not put
 `language` back on a set the caller just emptied.
+
+## Tab completion for `loopky` — 2026-09-04, Linux x86_64 (dev machine) + alpine containers
+
+No homeserver and no session: `completion` runs before Koin and generates a static string, so what
+had to be verified is that the three shells actually **do** what the script says. Driven from
+`cli/build/install/loopky/bin/loopky` — bash locally, zsh and fish in `alpine:3.20` containers,
+since neither is installed on this box.
+
+| Step | Result |
+| --- | --- |
+| `loopky <TAB>` | ✅ all three shells — `login logout whoami deck card import tag update completion` |
+| `loopky deck <TAB>` | ✅ `list show create edit delete sync compact`, with summaries in zsh and fish |
+| `loopky deck cr<TAB>` | ✅ completes to `create` |
+| `loopky deck create --ti<TAB>` | ✅ `--title` |
+| `loopky --env <TAB>` | ✅ `staging production` |
+| `loopky --env staging deck <TAB>` | ✅ the subcommands — the walk steps over the option **and its value** |
+| `loopky card add abc --front x --ba<TAB>` | ✅ `--back --back-image`, so a card front that looks like a flag does not confuse it |
+| `loopky deck edit abc --clear<TAB>` | ✅ `--clear-cover --clear-tags` |
+| `loopky import --separator <TAB>` | ✅ all nine separators |
+| `loopky import <TAB>` | ✅ filenames — the one command with a file operand |
+| `loopky completion <TAB>` | ✅ `bash zsh fish` |
+| `loopky deck show <TAB>` | ✅ zsh names the word (`deckId`) and offers nothing; bash offers the flags only |
+| `zsh -n` / `fish -n` / `bash -n` on each script | ✅ all parse |
+| `source` the bash script, `complete -p loopky` | ✅ registered |
+| `loopky completion bash --json` | ✅ envelope carries `shell` and the whole `script` |
+| `loopky completion` / `loopky completion powershell` | ✅ exit 2, both messages name the three shells |
+
+### Worth knowing
+
+**Driving zsh found a bug a build could not.** The script ends with `_loopky "$@"`, which is
+correct when zsh *autoloads* it out of `$fpath` — and wrong for the `eval "$(loopky completion
+zsh)"` install the same file documents, where it runs `_loopky` outside any completion context and
+prints "command not found" for `_describe` on every new shell. It now branches on `funcstack[1]`
+and registers with `compdef` on the sourced path. Both install lines in `--help` work as written.
+
+**The interactive zsh check needed a pty.** `zpty`'s `-t` is *test*, not timeout, so the obvious
+read loop blocks forever; the menu above was captured with a bounded polling loop, and the
+per-arm dispatch was additionally driven directly by stubbing `_describe`/`_files`/`_message`/
+`_values` and calling `_loopky` with `words`/`CURRENT` set by hand.
+
+**Nothing was checked against a network on purpose.** A test asserts no generated script contains
+an address — completing a deck id would be a homeserver round trip on a keypress.

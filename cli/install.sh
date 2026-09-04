@@ -107,3 +107,8 @@ case ":$PATH:" in
     *) printf 'loopky: %s is not on your PATH — add it, or call the binary by its full path\n' \
            "$INSTALL_DIR" >&2 ;;
 esac
+
+# Told, not done. Enabling completions means writing to a shell rc file or a system directory, and
+# an installer that edits `~/.bashrc` behind you is one you cannot cleanly undo — on a box where
+# the whole install is "copy one file", that is the wrong trade. The line is one command away.
+printf 'loopky: tab completion is available — `loopky completion bash|zsh|fish`, see cli/README.md\n' >&2

@@ -146,6 +146,26 @@ jobs:
           set -e
           test "$CODE" -eq 3   # not signed in is checked first, before the file is read
 
+      # The one thing a unit test cannot check about a generated shell script: whether the shell
+      # will parse it. `CompletionTest` asserts what is in each script; nothing in Kotlin notices
+      # an unbalanced quote or a `case` missing its `esac`, and the failure lands in the user's
+      # `.bashrc` as a syntax complaint about a file nobody wrote. `-n` is parse-only, so this
+      # needs no session, no network and no homeserver.
+      - name: The completion scripts parse in the shells they are for
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends zsh fish > /dev/null
+          BIN=cli/build/install/loopky/bin/loopky
+          "$BIN" completion bash > /tmp/loopky.bash
+          "$BIN" completion zsh  > /tmp/_loopky
+          "$BIN" completion fish > /tmp/loopky.fish
+          bash -n /tmp/loopky.bash
+          zsh  -n /tmp/_loopky
+          fish -n /tmp/loopky.fish
+          # Sourcing is the other half: a script that parses can still fail to define anything.
+          bash -c 'source /tmp/loopky.bash && complete -p loopky' | grep -q _loopky
+
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4

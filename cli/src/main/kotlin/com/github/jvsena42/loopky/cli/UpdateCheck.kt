@@ -209,6 +209,10 @@ class UpdateChecker(
             args.has("no-update-check") -> false
             env("LOOPKY_NO_UPDATE_CHECK")?.isNotBlank() == true -> false
             args.verb == "update" -> false
+            // `completion`'s output lands in a shell rc file, so this command runs on every new
+            // shell. The check is awaited before exit, and a terminal that opens a second slower
+            // once a day is a bug nobody would trace back to a completion script.
+            args.verb == "completion" -> false
             else -> true
         }
 

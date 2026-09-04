@@ -46,6 +46,10 @@ class Loopky < Formula
 
   def install
     bin.install Dir["loopky*"].first => "loopky"
+    # Generated from the binary just installed rather than shipped as files, so the completions
+    # cannot describe a surface this build does not have. Homebrew runs `loopky completion <shell>`
+    # for each of the three and puts the output where each shell looks.
+    generate_completions_from_executable(bin/"loopky", "completion", shells: [:bash, :zsh, :fish])
   end
 
   test do
