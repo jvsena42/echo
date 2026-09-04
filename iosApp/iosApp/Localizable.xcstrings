@@ -6878,6 +6878,17 @@
         }
       }
     },
+    "speak_close": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
     "speak_continue": {
       "extractionState": "manual",
       "localizations": {
@@ -6907,6 +6918,138 @@
           "stringUnit": {
             "state": "translated",
             "value": "Perfect!"
+          }
+        }
+      }
+    },
+    "speak_failed_busy_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The last attempt hasn’t finished. Give it a moment and try again."
+          }
+        }
+      }
+    },
+    "speak_failed_busy_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Still listening"
+          }
+        }
+      }
+    },
+    "speak_failed_language_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This device has no speech model for this deck’s language. Add it in your device’s dictation settings."
+          }
+        }
+      }
+    },
+    "speak_failed_language_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language not installed"
+          }
+        }
+      }
+    },
+    "speak_failed_network_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speech recognition needs a connection right now. Check yours and try again."
+          }
+        }
+      }
+    },
+    "speak_failed_network_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recognition is offline"
+          }
+        }
+      }
+    },
+    "speak_failed_no_match_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing was recognised. Try again, a little closer to the microphone."
+          }
+        }
+      }
+    },
+    "speak_failed_no_match_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Didn’t catch that"
+          }
+        }
+      }
+    },
+    "speak_failed_permission_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone is off"
+          }
+        }
+      }
+    },
+    "speak_failed_unavailable_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak isn’t available"
+          }
+        }
+      }
+    },
+    "speak_failed_unknown_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recognition didn’t come back with an answer. Try again."
+          }
+        }
+      }
+    },
+    "speak_failed_unknown_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something went wrong"
           }
         }
       }
