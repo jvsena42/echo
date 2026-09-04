@@ -330,6 +330,36 @@ Prescriptive rules, adapted from the sibling Bitkit apps' `AGENTS.md` to Loopky'
 shared-logic / native-UI split. These are the canonical conventions — `docs/Architecture.md`
 points here rather than restating them.
 
+### Comments (all languages)
+
+**A comment earns its place by saying something the code cannot.** Comments had grown to a fifth of
+every Kotlin line here, most of it the signature restated in prose or a bug's whole history retold;
+the heaviest files have been pruned and the rest are still being worked through. Re-growing this is
+the easy direction, so when you touch a file, leave its comments under these rules:
+
+- **The name is the documentation.** If a KDoc's first line is the method's name in a sentence,
+  delete it — rename the method instead when the name is not carrying its weight. `/** Point at the
+  next card and clear everything the current one accumulated. */` on `advanceIndex()` is noise.
+- **No KDoc on private declarations**, unless it records something genuinely non-obvious — a lock
+  precondition (`**The caller must hold [Deck.id]'s write lock.**`), an ordering constraint, a
+  measured number, or a bug the shape exists to prevent. Those are worth keeping and are the reason
+  this is a default rather than a ban. A private helper whose name describes it gets nothing.
+- **Comment the "why", never the "what".** The load-bearing content is the constraint a reader
+  cannot recover by reading the code: what must *not* happen, what was tried and failed, which
+  issue number it came from. Everything else is the code said twice.
+- **One tight paragraph, not an essay.** Keep the invariant and the issue number; drop the
+  retelling of how the bug was found, the alternative that was rejected, and the measurement
+  narrative — `git log`/`git blame` holds that, and CLAUDE.md's "Non-obvious rules" holds the
+  cross-cutting ones. If a comment needs three paragraphs to explain a decision, it belongs in
+  `docs/Architecture.md` with a one-line pointer here.
+- **Public interfaces get real KDoc**, because callers do not read the implementation — but the
+  same limits apply: the contract and its gates, not a tour.
+- **Never leave a KDoc orphaned.** A `/** … */` separated from its declaration by another comment
+  or a blank documents the *wrong* thing, silently. Three of those were found during the prune;
+  nothing in the build reports them.
+
+The same rules apply to Swift.
+
 ### Shared (Kotlin · `shared/commonMain`)
 
 - **ViewModels extend `androidx.lifecycle.ViewModel`** (the multiplatform JetBrains build) and
@@ -382,7 +412,8 @@ points here rather than restating them.
   Architecture §9.2 decision; call the VM's generated `clear()` on disappear (there is no `onDispose()`).
 - Reuse the project's text/components instead of raw `Text().font().foregroundColor()` chains; use
   `.task` (not `.onAppear`) for async tied to a view's lifetime; mutate state on `@MainActor`; use
-  self-documenting names (`isLoadingDecks`, not `loading`); comment only non-obvious "why".
+  self-documenting names (`isLoadingDecks`, not `loading`). Comments follow the **Comments** rules
+  above — the name is the documentation, and only the non-obvious "why" is written down.
 
 ## Git
 
