@@ -254,10 +254,10 @@ Bulk file import (`BulkImportViewModel`) rejoins this flow at the publish step, 
 
 ### 7.2 Android wiring
 
-- UniFFI-generated `pubkycore.kt` is checked in at `shared/src/androidMain/kotlin/uniffi/pubkycore/pubkycore.kt` (package `uniffi.pubkycore`).
+- UniFFI-generated `pubkycore.kt` is checked in at `shared/src/jvmSharedMain/kotlin/uniffi/pubkycore/pubkycore.kt` (package `uniffi.pubkycore`) — one copy, shared by `androidMain` and `jvmMain`.
 - Native libraries live at `shared/src/androidMain/jniLibs/{arm64-v8a,armeabi-v7a,x86,x86_64}/libpubkycore.so`. AGP picks them up automatically and merges them into the APK.
 - JNA is required by the generated bindings and declared as an `@aar` dependency on `androidMain` (see `libs.versions.toml` → `jna`).
-- `AndroidPubkyClient` (`shared/src/androidMain/kotlin/com/github/jvsena42/loopky/data/pubky/AndroidPubkyClient.kt`) is the `PubkyClient` implementation. Blocking FFI calls are dispatched to `Dispatchers.IO`.
+- `UniffiPubkyClient` (`shared/src/jvmSharedMain/kotlin/com/github/jvsena42/loopky/data/pubky/UniffiPubkyClient.kt`) is the `PubkyClient` implementation, shared with the desktop/`:cli` target and Koin-bound in `PlatformModule.android.kt`. Blocking FFI calls are dispatched off the caller's thread.
 
 ### 7.3 iOS wiring
 
@@ -595,16 +595,12 @@ screens `PhoneVerificationViewModel`, `LightningVerificationViewModel`, `InviteC
 one terminal step, `LocalSignupViewModel`. **Nothing has to be installed to get through it**, and
 nothing is gated on Pubky Ring.
 
-**Pubky Ring is offered after the account exists, not before it.** #147 introduced the local path
-beside a Ring one, chosen by a `TokenRedeemer` nav argument decided at the door the user came
-through: Ring minted the key and redeemed the token over the auth relay (`beginSignUp` rewriting
-the sign-in deeplink into its signup form via `asSignupUrl`), Loopky did it locally, and
-`SignupStartViewModel` gated every method on `PubkyRingPresence` whenever Ring was the spender.
-That is gone. It cost a Ring install gate in front of the only way into the app, and — because the
-spender was a route argument — an "create an account in Loopky instead" link that navigated to a
-byte-identical second copy of the same screen. Ring is now reached from the **backup step**
+**Pubky Ring is offered after the account exists, not before it.** #147 briefly ran a Ring-redeems
+path beside the local one, selected by a nav argument. It is gone: it put a Ring install gate in
+front of the only way into the app. Ring is now reached from the **backup step**
 (`BackupRingViewModel`, straight after the account is created) and the Settings nag, where it is a
-*second copy* of a key that already exists rather than a prerequisite to satisfy.
+*second copy* of a key that already exists rather than a prerequisite to satisfy. `beginSignUp` and
+`asSignupUrl` survive unused for the same reason — see `IdentityRepository.beginSignUp`.
 
 **That offer is a backup, not a custody transfer, and the distinction is load-bearing.**
 `ringExportUrl` builds a `pubkyring://` import link and `onExportConfirmed` records
