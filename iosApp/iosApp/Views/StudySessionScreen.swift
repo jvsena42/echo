@@ -32,9 +32,6 @@ struct StudySessionScreen: View {
     /// The typed answer is owned here while the user types, like every other field in the app: a
     /// binding that round-trips through Kotlin drops characters.
     @State private var typed = ""
-    /// Why a listen could not start — no recogniser for the deck's language, or a refused
-    /// permission. Shown as an alert rather than swallowed, since the button did nothing visible.
-    @State private var speakError: String?
 
     var body: some View {
         StudySessionView(
@@ -62,12 +59,6 @@ struct StudySessionScreen: View {
                 onContinue: { viewModel?.onSpeakDismiss() },
                 onDismiss: { viewModel?.onSpeakDismiss() }
             )
-        }
-        .alert(
-            Text(verbatim: speakError ?? ""),
-            isPresented: Binding(get: { speakError != nil }, set: { if !$0 { speakError = nil } })
-        ) {
-            Button("deck_detail_dismiss_error", role: .cancel) { speakError = nil }
         }
         .onAppear { attach() }
         .onDisappear {
@@ -195,23 +186,14 @@ struct StudySessionScreen: View {
 
     /// Speak needs no Kotlin binding, exactly as Listen does not: the ViewModel asks, the platform
     /// answers through `onSpeechResult` / `onSpeechError`.
+    ///
+    /// Every failure goes back with its reason and is shown *in the sheet*: a sheet that closes on
+    /// its own is indistinguishable from the app having dropped the tap.
     private func startListening(languageTag: String, vm: StudySessionViewModel) {
         SpeechListener.shared.listen(
             languageTag: languageTag,
             onResult: { text in vm.onSpeechResult(text: text) },
-            onFailure: { failure in
-                switch failure {
-                case .permission:
-                    speakError = NSLocalizedString("speak_permission_denied", comment: "")
-                case .unavailable:
-                    speakError = NSLocalizedString("speak_unavailable", comment: "")
-                case .noMatch:
-                    // Ordinary: nothing was said, or nothing matched. The sheet closes and the
-                    // card is still there to try again from.
-                    break
-                }
-                vm.onSpeechError()
-            }
+            onFailure: { failure in vm.onSpeechError(reason: failure.shared) }
         )
     }
 
@@ -220,6 +202,19 @@ struct StudySessionScreen: View {
         viewModel = nil
         stateSink = nil
         effectSink = nil
+    }
+}
+
+private extension SpeechListener.Failure {
+    /// The shared enum the ViewModel takes. Kotlin exports enum entries lowercased with the
+    /// separators dropped, so `LanguageUnavailable` crosses as `languageunavailable`.
+    var shared: SpeechError {
+        switch self {
+        case .permission: return SpeechError.permission
+        case .unavailable: return SpeechError.unavailable
+        case .languageUnavailable: return SpeechError.languageunavailable
+        case .noMatch: return SpeechError.nomatch
+        }
     }
 }
 

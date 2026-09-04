@@ -22,7 +22,7 @@ class NoSpeaker : Speaker {
 class NoSpeechRecognizer : SpeechRecognizer {
     override fun isAvailable(): Boolean = false
     override fun listen(languageTag: String?): Flow<SpeechEvent> =
-        flowOf(SpeechEvent.Error(SpeechError.UNAVAILABLE))
+        flowOf(SpeechEvent.Error(SpeechError.Unavailable))
 }
 
 /**

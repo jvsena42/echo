@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.ui.study
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -33,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.platform.SpeechError
 import com.github.jvsena42.loopky.presentation.study.SpeakPhase
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
@@ -70,6 +73,7 @@ fun SpeakSheets(
                 is SpeakPhase.Listening -> ListeningBody(phase.expected)
                 is SpeakPhase.Correct -> CorrectBody(phase.heard, onContinue)
                 is SpeakPhase.Wrong -> WrongBody(phase.heard, phase.expected, onRetry)
+                is SpeakPhase.Failed -> FailedBody(phase, onRetry = onRetry, onDismiss = onCancel)
                 SpeakPhase.Idle -> Unit
             }
         }
@@ -192,6 +196,74 @@ private fun WrongBody(heard: String, expected: String, onRetry: () -> Unit) {
         tag = "speak_retry",
         onClick = onRetry,
     )
+}
+
+/**
+ * A listen that produced no attempt, said out loud rather than closed away — a sheet that vanishes
+ * on ERROR_NO_MATCH or a busy engine is indistinguishable from the app having dropped the tap.
+ */
+@Composable
+private fun FailedBody(phase: SpeakPhase.Failed, onRetry: () -> Unit, onDismiss: () -> Unit) {
+    val colors = LoopkyTheme.colors
+    Box(
+        modifier = Modifier.size(56.dp).clip(CircleShape).background(colors.dangerSoft),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Default.MicOff, null, tint = colors.srsAgain, modifier = Modifier.size(28.dp))
+    }
+    Text(
+        text = stringResource(phase.reason.titleRes()),
+        fontSize = 20.sp,
+        fontWeight = FontWeight.W800,
+        color = colors.foregroundPrimary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.testTag("speak_failed_title"),
+    )
+    Text(
+        text = stringResource(phase.reason.messageRes()),
+        fontSize = 13.sp,
+        color = colors.foregroundMuted,
+        textAlign = TextAlign.Center,
+    )
+    if (phase.retryable) {
+        SheetButton(
+            label = stringResource(R.string.speak_try_again),
+            background = colors.accentSecondary,
+            contentColor = colors.foregroundOnAccent,
+            tag = "speak_retry",
+            onClick = onRetry,
+        )
+    } else {
+        SheetButton(
+            label = stringResource(R.string.speak_close),
+            background = colors.accentSecondary,
+            contentColor = colors.foregroundOnAccent,
+            tag = "speak_failed_close",
+            onClick = onDismiss,
+        )
+    }
+}
+
+@StringRes
+private fun SpeechError.titleRes(): Int = when (this) {
+    SpeechError.NoMatch -> R.string.speak_failed_no_match_title
+    SpeechError.Permission -> R.string.speak_failed_permission_title
+    SpeechError.Network -> R.string.speak_failed_network_title
+    SpeechError.Busy -> R.string.speak_failed_busy_title
+    SpeechError.Unavailable -> R.string.speak_failed_unavailable_title
+    SpeechError.LanguageUnavailable -> R.string.speak_failed_language_title
+    SpeechError.Unknown -> R.string.speak_failed_unknown_title
+}
+
+@StringRes
+private fun SpeechError.messageRes(): Int = when (this) {
+    SpeechError.NoMatch -> R.string.speak_failed_no_match_message
+    SpeechError.Permission -> R.string.speak_permission_denied
+    SpeechError.Network -> R.string.speak_failed_network_message
+    SpeechError.Busy -> R.string.speak_failed_busy_message
+    SpeechError.Unavailable -> R.string.speak_unavailable
+    SpeechError.LanguageUnavailable -> R.string.speak_failed_language_message
+    SpeechError.Unknown -> R.string.speak_failed_unknown_message
 }
 
 @Composable

@@ -302,6 +302,19 @@
     <string name="speak_try_again">Try again</string>
     <string name="speak_permission_denied">Microphone permission is needed to practice speaking.</string>
     <string name="speak_unavailable">Speech recognition is unavailable on this device.</string>
+    <string name="speak_failed_no_match_title">Didn\'t catch that</string>
+    <string name="speak_failed_no_match_message">Nothing was recognised. Try again, a little closer to the microphone.</string>
+    <string name="speak_failed_network_title">Recognition is offline</string>
+    <string name="speak_failed_network_message">Speech recognition needs a connection right now. Check yours and try again.</string>
+    <string name="speak_failed_busy_title">Still listening</string>
+    <string name="speak_failed_busy_message">The last attempt hasn\'t finished. Give it a moment and try again.</string>
+    <string name="speak_failed_language_title">Language not installed</string>
+    <string name="speak_failed_language_message">This device has no speech model for this deck\'s language. Add it in your device\'s voice input settings.</string>
+    <string name="speak_failed_permission_title">Microphone is off</string>
+    <string name="speak_failed_unavailable_title">Speak isn\'t available</string>
+    <string name="speak_failed_unknown_title">Something went wrong</string>
+    <string name="speak_failed_unknown_message">Recognition didn\'t come back with an answer. Try again.</string>
+    <string name="speak_close">Close</string>
     <string name="listen_voice_unavailable">No voice installed for this deck’s language. Add it in your device’s text-to-speech settings.</string>
 
     <!-- Onboarding -->

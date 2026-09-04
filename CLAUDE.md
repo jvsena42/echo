@@ -268,6 +268,21 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   (`"spanish"` for `es-ES`, plus the `"language"` umbrella — `LanguageTags`, base subtag, swapped
   when the pair changes), because a reserved label cannot trend or be browsed — Architecture.md
   §7.7 point 4.
+- **A listen that produces no answer is reported in the sheet, never dismissed.** Closing the Speak
+  sheet on a recognition error is indistinguishable from the app having missed the tap, and the
+  common Android errors are ordinary: nothing matched, the engine busy on a fast retry, no model
+  for the deck's declared language. So `SpeechEvent.Error` carries its `SpeechError` all the way to
+  `SpeakPhase.Failed`, which says which failure it was and offers Try again — or a Close, for the
+  two nothing can retry (a refused permission, a missing language model). Four things not to undo.
+  `onSpeechError` drops a *late* error the way `onSpeechResult` drops a late transcript, so nothing
+  reopens a sheet the reader has moved on from. A retry `cancelAndJoin`s the previous listen before
+  starting one, because the old recognizer is destroyed in the flow's `awaitClose` and a second one
+  created before that lands is answered with `ERROR_RECOGNIZER_BUSY` — which is what a fast Try
+  again *is*. `AndroidSpeechRecognizer` caps one listen at 15s (plus a `stopListening` grace),
+  because some engines accept a listen and then never finish it — no result, no error, not even
+  after the speech ends — and nothing else ends the flow. And `SpeechError`'s entries are
+  PascalCase, like every enum that crosses to Swift here: Kotlin exports them lowercased with the
+  separators dropped, so a SCREAMING_SNAKE entry crosses under a name nothing can predict.
 - **Typing is the third study opt-in, and the one that needs no language pair.** `Deck.typeEnabled`
   puts an input on the card *back* — under the prompt label, in the space the answer will occupy —
   instead of handing the answer over. Everything the mode adds (input, miss line, Check, Give up,

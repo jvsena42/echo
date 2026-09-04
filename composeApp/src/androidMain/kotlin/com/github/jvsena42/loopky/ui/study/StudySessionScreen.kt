@@ -90,6 +90,7 @@ import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.platform.SpeakOutcome
 import com.github.jvsena42.loopky.platform.Speaker
+import com.github.jvsena42.loopky.platform.SpeechError
 import com.github.jvsena42.loopky.platform.SpeechEvent
 import com.github.jvsena42.loopky.platform.SpeechRecognizer
 import com.github.jvsena42.loopky.presentation.study.GoalCelebration
@@ -110,6 +111,7 @@ import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.layout.windowWidthClass
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -143,7 +145,9 @@ fun StudySessionRoute(
 
     val requestSpeak = rememberMicPermissionRequest(
         onGranted = viewModel::onSpeakTest,
-        onDenied = viewModel::onSpeechError,
+        // A refusal is a dismissal, not a failed listen: nothing was started, and the rationale
+        // dialog has already said why the microphone is needed.
+        onDenied = viewModel::onSpeakDismiss,
     )
 
     LaunchedEffect(viewModel) {
@@ -158,17 +162,20 @@ fun StudySessionRoute(
                     }
                 }
                 is StudySessionEffect.StartSpeechRecognition -> {
-                    recognitionJob.value?.cancel()
+                    val previous = recognitionJob.value
                     recognitionJob.value = scope.launch {
+                        // Joined, not just cancelled: the previous recogniser is destroyed in the
+                        // flow's awaitClose, and creating a second one before that lands is
+                        // answered with ERROR_RECOGNIZER_BUSY — which is what a fast Try again is.
+                        previous?.cancelAndJoin()
                         if (!speechRecognizer.isAvailable()) {
-                            Toast.makeText(context, R.string.speak_unavailable, Toast.LENGTH_LONG).show()
-                            viewModel.onSpeechError()
+                            viewModel.onSpeechError(SpeechError.Unavailable)
                             return@launch
                         }
                         speechRecognizer.listen(effect.languageTag).collect { event ->
                             when (event) {
                                 is SpeechEvent.Result -> viewModel.onSpeechResult(event.text)
-                                is SpeechEvent.Error -> viewModel.onSpeechError()
+                                is SpeechEvent.Error -> viewModel.onSpeechError(event.reason)
                                 else -> Unit
                             }
                         }
