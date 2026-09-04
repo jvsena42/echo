@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.ui.study
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -109,16 +110,20 @@ internal fun TypeAnswerInput(
         )
         // Between the field and Check, because it is about what is still in the field. What was
         // typed is not repeated back: it has not been cleared, so it is right there.
-        lastMiss?.let { miss ->
+        //
+        // It grows in rather than appearing: the line sits above Check, so a hard cut moves the
+        // button out from under the finger that is already reaching for it.
+        AnimatedVisibility(visible = lastMiss != null) {
+            val outcome = lastMiss?.outcome
             Text(
-                text = when (miss.outcome) {
+                text = when (outcome) {
                     TypedAnswerOutcome.NearMiss -> stringResource(R.string.study_type_near_miss)
                     else -> stringResource(R.string.study_type_wrong)
                 },
                 fontSize = 14.sp,
                 fontWeight = FontWeight.W700,
                 textAlign = TextAlign.Center,
-                color = when (miss.outcome) {
+                color = when (outcome) {
                     TypedAnswerOutcome.NearMiss -> colors.srsHard
                     else -> colors.srsAgain
                 },

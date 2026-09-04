@@ -12,9 +12,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -515,45 +518,13 @@ private fun ReviewingContent(
                     }
                 }
 
-                // Everything typing adds lives on the card itself, so the two rows below are exactly
-                // what they were before the mode existed. They are reserved rather than conditional
-                // so the card keeps one size across the flip.
-                //
-                // With one exception. On a flipped typing card the grades are not on offer yet and
-                // the flip hint has nothing to say, so both rows are *certainly* empty — and holding
-                // ~140dp open for them steals it from the card at the one moment the keyboard has
-                // already taken half the screen. An `if` rather than an early return: the content
-                // below the card sits inside the left pane, so returning would abandon the grade
-                // column too.
-                if (state.answerHidden && state.revealed) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                } else {
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // SRS grade row — reserved always, and only when the grades are not already standing
-                    // in a column to the right. The buttons appear once the answer is legible, which on a
-                    // typing card is later than the flip. (Listen/Speak, by contrast, are on both faces —
-                    // they live inside the card, not here.)
-                    if (!wide) {
-                        GradeOrNextRow(
-                            state = state,
-                            onGrade = onGrade,
-                            onNextCard = onNextCard,
-                            reduceMotion = reduceMotion,
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-                    }
-
-                    // Flip hint — shown on the front only; space is reserved on the back too so the
-                    // card above keeps the same size across the flip.
-                    Box(modifier = Modifier.fillMaxWidth().height(20.dp)) {
-                        if (!state.revealed) {
-                            FlipHint(modifier = Modifier.align(Alignment.Center))
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+                BelowCardRows(
+                    state = state,
+                    wide = wide,
+                    reduceMotion = reduceMotion,
+                    onGrade = onGrade,
+                    onNextCard = onNextCard,
+                )
             }
             // The column's width *is* the animation. As it expands the row re-centres, which
             // slides the card left by half the gutter under the same easing — one spring, two
@@ -722,6 +693,64 @@ private fun AnimatedContentScope.FlippableCard(
                 modifier = Modifier.graphicsLayer { rotationY = 180f },
             )
         }
+    }
+}
+
+/**
+ * The grade row and the flip hint, under the card.
+ *
+ * Everything typing adds lives on the card itself, so these two are exactly what they were before
+ * the mode existed. They are reserved rather than conditional so the card keeps one size across the
+ * flip — with one exception: on a flipped typing card the grades are not on offer yet and the hint
+ * has nothing to say, so both are *certainly* empty, and holding ~140 dp open for them steals it
+ * from the card at the one moment the keyboard has already taken half the screen.
+ *
+ * That height is the card's, so the swap is animated rather than cut: `revealed` turns true on the
+ * tap, and an un-animated branch resized the card in one frame and then flipped it over the next
+ * 700 ms — the jump arriving before the gesture it belongs to.
+ */
+@Composable
+private fun BelowCardRows(
+    state: StudySessionUiState.Reviewing,
+    wide: Boolean,
+    reduceMotion: Boolean,
+    onGrade: (SrsGrade) -> Unit,
+    onNextCard: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.animateContentSize(
+            animationSpec = if (reduceMotion) snap() else spring(stiffness = Spring.StiffnessMediumLow),
+        ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (state.answerHidden && state.revealed) {
+            Spacer(modifier = Modifier.height(8.dp))
+            return@Column
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Only when the grades are not already standing in a column to the right. The buttons
+        // appear once the answer is legible, which on a typing card is later than the flip.
+        // (Listen/Speak, by contrast, are on both faces — they live inside the card, not here.)
+        if (!wide) {
+            GradeOrNextRow(
+                state = state,
+                onGrade = onGrade,
+                onNextCard = onNextCard,
+                reduceMotion = reduceMotion,
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+        }
+
+        // Shown on the front only; space is reserved on the back too so the card above keeps the
+        // same size across the flip.
+        Box(modifier = Modifier.fillMaxWidth().height(20.dp)) {
+            if (!state.revealed) {
+                FlipHint(modifier = Modifier.align(Alignment.Center))
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
