@@ -73,7 +73,7 @@ suspend fun cardAdd(
     }
 
     val checks = planned.checkedImages(args, onNote)
-    return applyBatch(deckId, deck, decks, cards, planned, skipped, "Added", checks)
+    return applyBatch(deckId, deck, decks, cards, planned, skipped, BatchVerb.Add, checks)
 }
 
 /**
@@ -131,11 +131,17 @@ suspend fun cardEdit(
     }
 
     val checks = planned.checkedImages(args, onNote)
-    return applyBatch(deckId, deck, decks, cards, planned, skipped, "Edited", checks)
+    return applyBatch(deckId, deck, decks, cards, planned, skipped, BatchVerb.Edit, checks)
 }
 
 /** One row of a batch, resolved into the card it will write. [row] is 1-based, as the file counts. */
 private class PlannedWrite(val row: Int, val card: Card)
+
+/** What a batch did, for a person. Two spellings of "skipped": the reasons genuinely differ. */
+private enum class BatchVerb(val past: String, val skipped: String) {
+    Add("Added", "already present"),
+    Edit("Edited", "already up to date"),
+}
 
 /**
  * `--check-images` over the pictures this batch is about to write, or nothing.
@@ -173,7 +179,7 @@ private suspend fun applyBatch(
     cards: CardRepository,
     planned: List<PlannedWrite>,
     skipped: Int,
-    verb: String,
+    verb: BatchVerb,
     imageChecks: List<ImageCheck>,
 ): CommandResult {
     val written = mutableListOf<Card>()
@@ -220,15 +226,17 @@ private suspend fun applyBatch(
         imageChecks = imageChecks,
     )
     val text = buildString {
-        append("$verb ${written.size} card(s)")
-        if (skipped > 0) append(", skipped $skipped already ${if (verb == "Added") "present" else "up to date"}")
+        append("${verb.past} ${written.size} card(s)")
+        if (skipped > 0) append(", skipped $skipped ${verb.skipped}")
         if (failures.isNotEmpty()) append(", FAILED ${failures.size}")
         if (notAttempted > 0) append(", $notAttempted not attempted")
     }
     if (failures.isEmpty()) return result(payload, text)
 
     throw CliError(
-        failures.first().exitCode(),
+        // The failure that *ended* the batch when there was one, since that is the state the whole
+        // run is now in — a full disk after four unrelated 500s is a full disk, not a 500.
+        stopped?.exitCode ?: failures.first().exitCode(),
         "$text. First failure was row ${failures.first().row} (card ${failures.first().cardId}): " +
             "${failures.first().message} Re-run the same file — rows already applied are skipped.",
         cliJson.encodeToJsonElement(CardWriteResult.serializer(), payload),

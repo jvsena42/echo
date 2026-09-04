@@ -180,6 +180,35 @@ class CardEditBatchTest {
         assertEquals(2, decks.upsertAttempts.size, "the first attempt should have been retried")
     }
 
+    /**
+     * The exit code is the state the run is *now* in. A full disk after an unrelated 500 is a full
+     * disk — reporting the first failure would send an agent retrying against a wall.
+     */
+    @Test
+    fun `the code reported is the failure that ended the batch`() = runBlocking {
+        val decks = FakeDeckRepository(
+            testDeck(cardCount = 3),
+            upsertFails = { card, _ ->
+                when (card.id) {
+                    "c1" -> IllegalStateException("boom")
+                    "c2" -> IllegalStateException("507 Insufficient Storage")
+                    else -> null
+                }
+            },
+        )
+
+        val error = assertFailsWith<CliError> {
+            cardEdit(
+                editFile(edit("c1", "ONE"), edit("c2", "TWO"), edit("c3", "THREE")),
+                decks,
+                FakeCardRepository(deckCards),
+            ) {}
+        }
+
+        assertEquals(ExitCode.StorageFull, error.exitCode)
+        assertEquals("2", requireNotNull(error.data).jsonObject.getValue("failed").jsonPrimitive.content)
+    }
+
     /** And a 500 that never clears is its own exit code, not `internal` — it is not the caller's bug. */
     @Test
     fun `a 500 that never clears exits server_error`() = runBlocking {
