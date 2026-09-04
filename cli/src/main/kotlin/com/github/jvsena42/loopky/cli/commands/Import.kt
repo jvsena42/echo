@@ -18,6 +18,7 @@ import com.github.jvsena42.loopky.domain.model.Deck
 import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.DraftCardImage
 import com.github.jvsena42.loopky.domain.model.ImportDraft
+import com.github.jvsena42.loopky.domain.model.LanguageTags
 import com.github.jvsena42.loopky.domain.model.MediaRef
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.Tag
@@ -460,21 +461,47 @@ private suspend fun sweepUploadedMedia(
  * without it a bare `--resume` would turn off every mode the deck already had.
  */
 private fun Deck.overlaidWith(args: Args): Deck? {
-    val tags = args.options("tag").map { Tag(it) }
+    val frontLang = args.option("front-lang") ?: frontLang
+    val backLang = args.option("back-lang") ?: backLang
     val updated = copy(
         description = args.option("description")?.takeIf { it.isNotBlank() } ?: description,
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() } ?: coverEmoji,
         coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage)
             ?: coverImageRef,
-        tags = tags.ifEmpty { this.tags },
+        tags = args.overlaidTags(this, frontLang, backLang),
         listenEnabled = args.flagOrNull("listen") ?: listenEnabled,
         speakEnabled = args.flagOrNull("speak") ?: speakEnabled,
         typeEnabled = args.flagOrNull("type") ?: typeEnabled,
         reverseEnabled = args.flagOrNull("reverse") ?: reverseEnabled,
-        frontLang = args.option("front-lang") ?: frontLang,
-        backLang = args.option("back-lang") ?: backLang,
+        frontLang = frontLang,
+        backLang = backLang,
     )
     return updated.takeIf { it != this }
+}
+
+/**
+ * The resumed deck's tags after this invocation's `--tag` and language flags: `--tag` replaces the
+ * set when it is given, and a **named** pair reconciles the labels it contributes.
+ *
+ * Named rather than moved, which is `deck edit`'s rule for the same reason: restating the pair is
+ * how a deck published before the labels existed gains them, and `--resume` re-runs the original
+ * command with a flag appended, so the pair is usually restated anyway. When it has not moved the
+ * reconciliation is a no-op and `overlaidWith` still returns null — a bare `--resume` costs no
+ * metadata write.
+ *
+ * The drop is the half worth spelling out: `--resume` can *move* a pair, and retyping a deck from
+ * Spanish to French has to take `"spanish"` off it or the deck stays listed as Spanish forever.
+ */
+private fun Args.overlaidTags(deck: Deck, frontLang: String?, backLang: String?): List<Tag> {
+    val requested = options("tag").normalizedTags()
+    val tags = requested.ifEmpty { deck.tags.map { it.value } }
+    val named = has("front-lang") || has("back-lang")
+    val labelled = if (named) {
+        LanguageTags.retag(tags, deck.frontLang, deck.backLang, frontLang, backLang)
+    } else {
+        tags
+    }
+    return labelled.map(::Tag)
 }
 
 @Suppress("LongParameterList")
@@ -486,6 +513,8 @@ private fun newDeck(
     cardCount: Int,
 ): Deck {
     val now = System.currentTimeMillis()
+    val frontLang = args.option("front-lang")
+    val backLang = args.option("back-lang")
     return Deck(
         id = deckId,
         authorPubky = session.identity.pubky,
@@ -493,7 +522,9 @@ private fun newDeck(
         description = args.option("description")?.takeIf { it.isNotBlank() },
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() },
         coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage),
-        tags = args.options("tag").map { Tag(it) },
+        // A declared pair labels the deck, exactly as it does on a phone — see `deckTags`. This is
+        // the path most decks arrive by (#46), and it was the least discoverable of the three.
+        tags = deckTags(args.options("tag"), frontLang, backLang),
         createdAt = now,
         updatedAt = now,
         // publish() writes the chunk table; this is the optimistic count it confirms.
@@ -505,8 +536,8 @@ private fun newDeck(
         // The one opt-in with a source opinion behind it: an `.apkg` built on a reversed note type
         // says so, and `parseBulkNotes` carries that through. A suggestion, still overridable.
         reverseEnabled = args.flag("reverse", default = draft.suggestsReverse),
-        frontLang = args.option("front-lang"),
-        backLang = args.option("back-lang"),
+        frontLang = frontLang,
+        backLang = backLang,
     )
 }
 
