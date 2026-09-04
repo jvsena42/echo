@@ -20,11 +20,9 @@ data class DeckEditResult(
     val deck: DeckView,
     /**
      * False when every field the flags named already held that value, and nothing was written.
-     *
-     * Reported rather than folded into a plain success, for the reason `card add` reports
-     * `skipped`: re-running a command is the documented recovery from the hourly session expiry
-     * (#165), so a caller has to be able to tell "I applied your change" from "it was already so"
-     * without re-reading the deck.
+     * Reported for the reason `card add` reports `skipped`: re-running is the documented recovery
+     * from the hourly session expiry (#165), so a caller has to tell "I applied your change" from
+     * "it was already so" without re-reading the deck.
      */
     val changed: Boolean,
     /** Which manifest fields moved, named as [DeckView] names them. Empty when [changed] is false. */
@@ -34,38 +32,29 @@ data class DeckEditResult(
 /**
  * Change what a deck *is* without touching what it holds.
  *
- * The hole this fills was a destructive one (#222). Until now the only way to add a cover, fix a
- * typo in a description or retype a deck's languages was `deck delete` followed by
- * `deck create --from-file` — which mints a **new deck id**, so every `pubky://…/decks/<id>/`
- * link breaks and every card goes back to new in the scheduler, and which needs the original card
- * file that a deck built with `card add` never had.
+ * The hole this fills was a destructive one (#222): the only way to add a cover or retype a deck's
+ * languages was `deck delete` + `deck create --from-file`, which mints a **new deck id** — so every
+ * `pubky://…/decks/<id>/` link breaks and every card goes back to new in the scheduler.
  *
- * One manifest write, whatever the deck's size: `updateMetadata` patches the record and
- * reconciles the tag records, and the chunk table and `card_count` are carried over from the deck
- * on the homeserver rather than from anything assembled here. Cards are never read and never
- * rewritten, so this costs the same on a 20k-card deck as on an empty one.
+ * One manifest write, whatever the deck's size: `updateMetadata` patches the record and reconciles
+ * the tag records, and the chunk table and `card_count` are carried over from the homeserver's copy.
+ * Cards are never read, so this costs the same on a 20k-card deck as on an empty one.
  *
  * Four rules, each matching something the surface already does:
  *
- * - **An absent flag leaves the field alone** — `card edit`'s rule, for the same reason: a caller
- *   scripting one field must not wipe the eleven it did not mention.
- * - **An explicitly empty value clears one field** (`--description=`), which is `card edit --back=`
- *   again. `--clear-tags` and `--clear-cover` exist because those two are not single values:
- *   `--tag ""` would have to mean both "no tags" and "one blank tag", and a cover is an emoji and
- *   an image that layer.
- * - **`--tag` replaces rather than appends**, so the command is idempotent and a script can say
- *   "the tags are exactly these" — which appending makes impossible without a delete. That is the
- *   same property `card add`'s dedupe exists for: the session dies hourly (#165) and re-running is
- *   the documented recovery, so a command that grows its own output on a retry is one a session
- *   expiry corrupts.
- * - **Nothing to change is not a write.** A manifest write bumps `updated_at`, which is what every
- *   follower's "the author published changes" badge reads, so re-running an edit that has already
- *   landed reports `changed: false` and leaves the record alone.
+ * - **An absent flag leaves the field alone** — `card edit`'s rule: a caller scripting one field must
+ *   not wipe the eleven it did not mention.
+ * - **An explicitly empty value clears one field** (`--description=`). `--clear-tags` and
+ *   `--clear-cover` exist because those two are not single values: `--tag ""` would have to mean both
+ *   "no tags" and "one blank tag".
+ * - **`--tag` replaces rather than appends**, so the command is idempotent and a script can say "the
+ *   tags are exactly these" — a command that grows its own output on a retry is one a session expiry
+ *   corrupts.
+ * - **Nothing to change is not a write.** A manifest write bumps `updated_at`, which every follower's
+ *   "the author published changes" badge reads.
  *
- * The study opt-ins are in here with the metadata rather than held back, because turning one off
- * costs no progress: review state is keyed by `card_id` alone and the modes decide only how a card
- * is *presented*. Reverse's pairing is session-local and persisted nowhere, so even that one has
- * nothing to lose.
+ * The study opt-ins are in here with the metadata because turning one off costs no progress: review
+ * state is keyed by `card_id` alone and the modes decide only how a card is *presented*.
  */
 suspend fun deckEdit(args: Args, decks: DeckRepository): CommandResult {
     val id = args.requireWord(2, "deckId")
@@ -124,11 +113,9 @@ private fun Deck.applying(args: Args): Deck {
 }
 
 /**
- * The cover image after the edit: unchanged unless `--cover-url` or `--clear-cover` said so.
- *
- * The URL goes through [checkedImageUrl] like every other picture this client stores, so an
- * `http://` cover is refused here rather than written into a manifest and rendered as a blank
- * tile on both apps.
+ * The cover image after the edit: unchanged unless `--cover-url` or `--clear-cover` said so. The URL
+ * goes through [checkedImageUrl] like every other picture, so an `http://` cover is refused here
+ * rather than written into a manifest and rendered as a blank tile on both apps.
  */
 private fun Args.editedCover(clearCover: Boolean, current: MediaRef.Image?): MediaRef.Image? = when {
     clearCover -> null
@@ -137,24 +124,18 @@ private fun Args.editedCover(clearCover: Boolean, current: MediaRef.Image?): Med
 }
 
 /**
- * The tag set after the edit: `--clear-tags` empties it, `--tag` **replaces** it, and anything
- * else leaves it alone.
+ * The tag set after the edit: `--clear-tags` empties it, `--tag` **replaces** it, anything else
+ * leaves it alone. Replacing rather than appending is what makes the command idempotent, and a
+ * command that grew its own tag list on every retry is one a session expiry corrupts.
  *
- * Replacing rather than appending is what makes the command idempotent, and idempotence is not a
- * nicety here: the session dies hourly (#165) and re-running is the documented recovery, so a
- * command that grew its own tag list on every retry would be one a session expiry corrupts.
+ * The labels a declared language contributes are reconciled **only when the invocation names a pair**
+ * (`LanguageTags.retag`; the drop is the half that is easy to miss — retyping a deck away from
+ * Spanish has to take `"spanish"` off it). Doing it unconditionally would put `"language"` back on a
+ * deck the caller had just emptied with `--clear-tags`.
  *
- * The labels a declared language contributes are reconciled **only when the invocation names a
- * pair** (`LanguageTags.retag` — the drop is the half that is easy to miss: retyping a deck away
- * from Spanish has to take `"spanish"` off it). Doing it unconditionally would put `"language"`
- * back on a deck the caller had just emptied with `--clear-tags`, and these are ordinary
- * author-removable tags rather than a reserved family, so that gesture has to be believed.
- *
- * Named rather than *moved*, which is the narrower rule this started with. Restating the pair a
- * deck already has is how a deck published before the CLI derived labels at all (#225) gains
- * them — otherwise the only way was to retype it to a different *region* of the same language and
- * back, which is a trick rather than a command. It costs nothing when there is nothing to do:
- * a reconciliation that changes no tag is not a write, because `changedFieldsFrom` diffs.
+ * Named rather than *moved*: restating the pair a deck already has is how a deck published before the
+ * CLI derived labels at all (#225) gains them. It costs nothing when there is nothing to do, because
+ * `changedFieldsFrom` diffs.
  */
 private fun Args.editedTags(deck: Deck, frontLang: String?, backLang: String?): List<Tag> {
     val clearTags = has("clear-tags")
@@ -178,11 +159,9 @@ private fun Args.editedTags(deck: Deck, frontLang: String?, backLang: String?): 
 }
 
 /**
- * Which manifest fields this edit actually moves, named as [DeckView] names them.
- *
- * Computed by diffing rather than by remembering which flags were passed, because the two are not
- * the same question: `--title` with the title it already has changes nothing, and reporting it as
- * a change would make `changed` mean "you typed a flag" — which nothing can verify against.
+ * Which manifest fields this edit actually moves, named as [DeckView] names them. Computed by diffing
+ * rather than by remembering which flags were passed: `--title` with the title it already has changes
+ * nothing, and reporting it would make `changed` mean "you typed a flag".
  */
 private fun Deck.changedFieldsFrom(before: Deck): List<String> = listOfNotNull(
     "title".takeIf { title != before.title },
@@ -199,12 +178,10 @@ private fun Deck.changedFieldsFrom(before: Deck): List<String> = listOfNotNull(
 )
 
 /**
- * A nullable text field under an overlay: [current] when the option was not given at all, null
- * when it was given empty, and the trimmed value otherwise.
- *
- * The empty case is the one worth spelling out. `option(name)` cannot tell "absent" from
- * `--description=` on its own — both read as "no value here" — and collapsing them would make
- * clearing a field impossible while making every partial edit a wipe.
+ * A nullable text field under an overlay: [current] when the option was absent, null when it was
+ * given empty, the trimmed value otherwise. `option(name)` cannot tell "absent" from `--description=`
+ * on its own, and collapsing them would make clearing a field impossible while making every partial
+ * edit a wipe.
  */
 private fun Args.text(name: String, current: String?): String? =
     if (!has(name)) current else option(name)?.trim()?.takeIf { it.isNotEmpty() }

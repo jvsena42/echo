@@ -40,16 +40,14 @@ data class CardWriteResult(
     /**
      * Cards this call actually removed — 0 when the id was not in the deck.
      *
-     * `card rm` used to answer identically whether it deleted a card or did nothing at all: same
-     * envelope, same exit 0. `DeckRepositoryImpl.deleteCard` treats a missing card as a no-op, and
-     * the CLI reported that as a success, so an agent pruning a list of ids could not tell which
-     * of them were real without re-reading the deck between every delete.
+     * `card rm` used to answer identically whether it deleted a card or did nothing: `deleteCard`
+     * treats a missing card as a no-op and the CLI reported that as success, so an agent pruning ids
+     * could not tell which were real without re-reading the deck between every delete.
      *
      * Reported rather than turned into an error, and the asymmetry with `card edit` — which does
-     * return `not_found` — is deliberate. Removing a card that is already gone leaves the deck in
-     * the state the caller asked for, so failing it would break the retry-after-expiry pattern the
-     * whole surface is built around; that is the same reason `card add` reports [skipped] instead
-     * of refusing a duplicate. An *edit* has no such reading: the change simply cannot be applied.
+     * return `not_found` — is deliberate: removing a card that is already gone leaves the deck in the
+     * state the caller asked for, so failing it would break the retry-after-expiry pattern the whole
+     * surface is built around. An *edit* has no such reading.
      */
     val removed: Int = 0,
     @SerialName("card_count") val cardCount: Int = 0,
@@ -70,22 +68,18 @@ suspend fun cardList(args: Args, decks: DeckRepository, cards: CardRepository): 
 /**
  * Add one card, or a fileful.
  *
- * **Idempotent by front/back.** A row whose two sides already exist in the deck is skipped and
- * counted, never written twice. That is not tidiness: the session dies after about an hour and
- * nothing renews it (#165), so an agent's normal recovery is to re-run the command — and a surface
- * where re-running duplicates the work is one where a session expiry costs the deck rather than
- * the retry.
+ * **Idempotent by front/back.** A row whose two sides already exist is skipped and counted, never
+ * written twice. The session dies after about an hour and nothing renews it (#165), so an agent's
+ * normal recovery is to re-run the command — and a surface where re-running duplicates the work is
+ * one where a session expiry costs the deck rather than the retry.
  *
- * The batch goes through one `upsertCard` per card because that is what owns the chunk write and
- * the manifest patch together, and a chunk written without its manifest entry orphans every card
- * in it. What a batch saves over a shell loop is the process start, the session round trip and the
- * deck read — which is most of the wall clock, since one card write is one `/session` preamble
- * (#105) either way.
+ * The batch goes through one `upsertCard` per card because that owns the chunk write and the manifest
+ * patch together. What a batch saves over a shell loop is the process start, the session round trip
+ * and the deck read.
  *
- * **The dedupe costs a full card read**, which on a 20k-card deck is ~200 chunk requests before
- * the first write. There is no index to ask instead, and skipping it would trade the retry
- * guarantee above for the speed. That is the other reason to use `--from-file`: the read is paid
- * once for the whole batch, where a shell loop pays it per card.
+ * **The dedupe costs a full card read** — ~200 chunk requests on a 20k-card deck before the first
+ * write. There is no index to ask instead, and skipping it would trade the retry guarantee for speed.
+ * That is the other reason to use `--from-file`: the read is paid once for the whole batch.
  */
 suspend fun cardAdd(args: Args, decks: DeckRepository, cards: CardRepository): CommandResult {
     val deckId = args.requireWord(2, "deckId")
@@ -128,10 +122,9 @@ suspend fun cardAdd(args: Args, decks: DeckRepository, cards: CardRepository): C
     return result(
         // Named, every one of them. Constructed positionally, this call read
         // `(…, written.size, skipped, latest.cardCount)` against a class whose fourth and fifth
-        // parameters are `skipped` and **`removed`** — so the deck's size was reported as the
-        // number of cards this call deleted, and `card_count` kept its default 0. `removed` was
-        // inserted between them by 9c0492524, which changed what those five positions mean
-        // without changing a line here or failing to compile.
+        // parameters are `skipped` and **`removed`** — so the deck's size was reported as the number
+        // of cards this call deleted. `removed` was inserted between them by 9c0492524, which changed
+        // what those positions mean without failing to compile.
         CardWriteResult(
             deckId = deckId,
             cards = written.map { it.toView() },
@@ -144,11 +137,9 @@ suspend fun cardAdd(args: Args, decks: DeckRepository, cards: CardRepository): C
 }
 
 /**
- * Change cards that already exist, one or a fileful.
- *
- * A field that is not given is left alone rather than cleared — `--front` without `--back` edits
- * the front only. Clearing a side needs an explicit empty value (`--back=`), because a batch file
- * that omitted a column would otherwise silently wipe it on every row it touched.
+ * Change cards that already exist, one or a fileful. A field that is not given is left alone rather
+ * than cleared; clearing a side needs an explicit empty value (`--back=`), because a batch file that
+ * omitted a column would otherwise silently wipe it on every row it touched.
  */
 suspend fun cardEdit(args: Args, decks: DeckRepository, cards: CardRepository): CommandResult {
     val deckId = args.requireWord(2, "deckId")
@@ -221,10 +212,8 @@ suspend fun cardRemove(args: Args, decks: DeckRepository): CommandResult {
  *
  * `upsertCard` **discards the caller's `ord`** and recomputes one from the chunk it lands in, so
  * echoing the local `Card` reports intent rather than result — on an empty deck the CLI said 1000
- * where 0 was stored. For a channel whose stated purpose is that a caller diffs intent against
- * result from these bytes, echoing intent is the one thing it set out not to do.
- *
- * A cache read, not a round trip: the write just populated it.
+ * where 0 was stored. For a channel whose purpose is diffing intent against result, that is the one
+ * thing it set out not to do. A cache read, not a round trip: the write just populated it.
  */
 private suspend fun CardRepository.stored(deckId: String, sent: Card): Card =
     get(deckId, sent.id) ?: sent
@@ -232,11 +221,11 @@ private suspend fun CardRepository.stored(deckId: String, sent: Card): Card =
 /**
  * Refuse a card an edit has emptied one side of.
  *
- * `--back=` is the CLI's own documented way to clear a side, so this is the supported gesture
- * rather than misuse — and `DeckRepositoryImpl.upsertCard` `require`s both sides, throwing an
- * `IllegalArgumentException` that `toErrorReason` classifies `Unknown`. The user got exit 1
- * "internal" plus a Kotlin assertion string for a blank column in their own file. An agent told
- * "internal" retries; told exit 9 it fixes its input.
+ * `--back=` is the documented way to clear a side, so this is the supported gesture rather than
+ * misuse — and `upsertCard` `require`s both sides, throwing an `IllegalArgumentException` that
+ * `toErrorReason` classifies `Unknown`, so the user got exit 1 "internal" plus a Kotlin assertion
+ * string for a blank column in their own file. An agent told "internal" retries; told exit 9 it fixes
+ * its input.
  *
  * The row-level guard cannot cover this: an edit row is *allowed* to be partial, so what has to be
  * checked is the card the edit produces.
@@ -268,16 +257,14 @@ private fun CardSide.applying(text: String?, imageUrl: String?): CardSide = Card
 )
 
 /**
- * What makes two cards "the same card" for the purposes of a repeated `card add` or an
- * `import --resume`.
+ * What makes two cards "the same card" for a repeated `card add` or an `import --resume`.
  *
  * Text and image together, normalised for whitespace and case. Text alone would collapse two cards
- * that ask the same question about different pictures — a flags deck is exactly that — and
- * including the ord or the id would defeat the check entirely, since both are freshly minted.
+ * asking the same question about different pictures — a flags deck is exactly that — and including
+ * the ord or the id would defeat the check, since both are freshly minted.
  *
- * One definition, shared with `import`, because the two commands have to agree on what "already
- * there" means: a `--resume` that dedupes differently from the `card add` that ran before it
- * writes the duplicates the whole mechanism exists to prevent.
+ * One definition, shared with `import`: a `--resume` that dedupes differently from the `card add`
+ * before it writes the duplicates the mechanism exists to prevent.
  */
 internal fun Card.identityOf(): String = listOf(
     front.text.orEmpty().trim().lowercase(),
@@ -290,10 +277,8 @@ internal fun Card.identityOf(): String = listOf(
  * The separator between a card's four identity fields: `NUL`, because no card text can contain it,
  * so `"ab" + "c"` and `"a" + "bc"` cannot collide.
  *
- * **Written as an escape, and that is the point of the constant.** It used to be a literal NUL
- * *byte* in the source, which made this file binary as far as `grep` is concerned — `grep -rn
- * CardWriteResult` over the repo found nothing at all, silently, and exited 1. Anyone looking for
- * a type declared thirty lines above concluded it did not exist. `grep -a` finds it; nobody thinks
- * to reach for `-a` when the answer is simply empty.
+ * **Written as an escape, and that is the point of the constant.** It used to be a literal NUL *byte*
+ * in the source, which made this file binary as far as `grep` is concerned — `grep -rn
+ * CardWriteResult` found nothing at all, silently, and exited 1.
  */
 private const val IDENTITY_SEPARATOR = "\u0000"

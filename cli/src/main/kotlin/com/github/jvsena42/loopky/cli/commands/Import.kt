@@ -42,23 +42,20 @@ data class ImportResult(
      * Whether `--resume` found a deck to continue, or `null` when `--resume` was not asked for.
      *
      * `resumed: 0` cannot answer this: it is what a legitimate first `--resume` run reports *and*
-     * what a typo'd `--title` reports one character away from an existing deck — where the second
-     * silently publishes a duplicate, spends the quota twice and leaves two near-identical decks
-     * in the library. This is the field that tells them apart.
+     * what a typo'd `--title` reports one character from an existing deck — where the second
+     * silently publishes a duplicate and spends the quota twice.
      */
     @SerialName("resume_matched") val resumeMatched: Boolean? = null,
     /**
-     * Columns past the front and back that the parser dropped, per row.
-     *
-     * A three-column file whose third column is not a URL is ordinary text, and spec §8 keeps
-     * fields 0 and 1. The import is a success and each card is missing something the file held —
-     * a loss worth naming rather than leaving for someone to notice in the app.
+     * Columns past the front and back that the parser dropped, per row. A three-column file whose
+     * third column is not a URL is ordinary text, and spec §8 keeps fields 0 and 1 — a loss worth
+     * naming rather than leaving for someone to notice in the app.
      */
     @SerialName("columns_dropped") val columnsDropped: Int = 0,
     /**
-     * How the file was split. `"none"` for a source that knows its own structure and was never
-     * split at all — an `.apkg` — because reporting the `Separator.Tab` the structured entry point
-     * carries would name a rule that did not run.
+     * How the file was split. `"none"` for a source that was never split at all — an `.apkg` —
+     * because reporting the `Separator.Tab` the structured entry point carries would name a rule
+     * that did not run.
      */
     val separator: String,
     /** `"text"` or `"apkg"`. See [detectImportFormat]. */
@@ -70,15 +67,13 @@ data class ImportResult(
 /**
  * What `--dry-run` reports: everything an import would do, and no deck.
  *
- * A separate shape from [ImportResult] rather than one with a nulled-out deck, because the two
- * answer different questions and a caller must not be able to mistake one for the other. It exists
- * mostly for the `.apkg` path, where guessing the field mapping wrong is the likeliest way to
- * publish 9,000 cards of database ids (#96) — `--json`'s job is verification, and this is the one
- * import where verifying *after* the write is too late.
+ * A separate shape from [ImportResult] rather than one with a nulled-out deck, so a caller cannot
+ * mistake one for the other. It exists mostly for the `.apkg` path, where guessing the field
+ * mapping wrong is the likeliest way to publish 9,000 cards of database ids (#96) — this is the one
+ * import where verifying after the write is too late.
  *
- * It needs **no session**: reading a local file is not a homeserver operation, and requiring a
- * live one to look at a file would put a sign-in between an agent and the check that stops it
- * spending someone's quota.
+ * Needs **no session**: requiring a live one to look at a local file would put a sign-in between an
+ * agent and the check that stops it spending someone's quota.
  */
 @Serializable
 data class ImportPreview(
@@ -106,20 +101,16 @@ internal val ImportFormat.json: String
 /**
  * Import a deck from a file, or from stdin.
  *
- * The text path is the **app's own parser**, not a second one: `ImportRepository.parseBulk` runs
- * the spec §6 separator rules and the §9 edge cases, with the file-sized caps rather than the
- * paste box's. A deck imported here and a deck imported on a phone are split the same way, which
- * is what "the Android app opens it without a repair step" actually rests on.
+ * The text path is the **app's own parser**: `ImportRepository.parseBulk` runs the spec §6
+ * separator rules and §9 edge cases with file-sized caps, so a deck imported here and one imported
+ * on a phone are split the same way.
  *
- * An **Anki `.apkg`** takes the same command and the same spine: the shared reader turns it into
- * `BulkNote`s and `parseBulkNotes` — the entry point that exists for exactly this — carries them
- * through the same dedupe, caps and drop policy. A second verb would have been a second import
- * flow, which is the one thing #54 rules out. See `ApkgImport.kt`.
+ * An **Anki `.apkg`** takes the same command and the same spine — the shared reader turns it into
+ * `BulkNote`s and `parseBulkNotes` carries them through the same dedupe, caps and drop policy. A
+ * second verb would have been a second import flow, the one thing #54 rules out. See `ApkgImport.kt`.
+ * A tab-separated file with **image columns** takes the other entry point, [imageColumnRows].
  *
- * A tab-separated file carrying **image columns** takes the other entry point — see
- * [imageColumnRows].
- *
- * `--title` is required and beats any inference from the filename. See `deckCreate`.
+ * `--title` is required and beats any inference from the filename.
  */
 @Suppress("LongParameterList", "LongMethod")
 suspend fun import(
@@ -131,11 +122,10 @@ suspend fun import(
     session: Session,
     onProgress: (String) -> Unit,
     /**
-     * Something the caller needs to know rather than a counter — reaches stderr even under
-     * `--json`. Two notes today: that `--resume` matched no deck, where the titles it lists are
-     * what turns "no match" into "you meant *this* one"; and what an `.apkg`'s pictures are about
-     * to spend against a quota nothing can read back. Suppressing either under `--json` withholds
-     * it exactly where the mistake is expensive.
+     * Something the caller needs to know rather than a counter — reaches stderr even under `--json`.
+     * Two notes today: that `--resume` matched no deck, and what an `.apkg`'s pictures are about to
+     * spend against a quota nothing can read back. Suppressing either under `--json` withholds it
+     * exactly where the mistake is expensive.
      */
     onNote: (String) -> Unit,
 ): CommandResult {
@@ -148,7 +138,7 @@ suspend fun import(
     parsed.apkg?.let { warnAboutMediaSpend(it, onNote) }
     val resume = resumeState(args, decks, cards, title, onNote)
     // Minted once and threaded down: every card carries its deck's id, so deriving it twice is how
-    // a resumed run ends up writing cards addressed to a deck that does not exist.
+    // a resumed run writes cards addressed to a deck that does not exist.
     val deckId = resume.deck?.id ?: generateId()
 
     // Blobs this invocation wrote, so an aborted publish of a *new* deck can take them back out.
@@ -169,8 +159,8 @@ suspend fun import(
         Written(published, built.size)
     } catch (@Suppress("TooGenericExceptionCaught") error: Throwable) {
         // Only for a deck that does not exist yet. Blobs are content-addressed per deck, so on a
-        // resumed run the shas this invocation uploaded are the same shas the *already published*
-        // cards point at — sweeping them there would strip the pictures off cards that were fine.
+        // resumed run the shas this invocation uploaded are the ones the *already published* cards
+        // point at — sweeping them would strip the pictures off cards that were fine.
         if (resume.deck == null) sweepUploadedMedia(media, deckId, uploaded, onNote)
         throw error
     }
@@ -195,11 +185,8 @@ suspend fun import(
 }
 
 /**
- * The same numbers as [ImportResult], for a person.
- *
- * Deliberately the *same* numbers rather than a friendlier subset: `--json` and the plain output
- * are two renderings of one result, and a loss that only one of them mentions is a loss somebody
- * will miss. The capitalised DROPPED lines are the ones worth noticing in a scroll-back.
+ * The same numbers as [ImportResult], for a person. Deliberately the *same* numbers rather than a
+ * friendlier subset: a loss only one rendering mentions is a loss somebody will miss.
  */
 private fun describeImport(
     written: Written,
@@ -229,15 +216,14 @@ private fun describeImport(
 /**
  * `--dry-run`: read the file, report what publishing it would do, write nothing.
  *
- * Takes no [Session] on purpose — see [ImportPreview]. It is also where `--title` stops being
- * mandatory: a preview is frequently what tells you what the deck is called, and demanding the
- * answer before showing the question is the wrong way round.
+ * Takes no [Session] on purpose — see [ImportPreview]. Also where `--title` stops being mandatory:
+ * a preview is frequently what tells you what the deck is called.
  */
 suspend fun importDryRun(args: Args, imports: ImportRepository): CommandResult {
     val source = args.word(1) ?: throw CliError(ExitCode.Usage, "Missing <file>, or - for stdin.")
     val title = args.option("title")?.trim()?.takeIf { it.isNotEmpty() }
 
-    // Nothing is uploaded, so the blobs are measured and dropped rather than held: a dry run of a
+    // Nothing is uploaded, so blobs are measured and dropped rather than held: a dry run of a
     // 500-image deck should not need the deck's media in heap to answer how big it is.
     val parsed = parseSource(args, imports, source, title, keepImageBytes = false)
     val draft = parsed.draft
@@ -274,10 +260,8 @@ suspend fun importDryRun(args: Args, imports: ImportRepository): CommandResult {
 
 /**
  * A `Separator` as the envelope names it, with structured sources reported as having none.
- *
  * `parseBulkNotes` stamps `Separator.Tab` on a draft it never split, because the field is not
- * nullable — reporting that for an `.apkg` would name a rule that did not run, on the one format
- * where a caller checking "was this split the way I meant?" is asking a real question.
+ * nullable — reporting that for an `.apkg` would name a rule that did not run.
  */
 private fun ImportDraft.separatorName(): String =
     if (structured) "none" else separator::class.simpleName.orEmpty().lowercase()
@@ -287,14 +271,12 @@ private class Written(val deck: Deck, val cards: Int)
 /**
  * What a `--resume` run already found on the homeserver.
  *
- * The deck **is** the checkpoint, rather than a local cursor file: it records exactly which cards
- * arrived, it survives the sandbox being thrown away, and it cannot disagree with reality the way
- * a cursor can. What it costs is one deck read; what it buys is that an import killed by the
- * hourly session expiry (#165) finishes instead of starting over or duplicating.
+ * The deck **is** the checkpoint rather than a local cursor file: it records exactly which cards
+ * arrived, survives the sandbox being thrown away, and cannot disagree with reality. One deck read
+ * buys an import killed by the hourly session expiry (#165) finishing instead of duplicating.
  *
- * Matched on the deck's **title**, which is why `--title` is mandatory and never derived: a
- * resumed run has to name the same deck it named the first time, and a title inferred from a
- * filename is one rename away from creating a second deck instead.
+ * Matched on the deck's **title**, which is why `--title` is mandatory and never derived: a title
+ * inferred from a filename is one rename away from creating a second deck instead.
  */
 private class ResumeState(val deck: Deck?, val alreadyThere: Set<String>)
 
@@ -310,9 +292,8 @@ private suspend fun resumeState(
     val matches = owned.filter { it.title == title }
     if (matches.isEmpty()) {
         // Not an error: an agent that always passes `--resume` so its retries are safe has to be
-        // able to make the *first* run. But it is not silent either — this is the only signal that
-        // separates a first run from a `--title` typo about to publish a second copy of a deck the
-        // account already has, and `resumed: 0` says the same thing in both cases.
+        // able to make the *first* run. But not silent either — this is the only thing separating a
+        // first run from a `--title` typo about to publish a second copy of a deck the account has.
         onNote(
             "--resume found no deck titled \"$title\", so this is publishing a NEW deck. " +
                 "If that was a typo, delete it and re-run. Your decks: " +
@@ -321,9 +302,9 @@ private suspend fun resumeState(
         return ResumeState(null, emptySet())
     }
     if (matches.size > 1) {
-        // Refused rather than resolved. `firstOrNull` over a listing in homeserver order would
-        // pick one of them arbitrarily and append somebody's cards to the wrong deck — a silent
-        // wrong answer, where this is a loud one the user can act on.
+        // Refused rather than resolved. `firstOrNull` over a listing in homeserver order would pick
+        // one arbitrarily and append somebody's cards to the wrong deck — a silent wrong answer,
+        // where this is a loud one the user can act on.
         throw CliError(
             ExitCode.BadInput,
             "${matches.size} of your decks are called \"$title\", so --resume cannot tell which " +
@@ -337,19 +318,15 @@ private suspend fun resumeState(
 }
 
 /**
- * The kept rows as [Card]s, with any blob-backed picture uploaded on the way through.
+ * The kept rows as [Card]s, with any blob-backed picture uploaded on the way through. A TSV's images
+ * are URLs and cost nothing to resolve; an `.apkg`'s are bytes that must be written before a card
+ * can reference one, because the ref is content-addressed.
  *
- * A TSV's images are URLs and cost nothing to resolve; an `.apkg`'s are bytes and have to be
- * written to the homeserver before a card can reference one, because the ref is content-addressed
- * and the digest is [MediaRepository]'s to compute.
- *
- * **The upload happens before the `--resume` filter, not after, and it is worth knowing why it is
- * that way round.** `identityOf` distinguishes two cards asking the same question about different
- * pictures by the image's `sha256` — so deciding whether an image card is already published needs
- * the sha, and the sha needs the upload. The cost is that a resumed image-heavy `.apkg` re-writes
- * the archive's blobs: bounded (at most 500 distinct pictures, and [uploads] collapses repeats
- * within a run), quota-neutral because a blob is stored under its own digest and a rewrite lands
- * on the same path — but not free in wall-clock, on an hourly session budget.
+ * **The upload happens before the `--resume` filter, not after.** `identityOf` tells two cards
+ * asking the same question about different pictures apart by the image's `sha256`, so deciding
+ * whether an image card is already published needs the sha, and the sha needs the upload. The cost
+ * is that a resumed image-heavy `.apkg` re-writes the archive's blobs: bounded, and quota-neutral
+ * because a rewrite lands on the same content-addressed path — but not free in wall-clock.
  */
 @Suppress("LongParameterList")
 private suspend fun buildCards(
@@ -363,9 +340,8 @@ private suspend fun buildCards(
 ): List<Card> {
     val now = System.currentTimeMillis()
     // Keyed on the draft image itself. `DraftCardImage` is a data class over a `ByteArray`, whose
-    // equals and hashCode are identity — which is exactly the question being asked here, since
-    // `MediaIndex` hands back one instance per distinct blob. A picture on forty cards uploads
-    // once.
+    // equals/hashCode are identity — exactly the question being asked, since `MediaIndex` hands back
+    // one instance per distinct blob. A picture on forty cards uploads once.
     val uploads = mutableMapOf<DraftCardImage, MediaRef.Image>()
     return imports.keptRows().mapIndexedNotNull { index, row ->
         val (front, back) = draft.frontBackOf(row)
@@ -396,8 +372,8 @@ private suspend fun buildCards(
  * A draft picture as a [MediaRef.Image]: a URL wrapped, bytes uploaded, nothing left over.
  *
  * **A failed upload throws rather than degrading to `null`.** Swallowing it is how a publish comes
- * back successful with the pictures quietly missing — a deck missing media the file held is a
- * failed import (#91), and here it would be a failed import that `--json` reported as fine.
+ * back successful with the pictures quietly missing — a failed import (#91) that `--json` reports
+ * as fine.
  */
 @Suppress("LongParameterList")
 private suspend fun resolveImage(
@@ -426,10 +402,10 @@ private const val DEFAULT_IMAGE_MIME = "image/jpeg"
 /**
  * Take back the blobs an aborted publish already wrote.
  *
- * By hand rather than through `DeckRepository.delete`, which walks a manifest to find what to
- * sweep — and at this point there is no manifest, because media goes up before `publish` writes
- * one. Best-effort and never fatal: the reason the import aborted is quite plausibly that storage
- * is what ran out, and failing the failure would replace a useful error with a useless one.
+ * By hand rather than through `DeckRepository.delete`, which walks a manifest — and there is none
+ * yet, because media goes up before `publish` writes one. Best-effort and never fatal: the import
+ * quite plausibly aborted because storage ran out, and failing the failure replaces a useful error
+ * with a useless one.
  */
 private suspend fun sweepUploadedMedia(
     media: MediaRepository,
@@ -446,19 +422,16 @@ private suspend fun sweepUploadedMedia(
 }
 
 /**
- * The existing deck with whatever metadata this invocation actually specified applied on top.
+ * The existing deck with whatever metadata this invocation actually specified applied on top. Null
+ * when nothing was, so a bare `--resume` costs no metadata write.
  *
- * Null when nothing was specified, so a bare `--resume` costs no metadata write at all.
+ * Silently dropping `--tag`, `--description` or `--front-lang` on a resumed run was the sharpest of
+ * the resume findings: the natural way to use the feature is to re-run the *same command* with
+ * `--resume` appended, so an agent lost every flag but `--title` — and a dropped language pair means
+ * `Deck.speechReady` stays false and Listen and Speak never appear, with the CLI reporting success.
  *
- * Accepting `--tag`, `--description` or `--front-lang` on a resumed run and silently dropping them
- * was the third of the resume findings, and the sharpest of the three: the natural way to use the
- * feature is to re-run the *same command* with `--resume` appended, so an agent lost every flag
- * but `--title` — and a dropped language pair means `Deck.speechReady` stays false and Listen and
- * Speak never appear, with the CLI reporting success.
- *
- * Only what was given is overlaid. Absent is not the same as "set it to the default": that
- * distinction is why the opt-ins go through [Args.flagOrNull] rather than [Args.flag], and
- * without it a bare `--resume` would turn off every mode the deck already had.
+ * Only what was given is overlaid. Absent is not "set it to the default", which is why the opt-ins
+ * go through [Args.flagOrNull]; without that a bare `--resume` would turn off every mode the deck had.
  */
 private fun Deck.overlaidWith(args: Args): Deck? {
     val frontLang = args.option("front-lang") ?: frontLang
@@ -481,16 +454,14 @@ private fun Deck.overlaidWith(args: Args): Deck? {
 
 /**
  * The resumed deck's tags after this invocation's `--tag` and language flags: `--tag` replaces the
- * set when it is given, and a **named** pair reconciles the labels it contributes.
+ * set when given, and a **named** pair reconciles the labels it contributes.
  *
- * Named rather than moved, which is `deck edit`'s rule for the same reason: restating the pair is
- * how a deck published before the labels existed gains them, and `--resume` re-runs the original
- * command with a flag appended, so the pair is usually restated anyway. When it has not moved the
- * reconciliation is a no-op and `overlaidWith` still returns null — a bare `--resume` costs no
- * metadata write.
+ * Named rather than moved, which is `deck edit`'s rule too: restating the pair is how a deck
+ * published before the labels existed gains them. When it has not moved the reconciliation is a
+ * no-op and `overlaidWith` still returns null.
  *
- * The drop is the half worth spelling out: `--resume` can *move* a pair, and retyping a deck from
- * Spanish to French has to take `"spanish"` off it or the deck stays listed as Spanish forever.
+ * The drop is the half worth spelling out: retyping a deck from Spanish to French has to take
+ * `"spanish"` off it, or the deck stays listed as Spanish forever.
  */
 private fun Args.overlaidTags(deck: Deck, frontLang: String?, backLang: String?): List<Tag> {
     val requested = options("tag").normalizedTags()
@@ -522,8 +493,8 @@ private fun newDeck(
         description = args.option("description")?.takeIf { it.isNotBlank() },
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() },
         coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage),
-        // A declared pair labels the deck, exactly as it does on a phone — see `deckTags`. This is
-        // the path most decks arrive by (#46), and it was the least discoverable of the three.
+        // A declared pair labels the deck, exactly as on a phone. This is the path most decks arrive
+        // by (#46), and it was the least discoverable of the three.
         tags = deckTags(args.options("tag"), frontLang, backLang),
         createdAt = now,
         updatedAt = now,
@@ -544,10 +515,9 @@ private fun newDeck(
 /**
  * Write the cards a resumed run is missing, and bring the deck's metadata up to date.
  *
- * One `appendCards` rather than a loop of `upsertCard`. The loop cost a chunk write *plus* a full
- * manifest read-modify-write per card — 60 writes for 30 cards where a publish spends 2 — which
- * made the recovery path an order of magnitude slower than the attempt it was recovering, on the
- * same one-hour session budget. A large import that died at 55 minutes could never finish.
+ * One `appendCards` rather than a loop of `upsertCard`, which cost a chunk write *plus* a full
+ * manifest read-modify-write per card — 60 writes for 30 cards where a publish spends 2 — making
+ * the recovery path slower than the attempt it was recovering, on the same one-hour budget.
  */
 private suspend fun appendMissing(
     decks: DeckRepository,
@@ -562,11 +532,11 @@ private suspend fun appendMissing(
     if (metadata != null) {
         // Metadata last: a failed append should not have renamed the deck it failed to fill.
         onProgress("updating deck metadata")
-        // `chunks` and `cardCount` are re-read inside `updateMetadata`'s lock, so the stale ones
-        // carried on this snapshot are discarded — but **`updatedAt` is not**, and it is what
-        // `hasUpdate` compares against a follower's last-seen mark. Writing the pre-append value
-        // would rewind the manifest's timestamp below what the append just set, and a follower
-        // who had already seen the deck would never be told the new cards exist.
+        // `chunks` and `cardCount` are re-read inside `updateMetadata`'s lock, so the stale ones on
+        // this snapshot are discarded — but **`updatedAt` is not**, and it is what `hasUpdate`
+        // compares against a follower's last-seen mark. Writing the pre-append value would rewind
+        // the manifest below what the append just set, and a follower who had already seen the deck
+        // would never be told the new cards exist.
         deck = decks.updateMetadata(metadata.copy(updatedAt = deck.updatedAt))
             .getOrElse { throw asCliError(it) }
     }
