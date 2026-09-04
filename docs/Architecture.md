@@ -1259,6 +1259,21 @@ That makes `--json` an API surface with compatibility obligations, so it is vers
 first release (`"schema": 1`). Fields may be added; a field's meaning may not change under the
 same version.
 
+**stdout is held for the envelope at the file descriptor, not by agreement.** `libpubkycore`
+installs a `tracing` subscriber whose default writer is stdout, so a DHT bootstrap error — routine
+on a host that reaches the homeserver perfectly well over HTTPS — landed ahead of the envelope and
+made it undecodable, where `2>/dev/null` could not remove it because it was never on stderr
+(#229). `RUST_LOG` is the wrong lever: quieting the subscriber lowers the odds of a line rather
+than the guarantee, and an error is exactly what should still be reported. So `dup2(2, 1)` points
+fd 1 itself at stderr before the FFI loads and `System.out` is re-pointed at a `dup` of the real
+stdout taken first (`StdoutGuard.kt`). Anything writing to the raw descriptor — the Rust layer,
+anything it links, a dependency added later — goes to stderr with nothing above having to
+cooperate.
+
+The **failure** envelope carries `data` as well as `error`, and it is the same success shape the
+command would have produced. A partly-applied batch is the outcome that needs it: "nothing
+happened" and "35 of your 665 rows are on the homeserver" are the same exit code otherwise (§13.7).
+
 Two fields ride on **every** result, success and failure alike: `environment` and `indexer`. The
 reason is sharp. A Nexus read aimed at the wrong network does not error — it answers *normally,
 for the other network*, so everything comes back empty. An agent that writes a deck tag, reads it
@@ -1283,12 +1298,20 @@ always says which network answered.
 | 9 | bad input |
 | 10 | unsupported host (no `libpubkycore` for this OS/arch; §13.11) |
 | 11 | `update` found a newer release and may not install it here (§13.12) |
+| 12 | the homeserver answered 5xx |
 
 4 is the reason this table is not three rows long. The homeserver session dies after roughly an
 hour and nothing renews it (#165): writes start failing, reads keep working, and from outside it
 is indistinguishable from a network wobble. An agent told the wrong one either retries a dead
 session forever or abandons a working network. Told which it is, it can stop, say so, and resume
 after a human runs `loopky login` — which is what makes `--resume` worth having at all.
+
+12 is split out of 1 because this table documents 1 as "worth reporting as a bug", and a 500 from
+the homeserver is not a bug in the client, not the caller's input, and — unlike every other row —
+may well succeed on the next attempt. A batch told `internal` sends an agent looking through its
+own file for the row that broke it; told `server_error` it retries the rows that did not land. It
+is deliberately not 5, which promises the request never arrived: it did, and it may have been
+applied, which is what makes a resumed write worth attempting.
 
 Classification goes through `Throwable.toErrorReason()`, the same classifier the apps use, rather
 than matching messages in the CLI: it already knows that "this pubky published no homeserver
@@ -1396,6 +1419,19 @@ agent's normal recovery is to re-run the command.
   the pick. The second half matters as much as the first: most decks are not language decks, and
   `LanguageTags.forPair` returning nothing for an undeclared deck is what keeps `"language"` off a
   deck of capital cities. A hand-typed `--tag spanish` beside a declared pair stays one chip.
+- **`card edit --from-file` is idempotent, which is why it has no `--resume`.** A row already
+  holding what it asks for is skipped rather than rewritten, so re-running the same file *is* the
+  resume: no cursor to keep, nothing to pass, and no `updated_at` churn on rows that did not
+  change. Three properties come with it, all from one 665-row batch that 500'd after 35 writes and
+  reported nothing about the 35 (#229). Everything is validated before the first write, so a bad
+  row 400 fails with the homeserver untouched rather than 399 rows in. One refused row does not
+  end the batch — when a batch fails and the same rows apply singly, the row is not the problem —
+  while a failure that will refuse everything identically (expiry, full disk, unsupported host)
+  does, as does a run of five, and the result says how many were never reached. And the result
+  travels on the failure envelope as `data`, with per-row file line, card id, exit code and
+  message. A homeserver 500 is retried twice with backoff before it counts: `withWriteRetry`
+  already recovers an expiry, a 429 and an unreachable session round trip (§8.5), and a 500 was
+  the gap.
 - **Batch mutation, not just batch creation.** `card edit --from-file` exists for the same reason
   the surface steers agents away from `card add` in a loop, with more force: editing is what you
   do *after* an import, and it is the shape an agent naturally reaches for. One card write is one
@@ -1432,6 +1468,33 @@ reaches one. A file failing either test falls through to the shared parser — t
 `import`, where the file is text somebody wants imported, and the wrong one for
 `card add --from-file`, where the four-column TSV is what the user explicitly asked for and a
 non-URL is an error.
+
+A JSONL row may also be **the shape `card list --json` emits** — sides as objects, the picture as
+`{"url": …}` — so a deck can be read, edited with `jq` and fed straight back. The two shapes
+disagreeing was a real cost: answering "has this row already been applied?" needed a shape check
+*and* a percent-decode, and getting it wrong silently rewrote all 665 rows on every pass (#229).
+The tri-state survives the translation — an absent key leaves the field alone, an explicit null
+clears it — and because `card list --json` writes explicit nulls, feeding its output back sets
+every field to exactly what it read. The one thing a card file cannot name is a **blob** picture
+(`sha256`, no `url`), so those are left unchanged rather than cleared: clearing would strip every
+picture off an `.apkg`-imported deck the moment someone round-tripped it.
+
+`--check-images` is the opt-in that asks a host what the string cannot say. Three failures produce
+exactly the same silent blank card and no rule over the URL can see any of them: a Wikipedia lead
+image that resolves to `.stl` or `.webm` behind an ordinary-looking address, a renamed or deleted
+file, and a host refusing an unfamiliar client. One `HEAD` per **distinct** URL catches all three.
+It warns and never refuses — a host having a bad minute must not be able to fail an import — and
+it sends a real user agent, because `403 Please set a user-agent` is Wikimedia's answer to a
+generic client and is the very failure it exists to catch. What it does *not* report is the point:
+a URL that answers 2xx with an image type produces no row, since a finding buried in 900 lines of
+"this one is fine" is no better than no check.
+
+`card list` pages over the **chunk table** rather than the deck: `--limit`/`--cursor` fetch only
+the records a page needs, and `--missing-image`/`--has-image` narrow what comes back. There is no
+server-side filter to offer instead — the homeserver stores opaque records and Nexus indexes tags,
+not cards — so a filter without `--limit` saves the output and the caller's work, not the fetch.
+A cursor is a place in the deck rather than a snapshot of it: one naming a chunk compaction has
+since folded away resumes at the next one that exists (§8.4).
 
 The columns are there from day one because they close the gap neither bulk path can express: both
 `.apkg` and TSV carry an image only when a field is *nothing but* that image
