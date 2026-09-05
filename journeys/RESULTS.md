@@ -2148,3 +2148,29 @@ amount: a fixed 3s tapped through Ring's cold-start screen into *Add Pubky* twic
 back in depends on the relay lottery above; `clear()` against the real keychain is covered by the
 round-trip test instead. Migration from a pre-#213 `secrets.json` is covered by the fake-keychain
 tests, not on a live install.
+
+### Review round 2 — 2026-09-05, same machine
+
+Three findings, all real. The interesting part is that verifying the third one produced the
+condition it describes.
+
+| Verified with the **native binary** | Result |
+| --- | --- |
+| `logout` | ✅ `revoked: true`, `cleared_locally: true`, exit 0, and the Keychain item is gone — `security find-generic-password` answers "could not be found" |
+| Re-`login` through Ring on the emulator | ✅ round 1 this time (the relay lottery, not a change) |
+| Staging read/write after the drain rework | ✅ `deck create` → `deck list` → `deck delete` |
+| The fallback, unplanned | ✅ a sign-in during the wedged-keychain window below wrote the session to `secrets.json` and reported it — the 20s bound turning an indefinite block into a fallback, observed rather than argued |
+| The migration, unplanned | ✅ the next `whoami` adopted that file session into the Keychain and left `secrets.json` empty (`[]`) — the one-copy invariant on a real install, not a fake |
+
+**A flakiness loop wedged the whole machine's keychain, and that is the finding.** Chasing one
+failing round trip with a 25-iteration loop — concurrent with a Gradle run doing the same — made
+macOS raise an authorization dialog. `securityd` serialises everything behind it, so **14**
+`security` processes queued up, including `gh`'s token read, and `gh api` started answering
+"Requires authentication". Draining the requesters and killing `SecurityAgent` cleared it.
+
+The hypothesis that `-U` on an existing item prompts because it re-applies the `-T` ACL is
+**wrong**, tested directly: fresh add, update-with-`-T`, update-without-`-T` and delete-then-add
+all returned 0 with no dialog. So there is no redesign — the volume is what did it, and neither the
+product nor the suite does that. What changed is the test: only a *timeout* is excused as an
+environment condition, because a blanket skip would have hidden the `-D "Loopky session"` quoting
+bug this same test caught.
