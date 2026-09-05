@@ -26,7 +26,7 @@ import kotlin.concurrent.withLock
  * rather than a truncated file — which matters, because one of the things kept here is the
  * journal of reviews that have not reached the homeserver.
  */
-internal class JsonFileStore(private val file: Path) {
+internal class JsonFileStore(internal val file: Path) {
 
     private val lock = ReentrantLock()
     private var cache: MutableMap<String, String>? = null

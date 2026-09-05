@@ -263,6 +263,7 @@ internal fun identityRepository(
 
 /** A [SecureSessionStore] that remembers nothing, for tests that never read the session back. */
 class NoopSessionStore : SecureSessionStore {
+    override val location: String = "nowhere"
     override suspend fun save(session: Session) = Unit
     override suspend fun load(): Session? = null
     override suspend fun clear() = Unit

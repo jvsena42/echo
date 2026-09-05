@@ -11,6 +11,7 @@ import com.github.jvsena42.loopky.cli.requireSessionSecretShape
 import com.github.jvsena42.loopky.cli.result
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.Session
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -47,8 +48,8 @@ data class LoginResult(
      */
     @SerialName("session_secret") val sessionSecret: String? = null,
     /**
-     * Where the session was written. Always set: `--export` *also* prints the secret, it does not
-     * print it instead of storing it.
+     * Where the session was written — the config home on Linux, the Keychain on macOS (#213).
+     * Always set: `--export` *also* prints the secret, it does not print it instead of storing it.
      */
     @SerialName("stored_at") val storedAt: String? = null,
 )
@@ -58,9 +59,24 @@ data class WhoamiResult(
     val pubky: String,
     val homeserver: String,
     val capabilities: List<String>,
-    /** `env` for `LOOPKY_SESSION`, `file` for the stored one. */
+    /**
+     * `env` for `LOOPKY_SESSION`, `file` for the stored one.
+     *
+     * `file` outlived its literal reading when the macOS session moved to the Keychain (#213) and
+     * is kept anyway: `--json` is a versioned API an agent branches on, and re-spelling a value
+     * changes a meaning rather than adding one. It says *this machine's store*, and
+     * [sessionStore] says which store that is.
+     */
     @SerialName("session_source") val sessionSource: String,
     @SerialName("config_home") val configHome: String,
+    /**
+     * Where a stored session is kept, which stopped being [configHome] on macOS (#213).
+     *
+     * Both are reported rather than one: the rest of this client's state is still under
+     * [configHome], and an agent debugging a box that has lost its session needs to be told which
+     * of the two to look at. Says nothing about *this* session when [sessionSource] is `env`.
+     */
+    @SerialName("session_store") val sessionStore: String,
     val environment: String,
     val indexer: String,
     /**
@@ -90,7 +106,7 @@ data class WhoamiResult(
 suspend fun login(
     args: Args,
     identity: IdentityRepository,
-    environment: CliEnvironment,
+    sessionStore: SecureSessionStore,
     emitEvent: (String) -> Unit,
     stderr: (String) -> Unit,
 ): CommandResult {
@@ -141,7 +157,7 @@ suspend fun login(
     val export = args.has("export")
     if (export) {
         stderr("")
-        stderr("--export prints a live session secret below. It is also stored under ${environment.configHome}.")
+        stderr("--export prints a live session secret below. It is also stored in ${sessionStore.location}.")
     }
     return result(
         LoginResult(
@@ -149,13 +165,13 @@ suspend fun login(
             homeserver = session.homeserver,
             capabilities = session.capabilities.map { it.value },
             sessionSecret = session.sessionSecret.takeIf { export },
-            storedAt = environment.configHome.toString(),
+            storedAt = sessionStore.location,
         ),
         buildString {
             appendLine("Signed in as ${session.identity.pubky}")
             appendLine("Homeserver: ${session.homeserver}")
             appendLine("Capabilities: ${session.capabilities.joinToString(", ") { it.value }}")
-            appendLine("Session stored under ${environment.configHome}")
+            appendLine("Session stored in ${sessionStore.location}")
             if (export) {
                 appendLine()
                 appendLine("LOOPKY_SESSION=${session.sessionSecret}")
@@ -168,6 +184,7 @@ suspend fun login(
 suspend fun whoami(
     identity: IdentityRepository,
     pubkyClient: PubkyClient,
+    sessionStore: SecureSessionStore,
     environment: CliEnvironment,
     env: (String) -> String? = System::getenv,
 ): CommandResult {
@@ -181,6 +198,7 @@ suspend fun whoami(
             capabilities = session.capabilities.map { it.value },
             sessionSource = source,
             configHome = environment.configHome.toString(),
+            sessionStore = sessionStore.location,
             environment = environment.name,
             indexer = environment.indexer,
             sessionLive = live,
@@ -191,8 +209,11 @@ suspend fun whoami(
             appendLine("Capabilities: ${session.capabilities.joinToString(", ") { it.value }}")
             appendLine("Environment:  ${environment.name}")
             appendLine("Indexer:      ${environment.indexer}")
-            appendLine("Session from: $source")
+            // Not the JSON's `file`/`env`: that value is pinned by the schema, and on macOS it
+            // no longer reads as anything.
+            appendLine("Session from: ${if (source == "env") "LOOPKY_SESSION" else "this machine"}")
             appendLine("Config home:  ${environment.configHome}")
+            appendLine("Session in:   ${sessionStore.location}")
             append("Session:      ${if (live) "live" else "NOT accepted by the homeserver — sign in again"}")
         },
     )

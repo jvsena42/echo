@@ -11,7 +11,6 @@ import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.ConfigHome
 import com.github.jvsena42.loopky.data.storage.FileAppPreferences
 import com.github.jvsena42.loopky.data.storage.FileLocalKeyStore
-import com.github.jvsena42.loopky.data.storage.FileSecureSessionStore
 import com.github.jvsena42.loopky.data.storage.FilePendingReviewStore
 import com.github.jvsena42.loopky.data.storage.FileSignupTokenStore
 import com.github.jvsena42.loopky.data.storage.FileStudyProgressStore
@@ -23,6 +22,7 @@ import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.StudyProgressStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
+import com.github.jvsena42.loopky.data.storage.desktopSecureSessionStore
 import com.github.jvsena42.loopky.data.storage.preferencesStore
 import com.github.jvsena42.loopky.data.storage.secretsStore
 import com.github.jvsena42.loopky.data.unsplash.UnsplashClient
@@ -62,9 +62,11 @@ private val SECRETS = named("secrets")
  * `LOOPKY_ENV` / `--env` and defaults to production, for the same reason
  * [PubkyEnvironment.fromNameOrProduction] falls back that way.
  *
- * [configHome] is where the session and preferences live. Injected rather than resolved here so a
- * test — and a container — can point somewhere disposable; see [ConfigHome] for the default and
- * for why it is a 0600 file rather than an OS keyring.
+ * [configHome] is where state lives. Injected rather than resolved here so a test — and a
+ * container — can point somewhere disposable; see [ConfigHome] for the default and for why it is
+ * a directory of 0600 files rather than an OS keyring. The **session** is the one exception, and
+ * only on macOS: [desktopSecureSessionStore] puts it in the Keychain there, unless [configHome]
+ * has been pointed somewhere explicit (#213).
  *
  * [mediaProcessor] is the one binding a caller has to think about, and it decides how many files
  * the client is (#210). [JvmMediaProcessor] reaches `javax.imageio` and therefore `java.awt`,
@@ -96,7 +98,7 @@ fun jvmPlatformModule(
     single(PREFERENCES) { preferencesStore(configHome) }
     single(SECRETS) { secretsStore(configHome) }
 
-    single<SecureSessionStore> { FileSecureSessionStore(get(SECRETS)) }
+    single<SecureSessionStore> { desktopSecureSessionStore(configHome, get(SECRETS)) }
     single<LocalKeyStore> { FileLocalKeyStore(get(SECRETS)) }
     single<SignupTokenStore> { FileSignupTokenStore(get(SECRETS)) }
     single<UnsplashKeyStore> { FileUnsplashKeyStore(get(SECRETS)) }
