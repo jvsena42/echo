@@ -161,4 +161,25 @@ class CliError(
     val exitCode: ExitCode,
     message: String,
     val data: JsonElement? = null,
-) : RuntimeException(message)
+) : RuntimeException(message.withoutRepeatedPrefix())
+
+/**
+ * `"Request failed: Request failed: Invalid request/URI: …"` said once (#240, finding 6).
+ *
+ * The doubling comes from the FFI, which wraps its own error a second time on the way out, so it
+ * is not something this side can stop being produced — only stop repeating. Cosmetic, and worth a
+ * function anyway: this string is the one an agent captures into a transcript, and a message that
+ * stutters reads like two failures rather than one.
+ *
+ * **Adjacent duplicates only.** A double wrap is a segment repeated immediately; two identical
+ * segments with something between them are two different frames saying the same word, and
+ * collapsing those would delete a layer of the trace.
+ */
+internal fun String.withoutRepeatedPrefix(): String {
+    val parts = split(SEGMENT)
+    if (parts.size < 2) return this
+    val kept = parts.filterIndexed { index, part -> index == 0 || part != parts[index - 1] }
+    return kept.joinToString(SEGMENT)
+}
+
+private const val SEGMENT = ": "
