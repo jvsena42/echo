@@ -84,8 +84,12 @@ nowhere. The run summary says so on every release where the token is missing.
 2. Preview the notes the tag will publish — the same script the workflow runs:
 
    ```shell
-   .github/scripts/changelog.sh v0.9.0 v0.8.1
+   .github/scripts/changelog.sh v0.9.0
    ```
+
+   The tag does not exist yet at this point, so the script reads `HEAD` instead and says so on
+   stderr; the version is still what names the compare link, so what you see is what the tag will
+   publish. Pass the previous tag as a second argument to override the one it works out itself.
 
    It groups `feat:`/`fix:`/`perf:` subjects and drops everything else. It is a floor, not a
    ceiling: rewrite them afterwards with `gh release edit <tag> --notes-file <file>`, which a

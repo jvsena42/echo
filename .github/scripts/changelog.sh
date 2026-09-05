@@ -10,18 +10,46 @@
 # Conventional-commit types decide what is user-facing; everything else (chore, ci, docs, test,
 # refactor, style, build) is dropped, including the release's own version bump.
 set -euo pipefail
+# Command substitutions do not inherit `errexit` without this, and every section below is one. A
+# failing `git log` would otherwise print its fatal to stderr, return empty, and let the script
+# exit 0 having announced "no user-facing changes" — a generation failure wearing the costume of a
+# successful empty changelog. Guarded because macOS still ships bash 3.2, which has no such option.
+shopt -s inherit_errexit 2>/dev/null || true
 
 VERSION="${1:?usage: changelog.sh <version> [previous-tag]}"
 PREV="${2:-}"
 
+die() { echo "changelog.sh: $*" >&2; exit 1; }
+is_commit() { git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1; }
+
+# **The version names the release; the endpoint is what gets read.** They are the same thing in CI,
+# where the tag exists. They are not when previewing before the tag is created, which is the whole
+# reason this is a file rather than a block inside the workflow — so an unknown <version> reads
+# HEAD, and says so, while the compare link below still names the version the tag will carry.
+# Silently reading nothing is what made the preview show an empty changelog for every release.
+if is_commit "$VERSION"; then
+    ENDPOINT="$VERSION"
+    PREV_FROM="${VERSION}^"
+else
+    ENDPOINT=HEAD
+    PREV_FROM=HEAD
+    echo "changelog.sh: $VERSION is not a revision here — reading HEAD instead" >&2
+fi
+
 # `<version>^` rather than `<version>`, or `describe` answers with the tag we are writing notes
 # for. Empty is a legitimate answer — the first release has nothing behind it.
 if [ -z "$PREV" ]; then
-    PREV=$(git describe --tags --abbrev=0 "${VERSION}^" 2>/dev/null || true)
+    PREV=$(git describe --tags --abbrev=0 "$PREV_FROM" 2>/dev/null || true)
+elif ! is_commit "$PREV"; then
+    die "$PREV is not a revision in this repository (a shallow clone, or a tag not fetched?)"
 fi
 
-RANGE="$VERSION"
-[ -n "$PREV" ] && RANGE="$PREV..$VERSION"
+RANGE="$ENDPOINT"
+[ -n "$PREV" ] && RANGE="$PREV..$ENDPOINT"
+
+# Proves the range before three command substitutions each swallow the failure separately.
+git log "$RANGE" --no-merges --format='%s' >/dev/null 2>&1 ||
+    die "cannot read the commit range '$RANGE'"
 
 subjects_for() {
     local types="$1"

@@ -80,8 +80,12 @@ merge commit.
    what the tag will publish:
 
    ```shell
-   .github/scripts/changelog.sh <version> $(git describe --tags --abbrev=0 HEAD)
+   .github/scripts/changelog.sh <version>
    ```
+
+   The tag does not exist yet, so the script reads `HEAD` and says so on stderr, while still naming
+   `<version>` in the compare link. Do not "fix" that warning by tagging first — the confirmation
+   in step 8 is what the preview exists to inform.
 
    It groups `feat:`/`fix:`/`perf:` subjects by scope and drops chore/ci/docs/test/refactor,
    including this release's own version bump. Read it. If a subject is mislabelled or a group of
