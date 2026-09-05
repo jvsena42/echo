@@ -138,7 +138,15 @@ internal class SecurityCliKeychain(
                 val err = process.errorStream.drainOffThread()
                 process.outputStream.use { if (stdin != null) it.write(stdin.toByteArray()) }
                 if (process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
-                    Outcome(process.exitValue(), out.text(), err.text())
+                    // Null rather than "" when a drain somehow outlives the process it was
+                    // reading: an empty stdout is a *valid* answer shape here, and letting a
+                    // truncated read pass as one turns a lost byte into "there is no session".
+                    val text = out.text()
+                    if (text == null) {
+                        Outcome(NOT_RUN, "", "security exited but its output never arrived")
+                    } else {
+                        Outcome(process.exitValue(), text, err.text().orEmpty())
+                    }
                 } else {
                     Outcome(TIMED_OUT, "", "no answer in ${timeoutSeconds}s — a locked keychain, or a confirmation prompt nobody can see")
                 }
@@ -157,9 +165,9 @@ internal class SecurityCliKeychain(
         return task
     }
 
-    /** The drained text, or empty — the process is gone by now, so this is a formality. */
-    private fun FutureTask<String>.text(): String =
-        runCatching { get(DRAIN_TIMEOUT_SECONDS, TimeUnit.SECONDS) }.getOrDefault("")
+    /** The drained text, or null if it never arrived — the caller must not read that as empty. */
+    private fun FutureTask<String>.text(): String? =
+        runCatching { get(DRAIN_TIMEOUT_SECONDS, TimeUnit.SECONDS) }.getOrNull()
 
     private data class Outcome(val exitCode: Int, val stdout: String, val stderr: String) {
         fun describe(): String = "security exited $exitCode: ${stderr.trim().ifEmpty { "no message" }}"
