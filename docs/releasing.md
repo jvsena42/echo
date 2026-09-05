@@ -58,10 +58,15 @@ cleanly and only the Play upload rejected it, with a message naming neither the 
 ### The Homebrew tap, once
 
 `HOMEBREW_TAP_TOKEN` needs somewhere to push. Create `<owner>/homebrew-loopky` as a public
-repository with a `Formula/` directory in it, then mint a fine-grained PAT scoped to that one
-repository with **Contents: read and write** and add it as the secret. `cli/packaging/loopky.rb` is
-the template the job renders; the `__…__` placeholders are filled from the release's own `.sha256`
-assets, so the formula can only ever describe bytes that were actually published.
+repository and **give it at least one commit** — a README will do. An empty repository has no
+default branch, and `actions/checkout` cannot check out a ref that does not exist, so the job
+fails on a tag before it renders anything. Do not try to satisfy this with an empty `Formula/`
+directory: git cannot hold one, and the job creates it anyway.
+
+Then mint a fine-grained PAT scoped to that one repository with **Contents: read and write** and
+add it as the secret. `cli/packaging/loopky.rb` is the template the job renders; the `__…__`
+placeholders are filled from the release's own `.sha256` assets, so the formula can only ever
+describe bytes that were actually published.
 
 Skipping this is a fine outcome to have, and a bad one to have by accident: `loopky update`
 *refuses* on a Homebrew install with exit 11 and tells the user to run `brew upgrade`
