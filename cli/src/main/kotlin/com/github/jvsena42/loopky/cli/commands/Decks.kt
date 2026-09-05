@@ -215,10 +215,19 @@ private fun Args.deckIdToCreate(): String {
  * **A read failure that is not a miss is rethrown.** Treating an unreachable homeserver as "the
  * deck does not exist" is how `--if-not-exists` would publish the duplicate it exists to prevent.
  *
- * **A deck belonging to someone else is not an answer to "is my id taken?".** `sync` falls back to
- * the followed-deck subscriptions, so a `--id` colliding with a deck you follow would otherwise
- * report another author's manifest — `--if-not-exists` accepting a deck you cannot write, or a
- * refusal for an id that is free in your own namespace with no way past it.
+ * **It reads the manifest, not the deck.** `DeckRepository.sync` is `fetchRemote` *plus*
+ * `fetchByDeck`, which on a cold CLI process pulls every chunk — ~200 reads for a 20k-card deck,
+ * paid on every idempotent retry, to answer a question the manifest alone settles. `fetchRemote`
+ * reads one record and carries everything used here: the author, `incomplete`, the title and the
+ * count.
+ *
+ * **A deck belonging to someone else is not an answer to "is my id taken?".** Reading
+ * `session.identity.pubky`'s own namespace is what guarantees that — `sync` resolves an unknown
+ * id's author through the caller's *follow* records first, so a `--id` colliding with a followed
+ * deck used to come back as that author's manifest: `--if-not-exists` accepting a deck you cannot
+ * write, or a refusal for an id that was free all along. The author check below is then a cheap
+ * consistency assertion on a record this client does not control the contents of, rather than the
+ * guarantee itself.
  *
  * **An `incomplete` manifest is not a deck.** `publish` writes that marker *before* the chunks, so
  * a killed `deck create --id X` — the case `--if-not-exists` exists for — leaves one behind.
@@ -235,7 +244,7 @@ private suspend fun existingDeck(
     deckId: String,
 ): Deck? {
     if (args.option("id") == null) return null
-    val existing = decks.sync(deckId).fold(
+    val existing = decks.fetchRemote(session.identity.pubky, deckId).fold(
         onSuccess = { it },
         onFailure = { if (ExitCode.of(it) == ExitCode.NotFound) null else throw asCliError(it) },
     ) ?: return null

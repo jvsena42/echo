@@ -127,7 +127,7 @@ private fun run(argv: Array<String>): ExitCode {
                 // rather than about a deck that does not exist. See `requireSupportedHost`.
                 requireSupportedHost()
                 val koin = startCli(environment)
-                dispatch(args, koin.identity(), koin, environment, json = args.has("json"))
+                dispatch(args, koin.identity(), koin, environment, args.has("json"), SessionCache())
             }
             emit(args, environment, args.verb, result, updates.notice(update.await()))
             ExitCode.Ok
@@ -175,6 +175,8 @@ private suspend fun dispatch(
      * 20,000-card import's whole progress stream to stderr, in exactly the mode that suppresses it.
      */
     json: Boolean,
+    /** Resolved once for the process; see [SessionCache]. `batch` re-enters here with the same one. */
+    sessions: SessionCache,
 ): CommandResult {
     // Two sinks, because they are two different things and collapsing them silenced a warning in the
     // mode an agent runs. `progress` is a counter — thousands of lines on a large import — so it is
@@ -183,6 +185,9 @@ private suspend fun dispatch(
     // must not get an empty file because it asked for JSON.
     val progress: (String) -> Unit = { line -> if (!json) System.err.println(line) }
     val note: (String) -> Unit = System.err::println
+    // stdout, and only in the human mode — the same split `emit` makes for a single command. A
+    // batch operation's *result* is a result, so it belongs on the channel results go to.
+    val text: (String) -> Unit = { line -> if (!json) println(line) }
     return when (val verb = args.verb) {
         "login" -> login(
             args,
@@ -194,20 +199,20 @@ private suspend fun dispatch(
         "logout" -> logout(identity)
         "whoami" -> whoami(identity, koin.get<PubkyClient>(), koin.get<SecureSessionStore>(), environment)
 
-        "deck list" -> authed(identity, environment) { deckList(koin.decks()) }
-        "deck show" -> authed(identity, environment) { deckShow(args, koin.decks()) }
-        "deck create" -> authed(identity, environment) { session ->
+        "deck list" -> authed(sessions, identity, environment) { deckList(koin.decks()) }
+        "deck show" -> authed(sessions, identity, environment) { deckShow(args, koin.decks()) }
+        "deck create" -> authed(sessions, identity, environment) { session ->
             deckCreate(args, koin.decks(), session, note, progress)
         }
-        "deck edit" -> authed(identity, environment) { deckEdit(args, koin.decks()) }
-        "deck delete" -> authed(identity, environment) { deckDelete(args, koin.decks()) }
-        "deck sync" -> authed(identity, environment) { deckSync(args, koin.decks(), koin.cards()) }
-        "deck compact" -> authed(identity, environment) { deckCompact(args, koin.decks()) }
+        "deck edit" -> authed(sessions, identity, environment) { deckEdit(args, koin.decks()) }
+        "deck delete" -> authed(sessions, identity, environment) { deckDelete(args, koin.decks()) }
+        "deck sync" -> authed(sessions, identity, environment) { deckSync(args, koin.decks(), koin.cards()) }
+        "deck compact" -> authed(sessions, identity, environment) { deckCompact(args, koin.decks()) }
 
-        "card list" -> authed(identity, environment) { cardList(args, koin.decks(), koin.cards(), note) }
-        "card add" -> authed(identity, environment) { cardAdd(args, koin.decks(), koin.cards(), note) }
-        "card edit" -> authed(identity, environment) { cardEdit(args, koin.decks(), koin.cards(), note) }
-        "card rm" -> authed(identity, environment) { cardRemove(args, koin.decks()) }
+        "card list" -> authed(sessions, identity, environment) { cardList(args, koin.decks(), koin.cards(), note) }
+        "card add" -> authed(sessions, identity, environment) { cardAdd(args, koin.decks(), koin.cards(), note) }
+        "card edit" -> authed(sessions, identity, environment) { cardEdit(args, koin.decks(), koin.cards(), note) }
+        "card rm" -> authed(sessions, identity, environment) { cardRemove(args, koin.decks()) }
 
         // `--dry-run` deliberately sits outside `authed`: it reads a local file and writes
         // nothing, so requiring a live session would put a sign-in between an agent and the check
@@ -216,7 +221,7 @@ private suspend fun dispatch(
         "import" -> if (args.has("dry-run")) {
             importDryRun(args, koin.get<ImportRepository>())
         } else {
-            authed(identity, environment) { session ->
+            authed(sessions, identity, environment) { session ->
                 import(
                     args = args,
                     imports = koin.get<ImportRepository>(),
@@ -235,14 +240,16 @@ private suspend fun dispatch(
 
         // Recursive on purpose, and it is the whole design: every operation goes back through
         // this same `when`, so a batch cannot accept a command the CLI does not have or spell one
-        // differently. `Batch.kt` knows nothing about Koin — it is handed this lambda. The session
-        // is resolved once, by the first operation that needs it, and every later one finds it in
-        // `SessionProvider` rather than loading it again; that, plus one process start and one FFI
-        // load, is what the command buys.
+        // differently. `Batch.kt` knows nothing about Koin — it is handed this lambda.
+        //
+        // [sessions] is the *same* cache, which is what makes the claim about amortising the
+        // session true: `authed` resolves through it, so the first operation that needs a session
+        // pays for it and the rest do not. Passing a fresh one here would put a `revalidateSession`
+        // round trip on every operation under `LOOPKY_SESSION`.
         "batch" -> batch(
             args,
-            { operation -> dispatch(operation, identity, koin, environment, json) },
-            BatchSinks({ line -> if (json) println(line) }, note),
+            { operation -> dispatch(operation, identity, koin, environment, json, sessions) },
+            BatchSinks({ line -> if (json) println(line) }, text, note),
         )
 
         // `update` and `completion` are deliberately absent: both are handled in `run` before
@@ -259,10 +266,11 @@ private suspend fun dispatch(
 
 /** Resolve the session once, before the command runs, so a missing one fails the same way everywhere. */
 private suspend inline fun authed(
+    sessions: SessionCache,
     identity: IdentityRepository,
     environment: CliEnvironment,
     block: (Session) -> CommandResult,
-): CommandResult = block(requireSession(identity, environment))
+): CommandResult = block(sessions.require(identity, environment))
 
 private fun Koin.identity() = get<IdentityRepository>()
 private fun Koin.decks() = get<DeckRepository>()

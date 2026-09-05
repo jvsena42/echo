@@ -40,7 +40,7 @@ class DeckCreateIdempotenceTest {
 
     @Test
     fun `an id that is free is published under exactly that id`() = runBlocking {
-        val decks = FakeDeckRepository(testDeck(id = "mine00000001"), syncFails = missing)
+        val decks = FakeDeckRepository(testDeck(id = "mine00000001"), readFails = missing)
 
         val result = deckCreate(create("--title", "T", "--id", "mine00000001"), decks, session, {}, {})
 
@@ -92,7 +92,7 @@ class DeckCreateIdempotenceTest {
     fun `a read that failed for any other reason is not read as absent`() = runBlocking {
         val decks = FakeDeckRepository(
             testDeck(id = "mine00000001"),
-            syncFails = IllegalStateException("Request failed: HTTP transport error: connection reset"),
+            readFails = IllegalStateException("Request failed: HTTP transport error: connection reset"),
         )
 
         val error = assertFailsWith<CliError> {
@@ -106,11 +106,30 @@ class DeckCreateIdempotenceTest {
     /** The ordinary path is unchanged, and costs no extra round trip. */
     @Test
     fun `without --id nothing is read first`() = runBlocking {
-        val decks = FakeDeckRepository(testDeck(), syncFails = missing)
+        val decks = FakeDeckRepository(testDeck(), readFails = missing)
 
         deckCreate(create("--title", "T"), decks, session, {}, {})
 
-        assertEquals(emptyList(), decks.syncCalls)
+        assertEquals(emptyList(), decks.fetchRemoteCalls)
+    }
+
+    /**
+     * The existence check reads **one record**, from the caller's own namespace.
+     *
+     * `sync` is `fetchRemote` plus `fetchByDeck` — on a cold process, every chunk of the deck. That
+     * turned the cheap early return into ~200 reads for a 20k-card deck, on exactly the call an
+     * agent repeats. And aiming the read at `session.identity.pubky` is what makes a followed
+     * deck's id unable to occupy yours: `sync` would have resolved the author through the follow
+     * records first.
+     */
+    @Test
+    fun `the existence check reads one manifest, from the caller's own namespace`() = runBlocking {
+        val decks = FakeDeckRepository(testDeck(id = "mine00000001"))
+
+        deckCreate(create("--title", "T", "--id", "mine00000001", "--if-not-exists"), decks, session, {}, {})
+
+        assertEquals(listOf("pk:test" to "mine00000001"), decks.fetchRemoteCalls)
+        assertEquals(emptyList(), decks.syncCalls, "sync pulls every chunk; the manifest is enough")
     }
 
     @Test

@@ -310,7 +310,16 @@ internal fun cliCommands(): List<CliCommand> = listOf(
         options = listOf(CliOption("check", "ask without doing", OptionValue.Switch)),
         needsSession = false,
         local = true,
-        alsoExits = listOf(ExitCode.Network, ExitCode.UpdateUnsupported),
+        // `local` suppresses the network codes, so everything this command really answers with has
+        // to be named. `UnsupportedHost` because it refuses before downloading a binary it has no
+        // asset for, and `NotFound` because `fetchVerifiedBinary` fetches the asset itself through
+        // `download`, which throws that on a 404 — a release with no artifact for this host.
+        alsoExits = listOf(
+            ExitCode.Network,
+            ExitCode.NotFound,
+            ExitCode.UnsupportedHost,
+            ExitCode.UpdateUnsupported,
+        ),
         notBatchable = "Run it before or after; not while this binary is executing a file.",
     ),
     CliCommand(

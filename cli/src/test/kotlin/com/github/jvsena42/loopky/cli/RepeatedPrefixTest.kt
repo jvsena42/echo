@@ -33,6 +33,27 @@ class RepeatedPrefixTest {
         assertEquals(message, CliError(ExitCode.Internal, message).message)
     }
 
+    /**
+     * The leading segment only, because this runs on **every** message the CLI reports and the
+     * later segments are frequently the caller's own data quoted back.
+     *
+     * Collapsing adjacent duplicates anywhere silently rewrote the value being complained about: a
+     * card whose front is `Hola: Hola` came back as `Hola`. `--json` is the verification channel,
+     * which is the worst place to be lossy about the thing that failed.
+     */
+    @Test
+    fun `never edits a repeat inside the message`() {
+        val quoted = "Request failed: card front is 'Hola: Hola: adios'"
+        assertEquals(quoted, CliError(ExitCode.BadInput, quoted).message)
+
+        val doubled = "Request failed: Request failed: card front is 'Hola: Hola'"
+        assertEquals(
+            "Request failed: card front is 'Hola: Hola'",
+            CliError(ExitCode.BadInput, doubled).message,
+            "the wrap goes, the quoted value stays",
+        )
+    }
+
     @Test
     fun `leaves a message with no segments alone`() {
         assertEquals("plain", CliError(ExitCode.Internal, "plain").message)

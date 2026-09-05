@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.cli.cliCommands
 import com.github.jvsena42.loopky.cli.cliJson
 import com.github.jvsena42.loopky.cli.eventEnvelope
 import com.github.jvsena42.loopky.cli.result
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -81,8 +82,19 @@ data class BatchOperationResult(
     val message: String? = null,
 )
 
-/** Where a batch writes its per-operation lines and its notes. Same split as `LoginSinks`. */
-data class BatchSinks(val emitEvent: (String) -> Unit, val note: (String) -> Unit)
+/**
+ * Where a batch writes its three kinds of output. Same split as `LoginSinks`, one wider.
+ *
+ * [emitText] is separate from [note] because an operation's rendered result is a **result**:
+ * without it the human mode sent every `deck show` and `card list` answer to stderr and left
+ * stdout holding one summary line, so `loopky batch ops.ndjson > out.txt` captured nothing but
+ * "6/6 operations succeeded". `note` stays diagnostics.
+ */
+data class BatchSinks(
+    val emitEvent: (String) -> Unit,
+    val emitText: (String) -> Unit,
+    val note: (String) -> Unit,
+)
 
 /**
  * Run [source]'s operations, one per line, through [runOne].
@@ -157,11 +169,18 @@ private suspend fun runOperation(
     return try {
         val outcome = runOne(operation.args)
         sinks.emitEvent(operation.event(command, ok = true, data = outcome.data, error = null))
-        if (outcome.text.isNotEmpty()) sinks.note(outcome.text)
+        if (outcome.text.isNotEmpty()) sinks.emitText(outcome.text)
         BatchOperationResult(operation.index, operation.id, command, ok = true)
     } catch (error: CliError) {
         sinks.emitEvent(operation.event(command, ok = false, data = error.data, error = error))
         BatchOperationResult(operation.index, operation.id, command, false, error.exitCode.json, error.message)
+    } catch (cancelled: CancellationException) {
+        // Never an operation failure. `runOne` suspends, so a cancelled run reaches here first —
+        // and swallowing it recorded `internal` for this operation and then ran the remaining 599,
+        // each cancelling instantly at its own first suspension point, to report 600 failures for
+        // one cancellation. The repo rule (CLAUDE.md, "Cancellation") is that a catch-all around
+        // suspending code must not turn "the caller went away" into an ordinary failure.
+        throw cancelled
     } catch (@Suppress("TooGenericExceptionCaught") error: Throwable) {
         // `Throwable`, for the same reason `Main` catches it: an `UnsatisfiedLinkError` is an
         // `Error`, and letting one past here would end the run with nothing said about the

@@ -194,15 +194,18 @@ class CliError(
  * function anyway: this string is the one an agent captures into a transcript, and a message that
  * stutters reads like two failures rather than one.
  *
- * **Adjacent duplicates only.** A double wrap is a segment repeated immediately; two identical
- * segments with something between them are two different frames saying the same word, and
- * collapsing those would delete a layer of the trace.
+ * **The leading segment only**, which is where the defect is and nowhere else. Collapsing adjacent
+ * duplicates anywhere in the string edits the *data* a message quotes: this runs on every message
+ * the CLI reports, so a failure naming a card whose front is `Hola: Hola` came back naming `Hola`.
+ * `--json` is the verification channel, and an error string that silently rewrites the value it is
+ * complaining about is the wrong place to be lossy. Two identical segments deeper in a message are
+ * two frames saying the same word, which is a trace rather than a stutter.
  */
 internal fun String.withoutRepeatedPrefix(): String {
-    val parts = split(SEGMENT)
-    if (parts.size < 2) return this
-    val kept = parts.filterIndexed { index, part -> index == 0 || part != parts[index - 1] }
-    return kept.joinToString(SEGMENT)
+    val head = substringBefore(SEGMENT, missingDelimiterValue = "")
+    if (head.isEmpty()) return this
+    val rest = substring(head.length + SEGMENT.length)
+    return if (rest.startsWith(head + SEGMENT)) rest else this
 }
 
 private const val SEGMENT = ": "

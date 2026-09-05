@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.CommandResult
 import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.ok
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -30,8 +31,11 @@ import kotlin.test.assertTrue
 class BatchTest {
 
     private val events = mutableListOf<String>()
+
+    /** Rendered results — stdout in the human mode, which is where a result belongs. */
+    private val texts = mutableListOf<String>()
     private val notes = mutableListOf<String>()
-    private val sinks = BatchSinks({ events += it }, { notes += it })
+    private val sinks = BatchSinks({ events += it }, { texts += it }, { notes += it })
 
     /** Every set of args the stub dispatcher was handed, so order and content are assertable. */
     private val ran = mutableListOf<Args>()
@@ -290,6 +294,42 @@ class BatchTest {
         // And the payload still agrees with the envelope, so neither reading is wrong.
         assertEquals(listOf(true, false), envelopes.map { it["data"]!!.jsonObject["ok"]!!.jsonPrimitive.content.toBoolean() })
         assertEquals("not_found", event(1)["error"]!!.jsonObject["code"]!!.jsonPrimitive.content)
+    }
+
+    /**
+     * A result goes to the result channel.
+     *
+     * The human mode used to hand `outcome.text` to the `note` sink, which is stderr — so
+     * `loopky batch ops.ndjson > out.txt` captured the summary line and nothing else, while every
+     * answer went to the terminal. `Main` contracts stdout as the channel results go to.
+     */
+    @Test
+    fun `an operation's rendered result is a result, not a note`() = runBlocking {
+        val source = file("""["deck", "show", "d1"]""", """["deck", "list"]""")
+
+        batch(batchArgs(source), runner(), sinks)
+
+        assertEquals(listOf("did deck show", "did deck list"), texts)
+        assertEquals(emptyList(), notes)
+    }
+
+    /**
+     * Cancellation is not an operation failure. Swallowing it recorded `internal` and then ran the
+     * remaining lines, each cancelling instantly at its own first suspension point — 600 reported
+     * failures for one cancellation (CLAUDE.md, "Cancellation").
+     */
+    @Test
+    fun `a cancelled run stops instead of failing every remaining operation`() = runBlocking {
+        val source = file("""["whoami"]""", """["deck", "list"]""", """["deck", "sync", "d1"]""")
+        val runner: suspend (Args) -> CommandResult = { args ->
+            ran += args
+            if (args.verb == "deck list") throw CancellationException("caller went away")
+            CommandResult(buildJsonObject { put("verb", args.verb) }, "")
+        }
+
+        assertFailsWith<CancellationException> { batch(batchArgs(source), runner, sinks) }
+
+        assertEquals(listOf("whoami", "deck list"), ran.map { it.verb })
     }
 
     /** A command with nothing to report is still a successful operation. */

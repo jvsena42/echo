@@ -131,6 +131,10 @@ private fun CliCommand.exitCodes(): List<ExitCode> = buildList {
         add(ExitCode.NotSignedIn)
         add(ExitCode.SessionExpired)
         add(ExitCode.EnvironmentMismatch)
+        // Not implied by the operands: `requireSession` refuses a `LOOPKY_SESSION` that is not
+        // `<pubkey>:<cookie>` as bad input, so `LOOPKY_SESSION=garbage loopky deck list` exits 9
+        // from a command with no operand and no options at all.
+        add(ExitCode.BadInput)
     }
     if (writes) add(ExitCode.StorageFull)
     addAll(alsoExits)
