@@ -2236,3 +2236,52 @@ has to be copied by hand into a separate tap repo per release. Left undone the t
 previous version silently, and that is worse than stale: `loopky update` refuses on a Homebrew
 install with exit 11 and tells the user to `brew upgrade`, so the one instruction the binary gives
 them leads nowhere. Now step 12, with the two `.sha256`s to fill in and a `brew upgrade` check.
+
+## #240 — field notes from driving the CLI as an agent — 2026-09-05, macOS arm64, staging
+
+Six findings from an agent driving `loopky` through #213's verification. All six taken. Driven
+against a **real homeserver** with the live staging session (`bzbjrj9a…`, `/pub/loopky/:rw`,
+`--env staging`), from `cli/build/install/loopky/bin/loopky`, on throwaway decks created and
+deleted in the same run.
+
+| Finding | Verified |
+| --- | --- |
+| 1 — a blank id exited **1, internal**, the one code an agent retries | ✅ `card list ""` now `bad_input` / 9, and inside a batch too. Also `card add`, `deck show`, `card rm`, `import ""` — it is one check in `Args.requireWord` |
+| 2 — `login` could not be bounded, so SIGKILL was the only tool | ✅ `login --url-only --timeout 15` prints the URL, waits, exits **13**. The `--qr-out` sweep runs, which is what `timeout -s KILL` skipped |
+| 3 — every homeserver command pays ~2.5s | ✅ `loopky batch`: six operations, **28.7s / 29.4s** as separate invocations against **10.6s / 11.0s** as one batch. 2.7×, and it grows with the run |
+| 4 — no machine-readable command surface | ✅ `commands --json` — 19 verbs with operand arity, flags, `needs_session`, and per-command exit codes. `--help --json` too. No session, no network |
+| 5 — a killed `deck create` retried produces a second deck | ✅ `deck create --id d --if-not-exists` returns the existing deck, `created: false`, nothing written. Without the flag an existing id is refused rather than published over |
+| 6 — `"Request failed: Request failed: …"` on every failure | ✅ said once. Confirmed on a live 404 from the homeserver |
+
+A mixed batch, run against staging, is the row that exercises four of them at once:
+
+```
+op 0 create   deck create  ok=True
+op 1 missing  deck show    ok=False not_found
+op 2 blank    card list    ok=False bad_input     ← finding 1, through a batch
+op 3 after    card add     ok=True
+exit 6, "2/4 operations succeeded, 2 failed. First failure was operation 1 (deck show):
+         Request failed: Server responded with an error: 404 Not Found - Not Found"
+                          ↑ finding 6: one prefix, not two
+```
+
+### Worth knowing
+
+**`withTimeout { complete() }` does not bound the login, and the wrong version passes every test
+that checks the exit code.** `complete()` blocks in the FFI on a `Dispatchers.IO` thread, and
+`withContext` does not hand control back until its body returns — measured with a scratch test, a
+300 ms timeout around a 5 s blocking call returned `null` after **5029 ms**. The await runs on a
+daemon thread with the timeout on a `CompletableDeferred` instead, and `LoginTimeoutTest` asserts
+the wall clock rather than only the code.
+
+**The CI login smoke test was hiding failures.** `timeout -s TERM 25 … || true` swallowed every
+exit code, so an FFI regression looked identical to the expected non-approval. It now asserts 13
+(nobody approved) or 5 (the relay was unreachable, which must not fail a PR) and fails on anything
+else.
+
+**A batch does not renew a session.** One session held for the whole run still dies after about an
+hour (#165). A long batch hits that wall exactly where a long sequence of separate commands would;
+what it removes is the per-command cost, not the ceiling.
+
+**Nothing here was driven on a device**, and nothing needed to be: the change is `:cli` only, no
+Compose and no SwiftUI. The Android and iOS journeys above are untouched by it.
