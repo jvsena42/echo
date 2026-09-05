@@ -347,8 +347,16 @@ internal val USAGE = """
       deck show <deckId>
       deck create --title T [--description D] [--tag T]... [--cover-url URL]
                   [--cover-emoji E] [--from-file F] [--check-images]
+                  [--id DECKID] [--if-not-exists]
                   [--listen] [--speak] [--type] [--reverse]
                   [--front-lang BCP47] [--back-lang BCP47]
+                                --id publishes under an id you choose instead of a fresh one, so
+                                a run that was killed mid-flight is addressable; with
+                                --if-not-exists the deck that is already there is returned
+                                untouched and the result says created: false. That pair is the
+                                idempotent form — without it, an existing id is refused rather
+                                than published over, because a publish replaces the whole chunk
+                                table and would take the deck's cards with it.
                                 A declared pair also labels the deck — "spanish" plus the
                                 "language" umbrella — so someone learning it can find the deck.
                                 Ordinary tags you can remove. A deck with no pair gets neither.

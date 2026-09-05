@@ -52,6 +52,14 @@ class FakeDeckRepository(
      * outcomes, and only the count tells them apart.
      */
     private val upsertFails: (Card, Int) -> Throwable? = { _, _ -> null },
+    /**
+     * What `sync` fails with, or null for a deck that is there.
+     *
+     * `deck create --if-not-exists` is the caller that needs the failing case: "there is no such
+     * deck" and "the homeserver did not answer" have to reach it as different things, or a
+     * network wobble publishes the duplicate the flag exists to prevent.
+     */
+    private val syncFails: Throwable? = null,
 ) : DeckRepository {
 
     /** Every `upsertCard` call, failed ones included — `upserted` holds only the ones that landed. */
@@ -71,7 +79,13 @@ class FakeDeckRepository(
     /** The cards `import --resume` appended to a deck it matched. */
     val appended = mutableListOf<Card>()
 
-    override suspend fun sync(deckId: String): Result<Deck> = Result.success(deck)
+    override suspend fun sync(deckId: String): Result<Deck> {
+        syncCalls += deckId
+        return syncFails?.let { Result.failure(it) } ?: Result.success(deck)
+    }
+
+    /** Every deck id `sync` was asked for, so a test can assert a read did *not* happen. */
+    val syncCalls = mutableListOf<String>()
 
     override suspend fun publish(
         deck: Deck,

@@ -6,6 +6,7 @@ import com.github.jvsena42.loopky.cli.CommandResult
 import com.github.jvsena42.loopky.cli.DeckView
 import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.asCliError
+import com.github.jvsena42.loopky.cli.requireUsableOperand
 import com.github.jvsena42.loopky.cli.result
 import com.github.jvsena42.loopky.cli.toLine
 import com.github.jvsena42.loopky.cli.toView
@@ -38,6 +39,14 @@ data class DeckShowResult(val deck: DeckView)
 data class DeckCreateResult(
     val deck: DeckView,
     @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
+    /**
+     * False when `--if-not-exists` found the deck already there and wrote nothing.
+     *
+     * The field exists so the two outcomes are distinguishable at all: both are exit 0 carrying
+     * the same deck, and an agent retrying an ambiguous failure needs to know whether this call
+     * or a previous one put it there.
+     */
+    val created: Boolean = true,
 )
 
 @Serializable
@@ -124,7 +133,16 @@ suspend fun deckCreate(
     val title = args.requireOption("title").trim()
     if (title.isEmpty()) throw CliError(ExitCode.Usage, "--title cannot be empty.")
 
-    val deckId = generateId()
+    val deckId = args.deckIdToCreate()
+    // Before the card file is read and before any picture is probed: when the deck is already
+    // there this call has nothing left to do, and a `--from-file` of 9,000 rows should not be
+    // parsed to find that out.
+    existingDeck(args, decks, deckId)?.let { existing ->
+        return result(
+            DeckCreateResult(existing.toView(), created = false),
+            "${existing.id} already exists — ${existing.title} (${existing.cardCount} cards). Nothing written.",
+        )
+    }
     val now = System.currentTimeMillis()
     val frontLang = args.option("front-lang")
     val backLang = args.option("back-lang")
@@ -164,6 +182,53 @@ suspend fun deckCreate(
     return result(
         DeckCreateResult(published.toView(), imageChecks),
         "Created ${published.id} — ${published.title} (${published.cardCount} cards)",
+    )
+}
+
+/**
+ * The id the new deck gets: `--id` when one was given, otherwise a fresh one.
+ *
+ * A client-supplied id is what makes a retry addressable (#240, finding 5). Without one, an agent
+ * whose `deck create` was killed mid-flight — the hourly expiry and a 2.5 s round trip make that
+ * ordinary — can only recover by listing decks and matching on title, which is neither cheap nor
+ * race-free, and a second run simply publishes a second deck.
+ */
+private fun Args.deckIdToCreate(): String {
+    val supplied = option("id")?.trim() ?: return generateId().also {
+        if (has("if-not-exists")) {
+            throw CliError(
+                ExitCode.Usage,
+                "--if-not-exists needs --id. Without one this command mints a fresh id, which " +
+                    "never exists, so the flag could only mean matching on --title — a listing " +
+                    "per call, and two decks named the same are indistinguishable anyway.",
+            )
+        }
+    }
+    return requireUsableOperand(supplied, "id")
+}
+
+/**
+ * The deck already at [deckId], or null when there is nothing there.
+ *
+ * **A read failure that is not a miss is rethrown.** Treating an unreachable homeserver as "the
+ * deck does not exist" is how `--if-not-exists` would publish the duplicate it exists to prevent.
+ *
+ * Without `--if-not-exists` an existing id is refused rather than overwritten: `publish` replaces
+ * the manifest and its whole chunk table, so a reused id would take a deck's cards with it — and
+ * nothing here prompts, so this is the only place that can say no.
+ */
+private suspend fun existingDeck(args: Args, decks: DeckRepository, deckId: String): Deck? {
+    if (args.option("id") == null) return null
+    val existing = decks.sync(deckId).fold(
+        onSuccess = { it },
+        onFailure = { if (ExitCode.of(it) == ExitCode.NotFound) null else throw asCliError(it) },
+    ) ?: return null
+    if (args.has("if-not-exists")) return existing
+    throw CliError(
+        ExitCode.BadInput,
+        "Deck $deckId already exists — \"${existing.title}\", ${existing.cardCount} cards. " +
+            "Publishing over it would replace its chunk table and lose them. Pass " +
+            "--if-not-exists to accept it as it is, or use `deck edit` / `deck delete`.",
     )
 }
 

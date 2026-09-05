@@ -183,6 +183,12 @@ internal fun cliCommands(): List<CliCommand> = listOf(
         path = "deck create",
         summary = "publish a new deck",
         options = DECK_METADATA +
+            CliOption("id", "publish under this deck id rather than a fresh one") +
+            CliOption(
+                "if-not-exists",
+                "with --id, return the deck that is already there rather than publishing",
+                OptionValue.Switch,
+            ) +
             CliOption("from-file", "a TSV or JSONL card file to publish with it", OptionValue.Path) +
             CliOption(
                 "check-images",

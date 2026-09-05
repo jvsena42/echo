@@ -123,6 +123,9 @@ class Args private constructor(
             // because "remove every tag" is a different gesture from "set the tags to this" and
             // `--tag ""` would have to be read as both.
             "clear-tags", "clear-cover",
+            // `deck create --if-not-exists`, which only means anything beside `--id`. A switch
+            // rather than a mode, because "make sure this deck exists" is one gesture.
+            "if-not-exists",
         )
 
         fun parse(argv: Array<String>): Args {
