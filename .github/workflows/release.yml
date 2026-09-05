@@ -90,9 +90,17 @@ jobs:
           expect "loopkyCliVersion (gradle.properties)" "$CLI" "$NUM"
           expect "versionName (composeApp/build.gradle.kts)" "$NAME" "$NUM"
           expect "MARKETING_VERSION (iosApp/Configuration/Config.xcconfig)" "$MARKETING" "$NUM"
+          # Checked on its own first: it is the *expected* side of the comparison below, and
+          # `expect` only reports emptiness of the side it was handed. Unreadable, it would produce
+          # "CURRENT_PROJECT_VERSION vs Android versionCode is 21, but the tag says" — naming the
+          # xcconfig and pointing at a blank, when the number that could not be read is Android's.
+          test -n "$CODE" || {
+            echo "::error::could not read versionCode out of composeApp/build.gradle.kts" >&2
+            FAILED=1
+          }
           # Not the tag — the two build numbers only have to match each other, and they are the one
           # pair that keeps climbing while the version string stands still on a patch release.
-          expect "CURRENT_PROJECT_VERSION vs Android versionCode" "$PROJECT" "$CODE"
+          [ -n "$CODE" ] && expect "CURRENT_PROJECT_VERSION vs Android versionCode" "$PROJECT" "$CODE"
 
           if [ "$FAILED" -ne 0 ]; then
             echo "Bump the numbers on a branch, merge it, then move the tag to the merge commit." >&2
@@ -168,7 +176,17 @@ jobs:
           # Absent, the published APK's "from web" image search degrades to gallery-only with
           # nothing reporting it — `UnsplashClient.hasFallbackKey` just answers false.
           LOOPKY_UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
-        run: ./gradlew clean :composeApp:assembleRelease :composeApp:bundleRelease
+        # `--no-configuration-cache`, and it is the reason the keystore-in-the-environment argument
+        # holds at all. `org.gradle.configuration-cache=true` is set in gradle.properties, and with
+        # it on Gradle records the `LOOPKY_*` reads as fingerprint inputs and serialises the
+        # resulting signingConfig into `.gradle/configuration-cache/` — inside the workspace, which
+        # is precisely the exposure keeping the secrets out of a `local.properties` was meant to
+        # avoid. (Verified: changing only the password prints "cannot be reused because environment
+        # variable 'LOOPKY_KEYSTORE_PASSWORD' has changed", so the value is tracked.) Off, no entry
+        # is written at all. It costs one configuration phase, once per tag.
+        run: >
+          ./gradlew --no-configuration-cache clean
+          :composeApp:assembleRelease :composeApp:bundleRelease
 
       - name: It is signed, and with a key Play will take
         if: steps.keystore.outputs.present == 'true'
@@ -427,14 +445,46 @@ jobs:
             exit 0
           fi
           docker push "$IMAGE:$TAG"
+          # `:latest` is moved by `image-latest`, behind the release verification — not here.
 
-          # `:latest` only for a final version. `docker run … ghcr.io/…/loopky` is what the README
-          # tells people to run, so a `v1.0.0-rc1` tag moving it would silently hand every reader
-          # a release candidate.
+  image-latest:
+    # `docker run … ghcr.io/…/loopky` is a documented install path, so moving `:latest` is an act of
+    # publishing and belongs behind the same verification the GitHub `latest` waits for. Pushed
+    # from the `image` job it moved as soon as that job was green — and a `release` job that then
+    # failed on a missing asset or a binary disagreeing with its tag left GitHub's `latest`
+    # correctly on the previous release while every `docker run` already served the version that
+    # failed.
+    #
+    # `imagetools create` retags inside the registry, so nothing is pulled or rebuilt: the digest
+    # `:latest` ends up pointing at is the one `image` pushed and `release` verified.
+    name: Move the image's :latest
+    needs: [image, release]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retag
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/loopky"
+          TAG="${VERSION#v}"
+          # Only a final version. A `v1.0.0-rc1` moving it would silently hand every reader of the
+          # README a release candidate.
           case "$TAG" in
-            *[!0-9.]*) echo "$TAG is a pre-release — leaving :latest where it is" ;;
-            *) docker tag "$IMAGE:$TAG" "$IMAGE:latest" && docker push "$IMAGE:latest" ;;
+            *[!0-9.]*)
+              echo "$TAG is a pre-release — leaving :latest where it is"
+              exit 0 ;;
           esac
+          docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$TAG"
+          docker run --rm "$IMAGE:latest" --version
 
   release:
     # **The release is created here, and `latest` is moved here.** Both used to be done by hand
@@ -499,6 +549,16 @@ jobs:
           if gh release view "$VERSION" >/dev/null 2>&1; then
             echo "release $VERSION already exists — uploading assets into it, notes untouched"
             gh release upload "$VERSION" dist/* --clobber
+            # **The recovery path for a run that died between `create --draft` and `--draft=false`.**
+            # `gh release view` succeeds on a draft, so without this every re-run uploads into the
+            # draft and exits here, while "Run what was published" 404s on a URL that is not public
+            # yet — red forever, and never fixed by re-running. `--latest=false` rides along only
+            # while it is still a draft: on an already-published release it would demote it and
+            # point `latest` back at the previous version until the step below re-promotes it.
+            if [ "$(gh release view "$VERSION" --json isDraft -q .isDraft)" = 'true' ]; then
+              echo "it was left as a draft — publishing it"
+              gh release edit "$VERSION" --draft=false --latest=false
+            fi
             exit 0
           fi
 
@@ -560,7 +620,10 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$VERSION/loopky-linux-x86-64"
-          curl -fsSL "$URL" -o "$RUNNER_TEMP/loopky"
+          # Retried, because the release stopped being a draft one step ago and an asset URL is a
+          # read-your-own-write against a CDN. Without it a slow propagation reddens a release that
+          # is in fact complete.
+          curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors "$URL" -o "$RUNNER_TEMP/loopky"
           chmod +x "$RUNNER_TEMP/loopky"
           "$RUNNER_TEMP/loopky" --version | grep -qF "loopky ${VERSION#v} "
 
@@ -590,7 +653,10 @@ jobs:
           test "$AT" = "$VERSION" || {
             echo "::error::releases/latest still points at ${AT:-nothing}" >&2; exit 1; }
 
-          CODE=$(curl -fsIL -o /dev/null -w '%{http_code}' \
+          # No `-f`: it exits non-zero on any status >= 400, so under `set -e` the assignment
+          # aborts the step and the message below — the one line naming what actually broke —
+          # never prints.
+          CODE=$(curl -sIL -o /dev/null -w '%{http_code}' \
             "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/loopky-linux-x86-64")
           test "$CODE" = 200 || {
             echo "::error::the documented install path answers $CODE" >&2; exit 1; }
@@ -701,11 +767,16 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          if git diff --quiet -- Formula/loopky.rb; then
+          # Staged *before* the comparison, because `git diff` only looks at tracked files. On a
+          # freshly created tap — the state docs/releasing.md tells you to set up, since git cannot
+          # hold an empty `Formula/` directory — the render step creates an untracked file, plain
+          # `git diff --quiet` reports no change, and the very first publish exits 0 having
+          # committed nothing. Green run, empty tap, and a summary that never says it was skipped.
+          git add Formula/loopky.rb
+          if git diff --cached --quiet -- Formula/loopky.rb; then
             echo "the tap already serves ${VERSION#v}"
             exit 0
           fi
-          git add Formula/loopky.rb
           git commit -m "loopky ${VERSION#v}"
           git push
           echo "> Homebrew tap updated to \`${VERSION#v}\`." >> "$GITHUB_STEP_SUMMARY"
