@@ -1,4 +1,5 @@
 import io.gitlab.arturbosch.detekt.Detekt
+import org.gradle.internal.os.OperatingSystem
 
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
@@ -80,4 +81,37 @@ tasks.register<Exec>("lintSwift") {
         "command -v swiftlint >/dev/null 2>&1 && swiftlint lint --strict " +
             "|| echo 'SwiftLint not installed — skipping. Install with: brew install swiftlint'",
     )
+}
+
+/**
+ * What CI runs, in one command (#239).
+ *
+ * The job list used to exist only as five `run:` lines in `.github/workflows/ci.yml` and a prose
+ * summary in CLAUDE.md, so reproducing a CI failure locally meant reconstructing it from memory
+ * and getting it subtly different each time.
+ *
+ * The **host-conditional half is the point**: `:shared:compileKotlinIosSimulatorArm64` and
+ * `lintSwift` are the two checks a Linux runner cannot perform, so on a Mac this is strictly
+ * stronger than CI rather than differently weak. CI covers them on its own `macos-14` job, but
+ * only when the paths that can break them changed.
+ *
+ * Deliberately **not** here: `:cli:nativeCompile`. It needs a GraalVM 25 in `GRAALVM_HOME`, which
+ * a checkout does not come with, and adding it would make the one command every contributor is
+ * told to run fail on a machine where nothing is wrong. CI builds both binary rows instead.
+ */
+tasks.register("ciCheck") {
+    group = "verification"
+    description = "What CI runs, in one command (plus the iOS checks, on a Mac)."
+    dependsOn(
+        "detektAll",
+        ":shared:testDebugUnitTest",
+        ":composeApp:testDebugUnitTest",
+        ":shared:jvmTest",
+        ":cli:test",
+        ":composeApp:assembleDebug",
+        ":cli:installDist",
+    )
+    if (OperatingSystem.current().isMacOsX) {
+        dependsOn(":shared:compileKotlinIosSimulatorArm64", "lintSwift")
+    }
 }

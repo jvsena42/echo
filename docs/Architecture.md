@@ -1175,7 +1175,41 @@ emulator, and SRS flush failures that only appear when the network goes away mid
 - **Notable runtime dependencies** beyond the ones §3 lists: Coil 3 (`coil-compose`, `coil-network-okhttp`) for images, `androidx-navigation-compose`, `androidx-core-splashscreen`, `play-services-code-scanner` for the Ring QR scan, `androidx.work:work-runtime-ktx` (§9.6), `com.google.zxing:core` (the tablet sign-in panel and the CLI's terminal QR), `org.xerial:sqlite-jdbc` (the desktop `.apkg` reader only — Android uses platform SQLite), and JNA for the UniFFI bindings. **SKIE is not in the build and is not planned** — the Swift↔Flow bridge is hand-rolled (§9.2).
 - **`:cli` packaging:** `./gradlew :cli:installDist` produces `cli/build/install/loopky/bin/loopky`; `:cli:distTar` produces a tarball. Both need a JRE 17 on the target machine, which is short of the goal — see §13.11.
 - **Lint:** detekt with `detekt-formatting` + `detekt-compose-rules` (`config/detekt/detekt.yml`) via `./gradlew detektAll`; SwiftLint via `./gradlew lintSwift` (`iosApp/.swiftlint.yml`, generated `pubkycore.swift` excluded).
-- **CI** (`.github/workflows/ci.yml`), on PR and push to `main`: `detektAll`, then `:shared:testDebugUnitTest :composeApp:testDebugUnitTest`, then `:composeApp:assembleDebug`. **No iOS job** — there is no test target and no `xcodebuild` step, so iOS breakage is caught only by building locally.
+- **`./gradlew ciCheck`** runs what CI runs, in one command — `detektAll`, the Android and JVM
+  test suites, `:cli:test`, `:composeApp:assembleDebug`, `:cli:installDist` — plus, **on a Mac
+  only**, `:shared:compileKotlinIosSimulatorArm64` and `lintSwift`. That host-conditional half is
+  the point: a Mac checkout is strictly stronger than CI rather than differently weak, and the two
+  checks it adds are exactly the ones a Linux runner cannot perform. `:cli:nativeCompile` is
+  deliberately *not* in it — it needs a GraalVM 25 in `GRAALVM_HOME`, which a checkout does not
+  come with, and the one command every contributor is told to run must not fail on a machine where
+  nothing is wrong.
+- **CI** (`.github/workflows/ci.yml`), on PR and push to `main`. Four jobs always, two more when
+  the paths that can break them changed (#239):
+  - *Kotlin lint* — `detektAll`.
+  - *Unit tests + Android build* — `:shared:testDebugUnitTest :composeApp:testDebugUnitTest`, then
+    `:composeApp:assembleDebug`.
+  - *CLI on Linux x86_64* — `:shared:jvmTest :cli:test`, then `installDist` and a smoke test of
+    the jar's exit codes, envelope and completion scripts.
+  - *CLI as a native binary* — `cli/Dockerfile` through buildx, then the one-file and FFI
+    assertions on the artifact people install.
+  - *CLI as a native binary (macOS aarch64)* — the second row, gated on `cli/**`,
+    `shared/src/jvmMain|jvmSharedMain/**` and the build definition. **The two rows fail
+    differently**, and until #239 only one was built: `checkNativeImageIsOneFile` had always failed
+    on macOS over one `reflect-config.json` entry that leaves Linux clean, and the first sign of it
+    would have been the release job (§13.2).
+  - *iOS compiles, and its Swift lints* — `:shared:compileKotlinIosSimulatorArm64` and `lintSwift`,
+    gated on `shared/**` and `iosApp/**`. Business logic is shared, so a `commonMain` change breaks
+    iOS as easily as Android; before this there was no iOS job at all. It does **not** compile the
+    SwiftUI app — that needs a framework link plus `xcodebuild`, and the Swift half is checked by
+    driving the app (`journeys/RESULTS.md`).
+
+  Two mechanics worth knowing. The path gating is a `changes` job doing an inline `git diff` rather
+  than GitHub's workflow-wide `paths:` filter or a third-party action, because `macos-14` bills at a
+  10× multiplier and the filter has to be per-job; a range git cannot resolve falls back to running
+  everything, which costs minutes and never costs correctness. And every job that runs tests prints
+  its JUnit failures into the log through `.github/actions/failing-tests` — the HTML report is still
+  uploaded, but reading a failure no longer requires downloading and unzipping it, which a human can
+  do and an agent reading CI output cannot.
 
 ---
 
