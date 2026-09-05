@@ -2209,3 +2209,30 @@ every caller behind such a dialog, so `gh`'s token read hangs too and `gh api` s
 "Requires authentication". It runs under `LOOPKY_KEYCHAIN_TESTS=1` now. Everything the wrapper
 decides is covered by the fake; what the real one adds is the `security(1)` protocol, which is
 worth running by hand when that changes and worth nobody's password prompt otherwise.
+
+### Review round 4 — the LOW list — 2026-09-05
+
+All seven taken, all verified real first. Two changed behaviour, the rest are contract and
+documentation.
+
+| Finding | Resolution |
+| --- | --- |
+| `fallback.clear()` can throw on the *success* path, leaving the Keychain with the new session and the file with an older one — the one arrangement file-first assumes cannot exist | The invariant is re-established rather than assumed: a failed clear writes the new session to the file instead. It does not stay loud otherwise — once a full disk recovers, `storedInFile()` migrates the *older* credential back over the newer one and nothing is left to notice |
+| Both presence probes ran `find-generic-password -w`, pulling the secret through a pipe to answer "is it there?" | `Keychain.exists()` — same exit codes without `-w`. Pinned by `the probes do not pull the secret out of the keychain`, which counts reads on the fake |
+| `requireArgvSafe` threw out of a `Result<Unit>` contract, so the one input it guards would have taken `save()`'s fallback with it | Returns `Result.failure`; the guard now fails on the same path as every other write failure |
+| `stored_at` silently became a *file* on Linux where it had been a *directory* | Reverted to the config home; `session_store` added to `LoginResult`, so `login` and `whoami` answer with the same field name. The two sinks became `LoginSinks` to keep the signature under detekt's parameter limit |
+| The release job's Keychain assertion is negative-only, so it also passes when the store was the file all along | The precondition is asserted positively — `LOOPKY_CONFIG_HOME` and `XDG_CONFIG_HOME` both empty — since a runner image exporting either is exactly what would make it vacuous |
+| `location` is a blocking subprocess behind a non-suspend `val`, memoised for the process | Documented, because the signature hides both and `SecureSessionStore` is shared with the apps |
+| **`XDG_CONFIG_HOME` also opts a Mac out of the Keychain**, and only `LOOPKY_CONFIG_HOME` was documented | Written down in the KDoc, `ConfigHome`, `--help` and `cli/README.md`. Verified on the binary: `XDG_CONFIG_HOME=/tmp/xdgprobe whoami` → `not_signed_in`, real session untouched |
+
+Re-verified on the binary against staging afterwards: `whoami` still reports the Keychain and a
+live session, `deck list` still returns 7, and a `deck create`/`delete` round-trip still works.
+
+**The release skill was missing the Homebrew tap.** It covers the macOS *binary* properly — the
+artifact table, the one-job-per-row constraint (`native-image` does not cross-compile), and a
+by-name assertion for `loopky-macos-aarch64` and its `.sha256`. What it never mentioned is
+`cli/packaging/loopky.rb`, which is a **template** with `version "0.0.0"` and zeroed `sha256`s that
+has to be copied by hand into a separate tap repo per release. Left undone the tap serves the
+previous version silently, and that is worse than stale: `loopky update` refuses on a Homebrew
+install with exit 11 and tells the user to `brew upgrade`, so the one instruction the binary gives
+them leads nowhere. Now step 12, with the two `.sha256`s to fill in and a `brew upgrade` check.

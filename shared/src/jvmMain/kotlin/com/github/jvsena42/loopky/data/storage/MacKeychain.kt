@@ -19,6 +19,19 @@ internal interface Keychain {
     /** Where this item lives, in a form a client can print — see [SecureSessionStore.location]. */
     val location: String
     fun read(): KeychainRead
+
+    /**
+     * Whether the item is there, **without moving the secret through a pipe**.
+     *
+     * `find-generic-password` answers the same exit codes with and without `-w`; only `-w` prints
+     * the password. Two callers never wanted it — [SecureSessionStore.location], which asks
+     * whether the Keychain is answering at all, and `clear()`'s gate, which asks whether there is
+     * anything to fail about — and a store that exists partly so the credential is not sitting
+     * where it need not be should not extract it to answer either. Null when the Keychain will
+     * not say, which is a third answer rather than a false.
+     */
+    fun exists(): Boolean?
+
     fun write(value: String): Result<Unit>
 
     /**
@@ -80,8 +93,27 @@ internal class SecurityCliKeychain(
         }
     }
 
+    override fun exists(): Boolean? {
+        val outcome = run(listOf("find-generic-password", "-s", service, "-a", account))
+        return when (outcome.exitCode) {
+            0 -> true
+            ITEM_NOT_FOUND -> false
+            else -> null
+        }
+    }
+
     override fun write(value: String): Result<Unit> {
-        requireArgvSafe(value)
+        // L4: a `Result` return whose guard threw would take the caller's `onFailure` with it —
+        // `save()`'s fallback to the file most of all — so the guard answers on the same path as
+        // every other write failure.
+        if (!isArgvSafe(value)) {
+            return Result.failure(
+                IllegalArgumentException(
+                    "a keychain value has to survive `security -i` line splitting unquoted; " +
+                        "this one would not",
+                ),
+            )
+        }
         // `-U` so a second sign-in replaces the item rather than failing on a duplicate; `-l`/`-D`
         // so Keychain Access shows a person something they can recognise and delete by hand.
         val command = listOf(
@@ -189,14 +221,11 @@ internal val SECURITY_BIN: Path = Paths.get("/usr/bin/security")
 internal fun keychainToolPresent(security: Path = SECURITY_BIN): Boolean = Files.isExecutable(security)
 
 /**
- * Refuse a value that `security -i`'s shell-like line splitting would not carry through intact.
+ * Whether `security -i`'s shell-like line splitting carries this value through intact.
  *
- * The Base64 alphabet is inside this set, so this never fires for a session — which is the point:
- * it is what keeps "no quoting needed" a checked fact rather than a comment, if something later
- * stores a value that is not Base64.
+ * The Base64 alphabet is inside this set, so it is always true for a session — which is the point:
+ * it keeps "no quoting needed" a checked fact rather than a comment, if something later stores a
+ * value that is not Base64.
  */
-private fun requireArgvSafe(value: String) {
-    require(value.isNotEmpty() && value.all { it.isLetterOrDigit() || it in "+/=_-." }) {
-        "a keychain value has to survive `security -i` line splitting unquoted; this one would not"
-    }
-}
+private fun isArgvSafe(value: String): Boolean =
+    value.isNotEmpty() && value.all { it.isLetterOrDigit() || it in "+/=_-." }

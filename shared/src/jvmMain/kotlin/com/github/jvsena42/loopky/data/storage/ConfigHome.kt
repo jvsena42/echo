@@ -20,7 +20,9 @@ import java.nio.file.attribute.PosixFilePermissions
  * **None of that reasoning transfers to macOS**, which is why the session no longer lives here on
  * that row (#213): there is a human at the keyboard, the Keychain is always present, and
  * [desktopSecureSessionStore] uses it. This directory still holds everything else, and still
- * holds the session on a Mac whose Keychain will not answer.
+ * holds the session on a Mac whose Keychain will not answer — or one where **either**
+ * `LOOPKY_CONFIG_HOME` or `XDG_CONFIG_HOME` is set, since both mean "keep everything here" and
+ * both are resolved before [platformDefault] is reached.
  *
  * Resolution order, first hit wins:
  * 1. `LOOPKY_CONFIG_HOME` — an explicit override, so a container or a test can point somewhere

@@ -41,6 +41,14 @@ import java.io.File
  */
 const val CLI_CAPABILITIES = "/pub/loopky/:rw"
 
+/**
+ * The two places `login` writes things that are not its result.
+ *
+ * One parameter rather than two because they travel together and always will — and because the
+ * alternative is a six-argument function, which detekt refuses for the reason it usually should.
+ */
+data class LoginSinks(val emitEvent: (String) -> Unit, val stderr: (String) -> Unit)
+
 @Serializable
 data class LoginResult(
     val pubky: String,
@@ -53,10 +61,17 @@ data class LoginResult(
      */
     @SerialName("session_secret") val sessionSecret: String? = null,
     /**
-     * Where the session was written — the config home on Linux, the Keychain on macOS (#213).
-     * Always set: `--export` *also* prints the secret, it does not print it instead of storing it.
+     * The config home, as it has always been — a *directory*.
+     *
+     * It briefly became `sessionStore.location`, which on Linux is `…/loopky/secrets.json`: a
+     * file where callers had a directory. That is the same silent change of meaning
+     * [WhoamiResult.sessionSource] keeps an awkward spelling to avoid, so it is reverted and
+     * [sessionStore] carries the store's identity instead — the same field name `whoami` uses, so
+     * the two commands answer the question the same way.
      */
     @SerialName("stored_at") val storedAt: String? = null,
+    /** Where the session itself went. See [WhoamiResult.sessionStore]. */
+    @SerialName("session_store") val sessionStore: String? = null,
 )
 
 @Serializable
@@ -112,9 +127,10 @@ suspend fun login(
     args: Args,
     identity: IdentityRepository,
     sessionStore: SecureSessionStore,
-    emitEvent: (String) -> Unit,
-    stderr: (String) -> Unit,
+    environment: CliEnvironment,
+    sinks: LoginSinks,
 ): CommandResult {
+    val (emitEvent, stderr) = sinks
     val handle = identity.beginSignIn(capabilities = CLI_CAPABILITIES, returnToApp = false)
         .getOrElse { throw asCliError(it) }
 
@@ -170,7 +186,8 @@ suspend fun login(
             homeserver = session.homeserver,
             capabilities = session.capabilities.map { it.value },
             sessionSecret = session.sessionSecret.takeIf { export },
-            storedAt = sessionStore.location,
+            storedAt = environment.configHome.toString(),
+            sessionStore = sessionStore.location,
         ),
         buildString {
             appendLine("Signed in as ${session.identity.pubky}")

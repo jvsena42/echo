@@ -3,6 +3,7 @@ package com.github.jvsena42.loopky.data.storage
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.platform.isMacOs
 import com.github.jvsena42.loopky.util.Log
+import com.github.jvsena42.loopky.util.runSuspendCatching
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.nio.file.Path
@@ -22,6 +23,14 @@ import java.util.Base64
  * shared across every config home would make `LOOPKY_CONFIG_HOME=/tmp/x loopky login` overwrite
  * the caller's real session. So the Keychain is used only when the resolved home *is* the
  * platform default, which is also what keeps this testable without touching the real keychain.
+ *
+ * **`XDG_CONFIG_HOME` does the same thing, and it is the one that will surprise people.**
+ * [ConfigHome.resolve] returns `$XDG_CONFIG_HOME/loopky` before it ever reaches
+ * [ConfigHome.platformDefault], so a Mac user who exports it — common among exactly the dotfiles
+ * crowd this tool is for — gets the file store, never migrates, and is told only by `whoami`'s
+ * `session_store`. That follows from the same rule rather than contradicting it: the variable
+ * means "keep everything here" too. It is written down here, in [ConfigHome], and in `--help`
+ * because nothing about the behaviour announces itself.
  */
 internal fun desktopSecureSessionStore(
     configHome: Path,
@@ -74,11 +83,20 @@ internal class MacKeychainSessionStore(
     /**
      * Probed rather than asserted, because this is read by the one command someone runs *when the
      * session has gone missing* — answering "the Keychain" on a Mac whose Keychain is not
-     * answering would point them at the wrong place. One extra `security` call, on `whoami` and
-     * `login` only.
+     * answering would point them at the wrong place. [Keychain.exists] rather than
+     * [Keychain.read], so the probe does not pull the secret through a pipe to answer a question
+     * about presence.
+     *
+     * **Two costs a caller other than `:cli` has to know about, because the signature hides
+     * both.** It runs a subprocess, so it can block the calling thread for the full
+     * `TIMEOUT_SECONDS` on a wedged `securityd` — every other member of [SecureSessionStore] is
+     * `suspend` and hops to `Dispatchers.IO`, and this one is a `val` a SwiftUI or Compose screen
+     * can touch on the main thread. And `by lazy` memoises for the process, so a Keychain that
+     * unlocks mid-session keeps reporting that it is not answering. Both are free for a process
+     * that runs one command and exits, which is the only thing reading it today.
      */
     override val location: String by lazy {
-        if (keychain.read() is KeychainRead.Failed) {
+        if (keychain.exists() == null) {
             "${fallback.location} — ${keychain.location} is not answering"
         } else {
             keychain.location
@@ -95,7 +113,16 @@ internal class MacKeychainSessionStore(
      */
     override suspend fun save(session: Session) = withContext(Dispatchers.IO) {
         keychain.write(encode(session)).fold(
-            onSuccess = { fallback.clear() },
+            // Re-established rather than assumed. `JsonFileStore.persist` rethrows, so this clear
+            // can fail on a full or read-only disk — and it would leave the Keychain holding the
+            // *new* session and the file an *older* one, which is the single arrangement the
+            // file-first ordering assumes cannot exist. It fails loudly at first, but not
+            // permanently: once the disk recovers, `storedInFile()` migrates the older credential
+            // back over the newer one and nothing is left to notice. A `save` that also fails
+            // throws, which is the honest outcome.
+            onSuccess = {
+                runSuspendCatching { fallback.clear() }.getOrElse { fallback.save(session) }
+            },
             onFailure = {
                 Log.w(TAG, "keychain write failed, keeping the session in ${fallback.location}", it)
                 fallback.save(session)
@@ -123,7 +150,7 @@ internal class MacKeychainSessionStore(
     override suspend fun clear() = withContext(Dispatchers.IO) {
         fallback.clear()
         keychain.delete().getOrElse { failure ->
-            if (keychain.read() !is KeychainRead.Missing) throw failure
+            if (keychain.exists() != false) throw failure
         }
     }
 

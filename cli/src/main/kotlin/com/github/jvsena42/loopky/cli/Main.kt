@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.cli
 
+import com.github.jvsena42.loopky.cli.commands.LoginSinks
 import com.github.jvsena42.loopky.cli.commands.cardAdd
 import com.github.jvsena42.loopky.cli.commands.cardEdit
 import com.github.jvsena42.loopky.cli.commands.cardList
@@ -167,8 +168,8 @@ private suspend fun dispatch(
             args,
             identity,
             koin.get<SecureSessionStore>(),
-            { line -> emitEvent(args, line) },
-            System.err::println,
+            environment,
+            LoginSinks({ line -> emitEvent(args, line) }, System.err::println),
         )
         "logout" -> logout(identity)
         "whoami" -> whoami(identity, koin.get<PubkyClient>(), koin.get<SecureSessionStore>(), environment)
@@ -420,9 +421,9 @@ internal val USAGE = """
                                 `loopky login --export` on a machine with a human at it.
       LOOPKY_ENV                staging | production. --env wins. Defaults to production.
       LOOPKY_CONFIG_HOME        Where state lives. Defaults to ${'$'}XDG_CONFIG_HOME/loopky. On macOS
-                                the session is in the login Keychain instead — unless this is set,
-                                which keeps everything under the directory it names. `loopky
-                                whoami` reports both.
+                                the session is in the login Keychain instead — unless this or
+                                XDG_CONFIG_HOME is set, either of which keeps everything under the
+                                directory it names. `loopky whoami` reports both.
       LOOPKY_NO_UPDATE_CHECK    Set to anything to never look for a newer release. The check is
                                 cached for a day, runs alongside the command, and can never fail
                                 it — but a pipeline that wants no surprises can switch it off.

@@ -462,8 +462,9 @@ payload does not carry one.
   apply. The item is `loopky.session`, written through `security(1)` — never with the secret in
   `argv`, which any local user can read. Two things worth knowing: the item is trusted to
   `/usr/bin/security` so reads do not raise a dialog, which means anything that can run that tool
-  as you can read it; and setting `LOOPKY_CONFIG_HOME` opts back into the file, because that
-  variable means "keep everything here". `loopky whoami` reports which one holds your session.
+  as you can read it; and setting `LOOPKY_CONFIG_HOME` **or `XDG_CONFIG_HOME`** opts back into the
+  file, because both mean "keep everything here" — worth knowing if you export the second out of
+  habit. `loopky whoami` reports which one holds your session.
 - **`LOOPKY_SESSION` is the weaker channel of the two**, and worth knowing before you reach for it
   on a shared host. An environment variable is readable by any same-uid process through
   `/proc/<pid>/environ`, is inherited by every child the CLI spawns, and lands in shell history

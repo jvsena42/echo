@@ -175,6 +175,12 @@ jobs:
           LOOPKY_NO_UPDATE_CHECK: '1'
         run: |
           set -euo pipefail
+          # The assertion below is an *absence* — no degraded-read warning — so the precondition
+          # has to be positive or the whole step goes vacuous the day a runner image starts
+          # exporting one of these. Either variable sends `keychainEligible()` to the file store,
+          # and then "no keychain complaint" is true because nothing ever asked the keychain.
+          test -z "${LOOPKY_CONFIG_HOME:-}"
+          test -z "${XDG_CONFIG_HOME:-}"
           BIN=cli/build/native/nativeCompile/loopky
           set +e; "$BIN" whoami --json > out.txt 2> err.txt; CODE=$?; set -e
           cat out.txt err.txt

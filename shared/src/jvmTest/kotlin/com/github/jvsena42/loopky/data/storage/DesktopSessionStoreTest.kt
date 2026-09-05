@@ -341,10 +341,18 @@ class DesktopSessionStoreTest {
     ) : Keychain {
         override val location = "a fake keychain"
 
-        override fun read(): KeychainRead = when {
-            !readable -> KeychainRead.Failed("no")
-            else -> value?.let { KeychainRead.Found(it) } ?: KeychainRead.Missing
+        var secretsRead = 0
+            private set
+
+        override fun read(): KeychainRead {
+            secretsRead++
+            return when {
+                !readable -> KeychainRead.Failed("no")
+                else -> value?.let { KeychainRead.Found(it) } ?: KeychainRead.Missing
+            }
         }
+
+        override fun exists(): Boolean? = if (!readable) null else value != null
 
         override fun write(value: String): Result<Unit> {
             if (!writable) return Result.failure(IllegalStateException("no"))
@@ -357,6 +365,53 @@ class DesktopSessionStoreTest {
             value = null
             return Result.success(Unit)
         }
+    }
+
+    /**
+     * The probes ask about presence, and presence is not the password. Pinned because the shape
+     * that answers both — `find-generic-password -w` — is the obvious one to reach for again.
+     */
+    @Test
+    fun `the probes do not pull the secret out of the keychain`() = runTest {
+        val keychain = FakeKeychain(value = "c2Vzc2lvbg==")
+        val store = desktopSecureSessionStore(home, secretsStore(home), keychain)
+
+        store.location
+        store.clear()
+
+        assertEquals(0, keychain.secretsRead, "location and clear only need to know it is there")
+    }
+
+    /**
+     * The one arrangement file-first cannot survive: the Keychain holding the **new** session and
+     * the file an **older** one. `JsonFileStore.persist` rethrows, so a full or read-only disk can
+     * produce it — and it does not stay loud, because once the disk recovers `storedInFile()`
+     * migrates the older credential back over the newer one and nothing is left to notice.
+     */
+    @Test
+    fun `a file that will not clear keeps the newer session, not the older one`() = runTest {
+        val secrets = secretsStore(home)
+        val keychain = FakeKeychain()
+        desktopSecureSessionStore(home, secrets, keychain).save(SESSION)
+
+        val unclearable = object : SecureSessionStore by FileSecureSessionStore(secretsStore(home)) {
+            override suspend fun clear() = throw java.io.IOException("no space left on device")
+        }
+        MacKeychainSessionStore(keychain, unclearable).save(SECOND)
+
+        // Whatever the file ends up holding, it must not be the credential that is now stale.
+        assertEquals(SECOND, MacKeychainSessionStore(keychain, FileSecureSessionStore(secretsStore(home))).load())
+    }
+
+    /**
+     * `write` returns `Result`, and every caller treats it as total — `save()`'s fallback to the
+     * file most of all. A guard that threw instead would take that fallback with it.
+     */
+    @Test
+    fun `a value the write path cannot quote is a failed Result, not a thrown one`() {
+        val keychain = SecurityCliKeychain(service = "loopky.unused", security = java.nio.file.Paths.get("/bin/echo"))
+        val failure = keychain.write("not base64 — spaces and \"quotes\"").exceptionOrNull()
+        assertIs<IllegalArgumentException>(failure)
     }
 
     private companion object {
