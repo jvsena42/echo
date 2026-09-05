@@ -395,9 +395,11 @@ file never has the problem.
 along with the subset each command can actually produce. That last part is worth reading for its
 *absences*: `tag trending` never answers `session_expired`, so there is no point signing in first.
 
-13 is nobody approving a sign-in inside `--timeout`. Nothing was stored, and the code that was on
-screen is spent either way — the FFI's auth flow is a single slot the first poll takes — so the
-recovery is `loopky login` again rather than a retry.
+13 is nobody approving a sign-in inside `--timeout`. *That process* is not signed in — deliberately
+not "nothing was stored", which it cannot promise: the await runs on a thread that is unobserved
+rather than stopped, so an approval landing as the process exits still persists a session. `loopky
+whoami` answers it. The code that was on screen is spent either way — the FFI's auth flow is a
+single slot the first poll takes — so the recovery is `loopky login` again rather than a retry.
 
 12 is the homeserver answering with a server error of its own. It used to be **1, internal**, which
 this table documents as "worth reporting as a bug" — and a 500 is not a bug in the client, not the
@@ -483,7 +485,9 @@ payload does not carry one.
   `"id"` echoed back; the bare array works too. Each line goes through the same parser and the same
   dispatcher a command line does, so a batch can never accept something the CLI does not. Under
   `--json` every operation streams a line of its own carrying that command's whole result, then the
-  envelope summarises. The whole file is validated before the first operation runs. A failure does
+  envelope summarises — and each streamed envelope's own `ok` is that operation's, so branching on
+  it is safe. The whole file is validated before the first operation runs, unknown verbs included:
+  a `deck creat` on line 400 fails with the homeserver untouched rather than 399 writes in. A failure does
   not end the run unless `--stop-on-error`, and the exit code is the **first failure's** rather than
   one of the batch's own — `session_expired` and `storage_full` say different things about whether
   re-running the file is worth anything.
@@ -496,7 +500,8 @@ payload does not carry one.
   no-op.** Without an id, an ambiguous failure could only be recovered by listing decks and
   matching on title — neither cheap nor race-free — and a plain re-run published a second deck.
   With both flags the retry hands back the deck that is already there and reports
-  `created: false`. Without `--if-not-exists` an id that is taken is **refused** rather than
+  `created: false` — unless that deck is **incomplete**, in which case it re-publishes and finishes
+  it, which is the case the flag exists for. A deck someone else authored never occupies your id. Without `--if-not-exists` an id that is taken is **refused** rather than
   published over: a publish replaces the manifest and its whole chunk table, so a reused id would
   take the deck's cards with it, and nothing here prompts.
 - **`login` can be bounded.** `--timeout <seconds>` exits 13 rather than blocking until somebody

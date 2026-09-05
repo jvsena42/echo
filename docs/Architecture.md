@@ -1510,6 +1510,17 @@ agent's normal recovery is to re-run the command.
   an unreachable homeserver as "no such deck" is exactly how this flag would publish the duplicate
   it exists to prevent. `--if-not-exists` without `--id` is a usage error rather than a title
   match, because matching on title is the recovery path being replaced.
+
+  Two more things the check has to get right, both found in review and both silent. **An
+  `incomplete` manifest is not a finished deck**: `publish` writes that marker *before* uploading
+  chunks, so the killed create this flag exists for leaves one behind — accepting it reported
+  success over a deck whose cards were never uploaded and never would be, so it falls through and
+  re-publishes instead (chunk writes are idempotent overwrites). And **a deck someone else authored
+  does not occupy your id**: `sync` resolves an unknown id's author through the caller's follow
+  records before falling back to the session, so a `--id` colliding with a *followed* deck came
+  back as that author's manifest — `--if-not-exists` accepting a deck you cannot write, or a
+  refusal for an id that was free all along. `publish` was never at risk; it writes under the
+  session's pubky and asserts the deck agrees.
 - **Batch mutation, not just batch creation.** `card edit --from-file` exists for the same reason
   the surface steers agents away from `card add` in a loop, with more force: editing is what you
   do *after* an import, and it is the shape an agent naturally reaches for. One card write is one
@@ -1909,10 +1920,23 @@ knows nothing about Koin — `Main` passes the dispatcher in as a lambda, which 
 function per command taking plain values" intact.
 
 **It is not transactional, and does not pretend to be.** The homeserver offers nothing to roll back
-to. So the whole file is validated before the first operation runs (a malformed line 400 fails with
-the homeserver untouched), a failed operation does not end the run unless `--stop-on-error`, and
-the result — on the failure envelope too — says exactly which operations landed. Re-running is the
-recovery, which is what §13.7's idempotence is for.
+to. So the whole file is validated before the first operation runs — a malformed line 400, **and a
+verb this binary does not have**, both fail with the homeserver untouched rather than 399
+operations in. That second half is why `CommandSurface.kt` is the authority on what may appear in a
+batch: `notBatchable` sits on the table entry, the runner validates against it, and `commands
+--json` draws `batch`'s own relayed exit codes from the same list, so a second list kept beside the
+runner would make the published surface wrong the moment the two disagreed. A failed operation does
+not end the run unless `--stop-on-error`, and the result — on the failure envelope too — says
+exactly which operations landed. Re-running is the recovery, which is what §13.7's idempotence is
+for.
+
+Two things the streaming had to get right, both found in review. Each operation's envelope carries
+**that operation's** `ok`, not a hardcoded true — `eventEnvelope` was written for `login`'s
+`auth_url`, which cannot fail, and branching on the envelope is the obvious way to read a stream of
+them. And `--json` is threaded into `dispatch` as a parameter rather than read off the `Args` it is
+handed: a batch operation's `Args` comes from a JSON `argv` array and never carries the flag, so
+deriving it there printed a 20,000-card import's whole progress stream to stderr in exactly the
+mode that suppresses it.
 
 **The exit code is the first failure's, never the batch's own.** `session_expired` and
 `storage_full` say entirely different things about whether re-running the file is worth anything,
