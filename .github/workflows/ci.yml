@@ -482,3 +482,55 @@ jobs:
           grep -q '"code":"not_signed_in"' out.txt
           ! grep -qi 'keychain' err.txt
 
+  ios:
+    # **Nothing in this workflow touched iOS (#239).** `:shared:allTests` is never run — only
+    # `:shared:testDebugUnitTest` and `:shared:jvmTest` — so `:shared:compileKotlinIosSimulatorArm64`
+    # was never checked and `lintSwift` existed as a Gradle task CI never called.
+    #
+    # Business logic is shared, so a `commonMain` change breaks iOS as easily as Android. #237
+    # added a member to `SecureSessionStore`, which required editing `IosSecureSessionStore` —
+    # caught only because somebody happened to compile it locally. An agent trusting a green CI
+    # would have merged a shared module that does not build for one of its two consumers.
+    #
+    # What this does **not** cover, so nobody reads more into a green tick than is there: the
+    # SwiftUI app is linted, not compiled. Compiling it needs `linkDebugFrameworkIosSimulatorArm64`
+    # plus an `xcodebuild`, which is most of an iOS build's wall clock at a 10× multiplier. The
+    # Kotlin half is where a shared change lands, and that is what is checked here; the Swift half
+    # is checked by driving the app (`journeys/RESULTS.md`).
+    name: iOS compiles, and its Swift lints
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # `~/.konan` is the Kotlin/Native compiler plus its platform libraries — a few hundred MB
+      # that `setup-gradle` does not cache, and that would otherwise be downloaded on every run of
+      # the job that bills at 10×.
+      - name: Cache the Kotlin/Native distribution
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      - name: Compile the shared module for the iOS simulator
+        run: ./gradlew :shared:compileKotlinIosSimulatorArm64
+
+      # `lintSwift` no-ops with a friendly hint when SwiftLint is absent, which is right for a
+      # contributor and wrong for CI: it would turn this into a step that always passes and
+      # checks nothing. `macos-14` ships SwiftLint, so this is a guard rather than an install.
+      - name: SwiftLint is present, so the next step is not a no-op
+        run: command -v swiftlint || brew install swiftlint
+
+      - name: Lint the Swift
+        run: ./gradlew lintSwift
