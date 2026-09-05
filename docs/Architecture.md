@@ -1299,6 +1299,7 @@ always says which network answered.
 | 10 | unsupported host (no `libpubkycore` for this OS/arch; §13.11) |
 | 11 | `update` found a newer release and may not install it here (§13.12) |
 | 12 | the homeserver answered 5xx |
+| 13 | `login --timeout` ran out before anyone approved (§13.10) |
 
 4 is the reason this table is not three rows long. The homeserver session dies after roughly an
 hour and nothing renews it (#165): writes start failing, reads keep working, and from outside it
@@ -1316,6 +1317,26 @@ applied, which is what makes a resumed write worth attempting.
 Classification goes through `Throwable.toErrorReason()`, the same classifier the apps use, rather
 than matching messages in the CLI: it already knows that "this pubky published no homeserver
 record" and "the DHT did not answer" arrive through one call and are not the same thing.
+
+**9 is also the answer for an operand that cannot address a record**, and that row was bought the
+hard way (#240). `loopky card list ""` put the empty string into a homeserver path and the URI
+parser's complaint surfaced as **1, internal** — the one code an agent is supposed to retry,
+against an input that can never succeed, with a message about a URI pointing the diagnosis at the
+network. So `Args.requireWord` refuses blank, whitespace, a separator, a URI delimiter and the two
+relative segments *before* the value reaches a path, which is the same shape as `SupportedHost`:
+refuse ahead of a failure that would be misclassified rather than teach a classifier to recognise
+it afterwards. Deliberately **not** a charset allowlist — ids are twelve lowercase alphanumerics
+today, and a stricter rule would refuse a shape a later release mints from a binary nobody in that
+sandbox can upgrade.
+
+Every reported message also has an adjacent repeated segment collapsed. The FFI wraps its own
+error a second time on the way out — `"Request failed: Request failed: …"` was on every failure
+observed in #240 — and this side cannot stop it being produced, only stop repeating it. Cosmetic,
+and worth doing because this is the string an agent captures into a transcript.
+
+**The table travels with the binary.** `loopky commands --json` (§13.13) carries every row with its
+name and a line of what to do about it, plus the subset each command can produce — because a binary
+is the only copy of this table an agent holding one has.
 
 There is **no `expires_at`** to report, and `whoami` says so by omission. The FFI's session payload
 carries a pubky, a secret, a homeserver and capabilities — no expiry — so a client cannot plan
@@ -1477,6 +1498,18 @@ agent's normal recovery is to re-run the command.
   message. A homeserver 500 is retried twice with backoff before it counts: `withWriteRetry`
   already recovers an expiry, a 429 and an unreachable session round trip (§8.5), and a 500 was
   the gap.
+- **`deck create --id` makes a killed create addressable; `--if-not-exists` makes the retry a
+  no-op** (#240). This one is reasoned from the failure modes above rather than observed: given the
+  hourly expiry and a 2.5 s round trip per command, an agent *will* have a create killed
+  mid-flight, and with no client-supplied id its only recovery was `deck list` plus a match on
+  title — neither cheap nor race-free — while a plain re-run published a second deck. Two
+  decisions come with it. An id that is already taken and no `--if-not-exists` is **refused**
+  rather than published over: `publish` replaces the manifest and its whole chunk table, so a
+  reused id takes the deck's cards with it, and nothing here prompts, so this is the only place
+  that can say no. And a read that failed for any reason other than a miss is rethrown — treating
+  an unreachable homeserver as "no such deck" is exactly how this flag would publish the duplicate
+  it exists to prevent. `--if-not-exists` without `--id` is a usage error rather than a title
+  match, because matching on title is the recovery path being replaced.
 - **Batch mutation, not just batch creation.** `card edit --from-file` exists for the same reason
   the surface steers agents away from `card add` in a loop, with more force: editing is what you
   do *after* an import, and it is the shape an agent naturally reaches for. One card write is one
@@ -1637,6 +1670,20 @@ CLI invocation, relevant the moment anyone wraps this in a daemon serving severa
 retry: recovering means running `loopky login` again, which mints a new secret and a new code. The
 CLI says that rather than looping, because a retry loop would silently invalidate the code already
 on screen.
+
+**`--timeout <seconds>` bounds the wait, and the reason it lives inside the process is the
+cleanup** (#240). Without it the only tool an unattended caller had was `timeout -s KILL`, which
+skips the shutdown hook that deletes a `--qr-out` file — leaving a live auth URL on disk, the
+failure the 0600 mode is only half of. Exit 13, its own code: nothing was signed in and nothing was
+stored, which is not what 5 (the relay was unreachable) says.
+
+It is **not** `withTimeout { complete() }`, and that is worth writing down because the wrong
+version passes every test that checks the exit code. `complete()` blocks in the FFI on a
+`Dispatchers.IO` thread, and `withContext` does not hand control back until its body returns:
+measured, a 300 ms timeout around a 5 s blocking call returned after 5 s. So the await runs on a
+daemon thread of its own and the timeout is applied to a `CompletableDeferred`, which is a real
+suspension point. The thread is left parked in a native call nothing on this side can interrupt;
+the process exits immediately after. `LoginTimeoutTest` asserts the wall clock for that reason.
 
 ### 13.11 Native library and packaging
 
@@ -1819,7 +1866,64 @@ The installer only *mentions* completions. Enabling them means writing to a shel
 system directory, and an installer that edits `~/.bashrc` behind you is one you cannot cleanly
 undo — on a box where the whole install is "copy one file", that is the wrong trade.
 
-### 13.14 Shape for a second front end
+**`loopky commands --json` is the table's second consumer, for the reader that is not a shell**
+(#240). To construct a valid invocation, an agent driving this binary read the `USAGE` constant out
+of the repository, because parsing prose was easier than parsing `--help` — a fine outcome for
+somebody with the source checked out and no outcome at all for an agent holding only the binary,
+which is this client's whole audience. So the same table emits every verb, the operands it takes
+**and their arity**, its flags and whether each takes a value, whether it needs a session, and the
+exit codes it can produce. `loopky --help --json` prints the same thing, and it runs before Koin
+beside `completion` for the same reason: a table this binary was compiled with must not depend on
+`libpubkycore` loading.
+
+Two shapes follow from it. `Operand.Opaque` holds a *list* of names rather than the string
+`"deckId cardId"`, because arity is part of the surface and `card edit`'s second word is optional.
+And a command's exit codes are **derived** from three declared facts — `needsSession`, `writes`,
+`local` — rather than listed by hand, so they cannot drift as commands are added. The derivation
+over-lists rather than under-lists where it is unsure, because an agent that meets a code it was
+not told about has no rule for it. The *absences* are the useful half: `tag trending` never
+answering `session_expired` is how a caller knows not to sign in before calling it.
+
+### 13.14 `batch`, and the 2.5 seconds before anything happens
+
+Measured on the native binary, warm, macOS arm64 against staging (#240): `--version` is 0.00–0.02s,
+so `native-image` is doing its job and process start is **not** the cost. `whoami` is 2.40–2.63s
+and `deck list` 3.09–3.17s. The binary starts instantly and then spends two and a half seconds
+before it does anything — invisible to a person, and about two minutes of pure session overhead for
+an agent driving fifty single-card operations. It is §13.7's "one card edit = one round trip"
+measured from the other end.
+
+The bulk-file paths already amortise that where they apply. What had no amortised form is a
+**sequence of different commands** — create a deck, add cards, edit two, read them back — which is
+the shape an agent actually produces. `loopky batch` is that shape: one process start, one FFI
+load, one session, and the repositories' per-session cache warm across the whole run. Measured on
+staging, six operations took 28.7s and 29.4s as separate invocations against 10.6s and 11.0s as one
+batch.
+
+Four decisions.
+
+**Every line goes back through `dispatch`.** A line is `{"argv": [...], "id": "..."}` (or the bare
+array), parsed by `Args` and handed to the same `when` a command line reaches. So a batch cannot
+accept a flag the CLI does not have, cannot spell a verb differently, and cannot drift. `Batch.kt`
+knows nothing about Koin — `Main` passes the dispatcher in as a lambda, which keeps §13.15's "one
+function per command taking plain values" intact.
+
+**It is not transactional, and does not pretend to be.** The homeserver offers nothing to roll back
+to. So the whole file is validated before the first operation runs (a malformed line 400 fails with
+the homeserver untouched), a failed operation does not end the run unless `--stop-on-error`, and
+the result — on the failure envelope too — says exactly which operations landed. Re-running is the
+recovery, which is what §13.7's idempotence is for.
+
+**The exit code is the first failure's, never the batch's own.** `session_expired` and
+`storage_full` say entirely different things about whether re-running the file is worth anything,
+and a code meaning "some operation failed" would hide both.
+
+**One session for the run means one hour.** Nothing here renews anything (#165), so a long batch
+hits the expiry exactly where a long sequence of separate commands would. That is the pressure
+§13.15 names: a process that outlives one command is the natural place to renew a session, and
+`batch` is the closest this design gets without becoming one.
+
+### 13.15 Shape for a second front end
 
 The chat-only audience — Claude's analysis tool, ChatGPT's code interpreter — has no shell and no
 network egress, so a client needing a homeserver, a relay and DHT resolution cannot function there
@@ -1836,7 +1940,7 @@ implies — or runs on the user's own machine over stdio is open. Finding 1 push
 a different reason: a process that outlives one command is the natural place to renew a session
 before it expires, which a per-invocation CLI can never be.
 
-### 13.15 Still open
+### 13.16 Still open
 
 - **Can Loopky run behind an allowlist proxy at all?** A hard blocker for cloud sandboxes, not a
   polish item. Homegate and Nexus are fixed hosts, but the homeserver is resolved from its pubky

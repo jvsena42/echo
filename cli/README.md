@@ -88,14 +88,18 @@ hand. Rebuild it in the fork with `./build_desktop.sh linux|macos|all` and copy
 ```shell
 loopky login                        # QR for Pubky Ring, then waits for approval
 loopky login --export               # also prints the session secret, for LOOPKY_SESSION
+loopky login --timeout 120          # give up after two minutes instead of blocking forever
 loopky whoami --json
 loopky logout
+
+loopky commands --json              # the whole surface as JSON. No session, no network.
 
 loopky update --check            # is there a newer release?
 loopky update                    # fetch it, check its digest, replace this binary
 
 loopky deck list
 loopky deck create --title "Capitais" --tag geografia --tag "português" --from-file cards.tsv
+loopky deck create --title "Capitais" --id capitais0001 --if-not-exists   # safe to re-run
 loopky deck show <deckId> --json
 loopky deck edit <deckId> --cover-url https://…/capitais.jpg --tag geografia --tag capitais
 loopky deck sync <deckId>
@@ -116,6 +120,9 @@ loopky import deck.apkg --dry-run --json     # look before you publish. No sessi
 loopky import deck.apkg --title "Japanese Core 2000" --front-field Expression --back-field Meaning
 
 loopky tag trending --limit 20
+
+loopky batch ops.ndjson --json       # a sequence of commands against one session
+cat ops.ndjson | loopky batch - --json
 
 loopky completion bash               # a completion script on stdout, for eval or a file
 ```
@@ -382,6 +389,15 @@ file never has the problem.
 | 4 | **session expired** | 10 | unsupported host |
 | 5 | network | 11 | update found, not applied |
 | | | 12 | homeserver 5xx |
+| | | 13 | `login --timeout` ran out |
+
+`loopky commands --json` carries this table — name, number and a line of what to do about it —
+along with the subset each command can actually produce. That last part is worth reading for its
+*absences*: `tag trending` never answers `session_expired`, so there is no point signing in first.
+
+13 is nobody approving a sign-in inside `--timeout`. Nothing was stored, and the code that was on
+screen is spent either way — the FFI's auth flow is a single slot the first poll takes — so the
+recovery is `loopky login` again rather than a retry.
 
 12 is the homeserver answering with a server error of its own. It used to be **1, internal**, which
 this table documents as "worth reporting as a bug" — and a 500 is not a bug in the client, not the
@@ -450,6 +466,42 @@ payload does not carry one.
     its file line, card id, exit code and message. A homeserver 500 is also retried twice before it
     counts as a failure — the shared layer already recovers an expiry, a 429 and an unreachable
     session round trip, and a 500 was the gap.
+- **`loopky commands --json` is how a binary describes itself.** Every verb, the operands it takes
+  and their arity, its flags and whether each takes a value, whether it needs a session, and the
+  exit codes it can produce. `loopky --help --json` prints the same thing. It is generated from the
+  same table the completion scripts are, so it cannot describe a surface this binary does not have,
+  and it needs no session, no network and no FFI — it works on a broken install. Reading `--help`
+  as prose, or the repository's `USAGE` constant, is no longer the way in.
+- **`loopky batch` runs a sequence of commands against one session, and the saving is real.** Every
+  homeserver command pays process start, the FFI load and a session round trip: on staging,
+  `whoami` is ~2.5s before it does anything. `card add --from-file` and `import` already amortise
+  that where they apply; a *sequence of different* commands — create a deck, add cards, read them
+  back — had no amortised form and is the shape an agent produces. Measured: six operations, 28.7s
+  as separate invocations, 10.6s as one batch.
+
+  A line is `{"argv": ["card", "add", "deckid", "--front", "a", "--back", "b"]}`, with an optional
+  `"id"` echoed back; the bare array works too. Each line goes through the same parser and the same
+  dispatcher a command line does, so a batch can never accept something the CLI does not. Under
+  `--json` every operation streams a line of its own carrying that command's whole result, then the
+  envelope summarises. The whole file is validated before the first operation runs. A failure does
+  not end the run unless `--stop-on-error`, and the exit code is the **first failure's** rather than
+  one of the batch's own — `session_expired` and `storage_full` say different things about whether
+  re-running the file is worth anything.
+
+  Nothing is transactional and nothing rolls back. Re-running is the recovery, which is what
+  `card add`, `card edit --from-file` and `deck create --id --if-not-exists` being idempotent are
+  for. One session for the whole run also means one hour: a long batch hits the expiry exactly
+  where a long sequence of separate commands would.
+- **`deck create --id` makes a killed create addressable, and `--if-not-exists` makes it a
+  no-op.** Without an id, an ambiguous failure could only be recovered by listing decks and
+  matching on title — neither cheap nor race-free — and a plain re-run published a second deck.
+  With both flags the retry hands back the deck that is already there and reports
+  `created: false`. Without `--if-not-exists` an id that is taken is **refused** rather than
+  published over: a publish replaces the manifest and its whole chunk table, so a reused id would
+  take the deck's cards with it, and nothing here prompts.
+- **`login` can be bounded.** `--timeout <seconds>` exits 13 rather than blocking until somebody
+  reaches for their phone. Bound it inside the process rather than wrapping it in `timeout -s KILL`:
+  the signal skips the sweep that deletes a `--qr-out` file, which leaves a live auth URL on disk.
 - **The session can only write `/pub/loopky/`.** Not `/pub/pubky.app/`. It cannot post, follow, or
   edit a profile under any bug or any prompt injection, because it was never handed the capability.
   Deck tags still work — a deck manifest's tag record lives in the loopky namespace.

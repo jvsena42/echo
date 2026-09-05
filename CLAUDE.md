@@ -216,6 +216,19 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   its way to checking that the picture it attached is the right picture, so reads echo back what
   was *stored* — image refs and tags, not just text. That makes the envelope an API surface:
   versioned `"schema": 1` from the first release, fields may be added, meanings may not change.
+- **The CLI is driven by agents, and three of its rules exist because one drove it (#240).** *A
+  usage mistake must never exit 1.* A blank id used to reach a homeserver path and come back
+  `internal` — the one code an agent retries — so `Args.requireWord` refuses anything that cannot
+  be a path segment as `bad_input`; the same shape as `SupportedHost`, refuse before the failure
+  can be misclassified. *Anything that blocks on a human takes a bound.* `login --timeout` exits
+  13, and it is inside the process because `timeout -s KILL` skips the sweep that deletes a
+  `--qr-out` file holding a live auth URL — and it is **not** `withTimeout { complete() }`, which
+  waits for the blocking FFI call anyway (measured; see Architecture.md §13.10). *The binary
+  describes itself.* `loopky commands --json` emits `CommandSurface.kt` — verbs, operand arity,
+  flags, exit codes — so `CommandSurface.kt` is now read by the completion generators **and** by
+  agents, and a command added without a table entry is invisible to both. `loopky batch` runs a
+  file of operations through the same `dispatch`, so it can never accept something the CLI does
+  not; measured at 2.7× on a six-operation sequence (Architecture.md §13.14).
 - **Do not add Compose Multiplatform UI code for iOS screens.** The working assumption (see `docs/Architecture.md §12` open question #1) is native SwiftUI on iOS. `composeApp` is Android-only despite the name.
 - **ViewModels live in `shared/commonMain`, not in platform modules.** Both Compose and SwiftUI screens consume the same VMs. No `@Composable` or `ObservableObject` in shared code.
 - **Always import symbols; never reference them fully-qualified inline.** Add an `import` at the top of the file (e.g. `import androidx.compose.ui.graphics.Color`) and use the short name, rather than writing `androidx.compose.ui.graphics.Color` inline in a type or call. Applies to both Kotlin and Swift.
