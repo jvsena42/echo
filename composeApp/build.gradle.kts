@@ -60,6 +60,15 @@ val localProps = Properties().apply {
  * not what happens: it would leave the keystore password sitting in a file for the rest of the
  * job, where every later step and every `cat` in a debugging session can reach it.
  *
+ * **That only holds with the configuration cache off, which is why the release job passes
+ * `--no-configuration-cache`.** `providers.environmentVariable` is read at configuration time, so
+ * with the cache on (the default here) Gradle tracks the value as a fingerprint input and
+ * serialises the resulting signing config into `.gradle/configuration-cache/` — back inside the
+ * workspace, which is the exposure this was avoiding. Changing only the password prints "cannot be
+ * reused because environment variable 'LOOPKY_KEYSTORE_PASSWORD' has changed", so it is tracked,
+ * and `gradle/actions/setup-gradle` refuses to cache that data without an encryption key for the
+ * same reason. Do not drop the flag from the release build to save a configuration phase.
+ *
  * `LOOPKY_`-prefixed, because `KEY_ALIAS` and `KEY_PASSWORD` are names another tool can plausibly
  * already have set in the environment, and picking one up by accident signs the release with
  * something nobody chose. Read through `providers` so the configuration cache tracks both sources.
