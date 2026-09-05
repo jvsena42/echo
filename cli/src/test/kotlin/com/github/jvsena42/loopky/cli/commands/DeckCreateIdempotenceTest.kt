@@ -137,4 +137,55 @@ class DeckCreateIdempotenceTest {
             assertEquals(ExitCode.BadInput, error.exitCode, "for --id '$bad'")
         }
     }
+
+    /**
+     * The case the flag exists for, and the one it used to get wrong: `publish` writes an
+     * `incomplete` marker manifest *before* the chunks, so a killed run leaves one behind.
+     * Accepting it would report success for a deck whose cards were never uploaded.
+     */
+    @Test
+    fun `--if-not-exists re-publishes a deck whose first publish did not finish`() = runBlocking {
+        val half = testDeck(id = "mine00000001").copy(incomplete = true)
+        val decks = FakeDeckRepository(half)
+
+        val result = deckCreate(
+            create("--title", "Capitais", "--id", "mine00000001", "--if-not-exists"),
+            decks,
+            session,
+            {},
+            {},
+        )
+
+        assertEquals(true, result.data.jsonObject["created"]!!.jsonPrimitive.content.toBoolean())
+        assertEquals("mine00000001", result.data.jsonObject["deck"]!!.jsonObject["id"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `an incomplete deck without the flag is refused and says why`() {
+        val half = testDeck(id = "mine00000001").copy(incomplete = true)
+        val decks = FakeDeckRepository(half)
+
+        val error = assertFailsWith<CliError> {
+            runBlocking { deckCreate(create("--title", "T", "--id", "mine00000001"), decks, session, {}, {}) }
+        }
+
+        assertEquals(ExitCode.BadInput, error.exitCode)
+        assertTrue(error.message!!.contains("incomplete"))
+    }
+
+    /**
+     * `sync` falls back to the followed-deck subscriptions, so an id colliding with a deck you
+     * *follow* would otherwise be reported as taken — an id that is free in your own namespace,
+     * refused with no way past, or accepted by `--if-not-exists` as someone else's deck.
+     */
+    @Test
+    fun `a deck belonging to another author does not occupy the id`() = runBlocking {
+        val theirs = testDeck(id = "mine00000001", cardCount = 40).copy(authorPubky = "pk:someone-else")
+        val decks = FakeDeckRepository(theirs)
+
+        val result = deckCreate(create("--title", "T", "--id", "mine00000001"), decks, session, {}, {})
+
+        assertEquals(true, result.data.jsonObject["created"]!!.jsonPrimitive.content.toBoolean())
+        assertEquals("mine00000001", result.data.jsonObject["deck"]!!.jsonObject["id"]!!.jsonPrimitive.content)
+    }
 }

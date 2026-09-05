@@ -137,7 +137,7 @@ suspend fun deckCreate(
     // Before the card file is read and before any picture is probed: when the deck is already
     // there this call has nothing left to do, and a `--from-file` of 9,000 rows should not be
     // parsed to find that out.
-    existingDeck(args, decks, deckId)?.let { existing ->
+    existingDeck(args, decks, session, deckId)?.let { existing ->
         return result(
             DeckCreateResult(existing.toView(), created = false),
             "${existing.id} already exists — ${existing.title} (${existing.cardCount} cards). Nothing written.",
@@ -208,21 +208,47 @@ private fun Args.deckIdToCreate(): String {
 }
 
 /**
- * The deck already at [deckId], or null when there is nothing there.
+ * The deck already at [deckId], or null when there is nothing usable there.
+ *
+ * Three things this has to get right, none of them visible from the call site.
  *
  * **A read failure that is not a miss is rethrown.** Treating an unreachable homeserver as "the
  * deck does not exist" is how `--if-not-exists` would publish the duplicate it exists to prevent.
+ *
+ * **A deck belonging to someone else is not an answer to "is my id taken?".** `sync` falls back to
+ * the followed-deck subscriptions, so a `--id` colliding with a deck you follow would otherwise
+ * report another author's manifest — `--if-not-exists` accepting a deck you cannot write, or a
+ * refusal for an id that is free in your own namespace with no way past it.
+ *
+ * **An `incomplete` manifest is not a deck.** `publish` writes that marker *before* the chunks, so
+ * a killed `deck create --id X` — the case `--if-not-exists` exists for — leaves one behind.
+ * Accepting it would report success for a deck whose cards were never uploaded, permanently.
  *
  * Without `--if-not-exists` an existing id is refused rather than overwritten: `publish` replaces
  * the manifest and its whole chunk table, so a reused id would take a deck's cards with it — and
  * nothing here prompts, so this is the only place that can say no.
  */
-private suspend fun existingDeck(args: Args, decks: DeckRepository, deckId: String): Deck? {
+private suspend fun existingDeck(
+    args: Args,
+    decks: DeckRepository,
+    session: Session,
+    deckId: String,
+): Deck? {
     if (args.option("id") == null) return null
     val existing = decks.sync(deckId).fold(
         onSuccess = { it },
         onFailure = { if (ExitCode.of(it) == ExitCode.NotFound) null else throw asCliError(it) },
     ) ?: return null
+    if (existing.authorPubky != session.identity.pubky) return null
+    if (existing.incomplete) {
+        if (args.has("if-not-exists")) return null
+        throw CliError(
+            ExitCode.BadInput,
+            "Deck $deckId exists but is incomplete — a previous publish did not finish, so its " +
+                "cards are missing. Pass --if-not-exists to finish it by re-publishing, or use " +
+                "`deck delete`.",
+        )
+    }
     if (args.has("if-not-exists")) return existing
     throw CliError(
         ExitCode.BadInput,
