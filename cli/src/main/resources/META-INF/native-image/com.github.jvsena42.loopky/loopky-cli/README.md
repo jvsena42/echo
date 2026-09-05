@@ -32,6 +32,20 @@ on Linux makes `native-image` emit three `libawt*.so` files beside the binary �
 `checkNativeImageIsOneFile`. `com.sun.jna.NativeLong` was the one row worth keeping and is merged
 into `reflect-config.json`.
 
+**`com.sun.jna.Native` is in `jni-config.json` and deliberately *not* in `reflect-config.json`**,
+and it is the reason the macOS binary is one file (#213). The agent writes a JNI lookup into both
+files; only one of them is right. Registering that class for *reflection* makes `native-image`
+reconstruct an `Executable` for every method it declares — including `getComponentID(Component)`
+and `getWindowID(Window)` — which marks `java.awt.Component` reachable, runs
+`Toolkit.loadLibraries()` at build time, and emits **ten** JDK dylibs beside the binary, AWT and
+FreeType among them. Registering it for JNI does not, which is what `dispatch.c` actually needs:
+it looks these six up with `GetStaticMethodID`, never with `Class.getMethod`. Dropping the
+`methods` list is not enough — the class entry alone is what does it.
+
+This is macOS-only in effect and was invisible for as long as nobody built that row locally: on
+Linux the same registration leaves AWT unreachable, so CI's Linux job stayed green while the macOS
+release job would have failed at `checkNativeImageIsOneFile`.
+
 ## What is not here, and why
 
 `libpubkycore` itself. It is a **resource**, included by `-H:IncludeResources` from
