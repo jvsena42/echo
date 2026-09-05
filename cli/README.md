@@ -23,6 +23,16 @@ alongside the binaries it fetches. `raw.githubusercontent.com/.../main/cli/insta
 obvious URL and the wrong one: it pipes whatever `main` is at that second into `sh`, which is a
 moving target for the one command here that runs unreviewed shell as the user.
 
+Homebrew serves both rows:
+
+```shell
+brew install jvsena42/loopky/loopky
+```
+
+That is the one install `loopky update` refuses, with exit 11 — a Cellar file is not ours to
+overwrite and the next upgrade would revert it anyway, so `brew upgrade loopky` is the command
+there.
+
 By hand is a supported answer and is one line, because the artifact really is a single binary:
 
 ```shell
@@ -36,7 +46,7 @@ curl -fsSL https://github.com/jvsena42/loopky/releases/latest/download/loopky-li
 | macOS, Apple Silicon | `loopky-macos-aarch64` |
 | Container | `docker run --rm -e LOOPKY_SESSION ghcr.io/jvsena42/loopky deck list --json` |
 | Debian/Ubuntu | `loopky_<version>_amd64.deb` on the release page — `dpkg -i`. Depends on `libc6 (>= 2.34)` and `zlib1g`, which is the whole of it: no JRE, and nothing else |
-| Homebrew | `brew install jvsena42/loopky/loopky` · same two rows. This is the one install `loopky update` refuses (exit 11) — `brew upgrade loopky` |
+| Homebrew | `brew install jvsena42/loopky/loopky` — above |
 
 **An Intel Mac and Windows are not targets**, by decision rather than omission (#54). Both are
 refused with a message that says which, rather than failing at the first homeserver call: there is
