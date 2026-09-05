@@ -61,6 +61,12 @@ jobs:
       - name: Assemble Android debug
         run: ./gradlew :composeApp:assembleDebug
 
+      # Which test failed and why, in the log. The artifact below is still uploaded; this is so
+      # that reading the failure does not require downloading it (#239).
+      - name: Say which tests failed
+        if: failure()
+        uses: ./.github/actions/failing-tests
+
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4
@@ -165,6 +171,12 @@ jobs:
           fish -n /tmp/loopky.fish
           # Sourcing is the other half: a script that parses can still fail to define anything.
           bash -c 'source /tmp/loopky.bash && complete -p loopky' | grep -q _loopky
+
+      # Which test failed and why, in the log. The artifact below is still uploaded; this is so
+      # that reading the failure does not require downloading it (#239).
+      - name: Say which tests failed
+        if: failure()
+        uses: ./.github/actions/failing-tests
 
       - name: Upload test reports
         if: failure()
