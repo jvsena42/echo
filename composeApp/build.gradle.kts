@@ -51,6 +51,24 @@ val localProps = Properties().apply {
     ).asText.orNull?.let { load(it.reader()) }
 }
 
+/**
+ * A local-configuration value, from `local.properties` on a developer machine and from
+ * `LOOPKY_<name>` in the environment otherwise.
+ *
+ * The environment half exists because the signed release is built by `release.yml` on a tag, and a
+ * runner has no `local.properties`. Writing one from the secrets would work and is deliberately
+ * not what happens: it would leave the keystore password sitting in a file for the rest of the
+ * job, where every later step and every `cat` in a debugging session can reach it.
+ *
+ * `LOOPKY_`-prefixed, because `KEY_ALIAS` and `KEY_PASSWORD` are names another tool can plausibly
+ * already have set in the environment, and picking one up by accident signs the release with
+ * something nobody chose. Read through `providers` so the configuration cache tracks both sources.
+ */
+fun localConfig(name: String): String? =
+    (localProps.getProperty(name) ?: providers.environmentVariable("LOOPKY_$name").orNull)
+        ?.trim()
+        ?.ifEmpty { null }
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidApplication)
@@ -117,7 +135,7 @@ android {
         // where `strings | grep` finds it, which is how leaked keys are actually found. This is a
         // speed bump against automated scanners, not protection: the key ends up in a live
         // Authorization header, so a proxy reads it regardless. See UnsplashKeyObfuscation.
-        val unsplashKey = (localProps.getProperty("UNSPLASH_ACCESS_KEY") ?: "").trim()
+        val unsplashKey = localConfig("UNSPLASH_ACCESS_KEY") ?: ""
         buildConfigField("String", "UNSPLASH_ACCESS_KEY_OBF", "\"${obfuscateUnsplashKey(unsplashKey)}\"")
     }
     buildFeatures {
@@ -129,16 +147,23 @@ android {
         }
     }
     signingConfigs {
-        // Absent on CI and on machines without a keystore, where release builds stay unsigned.
-        // The four constants live in the gitignored local.properties and are never read anywhere
-        // else — refer to them by name only.
-        val keystoreFile = localProps["KEYSTORE_FILE"] as? String
+        // Absent on a machine with no keystore and on ordinary CI, where release builds stay
+        // unsigned. The four constants come from the gitignored local.properties or from the
+        // release workflow's environment, and are never read anywhere else — refer to them by
+        // name only.
+        val keystoreFile = localConfig("KEYSTORE_FILE")
         if (keystoreFile != null) {
             create("release") {
                 storeFile = file(keystoreFile)
-                storePassword = localProps["KEYSTORE_PASSWORD"] as String
-                keyAlias = localProps["KEY_ALIAS"] as String
-                keyPassword = localProps["KEY_PASSWORD"] as String
+                storePassword = requireNotNull(localConfig("KEYSTORE_PASSWORD")) {
+                    "KEYSTORE_FILE is set but KEYSTORE_PASSWORD is not"
+                }
+                keyAlias = requireNotNull(localConfig("KEY_ALIAS")) {
+                    "KEYSTORE_FILE is set but KEY_ALIAS is not"
+                }
+                keyPassword = requireNotNull(localConfig("KEY_PASSWORD")) {
+                    "KEYSTORE_FILE is set but KEY_PASSWORD is not"
+                }
             }
         }
     }
@@ -148,15 +173,14 @@ android {
             // gate, homeserver, web client and indexer. The build-time default only; a debug
             // build can also switch environment at runtime from Settings, which takes effect on
             // the next launch.
-            val envOverride = (localProps.getProperty("PUBKY_ENV") ?: "").trim()
-            val debugEnv = envOverride.ifEmpty { PUBKY_ENV_STAGING }
+            val debugEnv = localConfig("PUBKY_ENV") ?: PUBKY_ENV_STAGING
             buildConfigField("String", "PUBKY_ENV", "\"$debugEnv\"")
 
             // The one sanctioned way to read an indexer the environment did not choose: a Nexus
             // running on your own machine (#58). Named for exactly that — to point a debug build
             // at another *network*, set PUBKY_ENV, which moves the indexer with it. Blank means
             // the environment decides, which is what it should do.
-            val localNexus = (localProps.getProperty("LOCAL_NEXUS_BASE_URL") ?: "").trim()
+            val localNexus = localConfig("LOCAL_NEXUS_BASE_URL") ?: ""
             buildConfigField("String", "LOCAL_NEXUS_BASE_URL", "\"$localNexus\"")
         }
         getByName("release") {
