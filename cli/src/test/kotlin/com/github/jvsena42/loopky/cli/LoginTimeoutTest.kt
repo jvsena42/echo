@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
@@ -46,8 +47,36 @@ class LoginTimeoutTest {
     fun `says what happened and what to do`() = runBlocking {
         val error = assertFailsWith<CliError> { NeverApproved().completeWithin(seconds = 1) }
         val message = error.message.orEmpty()
-        assertTrue("Nothing was stored" in message, message)
+        assertTrue("this process is not signed in" in message, message)
+        // Never the stronger claim: the await is unobserved rather than stopped, so an approval
+        // landing as the process exits still persists a session.
+        assertTrue("Nothing was stored" !in message, message)
+        assertTrue("loopky whoami" in message, message)
         assertTrue("loopky login" in message, message)
+    }
+
+    /**
+     * The deferred has to be completed on every path out of that thread.
+     *
+     * Without the `catch`, anything thrown out of `runBlocking` killed the thread with the deferred
+     * never completed — so the caller waited the *whole* `--timeout` and then reported `timeout`
+     * for what was an FFI failure. A wrong diagnosis after a long wait is worse than either alone.
+     * `Error` rather than `Exception` because `UnsatisfiedLinkError` is the realistic one, and it
+     * is not what the `runSuspendCatching` inside `complete()` is protecting against.
+     */
+    @Test
+    fun `a throw out of the awaiting thread is reported as itself, not as a timeout`() = runBlocking {
+        val handle = object : AuthFlowHandle {
+            override val authUrl = "pubkyauth:///"
+            override suspend fun complete(): Result<Session> = throw UnsatisfiedLinkError("pubkycore")
+        }
+
+        val start = System.currentTimeMillis()
+        val outcome = handle.completeWithin(seconds = 30)
+        val elapsed = System.currentTimeMillis() - start
+
+        assertIs<UnsatisfiedLinkError>(outcome.exceptionOrNull())
+        assertTrue(elapsed < 10_000, "waited ${elapsed}ms for a failure that was immediate")
     }
 
     /** No `--timeout` still means wait forever, which is right for a human at a terminal. */

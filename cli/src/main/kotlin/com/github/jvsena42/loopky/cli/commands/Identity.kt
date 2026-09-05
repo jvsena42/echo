@@ -223,19 +223,37 @@ suspend fun login(
  *
  * The thread is a daemon and is deliberately left where it is: it is parked inside a native call
  * that nothing on this side can interrupt, and the process exits as soon as this returns. What is
- * bought by exiting *here* rather than under `timeout -s KILL` is the `finally` below — the
- * shutdown hook is removed and a `--qr-out` file holding a live auth URL is deleted (#240).
+ * bought by exiting *here* rather than under `timeout -s KILL` is the `finally` at the call site —
+ * the shutdown hook is removed and a `--qr-out` file holding a live auth URL is deleted (#240).
+ *
+ * **The deferred is completed on every path out of that thread, exceptions included.** Without the
+ * `catch`, anything thrown out of `runBlocking` — an `Error` such as `UnsatisfiedLinkError` is not
+ * what `runSuspendCatching` inside `complete()` is protecting against — killed the thread with the
+ * deferred never completed, so the caller waited the *whole* `--timeout` and then reported
+ * `timeout` for what was an FFI failure. A wrong diagnosis after a long wait is worse than either.
  */
 internal suspend fun AuthFlowHandle.completeWithin(seconds: Int?): Result<Session> {
     if (seconds == null) return complete()
     val awaited = CompletableDeferred<Result<Session>>()
-    Thread { awaited.complete(runBlocking { complete() }) }
-        .apply { isDaemon = true; name = "loopky-login-await" }
-        .start()
+    Thread {
+        val outcome = try {
+            runBlocking { complete() }
+        } catch (@Suppress("TooGenericExceptionCaught") error: Throwable) {
+            Result.failure(error)
+        }
+        awaited.complete(outcome)
+    }.apply { isDaemon = true; name = "loopky-login-await" }.start()
     return withTimeoutOrNull(seconds.seconds) { awaited.await() } ?: throw CliError(
         ExitCode.Timeout,
-        "Nobody approved the sign-in within ${seconds}s. Nothing was stored. The code that was " +
-            "on screen is spent — the FFI's auth flow is single-use — so run `loopky login` again.",
+        // Not "nothing was stored", which this cannot promise. `complete()` ends in
+        // `persistSession`, and the thread is unobserved rather than stopped — an approval landing
+        // in the moment between here and `exitProcess` still writes. Saying so is better than
+        // asserting the opposite: an agent told a lie about its own credential state has no way to
+        // find out. `whoami` is cheap and answers it.
+        "Nobody approved the sign-in within ${seconds}s, so this process is not signed in. If " +
+            "approval lands as it exits the session may still be stored — `loopky whoami` says. " +
+            "The code that was on screen is spent either way — the FFI's auth flow is single-use " +
+            "— so run `loopky login` again rather than retrying.",
     )
 }
 

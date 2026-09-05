@@ -112,12 +112,15 @@ enum class ExitCode(val code: Int, val json: String, val summary: String) {
      * `--qr-out` file, leaving a **live auth URL on disk**. Bounding the wait inside the process
      * is what keeps that cleanup.
      *
-     * Nothing was signed in and nothing was stored. Not [Network], which would say the relay was
-     * unreachable: it was reachable and nobody answered. Retrying means running `login` again —
-     * the FFI's auth flow is a single global slot that the first poll takes, so the code already
-     * on screen is spent either way.
+     * *This process* is not signed in. Deliberately not "nothing was stored": the await runs on a
+     * thread that is unobserved rather than stopped, and `complete()` ends in `persistSession`, so
+     * an approval landing between the timeout and `exitProcess` still writes. `whoami` answers it.
+     *
+     * Not [Network], which would say the relay was unreachable: it was reachable and nobody
+     * answered. Retrying means running `login` again — the FFI's auth flow is a single global slot
+     * that the first poll takes, so the code already on screen is spent either way.
      */
-    Timeout(13, "timeout", "login --timeout ran out before anyone approved - nothing was stored"),
+    Timeout(13, "timeout", "login --timeout ran out before anyone approved - check whoami"),
     ;
 
     companion object {
