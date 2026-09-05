@@ -1,15 +1,15 @@
 # Homebrew formula for `loopky`.
 #
 # **This file is a template and lives here rather than where Homebrew reads it.** A tap is its own
-# repository — `jvsena42/homebrew-loopky` — and the release workflow cannot create one. To publish
-# a version:
+# repository — `jvsena42/homebrew-loopky` — and this one has to be created by hand, once, with a
+# `Formula/` directory in it. After that `release.yml`'s `homebrew` job renders this file into
+# `Formula/loopky.rb` there on every final tag, given a `HOMEBREW_TAP_TOKEN` that can push to it.
 #
-#   1. Create the tap repo once, with a `Formula/` directory.
-#   2. Copy this file to `Formula/loopky.rb` there.
-#   3. Fill in `version`, `url` and `sha256` from the GitHub release (the workflow publishes a
-#      `loopky-macos-aarch64.sha256` beside the binary).
-#
-# Then `brew install jvsena42/loopky/loopky`.
+# The three `__…__` placeholders are named rather than left as an anonymous run of zeroes because
+# **the two sums are not interchangeable** — one per row — and a template that repeats the same
+# dummy value twice can be filled in the wrong order without anything noticing. The job also
+# refuses to push a formula with a `__…__` still in it, which is what catches a renamed placeholder;
+# left in, it installs nothing and says so only at `brew install` time.
 #
 # One bottle, for Apple Silicon. An Intel Mac is not a target (#54) and the formula says so out
 # loud rather than installing something that fails at its first homeserver call: there is one
@@ -17,13 +17,13 @@
 class Loopky < Formula
   desc "Headless Loopky client — create and manage Pubky flashcard decks from a terminal"
   homepage "https://github.com/jvsena42/loopky"
-  version "0.0.0"
+  version "__VERSION__"
   license "MIT"
 
   on_macos do
     on_arm do
       url "https://github.com/jvsena42/loopky/releases/download/v#{version}/loopky-macos-aarch64"
-      sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+      sha256 "__SHA256_MACOS_AARCH64__"
     end
     on_intel do
       odie "loopky ships one macOS build and it is for Apple Silicon. See cli/README.md."
@@ -33,7 +33,7 @@ class Loopky < Formula
   on_linux do
     on_intel do
       url "https://github.com/jvsena42/loopky/releases/download/v#{version}/loopky-linux-x86-64"
-      sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+      sha256 "__SHA256_LINUX_X86_64__"
     end
     # Spelled out for the same reason as the Intel-Mac branch. Left off the end, this arch gets a
     # formula error about a missing `url` — Homebrew's words about our file, rather than ours
