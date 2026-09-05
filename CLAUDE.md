@@ -39,6 +39,9 @@ A fresh session has none of this in context, so establish it before the first ed
                                         #     --output type=local,dest=cli/build/native/linux-x86-64 .
 ./gradlew detektAll                     # lint Kotlin on all subprojects (detekt + compose rules)
 ./gradlew lintSwift                     # lint iOS Swift (SwiftLint; needs `brew install swiftlint`)
+./gradlew ciCheck                       # everything CI runs, in one command — and on a Mac also
+                                        # :shared:compileKotlinIosSimulatorArm64 + lintSwift, the two
+                                        # checks a Linux runner cannot do. Not :cli:nativeCompile.
 ```
 
 iOS goes through the **XcodeBuildMCP CLI** (`xcodebuildmcp`, Homebrew: `brew tap getsentry/xcodebuildmcp
