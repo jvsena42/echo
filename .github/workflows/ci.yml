@@ -212,8 +212,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: docker/setup-buildx-action@v3
+
+      # **Only the `toolchain` stage is cached, and in a scope of its own.** That stage is
+      # ubuntu 22.04, a C toolchain and a 250 MB GraalVM tarball; it is byte-identical from run to
+      # run, and on a fresh runner — which every runner is — it is fetched and unpacked from
+      # nothing every time. That is the part of these six minutes that is pure waste.
+      # `native-image` itself still runs on every change, which is the job.
+      #
+      # Deliberately **not** `cache-to: mode=max` over the whole build. The `builder` stage carries
+      # the entire checkout plus a resolved Gradle cache, every commit invalidates it, and
+      # exporting it would write a fresh multi-gigabyte entry into the repository's 10 GB Actions
+      # cache on every run — evicting the `setup-gradle` caches the other three jobs depend on.
+      # Caching the stable stage is the win; caching the volatile one buys this job a little and
+      # charges the others for it.
+      - name: Warm the toolchain layer
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: cli/Dockerfile
+          target: toolchain
+          cache-from: type=gha,scope=cli-toolchain
+          cache-to: type=gha,mode=max,scope=cli-toolchain
+
       - name: Build the binary
-        run: docker build -f cli/Dockerfile --target export --output type=local,dest=dist .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: cli/Dockerfile
+          target: export
+          outputs: type=local,dest=dist
+          cache-from: type=gha,scope=cli-toolchain
 
       - name: One file, and it works
         env:
