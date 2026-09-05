@@ -36,7 +36,7 @@ curl -fsSL https://github.com/jvsena42/loopky/releases/latest/download/loopky-li
 | macOS, Apple Silicon | `loopky-macos-aarch64` |
 | Container | `docker run --rm -e LOOPKY_SESSION ghcr.io/jvsena42/loopky deck list --json` |
 | Debian/Ubuntu | `loopky_<version>_amd64.deb` on the release page — `dpkg -i`. Depends on `libc6 (>= 2.34)` and `zlib1g`, which is the whole of it: no JRE, and nothing else |
-| Homebrew | a tap, `cli/packaging/loopky.rb` — see the note in that file |
+| Homebrew | `brew install jvsena42/loopky/loopky` · same two rows. This is the one install `loopky update` refuses (exit 11) — `brew upgrade loopky` |
 
 **An Intel Mac and Windows are not targets**, by decision rather than omission (#54). Both are
 refused with a message that says which, rather than failing at the first homeserver call: there is
