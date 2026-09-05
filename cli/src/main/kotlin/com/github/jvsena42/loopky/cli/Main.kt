@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.cli.commands.cardAdd
 import com.github.jvsena42.loopky.cli.commands.cardEdit
 import com.github.jvsena42.loopky.cli.commands.cardList
 import com.github.jvsena42.loopky.cli.commands.cardRemove
+import com.github.jvsena42.loopky.cli.commands.commandSurface
 import com.github.jvsena42.loopky.cli.commands.completion
 import com.github.jvsena42.loopky.cli.commands.deckCompact
 import com.github.jvsena42.loopky.cli.commands.deckCreate
@@ -71,6 +72,14 @@ private fun run(argv: Array<String>): ExitCode {
     // positional words, so the "you gave me nothing" branch would answer it with the usage block.
     if (args.has("version")) {
         println(VERSION)
+        return ExitCode.Ok
+    }
+    // `--help --json` is the same table `commands` emits, because an agent reaching for help
+    // through the machine channel is asking the same question. Bare `--json` with no verb is
+    // still a usage error: "you gave me nothing" is not a request for the manual.
+    if (args.has("help") && args.has("json")) {
+        val env = CliEnvironment.resolve(args)
+        println(successEnvelope("commands", env.name, env.indexer, commandSurface().data))
         return ExitCode.Ok
     }
     if (args.words.isEmpty() || args.has("help")) {
@@ -292,7 +301,10 @@ private const val UPDATE_VERB = "update"
 /** The same, for the one other command that must work on an install too broken to load the FFI. */
 private const val COMPLETION_VERB = "completion"
 
-private val PRE_KOIN_VERBS = setOf(UPDATE_VERB, COMPLETION_VERB)
+/** And the surface table, which is a constant this binary was compiled with. */
+private const val COMMANDS_VERB = "commands"
+
+private val PRE_KOIN_VERBS = setOf(UPDATE_VERB, COMPLETION_VERB, COMMANDS_VERB)
 
 /**
  * The two commands that run before Koin, and therefore before `libpubkycore` is loaded. Neither needs
@@ -302,6 +314,7 @@ private val PRE_KOIN_VERBS = setOf(UPDATE_VERB, COMPLETION_VERB)
  */
 private suspend fun preKoin(args: Args, updates: Updates): CommandResult = when (args.verb) {
     COMPLETION_VERB -> completion(args)
+    COMMANDS_VERB -> commandSurface()
     else -> update(args, updates.checker, updates.installation)
 }
 
@@ -396,6 +409,14 @@ internal val USAGE = """
                                 digest published beside it. Refuses, with the right command, on a
                                 Homebrew or .deb install, in a container, and on the jar.
       update --check            Ask without doing.
+
+    AGENTS
+      commands                  Print this surface as JSON on stdout: every verb, the operands it
+                                takes and their arity, its flags, whether it needs a session, and
+                                every exit code it can produce. Generated from the same table the
+                                completion scripts are, so it cannot describe a surface this
+                                binary does not have. `loopky --help --json` prints the same thing.
+                                Needs no session and no network.
 
     SHELL
       completion bash|zsh|fish  Print a completion script on stdout, generated from this binary's

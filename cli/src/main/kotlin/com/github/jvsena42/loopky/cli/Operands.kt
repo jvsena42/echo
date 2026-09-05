@@ -20,24 +20,21 @@ package com.github.jvsena42.loopky.cli
  * a separator, a URI delimiter, and the two relative segments.
  */
 internal fun requireUsableOperand(value: String, name: String): String {
-    if (value.isBlank()) {
-        throw CliError(
-            ExitCode.BadInput,
-            "<$name> is empty. That can never address a record, so it is refused here rather " +
-                "than sent. List what you have with `loopky deck list --json`.",
-        )
-    }
-    if (value == "." || value == "..") {
-        throw CliError(ExitCode.BadInput, "<$name> cannot be '$value' — that is a relative path, not an id.")
-    }
-    UNUSABLE_IN_SEGMENT.find(value)?.let { hit ->
-        throw CliError(
-            ExitCode.BadInput,
-            "<$name> '$value' contains ${describe(hit.value)}, which cannot appear in a record " +
-                "path. Ids are the ones `loopky deck list --json` and `loopky card list --json` report.",
-        )
-    }
-    return value
+    val complaint = when {
+        value.isBlank() ->
+            "is empty. That can never address a record, so it is refused here rather than sent"
+
+        value == "." || value == ".." -> "cannot be '$value' — that is a relative path, not an id"
+
+        else -> UNUSABLE_IN_SEGMENT.find(value)?.let {
+            "'$value' contains ${describe(it.value)}, which cannot appear in a record path"
+        }
+    } ?: return value
+    throw CliError(
+        ExitCode.BadInput,
+        "<$name> $complaint. The ids to use are the ones `loopky deck list --json` and " +
+            "`loopky card list --json` report.",
+    )
 }
 
 /** Whitespace, control characters, a path separator, and the delimiters that end a URI path. */
