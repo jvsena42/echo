@@ -2,7 +2,9 @@ package com.github.jvsena42.loopky.cli.commands
 
 import com.github.jvsena42.loopky.cli.Args
 import com.github.jvsena42.loopky.cli.CliEnvironment
+import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.CommandResult
+import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.TerminalQr
 import com.github.jvsena42.loopky.cli.asCliError
 import com.github.jvsena42.loopky.cli.eventEnvelope
@@ -15,7 +17,9 @@ import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.Session
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 import java.io.File
 
@@ -227,7 +231,11 @@ data class LogoutResult(
      * False when there was nothing to revoke, which is a success but not a revocation.
      */
     val revoked: Boolean,
-    /** False for a `LOOPKY_SESSION`, which was never written to this machine in the first place. */
+    /**
+     * False for a `LOOPKY_SESSION`, which was never written to this machine in the first place —
+     * and false when the store *refused* to give the credential up, which is the case worth
+     * exiting non-zero over (#213).
+     */
     @SerialName("cleared_locally") val clearedLocally: Boolean,
 )
 
@@ -283,8 +291,34 @@ suspend fun logout(
     // locally-minted key. This client never mints one — it holds a Ring-issued session and
     // nothing else — so there is no key here for the guard to protect.
     val outcome = identity.signOut(force = true).getOrElse { throw asCliError(it) }
+    val report = LogoutResult(
+        revoked = outcome.revokedRemotely,
+        clearedLocally = outcome.hadSession && outcome.clearedLocally,
+    )
+    // A failure, not a success with a caveat. Everything else `logout` can get wrong leaves the
+    // credential somewhere the user was told about; this leaves it exactly where they were told it
+    // was destroyed, and an agent branching on the exit code would move on. The result still
+    // travels, so `cleared_locally: false` is readable on the failure envelope.
+    if (outcome.hadSession && !outcome.clearedLocally) {
+        throw CliError(
+            ExitCode.Internal,
+            buildString {
+                append("This machine's session store would not give the credential up, so it is ")
+                append("still there — on macOS, in the login Keychain as `loopky.session`. ")
+                append(
+                    if (outcome.revokedRemotely) {
+                        "The homeserver did revoke the session, so what remains is a dead token."
+                    } else {
+                        "The homeserver did not confirm revocation either, so it may still be live."
+                    },
+                )
+                append(" Remove it by hand with `security delete-generic-password -s loopky.session`.")
+            },
+            data = logoutJson.encodeToJsonElement(report),
+        )
+    }
     return result(
-        LogoutResult(revoked = outcome.revokedRemotely, clearedLocally = outcome.hadSession),
+        report,
         when {
             // Idempotent, and says so. Reporting a revocation here would claim something happened
             // to a credential that was never there.
@@ -299,3 +333,6 @@ suspend fun logout(
         },
     )
 }
+
+/** Encodes [LogoutResult] onto a failure envelope, where `result()` is not the one carrying it. */
+private val logoutJson = Json { encodeDefaults = true }

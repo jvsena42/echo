@@ -74,11 +74,31 @@ internal class MacKeychainSessionStore(
         }
     }
 
+    /**
+     * **The old item goes before the new one is written anywhere else.**
+     *
+     * Falling back to the file without removing what the Keychain already holds is not merely an
+     * invariant violation, it silently signs you in as somebody else: [load] reads the Keychain
+     * first, so a second `login` whose write fails — a keychain locked between the two — leaves
+     * the *previous* account winning every command afterwards, with `session_live` true because
+     * that session really is live.
+     *
+     * A delete that also fails is a hard failure rather than a quieter fallback. A store that
+     * cannot say which of two credentials will be read back has nothing useful to offer a caller,
+     * and refusing turns a wrong-account write into a failed sign-in.
+     */
     override suspend fun save(session: Session) = withContext(Dispatchers.IO) {
         keychain.write(encode(session)).fold(
             onSuccess = { fallback.clear() },
-            onFailure = {
-                Log.w(TAG, "keychain write failed, keeping the session in ${fallback.location}", it)
+            onFailure = { failure ->
+                Log.w(TAG, "keychain write failed, keeping the session in ${fallback.location}", failure)
+                keychain.delete().getOrElse {
+                    throw IllegalStateException(
+                        "the keychain would neither store this session nor give up the one it " +
+                            "already holds, so the next command would run as the wrong account",
+                        it,
+                    )
+                }
                 fallback.save(session)
             },
         )
@@ -95,9 +115,19 @@ internal class MacKeychainSessionStore(
         }
     }
 
+    /**
+     * Throws when the Keychain item survives, and that is the point.
+     *
+     * Sign-out's remote half already reports its own failure all the way up
+     * (`SignOutOutcome.revokedRemotely`) so nobody is told "signed out" while the token lives.
+     * The local half — the half this method actually promises — used to report nothing at all,
+     * so a keychain that refused a delete produced "Signed out." over a credential still sitting
+     * in it. The file is emptied first either way: whatever happens, the session is not left in
+     * two places.
+     */
     override suspend fun clear() = withContext(Dispatchers.IO) {
-        keychain.delete()
         fallback.clear()
+        keychain.delete().getOrThrow()
     }
 
     /** Move a pre-#213 session into the Keychain the first time it is read back. */

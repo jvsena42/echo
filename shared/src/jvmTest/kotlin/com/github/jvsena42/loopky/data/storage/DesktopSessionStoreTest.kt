@@ -13,6 +13,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -101,6 +102,62 @@ class DesktopSessionStoreTest {
         assertNull(keychain.value)
         assertEquals(SESSION, store.load())
         assertEquals(SESSION, FileSecureSessionStore(secretsStore(home)).load())
+    }
+
+    /**
+     * The failure that is worse than not storing the session: storing it *somewhere the reader
+     * does not look first*. [MacKeychainSessionStore.load] reads the Keychain before the file, so
+     * a second sign-in whose write fails used to leave the previous account winning every command
+     * afterwards — with `session_live` true, because that session really is live.
+     *
+     * Starting from a populated keychain is the whole test. The `writable = false` case above
+     * starts from an empty one, falls through to the file, and looks correct.
+     */
+    @Test
+    fun `a failed write does not leave the previous account in the keychain`() = runTest {
+        val secrets = secretsStore(home)
+        val keychain = FakeKeychain()
+        desktopSecureSessionStore(home, secrets, keychain).save(SESSION)
+
+        val second = SESSION.copy(
+            identity = SESSION.identity.copy(pubky = "pk:second"),
+            sessionSecret = "pk:second:cookie",
+        )
+        val locked = FakeKeychain(value = keychain.value, writable = false)
+        val store = desktopSecureSessionStore(home, secretsStore(home), locked)
+        store.save(second)
+
+        assertNull(locked.value, "the stale item has to go, or load() keeps preferring it")
+        assertEquals(second, store.load())
+    }
+
+    /**
+     * Neither storing the new session nor giving up the old one is refused outright: a store that
+     * cannot say which of two credentials comes back has nothing to offer, and failing the
+     * sign-in beats writing decks under the wrong pubky.
+     */
+    @Test
+    fun `a keychain that will neither write nor delete refuses rather than picking`() = runTest {
+        val keychain = FakeKeychain(value = "c3RhbGU=", writable = false, deletable = false)
+        val store = desktopSecureSessionStore(home, secretsStore(home), keychain)
+
+        assertFailsWith<IllegalStateException> { store.save(SESSION) }
+        assertNull(FileSecureSessionStore(secretsStore(home)).load())
+    }
+
+    /**
+     * `clear()` promises the credential is gone. It used to swallow a refused delete, which is how
+     * `loopky logout` came to print "Signed out." over an item still in the Keychain.
+     */
+    @Test
+    fun `clearing reports a keychain that will not give the credential up`() = runTest {
+        val secrets = secretsStore(home)
+        val keychain = FakeKeychain(value = "c3RpbGwtaGVyZQ==", deletable = false)
+        val store = desktopSecureSessionStore(home, secrets, keychain)
+
+        assertFailsWith<IllegalStateException> { store.clear() }
+        // The file is emptied first regardless, so a failure never leaves it in two places.
+        assertNull(FileSecureSessionStore(secretsStore(home)).load())
     }
 
     @Test
@@ -216,6 +273,7 @@ class DesktopSessionStoreTest {
         var value: String? = null,
         private val readable: Boolean = true,
         private val writable: Boolean = true,
+        private val deletable: Boolean = true,
     ) : Keychain {
         override val location = "a fake keychain"
 
@@ -230,8 +288,10 @@ class DesktopSessionStoreTest {
             return Result.success(Unit)
         }
 
-        override fun delete() {
+        override fun delete(): Result<Unit> {
+            if (!deletable) return Result.failure(IllegalStateException("no"))
             value = null
+            return Result.success(Unit)
         }
     }
 

@@ -208,6 +208,16 @@ data class SignOutOutcome(
     val revokedRemotely: Boolean,
     /** Whether there was a session at all. Sign-out is idempotent; saying so is not. */
     val hadSession: Boolean,
+    /**
+     * True when the stored session is gone from this device.
+     *
+     * The counterpart to [revokedRemotely], and it exists for the same reason: a caller must not
+     * say "signed out" over a credential that is still there. False is possible wherever the
+     * store can refuse — the macOS Keychain can, where a file cannot (#213) — and it is the more
+     * alarming of the two when [revokedRemotely] is also false, because then the token is both
+     * live and still on the machine.
+     */
+    val clearedLocally: Boolean,
 )
 
 /**

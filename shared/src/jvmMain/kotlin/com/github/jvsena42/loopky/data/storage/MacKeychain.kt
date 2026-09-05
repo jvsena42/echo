@@ -1,6 +1,5 @@
 package com.github.jvsena42.loopky.data.storage
 
-import com.github.jvsena42.loopky.util.Log
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
@@ -21,7 +20,17 @@ internal interface Keychain {
     val location: String
     fun read(): KeychainRead
     fun write(value: String): Result<Unit>
-    fun delete()
+
+    /**
+     * Remove the item, reporting whether it is *gone* rather than whether a call was made.
+     *
+     * A `Result` because sign-out promises the credential is destroyed, and the local half of
+     * that promise used to be the one nobody could observe: a keychain that refused a delete was
+     * logged and swallowed, so `loopky logout` printed "Signed out." over a live bearer token.
+     * An item that was already absent is a success — `clear()` promises the item is gone, not
+     * that this call is what removed it.
+     */
+    fun delete(): Result<Unit>
 }
 
 /**
@@ -95,12 +104,12 @@ internal class SecurityCliKeychain(
         }
     }
 
-    override fun delete() {
-        // Best-effort, and `ITEM_NOT_FOUND` is a success: `clear()` promises the item is gone, not
-        // that this call is what removed it.
+    override fun delete(): Result<Unit> {
         val outcome = run(listOf("delete-generic-password", "-s", service, "-a", account))
-        if (outcome.exitCode != 0 && outcome.exitCode != ITEM_NOT_FOUND) {
-            Log.w(TAG, "could not delete the keychain item: ${outcome.describe()}")
+        return if (outcome.exitCode == 0 || outcome.exitCode == ITEM_NOT_FOUND) {
+            Result.success(Unit)
+        } else {
+            Result.failure(IllegalStateException(outcome.describe()))
         }
     }
 
@@ -157,8 +166,6 @@ internal class SecurityCliKeychain(
     }
 
     private companion object {
-        const val TAG = "Loopky/Keychain"
-
         /** `errSecItemNotFound` as `security(1)` reports it. An answer, not a failure. */
         const val ITEM_NOT_FOUND = 44
         const val TIMED_OUT = -1

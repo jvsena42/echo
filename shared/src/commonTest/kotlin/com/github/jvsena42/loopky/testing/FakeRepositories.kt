@@ -157,7 +157,7 @@ class FakeIdentityRepository(var session: Session? = fakeSession()) : IdentityRe
         val had = session != null
         session = null
         return Result.success(
-            SignOutOutcome(revokedRemotely = revokesRemotely && had, hadSession = had),
+            SignOutOutcome(revokedRemotely = revokesRemotely && had, hadSession = had, clearedLocally = true),
         )
     }
 
