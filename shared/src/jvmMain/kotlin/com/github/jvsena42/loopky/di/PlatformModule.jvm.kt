@@ -11,8 +11,8 @@ import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.data.storage.ConfigHome
 import com.github.jvsena42.loopky.data.storage.FileAppPreferences
 import com.github.jvsena42.loopky.data.storage.FileLocalKeyStore
-import com.github.jvsena42.loopky.data.storage.FilePendingReviewStore
 import com.github.jvsena42.loopky.data.storage.FileSecureSessionStore
+import com.github.jvsena42.loopky.data.storage.FilePendingReviewStore
 import com.github.jvsena42.loopky.data.storage.FileSignupTokenStore
 import com.github.jvsena42.loopky.data.storage.FileStudyProgressStore
 import com.github.jvsena42.loopky.data.storage.FileUnsplashKeyStore
@@ -39,6 +39,7 @@ import com.github.jvsena42.loopky.platform.PasswordManagerPresence
 import com.github.jvsena42.loopky.platform.PubkyRingPresence
 import com.github.jvsena42.loopky.platform.Speaker
 import com.github.jvsena42.loopky.platform.SpeechRecognizer
+import com.github.jvsena42.loopky.platform.requireSupportedDesktopHost
 import org.koin.core.context.startKoin
 import org.koin.core.module.Module
 import org.koin.core.qualifier.named
@@ -82,7 +83,14 @@ fun jvmPlatformModule(
     unsplashFallbackKey: String = "",
     mediaProcessor: MediaProcessor,
 ): Module = module {
-    single<PubkyClient> { UniffiPubkyClient() }
+    // The host check runs before the FFI is constructed rather than at the first homeserver
+    // call: an Intel Mac has no `libpubkycore` row, and JNA's miss reads as a 404 to the shared
+    // classifier — a machine that can never talk to a homeserver reporting that the record does
+    // not exist (#213). `:cli` refuses earlier still, with an exit code.
+    single<PubkyClient> {
+        requireSupportedDesktopHost()
+        UniffiPubkyClient()
+    }
     single<HttpFetcher> { JvmHttpFetcher() }
 
     single(PREFERENCES) { preferencesStore(configHome) }
