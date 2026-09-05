@@ -43,9 +43,12 @@ refused with a message that says which, rather than failing at the first homeser
 one `darwin-aarch64` row of `libpubkycore` and no `lipo`, and Windows would need a
 `win32-x86-64/pubkycore.dll` that is not built.
 
-There is **no hosted apt repository** and there will not be one. Adding a third-party apt repo is
-four privileged commands and a GPG keyring on a machine that may not have root, where the same
-binary is one `curl` and needs none.
+There is **no hosted apt repository today**, so the `.deb` is a file rather than a source: nothing
+tracks it and `apt upgrade` will never move it — a new version means downloading the next one, which
+is what `loopky update` says when it refuses on a `dpkg`-owned file. Adding a third-party apt repo
+is four privileged commands and a GPG keyring on a machine that may not have root, where the same
+binary is one `curl` and needs none — and a signing key is an obligation with no end date. That
+trade-off is unsettled rather than closed: **#247** holds what it would take and what it would cost.
 
 ## Build
 
