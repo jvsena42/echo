@@ -134,16 +134,23 @@ private fun updateJson(update: UpdateAvailable?): JsonElement =
  * An out-of-band event, for the one command that has something to say before it finishes.
  *
  * `login` prints the auth URL and then blocks until Pubky Ring approves, so its output is two
- * lines rather than one: this event, then the ordinary envelope. Nothing else emits one, and a
- * parser that ignores any line whose `event` it does not know stays correct.
+ * lines rather than one: this event, then the ordinary envelope. A parser that ignores any line
+ * whose `event` it does not know stays correct.
+ *
+ * [ok] defaults to true because the first event could not fail — an auth URL is either printed or
+ * the command is over. `batch` streams one of these per operation and **must** pass its own
+ * outcome: hardcoding true here meant a run whose writes were failing streamed a line saying `ok`
+ * for every one of them, and branching on the envelope's `ok` is the obvious way to read a stream
+ * of envelopes.
  */
-fun eventEnvelope(command: String, event: String, data: JsonElement): String = cliJson.encodeToString(
-    JsonElement.serializer(),
-    buildJsonObject {
-        put("schema", SCHEMA_VERSION)
-        put("ok", true)
-        put("command", command)
-        put("event", event)
-        put("data", data)
-    },
-)
+fun eventEnvelope(command: String, event: String, data: JsonElement, ok: Boolean = true): String =
+    cliJson.encodeToString(
+        JsonElement.serializer(),
+        buildJsonObject {
+            put("schema", SCHEMA_VERSION)
+            put("ok", ok)
+            put("command", command)
+            put("event", event)
+            put("data", data)
+        },
+    )

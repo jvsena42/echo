@@ -127,7 +127,7 @@ private fun run(argv: Array<String>): ExitCode {
                 // rather than about a deck that does not exist. See `requireSupportedHost`.
                 requireSupportedHost()
                 val koin = startCli(environment)
-                dispatch(args, koin.identity(), koin, environment)
+                dispatch(args, koin.identity(), koin, environment, json = args.has("json"))
             }
             emit(args, environment, args.verb, result, updates.notice(update.await()))
             ExitCode.Ok
@@ -160,19 +160,28 @@ private fun run(argv: Array<String>): ExitCode {
  * is load-bearing: a remote MCP server serves an audience the CLI cannot reach — a chat-only agent
  * has no shell — and should be a binding over these functions rather than a second implementation.
  */
-@Suppress("CyclomaticComplexMethod")
+@Suppress("CyclomaticComplexMethod", "LongParameterList")
 private suspend fun dispatch(
     args: Args,
     identity: IdentityRepository,
     koin: Koin,
     environment: CliEnvironment,
+    /**
+     * Whether **this invocation** asked for the machine channel.
+     *
+     * Passed rather than read off [args], because `batch` re-enters here with an operation's own
+     * `Args` — built from a JSON `argv` array that never carries `--json`, since the flag is on
+     * the outer command line. Deriving it here meant `loopky batch ops.ndjson --json` printed a
+     * 20,000-card import's whole progress stream to stderr, in exactly the mode that suppresses it.
+     */
+    json: Boolean,
 ): CommandResult {
     // Two sinks, because they are two different things and collapsing them silenced a warning in the
     // mode an agent runs. `progress` is a counter — thousands of lines on a large import — so it is
     // suppressed under `--json`, where the result carries the same numbers. `note` is something the
     // caller needs to *know* and goes to stderr always: an agent capturing stderr for diagnostics
     // must not get an empty file because it asked for JSON.
-    val progress: (String) -> Unit = { line -> if (!args.has("json")) System.err.println(line) }
+    val progress: (String) -> Unit = { line -> if (!json) System.err.println(line) }
     val note: (String) -> Unit = System.err::println
     return when (val verb = args.verb) {
         "login" -> login(
@@ -180,7 +189,7 @@ private suspend fun dispatch(
             identity,
             koin.get<SecureSessionStore>(),
             environment,
-            LoginSinks({ line -> emitEvent(args, line) }, System.err::println),
+            LoginSinks({ line -> if (json) println(line) }, System.err::println),
         )
         "logout" -> logout(identity)
         "whoami" -> whoami(identity, koin.get<PubkyClient>(), koin.get<SecureSessionStore>(), environment)
@@ -232,8 +241,8 @@ private suspend fun dispatch(
         // load, is what the command buys.
         "batch" -> batch(
             args,
-            { operation -> dispatch(operation, identity, koin, environment) },
-            BatchSinks({ line -> emitEvent(args, line) }, note),
+            { operation -> dispatch(operation, identity, koin, environment, json) },
+            BatchSinks({ line -> if (json) println(line) }, note),
         )
 
         // `update` and `completion` are deliberately absent: both are handled in `run` before
@@ -272,10 +281,6 @@ private fun emit(
         println(result.text)
     }
     noteUpdate(notice)
-}
-
-private fun emitEvent(args: Args, line: String) {
-    if (args.has("json")) println(line)
 }
 
 private fun fail(
