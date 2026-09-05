@@ -1,6 +1,8 @@
 package com.github.jvsena42.loopky.cli
 
+import com.github.jvsena42.loopky.cli.commands.BatchSinks
 import com.github.jvsena42.loopky.cli.commands.LoginSinks
+import com.github.jvsena42.loopky.cli.commands.batch
 import com.github.jvsena42.loopky.cli.commands.cardAdd
 import com.github.jvsena42.loopky.cli.commands.cardEdit
 import com.github.jvsena42.loopky.cli.commands.cardList
@@ -222,6 +224,18 @@ private suspend fun dispatch(
         // No session: a Nexus read is plain HTTP against a public index.
         "tag trending" -> tagTrending(args, koin.get<TagRepository>(), environment)
 
+        // Recursive on purpose, and it is the whole design: every operation goes back through
+        // this same `when`, so a batch cannot accept a command the CLI does not have or spell one
+        // differently. `Batch.kt` knows nothing about Koin — it is handed this lambda. The session
+        // is resolved once, by the first operation that needs it, and every later one finds it in
+        // `SessionProvider` rather than loading it again; that, plus one process start and one FFI
+        // load, is what the command buys.
+        "batch" -> batch(
+            args,
+            { operation -> dispatch(operation, identity, koin, environment) },
+            BatchSinks({ line -> emitEvent(args, line) }, note),
+        )
+
         // `update` and `completion` are deliberately absent: both are handled in `run` before
         // Koin starts, since neither may depend on an install healthy enough to load the FFI.
         // Both are still one function taking plain values, so the MCP-binding shape below is
@@ -425,6 +439,25 @@ internal val USAGE = """
                                 completion scripts are, so it cannot describe a surface this
                                 binary does not have. `loopky --help --json` prints the same thing.
                                 Needs no session and no network.
+
+      batch <file|->            Run a file of operations against one session — one JSON object per
+                                line, {"argv": ["card", "add", "deckid", "--front", "a",
+                                "--back", "b"]}, with an optional "id" echoed back. The bare array
+                                works too. Every homeserver command pays process start, the FFI
+                                load and the session round trip; a *sequence of different*
+                                commands is the one shape that had no amortised form, and it is
+                                the shape an agent produces. Each line is parsed and dispatched by
+                                the same code a command line is, so a batch can never accept
+                                something the CLI does not.
+
+                                Under --json each operation streams a line of its own —
+                                "event":"operation", carrying that command's whole result — and
+                                the final envelope summarises. A failed operation does not end the
+                                run unless --stop-on-error; the exit code is the first failure's,
+                                because session_expired and storage_full say different things
+                                about re-running the file. Nothing is transactional and nothing
+                                rolls back: re-run it. card add, card edit and
+                                deck create --id --if-not-exists are all idempotent.
 
     SHELL
       completion bash|zsh|fish  Print a completion script on stdout, generated from this binary's

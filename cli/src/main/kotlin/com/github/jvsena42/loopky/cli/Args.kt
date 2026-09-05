@@ -126,6 +126,9 @@ class Args private constructor(
             // `deck create --if-not-exists`, which only means anything beside `--id`. A switch
             // rather than a mode, because "make sure this deck exists" is one gesture.
             "if-not-exists",
+            // `batch`. Off by default: when the same rows apply singly, one refused operation is
+            // not a reason to abandon the six hundred after it.
+            "stop-on-error",
         )
 
         fun parse(argv: Array<String>): Args {

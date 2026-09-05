@@ -270,6 +270,16 @@ internal fun cliCommands(): List<CliCommand> = listOf(
     ),
 
     CliCommand(
+        path = "batch",
+        summary = "run a file of operations against one session, one JSON object per line",
+        operand = Operand.Path,
+        options = listOf(
+            CliOption("stop-on-error", "stop at the first operation that fails", OptionValue.Switch),
+        ),
+        writes = true,
+    ),
+
+    CliCommand(
         path = "update",
         summary = "replace this binary with the newest release",
         options = listOf(CliOption("check", "ask without doing", OptionValue.Switch)),
