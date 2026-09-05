@@ -295,6 +295,13 @@ jobs:
           cache-from: type=gha,scope=cli-toolchain
           cache-to: type=gha,mode=max,scope=cli-toolchain
 
+      # `provenance: false` is load-bearing, not tidiness. `build-push-action` attaches a SLSA
+      # provenance attestation by default, and with `type=local` that arrives as a second file —
+      # `dist/provenance.json` beside the binary. The one-file assertion below caught it on the
+      # first run, which is the assertion being worth having: `curl … -o ~/.local/bin/loopky`
+      # installs whatever is at that path and nothing else, so an attestation the installer never
+      # fetches is exactly the kind of stray this job exists to refuse. `sbom` is off for the same
+      # reason, before it is ever switched on by default.
       - name: Build the binary
         uses: docker/build-push-action@v6
         with:
@@ -302,6 +309,8 @@ jobs:
           file: cli/Dockerfile
           target: export
           outputs: type=local,dest=dist
+          provenance: false
+          sbom: false
           cache-from: type=gha,scope=cli-toolchain
 
       - name: One file, and it works
