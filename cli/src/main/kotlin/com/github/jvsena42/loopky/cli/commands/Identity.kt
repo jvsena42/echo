@@ -12,10 +12,14 @@ import com.github.jvsena42.loopky.cli.requireSession
 import com.github.jvsena42.loopky.cli.requireSessionSecretShape
 import com.github.jvsena42.loopky.cli.result
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
+import com.github.jvsena42.loopky.data.repository.AuthFlowHandle
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SignOutOutcome
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.Session
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -23,6 +27,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 import java.io.File
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The capabilities a headless client asks Pubky Ring for, and the whole of them.
@@ -131,6 +136,10 @@ suspend fun login(
     sinks: LoginSinks,
 ): CommandResult {
     val (emitEvent, stderr) = sinks
+    // Read before `beginSignIn`, not at the point of use: the FFI's auth flow is a single global
+    // slot the first poll takes, so refusing `--timeout twenty` after starting one would spend a
+    // code nobody ever saw.
+    val timeout = args.positiveIntOrNull("timeout")
     val handle = identity.beginSignIn(capabilities = CLI_CAPABILITIES, returnToApp = false)
         .getOrElse { throw asCliError(it) }
 
@@ -164,10 +173,10 @@ suspend fun login(
     }
     stderr("")
     stderr("Requesting $CLI_CAPABILITIES only — this session cannot post, follow or edit a profile.")
-    stderr("Waiting for approval…")
+    stderr(timeout?.let { "Waiting for approval (up to ${it}s)…" } ?: "Waiting for approval…")
 
     val session = try {
-        handle.complete().getOrElse { throw asCliError(it) }
+        handle.completeWithin(timeout).getOrElse { throw asCliError(it) }
     } finally {
         // Whether approval landed or not: the URL in that file is either spent or dead, and
         // leaving a live one on disk is the point. Best-effort — a file the user cannot delete is
@@ -200,6 +209,33 @@ suspend fun login(
                 appendLine("Treat that like a password: it authorises writes to /pub/loopky until it expires.")
             }
         }.trimEnd(),
+    )
+}
+
+/**
+ * Await approval, giving up after [seconds] when one was asked for.
+ *
+ * **Not `withTimeout { complete() }`.** `complete()` blocks in the FFI on a `Dispatchers.IO`
+ * thread, and `withContext` does not hand control back until its body returns whatever the job
+ * says — measured, a 300 ms timeout around a 5 s blocking call returned null after 5 s. So the
+ * wait happens on a thread of its own and the timeout is applied to a [CompletableDeferred],
+ * which is a real suspension point.
+ *
+ * The thread is a daemon and is deliberately left where it is: it is parked inside a native call
+ * that nothing on this side can interrupt, and the process exits as soon as this returns. What is
+ * bought by exiting *here* rather than under `timeout -s KILL` is the `finally` below — the
+ * shutdown hook is removed and a `--qr-out` file holding a live auth URL is deleted (#240).
+ */
+internal suspend fun AuthFlowHandle.completeWithin(seconds: Int?): Result<Session> {
+    if (seconds == null) return complete()
+    val awaited = CompletableDeferred<Result<Session>>()
+    Thread { awaited.complete(runBlocking { complete() }) }
+        .apply { isDaemon = true; name = "loopky-login-await" }
+        .start()
+    return withTimeoutOrNull(seconds.seconds) { awaited.await() } ?: throw CliError(
+        ExitCode.Timeout,
+        "Nobody approved the sign-in within ${seconds}s. Nothing was stored. The code that was " +
+            "on screen is spent — the FFI's auth flow is single-use — so run `loopky login` again.",
     )
 }
 

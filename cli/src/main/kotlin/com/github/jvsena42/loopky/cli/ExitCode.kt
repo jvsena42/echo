@@ -98,6 +98,22 @@ enum class ExitCode(val code: Int, val json: String) {
      * been applied. That distinction is what makes a resumed write safe to attempt.
      */
     ServerError(12, "server_error"),
+
+    /**
+     * `login --timeout` ran out before Pubky Ring approved (#240, finding 2).
+     *
+     * Its own code because the alternative is SIGKILL, which is what an unattended caller had.
+     * `login` blocks until a human reaches for their phone, which is correct at a terminal and
+     * unusable in a script — and `timeout -s KILL` skips the shutdown hook that sweeps a
+     * `--qr-out` file, leaving a **live auth URL on disk**. Bounding the wait inside the process
+     * is what keeps that cleanup.
+     *
+     * Nothing was signed in and nothing was stored. Not [Network], which would say the relay was
+     * unreachable: it was reachable and nobody answered. Retrying means running `login` again —
+     * the FFI's auth flow is a single global slot that the first poll takes, so the code already
+     * on screen is spent either way.
+     */
+    Timeout(13, "timeout"),
     ;
 
     companion object {

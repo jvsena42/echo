@@ -243,12 +243,15 @@ jobs:
           # binary's own resources, checks its API checksums and registers a JNA callback. A
           # missing reachability registration dies here and nowhere earlier.
           #
-          # It then blocks on a human approving in Ring, so it is killed after a moment — the URL
-          # *is* the pass. Offline-safe on purpose: the URL is built locally from a generated
-          # secret and printed before the relay is polled, so this asserts the FFI and nothing
-          # about the network, and a relay wobble cannot fail a PR.
-          timeout -s TERM 25 dist/loopky login --url-only > /dev/null 2> qr.log || true
+          # It then blocks on a human approving in Ring, so it bounds itself: `--timeout` rather
+          # than the `timeout -s TERM … || true` wrapper this used to need (#240). Offline-safe on
+          # purpose — the URL is built locally from a generated secret and printed before the
+          # relay is polled, so this asserts the FFI and nothing about the network. 13 is nobody
+          # approving, which is the expected outcome; 5 is the relay being unreachable, which must
+          # not fail a PR. Anything else is the FFI, and `|| true` used to hide exactly that.
+          set +e; dist/loopky login --url-only --timeout 15 > /dev/null 2> qr.log; CODE=$?; set -e
           cat qr.log
+          case "$CODE" in 13|5) ;; *) echo "login exited $CODE, expected 13 (timeout) or 5"; exit 1;; esac
           grep -q '^pubkyauth://' qr.log
 
           # And the SDK's tracing stays quiet by default. There is no start script on a binary to

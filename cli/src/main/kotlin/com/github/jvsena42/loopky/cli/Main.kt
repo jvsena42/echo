@@ -319,9 +319,12 @@ internal val USAGE = """
       loopky <command> [options]
 
     IDENTITY
-      login [--export] [--qr-out FILE] [--url-only]
+      login [--export] [--qr-out FILE] [--url-only] [--timeout SECONDS]
                                 Print a QR code for Pubky Ring and wait for approval.
                                 --export also prints the session secret for LOOPKY_SESSION.
+                                --timeout bounds the wait and exits 13, which is what an
+                                unattended caller needs: killing the process instead skips the
+                                sweep that deletes a --qr-out file still holding a live auth URL.
       logout                    Forget the stored session.
       whoami                    Pubky, homeserver, capabilities, environment, and whether the
                                 session is still accepted.
@@ -471,6 +474,7 @@ internal val USAGE = """
       4 session expired        10 no build for this host
       5 network                11 update found but not applied (a managed install)
                               12 the homeserver answered 5xx — not your input, and worth retrying
+                              13 login --timeout ran out before anyone approved
 
     NOTES
       Sessions are stored as a mode-0600 file, not in an OS keyring. libsecret is usually absent

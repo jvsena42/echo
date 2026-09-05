@@ -144,6 +144,7 @@ internal fun cliCommands(): List<CliCommand> = listOf(
             CliOption("export", "also print the session secret, for LOOPKY_SESSION", OptionValue.Switch),
             CliOption("qr-out", "write the QR code to a file", OptionValue.Path),
             CliOption("url-only", "print the pubkyauth URL and no QR code", OptionValue.Switch),
+            CliOption("timeout", "give up after this many seconds rather than waiting forever"),
         ),
     ),
     CliCommand("logout", "forget the stored session"),

@@ -75,8 +75,16 @@ class Args private constructor(
      * whatever the caller does with a negative — both of which answer a question nobody asked,
      * which is the failure mode this surface exists to avoid.
      */
-    fun positiveInt(name: String, default: Int): Int {
-        val raw = option(name) ?: return default
+    fun positiveInt(name: String, default: Int): Int = positiveIntOrNull(name) ?: default
+
+    /**
+     * The same, for an option whose absence is not a number.
+     *
+     * `login --timeout` is the case: not passing it means *wait forever*, which no default can
+     * stand in for.
+     */
+    fun positiveIntOrNull(name: String): Int? {
+        val raw = option(name) ?: return null
         return raw.toIntOrNull()?.takeIf { it > 0 }
             ?: throw CliError(ExitCode.Usage, "--$name must be a positive whole number, not '$raw'.")
     }
