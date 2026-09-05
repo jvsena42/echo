@@ -136,7 +136,7 @@ suspend fun import(
      */
     onNote: (String) -> Unit,
 ): CommandResult {
-    val source = args.word(1) ?: throw CliError(ExitCode.Usage, "Missing <file>, or - for stdin.")
+    val source = args.requireSource()
     val title = args.requireOption("title").trim()
     if (title.isEmpty()) throw CliError(ExitCode.Usage, "--title cannot be empty.")
 
@@ -200,6 +200,21 @@ suspend fun import(
 }
 
 /**
+ * The file to import, refused when it is present but empty.
+ *
+ * Absent is a usage error — you forgot the operand. `loopky import "" --title x` is not: an empty
+ * string is an answer, it can never name a file, and reporting it as anything an agent retries
+ * (see `requireUsableOperand`) buys a loop against an input that cannot come right.
+ */
+private fun Args.requireSource(): String {
+    val source = word(1) ?: throw CliError(ExitCode.Usage, "Missing <file>, or - for stdin.")
+    if (source.isBlank()) {
+        throw CliError(ExitCode.BadInput, "<file> is empty. Give a path, or - to read stdin.")
+    }
+    return source
+}
+
+/**
  * The same numbers as [ImportResult], for a person. Deliberately the *same* numbers rather than a
  * friendlier subset: a loss only one rendering mentions is a loss somebody will miss.
  */
@@ -239,7 +254,7 @@ suspend fun importDryRun(
     imports: ImportRepository,
     onNote: (String) -> Unit = System.err::println,
 ): CommandResult {
-    val source = args.word(1) ?: throw CliError(ExitCode.Usage, "Missing <file>, or - for stdin.")
+    val source = args.requireSource()
     val title = args.option("title")?.trim()?.takeIf { it.isNotEmpty() }
 
     // Nothing is uploaded, so blobs are measured and dropped rather than held: a dry run of a

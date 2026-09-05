@@ -34,8 +34,15 @@ class Args private constructor(
 
     fun word(index: Int): String? = words.getOrNull(index)
 
+    /**
+     * A required operand — a deck or card id — checked for being addressable at all.
+     *
+     * Absent is [ExitCode.Usage]; present but unusable is [ExitCode.BadInput], via
+     * [requireUsableOperand]. The second half is the point: it is what stops a blank id reaching a
+     * homeserver path and coming back as `internal`, the one code an agent retries.
+     */
     fun requireWord(index: Int, name: String): String =
-        word(index) ?: throw CliError(ExitCode.Usage, "Missing <$name>.")
+        requireUsableOperand(word(index) ?: throw CliError(ExitCode.Usage, "Missing <$name>."), name)
 
     fun option(name: String): String? = options[name]?.lastOrNull()
 
