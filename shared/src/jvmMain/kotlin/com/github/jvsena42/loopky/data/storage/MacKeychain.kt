@@ -1,9 +1,11 @@
 package com.github.jvsena42.loopky.data.storage
 
 import com.github.jvsena42.loopky.util.Log
+import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 
 /** What one keychain lookup can say. [Missing] is an answer; [Failed] is the absence of one. */
@@ -50,6 +52,12 @@ internal class SecurityCliKeychain(
     private val service: String = SESSION_SERVICE_NAME,
     private val account: String = SESSION_STORAGE_KEY,
     private val security: Path = SECURITY_BIN,
+    /**
+     * Injectable so a test can prove the bound *fires*. It was unreachable for a while and
+     * nothing said so, because the only thing that had ever exercised this path was a `security`
+     * that answers immediately.
+     */
+    private val timeoutSeconds: Long = TIMEOUT_SECONDS,
 ) : Keychain {
 
     override val location: String = "the macOS Keychain (service $service)"
@@ -96,23 +104,53 @@ internal class SecurityCliKeychain(
         }
     }
 
+    /**
+     * Run one `security` subcommand under a wall-clock bound.
+     *
+     * **Both pipes are drained on their own threads, and that is what makes the timeout real.**
+     * Reading them inline is the obvious shape and it silently disarms the bound: `readText()`
+     * returns at EOF, EOF arrives when the child exits, so `waitFor` is only ever reached by a
+     * process that has already finished and can never report a timeout. The hang it exists for is
+     * not hypothetical — `find-generic-password` on an item whose ACL is not satisfied blocks on
+     * an unlock prompt that never arrives over SSH or under `launchd`, and a wedged `securityd`
+     * does the same. Unbounded, `loopky whoami` simply never returns, which is the failure an
+     * agent can least recover from.
+     *
+     * Off-thread rather than `redirectOutput` to a file, because the thing on stdout *is* the
+     * session: a temp file would put the credential on disk for the length of every read, which
+     * is the posture this store exists to improve on.
+     */
     private fun run(args: List<String>, stdin: String? = null): Outcome {
         val command = listOf(security.toString()) + (if (stdin == null) args else listOf("-i") + args)
         return runCatching {
             val process = ProcessBuilder(command).start()
-            process.outputStream.use { if (stdin != null) it.write(stdin.toByteArray()) }
-            // Both streams are drained before `waitFor`, and both are tiny — a session payload is
-            // a few hundred bytes and `security`'s errors are one line. A process left blocked on
-            // a full pipe would hang here instead.
-            val out = process.inputStream.bufferedReader().use { it.readText() }
-            val err = process.errorStream.bufferedReader().use { it.readText() }
-            if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            try {
+                val out = process.inputStream.drainOffThread()
+                val err = process.errorStream.drainOffThread()
+                process.outputStream.use { if (stdin != null) it.write(stdin.toByteArray()) }
+                if (process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+                    Outcome(process.exitValue(), out.text(), err.text())
+                } else {
+                    Outcome(TIMED_OUT, "", "no answer in ${timeoutSeconds}s — a locked keychain, or a confirmation prompt nobody can see")
+                }
+            } finally {
+                // A no-op once it has exited, and the only thing that unblocks the drain threads
+                // on the timeout path — or after a failed write to its stdin, which used to leave
+                // the process running.
                 process.destroyForcibly()
-                return Outcome(TIMED_OUT, "", "no answer in ${TIMEOUT_SECONDS}s — is the keychain locked?")
             }
-            Outcome(process.exitValue(), out, err)
         }.getOrElse { Outcome(NOT_RUN, "", it.message ?: it::class.simpleName.orEmpty()) }
     }
+
+    private fun InputStream.drainOffThread(): FutureTask<String> {
+        val task = FutureTask { runCatching { bufferedReader().use { it.readText() } }.getOrDefault("") }
+        Thread(task, "loopky-keychain-drain").apply { isDaemon = true }.start()
+        return task
+    }
+
+    /** The drained text, or empty — the process is gone by now, so this is a formality. */
+    private fun FutureTask<String>.text(): String =
+        runCatching { get(DRAIN_TIMEOUT_SECONDS, TimeUnit.SECONDS) }.getOrDefault("")
 
     private data class Outcome(val exitCode: Int, val stdout: String, val stderr: String) {
         fun describe(): String = "security exited $exitCode: ${stderr.trim().ifEmpty { "no message" }}"
@@ -126,6 +164,7 @@ internal class SecurityCliKeychain(
         const val TIMED_OUT = -1
         const val NOT_RUN = -2
         const val TIMEOUT_SECONDS = 20L
+        const val DRAIN_TIMEOUT_SECONDS = 2L
     }
 }
 

@@ -187,6 +187,31 @@ class DesktopSessionStoreTest {
         assertIs<KeychainRead.Missing>(keychain.read())
     }
 
+    /**
+     * The bound has to actually fire, which is not what the code said before: draining both pipes
+     * inline meant `waitFor` was only ever reached by a process that had already exited, so the
+     * timeout could never be produced. `security find-generic-password` really does block
+     * indefinitely on an unlock prompt nobody can answer over SSH, and unbounded that is a
+     * `loopky whoami` that never returns.
+     *
+     * A `sleep` standing in for `security`, so this needs no keychain and runs anywhere POSIX.
+     */
+    @Test
+    fun `a security that never answers is cut off rather than waited on`() {
+        val sleeper = Files.createTempFile("fake-security", ".sh")
+        sleeper.toFile().writeText("#!/bin/sh\nsleep 30\n")
+        sleeper.toFile().setExecutable(true)
+
+        val started = System.nanoTime()
+        val read = SecurityCliKeychain(security = sleeper, timeoutSeconds = 1).read()
+        val elapsedMs = (System.nanoTime() - started) / 1_000_000
+
+        assertIs<KeychainRead.Failed>(read)
+        assertContains(read.message, "no answer in 1s")
+        assertTrue(elapsedMs < 15_000, "gave up after ${elapsedMs}ms, so the bound did not fire")
+        Files.deleteIfExists(sleeper)
+    }
+
     private class FakeKeychain(
         var value: String? = null,
         private val readable: Boolean = true,
