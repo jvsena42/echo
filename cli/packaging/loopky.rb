@@ -46,6 +46,10 @@ class Loopky < Formula
 
   def install
     bin.install Dir["loopky*"].first => "loopky"
+    # The download is a bare executable, not an archive, so it arrives 0644 and `bin.install`
+    # keeps the mode. Without this the install dies one line down with
+    # `brew: exec failed (EACCES)` and never reaches a user.
+    (bin/"loopky").chmod 0555
     # Generated from the binary just installed rather than shipped as files, so the completions
     # cannot describe a surface this build does not have. Homebrew runs `loopky completion <shell>`
     # for each of the three and puts the output where each shell looks.
