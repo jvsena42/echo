@@ -134,6 +134,14 @@ private fun CliCommand.exitCodes(): List<ExitCode> = buildList {
     }
     if (writes) add(ExitCode.StorageFull)
     addAll(alsoExits)
+    // A relaying command answers with the code of whatever it ran, so its own shape says nothing
+    // about the set. The union is over what it can actually *run* — the batchable commands — which
+    // is why `notBatchable` lives on the table rather than in a list beside the runner: taking the
+    // union over everything would promise `timeout` and `update_unsupported`, from the two commands
+    // a batch is not allowed to contain. No recursion: every relaying command is unbatchable.
+    if (relaysExitCodes) {
+        cliCommands().filter { it.notBatchable == null }.forEach { addAll(it.exitCodes()) }
+    }
 }.distinct().sortedBy { it.code }
 
 private fun Operand.specs(): List<OperandSpec> = when (this) {

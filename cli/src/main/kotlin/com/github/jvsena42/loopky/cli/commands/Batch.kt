@@ -5,6 +5,7 @@ import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.CommandResult
 import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.asCliError
+import com.github.jvsena42.loopky.cli.cliCommands
 import com.github.jvsena42.loopky.cli.cliJson
 import com.github.jvsena42.loopky.cli.eventEnvelope
 import com.github.jvsena42.loopky.cli.result
@@ -171,11 +172,21 @@ private suspend fun runOperation(
     }
 }
 
+/**
+ * One operation as a line on the machine channel.
+ *
+ * [ok] is passed to [eventEnvelope] as well as put in the payload, and that is the point: the
+ * envelope's own `ok` used to be hardcoded true — it was written for `login`'s `auth_url`, which
+ * cannot fail — so a 500-operation run in which half the writes failed streamed 500 lines saying
+ * `"ok": true`. Branching on the envelope is the obvious way to consume a stream of envelopes, and
+ * `--json` is a versioned API rather than a print format.
+ */
 private fun BatchOperation.event(command: String, ok: Boolean, data: JsonElement?, error: CliError?): String =
     eventEnvelope(
         "batch",
         "operation",
-        buildJsonObject {
+        ok = ok,
+        data = buildJsonObject {
             put("index", index)
             put("id", id?.let(::JsonPrimitive) ?: JsonNull)
             put("command", command)
@@ -218,10 +229,12 @@ private fun readOperations(source: String): List<BatchOperation> {
         if (!file.isFile) throw CliError(ExitCode.BadInput, "No such file: $source")
         file.readText(Charsets.UTF_8)
     }
-    val operations = text.lineSequence()
-        .filter { it.isNotBlank() }
-        .mapIndexed { index, line -> parseOperation(index, line) }
-        .toList()
+    // Numbered before the blanks are dropped: a reported "Line 4" that is the file's line 5 sends
+    // the caller to the wrong line of the file they wrote.
+    val operations = text.lines()
+        .mapIndexed { lineNumber, line -> lineNumber + 1 to line }
+        .filter { (_, line) -> line.isNotBlank() }
+        .mapIndexed { index, (lineNumber, line) -> parseOperation(index, lineNumber, line) }
     if (operations.isEmpty()) throw CliError(ExitCode.BadInput, "$source held no operations.")
     return operations
 }
@@ -232,8 +245,8 @@ private fun readOperations(source: String): List<BatchOperation> {
  * Both forms, because they are the two things a caller building this file with `jq` naturally
  * produces, and accepting the array costs one branch. `id` is optional and echoed back.
  */
-private fun parseOperation(index: Int, line: String): BatchOperation {
-    val where = "Line ${index + 1}"
+private fun parseOperation(index: Int, lineNumber: Int, line: String): BatchOperation {
+    val where = "Line $lineNumber"
     val json = runCatching { batchJson.parseToJsonElement(line) }.getOrElse {
         throw CliError(ExitCode.BadInput, "$where is not JSON: ${it.message}")
     }
@@ -262,30 +275,24 @@ private fun parseOperation(index: Int, line: String): BatchOperation {
 private fun JsonPrimitive.contentOrNullIfJsonNull(): String? = if (this is JsonNull) null else content
 
 /**
- * Refuse the verbs that cannot mean anything inside a run.
+ * Refuse anything that cannot run inside a batch.
  *
- * `batch` itself, because a file that includes itself is a loop with a homeserver on the end of
- * it. `login` and `logout`, because the whole premise is one session held across the run and both
- * of them replace or destroy it underneath the operations that follow. `update`, because replacing
- * the running binary mid-run is not something a line in a file should be able to ask for. And
- * `completion` and `commands`, which are handled before Koin starts and print a script or a table
- * rather than doing anything — harmless, and refused anyway so the rule is "a batch does
- * homeserver work" rather than a list of exceptions.
+ * A verb this binary does not have is refused **here** rather than by `dispatch`, because that is
+ * the whole promise of parsing the file first: a typo on line 400 must fail with the homeserver
+ * untouched, not 399 operations in. `deck creat` and a bare `deck` both parse fine and both used
+ * to reach `dispatch`'s `else ->` after 399 writes had landed.
+ *
+ * Both answers come from `CommandSurface.kt` rather than from a list kept here, and that is not
+ * tidiness: `commands --json` derives `batch`'s own exit codes from the union of the batchable
+ * commands, so a second list would make the published surface wrong the first time the two
+ * disagreed. The six that are refused each carry their reason on the table entry.
  */
 private fun requireBatchable(where: String, verb: String) {
-    if (verb in UNBATCHABLE) {
-        throw CliError(
-            ExitCode.BadInput,
-            "$where: `$verb` cannot run inside a batch. ${UNBATCHABLE.getValue(verb)}",
-        )
+    val command = cliCommands().firstOrNull { it.path == verb } ?: throw CliError(
+        ExitCode.BadInput,
+        "$where: `$verb` is not a loopky command. `loopky commands --json` lists every one.",
+    )
+    command.notBatchable?.let { reason ->
+        throw CliError(ExitCode.BadInput, "$where: `$verb` cannot run inside a batch. $reason")
     }
 }
-
-private val UNBATCHABLE = mapOf(
-    "batch" to "A batch that contains itself is a loop.",
-    "login" to "A batch runs as one session; sign in before it.",
-    "logout" to "It would revoke the session the remaining operations run as.",
-    "update" to "Run it before or after; not while this binary is executing a file.",
-    "completion" to "It prints a shell script and does no homeserver work.",
-    "commands" to "It prints the command table and does no homeserver work.",
-)

@@ -90,6 +90,24 @@ internal data class CliCommand(
     val local: Boolean = false,
     /** Codes this command alone can produce, which nothing about its shape implies. */
     val alsoExits: List<ExitCode> = emptyList(),
+    /**
+     * Exits with a *relayed* code: whatever the operation it ran exited with.
+     *
+     * `batch` does, and nothing about its own shape says so — it takes a path, so the derivation
+     * would give it `bad_input` and stop, while `{"argv":["deck","show","nope"]}` makes it exit
+     * `not_found`. Under-listing is the direction that hurts: an agent that sees a code the table
+     * says is impossible has no rule for it.
+     */
+    val relaysExitCodes: Boolean = false,
+    /**
+     * Why this command cannot run inside a `batch`, or null when it can.
+     *
+     * Declared here rather than as a list in `Batch.kt` so the table is the one authority: `batch`
+     * validates a line against it, and [relaysExitCodes] takes its union from it. A command added
+     * without a thought about batching is batchable by default, which is the right default — the
+     * six that are not each have a reason, and the reason is the message.
+     */
+    val notBatchable: String? = null,
 )
 
 /**
@@ -173,8 +191,13 @@ internal fun cliCommands(): List<CliCommand> = listOf(
         // Sign-in is what produces a session; it cannot require one.
         needsSession = false,
         alsoExits = listOf(ExitCode.Timeout),
+        notBatchable = "A batch runs as one session; sign in before it.",
     ),
-    CliCommand("logout", "forget the stored session"),
+    CliCommand(
+        path = "logout",
+        summary = "forget the stored session",
+        notBatchable = "It would revoke the session the remaining operations run as.",
+    ),
     CliCommand("whoami", "pubky, homeserver, capabilities, environment, and whether the session is live"),
 
     CliCommand("deck list", "every deck you have published"),
@@ -277,6 +300,8 @@ internal fun cliCommands(): List<CliCommand> = listOf(
             CliOption("stop-on-error", "stop at the first operation that fails", OptionValue.Switch),
         ),
         writes = true,
+        relaysExitCodes = true,
+        notBatchable = "A batch that contains itself is a loop.",
     ),
 
     CliCommand(
@@ -286,6 +311,7 @@ internal fun cliCommands(): List<CliCommand> = listOf(
         needsSession = false,
         local = true,
         alsoExits = listOf(ExitCode.Network, ExitCode.UpdateUnsupported),
+        notBatchable = "Run it before or after; not while this binary is executing a file.",
     ),
     CliCommand(
         path = "completion",
@@ -293,12 +319,14 @@ internal fun cliCommands(): List<CliCommand> = listOf(
         operand = Operand.OneOf("shell", COMPLETION_SHELLS),
         needsSession = false,
         local = true,
+        notBatchable = "It prints a shell script and does no homeserver work.",
     ),
     CliCommand(
         path = "commands",
         summary = "this table, as JSON - every verb, its operands, its flags and its exit codes",
         needsSession = false,
         local = true,
+        notBatchable = "It prints the command table and does no homeserver work.",
     ),
 )
 

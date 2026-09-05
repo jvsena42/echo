@@ -117,4 +117,44 @@ class CommandSurfaceJsonTest {
         assertEquals(SCHEMA_VERSION, surface.envelopeSchema)
         assertTrue(surface.cliVersion.isNotBlank())
     }
+
+    /**
+     * `batch` answers with the code of the operation that failed, so its own shape — a path
+     * operand — says nothing about the set. Under-listing is the direction that hurts: an agent
+     * that sees a code the table calls impossible has no rule for it. `not_found` is the concrete
+     * one, and it was measured on staging: `{"argv":["deck","show","doesnotexist1"]}` exits 6.
+     */
+    @Test
+    fun `batch lists every code its operations can relay`() {
+        val batch = assertNotNull(surface.commands.firstOrNull { it.path == "batch" })
+        val batchable = cliCommands().filter { it.notBatchable == null }.map { it.path }.toSet()
+        val relayed = surface.commands.filter { it.path in batchable }.flatMap { it.exitCodes }.distinct()
+
+        assertTrue(batch.exitCodes.containsAll(relayed), "missing ${relayed - batch.exitCodes.toSet()}")
+        assertTrue(ExitCode.NotFound.code in batch.exitCodes)
+    }
+
+    /**
+     * And the other direction, which the union has to stop short of. A batch refuses `login` and
+     * `update` as operations, so it can never relay their two private codes — promising them would
+     * be the same kind of wrong answer as omitting `not_found`, in the safer direction but still
+     * describing a surface the binary does not have.
+     */
+    @Test
+    fun `batch does not promise the codes of the commands it refuses to run`() {
+        val batch = assertNotNull(surface.commands.firstOrNull { it.path == "batch" })
+
+        assertTrue(ExitCode.Timeout.code !in batch.exitCodes, "login is unbatchable")
+        assertTrue(ExitCode.UpdateUnsupported.code !in batch.exitCodes, "update is unbatchable")
+    }
+
+    /** The one authority: `Batch.kt` validates against this, and the union above is drawn from it. */
+    @Test
+    fun `the table names the six commands a batch may not contain`() {
+        assertEquals(
+            listOf("login", "logout", "batch", "update", "completion", "commands"),
+            cliCommands().filter { it.notBatchable != null }.map { it.path },
+        )
+        assertTrue(cliCommands().filter { it.notBatchable != null }.all { !it.notBatchable.isNullOrBlank() })
+    }
 }

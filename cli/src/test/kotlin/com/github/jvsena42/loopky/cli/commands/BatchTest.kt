@@ -230,6 +230,31 @@ class BatchTest {
         }
     }
 
+    /**
+     * A typo is a usage mistake, and letting `dispatch` report it means 399 operations have
+     * already written to the homeserver by the time it does.
+     */
+    @Test
+    fun `refuses a verb this binary does not have, before anything runs`() = runBlocking {
+        val source = file("""["whoami"]""", """["deck", "crate", "--title", "T"]""")
+
+        val error = assertFailsWith<CliError> { batch(batchArgs(source), runner(), sinks) }
+
+        assertEquals(ExitCode.BadInput, error.exitCode)
+        assertEquals(emptyList(), ran)
+        assertTrue("deck crate" in error.message.orEmpty(), error.message.orEmpty())
+    }
+
+    /** The reported line is the file's line, so a blank above it does not shift the answer. */
+    @Test
+    fun `a parse error reports the line the file actually has`() = runBlocking {
+        val source = file("""["whoami"]""", "", "", """not json at all""")
+
+        val error = assertFailsWith<CliError> { batch(batchArgs(source), runner(), sinks) }
+
+        assertTrue("Line 4" in error.message.orEmpty(), error.message.orEmpty())
+    }
+
     @Test
     fun `an empty file and a missing one are both bad input`() = runBlocking {
         assertEquals(ExitCode.BadInput, assertFailsWith<CliError> { batch(batchArgs(file("")), runner(), sinks) }.exitCode)
@@ -243,6 +268,28 @@ class BatchTest {
     fun `a missing operand is a usage error`() = runBlocking {
         val error = assertFailsWith<CliError> { batch(Args.parse(arrayOf("batch")), runner(), sinks) }
         assertEquals(ExitCode.Usage, error.exitCode)
+    }
+
+    /**
+     * The envelope's own `ok` has to be the operation's.
+     *
+     * `eventEnvelope` hardcoded `true` — it was written for `login`'s `auth_url`, which cannot
+     * fail — so a 500-operation run in which half the writes failed streamed 500 lines saying
+     * `"ok": true`, and only the final summary disagreed. Branching on the envelope is the obvious
+     * way to read a stream of envelopes, and `--json` is a versioned API, not a print format.
+     */
+    @Test
+    fun `a failed operation streams an envelope that says so`() = runBlocking {
+        val source = file("""["whoami"]""", """["deck", "show", "gone"]""")
+        val runner = runner { if (it.verb == "deck show") CliError(ExitCode.NotFound, "no such deck") else null }
+
+        assertFailsWith<CliError> { batch(batchArgs(source), runner, sinks) }
+
+        val envelopes = events.map { Json.parseToJsonElement(it).jsonObject }
+        assertEquals(listOf(true, false), envelopes.map { it["ok"]!!.jsonPrimitive.content.toBoolean() })
+        // And the payload still agrees with the envelope, so neither reading is wrong.
+        assertEquals(listOf(true, false), envelopes.map { it["data"]!!.jsonObject["ok"]!!.jsonPrimitive.content.toBoolean() })
+        assertEquals("not_found", event(1)["error"]!!.jsonObject["code"]!!.jsonPrimitive.content)
     }
 
     /** A command with nothing to report is still a successful operation. */
