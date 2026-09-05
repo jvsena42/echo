@@ -367,7 +367,7 @@ file never has the problem.
 | --- | --- |
 | `LOOPKY_SESSION` | A session secret — a **bearer token**, see the note below. Read **before** the stored session, and the only way in on a sandbox that has no stored one. Mint it with `loopky login --export` on a machine with a human at it, and revoke it with `loopky logout` while it is set. |
 | `LOOPKY_ENV` | `staging` or `production`. `--env` wins. Defaults to production. |
-| `LOOPKY_CONFIG_HOME` | Where state lives. Defaults to `$XDG_CONFIG_HOME/loopky`, then `~/.config/loopky`. |
+| `LOOPKY_CONFIG_HOME` | Where state lives. Defaults to `$XDG_CONFIG_HOME/loopky`, then `~/.config/loopky` (`~/Library/Application Support/loopky` on macOS). Setting it also moves the session out of the macOS Keychain and back into a file. |
 | `LOOPKY_NO_UPDATE_CHECK` | Set to anything to never look for a newer release. The check is cached for a day, runs alongside the command, and can never fail it — but a pipeline that wants no surprises can switch it off. `--no-update-check` does the same for one invocation. |
 | `RUST_LOG` | The pubky SDK's own tracing, defaulted to `warn` — by the start script in the jar distribution and through libc in the binary, which has no start script. `RUST_LOG=debug` is the first thing to try when a homeserver call fails for no visible reason. |
 
@@ -453,10 +453,17 @@ payload does not carry one.
 - **The session can only write `/pub/loopky/`.** Not `/pub/pubky.app/`. It cannot post, follow, or
   edit a profile under any bug or any prompt injection, because it was never handed the capability.
   Deck tags still work — a deck manifest's tag record lives in the loopky namespace.
-- **Sessions are a mode-0600 file, not an OS keyring**, and that is deliberate: libsecret is
-  usually absent on the headless box this is built for. A session secret on that machine is
+- **On Linux a session is a mode-0600 file, not an OS keyring**, and that is deliberate: libsecret
+  is usually absent on the headless box this is built for. A session secret on that machine is
   protected by file permissions and nothing else. What is stored is a capability-scoped, expiring
   session — never a secret key, which never leaves Pubky Ring.
+- **On macOS it is in the login Keychain instead.** That row is a developer's machine, where the
+  Keychain is always there and there is a human at the keyboard, so the Linux reasoning does not
+  apply. The item is `loopky.session`, written through `security(1)` — never with the secret in
+  `argv`, which any local user can read. Two things worth knowing: the item is trusted to
+  `/usr/bin/security` so reads do not raise a dialog, which means anything that can run that tool
+  as you can read it; and setting `LOOPKY_CONFIG_HOME` opts back into the file, because that
+  variable means "keep everything here". `loopky whoami` reports which one holds your session.
 - **`LOOPKY_SESSION` is the weaker channel of the two**, and worth knowing before you reach for it
   on a shared host. An environment variable is readable by any same-uid process through
   `/proc/<pid>/environ`, is inherited by every child the CLI spawns, and lands in shell history

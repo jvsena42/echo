@@ -2103,3 +2103,48 @@ the block's viewport shrank below the block's own height and Give up was sheared
 laid out at [368,1002][712,1076], drawn nowhere, and answering no tap there. It is in the tree and
 absent from the screen, which is the failure mode nothing reports. The card's own height already
 clears the keyboard; that is what the fix relies on, with the block's scroll as the fallback.
+
+## #213 — the macOS row: the Keychain, and one file — 2026-09-05, macOS 26.6 arm64
+
+The first time `:cli:nativeCompile` had been run on a Mac. Two findings, one of them the reason
+the row was never shippable.
+
+**The binary was eleven files, and had always been.** `checkNativeImageIsOneFile` failed on a
+clean `main` before any of this branch's code existed, listing ten JDK dylibs beside the
+executable — `libawt`, `libawt_lwawt`, `libfontmanager`, `libfreetype`, `libjavajpeg`, `liblcms`,
+`libmlib_image`, `libosxapp`, `libjava`, `libjvm`. So the `curl … -o ~/.local/bin/loopky` install
+the binary exists for was dead on macOS, and the release job would have failed at the same check
+the moment anyone tagged. `-H:AbortOnTypeReachable` named it in two builds: `java.awt.Toolkit` via
+`java.awt.Component.<clinit>`, and `Component` itself "present in an `Executable` object
+reconstructed by reflection". Bisecting `reflect-config.json` by halves found the single entry —
+`com.sun.jna.Native`, whose declared methods include `getComponentID(Component)`. Dropping its
+`methods` list is **not** enough; the class entry alone does it. `jni-config.json` already carries
+the same six methods and is the registration `dispatch.c` actually uses, so the reflect entry was
+a duplicate the tracing agent wrote. Linux is unaffected by the identical registration, which is
+why CI stayed green.
+
+**Sign-in with Pubky Ring, driven from the `Pixel_9` emulator against staging.** The known
+relay flakiness is still there — round 1 of the retry loop timed out, round 2 landed. Poll the
+layout for `select-pubky-title` and `ConfirmAuthAuthorizeButton` rather than sleeping a fixed
+amount: a fixed 3s tapped through Ring's cold-start screen into *Add Pubky* twice.
+
+| Verified with the **native binary** unless noted | Result |
+| --- | --- |
+| `nativeCompile` output | ✅ one file, 56 MB |
+| `login --env staging` via Ring on the emulator | ✅ `Silver-Otter-Sparrow`, `caps=/pub/loopky/:rw` only, Ring's sheet showed `/pub/loopky/ READ, WRITE` |
+| The session lands in the **Keychain** | ✅ `security find-generic-password -s loopky.session -a session.v1` returns the item, `desc="Loopky session"`, written by the *binary* — which is what proves `ProcessBuilder` + `security -i` survive `native-image` |
+| …and **not** in a file | ✅ `~/Library/Application Support/loopky/secrets.json` does not exist |
+| `login` reports where it put it | ✅ `stored_at: "the macOS Keychain (service loopky.session)"` |
+| `whoami --json` | ✅ `session_store` beside `config_home`, `session_live: true` |
+| `whoami` text | ✅ `Session from: this machine` / `Session in: the macOS Keychain (…)` |
+| Homeserver **read**, staging | ✅ `deck list` → Sparrow's 7 decks (Gross Anatomy 442, Biochemistry 1668, spanish 10 000 sentences 2156, Phrasal Verbs P1 3747, …) |
+| Homeserver **write**, staging | ✅ `deck create` → `edaixtwb7hpv`, `card add` from TSV → two cards, `card list` read both back with `ord` 0 and 1000, `deck delete` cleaned up |
+| `LOOPKY_CONFIG_HOME` opts back into the file | ✅ `LOOPKY_CONFIG_HOME=/tmp/loopky-disposable whoami` → exit 3 `not_signed_in`, and the real session was untouched afterwards |
+| The jar distribution reads the same item | ✅ `installDist`'s `deck list` returned the same 7 decks |
+| Real `security(1)` round trip | ✅ `DesktopSessionStoreTest` — missing → write → read → overwrite → delete → missing, on a throwaway service name. It caught the one bug in the write path: `-D "Loopky session"` has a space, and `security -i` splits its line the way a shell does |
+| Shared + CLI suites | ✅ `:shared:jvmTest` and `:cli:test` green, 18 new tests |
+
+**Not run:** a live `logout`. It would revoke the session this run signed in with, and getting
+back in depends on the relay lottery above; `clear()` against the real keychain is covered by the
+round-trip test instead. Migration from a pre-#213 `secrets.json` is covered by the fake-keychain
+tests, not on a live install.
