@@ -2174,3 +2174,38 @@ all returned 0 with no dialog. So there is no redesign — the volume is what di
 product nor the suite does that. What changed is the test: only a *timeout* is excused as an
 environment condition, because a blanket skip would have hidden the `-D "Loopky session"` quoting
 bug this same test caught.
+
+### Review round 3 — 2026-09-05
+
+Two findings, both consequences of the round-1 fixes. The second is the reviewer walking back part
+of their own round-1 request, correctly: deleting the stale item before falling back made
+`loopky login` fail outright on a locked or absent keychain — the exact host the fallback exists
+for — because `write` and `delete` fail together for almost every reason either fails.
+
+**Neither suggested patch was taken, and the reason is worth keeping.** Both findings are
+downstream of one thing: `load()` read the Keychain *first*. Inverting that to read the file first
+dissolves both with no new state and no refusal. The file is empty whenever the Keychain holds the
+session (a successful write clears it), so the happy path is unchanged; when it is *not* empty it
+is not empty for exactly one reason — a Keychain write failed and this is the newer credential — so
+preferring it is the correct answer rather than a tie-break. The stale item then cannot win, so
+nothing needs deleting on the failure path and nothing needs to throw; the next `load()` that finds
+the Keychain answering overwrites it on its way past, which is the same call that migrates a
+pre-#213 file session up.
+
+The invariant is restated accordingly: not "never in two places" but **when both hold something,
+the file is the newer one and wins**.
+
+| Verified | Result |
+| --- | --- |
+| Happy path unchanged by the inversion | ✅ `whoami` still reports the Keychain, `deck list` still returns 7 staging decks, one file lookup in an already-loaded map ahead of it |
+| `logout`'s guard no longer hides the likelier case | ✅ `!clearedLocally` alone — a store that refuses a delete has usually refused the read too, so `hadSession` was false and the old guard exited 0 over a surviving credential |
+| A refused delete over nothing is not a failure | ✅ `clear()` gates on `read() is Missing`, so a clean sign-out on a file-only host stops reporting a missing credential as a surviving one |
+
+**The real-keychain round trip is now opt-in, and that is the other finding of this round — a
+self-inflicted one.** It creates and deletes an item in the developer's *login* keychain on every
+`:shared:jvmTest`, and running the suite a few times in a row raised macOS authorization dialogs
+twice during this session, the second time with the user at the keyboard. `securityd` serialises
+every caller behind such a dialog, so `gh`'s token read hangs too and `gh api` starts answering
+"Requires authentication". It runs under `LOOPKY_KEYCHAIN_TESTS=1` now. Everything the wrapper
+decides is covered by the fake; what the real one adds is the `security(1)` protocol, which is
+worth running by hand when that changes and worth nobody's password prompt otherwise.

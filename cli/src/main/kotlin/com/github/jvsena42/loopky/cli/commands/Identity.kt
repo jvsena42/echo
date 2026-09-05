@@ -13,6 +13,7 @@ import com.github.jvsena42.loopky.cli.requireSessionSecretShape
 import com.github.jvsena42.loopky.cli.result
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.data.repository.SignOutOutcome
 import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.Session
 import kotlinx.serialization.SerialName
@@ -299,24 +300,14 @@ suspend fun logout(
     // credential somewhere the user was told about; this leaves it exactly where they were told it
     // was destroyed, and an agent branching on the exit code would move on. The result still
     // travels, so `cleared_locally: false` is readable on the failure envelope.
-    if (outcome.hadSession && !outcome.clearedLocally) {
-        throw CliError(
-            ExitCode.Internal,
-            buildString {
-                append("This machine's session store would not give the credential up, so it is ")
-                append("still there — on macOS, in the login Keychain as `loopky.session`. ")
-                append(
-                    if (outcome.revokedRemotely) {
-                        "The homeserver did revoke the session, so what remains is a dead token."
-                    } else {
-                        "The homeserver did not confirm revocation either, so it may still be live."
-                    },
-                )
-                append(" Remove it by hand with `security delete-generic-password -s loopky.session`.")
-            },
-            data = logoutJson.encodeToJsonElement(report),
-        )
-    }
+    //
+    // **Not conjoined with `hadSession`**, which would hide the likelier half of it. A store that
+    // refuses a delete has usually just refused the *read* as well — same lock, same wedged
+    // `securityd` — so `loadPersistedSession()` returned null, `hadSession` is false, and the
+    // guard would report "Not signed in — nothing to revoke." and exit 0 over a credential that is
+    // still there and was never even sent for revocation. `clearedLocally` is false only when the
+    // store refused: an absent item deletes successfully (exit 44), as does an absent file key.
+    if (!outcome.clearedLocally) throw unclearedSession(outcome, report)
     return result(
         report,
         when {
@@ -333,6 +324,29 @@ suspend fun logout(
         },
     )
 }
+
+private fun unclearedSession(outcome: SignOutOutcome, report: LogoutResult) = CliError(
+    ExitCode.Internal,
+    buildString {
+        append("This machine's session store would not confirm the credential is gone. ")
+        append("On macOS that is the login Keychain item `loopky.session`; remove it by hand ")
+        append("with `security delete-generic-password -s loopky.session`. ")
+        append(
+            when {
+                outcome.revokedRemotely ->
+                    "The homeserver did revoke the session, so what remains is a dead token."
+                // Nothing was *sent*: the store could not produce a secret to revoke with, so this
+                // is weaker than the ordinary offline case rather than the same as it.
+                !outcome.hadSession ->
+                    "Nothing was sent to the homeserver either — the store could not produce the " +
+                        "secret to revoke with — so any session it holds is live until it expires."
+                else ->
+                    "The homeserver did not confirm revocation either, so it may still be live."
+            },
+        )
+    },
+    data = logoutJson.encodeToJsonElement(report),
+)
 
 /** Encodes [LogoutResult] onto a failure envelope, where `result()` is not the one carrying it. */
 private val logoutJson = Json { encodeDefaults = true }

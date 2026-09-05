@@ -115,35 +115,64 @@ class DesktopSessionStoreTest {
      * starts from an empty one, falls through to the file, and looks correct.
      */
     @Test
-    fun `a failed write does not leave the previous account in the keychain`() = runTest {
+    fun `a failed write does not let the previous account win`() = runTest {
         val secrets = secretsStore(home)
         val keychain = FakeKeychain()
         desktopSecureSessionStore(home, secrets, keychain).save(SESSION)
 
-        val second = SESSION.copy(
-            identity = SESSION.identity.copy(pubky = "pk:second"),
-            sessionSecret = "pk:second:cookie",
-        )
         val locked = FakeKeychain(value = keychain.value, writable = false)
         val store = desktopSecureSessionStore(home, secretsStore(home), locked)
-        store.save(second)
+        store.save(SECOND)
 
-        assertNull(locked.value, "the stale item has to go, or load() keeps preferring it")
-        assertEquals(second, store.load())
+        // The stale item may still be sitting there — nothing could remove it — and that is fine
+        // as long as the reader never picks it.
+        assertEquals(SECOND, store.load())
     }
 
     /**
-     * Neither storing the new session nor giving up the old one is refused outright: a store that
-     * cannot say which of two credentials comes back has nothing to offer, and failing the
-     * sign-in beats writing decks under the wrong pubky.
+     * The host the fallback was written for: a Keychain that answers neither a write nor a delete,
+     * over SSH or under `launchd`. Refusing here — which is what deleting-before-falling-back
+     * amounts to, since the two calls fail together — would mean `loopky login` no longer works at
+     * all on it, which is a worse outcome than the stale item the refusal was protecting against.
      */
     @Test
-    fun `a keychain that will neither write nor delete refuses rather than picking`() = runTest {
-        val keychain = FakeKeychain(value = "c3RhbGU=", writable = false, deletable = false)
+    fun `a keychain that answers nothing still signs you in`() = runTest {
+        val keychain = FakeKeychain(value = "c3RhbGU=", writable = false, deletable = false, readable = false)
         val store = desktopSecureSessionStore(home, secretsStore(home), keychain)
 
-        assertFailsWith<IllegalStateException> { store.save(SESSION) }
+        store.save(SESSION)
+
+        assertEquals(SESSION, store.load())
+        assertEquals(SESSION, FileSecureSessionStore(secretsStore(home)).load())
+    }
+
+    /**
+     * The cleanup half of the ordering: the stale item is not deleted when the write fails, so
+     * something has to remove it once the Keychain answers again. That is the same migration call
+     * that moves a pre-#213 file session up.
+     */
+    @Test
+    fun `the stale item is overwritten once the keychain answers again`() = runTest {
+        val secrets = secretsStore(home)
+        desktopSecureSessionStore(home, secrets, FakeKeychain(writable = false)).save(SESSION)
+        val recovered = FakeKeychain(value = "c3RhbGU=")
+
+        val store = desktopSecureSessionStore(home, secretsStore(home), recovered)
+
+        assertEquals(SESSION, store.load())
         assertNull(FileSecureSessionStore(secretsStore(home)).load())
+        assertEquals(SESSION, desktopSecureSessionStore(home, secretsStore(home), recovered).load())
+    }
+
+    /**
+     * A refused delete is only a failure if there is something to fail about. Without this, a
+     * clean sign-out on a host whose session was only ever in the file reports a credential that
+     * is genuinely gone as one that survived.
+     */
+    @Test
+    fun `clearing succeeds when the keychain holds nothing, whatever it says about deleting`() = runTest {
+        val store = desktopSecureSessionStore(home, secretsStore(home), FakeKeychain(deletable = false))
+        store.clear()
     }
 
     /**
@@ -153,6 +182,7 @@ class DesktopSessionStoreTest {
     @Test
     fun `clearing reports a keychain that will not give the credential up`() = runTest {
         val secrets = secretsStore(home)
+        // Still `Found`, so the read-gate above cannot excuse it.
         val keychain = FakeKeychain(value = "c3RpbGwtaGVyZQ==", deletable = false)
         val store = desktopSecureSessionStore(home, secrets, keychain)
 
@@ -232,6 +262,20 @@ class DesktopSessionStoreTest {
     @Test
     fun `a real keychain round trip, on a Mac`() {
         if (desktopNativeRow() != DesktopNativeRow.MacArm64) return
+        // **Opt-in, and it has to be.** This is the only test in the repo that mutates the
+        // developer's *login keychain*, and creating an item there can raise a macOS
+        // authorization dialog — which `securityd` then serialises every other caller behind,
+        // `gh`'s token read included. A suite that pops a password prompt on `./gradlew test` is
+        // a suite people stop running. Turn it on deliberately:
+        //
+        //     LOOPKY_KEYCHAIN_TESTS=1 ./gradlew :shared:jvmTest --tests '*DesktopSessionStore*'
+        //
+        // Everything the wrapper decides is covered by the fake above; what this adds is the
+        // `security(1)` protocol itself, which is worth running by hand when that changes.
+        if (System.getenv("LOOPKY_KEYCHAIN_TESTS").isNullOrBlank()) {
+            println("skipping the real keychain round trip: set LOOPKY_KEYCHAIN_TESTS=1 to run it")
+            return
+        }
         val keychain = SecurityCliKeychain(service = "loopky.test.${System.nanoTime()}")
         try {
             assertIs<KeychainRead.Missing>(keychain.read())
@@ -316,6 +360,12 @@ class DesktopSessionStoreTest {
     }
 
     private companion object {
+        val SECOND = Session(
+            identity = PubkyIdentity(pubky = "pk:second", displayName = null, avatarUrl = null, bio = null),
+            sessionSecret = "pk:second:cookie",
+            capabilities = listOf(Capability("/pub/loopky/:rw")),
+            homeserver = "hs.example",
+        )
         val SESSION = Session(
             identity = PubkyIdentity(pubky = "pk:abc", displayName = null, avatarUrl = null, bio = null),
             sessionSecret = "pk:abc:cookie",

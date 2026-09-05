@@ -45,15 +45,26 @@ internal fun keychainEligible(
 /**
  * The session in the macOS Keychain, with the 0600 file underneath it.
  *
- * The file is not dead weight, and it is reached three ways. It is the **fallback** for a Mac
- * whose Keychain will not answer — a locked keychain over SSH, a CI runner with none — because a
- * client that cannot store a session is worse than one that stores it the way it did last
- * release. It is the **migration** source, since every macOS install before this one has a live
- * session in `secrets.json` and an upgrade that silently signed everybody out would be read as a
- * bug. And it is what [clear] has to empty as well as the Keychain.
+ * **The file is read first, and that one ordering is what makes the rest safe.** It is empty
+ * whenever the Keychain holds the session, because a successful write clears it — so on the happy
+ * path this costs one lookup in an already-loaded map and changes nothing. When it is *not* empty,
+ * it is not empty for exactly one reason: a Keychain write failed and this is the newer
+ * credential. Preferring it is therefore not a tie-break, it is the correct answer.
  *
- * The one rule threaded through all three: **never leave a usable credential in both places.** A
- * successful Keychain write clears the file, and a successful migration clears it too.
+ * Reading the Keychain first is the arrangement that cannot be made safe. A second `login` whose
+ * write fails leaves the previous account in the Keychain and the new one in the file, and the
+ * reader picks the old one — silently, with `session_live` true, because that session really is
+ * live. Deleting the stale item before falling back fixes the read but not the host: `write` and
+ * `delete` fail together for almost every reason either fails, so on a locked or absent keychain —
+ * over SSH, under `launchd`, on a CI runner — the delete fails too and sign-in fails outright, on
+ * the exact host the fallback exists for.
+ *
+ * So the invariant is stated as what a reader can rely on rather than as a count: **when both hold
+ * something, the file is the newer one and wins.** The duplicate is temporary either way, since
+ * every [load] tries to migrate the file copy up and clears the file when it lands.
+ *
+ * The file is thus reached three ways — the fallback for a Keychain that will not answer, the
+ * migration source for installs predating #213, and the second thing [clear] empties.
  */
 internal class MacKeychainSessionStore(
     private val keychain: Keychain,
@@ -75,68 +86,69 @@ internal class MacKeychainSessionStore(
     }
 
     /**
-     * **The old item goes before the new one is written anywhere else.**
+     * A failed write is a fallback and never a refusal.
      *
-     * Falling back to the file without removing what the Keychain already holds is not merely an
-     * invariant violation, it silently signs you in as somebody else: [load] reads the Keychain
-     * first, so a second `login` whose write fails — a keychain locked between the two — leaves
-     * the *previous* account winning every command afterwards, with `session_live` true because
-     * that session really is live.
-     *
-     * A delete that also fails is a hard failure rather than a quieter fallback. A store that
-     * cannot say which of two credentials will be read back has nothing useful to offer a caller,
-     * and refusing turns a wrong-account write into a failed sign-in.
+     * Nothing is deleted from the Keychain here and nothing throws: whatever it still holds is
+     * older than what is going into the file, and [load] reads the file first, so a stale item
+     * cannot win. It is cleaned up by the next [load] that finds the Keychain answering again,
+     * which overwrites it with the newer session on its way past.
      */
     override suspend fun save(session: Session) = withContext(Dispatchers.IO) {
         keychain.write(encode(session)).fold(
             onSuccess = { fallback.clear() },
-            onFailure = { failure ->
-                Log.w(TAG, "keychain write failed, keeping the session in ${fallback.location}", failure)
-                keychain.delete().getOrElse {
-                    throw IllegalStateException(
-                        "the keychain would neither store this session nor give up the one it " +
-                            "already holds, so the next command would run as the wrong account",
-                        it,
-                    )
-                }
+            onFailure = {
+                Log.w(TAG, "keychain write failed, keeping the session in ${fallback.location}", it)
                 fallback.save(session)
             },
         )
     }
 
     override suspend fun load(): Session? = withContext(Dispatchers.IO) {
-        when (val read = keychain.read()) {
-            is KeychainRead.Found -> decode(read.value)
-            KeychainRead.Missing -> adoptStoredFile()
-            is KeychainRead.Failed -> {
-                Log.w(TAG, "keychain read failed (${read.message}); reading ${fallback.location}")
-                fallback.load()
-            }
+        storedInFile() ?: fromKeychain()
+    }
+
+    /**
+     * Empties the file first, then reports whether the Keychain item is gone.
+     *
+     * Sign-out's remote half already reports its own failure all the way up
+     * (`SignOutOutcome.revokedRemotely`) so nobody is told "signed out" while the token lives. The
+     * local half — the half this method actually promises — used to report nothing at all, so a
+     * keychain that refused a delete produced "Signed out." over an item still sitting in it.
+     *
+     * A refused delete is only a failure if there is something to fail about: a Keychain that
+     * answers [KeychainRead.Missing] holds nothing, whatever it thinks of the delete. That check
+     * is what stops a clean sign-out on a file-only host from reporting a missing credential as a
+     * surviving one.
+     */
+    override suspend fun clear() = withContext(Dispatchers.IO) {
+        fallback.clear()
+        keychain.delete().getOrElse { failure ->
+            if (keychain.read() !is KeychainRead.Missing) throw failure
         }
     }
 
     /**
-     * Throws when the Keychain item survives, and that is the point.
+     * The file copy, migrated up on the way past.
      *
-     * Sign-out's remote half already reports its own failure all the way up
-     * (`SignOutOutcome.revokedRemotely`) so nobody is told "signed out" while the token lives.
-     * The local half — the half this method actually promises — used to report nothing at all,
-     * so a keychain that refused a delete produced "Signed out." over a credential still sitting
-     * in it. The file is emptied first either way: whatever happens, the session is not left in
-     * two places.
+     * The migration is the same call for both of its jobs: it moves a pre-#213 session into the
+     * Keychain, and it overwrites whatever stale item a failed write left behind. Best-effort —
+     * on a Keychain that is still not answering the session is simply served from the file again.
      */
-    override suspend fun clear() = withContext(Dispatchers.IO) {
-        fallback.clear()
-        keychain.delete().getOrThrow()
-    }
-
-    /** Move a pre-#213 session into the Keychain the first time it is read back. */
-    private suspend fun adoptStoredFile(): Session? {
+    private suspend fun storedInFile(): Session? {
         val session = fallback.load() ?: return null
         keychain.write(encode(session))
             .onSuccess { fallback.clear() }
             .onFailure { Log.w(TAG, "could not move the stored session into the keychain", it) }
         return session
+    }
+
+    private fun fromKeychain(): Session? = when (val read = keychain.read()) {
+        is KeychainRead.Found -> decode(read.value)
+        KeychainRead.Missing -> null
+        is KeychainRead.Failed -> {
+            Log.w(TAG, "keychain read failed (${read.message}) and ${fallback.location} is empty")
+            null
+        }
     }
 
     /**
