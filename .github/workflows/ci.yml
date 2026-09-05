@@ -14,6 +14,66 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    # **Per-job path filtering, because two of the jobs below run on `macos-14`** — which bills at
+    # a 10× minute multiplier, and GitHub's own `paths:` filter is workflow-wide. So one cheap
+    # ubuntu job works out what the push or the PR actually touched and publishes two booleans the
+    # expensive jobs gate on.
+    #
+    # Inline `git diff` rather than a path-filter action, for the same reason the failing-tests
+    # reporter is inline: this decides whether a check runs at all, and a check that can be
+    # skipped by a dependency going wrong is not a check.
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:
+      cli: ${{ steps.filter.outputs.cli }}
+      ios: ${{ steps.filter.outputs.ios }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The base commit has to be in the history for any of this to be answerable.
+          fetch-depth: 0
+
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT" = pull_request ]; then
+            RANGE="origin/$BASE_REF...HEAD"
+          else
+            RANGE="$BEFORE..HEAD"
+          fi
+
+          # A range git cannot resolve — a force push, a branch's first push, a rewritten history
+          # — is not a reason to skip a check. Fall back to "everything changed", which costs
+          # macOS minutes and never costs correctness. That direction is not negotiable: the whole
+          # point of #239 is that a check nobody runs hid a broken artifact for months.
+          if FILES=$(git diff --name-only "$RANGE" 2>/dev/null); then
+            echo "changed against $RANGE:"
+            printf '%s\n' "$FILES" | sed 's/^/  /'
+          else
+            echo "cannot diff $RANGE — assuming everything changed"
+            FILES=$(git ls-files)
+          fi
+
+          # What can break the **macOS binary**: the reachability metadata, the JVM-family sources
+          # the image is compiled from, and the dependency versions behind both. Not `commonMain`
+          # — the macOS row fails on reaching a JDK *native* library, and nothing in commonMain
+          # can name one.
+          CLI='^(cli/|shared/src/jvmMain/|shared/src/jvmSharedMain/|(shared/)?build\.gradle\.kts|settings\.gradle\.kts|gradle\.properties|gradle/(libs\.versions\.toml|wrapper/)|\.github/(workflows/ci\.yml|actions/))'
+          # What can break **iOS**: anything shared, because that is the arrangement — business
+          # logic is shared, so a commonMain change breaks iOS as easily as Android.
+          IOS='^(shared/|iosApp/|build\.gradle\.kts|settings\.gradle\.kts|gradle\.properties|gradle/(libs\.versions\.toml|wrapper/)|\.github/(workflows/ci\.yml|actions/))'
+
+          decide() {
+            if printf '%s\n' "$FILES" | grep -qE "$2"; then echo "$1=true"; else echo "$1=false"; fi
+          }
+          { decide cli "$CLI"; decide ios "$IOS"; } | tee -a "$GITHUB_OUTPUT"
+
   lint:
     name: Kotlin lint (detekt)
     runs-on: ubuntu-latest
@@ -313,3 +373,112 @@ jobs:
           grep -q '"cards":3' apkg.json
           grep -q '"front_index":2' apkg.json
           grep -q '"format":"apkg"' apkg.json
+
+  cli-binary-macos:
+    # **The other row (#239).** `cli-binary` above builds `linux-x86-64`; the macOS binary was
+    # built only by `release.yml`, on a tag.
+    #
+    # In #237 that turned out to be load-bearing. `:cli:checkNativeImageIsOneFile` had *always*
+    # failed on macOS — ten JDK dylibs beside the executable, so `curl … -o ~/.local/bin/loopky`
+    # was dead on that row — and nothing reported it, because nobody had run `nativeCompile` on a
+    # Mac. The cause was one entry in `reflect-config.json` that leaves Linux perfectly clean. A
+    # green CI said nothing, and the first failure would have been the release job, at the worst
+    # possible moment.
+    #
+    # The general shape is the problem rather than that one entry: **the two rows fail
+    # differently, and only one was built.** Any reachability-metadata change, any Koin binding
+    # that drags in AWT, any dependency that reaches `javax.imageio` can be clean on Linux and
+    # broken here.
+    #
+    # `macos-14` bills at a 10× multiplier, hence the `changes` gate rather than running it on
+    # every PR.
+    name: CLI as a native binary (macOS aarch64)
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    # arm64 and only arm64: there is one `darwin-aarch64` row of `libpubkycore` and an Intel build
+    # would have nothing to load (#54).
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # `checkNativeImageIsOneFile` is wired as `finalizedBy` on this task, so the property that
+      # broke in #237 is asserted by the build itself — the step below is what a reader can see.
+      - name: Build the binary
+        run: ./gradlew :cli:nativeCompile
+
+      - name: One file, and it works
+        env:
+          LOOPKY_CONFIG_HOME: ${{ runner.temp }}/loopky-native-macos
+          LOOPKY_NO_UPDATE_CHECK: '1'
+        run: |
+          set -euo pipefail
+          BIN=cli/build/native/nativeCompile/loopky
+          ls -la cli/build/native/nativeCompile
+          test "$(ls cli/build/native/nativeCompile | wc -l)" -eq 1
+
+          "$BIN" --version
+          "$BIN" --help > /dev/null
+
+          set +e; OUT=$("$BIN" whoami --json); CODE=$?; set -e
+          echo "$OUT"
+          test "$CODE" -eq 3
+          echo "$OUT" | grep -q '"code":"not_signed_in"'
+          echo "$OUT" | grep -q '"schema":1'
+          echo "$OUT" | grep -q '"environment":"production"'
+          echo "$OUT" | grep -q '"update_available":null'
+
+          set +e; "$BIN" frobnicate --json > /dev/null; CODE=$?; set -e
+          test "$CODE" -eq 2
+
+          # The FFI, which is the whole of the difficulty: this reaches `_UniFFILib.INSTANCE`, so
+          # it loads `libpubkycore.dylib` out of the binary's own resources, checks its API
+          # checksums and registers a JNA callback. A missing reachability registration dies here
+          # and nowhere earlier — and the registrations are exactly what differs between the rows.
+          # 13 is nobody approving in Ring, which is the expected outcome; 5 is the relay being
+          # unreachable, which must not fail a PR. Anything else is the FFI.
+          set +e; "$BIN" login --url-only --timeout 15 > /dev/null 2> qr.log; CODE=$?; set -e
+          cat qr.log
+          case "$CODE" in 13|5) ;; *) echo "login exited $CODE, expected 13 or 5"; exit 1;; esac
+          grep -q '^pubkyauth://' qr.log
+          # The SDK's tracing stays quiet by default — `RustLog.kt` through libc, since a binary
+          # has no start script to export RUST_LOG from.
+          test "$(grep -c 'DEBUG\|INFO' qr.log || true)" -eq 0
+
+          # SQLite is JNA's problem over again in a second library, on a second native row:
+          # `org/sqlite/native/Mac/aarch64` rather than `Linux/x86_64`, extracted reflectively.
+          # `--dry-run` needs no session and no network, so it cannot flake.
+          python3 cli/tools/make-sample-apkg.py sample.apkg
+          "$BIN" import sample.apkg --dry-run --json | tee apkg.json
+          grep -q '"cards":3' apkg.json
+          grep -q '"format":"apkg"' apkg.json
+
+      # Deliberately *without* `LOOPKY_CONFIG_HOME`: setting it opts the session back into a file
+      # (#213), so the step above never touches the Keychain — and the Keychain is reached by
+      # spawning `security(1)`, which is the one thing about this row a native image could
+      # plausibly get wrong and still exit cleanly. A read that cannot run the tool degrades to
+      # the file store with a warning on stderr, so the warning's *absence* is the assertion, and
+      # the precondition has to be positive or the whole step goes vacuous the day a runner image
+      # starts exporting one of these.
+      - name: The Keychain path works in the binary, not just on a JVM
+        env:
+          LOOPKY_NO_UPDATE_CHECK: '1'
+        run: |
+          set -euo pipefail
+          test -z "${LOOPKY_CONFIG_HOME:-}"
+          test -z "${XDG_CONFIG_HOME:-}"
+          BIN=cli/build/native/nativeCompile/loopky
+          set +e; "$BIN" whoami --json > out.txt 2> err.txt; CODE=$?; set -e
+          cat out.txt err.txt
+          test "$CODE" -eq 3
+          grep -q '"code":"not_signed_in"' out.txt
+          ! grep -qi 'keychain' err.txt
+
