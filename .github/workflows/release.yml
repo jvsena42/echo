@@ -595,8 +595,10 @@ jobs:
           test "$CODE" = 200 || {
             echo "::error::the documented install path answers $CODE" >&2; exit 1; }
 
+      # Success only, deliberately. The body says the release is complete and names what is left
+      # to do by hand; printed after a failed verification it would be describing a release that
+      # does not exist in the state it claims.
       - name: Say what came out
-        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
