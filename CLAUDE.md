@@ -160,13 +160,35 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
   URL, and with no codec in the binary it uploads them at full resolution where a phone sends
   1024px JPEG — so `--dry-run` reports the byte total against the 1 GB quota and a real run warns
   on stderr. Do not "fix" that by binding `JvmMediaProcessor`; the fix is not available. Find the next one with
-  `-H:AbortOnTypeReachable=<type>`. Three more things not to undo: the reachability metadata in
+  `-H:AbortOnTypeReachable=<type>`. Four more things not to undo: the reachability metadata in
   `cli/src/main/resources/META-INF/native-image/` is hand-curated from a tracing-agent run against
   a *real* homeserver and the community metadata repository is deliberately **off** (it was a
-  subset, and it dragged AWT in); `-march=compatibility` is there because the default targets
-  x86-64-v3 and a downloaded binary dies with SIGILL on a host without AVX2; and the Linux build
-  runs inside `ubuntu:22.04` because a native image links against its builder's glibc and
-  `libpubkycore.so`'s floor is 2.34, not the runner's.
+  subset, and it dragged AWT in); **`com.sun.jna.Native` is registered for JNI and deliberately
+  not for reflection**, because a reflection entry makes `native-image` reconstruct an
+  `Executable` for every method the class declares — `getComponentID(Component)` among them — and
+  ten JDK dylibs land beside the macOS binary (dropping the entry's `methods` list is not enough;
+  the class entry alone does it, and `dispatch.c` looks those six up with `GetStaticMethodID`
+  anyway); `-march=compatibility` is there because the default targets x86-64-v3 and a downloaded
+  binary dies with SIGILL on a host without AVX2; and the Linux build runs inside `ubuntu:22.04`
+  because a native image links against its builder's glibc and `libpubkycore.so`'s floor is 2.34,
+  not the runner's. **The two rows fail differently and CI only built one of them**: that JNA
+  entry left Linux clean and macOS at eleven files, and nobody saw it until the row was built on a
+  Mac, so build both before believing a metadata change is harmless.
+- **On macOS the CLI's session is in the Keychain, and the Linux row's reasoning does not reach
+  it.** `desktopSecureSessionStore` picks by OS behind `SecureSessionStore`, so nothing above the
+  binding changes (#213). Five things not to undo. It shells out to **`security(1)`** rather than
+  calling Security.framework through JNA, because `SecItemAdd` ties the item's ACL to the running
+  executable and `loopky update` replaces it — the upgrade would start prompting for a password.
+  The write goes through **`security -i`**, which takes its command on *stdin*, because macOS lets
+  any local user read another process's `argv`; that is why the payload is Base64 and why a value
+  needing quotes fails the write instead. `-T /usr/bin/security` buys no confidentiality against
+  anything that can run that tool — what the Keychain buys is encryption at rest and a credential
+  that goes with a locked keychain. The **file store stays underneath** as the fallback, the
+  migration source for pre-#213 installs and the second thing `clear()` empties, under one rule: a
+  usable credential never sits in both places. And an explicit **`LOOPKY_CONFIG_HOME` opts back
+  into the file**, because that variable means "keep everything here" and a Keychain item shared
+  across every config home would let a disposable one overwrite the real session. `whoami` reports
+  both `config_home` and `session_store`, the latter probed rather than asserted.
 - **The version check reports and never acts, and it adds no host to anyone's allowlist.** A
   `curl`-installed binary in an ephemeral sandbox never finds out it is stale, and for this client
   that is a *correctness* problem rather than a distribution one: `--json` is a versioned API an

@@ -2103,3 +2103,136 @@ the block's viewport shrank below the block's own height and Give up was sheared
 laid out at [368,1002][712,1076], drawn nowhere, and answering no tap there. It is in the tree and
 absent from the screen, which is the failure mode nothing reports. The card's own height already
 clears the keyboard; that is what the fix relies on, with the block's scroll as the fallback.
+
+## #213 — the macOS row: the Keychain, and one file — 2026-09-05, macOS 26.6 arm64
+
+The first time `:cli:nativeCompile` had been run on a Mac. Two findings, one of them the reason
+the row was never shippable.
+
+**The binary was eleven files, and had always been.** `checkNativeImageIsOneFile` failed on a
+clean `main` before any of this branch's code existed, listing ten JDK dylibs beside the
+executable — `libawt`, `libawt_lwawt`, `libfontmanager`, `libfreetype`, `libjavajpeg`, `liblcms`,
+`libmlib_image`, `libosxapp`, `libjava`, `libjvm`. So the `curl … -o ~/.local/bin/loopky` install
+the binary exists for was dead on macOS, and the release job would have failed at the same check
+the moment anyone tagged. `-H:AbortOnTypeReachable` named it in two builds: `java.awt.Toolkit` via
+`java.awt.Component.<clinit>`, and `Component` itself "present in an `Executable` object
+reconstructed by reflection". Bisecting `reflect-config.json` by halves found the single entry —
+`com.sun.jna.Native`, whose declared methods include `getComponentID(Component)`. Dropping its
+`methods` list is **not** enough; the class entry alone does it. `jni-config.json` already carries
+the same six methods and is the registration `dispatch.c` actually uses, so the reflect entry was
+a duplicate the tracing agent wrote. Linux is unaffected by the identical registration, which is
+why CI stayed green.
+
+**Sign-in with Pubky Ring, driven from the `Pixel_9` emulator against staging.** The known
+relay flakiness is still there — round 1 of the retry loop timed out, round 2 landed. Poll the
+layout for `select-pubky-title` and `ConfirmAuthAuthorizeButton` rather than sleeping a fixed
+amount: a fixed 3s tapped through Ring's cold-start screen into *Add Pubky* twice.
+
+| Verified with the **native binary** unless noted | Result |
+| --- | --- |
+| `nativeCompile` output | ✅ one file, 56 MB |
+| `login --env staging` via Ring on the emulator | ✅ `Silver-Otter-Sparrow`, `caps=/pub/loopky/:rw` only, Ring's sheet showed `/pub/loopky/ READ, WRITE` |
+| The session lands in the **Keychain** | ✅ `security find-generic-password -s loopky.session -a session.v1` returns the item, `desc="Loopky session"`, written by the *binary* — which is what proves `ProcessBuilder` + `security -i` survive `native-image` |
+| …and **not** in a file | ✅ `~/Library/Application Support/loopky/secrets.json` does not exist |
+| `login` reports where it put it | ✅ `stored_at: "the macOS Keychain (service loopky.session)"` |
+| `whoami --json` | ✅ `session_store` beside `config_home`, `session_live: true` |
+| `whoami` text | ✅ `Session from: this machine` / `Session in: the macOS Keychain (…)` |
+| Homeserver **read**, staging | ✅ `deck list` → Sparrow's 7 decks (Gross Anatomy 442, Biochemistry 1668, spanish 10 000 sentences 2156, Phrasal Verbs P1 3747, …) |
+| Homeserver **write**, staging | ✅ `deck create` → `edaixtwb7hpv`, `card add` from TSV → two cards, `card list` read both back with `ord` 0 and 1000, `deck delete` cleaned up |
+| `LOOPKY_CONFIG_HOME` opts back into the file | ✅ `LOOPKY_CONFIG_HOME=/tmp/loopky-disposable whoami` → exit 3 `not_signed_in`, and the real session was untouched afterwards |
+| The jar distribution reads the same item | ✅ `installDist`'s `deck list` returned the same 7 decks |
+| Real `security(1)` round trip | ✅ `DesktopSessionStoreTest` — missing → write → read → overwrite → delete → missing, on a throwaway service name. It caught the one bug in the write path: `-D "Loopky session"` has a space, and `security -i` splits its line the way a shell does |
+| Shared + CLI suites | ✅ `:shared:jvmTest` and `:cli:test` green, 18 new tests |
+
+**Not run:** a live `logout`. It would revoke the session this run signed in with, and getting
+back in depends on the relay lottery above; `clear()` against the real keychain is covered by the
+round-trip test instead. Migration from a pre-#213 `secrets.json` is covered by the fake-keychain
+tests, not on a live install.
+
+### Review round 2 — 2026-09-05, same machine
+
+Three findings, all real. The interesting part is that verifying the third one produced the
+condition it describes.
+
+| Verified with the **native binary** | Result |
+| --- | --- |
+| `logout` | ✅ `revoked: true`, `cleared_locally: true`, exit 0, and the Keychain item is gone — `security find-generic-password` answers "could not be found" |
+| Re-`login` through Ring on the emulator | ✅ round 1 this time (the relay lottery, not a change) |
+| Staging read/write after the drain rework | ✅ `deck create` → `deck list` → `deck delete` |
+| The fallback, unplanned | ✅ a sign-in during the wedged-keychain window below wrote the session to `secrets.json` and reported it — the 20s bound turning an indefinite block into a fallback, observed rather than argued |
+| The migration, unplanned | ✅ the next `whoami` adopted that file session into the Keychain and left `secrets.json` empty (`[]`) — the one-copy invariant on a real install, not a fake |
+
+**A flakiness loop wedged the whole machine's keychain, and that is the finding.** Chasing one
+failing round trip with a 25-iteration loop — concurrent with a Gradle run doing the same — made
+macOS raise an authorization dialog. `securityd` serialises everything behind it, so **14**
+`security` processes queued up, including `gh`'s token read, and `gh api` started answering
+"Requires authentication". Draining the requesters and killing `SecurityAgent` cleared it.
+
+The hypothesis that `-U` on an existing item prompts because it re-applies the `-T` ACL is
+**wrong**, tested directly: fresh add, update-with-`-T`, update-without-`-T` and delete-then-add
+all returned 0 with no dialog. So there is no redesign — the volume is what did it, and neither the
+product nor the suite does that. What changed is the test: only a *timeout* is excused as an
+environment condition, because a blanket skip would have hidden the `-D "Loopky session"` quoting
+bug this same test caught.
+
+### Review round 3 — 2026-09-05
+
+Two findings, both consequences of the round-1 fixes. The second is the reviewer walking back part
+of their own round-1 request, correctly: deleting the stale item before falling back made
+`loopky login` fail outright on a locked or absent keychain — the exact host the fallback exists
+for — because `write` and `delete` fail together for almost every reason either fails.
+
+**Neither suggested patch was taken, and the reason is worth keeping.** Both findings are
+downstream of one thing: `load()` read the Keychain *first*. Inverting that to read the file first
+dissolves both with no new state and no refusal. The file is empty whenever the Keychain holds the
+session (a successful write clears it), so the happy path is unchanged; when it is *not* empty it
+is not empty for exactly one reason — a Keychain write failed and this is the newer credential — so
+preferring it is the correct answer rather than a tie-break. The stale item then cannot win, so
+nothing needs deleting on the failure path and nothing needs to throw; the next `load()` that finds
+the Keychain answering overwrites it on its way past, which is the same call that migrates a
+pre-#213 file session up.
+
+The invariant is restated accordingly: not "never in two places" but **when both hold something,
+the file is the newer one and wins**.
+
+| Verified | Result |
+| --- | --- |
+| Happy path unchanged by the inversion | ✅ `whoami` still reports the Keychain, `deck list` still returns 7 staging decks, one file lookup in an already-loaded map ahead of it |
+| `logout`'s guard no longer hides the likelier case | ✅ `!clearedLocally` alone — a store that refuses a delete has usually refused the read too, so `hadSession` was false and the old guard exited 0 over a surviving credential |
+| A refused delete over nothing is not a failure | ✅ `clear()` gates on `read() is Missing`, so a clean sign-out on a file-only host stops reporting a missing credential as a surviving one |
+
+**The real-keychain round trip is now opt-in, and that is the other finding of this round — a
+self-inflicted one.** It creates and deletes an item in the developer's *login* keychain on every
+`:shared:jvmTest`, and running the suite a few times in a row raised macOS authorization dialogs
+twice during this session, the second time with the user at the keyboard. `securityd` serialises
+every caller behind such a dialog, so `gh`'s token read hangs too and `gh api` starts answering
+"Requires authentication". It runs under `LOOPKY_KEYCHAIN_TESTS=1` now. Everything the wrapper
+decides is covered by the fake; what the real one adds is the `security(1)` protocol, which is
+worth running by hand when that changes and worth nobody's password prompt otherwise.
+
+### Review round 4 — the LOW list — 2026-09-05
+
+All seven taken, all verified real first. Two changed behaviour, the rest are contract and
+documentation.
+
+| Finding | Resolution |
+| --- | --- |
+| `fallback.clear()` can throw on the *success* path, leaving the Keychain with the new session and the file with an older one — the one arrangement file-first assumes cannot exist | The invariant is re-established rather than assumed: a failed clear writes the new session to the file instead. It does not stay loud otherwise — once a full disk recovers, `storedInFile()` migrates the *older* credential back over the newer one and nothing is left to notice |
+| Both presence probes ran `find-generic-password -w`, pulling the secret through a pipe to answer "is it there?" | `Keychain.exists()` — same exit codes without `-w`. Pinned by `the probes do not pull the secret out of the keychain`, which counts reads on the fake |
+| `requireArgvSafe` threw out of a `Result<Unit>` contract, so the one input it guards would have taken `save()`'s fallback with it | Returns `Result.failure`; the guard now fails on the same path as every other write failure |
+| `stored_at` silently became a *file* on Linux where it had been a *directory* | Reverted to the config home; `session_store` added to `LoginResult`, so `login` and `whoami` answer with the same field name. The two sinks became `LoginSinks` to keep the signature under detekt's parameter limit |
+| The release job's Keychain assertion is negative-only, so it also passes when the store was the file all along | The precondition is asserted positively — `LOOPKY_CONFIG_HOME` and `XDG_CONFIG_HOME` both empty — since a runner image exporting either is exactly what would make it vacuous |
+| `location` is a blocking subprocess behind a non-suspend `val`, memoised for the process | Documented, because the signature hides both and `SecureSessionStore` is shared with the apps |
+| **`XDG_CONFIG_HOME` also opts a Mac out of the Keychain**, and only `LOOPKY_CONFIG_HOME` was documented | Written down in the KDoc, `ConfigHome`, `--help` and `cli/README.md`. Verified on the binary: `XDG_CONFIG_HOME=/tmp/xdgprobe whoami` → `not_signed_in`, real session untouched |
+
+Re-verified on the binary against staging afterwards: `whoami` still reports the Keychain and a
+live session, `deck list` still returns 7, and a `deck create`/`delete` round-trip still works.
+
+**The release skill was missing the Homebrew tap.** It covers the macOS *binary* properly — the
+artifact table, the one-job-per-row constraint (`native-image` does not cross-compile), and a
+by-name assertion for `loopky-macos-aarch64` and its `.sha256`. What it never mentioned is
+`cli/packaging/loopky.rb`, which is a **template** with `version "0.0.0"` and zeroed `sha256`s that
+has to be copied by hand into a separate tap repo per release. Left undone the tap serves the
+previous version silently, and that is worse than stale: `loopky update` refuses on a Homebrew
+install with exit 11 and tells the user to `brew upgrade`, so the one instruction the binary gives
+them leads nowhere. Now step 12, with the two `.sha256`s to fill in and a `brew upgrade` check.

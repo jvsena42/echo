@@ -109,7 +109,12 @@ internal class IdentityRepositoryImpl(
             pubky.signOut(current.sessionSecret)
                 .onFailure { Log.w(TAG, "signOut: the homeserver did not confirm revocation", it) }
                 .isSuccess
-        sessionStore.clear()
+        // Caught rather than propagated: the rest of this teardown must happen whether or not the
+        // store gave the credential up, and the caller needs to be *told* rather than left to
+        // infer it from an exception that also skipped everything below.
+        val clearedLocally = runSuspendCatching { sessionStore.clear() }
+            .onFailure { Log.w(TAG, "signOut: the session store would not give the credential up", it) }
+            .isSuccess
         // The key goes with the session: a signed-out device holding a secret key is a credential
         // nobody is watching. Safe unguarded *today* because the only keys that exist are restored
         // ones, whose owner demonstrably holds the phrase or file. Minting here (#147 phase 3)
@@ -118,7 +123,11 @@ internal class IdentityRepositoryImpl(
         sessionProvider.set(null)
         selfTaggedThisProcess = false
         profileCacheLock.withLock { profileCache.clear() }
-        SignOutOutcome(revokedRemotely = revokedRemotely, hadSession = current != null)
+        SignOutOutcome(
+            revokedRemotely = revokedRemotely,
+            hadSession = current != null,
+            clearedLocally = clearedLocally,
+        )
     }
 
     override suspend fun revokeSession(sessionSecret: String): Result<Unit> = runSuspendCatching {

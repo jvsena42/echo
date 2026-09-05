@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.storage
 
+import com.github.jvsena42.loopky.platform.isMacOs
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -16,9 +17,12 @@ import java.nio.file.attribute.PosixFilePermissions
  * `loopky --help` rather than only here: **a session secret on this machine is protected by file
  * permissions and nothing else.** It is a capability-scoped, expiring session, never a secret key.
  *
- * macOS gets the same file store today. The Keychain is the right answer on that row — it is the
- * one desktop OS where the KVault-equivalent story is good — and is the macOS row's remaining
- * work, not something the Linux row is waiting on.
+ * **None of that reasoning transfers to macOS**, which is why the session no longer lives here on
+ * that row (#213): there is a human at the keyboard, the Keychain is always present, and
+ * [desktopSecureSessionStore] uses it. This directory still holds everything else, and still
+ * holds the session on a Mac whose Keychain will not answer — or one where **either**
+ * `LOOPKY_CONFIG_HOME` or `XDG_CONFIG_HOME` is set, since both mean "keep everything here" and
+ * both are resolved before [platformDefault] is reached.
  *
  * Resolution order, first hit wins:
  * 1. `LOOPKY_CONFIG_HOME` — an explicit override, so a container or a test can point somewhere
@@ -36,9 +40,20 @@ object ConfigHome {
     fun resolve(env: (String) -> String? = System::getenv): Path {
         env("LOOPKY_CONFIG_HOME")?.takeIf { it.isNotBlank() }?.let { return Paths.get(it) }
         env("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }?.let { return Paths.get(it, APP_DIR) }
+        return platformDefault()
+    }
+
+    /**
+     * Where state lives when nothing has been overridden.
+     *
+     * Split out because it is also the *test* [desktopSecureSessionStore] applies before it will
+     * touch the macOS Keychain: an explicit `LOOPKY_CONFIG_HOME` means "keep everything here", and
+     * a Keychain item shared across every config home would make a disposable one overwrite the
+     * caller's real session.
+     */
+    fun platformDefault(): Path {
         val home = Paths.get(System.getProperty("user.home") ?: ".")
-        val macOs = System.getProperty("os.name").orEmpty().startsWith("Mac", ignoreCase = true)
-        return if (macOs) {
+        return if (isMacOs()) {
             home.resolve("Library/Application Support").resolve(APP_DIR)
         } else {
             home.resolve(".config").resolve(APP_DIR)

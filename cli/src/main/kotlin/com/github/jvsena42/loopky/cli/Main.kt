@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.cli
 
+import com.github.jvsena42.loopky.cli.commands.LoginSinks
 import com.github.jvsena42.loopky.cli.commands.cardAdd
 import com.github.jvsena42.loopky.cli.commands.cardEdit
 import com.github.jvsena42.loopky.cli.commands.cardList
@@ -26,6 +27,7 @@ import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.data.repository.MediaRepository
 import com.github.jvsena42.loopky.data.repository.TagRepository
+import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.util.Log
 import com.github.jvsena42.loopky.util.runSuspendCatching
@@ -162,9 +164,15 @@ private suspend fun dispatch(
     val progress: (String) -> Unit = { line -> if (!args.has("json")) System.err.println(line) }
     val note: (String) -> Unit = System.err::println
     return when (val verb = args.verb) {
-        "login" -> login(args, identity, environment, { line -> emitEvent(args, line) }, System.err::println)
+        "login" -> login(
+            args,
+            identity,
+            koin.get<SecureSessionStore>(),
+            environment,
+            LoginSinks({ line -> emitEvent(args, line) }, System.err::println),
+        )
         "logout" -> logout(identity)
-        "whoami" -> whoami(identity, koin.get<PubkyClient>(), environment)
+        "whoami" -> whoami(identity, koin.get<PubkyClient>(), koin.get<SecureSessionStore>(), environment)
 
         "deck list" -> authed(identity, environment) { deckList(koin.decks()) }
         "deck show" -> authed(identity, environment) { deckShow(args, koin.decks()) }
@@ -412,7 +420,10 @@ internal val USAGE = """
                                 way in on a sandbox that has no stored one. Mint it with
                                 `loopky login --export` on a machine with a human at it.
       LOOPKY_ENV                staging | production. --env wins. Defaults to production.
-      LOOPKY_CONFIG_HOME        Where state lives. Defaults to ${'$'}XDG_CONFIG_HOME/loopky.
+      LOOPKY_CONFIG_HOME        Where state lives. Defaults to ${'$'}XDG_CONFIG_HOME/loopky. On macOS
+                                the session is in the login Keychain instead — unless this or
+                                XDG_CONFIG_HOME is set, either of which keeps everything under the
+                                directory it names. `loopky whoami` reports both.
       LOOPKY_NO_UPDATE_CHECK    Set to anything to never look for a newer release. The check is
                                 cached for a day, runs alongside the command, and can never fail
                                 it — but a pipeline that wants no surprises can switch it off.

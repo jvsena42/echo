@@ -165,6 +165,29 @@ jobs:
           echo "$OUT" | grep -q '"code":"not_signed_in"'
           "$BIN" --version | grep -qF "loopky ${VERSION#v} "
 
+      # Deliberately *without* `LOOPKY_CONFIG_HOME`: setting it opts the session back into a
+      # file (#213), so the step above never touches the Keychain — and the Keychain is reached
+      # by spawning `security(1)`, which is the one thing about this row a native image could
+      # plausibly get wrong and still exit cleanly. A read that cannot run the tool degrades to
+      # the file store with a warning on stderr, so the warning's *absence* is the assertion.
+      - name: The Keychain path works in the binary, not just on a JVM
+        env:
+          LOOPKY_NO_UPDATE_CHECK: '1'
+        run: |
+          set -euo pipefail
+          # The assertion below is an *absence* — no degraded-read warning — so the precondition
+          # has to be positive or the whole step goes vacuous the day a runner image starts
+          # exporting one of these. Either variable sends `keychainEligible()` to the file store,
+          # and then "no keychain complaint" is true because nothing ever asked the keychain.
+          test -z "${LOOPKY_CONFIG_HOME:-}"
+          test -z "${XDG_CONFIG_HOME:-}"
+          BIN=cli/build/native/nativeCompile/loopky
+          set +e; "$BIN" whoami --json > out.txt 2> err.txt; CODE=$?; set -e
+          cat out.txt err.txt
+          test "$CODE" -eq 3
+          grep -q '"code":"not_signed_in"' out.txt
+          ! grep -qi 'keychain' err.txt
+
       - name: Name it, and check it
         run: |
           set -euo pipefail

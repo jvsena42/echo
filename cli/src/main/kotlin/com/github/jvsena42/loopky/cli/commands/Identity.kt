@@ -2,7 +2,9 @@ package com.github.jvsena42.loopky.cli.commands
 
 import com.github.jvsena42.loopky.cli.Args
 import com.github.jvsena42.loopky.cli.CliEnvironment
+import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.CommandResult
+import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.TerminalQr
 import com.github.jvsena42.loopky.cli.asCliError
 import com.github.jvsena42.loopky.cli.eventEnvelope
@@ -11,10 +13,14 @@ import com.github.jvsena42.loopky.cli.requireSessionSecretShape
 import com.github.jvsena42.loopky.cli.result
 import com.github.jvsena42.loopky.data.pubky.PubkyClient
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
+import com.github.jvsena42.loopky.data.repository.SignOutOutcome
+import com.github.jvsena42.loopky.data.storage.SecureSessionStore
 import com.github.jvsena42.loopky.domain.model.Session
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 import java.io.File
 
@@ -35,6 +41,14 @@ import java.io.File
  */
 const val CLI_CAPABILITIES = "/pub/loopky/:rw"
 
+/**
+ * The two places `login` writes things that are not its result.
+ *
+ * One parameter rather than two because they travel together and always will — and because the
+ * alternative is a six-argument function, which detekt refuses for the reason it usually should.
+ */
+data class LoginSinks(val emitEvent: (String) -> Unit, val stderr: (String) -> Unit)
+
 @Serializable
 data class LoginResult(
     val pubky: String,
@@ -47,10 +61,17 @@ data class LoginResult(
      */
     @SerialName("session_secret") val sessionSecret: String? = null,
     /**
-     * Where the session was written. Always set: `--export` *also* prints the secret, it does not
-     * print it instead of storing it.
+     * The config home, as it has always been — a *directory*.
+     *
+     * It briefly became `sessionStore.location`, which on Linux is `…/loopky/secrets.json`: a
+     * file where callers had a directory. That is the same silent change of meaning
+     * [WhoamiResult.sessionSource] keeps an awkward spelling to avoid, so it is reverted and
+     * [sessionStore] carries the store's identity instead — the same field name `whoami` uses, so
+     * the two commands answer the question the same way.
      */
     @SerialName("stored_at") val storedAt: String? = null,
+    /** Where the session itself went. See [WhoamiResult.sessionStore]. */
+    @SerialName("session_store") val sessionStore: String? = null,
 )
 
 @Serializable
@@ -58,9 +79,24 @@ data class WhoamiResult(
     val pubky: String,
     val homeserver: String,
     val capabilities: List<String>,
-    /** `env` for `LOOPKY_SESSION`, `file` for the stored one. */
+    /**
+     * `env` for `LOOPKY_SESSION`, `file` for the stored one.
+     *
+     * `file` outlived its literal reading when the macOS session moved to the Keychain (#213) and
+     * is kept anyway: `--json` is a versioned API an agent branches on, and re-spelling a value
+     * changes a meaning rather than adding one. It says *this machine's store*, and
+     * [sessionStore] says which store that is.
+     */
     @SerialName("session_source") val sessionSource: String,
     @SerialName("config_home") val configHome: String,
+    /**
+     * Where a stored session is kept, which stopped being [configHome] on macOS (#213).
+     *
+     * Both are reported rather than one: the rest of this client's state is still under
+     * [configHome], and an agent debugging a box that has lost its session needs to be told which
+     * of the two to look at. Says nothing about *this* session when [sessionSource] is `env`.
+     */
+    @SerialName("session_store") val sessionStore: String,
     val environment: String,
     val indexer: String,
     /**
@@ -90,10 +126,11 @@ data class WhoamiResult(
 suspend fun login(
     args: Args,
     identity: IdentityRepository,
+    sessionStore: SecureSessionStore,
     environment: CliEnvironment,
-    emitEvent: (String) -> Unit,
-    stderr: (String) -> Unit,
+    sinks: LoginSinks,
 ): CommandResult {
+    val (emitEvent, stderr) = sinks
     val handle = identity.beginSignIn(capabilities = CLI_CAPABILITIES, returnToApp = false)
         .getOrElse { throw asCliError(it) }
 
@@ -141,7 +178,7 @@ suspend fun login(
     val export = args.has("export")
     if (export) {
         stderr("")
-        stderr("--export prints a live session secret below. It is also stored under ${environment.configHome}.")
+        stderr("--export prints a live session secret below. It is also stored in ${sessionStore.location}.")
     }
     return result(
         LoginResult(
@@ -150,12 +187,13 @@ suspend fun login(
             capabilities = session.capabilities.map { it.value },
             sessionSecret = session.sessionSecret.takeIf { export },
             storedAt = environment.configHome.toString(),
+            sessionStore = sessionStore.location,
         ),
         buildString {
             appendLine("Signed in as ${session.identity.pubky}")
             appendLine("Homeserver: ${session.homeserver}")
             appendLine("Capabilities: ${session.capabilities.joinToString(", ") { it.value }}")
-            appendLine("Session stored under ${environment.configHome}")
+            appendLine("Session stored in ${sessionStore.location}")
             if (export) {
                 appendLine()
                 appendLine("LOOPKY_SESSION=${session.sessionSecret}")
@@ -168,6 +206,7 @@ suspend fun login(
 suspend fun whoami(
     identity: IdentityRepository,
     pubkyClient: PubkyClient,
+    sessionStore: SecureSessionStore,
     environment: CliEnvironment,
     env: (String) -> String? = System::getenv,
 ): CommandResult {
@@ -181,6 +220,7 @@ suspend fun whoami(
             capabilities = session.capabilities.map { it.value },
             sessionSource = source,
             configHome = environment.configHome.toString(),
+            sessionStore = sessionStore.location,
             environment = environment.name,
             indexer = environment.indexer,
             sessionLive = live,
@@ -191,8 +231,11 @@ suspend fun whoami(
             appendLine("Capabilities: ${session.capabilities.joinToString(", ") { it.value }}")
             appendLine("Environment:  ${environment.name}")
             appendLine("Indexer:      ${environment.indexer}")
-            appendLine("Session from: $source")
+            // Not the JSON's `file`/`env`: that value is pinned by the schema, and on macOS it
+            // no longer reads as anything.
+            appendLine("Session from: ${if (source == "env") "LOOPKY_SESSION" else "this machine"}")
             appendLine("Config home:  ${environment.configHome}")
+            appendLine("Session in:   ${sessionStore.location}")
             append("Session:      ${if (live) "live" else "NOT accepted by the homeserver — sign in again"}")
         },
     )
@@ -206,7 +249,11 @@ data class LogoutResult(
      * False when there was nothing to revoke, which is a success but not a revocation.
      */
     val revoked: Boolean,
-    /** False for a `LOOPKY_SESSION`, which was never written to this machine in the first place. */
+    /**
+     * False for a `LOOPKY_SESSION`, which was never written to this machine in the first place —
+     * and false when the store *refused* to give the credential up, which is the case worth
+     * exiting non-zero over (#213).
+     */
     @SerialName("cleared_locally") val clearedLocally: Boolean,
 )
 
@@ -262,8 +309,24 @@ suspend fun logout(
     // locally-minted key. This client never mints one — it holds a Ring-issued session and
     // nothing else — so there is no key here for the guard to protect.
     val outcome = identity.signOut(force = true).getOrElse { throw asCliError(it) }
+    val report = LogoutResult(
+        revoked = outcome.revokedRemotely,
+        clearedLocally = outcome.hadSession && outcome.clearedLocally,
+    )
+    // A failure, not a success with a caveat. Everything else `logout` can get wrong leaves the
+    // credential somewhere the user was told about; this leaves it exactly where they were told it
+    // was destroyed, and an agent branching on the exit code would move on. The result still
+    // travels, so `cleared_locally: false` is readable on the failure envelope.
+    //
+    // **Not conjoined with `hadSession`**, which would hide the likelier half of it. A store that
+    // refuses a delete has usually just refused the *read* as well — same lock, same wedged
+    // `securityd` — so `loadPersistedSession()` returned null, `hadSession` is false, and the
+    // guard would report "Not signed in — nothing to revoke." and exit 0 over a credential that is
+    // still there and was never even sent for revocation. `clearedLocally` is false only when the
+    // store refused: an absent item deletes successfully (exit 44), as does an absent file key.
+    if (!outcome.clearedLocally) throw unclearedSession(outcome, report)
     return result(
-        LogoutResult(revoked = outcome.revokedRemotely, clearedLocally = outcome.hadSession),
+        report,
         when {
             // Idempotent, and says so. Reporting a revocation here would claim something happened
             // to a credential that was never there.
@@ -278,3 +341,29 @@ suspend fun logout(
         },
     )
 }
+
+private fun unclearedSession(outcome: SignOutOutcome, report: LogoutResult) = CliError(
+    ExitCode.Internal,
+    buildString {
+        append("This machine's session store would not confirm the credential is gone. ")
+        append("On macOS that is the login Keychain item `loopky.session`; remove it by hand ")
+        append("with `security delete-generic-password -s loopky.session`. ")
+        append(
+            when {
+                outcome.revokedRemotely ->
+                    "The homeserver did revoke the session, so what remains is a dead token."
+                // Nothing was *sent*: the store could not produce a secret to revoke with, so this
+                // is weaker than the ordinary offline case rather than the same as it.
+                !outcome.hadSession ->
+                    "Nothing was sent to the homeserver either — the store could not produce the " +
+                        "secret to revoke with — so any session it holds is live until it expires."
+                else ->
+                    "The homeserver did not confirm revocation either, so it may still be live."
+            },
+        )
+    },
+    data = logoutJson.encodeToJsonElement(report),
+)
+
+/** Encodes [LogoutResult] onto a failure envelope, where `result()` is not the one carrying it. */
+private val logoutJson = Json { encodeDefaults = true }

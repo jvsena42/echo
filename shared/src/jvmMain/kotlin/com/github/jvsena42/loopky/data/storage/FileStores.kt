@@ -24,6 +24,8 @@ import kotlinx.coroutines.withContext
  */
 internal class FileSecureSessionStore(private val store: JsonFileStore) : SecureSessionStore {
 
+    override val location: String = store.file.toString()
+
     override suspend fun save(session: Session) = withContext(Dispatchers.IO) {
         store.set(SESSION_STORAGE_KEY, sessionStoreJson.encodeToString(StoredSession.fromDomain(session)))
     }

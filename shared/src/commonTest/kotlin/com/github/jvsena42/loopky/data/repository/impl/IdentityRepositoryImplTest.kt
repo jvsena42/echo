@@ -357,6 +357,7 @@ class IdentityRepositoryImplTest {
 }
 
 private class RecordingSessionStore : SecureSessionStore {
+    override val location: String = "in memory"
     var saved: Session? = null
 
     override suspend fun save(session: Session) {

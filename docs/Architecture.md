@@ -1352,13 +1352,58 @@ can read the file can take instead of the legitimate client. For the same reason
 URL is printed only under `--url-only`, where it is the deliverable — stderr is what an agent
 harness captures into a transcript.
 
-On disk it is a **mode-0600 file, as the default rather than the fallback**. libsecret is usually
-present on a desktop Linux and usually absent on the headless box an agent runs on, so making a
-keyring the default and the file the fallback would fail exactly where the tool is meant to work.
-The trade-off is stated in `--help`, not only here: a session secret on that machine is protected
-by file permissions and nothing else. What is stored is a capability-scoped, expiring session,
-never a secret key — that never leaves Pubky Ring. macOS gets the same file store today; the
-Keychain is the right answer on that row and is that row's remaining work.
+On disk it is a **mode-0600 file on Linux, as the default rather than the fallback**. libsecret is
+usually present on a desktop Linux and usually absent on the headless box an agent runs on, so
+making a keyring the default and the file the fallback would fail exactly where the tool is meant
+to work. The trade-off is stated in `--help`, not only here: a session secret on that machine is
+protected by file permissions and nothing else. What is stored is a capability-scoped, expiring
+session, never a secret key — that never leaves Pubky Ring.
+
+**None of that reasoning transfers to macOS, so that row does not inherit it** (#213). macOS is
+the developer's-machine row: there is a human at the keyboard and the Keychain is always there.
+`SecureSessionStore` is the seam, so this is a `PlatformModule.jvm.kt` binding chosen by OS and
+nothing above it changes — `desktopSecureSessionStore` returns `MacKeychainSessionStore` there and
+`FileSecureSessionStore` everywhere else. Five things about it are decisions rather than details:
+
+- **`security(1)`, not JNA into Security.framework.** `SecItemAdd` from the binary ties the item's
+  ACL to *that executable*, and `loopky update` replaces the executable — so the upgrade users are
+  told to run would start prompting for a Keychain password. A subprocess has no such identity.
+  It also keeps the native image one file: `ProcessBuilder` needs no reachability metadata, where
+  a new JNA surface needs three registrations and is the exact shape that has twice made the build
+  emit a second file (§13.2).
+- **The payload never appears in `argv`.** macOS lets any local user read another process's
+  command line, so `add-generic-password -w <secret>` publishes what it is storing. The write goes
+  through `security -i`, which reads its command from *stdin*. The cost is quoting — `-i` splits a
+  line the way a shell does — so the session JSON is Base64 first, and a value that would need
+  escaping fails the write rather than being mangled.
+- **`-T /usr/bin/security` is honest about its ceiling.** It stops the confirmation dialog on
+  every read, and therefore anything that can run `security` as this user can read the item. What
+  the Keychain buys over the file is encryption at rest, a credential that goes away when the
+  keychain locks, and a session that is not in a directory people tar up into bug reports.
+- **The file store stays underneath, reached three ways**: the fallback for a Mac whose Keychain
+  will not answer (locked over SSH, a CI runner with none), the migration source for every install
+  that predates this, and the second thing `clear()` has to empty. One rule threads all three —
+  never leave a usable credential in both places, so a successful write clears the file.
+- **An explicit `LOOPKY_CONFIG_HOME` keeps everything in it.** The override exists so a container
+  or a test can point state somewhere disposable; a Keychain item is not disposable, and one
+  shared across every config home would make `LOOPKY_CONFIG_HOME=/tmp/x loopky login` overwrite
+  the caller's real session. The Keychain is used only when the resolved home is the platform
+  default.
+
+`whoami` therefore reports **both** `config_home` and `session_store`: the rest of the state is
+still under the directory, and an agent debugging a box that has lost its session needs to be told
+which of the two to look at. `login`'s `stored_at` is the store, not the directory.
+
+The same issue closes the other half of the macOS row. Only `darwin-aarch64` is built — one row
+rather than two and a `lipo`, because no part of the workload that motivated this runs on an Intel
+Mac — and an x86-64 Mac used to get *no message*: the JNA lookup missed and the first homeserver
+call failed as a transport error, a wrong diagnosis pointing at the user's network. The refusal
+now exists at all three ends. `cli/install.sh` refuses `Darwin:x86_64` before downloading;
+`SupportedHost` refuses at the CLI's command boundary with exit 12; and
+`requireSupportedDesktopHost` refuses in `jvmPlatformModule` before `UniffiPubkyClient` is
+constructed, which is the end every *other* desktop consumer of `:shared` arrives by. The host
+table itself is `DesktopNativeRow`, in `:shared` beside the libraries — one table, because a copy
+in the CLI would drift from the one the FFI actually loads.
 
 ### 13.6 Which network, and why it must be said out loud
 

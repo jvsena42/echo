@@ -253,7 +253,34 @@ merge commit.
       only for a final version — a pre-release tag such as `v1.0.0-rc1` deliberately leaves it
       where it is, so do not treat an unmoved `:latest` as a failure.
 
-12. **Clean up and summarize**: Delete the temporary `Loopky-<numeric_version>.apk` and the merged
+12. **Update the Homebrew tap, or say out loud that you did not.** This is the macOS delivery
+    channel and nothing automates it: `cli/packaging/loopky.rb` is a *template* — `version
+    "0.0.0"` and zeroed `sha256`s — that lives here because a tap is its own repository
+    (`jvsena42/homebrew-loopky`) and the release workflow cannot push to one.
+
+    Left undone, the tap keeps serving the previous version and there is no error anywhere. It is
+    worse than merely stale: `loopky update` **refuses** on a Homebrew install with exit 11 and
+    tells the user to run `brew upgrade` (Architecture.md §13.12), so the one instruction the
+    binary gives them leads nowhere.
+
+    ```shell
+    gh release download <version> --pattern 'loopky-macos-aarch64.sha256' --pattern 'loopky-linux-x86-64.sha256' --dir /tmp
+    cat /tmp/loopky-macos-aarch64.sha256 /tmp/loopky-linux-x86-64.sha256
+    ```
+
+    Copy `cli/packaging/loopky.rb` to `Formula/loopky.rb` in the tap, set `version` to the numeric
+    version and each `sha256` to the matching line above — **two of them**, one per row, and they
+    are not interchangeable. Then verify from a clean shell rather than trusting the edit:
+
+    ```shell
+    brew update && brew upgrade loopky && loopky --version   # must print <numeric_version>
+    ```
+
+    If the tap repo does not exist yet, say so explicitly in the summary rather than skipping
+    quietly — "Homebrew not updated, tap not created" is a fine outcome to report and a bad one to
+    leave implied.
+
+13. **Clean up and summarize**: Delete the temporary `Loopky-<numeric_version>.apk` and the merged
     release branch (`git branch -d chore/version-<numeric_version>`), then print the release URL,
     the new Android `versionCode`/`versionName`, the iOS
     `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`, and the CLI's `loopkyCliVersion` with the
