@@ -475,18 +475,20 @@ payload does not carry one.
   and it needs no session, no network and no FFI — it works on a broken install. Reading `--help`
   as prose, or the repository's `USAGE` constant, is no longer the way in.
 - **`loopky batch` runs a sequence of commands against one session, and the saving is real.** Every
-  homeserver command pays process start, the FFI load and a session round trip: on staging,
+  homeserver command pays process start, the FFI load and a session round trip — all three of which
+  a batch pays once: on staging,
   `whoami` is ~2.5s before it does anything. `card add --from-file` and `import` already amortise
   that where they apply; a *sequence of different* commands — create a deck, add cards, read them
   back — had no amortised form and is the shape an agent produces. Measured: six operations, 28.7s
-  as separate invocations, 10.6s as one batch.
+  as separate invocations, 10.6s as one batch; eight read-only ones, 26.9s against 8.7s.
 
   A line is `{"argv": ["card", "add", "deckid", "--front", "a", "--back", "b"]}`, with an optional
   `"id"` echoed back; the bare array works too. Each line goes through the same parser and the same
   dispatcher a command line does, so a batch can never accept something the CLI does not. Under
   `--json` every operation streams a line of its own carrying that command's whole result, then the
   envelope summarises — and each streamed envelope's own `ok` is that operation's, so branching on
-  it is safe. The whole file is validated before the first operation runs, unknown verbs included:
+  it is safe, and an operation's rendered result reaches stdout the way a single command's does.
+  The whole file is validated before the first operation runs, unknown verbs included:
   a `deck creat` on line 400 fails with the homeserver untouched rather than 399 writes in. A failure does
   not end the run unless `--stop-on-error`, and the exit code is the **first failure's** rather than
   one of the batch's own — `session_expired` and `storage_full` say different things about whether

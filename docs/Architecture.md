@@ -1909,7 +1909,17 @@ The bulk-file paths already amortise that where they apply. What had no amortise
 the shape an agent actually produces. `loopky batch` is that shape: one process start, one FFI
 load, one session, and the repositories' per-session cache warm across the whole run. Measured on
 staging, six operations took 28.7s and 29.4s as separate invocations against 10.6s and 11.0s as one
-batch.
+batch; eight read-only operations, 26.9s against 8.7s.
+
+**"One session" is a property that had to be built, not one that fell out.** Every homeserver arm
+goes through `authed`, which resolved the session on every call, so the first version of this
+command collapsed only process start and the FFI load while its own header claimed all three. Under
+`LOOPKY_SESSION` — the documented way an agent runs this — that was an `adoptSession` →
+`revalidateSession` **homeserver round trip per operation**; without it, a `sessionStore.load()`
+each, which on macOS forks `security(1)` (§13.5). `SessionCache` resolves once and the batch arm
+passes the same instance down. It is safe to memoise for exactly the reason the command exists: a
+process has one session for its lifetime, since `login` and `logout` are separate invocations and
+neither may appear inside a run.
 
 Four decisions.
 
@@ -1930,7 +1940,10 @@ not end the run unless `--stop-on-error`, and the result — on the failure enve
 exactly which operations landed. Re-running is the recovery, which is what §13.7's idempotence is
 for.
 
-Two things the streaming had to get right, both found in review. Each operation's envelope carries
+Three things the streaming had to get right, all found in review. An operation's rendered result
+goes to **stdout** in the human mode — it went to the `note` sink, which is stderr, so
+`loopky batch ops.ndjson > out.txt` captured the summary line while every actual answer went to the
+terminal, against the contract at the top of `Main.kt`. Each operation's envelope carries
 **that operation's** `ok`, not a hardcoded true — `eventEnvelope` was written for `login`'s
 `auth_url`, which cannot fail, and branching on the envelope is the obvious way to read a stream of
 them. And `--json` is threaded into `dispatch` as a parameter rather than read off the `Args` it is
