@@ -34,8 +34,15 @@ class Args private constructor(
 
     fun word(index: Int): String? = words.getOrNull(index)
 
+    /**
+     * A required operand — a deck or card id — checked for being addressable at all.
+     *
+     * Absent is [ExitCode.Usage]; present but unusable is [ExitCode.BadInput], via
+     * [requireUsableOperand]. The second half is the point: it is what stops a blank id reaching a
+     * homeserver path and coming back as `internal`, the one code an agent retries.
+     */
     fun requireWord(index: Int, name: String): String =
-        word(index) ?: throw CliError(ExitCode.Usage, "Missing <$name>.")
+        requireUsableOperand(word(index) ?: throw CliError(ExitCode.Usage, "Missing <$name>."), name)
 
     fun option(name: String): String? = options[name]?.lastOrNull()
 
@@ -68,8 +75,16 @@ class Args private constructor(
      * whatever the caller does with a negative — both of which answer a question nobody asked,
      * which is the failure mode this surface exists to avoid.
      */
-    fun positiveInt(name: String, default: Int): Int {
-        val raw = option(name) ?: return default
+    fun positiveInt(name: String, default: Int): Int = positiveIntOrNull(name) ?: default
+
+    /**
+     * The same, for an option whose absence is not a number.
+     *
+     * `login --timeout` is the case: not passing it means *wait forever*, which no default can
+     * stand in for.
+     */
+    fun positiveIntOrNull(name: String): Int? {
+        val raw = option(name) ?: return null
         return raw.toIntOrNull()?.takeIf { it > 0 }
             ?: throw CliError(ExitCode.Usage, "--$name must be a positive whole number, not '$raw'.")
     }
@@ -108,6 +123,12 @@ class Args private constructor(
             // because "remove every tag" is a different gesture from "set the tags to this" and
             // `--tag ""` would have to be read as both.
             "clear-tags", "clear-cover",
+            // `deck create --if-not-exists`, which only means anything beside `--id`. A switch
+            // rather than a mode, because "make sure this deck exists" is one gesture.
+            "if-not-exists",
+            // `batch`. Off by default: when the same rows apply singly, one refused operation is
+            // not a reason to abandon the six hundred after it.
+            "stop-on-error",
         )
 
         fun parse(argv: Array<String>): Args {

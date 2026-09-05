@@ -51,21 +51,63 @@ internal sealed interface Operand {
     /** A file, so the shell completes paths. `import`, and nothing else. */
     data object Path : Operand
 
-    /** A closed set of words. */
-    data class OneOf(val choices: List<String>) : Operand
+    /** A closed set of words. [name] is what the operand is called when it is shown. */
+    data class OneOf(val name: String, val choices: List<String>) : Operand
 
-    /** A deck or card id: known to the homeserver, unknowable here. [name] is shown as a hint. */
-    data class Opaque(val name: String) : Operand
+    /**
+     * Deck and card ids: known to the homeserver, unknowable here. The names are shown as a hint.
+     *
+     * A list rather than one string because arity is part of the surface — `card edit` takes two
+     * words and the second is optional, which a machine-readable surface has to be able to say
+     * (#240, finding 4) and `"deckId cardId"` could only imply.
+     */
+    data class Opaque(val required: List<String>, val optional: List<String> = emptyList()) : Operand {
+        constructor(vararg required: String) : this(required.toList())
+
+        val names: List<String> get() = required + optional
+    }
 }
 
 /**
  * One command. [path] is exactly [Args.verb] — one word, or a group noun plus its verb.
+ *
+ * [needsSession], [writes] and [local] exist for one consumer: `loopky commands --json` derives
+ * the exit codes a command can produce from them rather than listing them per command by hand
+ * (see `exitCodes`). Derived, so the answer cannot drift from the table the way a hand-kept list
+ * would — and useful, because "`tag trending` can never answer `session_expired`" is exactly the
+ * kind of thing an agent otherwise learns by hitting it.
  */
 internal data class CliCommand(
     val path: String,
     val summary: String,
     val operand: Operand = Operand.None,
     val options: List<CliOption> = emptyList(),
+    /** Refuses with [ExitCode.NotSignedIn] rather than running when there is no session. */
+    val needsSession: Boolean = true,
+    /** Writes to the homeserver, so it can hit the quota wall. */
+    val writes: Boolean = false,
+    /** Runs before Koin: no FFI, no homeserver, no relay. `update`, `completion`, `commands`. */
+    val local: Boolean = false,
+    /** Codes this command alone can produce, which nothing about its shape implies. */
+    val alsoExits: List<ExitCode> = emptyList(),
+    /**
+     * Exits with a *relayed* code: whatever the operation it ran exited with.
+     *
+     * `batch` does, and nothing about its own shape says so — it takes a path, so the derivation
+     * would give it `bad_input` and stop, while `{"argv":["deck","show","nope"]}` makes it exit
+     * `not_found`. Under-listing is the direction that hurts: an agent that sees a code the table
+     * says is impossible has no rule for it.
+     */
+    val relaysExitCodes: Boolean = false,
+    /**
+     * Why this command cannot run inside a `batch`, or null when it can.
+     *
+     * Declared here rather than as a list in `Batch.kt` so the table is the one authority: `batch`
+     * validates a line against it, and [relaysExitCodes] takes its union from it. A command added
+     * without a thought about batching is batchable by default, which is the right default — the
+     * six that are not each have a reason, and the reason is the message.
+     */
+    val notBatchable: String? = null,
 )
 
 /**
@@ -144,9 +186,18 @@ internal fun cliCommands(): List<CliCommand> = listOf(
             CliOption("export", "also print the session secret, for LOOPKY_SESSION", OptionValue.Switch),
             CliOption("qr-out", "write the QR code to a file", OptionValue.Path),
             CliOption("url-only", "print the pubkyauth URL and no QR code", OptionValue.Switch),
+            CliOption("timeout", "give up after this many seconds rather than waiting forever"),
         ),
+        // Sign-in is what produces a session; it cannot require one.
+        needsSession = false,
+        alsoExits = listOf(ExitCode.Timeout),
+        notBatchable = "A batch runs as one session; sign in before it.",
     ),
-    CliCommand("logout", "forget the stored session"),
+    CliCommand(
+        path = "logout",
+        summary = "forget the stored session",
+        notBatchable = "It would revoke the session the remaining operations run as.",
+    ),
     CliCommand("whoami", "pubky, homeserver, capabilities, environment, and whether the session is live"),
 
     CliCommand("deck list", "every deck you have published"),
@@ -155,6 +206,12 @@ internal fun cliCommands(): List<CliCommand> = listOf(
         path = "deck create",
         summary = "publish a new deck",
         options = DECK_METADATA +
+            CliOption("id", "publish under this deck id rather than a fresh one") +
+            CliOption(
+                "if-not-exists",
+                "with --id, return the deck that is already there rather than publishing",
+                OptionValue.Switch,
+            ) +
             CliOption("from-file", "a TSV or JSONL card file to publish with it", OptionValue.Path) +
             CliOption(
                 "check-images",
@@ -162,6 +219,7 @@ internal fun cliCommands(): List<CliCommand> = listOf(
                 OptionValue.Switch,
             ) +
             STUDY_OPT_INS + LANGUAGE_OPTIONS,
+        writes = true,
     ),
     CliCommand(
         path = "deck edit",
@@ -171,10 +229,16 @@ internal fun cliCommands(): List<CliCommand> = listOf(
             CliOption("clear-tags", "remove every tag", OptionValue.Switch),
             CliOption("clear-cover", "remove the cover image and emoji", OptionValue.Switch),
         ),
+        writes = true,
     ),
-    CliCommand("deck delete", "delete a deck and its cards", Operand.Opaque("deckId")),
+    CliCommand("deck delete", "delete a deck and its cards", Operand.Opaque("deckId"), writes = true),
     CliCommand("deck sync", "re-read a deck from the homeserver", Operand.Opaque("deckId")),
-    CliCommand("deck compact", "fold away the holes card deletes leave in the chunk table", Operand.Opaque("deckId")),
+    CliCommand(
+        path = "deck compact",
+        summary = "fold away the holes card deletes leave in the chunk table",
+        operand = Operand.Opaque("deckId"),
+        writes = true,
+    ),
 
     CliCommand(
         path = "card list",
@@ -187,14 +251,16 @@ internal fun cliCommands(): List<CliCommand> = listOf(
             CliOption("has-image", "only cards with a picture", OptionValue.Switch),
         ),
     ),
-    CliCommand("card add", "add one card, or a file of them", Operand.Opaque("deckId"), CARD_FIELDS),
+    CliCommand("card add", "add one card, or a file of them", Operand.Opaque("deckId"), CARD_FIELDS, writes = true),
     CliCommand(
         path = "card edit",
         summary = "change a card - a field you omit is left alone",
-        operand = Operand.Opaque("deckId cardId"),
+        // The card id is optional: `--from-file` names one per row instead.
+        operand = Operand.Opaque(required = listOf("deckId"), optional = listOf("cardId")),
         options = CARD_FIELDS,
+        writes = true,
     ),
-    CliCommand("card rm", "remove one card", Operand.Opaque("deckId cardId")),
+    CliCommand("card rm", "remove one card", Operand.Opaque("deckId", "cardId"), writes = true),
 
     CliCommand(
         path = "import",
@@ -215,23 +281,61 @@ internal fun cliCommands(): List<CliCommand> = listOf(
                 OptionValue.Switch,
             ),
         ) + STUDY_OPT_INS + LANGUAGE_OPTIONS,
+        writes = true,
     ),
 
     CliCommand(
         path = "tag trending",
         summary = "what is being tagged on the Nexus indexer",
         options = listOf(CliOption("limit", "how many to return")),
+        // A Nexus read is plain HTTP against a public index.
+        needsSession = false,
+    ),
+
+    CliCommand(
+        path = "batch",
+        summary = "run a file of operations against one session, one JSON object per line",
+        operand = Operand.Path,
+        options = listOf(
+            CliOption("stop-on-error", "stop at the first operation that fails", OptionValue.Switch),
+        ),
+        writes = true,
+        relaysExitCodes = true,
+        notBatchable = "A batch that contains itself is a loop.",
     ),
 
     CliCommand(
         path = "update",
         summary = "replace this binary with the newest release",
         options = listOf(CliOption("check", "ask without doing", OptionValue.Switch)),
+        needsSession = false,
+        local = true,
+        // `local` suppresses the network codes, so everything this command really answers with has
+        // to be named. `UnsupportedHost` because it refuses before downloading a binary it has no
+        // asset for, and `NotFound` because `fetchVerifiedBinary` fetches the asset itself through
+        // `download`, which throws that on a 404 — a release with no artifact for this host.
+        alsoExits = listOf(
+            ExitCode.Network,
+            ExitCode.NotFound,
+            ExitCode.UnsupportedHost,
+            ExitCode.UpdateUnsupported,
+        ),
+        notBatchable = "Run it before or after; not while this binary is executing a file.",
     ),
     CliCommand(
         path = "completion",
         summary = "print a shell completion script",
-        operand = Operand.OneOf(COMPLETION_SHELLS),
+        operand = Operand.OneOf("shell", COMPLETION_SHELLS),
+        needsSession = false,
+        local = true,
+        notBatchable = "It prints a shell script and does no homeserver work.",
+    ),
+    CliCommand(
+        path = "commands",
+        summary = "this table, as JSON - every verb, its operands, its flags and its exit codes",
+        needsSession = false,
+        local = true,
+        notBatchable = "It prints the command table and does no homeserver work.",
     ),
 )
 

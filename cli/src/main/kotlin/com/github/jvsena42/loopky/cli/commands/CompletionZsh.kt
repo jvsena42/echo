@@ -147,5 +147,5 @@ private fun zshOperand(operand: Operand): String? = when (operand) {
     is Operand.OneOf -> "            _loopky_describe values value " +
         operand.choices.joinToString(" ") { "'$it'" }
     // Nothing to offer, but saying what the word is beats an empty menu that reads like a bug.
-    is Operand.Opaque -> "            _message -e operand '${operand.name}'"
+    is Operand.Opaque -> "            _message -e operand '${operand.names.joinToString(" ")}'"
 }

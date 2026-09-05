@@ -52,6 +52,15 @@ class FakeDeckRepository(
      * outcomes, and only the count tells them apart.
      */
     private val upsertFails: (Card, Int) -> Throwable? = { _, _ -> null },
+    /**
+     * What a read of the deck fails with — `sync` and `fetchRemote` alike — or null for a deck
+     * that is there.
+     *
+     * `deck create --if-not-exists` is the caller that needs the failing case: "there is no such
+     * deck" and "the homeserver did not answer" have to reach it as different things, or a
+     * network wobble publishes the duplicate the flag exists to prevent.
+     */
+    private val readFails: Throwable? = null,
 ) : DeckRepository {
 
     /** Every `upsertCard` call, failed ones included — `upserted` holds only the ones that landed. */
@@ -71,7 +80,22 @@ class FakeDeckRepository(
     /** The cards `import --resume` appended to a deck it matched. */
     val appended = mutableListOf<Card>()
 
-    override suspend fun sync(deckId: String): Result<Deck> = Result.success(deck)
+    override suspend fun sync(deckId: String): Result<Deck> {
+        syncCalls += deckId
+        return readFails?.let { Result.failure(it) } ?: Result.success(deck)
+    }
+
+    /** Every deck id `sync` was asked for, so a test can assert a read did *not* happen. */
+    val syncCalls = mutableListOf<String>()
+
+    /**
+     * Every `(authorPubky, deckId)` a manifest read was aimed at.
+     *
+     * The pubky is the assertable half: `deck create --id` asks for the *caller's own* namespace,
+     * and that — rather than a field check afterwards — is what stops a followed deck's id being
+     * reported as taken.
+     */
+    val fetchRemoteCalls = mutableListOf<Pair<String, String>>()
 
     override suspend fun publish(
         deck: Deck,
@@ -108,7 +132,10 @@ class FakeDeckRepository(
     private fun no(name: String): Nothing = error("FakeDeckRepository.$name is not part of this test")
 
     override suspend fun getLocal(id: String): Deck? = deck.takeIf { it.id == id }
-    override suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck> = no("fetchRemote")
+    override suspend fun fetchRemote(authorPubky: String, deckId: String): Result<Deck> {
+        fetchRemoteCalls += authorPubky to deckId
+        return readFails?.let { Result.failure(it) } ?: Result.success(deck)
+    }
     override suspend fun publish(deck: Deck, cards: List<Card>): Result<Deck> = no("publish")
     override suspend fun delete(deckId: String): Result<Unit> = no("delete")
     override suspend fun appendCards(deckId: String, cards: List<Card>): Result<Deck> {

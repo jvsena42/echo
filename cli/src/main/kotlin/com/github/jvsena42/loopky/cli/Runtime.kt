@@ -65,7 +65,31 @@ fun startCli(environment: CliEnvironment): Koin {
 fun stopCli() = stopKoin()
 
 /**
+ * The session this invocation runs as, resolved at most **once** per process.
+ *
+ * A process has exactly one session for its lifetime — `login` and `logout` are separate
+ * invocations, and `batch` refuses both as operations — so resolving it per command is pure cost.
+ * Not a micro-optimisation, and `batch` is why it exists: every homeserver command goes through
+ * `authed`, so a 100-operation run called [requireSession] 100 times. With `LOOPKY_SESSION` set —
+ * the documented way an agent runs this — that is `adoptSession` → `revalidateSession`, a full
+ * homeserver round trip **each**; without it, a `sessionStore.load()` each, which on macOS is a
+ * `security(1)` fork/exec. The session round trip was listed as one of the three costs `batch`
+ * collapses and was the one it did not.
+ */
+class SessionCache {
+    private var resolved: Session? = null
+
+    suspend fun require(
+        identity: IdentityRepository,
+        environment: CliEnvironment,
+        env: (String) -> String? = System::getenv,
+    ): Session = resolved ?: requireSession(identity, environment, env).also { resolved = it }
+}
+
+/**
  * The session this invocation runs as.
+ *
+ * Call it through [SessionCache] from anything that may run more than once in a process.
  *
  * `LOOPKY_SESSION` is read **before** the stored one, and the ordering is the point: a cloud
  * agent's sandbox is recreated per task, so `$XDG_CONFIG_HOME/loopky` is gone every run and nobody

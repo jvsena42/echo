@@ -18,28 +18,32 @@ import kotlinx.serialization.json.JsonElement
  * resume after a human runs `loopky login` — which is what makes `--resume` worth having.
  *
  * [name] is what `--json` reports, so a caller can branch on a word rather than a number.
+ *
+ * [summary] is one line, and it exists because a binary is the only copy of this table an agent
+ * has: `loopky commands --json` emits it (#240, finding 4). Keep it to a sentence, and keep it
+ * saying what the caller should *do* — this is read by something deciding whether to retry.
  */
-enum class ExitCode(val code: Int, val json: String) {
+enum class ExitCode(val code: Int, val json: String, val summary: String) {
     /** The command did what it was asked. */
-    Ok(0, "ok"),
+    Ok(0, "ok", "the command did what it was asked"),
 
     /** A failure this table has no better word for. Worth reporting as a bug. */
-    Internal(1, "internal"),
+    Internal(1, "internal", "a failure this table has no better word for - worth reporting as a bug"),
 
     /** The command line was wrong: unknown command, missing argument, bad flag. */
-    Usage(2, "usage"),
+    Usage(2, "usage", "the command line was wrong - do not retry it unchanged"),
 
     /** No session at all. Run `loopky login`, or set `LOOPKY_SESSION`. */
-    NotSignedIn(3, "not_signed_in"),
+    NotSignedIn(3, "not_signed_in", "no session at all - run loopky login, or set LOOPKY_SESSION"),
 
     /** There was a session and the homeserver has stopped honouring it. See the class note. */
-    SessionExpired(4, "session_expired"),
+    SessionExpired(4, "session_expired", "the homeserver has stopped honouring this session - sign in again"),
 
     /** The homeserver, the relay or the indexer could not be reached. Retryable as-is. */
-    Network(5, "network"),
+    Network(5, "network", "the homeserver, relay or indexer could not be reached - retryable as-is"),
 
     /** The deck, card or record asked for does not exist. */
-    NotFound(6, "not_found"),
+    NotFound(6, "not_found", "the deck, card or record asked for does not exist"),
 
     /**
      * The homeserver refused the write because the account is out of quota (507).
@@ -47,7 +51,7 @@ enum class ExitCode(val code: Int, val json: String) {
      * Terminal, never retried: re-hosting and compaction both *consume* quota, so nothing the
      * client can do digs it out, and a backoff chain against a full disk never converges.
      */
-    StorageFull(7, "storage_full"),
+    StorageFull(7, "storage_full", "the account is out of homeserver quota - terminal, never retry"),
 
     /**
      * The session and the requested environment disagree.
@@ -56,10 +60,10 @@ enum class ExitCode(val code: Int, val json: String) {
      * wrong network **successfully, with an empty result**, so an agent that writes a tag, reads it
      * back and sees `[]` concludes the write failed and retries. Caught at startup instead.
      */
-    EnvironmentMismatch(8, "environment_mismatch"),
+    EnvironmentMismatch(8, "environment_mismatch", "the session and --env disagree - re-run against the other network"),
 
     /** An input file could not be read, or held nothing importable. */
-    BadInput(9, "bad_input"),
+    BadInput(9, "bad_input", "an operand or file was unusable - do not retry it unchanged"),
 
     /**
      * This machine is not one `libpubkycore` is built for. See [SupportedHost].
@@ -70,7 +74,7 @@ enum class ExitCode(val code: Int, val json: String) {
      * the machine that can never run this binary reports [NotFound]: *the deck does not exist*.
      * `SupportedHostTest` pins that, because it is the reason this row exists.
      */
-    UnsupportedHost(10, "unsupported_host"),
+    UnsupportedHost(10, "unsupported_host", "no libpubkycore is built for this OS and architecture"),
 
     /**
      * `loopky update` found a newer release and may not install it here (#209).
@@ -83,7 +87,7 @@ enum class ExitCode(val code: Int, val json: String) {
      * world, and the command's answer in each is a different, correct instruction rather than a
      * bug. Nothing was downloaded and nothing was replaced.
      */
-    UpdateUnsupported(11, "update_unsupported"),
+    UpdateUnsupported(11, "update_unsupported", "a newer release exists and this install may not replace itself"),
 
     /**
      * The homeserver answered with a 5xx of its own (#229, item 2).
@@ -97,7 +101,26 @@ enum class ExitCode(val code: Int, val json: String) {
      * Deliberately not [Network], which promises the request never arrived: it did, and it may have
      * been applied. That distinction is what makes a resumed write safe to attempt.
      */
-    ServerError(12, "server_error"),
+    ServerError(12, "server_error", "the homeserver answered 5xx - the request may have applied; worth retrying"),
+
+    /**
+     * `login --timeout` ran out before Pubky Ring approved (#240, finding 2).
+     *
+     * Its own code because the alternative is SIGKILL, which is what an unattended caller had.
+     * `login` blocks until a human reaches for their phone, which is correct at a terminal and
+     * unusable in a script — and `timeout -s KILL` skips the shutdown hook that sweeps a
+     * `--qr-out` file, leaving a **live auth URL on disk**. Bounding the wait inside the process
+     * is what keeps that cleanup.
+     *
+     * *This process* is not signed in. Deliberately not "nothing was stored": the await runs on a
+     * thread that is unobserved rather than stopped, and `complete()` ends in `persistSession`, so
+     * an approval landing between the timeout and `exitProcess` still writes. `whoami` answers it.
+     *
+     * Not [Network], which would say the relay was unreachable: it was reachable and nobody
+     * answered. Retrying means running `login` again — the FFI's auth flow is a single global slot
+     * that the first poll takes, so the code already on screen is spent either way.
+     */
+    Timeout(13, "timeout", "login --timeout ran out before anyone approved - check whoami"),
     ;
 
     companion object {
@@ -161,4 +184,28 @@ class CliError(
     val exitCode: ExitCode,
     message: String,
     val data: JsonElement? = null,
-) : RuntimeException(message)
+) : RuntimeException(message.withoutRepeatedPrefix())
+
+/**
+ * `"Request failed: Request failed: Invalid request/URI: …"` said once (#240, finding 6).
+ *
+ * The doubling comes from the FFI, which wraps its own error a second time on the way out, so it
+ * is not something this side can stop being produced — only stop repeating. Cosmetic, and worth a
+ * function anyway: this string is the one an agent captures into a transcript, and a message that
+ * stutters reads like two failures rather than one.
+ *
+ * **The leading segment only**, which is where the defect is and nowhere else. Collapsing adjacent
+ * duplicates anywhere in the string edits the *data* a message quotes: this runs on every message
+ * the CLI reports, so a failure naming a card whose front is `Hola: Hola` came back naming `Hola`.
+ * `--json` is the verification channel, and an error string that silently rewrites the value it is
+ * complaining about is the wrong place to be lossy. Two identical segments deeper in a message are
+ * two frames saying the same word, which is a trace rather than a stutter.
+ */
+internal fun String.withoutRepeatedPrefix(): String {
+    val head = substringBefore(SEGMENT, missingDelimiterValue = "")
+    if (head.isEmpty()) return this
+    val rest = substring(head.length + SEGMENT.length)
+    return if (rest.startsWith(head + SEGMENT)) rest else this
+}
+
+private const val SEGMENT = ": "

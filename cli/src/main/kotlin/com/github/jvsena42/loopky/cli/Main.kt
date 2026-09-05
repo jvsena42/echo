@@ -1,10 +1,13 @@
 package com.github.jvsena42.loopky.cli
 
+import com.github.jvsena42.loopky.cli.commands.BatchSinks
 import com.github.jvsena42.loopky.cli.commands.LoginSinks
+import com.github.jvsena42.loopky.cli.commands.batch
 import com.github.jvsena42.loopky.cli.commands.cardAdd
 import com.github.jvsena42.loopky.cli.commands.cardEdit
 import com.github.jvsena42.loopky.cli.commands.cardList
 import com.github.jvsena42.loopky.cli.commands.cardRemove
+import com.github.jvsena42.loopky.cli.commands.commandSurface
 import com.github.jvsena42.loopky.cli.commands.completion
 import com.github.jvsena42.loopky.cli.commands.deckCompact
 import com.github.jvsena42.loopky.cli.commands.deckCreate
@@ -73,6 +76,14 @@ private fun run(argv: Array<String>): ExitCode {
         println(VERSION)
         return ExitCode.Ok
     }
+    // `--help --json` is the same table `commands` emits, because an agent reaching for help
+    // through the machine channel is asking the same question. Bare `--json` with no verb is
+    // still a usage error: "you gave me nothing" is not a request for the manual.
+    if (args.has("help") && args.has("json")) {
+        val env = CliEnvironment.resolve(args)
+        println(successEnvelope("commands", env.name, env.indexer, commandSurface().data))
+        return ExitCode.Ok
+    }
     if (args.words.isEmpty() || args.has("help")) {
         println(USAGE)
         return if (args.has("help")) ExitCode.Ok else ExitCode.Usage
@@ -116,7 +127,7 @@ private fun run(argv: Array<String>): ExitCode {
                 // rather than about a deck that does not exist. See `requireSupportedHost`.
                 requireSupportedHost()
                 val koin = startCli(environment)
-                dispatch(args, koin.identity(), koin, environment)
+                dispatch(args, koin.identity(), koin, environment, args.has("json"), SessionCache())
             }
             emit(args, environment, args.verb, result, updates.notice(update.await()))
             ExitCode.Ok
@@ -149,45 +160,59 @@ private fun run(argv: Array<String>): ExitCode {
  * is load-bearing: a remote MCP server serves an audience the CLI cannot reach — a chat-only agent
  * has no shell — and should be a binding over these functions rather than a second implementation.
  */
-@Suppress("CyclomaticComplexMethod")
+@Suppress("CyclomaticComplexMethod", "LongParameterList")
 private suspend fun dispatch(
     args: Args,
     identity: IdentityRepository,
     koin: Koin,
     environment: CliEnvironment,
+    /**
+     * Whether **this invocation** asked for the machine channel.
+     *
+     * Passed rather than read off [args], because `batch` re-enters here with an operation's own
+     * `Args` — built from a JSON `argv` array that never carries `--json`, since the flag is on
+     * the outer command line. Deriving it here meant `loopky batch ops.ndjson --json` printed a
+     * 20,000-card import's whole progress stream to stderr, in exactly the mode that suppresses it.
+     */
+    json: Boolean,
+    /** Resolved once for the process; see [SessionCache]. `batch` re-enters here with the same one. */
+    sessions: SessionCache,
 ): CommandResult {
     // Two sinks, because they are two different things and collapsing them silenced a warning in the
     // mode an agent runs. `progress` is a counter — thousands of lines on a large import — so it is
     // suppressed under `--json`, where the result carries the same numbers. `note` is something the
     // caller needs to *know* and goes to stderr always: an agent capturing stderr for diagnostics
     // must not get an empty file because it asked for JSON.
-    val progress: (String) -> Unit = { line -> if (!args.has("json")) System.err.println(line) }
+    val progress: (String) -> Unit = { line -> if (!json) System.err.println(line) }
     val note: (String) -> Unit = System.err::println
+    // stdout, and only in the human mode — the same split `emit` makes for a single command. A
+    // batch operation's *result* is a result, so it belongs on the channel results go to.
+    val text: (String) -> Unit = { line -> if (!json) println(line) }
     return when (val verb = args.verb) {
         "login" -> login(
             args,
             identity,
             koin.get<SecureSessionStore>(),
             environment,
-            LoginSinks({ line -> emitEvent(args, line) }, System.err::println),
+            LoginSinks({ line -> if (json) println(line) }, System.err::println),
         )
         "logout" -> logout(identity)
         "whoami" -> whoami(identity, koin.get<PubkyClient>(), koin.get<SecureSessionStore>(), environment)
 
-        "deck list" -> authed(identity, environment) { deckList(koin.decks()) }
-        "deck show" -> authed(identity, environment) { deckShow(args, koin.decks()) }
-        "deck create" -> authed(identity, environment) { session ->
+        "deck list" -> authed(sessions, identity, environment) { deckList(koin.decks()) }
+        "deck show" -> authed(sessions, identity, environment) { deckShow(args, koin.decks()) }
+        "deck create" -> authed(sessions, identity, environment) { session ->
             deckCreate(args, koin.decks(), session, note, progress)
         }
-        "deck edit" -> authed(identity, environment) { deckEdit(args, koin.decks()) }
-        "deck delete" -> authed(identity, environment) { deckDelete(args, koin.decks()) }
-        "deck sync" -> authed(identity, environment) { deckSync(args, koin.decks(), koin.cards()) }
-        "deck compact" -> authed(identity, environment) { deckCompact(args, koin.decks()) }
+        "deck edit" -> authed(sessions, identity, environment) { deckEdit(args, koin.decks()) }
+        "deck delete" -> authed(sessions, identity, environment) { deckDelete(args, koin.decks()) }
+        "deck sync" -> authed(sessions, identity, environment) { deckSync(args, koin.decks(), koin.cards()) }
+        "deck compact" -> authed(sessions, identity, environment) { deckCompact(args, koin.decks()) }
 
-        "card list" -> authed(identity, environment) { cardList(args, koin.decks(), koin.cards(), note) }
-        "card add" -> authed(identity, environment) { cardAdd(args, koin.decks(), koin.cards(), note) }
-        "card edit" -> authed(identity, environment) { cardEdit(args, koin.decks(), koin.cards(), note) }
-        "card rm" -> authed(identity, environment) { cardRemove(args, koin.decks()) }
+        "card list" -> authed(sessions, identity, environment) { cardList(args, koin.decks(), koin.cards(), note) }
+        "card add" -> authed(sessions, identity, environment) { cardAdd(args, koin.decks(), koin.cards(), note) }
+        "card edit" -> authed(sessions, identity, environment) { cardEdit(args, koin.decks(), koin.cards(), note) }
+        "card rm" -> authed(sessions, identity, environment) { cardRemove(args, koin.decks()) }
 
         // `--dry-run` deliberately sits outside `authed`: it reads a local file and writes
         // nothing, so requiring a live session would put a sign-in between an agent and the check
@@ -196,7 +221,7 @@ private suspend fun dispatch(
         "import" -> if (args.has("dry-run")) {
             importDryRun(args, koin.get<ImportRepository>())
         } else {
-            authed(identity, environment) { session ->
+            authed(sessions, identity, environment) { session ->
                 import(
                     args = args,
                     imports = koin.get<ImportRepository>(),
@@ -213,6 +238,20 @@ private suspend fun dispatch(
         // No session: a Nexus read is plain HTTP against a public index.
         "tag trending" -> tagTrending(args, koin.get<TagRepository>(), environment)
 
+        // Recursive on purpose, and it is the whole design: every operation goes back through
+        // this same `when`, so a batch cannot accept a command the CLI does not have or spell one
+        // differently. `Batch.kt` knows nothing about Koin — it is handed this lambda.
+        //
+        // [sessions] is the *same* cache, which is what makes the claim about amortising the
+        // session true: `authed` resolves through it, so the first operation that needs a session
+        // pays for it and the rest do not. Passing a fresh one here would put a `revalidateSession`
+        // round trip on every operation under `LOOPKY_SESSION`.
+        "batch" -> batch(
+            args,
+            { operation -> dispatch(operation, identity, koin, environment, json, sessions) },
+            BatchSinks({ line -> if (json) println(line) }, text, note),
+        )
+
         // `update` and `completion` are deliberately absent: both are handled in `run` before
         // Koin starts, since neither may depend on an install healthy enough to load the FFI.
         // Both are still one function taking plain values, so the MCP-binding shape below is
@@ -227,10 +266,11 @@ private suspend fun dispatch(
 
 /** Resolve the session once, before the command runs, so a missing one fails the same way everywhere. */
 private suspend inline fun authed(
+    sessions: SessionCache,
     identity: IdentityRepository,
     environment: CliEnvironment,
     block: (Session) -> CommandResult,
-): CommandResult = block(requireSession(identity, environment))
+): CommandResult = block(sessions.require(identity, environment))
 
 private fun Koin.identity() = get<IdentityRepository>()
 private fun Koin.decks() = get<DeckRepository>()
@@ -249,10 +289,6 @@ private fun emit(
         println(result.text)
     }
     noteUpdate(notice)
-}
-
-private fun emitEvent(args: Args, line: String) {
-    if (args.has("json")) println(line)
 }
 
 private fun fail(
@@ -292,7 +328,10 @@ private const val UPDATE_VERB = "update"
 /** The same, for the one other command that must work on an install too broken to load the FFI. */
 private const val COMPLETION_VERB = "completion"
 
-private val PRE_KOIN_VERBS = setOf(UPDATE_VERB, COMPLETION_VERB)
+/** And the surface table, which is a constant this binary was compiled with. */
+private const val COMMANDS_VERB = "commands"
+
+private val PRE_KOIN_VERBS = setOf(UPDATE_VERB, COMPLETION_VERB, COMMANDS_VERB)
 
 /**
  * The two commands that run before Koin, and therefore before `libpubkycore` is loaded. Neither needs
@@ -302,6 +341,7 @@ private val PRE_KOIN_VERBS = setOf(UPDATE_VERB, COMPLETION_VERB)
  */
 private suspend fun preKoin(args: Args, updates: Updates): CommandResult = when (args.verb) {
     COMPLETION_VERB -> completion(args)
+    COMMANDS_VERB -> commandSurface()
     else -> update(args, updates.checker, updates.installation)
 }
 
@@ -319,9 +359,12 @@ internal val USAGE = """
       loopky <command> [options]
 
     IDENTITY
-      login [--export] [--qr-out FILE] [--url-only]
+      login [--export] [--qr-out FILE] [--url-only] [--timeout SECONDS]
                                 Print a QR code for Pubky Ring and wait for approval.
                                 --export also prints the session secret for LOOPKY_SESSION.
+                                --timeout bounds the wait and exits 13, which is what an
+                                unattended caller needs: killing the process instead skips the
+                                sweep that deletes a --qr-out file still holding a live auth URL.
       logout                    Forget the stored session.
       whoami                    Pubky, homeserver, capabilities, environment, and whether the
                                 session is still accepted.
@@ -331,8 +374,16 @@ internal val USAGE = """
       deck show <deckId>
       deck create --title T [--description D] [--tag T]... [--cover-url URL]
                   [--cover-emoji E] [--from-file F] [--check-images]
+                  [--id DECKID] [--if-not-exists]
                   [--listen] [--speak] [--type] [--reverse]
                   [--front-lang BCP47] [--back-lang BCP47]
+                                --id publishes under an id you choose instead of a fresh one, so
+                                a run that was killed mid-flight is addressable; with
+                                --if-not-exists the deck that is already there is returned
+                                untouched and the result says created: false. That pair is the
+                                idempotent form — without it, an existing id is refused rather
+                                than published over, because a publish replaces the whole chunk
+                                table and would take the deck's cards with it.
                                 A declared pair also labels the deck — "spanish" plus the
                                 "language" umbrella — so someone learning it can find the deck.
                                 Ordinary tags you can remove. A deck with no pair gets neither.
@@ -393,6 +444,33 @@ internal val USAGE = """
                                 digest published beside it. Refuses, with the right command, on a
                                 Homebrew or .deb install, in a container, and on the jar.
       update --check            Ask without doing.
+
+    AGENTS
+      commands                  Print this surface as JSON on stdout: every verb, the operands it
+                                takes and their arity, its flags, whether it needs a session, and
+                                every exit code it can produce. Generated from the same table the
+                                completion scripts are, so it cannot describe a surface this
+                                binary does not have. `loopky --help --json` prints the same thing.
+                                Needs no session and no network.
+
+      batch <file|->            Run a file of operations against one session — one JSON object per
+                                line, {"argv": ["card", "add", "deckid", "--front", "a",
+                                "--back", "b"]}, with an optional "id" echoed back. The bare array
+                                works too. Every homeserver command pays process start, the FFI
+                                load and the session round trip; a *sequence of different*
+                                commands is the one shape that had no amortised form, and it is
+                                the shape an agent produces. Each line is parsed and dispatched by
+                                the same code a command line is, so a batch can never accept
+                                something the CLI does not.
+
+                                Under --json each operation streams a line of its own —
+                                "event":"operation", carrying that command's whole result — and
+                                the final envelope summarises. A failed operation does not end the
+                                run unless --stop-on-error; the exit code is the first failure's,
+                                because session_expired and storage_full say different things
+                                about re-running the file. Nothing is transactional and nothing
+                                rolls back: re-run it. card add, card edit and
+                                deck create --id --if-not-exists are all idempotent.
 
     SHELL
       completion bash|zsh|fish  Print a completion script on stdout, generated from this binary's
@@ -471,6 +549,7 @@ internal val USAGE = """
       4 session expired        10 no build for this host
       5 network                11 update found but not applied (a managed install)
                               12 the homeserver answered 5xx — not your input, and worth retrying
+                              13 login --timeout ran out before anyone approved
 
     NOTES
       Sessions are stored as a mode-0600 file, not in an OS keyring. libsecret is usually absent
