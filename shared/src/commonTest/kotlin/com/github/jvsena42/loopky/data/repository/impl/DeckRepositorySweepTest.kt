@@ -90,7 +90,7 @@ class DeckRepositorySweepTest {
     ): Pair<DeckRepositoryImpl, Deck> {
         val repo = repo()
         putRemoteDeck(cards, cover)
-        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
         media.rehosts.clear()
         return repo to clone
     }
@@ -278,7 +278,7 @@ class DeckRepositorySweepTest {
         putRemoteDeck(listOf(cardWith("c1", pinnedImage("sha1"))))
         val before = backgroundTasks.scheduled
 
-        repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
 
         // Scheduled from the repository, not a ViewModel: a clone's media is entirely pinned, and
         // no screen should have to remember to ask.

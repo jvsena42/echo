@@ -479,14 +479,18 @@ interface DeckRepository {
 
     /**
      * Copy [source] into your own account as an independent deck: new deck id, new card ids, you as
-     * author, `source` provenance pointing back.
+     * author, [title] as its name, `source` provenance pointing back.
      *
      * A fork, not a subscription — it never receives the original's later edits, and editing it
      * never touches the original. **New card ids are what keep SRS state from bleeding** between
      * the copies. Media is copied **by reference** (see [absolutizedTo], [MediaRepository.rehost]),
      * so cloning an Anki-sized deck stays instant. Commits through [publish]; unfollows [source].
+     *
+     * [title] is required and **never defaulted to the source's**: the copy lands in a library that
+     * already holds the deck it forked, and two identical titles there are indistinguishable. A
+     * blank one fails the call rather than falling back.
      */
-    suspend fun clone(source: Deck): Result<Deck>
+    suspend fun clone(source: Deck, title: String): Result<Deck>
 }
 
 /**

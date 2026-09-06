@@ -933,7 +933,11 @@ class DeckRepositoryImpl(
         _changes.tryEmit(Unit)
     }
 
-    override suspend fun clone(source: Deck): Result<Deck> = runSuspendCatching {
+    override suspend fun clone(source: Deck, title: String): Result<Deck> = runSuspendCatching {
+        val newTitle = title.trim()
+        // Refused rather than defaulted: the copy joins a library that already holds the deck it
+        // forked, and a silent fall back to the source's title is what the rename exists to stop.
+        require(newTitle.isNotEmpty()) { "clone: the copy needs a title of its own" }
         val me = session.requireSession().identity.pubky
         // A fetch, not a cache read: for a deck you don't own, nothing has ever loaded its cards.
         val sourceCards = cardRepo.fetchByDeck(source).getOrThrow()
@@ -954,6 +958,7 @@ class DeckRepositoryImpl(
 
         val deck = source.copy(
             id = newId,
+            title = newTitle,
             authorPubky = me,
             createdAt = now,
             updatedAt = now,
