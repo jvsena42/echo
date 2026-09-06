@@ -6118,6 +6118,108 @@
         }
       }
     },
+    "profile_avatar_dialog_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change your photo"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alterar sua foto"
+          }
+        }
+      }
+    },
+    "profile_avatar_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos are set on pubky.app. Sign in there with the same key."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As fotos são definidas no pubky.app. Entre lá com a mesma chave."
+          }
+        }
+      }
+    },
+    "profile_avatar_not_now": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not now"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agora não"
+          }
+        }
+      }
+    },
+    "profile_avatar_nudge_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add yours on pubky.app, with the same key you use here."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicione a sua no pubky.app, com a mesma chave que você usa aqui."
+          }
+        }
+      }
+    },
+    "profile_avatar_nudge_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How about a photo?"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Que tal uma foto sua?"
+          }
+        }
+      }
+    },
+    "profile_avatar_open_pubky_app": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open pubky.app"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir pubky.app"
+          }
+        }
+      }
+    },
     "profile_copied": {
       "extractionState": "manual",
       "localizations": {
@@ -6165,6 +6267,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dispensar"
+          }
+        }
+      }
+    },
+    "profile_edit_avatar_content_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change profile photo"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alterar foto de perfil"
           }
         }
       }

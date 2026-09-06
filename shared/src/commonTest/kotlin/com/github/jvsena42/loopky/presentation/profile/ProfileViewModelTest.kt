@@ -318,5 +318,63 @@ class ProfileViewModelTest {
         // Before the load resolves there is no identity to judge, and a prompt that flashes on
         // every visit to this tab is worse than one that arrives a beat late.
         assertFalse(vm.state.value.showNameNudge)
+        assertFalse(vm.state.value.showAvatarNudge)
+    }
+
+    @Test
+    fun aNamedProfileWithNoPictureIsInvitedToAddOne() = runTest {
+        identity.profiles[TEST_PUBKY] = PubkyIdentity(TEST_PUBKY, "Ada", null, null)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.showAvatarNudge)
+    }
+
+    @Test
+    fun theTwoInvitationsNeverStack() = runTest {
+        identity.session = fakeSession(displayName = null)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        // A hero followed by two cards asking for two different things is a wall of chores; the
+        // photo waits for the visit after the name is in.
+        assertTrue(vm.state.value.showNameNudge)
+        assertFalse(vm.state.value.showAvatarNudge)
+    }
+
+    @Test
+    fun aProfileWithAPictureIsNeverAsked() = runTest {
+        identity.profiles[TEST_PUBKY] =
+            PubkyIdentity(TEST_PUBKY, "Ada", "pubky://$TEST_PUBKY/pub/pubky.app/files/f1", null)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.showAvatarNudge)
+    }
+
+    @Test
+    fun dismissingThePhotoInvitationOutlivesTheScreen() = runTest {
+        identity.profiles[TEST_PUBKY] = PubkyIdentity(TEST_PUBKY, "Ada", null, null)
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.showAvatarNudge)
+
+        vm.onDismissAvatarNudge()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.showAvatarNudge)
+        assertTrue(preferences.avatarNudgeDismissedValue)
+    }
+
+    @Test
+    fun theTwoDismissalsAreIndependent() = runTest {
+        identity.session = fakeSession(displayName = null)
+        val vm = viewModel(prefs = FakeAppPreferences(nameNudgeDismissed = true))
+        advanceUntilIdle()
+
+        // Refusing to be named must not also refuse the photo — they are two different prompts,
+        // and the name card is the only reason the photo one was ever withheld.
+        assertFalse(vm.state.value.showNameNudge)
+        assertTrue(vm.state.value.showAvatarNudge)
     }
 }

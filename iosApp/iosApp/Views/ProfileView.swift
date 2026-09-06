@@ -11,6 +11,7 @@ struct ProfileView: View {
 
     var onEditProfile: () -> Void = {}
     var onDismissNameNudge: () -> Void = {}
+    var onDismissAvatarNudge: () -> Void = {}
     var onDismissEdit: () -> Void = {}
     var onSaveEdit: () -> Void = {}
     var onEditNameChanged: (String) -> Void = { _ in }
@@ -26,6 +27,9 @@ struct ProfileView: View {
 
     @State private var isConfirmingSignOut = false
     @State private var isConfirmingUnbackedSignOut = false
+    /// Raised by the camera badge. Loopky cannot set a photo — the profile write it owns is name
+    /// and bio — so the badge explains where it is done instead of opening a picker.
+    @State private var isExplainingAvatar = false
     /// Enough of the pubky to recognise the account being erased.
     private let pubkyPreviewLength = 12
 
@@ -96,6 +100,14 @@ struct ProfileView: View {
                 String(state.shortPubky.prefix(pubkyPreviewLength))
             ))
         }
+        // Static text on both lines, so the snapshot an `.alert` takes when it is presented costs
+        // nothing here — unlike a prompt whose message has to change while the reader types.
+        .alert(Text("profile_avatar_dialog_title"), isPresented: $isExplainingAvatar) {
+            Button("profile_avatar_open_pubky_app", action: onOpenOnPubkyApp)
+            Button("profile_avatar_not_now", role: .cancel) {}
+        } message: {
+            Text("profile_avatar_hint")
+        }
     }
 
     /// Avatar, name, pubky, bio — and the one action that edits them.
@@ -105,6 +117,10 @@ struct ProfileView: View {
             // Directly under the hero, because that is where the missing name is showing: with
             // none published the hero falls back to the pubky, and this says what to do about it.
             if state.showNameNudge { nameNudge }
+            // Never beside the name card — see `ProfileUiState.showAvatarNudge`. Its action opens
+            // pubky.app straight away rather than raising the badge's alert: the card is already
+            // saying what that alert would.
+            if state.showAvatarNudge { avatarNudge }
             Button("profile_edit_profile", action: onEditProfile)
                 .buttonStyle(.loopkySoft)
         }
@@ -133,6 +149,36 @@ struct ProfileView: View {
                     .font(.system(size: 14))
                     .foregroundStyle(LoopkyColor.foregroundMuted)
                     .accessibilityIdentifier("profile_name_nudge_dismiss")
+            }
+            .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 16).fill(LoopkyColor.accentPrimarySoft))
+    }
+
+    /// The same one-time invitation as `nameNudge`, for the other half of an anonymous profile.
+    ///
+    /// It leaves the app, because Loopky has nowhere to put a picture: the profile write it owns
+    /// is name and bio, and the photo is a file record uploaded by pubky.app under the same key.
+    private var avatarNudge: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("profile_avatar_nudge_title")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+            Text("profile_avatar_nudge_body")
+                .font(.system(size: 13))
+                .foregroundStyle(LoopkyColor.foregroundSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 16) {
+                Button("profile_avatar_open_pubky_app", action: onOpenOnPubkyApp)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(LoopkyColor.accentSecondary)
+                    .accessibilityIdentifier("profile_avatar_nudge_action")
+                Button("profile_avatar_not_now", action: onDismissAvatarNudge)
+                    .font(.system(size: 14))
+                    .foregroundStyle(LoopkyColor.foregroundMuted)
+                    .accessibilityIdentifier("profile_avatar_nudge_dismiss")
             }
             .padding(.top, 2)
         }
@@ -202,6 +248,21 @@ struct ProfileView: View {
 
     private var avatar: some View {
         PubkyAvatarView(initial: state.initial, avatarUrl: state.avatarUrl, size: 88)
+            // A `Button`, not an `.onTapGesture` on the picture: a bare gesture is invisible to
+            // VoiceOver and to `snapshot-ui`, so the control would be reachable by a finger and
+            // by nothing else.
+            .overlay(alignment: .bottomTrailing) {
+                Button { isExplainingAvatar = true } label: {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(LoopkyColor.foregroundOnAccent)
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(LoopkyColor.accentPrimary))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("profile_edit_avatar_content_description"))
+                .accessibilityIdentifier("profile_edit_avatar")
+            }
     }
 
     private var stats: some View {

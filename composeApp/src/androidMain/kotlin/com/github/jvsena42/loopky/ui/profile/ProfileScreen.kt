@@ -131,6 +131,7 @@ fun ProfileRoute(
         },
         onEditProfileClick = viewModel::onEditProfileClick,
         onDismissNameNudge = viewModel::onDismissNameNudge,
+        onDismissAvatarNudge = viewModel::onDismissAvatarNudge,
         onShareClick = viewModel::onShareClick,
         onOpenOnPubkyApp = viewModel::onOpenOnPubkyApp,
         onCopyPubky = viewModel::onCopyPubky,
@@ -153,6 +154,7 @@ private fun ProfileScreen(
     onOpenFollows: (FollowSource) -> Unit,
     onEditProfileClick: () -> Unit,
     onDismissNameNudge: () -> Unit,
+    onDismissAvatarNudge: () -> Unit,
     onShareClick: () -> Unit,
     onOpenOnPubkyApp: () -> Unit,
     onCopyPubky: () -> Unit,
@@ -167,6 +169,35 @@ private fun ProfileScreen(
     // Settings confirms sign-out and reassures that decks stay on the homeserver; this button
     // used to sign out immediately, which is a surprising outcome for one stray tap.
     var confirmSignOut by rememberSaveable { mutableStateOf(false) }
+    // Loopky cannot set a photo: the profile write it owns is name and bio, and the picture is a
+    // file record pubky.app uploads. So the camera badge explains where it is done rather than
+    // opening a picker that would have nothing to save into.
+    var explainAvatar by rememberSaveable { mutableStateOf(false) }
+
+    if (explainAvatar) {
+        AlertDialog(
+            onDismissRequest = { explainAvatar = false },
+            modifier = Modifier.semantics { testTagsAsResourceId = true },
+            title = { Text(stringResource(R.string.profile_avatar_dialog_title)) },
+            text = { Text(stringResource(R.string.profile_avatar_hint)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        explainAvatar = false
+                        onOpenOnPubkyApp()
+                    },
+                    modifier = Modifier.testTag("profile_avatar_open_pubky_app"),
+                ) {
+                    Text(stringResource(R.string.profile_avatar_open_pubky_app))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { explainAvatar = false }) {
+                    Text(stringResource(R.string.profile_avatar_not_now))
+                }
+            },
+        )
+    }
 
     if (confirmSignOut) {
         AlertDialog(
@@ -265,6 +296,9 @@ private fun ProfileScreen(
                     onCopyPubky = onCopyPubky,
                     onEditProfileClick = onEditProfileClick,
                     onDismissNameNudge = onDismissNameNudge,
+                    onDismissAvatarNudge = onDismissAvatarNudge,
+                    onEditAvatarClick = { explainAvatar = true },
+                    onOpenOnPubkyApp = onOpenOnPubkyApp,
                     onShareClick = onShareClick,
                     modifier = Modifier.width(PROFILE_PANE_WIDTH),
                 )
@@ -283,6 +317,9 @@ private fun ProfileScreen(
                 onCopyPubky = onCopyPubky,
                 onEditProfileClick = onEditProfileClick,
                 onDismissNameNudge = onDismissNameNudge,
+                onDismissAvatarNudge = onDismissAvatarNudge,
+                onEditAvatarClick = { explainAvatar = true },
+                onOpenOnPubkyApp = onOpenOnPubkyApp,
                 onShareClick = onShareClick,
             )
             ProfileDetailsPane(
@@ -460,6 +497,9 @@ private fun ProfileIdentityPane(
     onCopyPubky: () -> Unit,
     onEditProfileClick: () -> Unit,
     onDismissNameNudge: () -> Unit,
+    onDismissAvatarNudge: () -> Unit,
+    onEditAvatarClick: () -> Unit,
+    onOpenOnPubkyApp: () -> Unit,
     onShareClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -475,6 +515,7 @@ private fun ProfileIdentityPane(
             ProfileHero(
                 identity = identity,
                 onPubkyClick = onCopyPubky,
+                onEditAvatar = onEditAvatarClick,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -485,6 +526,16 @@ private fun ProfileIdentityPane(
             NameNudgeCard(
                 onAddName = onEditProfileClick,
                 onDismiss = onDismissNameNudge,
+            )
+        }
+
+        // Never beside the name card — see [ProfileUiState.showAvatarNudge]. Its action opens
+        // pubky.app straight away rather than raising the badge's dialog: the card is already
+        // saying what that dialog would.
+        if (state.showAvatarNudge) {
+            AvatarNudgeCard(
+                onOpenPubkyApp = onOpenOnPubkyApp,
+                onDismiss = onDismissAvatarNudge,
             )
         }
 
@@ -693,6 +744,69 @@ private fun NameNudgeCard(
 }
 
 /**
+ * "Add a profile photo" — the same one-time invitation as [NameNudgeCard], for the other half of
+ * an anonymous profile.
+ *
+ * It leaves the app, because Loopky has nowhere to put a picture: the profile write it owns is
+ * name and bio, and the photo is a file record uploaded by pubky.app under the same key.
+ */
+@Composable
+private fun AvatarNudgeCard(
+    onOpenPubkyApp: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(colors.accentPrimarySoft)
+            .padding(16.dp)
+            .testTag("profile_avatar_nudge"),
+    ) {
+        Text(
+            text = stringResource(R.string.profile_avatar_nudge_title),
+            color = colors.foregroundPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.profile_avatar_nudge_body),
+            color = colors.foregroundSecondary,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = onOpenPubkyApp,
+                modifier = Modifier.testTag("profile_avatar_nudge_action"),
+            ) {
+                Text(
+                    text = stringResource(R.string.profile_avatar_open_pubky_app),
+                    color = colors.accentSecondary,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("profile_avatar_nudge_dismiss"),
+            ) {
+                Text(
+                    text = stringResource(R.string.profile_avatar_not_now),
+                    color = colors.foregroundMuted,
+                )
+            }
+        }
+    }
+}
+
+/**
  * "Back up your account", shown until at least one method is done.
  *
  * Deliberately persistent rather than dismissible: the risk it describes does not go away by being
@@ -759,6 +873,7 @@ private fun ProfileScreenPreview() {
             onOpenFollows = {},
             onEditProfileClick = {},
             onDismissNameNudge = {},
+            onDismissAvatarNudge = {},
             onShareClick = {},
             onOpenOnPubkyApp = {},
             onCopyPubky = {},

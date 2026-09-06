@@ -92,6 +92,19 @@ interface AppPreferences {
     val nameNudgeDismissed: Flow<Boolean>
 
     suspend fun setNameNudgeDismissed(dismissed: Boolean)
+
+    /**
+     * Whether the reader has waved away the "add a photo" prompt on their own profile.
+     *
+     * Device-local for the same reason as [nameNudgeDismissed], and separate from it because the
+     * two prompts are refused for different reasons: a photo cannot be set in Loopky at all, so
+     * "not now" here often means "not until I am at a browser".
+     *
+     * Emits the current value immediately and again on every change.
+     */
+    val avatarNudgeDismissed: Flow<Boolean>
+
+    suspend fun setAvatarNudgeDismissed(dismissed: Boolean)
 }
 
 internal const val PREFERENCES_NAME = "loopky.preferences"
@@ -105,3 +118,5 @@ internal const val KEY_THEME_MODE = "theme_mode"
 internal val DEFAULT_THEME_MODE = AppTheme.System
 internal const val KEY_NAME_NUDGE_DISMISSED = "name_nudge_dismissed"
 internal const val DEFAULT_NAME_NUDGE_DISMISSED = false
+internal const val KEY_AVATAR_NUDGE_DISMISSED = "avatar_nudge_dismissed"
+internal const val DEFAULT_AVATAR_NUDGE_DISMISSED = false

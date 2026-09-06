@@ -81,6 +81,18 @@ class AndroidAppPreferences(context: Context) : AppPreferences {
         }
         _nameNudgeDismissed.update { dismissed }
     }
+
+    private val _avatarNudgeDismissed = MutableStateFlow(
+        prefs.getBoolean(KEY_AVATAR_NUDGE_DISMISSED, DEFAULT_AVATAR_NUDGE_DISMISSED),
+    )
+    override val avatarNudgeDismissed: Flow<Boolean> = _avatarNudgeDismissed.asStateFlow()
+
+    override suspend fun setAvatarNudgeDismissed(dismissed: Boolean) {
+        withContext(Dispatchers.IO) {
+            prefs.edit().putBoolean(KEY_AVATAR_NUDGE_DISMISSED, dismissed).apply()
+        }
+        _avatarNudgeDismissed.update { dismissed }
+    }
 }
 
 /**

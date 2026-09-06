@@ -71,6 +71,11 @@ class ProfileViewModel(
                 _state.update { it.copy(nameNudgeDismissed = dismissed) }
             }
         }
+        viewModelScope.launch {
+            appPreferences.avatarNudgeDismissed.collect { dismissed ->
+                _state.update { it.copy(avatarNudgeDismissed = dismissed) }
+            }
+        }
     }
 
     /**
@@ -199,6 +204,13 @@ class ProfileViewModel(
         viewModelScope.launch { appPreferences.setNameNudgeDismissed(true) }
     }
 
+    /**
+     * Wave away the "add a photo" prompt for good, on this device — see [onDismissNameNudge].
+     */
+    fun onDismissAvatarNudge() {
+        viewModelScope.launch { appPreferences.setAvatarNudgeDismissed(true) }
+    }
+
     fun onDismissEditSheet() {
         _state.update { it.copy(showEditSheet = false) }
     }
@@ -324,6 +336,8 @@ data class ProfileUiState(
      * prompt someone already refused must not flash on screen while the preference resolves.
      */
     val nameNudgeDismissed: Boolean = true,
+    /** Whether this device has been told not to ask for a photo again — see [showAvatarNudge]. */
+    val avatarNudgeDismissed: Boolean = true,
     val showEditSheet: Boolean = false,
     val editName: String = "",
     val editBio: String = "",
@@ -360,6 +374,23 @@ data class ProfileUiState(
             !nameNudgeDismissed &&
             identity != null &&
             identity.displayName.isNullOrBlank()
+
+    /**
+     * Whether to invite this account to put a face to the name.
+     *
+     * Yields to [showNameNudge] rather than stacking under it: a hero followed by two cards asking
+     * for two different things is a wall of chores, and a name is the one that changes how this
+     * account reads everywhere. The photo is asked for on the next visit, once the name is in.
+     *
+     * Unlike the name, there is nothing in Loopky that can set one — the card points at pubky.app,
+     * which is the same account behind the same key.
+     */
+    val showAvatarNudge: Boolean
+        get() = !isLoading &&
+            !avatarNudgeDismissed &&
+            !showNameNudge &&
+            identity != null &&
+            identity.avatarUrl.isNullOrBlank()
 }
 
 sealed interface ProfileEffect {

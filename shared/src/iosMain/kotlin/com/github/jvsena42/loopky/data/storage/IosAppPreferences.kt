@@ -70,4 +70,15 @@ class IosAppPreferences : AppPreferences {
         defaults.setBool(dismissed, KEY_NAME_NUDGE_DISMISSED)
         _nameNudgeDismissed.update { dismissed }
     }
+
+    // Same as [nameNudgeDismissed]: the default is false, which is what `boolForKey` already
+    // answers for a key never written.
+    private val _avatarNudgeDismissed =
+        MutableStateFlow(defaults.boolForKey(KEY_AVATAR_NUDGE_DISMISSED))
+    override val avatarNudgeDismissed: Flow<Boolean> = _avatarNudgeDismissed.asStateFlow()
+
+    override suspend fun setAvatarNudgeDismissed(dismissed: Boolean) {
+        defaults.setBool(dismissed, KEY_AVATAR_NUDGE_DISMISSED)
+        _avatarNudgeDismissed.update { dismissed }
+    }
 }

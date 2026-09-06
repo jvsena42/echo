@@ -13,14 +13,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,6 +53,11 @@ fun ProfileHero(
     /** Adds a "You" badge beside the name — ownership never replaces the identity. */
     isOwned: Boolean = false,
     onPubkyClick: (() -> Unit)? = null,
+    /**
+     * Puts a camera badge on the avatar. Null on someone else's profile: this is the only thing
+     * in the hero that is an action rather than a fact.
+     */
+    onEditAvatar: (() -> Unit)? = null,
 ) {
     val colors = LoopkyTheme.colors
 
@@ -57,17 +66,47 @@ fun ProfileHero(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // The glow lives on an outer box: PubkyAvatar clips itself, so a shadow set inside it
-        // would be clipped away with everything else.
-        Box(
-            modifier = Modifier.shadow(
-                elevation = AVATAR_GLOW_ELEVATION,
-                shape = CircleShape,
-                ambientColor = colors.shadowAccent,
-                spotColor = colors.shadowAccent,
-            ),
-        ) {
-            PubkyAvatar(identity = identity, size = AVATAR_SIZE)
+        // The badge sits outside the shadowed box rather than inside it: `Modifier.shadow` clips
+        // its content to the shape it draws, so a corner-aligned child is cut into a crescent by
+        // the circle. The glow itself lives on that box because PubkyAvatar clips itself, and a
+        // shadow set inside it would be clipped away with everything else.
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.shadow(
+                    elevation = AVATAR_GLOW_ELEVATION,
+                    shape = CircleShape,
+                    ambientColor = colors.shadowAccent,
+                    spotColor = colors.shadowAccent,
+                ),
+            ) {
+                PubkyAvatar(identity = identity, size = AVATAR_SIZE)
+            }
+
+            if (onEditAvatar != null) {
+                // A real button rather than a tap target on the picture: an avatar that reacts to
+                // a tap is a lightbox everywhere else in the app, and a bare clickable announces
+                // nothing to a screen reader.
+                FilledIconButton(
+                    onClick = onEditAvatar,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(AVATAR_BADGE_SIZE)
+                        .testTag("profile_edit_avatar"),
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = colors.accentPrimary,
+                        contentColor = colors.foregroundOnAccent,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PhotoCamera,
+                        contentDescription = stringResource(
+                            R.string.profile_edit_avatar_content_description,
+                        ),
+                        modifier = Modifier.size(AVATAR_BADGE_ICON_SIZE),
+                    )
+                }
+            }
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -156,6 +195,7 @@ private fun ProfileHeroPreview() {
             ProfileHero(
                 identity = PubkyIdentity("you9xqz1ghijklmnop", null, null, null),
                 isOwned = true,
+                onEditAvatar = {},
             )
         }
     }
@@ -163,6 +203,8 @@ private fun ProfileHeroPreview() {
 
 private val AVATAR_SIZE = 96.dp
 private val AVATAR_GLOW_ELEVATION = 24.dp
+private val AVATAR_BADGE_SIZE = 32.dp
+private val AVATAR_BADGE_ICON_SIZE = 16.dp
 private val BIO_WIDTH = 280.dp
 
 /** Enough for a sentence or two; past that the hero stops being a header. */

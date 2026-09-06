@@ -91,6 +91,17 @@ internal class FileAppPreferences(private val store: JsonFileStore) : AppPrefere
         withContext(Dispatchers.IO) { store.set(KEY_NAME_NUDGE_DISMISSED, dismissed.toString()) }
         _nameNudgeDismissed.update { dismissed }
     }
+
+    private val _avatarNudgeDismissed = MutableStateFlow(
+        store.string(KEY_AVATAR_NUDGE_DISMISSED)?.toBooleanStrictOrNull()
+            ?: DEFAULT_AVATAR_NUDGE_DISMISSED,
+    )
+    override val avatarNudgeDismissed: Flow<Boolean> = _avatarNudgeDismissed.asStateFlow()
+
+    override suspend fun setAvatarNudgeDismissed(dismissed: Boolean) {
+        withContext(Dispatchers.IO) { store.set(KEY_AVATAR_NUDGE_DISMISSED, dismissed.toString()) }
+        _avatarNudgeDismissed.update { dismissed }
+    }
 }
 
 internal class FilePendingReviewStore(private val store: JsonFileStore) : PendingReviewStore {

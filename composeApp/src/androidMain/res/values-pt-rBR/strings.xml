@@ -364,6 +364,13 @@
     <string name="profile_name_nudge_body">Adicione um nome para as pessoas saberem de quem são estes baralhos.</string>
     <string name="profile_name_nudge_action">Adicionar nome</string>
     <string name="profile_name_nudge_dismiss">Agora não</string>
+    <string name="profile_avatar_nudge_title">Que tal uma foto sua?</string>
+    <string name="profile_avatar_nudge_body">Adicione a sua no pubky.app, com a mesma chave que você usa aqui.</string>
+    <string name="profile_avatar_hint">As fotos são definidas no pubky.app. Entre lá com a mesma chave.</string>
+    <string name="profile_avatar_dialog_title">Alterar sua foto</string>
+    <string name="profile_avatar_open_pubky_app">Abrir pubky.app</string>
+    <string name="profile_avatar_not_now">Agora não</string>
+    <string name="profile_edit_avatar_content_description">Alterar foto de perfil</string>
 
     <!-- Friend profile -->
     <string name="friend_profile_back_content_description">Voltar</string>
