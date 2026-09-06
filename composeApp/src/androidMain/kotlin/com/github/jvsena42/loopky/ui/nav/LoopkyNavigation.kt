@@ -440,19 +440,10 @@ private fun NavGraphBuilder.backupDestinations(navController: NavHostController)
     composable(Routes.BACKUP_START) {
         BackupStartRoute(
             onBack = { navController.popBackStack() },
-            // Entered two ways, and they need opposite exits: from onboarding the back stack is
-            // this screen alone, so leaving means going home; from Settings there is somewhere to
-            // return to, and sending that user to MAIN would both lose their place and push a
-            // second MAIN onto the stack.
-            onDone = {
-                if (navController.previousBackStackEntry != null) {
-                    navController.popBackStack()
-                } else {
-                    navController.navigateTo(Routes.MAIN) {
-                        popUpTo(Routes.BACKUP_START) { inclusive = true }
-                    }
-                }
-            },
+            // Both exits pop. Backup is only ever pushed from the Profile nag or Settings, so
+            // there is always somewhere to return to — navigating to MAIN instead would lose the
+            // caller's place and push a second MAIN onto the stack.
+            onDone = { navController.popBackStack() },
             onPhrase = { navController.navigateTo(Routes.BACKUP_PHRASE) },
             onFile = { navController.navigateTo(Routes.BACKUP_FILE) },
             onRing = { navController.navigateTo(Routes.BACKUP_RING) },
@@ -536,11 +527,11 @@ private fun NavGraphBuilder.unregisteredKeyDestination(navController: NavHostCon
             onNeedsVerification = {
                 navController.navigateTo(Routes.signupStart(adoptHeldKey = true))
             },
-            onRegistered = {
-                navController.navigateTo(Routes.BACKUP_START) {
-                    popUpTo(navController.graph.id) { inclusive = true }
-                }
-            },
+            // Home, not the backup menu. The account exists and the key is only on this device,
+            // but a wall between registering and using the app is the wrong place to say so — the
+            // Profile card above sign-out and Settings both offer it, and the sign-out guard
+            // refuses to erase an un-backed-up key without an explicit choice.
+            onRegistered = { navController.goHomeSignedIn() },
             onRestoreWithPhrase = { navController.navigateTo(Routes.RESTORE_PHRASE) },
         )
     }
@@ -627,13 +618,9 @@ private fun NavGraphBuilder.signupDestinations(navController: NavHostController)
                     popUpTo(Routes.SIGNUP_START) { inclusive = true }
                 }
             },
-            // Straight to backup, not home: this is the only moment in the app where a key exists
-            // that nobody has a copy of.
-            onCreated = {
-                navController.navigateTo(Routes.BACKUP_START) {
-                    popUpTo(navController.graph.id) { inclusive = true }
-                }
-            },
+            // Home, not the backup menu — see `onRegistered` on the unregistered-key screen for
+            // why the un-backed-up key does not earn a wall here.
+            onCreated = { navController.goHomeSignedIn() },
         )
     }
     signupMethodDestinations(navController)

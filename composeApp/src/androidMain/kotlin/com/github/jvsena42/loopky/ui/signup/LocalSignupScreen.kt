@@ -50,7 +50,7 @@ fun LocalSignupRoute(
     LaunchedEffect(viewModel) {
         viewModel.effects.collectLatest { effect ->
             when (effect) {
-                LocalSignupEffect.NavigateBackup -> currentOnCreated()
+                LocalSignupEffect.NavigateHome -> currentOnCreated()
                 LocalSignupEffect.NavigateStartOver -> currentOnStartOver()
             }
         }
