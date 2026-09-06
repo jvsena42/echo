@@ -92,7 +92,7 @@ safe option has to be visible.
 it renders the specifier. After porting strings, walk the catalog for values containing `%` and
 grep for bare `Text("key")` uses of them; that check has caught three separate instances.
 
-**Five bridge traps worth knowing before touching Swift here.** Kotlin enum entries export lowercased with no separators (`ErrorReason.sessionexpired`, `RingHandoff.thisdevice`), and getting one wrong produces a misleading error pointing at the enclosing view. Kotlin's `description` property exports as `description_`; plain `.description` compiles and returns the object dump. A sealed interface crosses as an ObjC *protocol*, so casting an erased value to a generic parameter bound to it silently yields `nil` — hold state as `Any?` and match the concrete classes. And a text field must own its own `@State` while typing: binding `get` to state that round-trips through a ViewModel drops characters. Finally, a **`value class` is treated differently on the two sides of a call** — boxed as an element of a `List<Tag>`, but erased to its underlying `String` at a *parameter* position — so handing a `Tag` taken out of state back to a function expecting one passes a Kotlin object where the bridge wants an `NSString`; the pointer is reinterpreted, `value` reads back null, and Kotlin segfaults on a null it believes cannot exist. Give any such function a `String`-taking entry point for Swift (`onTagLabelSelected`) and rebuild the value class on the Kotlin side.
+**Five bridge traps worth knowing before touching Swift here.** Kotlin enum entries export lowercased with no separators (`ErrorReason.sessionexpired`, `RingHandoff.thisdevice`), and getting one wrong produces a misleading error pointing at the enclosing view — and an entry whose lowercased name is a **C reserved word** gains a trailing underscore on top of that (`Auto` arrives as `auto_`), so rename the entry rather than ship the underscore. A `const val` in an `object` is mangled the same way, which is why `DayNightSchedule` exposes plain `val`s. Kotlin's `description` property exports as `description_`; plain `.description` compiles and returns the object dump. A sealed interface crosses as an ObjC *protocol*, so casting an erased value to a generic parameter bound to it silently yields `nil` — hold state as `Any?` and match the concrete classes. And a text field must own its own `@State` while typing: binding `get` to state that round-trips through a ViewModel drops characters. Finally, a **`value class` is treated differently on the two sides of a call** — boxed as an element of a `List<Tag>`, but erased to its underlying `String` at a *parameter* position — so handing a `Tag` taken out of state back to a function expecting one passes a Kotlin object where the bridge wants an `NSString`; the pointer is reinterpreted, `value` reads back null, and Kotlin segfaults on a null it believes cannot exist. Give any such function a `String`-taking entry point for Swift (`onTagLabelSelected`) and rebuild the value class on the Kotlin side.
 
 Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `detekt-compose-rules`); run `./gradlew detektAll` (use `--auto-correct` to fix formatting findings). Swift lint is SwiftLint (`iosApp/.swiftlint.yml`, generated `pubkycore.swift` excluded); run `./gradlew lintSwift` or `swiftlint` from `iosApp/`. `shared/src/commonTest` holds a real suite (~1,300 tests per target, 105 files): repository tests over a `FakePubkyClient`, ViewModel tests over `FakeRepositories`, and parser/scheduler tests. Run `./gradlew :shared:allTests`.
 
@@ -236,6 +236,35 @@ Kotlin lint is detekt (`config/detekt/detekt.yml`, with `detekt-formatting` + `d
 - **ViewModels live in `shared/commonMain`, not in platform modules.** Both Compose and SwiftUI screens consume the same VMs. No `@Composable` or `ObservableObject` in shared code.
 - **Always import symbols; never reference them fully-qualified inline.** Add an `import` at the top of the file (e.g. `import androidx.compose.ui.graphics.Color`) and use the short name, rather than writing `androidx.compose.ui.graphics.Color` inline in a type or call. Applies to both Kotlin and Swift.
 - **Native-first UI.** Prefer native platform components — **Material 3 Expressive** (`ShortNavigationBar`, `Scaffold`, `TopAppBar`, etc.; opt in with `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`) on Android, and native SwiftUI / Liquid Glass on iOS — over bespoke custom Composables/Views, so the app feels platform-native. Apply Loopky brand tokens (accent, type, radii) *to* native components rather than rebuilding chrome from primitives; build fully custom only where Loopky's identity needs it and no native equivalent exists (e.g. the study card flip). The custom `LoopkyTabBar` pill has been replaced by a Material 3 Expressive `ShortNavigationBar` (Android) and a native `TabView`/`UITabBar` (iOS).
+- **There are two palettes now, and a token that works in one can be wrong in the other.**
+  `LoopkyColors.kt` (Android) and `LoopkyColor.swift` (iOS) each carry a light and a dark set;
+  `AppTheme` in `AppPreferences` picks between them — System, Auto, Light, Dark — and it is a
+  **device** preference, not a synced one. Four things to know before touching either file.
+
+  A colour used *on the accent* must come from the on-accent tokens (`foregroundOnAccent`,
+  `foregroundOnAccentMuted`), never from the app's surface family. A single light palette hid
+  this completely: `surfaceCard` and `accentPrimarySoft` happen to be white and pale cream, so
+  they read as on-accent colours right up until dark mode turned one into a hole punched in the
+  orange hero and the other into dark-on-orange captions.
+
+  The dark neutrals carry the brand plum at ~15% saturation, not the ~29% of `#1A1326`. A ground
+  built at the brand's own chroma reads as a purple app rather than Loopky in the dark, and
+  Material's dark guidance warns off large areas of saturated colour besides. The *steps* between
+  them are what separates a raised surface from the one under it — a shadow is invisible on a dark
+  ground — so keep ground→card near 1.37:1, and never paint a `ModalBottomSheet` with
+  `surfacePrimary`, which is the screen it just covered.
+
+  The four SRS colours are identical in both modes on purpose. They read 5.3–9.6:1 as ink on the
+  dark surfaces against 2.0–3.6:1 on cream, so there is nothing to fix, and lifting them would only
+  cost the grade buttons, where they are fills under white ink. A dark theme is not an obligation to
+  brighten everything — check the ratio before moving a value.
+
+  On Android the splash window is the one surface Compose cannot reach: it is drawn from
+  `Theme.Loopky.Starting` before `MainActivity` exists, so it resolves `values-night/` by what the
+  *system* believes. `UiModeManager.setApplicationNightMode` (API 31+) is what tells it, and it is
+  handed the **resolved** answer rather than the mode, because Auto has no framework equivalent
+  Loopky can configure.
+
 - **Every screen is width-adaptive, and a new one has to be too — a phone layout on a tablet is
   the default failure, not an edge case.** Loopky runs on tablets, and nothing about a stretched
   layout raises an error: it compiles, runs, and looks broken. The pieces live in

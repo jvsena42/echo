@@ -2358,3 +2358,61 @@ scrolls and sizes itself, so a fifth language costs a line in `AppLocale.SUPPORT
 The `settings_language` test tag moved to the dropdown anchor and
 `settings_language_option_*` to the menu items, so the ids a journey would target are unchanged.
 
+## Dark mode + the Theme setting — 2026-09-06
+
+Android on `emulator-5554` (API 37, pt-BR) and iOS on the iPhone 17 simulator. Not one of the 25
+numbered journeys — a palette touches every screen rather than any one flow — so it was verified by
+driving the screens the journeys pass through, in both palettes.
+
+| Step | Result |
+| --- | --- |
+| Settings → new **APPEARANCE** section | PASSED — Android `settings_theme` dropdown, iOS a four-segment `Picker`; System / Auto / Light / Dark |
+| Dark | PASSED — home, study, decks, discover, profile, settings all repaint in place, no relaunch |
+| Light | PASSED — pixel-identical to before the change, including the Today hero |
+| System | PASSED — iOS simulator in dark appearance renders dark with nothing pinned; the `.preferredColorScheme(.light)` stopgap is gone |
+| **Auto crosses on its own** | PASSED — window temporarily moved to a one-minute slot: ground `#0D0B11` through 08:10:10, `#FFFBF5` from 08:10:19, no interaction |
+| Hours in the description | PASSED — "das 20:00 às 06:00" and, after `settings put system time_12_24 12`, "das 8:00 PM às 6:00 AM" |
+| Splash on a cold launch | PASSED — dark splash on a *light-mode* device with Dark chosen, via `UiModeManager.setApplicationNightMode` |
+| iOS Settings `List` chrome | PASSED — row fills, section headers and footers all legible in dark; this is what #7caa5112 pinned the scheme to avoid |
+
+### Worth knowing
+
+**A single light palette hides on-accent bugs completely.** Two tokens were being used as ink or
+fill *on the orange hero* while belonging to the app's surface family — `accentPrimarySoft` for the
+hero's captions and `surfaceCard` for the Start studying pill. Both are pale in light mode, so both
+looked right; in dark mode the captions turned dark-on-orange and the pill became a hole punched in
+the middle of the card. `foregroundOnAccent`/`foregroundOnAccentMuted` are the tokens for that job
+and are identical in both modes, because the orange under them does not change.
+
+**The first palette read as a purple app.** Built at the brand plum's own chroma (`#14101C`, ~29%
+saturation) every surface was visibly violet. At ~15% the hue is still there — it is what keeps
+these from being the default grey — without the app looking like a different product.
+
+**On a dark theme the tonal step is the only edge a card has.** Ground→card started at 1.17:1 and
+the study card had no visible boundary at all; a shadow is invisible against near-black. It is
+1.37:1 now. The same mistake in a worse form: every `ModalBottomSheet` took `surfacePrimary` — the
+ground — so the Speak sheet was exactly the tone of the study screen it had covered.
+
+**The four SRS colours are the light values, unchanged, and that was measured rather than assumed.**
+They read 5.3–9.6:1 as ink on the dark surfaces against 2.0–3.6:1 on cream, so there is nothing to
+fix; lifting them would only cost the grade buttons, where they are fills under white ink
+(2.16:1 → 1.88:1). Only `danger` moved, because `#D92C2C` is 3.9:1 on the dark ground.
+
+**`auto` is a C reserved word.** A Kotlin enum entry named `Auto` crosses to Swift as `auto_`. The
+entry is `Scheduled`; the reader still sees "Auto". A `const val` in an `object` is mangled the same
+way, which is why `DayNightSchedule` exposes plain `val`s.
+
+**Moving the schedule to a daytime window to watch it work is what found the wrap bug.** A window
+that wraps midnight needs an `or` and one that does not needs an `and` — and the `or` alone answers
+"night" for every minute of a non-wrapping day. Both orders are handled and tested now.
+
+**Width-adaptive check.** Medium width on the `Pixel_Tablet` AVD (800dp portrait) and expanded on
+`emulator-5554` forced to 923dp — the nav rail on `navBarBackground` stays distinguishable from the
+ground, the two-pane home reads, and the Speak sheet is a centred raised surface rather than a
+full-bleed one. The tablet AVD would not rotate (`user_rotation`, `adb emu rotate` and a `wm size`
+override all left it at `w800dp`), so expanded width was reached by widening the phone's window
+instead; `WindowWidthClass` reads the window, so it is the same code path.
+
+**The emulator clock cannot be moved** (`date: cannot set date`, and no `su`), so the live crossing
+was observed by temporarily narrowing the window to one minute a few minutes ahead, not by
+travelling in time.
