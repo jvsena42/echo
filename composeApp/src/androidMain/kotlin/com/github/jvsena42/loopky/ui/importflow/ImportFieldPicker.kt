@@ -70,7 +70,7 @@ internal fun FieldMappingSheet(
     var front by remember(fields) { mutableStateOf<Int?>(null) }
     val choosingFront = front == null
 
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfacePrimary) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfaceSecondary) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

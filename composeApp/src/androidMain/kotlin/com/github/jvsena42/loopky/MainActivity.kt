@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(darkTheme) { applySystemBars(darkTheme) }
             // Not what paints the app — that is [LoopkyTheme] above. This is the splash window,
             // which is drawn before any of this exists. See [applyApplicationNightMode].
-            LaunchedEffect(themeMode) { applyApplicationNightMode(themeMode) }
+            LaunchedEffect(themeMode, darkTheme) { applyApplicationNightMode(themeMode, darkTheme) }
             LoopkyTheme(darkTheme = darkTheme) {
                 // Above the nav host so every screen — including the ones reached by deeplink,
                 // which never pass through MainScreen — can size itself to the window.

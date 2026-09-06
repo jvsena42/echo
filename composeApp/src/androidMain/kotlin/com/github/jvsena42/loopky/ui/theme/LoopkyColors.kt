@@ -88,43 +88,48 @@ val LoopkyLightColors = LoopkyColors(
  * warns off large areas of saturated colour for the eye strain besides. The hue is still there; it
  * is what keeps these from being the default grey.
  *
+ * The *steps* between them are wide, though — 1.37:1 from ground to card rather than the 1.17:1 a
+ * first pass had. On a dark theme the tonal step is the only thing separating a raised surface
+ * from the one under it: a shadow is invisible against near-black, so the study card and every
+ * bottom sheet had no visible edge at all.
+ *
  * **The accent lifts, the ink on it does not change relationship.** `#FF6B2C` clears 6.6:1 against
  * the ground, where light mode's `#FF5C00` manages only 3.0:1 against cream — so the accent is
  * *more* legible here, not less. [foregroundOnAccentMuted] is lightened to `#FFF3EC` to land at
  * 2.6:1 on the lifted orange, the same ratio the cream tint gives in light mode: the hero's caption
  * reads identically in both.
  *
- * **The four SRS colours are the light values, deliberately unchanged.** They read 4.8–8.6:1 as ink
- * on these surfaces — against 2.0–3.6:1 on cream — so there is nothing to fix, and lifting them
- * would only cost the grade buttons, where they are fills under white ink (2.16:1 becomes 1.88:1).
- * A dark theme is not an obligation to brighten everything.
+ * **The four SRS colours are the light values, deliberately unchanged.** They read 5.3–9.6:1 as ink
+ * on the surfaces they are actually used on — against 2.0–3.6:1 on cream — so there is nothing to
+ * fix, and lifting them would only cost the grade buttons, where they are fills under white ink
+ * (2.16:1 becomes 1.88:1). A dark theme is not an obligation to brighten everything.
  */
 val LoopkyDarkColors = LoopkyColors(
-    surfacePrimary = Color(0xFF121016),
-    surfaceSecondary = Color(0xFF1A1820),
-    surfaceCard = Color(0xFF221F2A),
+    surfacePrimary = Color(0xFF0D0B11),
+    surfaceSecondary = Color(0xFF1E1A28),
+    surfaceCard = Color(0xFF2D2839),
     accentPrimary = Color(0xFFFF6B2C),
     accentPrimarySoft = Color(0xFF38221A),
     accentSecondary = Color(0xFF9B7BFF),
     accentSecondarySoft = Color(0xFF2B2443),
     foregroundPrimary = Color(0xFFEDEBF1),
     foregroundSecondary = Color(0xFFB5AEBD),
-    foregroundMuted = Color(0xFF8B8496),
+    foregroundMuted = Color(0xFF9C94A8),
     foregroundOnAccent = Color(0xFFFFFFFF),
     foregroundOnAccentMuted = Color(0xFFFFF3EC),
     // Lighter than [surfacePrimary], not darker: in light mode the nav bar is the one dark thing on
     // screen, and inverting that relationship leaves it invisible against the ground. Sitting just
     // above the card tone is what Material means by elevation on a dark theme.
-    navBarBackground = Color(0xFF1E1B27),
+    navBarBackground = Color(0xFF262032),
     navBarInactive = Color(0xFF9A93A3),
-    borderSubtle = Color(0xFF302B3A),
+    borderSubtle = Color(0xFF3B3550),
     srsGood = Color(0xFF21C97A),
     srsAgain = Color(0xFFFF4E64),
     srsHard = Color(0xFFF5A524),
     srsEasy = Color(0xFF3B82F6),
     // The one signal colour that does move: `#D92C2C` is 3.9:1 on this ground, under the 4.5:1 it
     // needs as the label on a destructive row.
-    danger = Color(0xFFF4595C),
+    danger = Color(0xFFFF6B6E),
     dangerSoft = Color(0x1FFF4E64),
     shadowAccent = Color(0x33FF6B2C),
     // Black rather than the light palette's plum tint: a tinted shadow is invisible on a dark
