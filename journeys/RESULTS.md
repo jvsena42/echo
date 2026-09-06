@@ -2285,3 +2285,76 @@ what it removes is the per-command cost, not the ceiling.
 
 **Nothing here was driven on a device**, and nothing needed to be: the change is `:cli` only, no
 Compose and no SwiftUI. The Android and iOS journeys above are untouched by it.
+
+## pt-BR localization + app-language setting — 2026-09-06
+
+Android on `emulator-5554` (API 37) and iOS on the iPhone 17 simulator, both signed in against
+staging. Not one of the 25 numbered journeys — the change touches every screen's copy rather
+than any one flow, so it was verified by driving the screens each journey passes through.
+
+| Step | Result |
+| --- | --- |
+| Settings → new **LANGUAGE** section | PASSED — Android `settings_language`, iOS `settings_language`. Shows the current choice and, on Android, which of the two descriptions applies |
+| Picker → Português (Brasil) | PASSED — Android recomposed in place, no relaunch |
+| **The choice is the OS's, not Loopky's** | PASSED — `adb shell cmd locale get-app-locales com.github.jvsena42.loopky` → `[pt-BR]`. It is the framework's per-app language preference, so it also appears in Settings → Apps → Loopky → Language |
+| Home | PASSED — "PARA HOJE", "0 de 13 concluídas · continue assim!", "20 novas · 20 cartas" |
+| Decks / Discover | PASSED — "Biblioteca · 7", "Colar para importar", "De quem você segue", "1 carta" / "3 cartas" |
+| Deck detail | PASSED — stats bar "Total / A revisar / Novas / Dominadas" |
+| Study loop | PASSED — "1 de 10191", "Toque na carta para ver a resposta", grades "Repetir / Difícil / Bom / Fácil" |
+| iOS, launched `-AppleLanguages "(pt-BR)"` | PASSED — tabs "Hoje / Baralhos / Descobrir / Perfil", Settings "Idioma do app · Português (Brasil)", "Cartas novas por dia" |
+| iOS bundle | PASSED — `pt-BR.lproj` with `Localizable.strings` (720), `Localizable.stringsdict` and `InfoPlist.strings` |
+
+### Worth knowing
+
+**The grade buttons were rendering the raw Kotlin enum**, on both platforms and in every
+language: `SrsGrade.name` on Android and `shared.name` on iOS. They are catalog keys now
+(`srs_grade_*`), and the `study_*` accessibility ids are deliberately *not* derived from the
+label any more — a localized id is findable only in the language it was written in, and every
+journey targets those ids. The iOS tab titles were four hardcoded English literals for the same
+reason and now read `nav_tab_*`, which the catalog already had.
+
+**"Novamente" does not fit the Again button.** The grade button autosizes down to an 11sp floor
+and then clips with `softWrap = false`: on a 1080px-wide screen it rendered as "Novame". "Repetir"
+is the same length as "Difícil", which fits with room to spare. Anything longer than seven
+characters needs measuring on a device, not eyeballing in the XML.
+
+**`carta` is feminine where `cartão` is masculine**, so the noun swap dragged agreement changes
+through 157 values — including a dozen that never name a card but agree with one ("%1$d mantidas
+· %2$d descartadas", "Novas", "Dominadas", "%1$d de %2$d concluídas"). Nothing in the build
+reports a wrong agreement.
+
+**Two interval labels are still produced in `commonMain`**: `SrsScheduler.formatInterval` returns
+`"<10m"` and `"3d"`, which cross to both UIs as finished strings. They read the same in pt-BR
+(`d` for dias, `m` for minutos) so they were left alone — but a language where they do not would
+need `previewIntervals` to return days and the UIs to format, which is a change to the
+`SrsRepository` interface and both platforms.
+
+**iOS `home_deck_due_cards` has no plural variation**, so it says "1 cartas" — and "1 cards" in
+English, which is how long it has been there. Pre-existing, not introduced here; Android has the
+plural (`home_deck_due_cards`) and iOS has a flat key.
+
+### Follow-ups from the same session — 2026-09-06
+
+**iOS Settings was unreadable on a dark device, and it was never a Settings bug.** `LoopkyColor`
+is a single fixed light palette with no dark variants, and every screen paints its own cream
+ground — but native chrome does not follow that. A `List`, an alert, a sheet or a menu takes its
+row fills, section headers and default label colour from the *system* scheme, so on a dark device
+Settings drew near-black rows and dark-on-dark labels on cream, with the section headers and the
+language footer effectively invisible. `.preferredColorScheme(.light)` at the `WindowGroup` root
+is the fix; verified with the simulator in dark mode on Settings **and** on `FollowListScreen`,
+the other `List` screen that had it. `PasteView` is the third. The alternative is a dark palette,
+which is a design decision rather than a bug fix.
+
+**The Android picker is an `ExposedDropdownMenuBox`, not a dialog of radio rows.** The menu
+scrolls and sizes itself, so a fifth language costs a line in `AppLocale.SUPPORTED` and
+`locales_config.xml` and nothing in the UI. All three paths driven on `emulator-5554`:
+
+| Step | Result |
+| --- | --- |
+| Português (Brasil) | PASSED — `cmd locale get-app-locales` → `[pt-BR]`, screen recomposed in place |
+| English | PASSED — → `[en]` |
+| Padrão do sistema | PASSED — → `[]`, i.e. the framework preference is *cleared* rather than pinned to `en`, and the row reads "System default" |
+
+The `settings_language` test tag moved to the dropdown anchor and
+`settings_language_option_*` to the menu items, so the ids a journey would target are unchanged.
+

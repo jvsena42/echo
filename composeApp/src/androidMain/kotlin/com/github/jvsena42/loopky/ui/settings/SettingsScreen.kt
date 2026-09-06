@@ -346,6 +346,10 @@ private fun SettingsScreen(
             )
         }
 
+        // --- Language section ---
+        SettingsSectionLabel(text = stringResource(R.string.settings_section_language))
+        LanguageSection()
+
         // --- Studying section ---
         SettingsSectionLabel(text = stringResource(R.string.settings_section_studying))
         StudySettingsSection(

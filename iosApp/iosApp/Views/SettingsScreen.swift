@@ -40,7 +40,10 @@ struct SettingsScreen: View {
             onConfirmDeleteAccount: { viewModel?.onConfirmDeleteAccount() },
             onDismissDeleteAccount: { viewModel?.onDeleteAccountDismissed() },
             onOpenUrl: { if let url = URL(string: $0) { openURL(url) } },
-            onBackUpNow: onBackUpNow
+            onBackUpNow: onBackUpNow,
+            onOpenAppSettings: {
+                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+            }
         )
         .overlay(alignment: .bottom) {
             if let toast {

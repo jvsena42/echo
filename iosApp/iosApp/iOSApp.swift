@@ -35,6 +35,14 @@ struct iOSApp: App {
             // so all of them re-answer on rotation and on a Split View divider being dragged.
             RootView()
                 .provideWindowSize()
+                // Loopky's palette is a single fixed light one — `LoopkyColor` has no dark
+                // variants, and every screen paints its own cream ground. Native chrome does
+                // *not* follow it: a `List`, an alert, a sheet or a menu takes its row fills,
+                // section headers and default label colour from the system scheme. On a dark
+                // device that put near-black rows and dark-on-dark labels on Settings' cream
+                // background. Pinning the scheme is what keeps the two halves agreeing; the
+                // alternative is a dark palette, which is a design decision rather than a fix.
+                .preferredColorScheme(.light)
         }
     }
 }

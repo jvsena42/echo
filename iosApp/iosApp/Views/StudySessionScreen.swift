@@ -237,7 +237,27 @@ enum StudyGrade: CaseIterable {
         }
     }
 
-    var label: String { shared.name }
+    /// Never `shared.name`: that is the Kotlin enum entry, so every language got
+    /// "Again"/"Hard"/"Good"/"Easy".
+    var label: LocalizedStringKey {
+        switch self {
+        case .again: return "srs_grade_again"
+        case .hard: return "srs_grade_hard"
+        case .good: return "srs_grade_good"
+        case .easy: return "srs_grade_easy"
+        }
+    }
+
+    /// The accessibility id's stable half. Derived from the label it would be findable only in
+    /// whichever language the device happens to be in.
+    var id: String {
+        switch self {
+        case .again: return "again"
+        case .hard: return "hard"
+        case .good: return "good"
+        case .easy: return "easy"
+        }
+    }
 
     var color: Color {
         switch self {

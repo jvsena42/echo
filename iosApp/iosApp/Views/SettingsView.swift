@@ -17,6 +17,7 @@ struct SettingsView: View {
     var onDismissDeleteAccount: () -> Void = {}
     var onOpenUrl: (String) -> Void = { _ in }
     var onBackUpNow: () -> Void = {}
+    var onOpenAppSettings: () -> Void = {}
 
     @State private var unsplashKey = ""
 
@@ -25,6 +26,7 @@ struct SettingsView: View {
     var body: some View {
         List {
             identitySection
+            languageSection
             studyingSection
             sharingSection
             imageSearchSection
@@ -86,6 +88,38 @@ struct SettingsView: View {
         } header: {
             Text("settings_section_identity")
         }
+    }
+
+    /// The app language, which iOS owns rather than Loopky.
+    ///
+    /// The picker itself is the system's own per-app Language screen, so this row shows the
+    /// current choice and hands the user to Settings. Writing `AppleLanguages` from here would
+    /// reach the same preference, but iOS resolves it at launch — the app would keep rendering
+    /// the old language until it was relaunched, which reads as the setting not working.
+    private var languageSection: some View {
+        Section {
+            Button(action: onOpenAppSettings) {
+                LabeledContent {
+                    Text(Self.currentLanguageName)
+                } label: {
+                    Text("settings_language_label")
+                }
+            }
+            .tint(LoopkyColor.foregroundPrimary)
+            .accessibilityIdentifier("settings_language")
+        } header: {
+            Text("settings_section_language")
+        } footer: {
+            Text("settings_language_description")
+        }
+    }
+
+    /// The language's own name for itself — "English", "Português (Brasil)".
+    private static var currentLanguageName: String {
+        let tag = Bundle.main.preferredLocalizations.first ?? "en"
+        let locale = Locale(identifier: tag)
+        let name = locale.localizedString(forIdentifier: tag) ?? tag
+        return name.prefix(1).uppercased() + name.dropFirst()
     }
 
     /// The daily goal is **announced, never enforced** — the queue serves every due card and every

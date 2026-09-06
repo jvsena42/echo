@@ -27,9 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
@@ -94,6 +96,21 @@ internal fun SrsColumn(
         }
     }
 }
+
+/**
+ * The button's own label.
+ *
+ * Never `SrsGrade.name`: that is the Kotlin enum entry, so every language got "Again"/"Hard"/
+ * "Good"/"Easy". The `study_*` test tags still come from `name` and must keep doing so — the
+ * android-cli journeys target them, and a localized id would only be findable in English.
+ */
+private val SrsGrade.labelRes: Int
+    get() = when (this) {
+        SrsGrade.Again -> R.string.srs_grade_again
+        SrsGrade.Hard -> R.string.srs_grade_hard
+        SrsGrade.Good -> R.string.srs_grade_good
+        SrsGrade.Easy -> R.string.srs_grade_easy
+    }
 
 /**
  * Grade-to-colour, in the order the buttons are always drawn.
@@ -171,7 +188,7 @@ private fun SrsButton(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = grade.name,
+                text = stringResource(grade.labelRes),
                 autoSize = TextAutoSize.StepBased(
                     minFontSize = 11.sp,
                     maxFontSize = 15.sp,

@@ -238,7 +238,7 @@ struct StudySessionView: View {
             .padding(.vertical, 12)
             .background(RoundedRectangle(cornerRadius: 14).fill(grade.color))
         }
-        .accessibilityIdentifier("study_\(grade.label.lowercased())")
+        .accessibilityIdentifier("study_\(grade.id)")
     }
 
     /// The end of a preview has nothing to report — no reviews were stored, so there is no
