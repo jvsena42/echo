@@ -53,9 +53,9 @@ data class ImportResult(
      */
     @SerialName("columns_dropped") val columnsDropped: Int = 0,
     /**
-     * How the file was split. `"none"` for a source that was never split at all — an `.apkg` —
-     * because reporting the `Separator.Tab` the structured entry point carries would name a rule
-     * that did not run.
+     * How the file was split: `"tab"`, `"comma"`, … and `"none"` only for a source that was never
+     * split at all, which today means an `.apkg`. A four-column TSV reports `"tab"`, because that
+     * is what its reader does — see [ParsedSource.separator].
      */
     val separator: String,
     /** `"text"` or `"apkg"`. See [detectImportFormat]. */
@@ -64,6 +64,15 @@ data class ImportResult(
     val apkg: ApkgSummary? = null,
     /** What `--check-images` found, and only what is worth reporting. Empty without the flag. */
     @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
+    /**
+     * What is wrong with a picture URL without asking any host — an undecodable format, a
+     * thumbnail width Wikimedia does not serve. See [ImageAdvice].
+     *
+     * Reported whether or not `--check-images` was passed, which is why it is not folded into
+     * [imageChecks]: it is also the *more* valuable half, since it is what a string is known to be
+     * wrong about rather than what a host happened to answer this minute.
+     */
+    @SerialName("image_advice") val imageAdvice: List<ImageAdvice> = emptyList(),
 )
 
 /**
@@ -96,6 +105,8 @@ data class ImportPreview(
      * agent can still fix 900 addresses before a single card carries one.
      */
     @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
+    /** The same as [ImportResult.imageAdvice], and worth the most here: nothing is written yet. */
+    @SerialName("image_advice") val imageAdvice: List<ImageAdvice> = emptyList(),
 )
 
 /** The `--json` spelling of a format, kept beside the enum so the two cannot drift. */
@@ -147,18 +158,28 @@ suspend fun import(
     // assertion no classifier recognises — so an unrenderable column in someone's file reached the
     // user as exit 1 "internal" plus a Kotlin message. This is also where the /thumb/ and
     // undecodable-format advice reaches an import at all; only `card add` ever ran it before.
-    val images = imports.draftImageUrls().checkedStatically(onNote)
+    val images = imports.draftImageUrls()
+    val log = ImageAdviceLog()
+    log.checkedAll(images)
+    // Up here rather than inside `newDeck`/`overlaidWith`, which run after the advice is reported:
+    // a cover URL is a picture like any other and belongs in the same block and the same array.
+    args.option("cover-url")?.let { log.checked(it, "--cover-url") }
     val resume = resumeState(args, decks, cards, title, onNote)
     // Minted once and threaded down: every card carries its deck's id, so deriving it twice is how
     // a resumed run writes cards addressed to a deck that does not exist.
     val deckId = resume.deck?.id ?: generateId()
 
+    // Both before a byte is written, and the advice after the probe. Inside the `try` it was
+    // printed only by a run that got past card building and media upload — so an import that died
+    // there, the run most likely to want the advice, showed none of it. Ahead of the upload it
+    // also gets the chance to say the pictures are wrong before the quota is spent on them.
+    val imageChecks = images.map { it.second }.checkedIfAsked(args, onNote)
+    log.advice.reportStaticImageAdvice(onNote)
+
     // Blobs this invocation wrote, so an aborted publish of a *new* deck can take them back out.
     val uploaded = mutableListOf<MediaRef>()
-    var imageChecks = emptyList<ImageCheck>()
     val written = try {
         val built = buildCards(imports, draft, resume, deckId, media, uploaded, onProgress)
-        imageChecks = images.map { it.second }.checkedIfAsked(args, onNote)
         val published = if (resume.deck != null) {
             appendMissing(decks, deckId, built, resume.deck.overlaidWith(args), onProgress)
         } else {
@@ -190,10 +211,11 @@ suspend fun import(
             resumed = resume.alreadyThere.size,
             resumeMatched = if (args.has("resume")) resume.deck != null else null,
             columnsDropped = if (parsed.droppedColumns) 1 else 0,
-            separator = draft.separatorName(),
+            separator = parsed.separator,
             format = parsed.format.json,
             apkg = parsed.apkg,
             imageChecks = imageChecks,
+            imageAdvice = log.advice,
         ),
         describeImport(written, title, parsed, resume),
     )
@@ -239,8 +261,20 @@ private fun describeImport(
             )
         }
         parsed.apkg?.let { appendLine(it.describe()) }
-        append("Separator: ${draft.separatorName()}")
+        append(parsed.describeSeparator())
     }
+}
+
+/**
+ * The separator line, with the one answer that reads like a failure explained.
+ *
+ * `Separator: none` on a well-formed file is indistinguishable from a parse that found nothing,
+ * and an agent validating its input before a production write cannot tell which it is being told
+ * (#257, item 7). Only an `.apkg` reports it now, and only with the reason attached.
+ */
+private fun ParsedSource.describeSeparator(): String = when (separator) {
+    "none" -> "Separator: none — an .apkg stores typed fields, so nothing was split."
+    else -> "Separator: $separator"
 }
 
 /**
@@ -262,10 +296,15 @@ suspend fun importDryRun(
     val parsed = parseSource(args, imports, source, title, keepImageBytes = false)
     val draft = parsed.draft
     val cards = imports.keptRows().size
-    val imageChecks = imports.draftImageUrls()
-        .checkedStatically(onNote)
-        .map { it.second }
-        .checkedIfAsked(args, onNote)
+    val images = imports.draftImageUrls()
+    val log = ImageAdviceLog()
+    log.checkedAll(images)
+    // The cover too, as the real run does. Without it the *pre-flight* was the laxer of the two —
+    // `import --cover-url http://…` exits 9 and `--dry-run` over the same command exited 0 —
+    // on the command whose `--dry-run` is documented as the thing you run first.
+    args.option("cover-url")?.let { log.checked(it, "--cover-url") }
+    val imageChecks = images.map { it.second }.checkedIfAsked(args, onNote)
+    log.advice.reportStaticImageAdvice(onNote)
     imports.clear()
 
     return result(
@@ -277,9 +316,10 @@ suspend fun importDryRun(
             duplicatesCollapsed = draft.duplicatesCollapsed,
             truncated = draft.truncated,
             columnsDropped = if (parsed.droppedColumns) 1 else 0,
-            separator = draft.separatorName(),
+            separator = parsed.separator,
             apkg = parsed.apkg,
             imageChecks = imageChecks,
+            imageAdvice = log.advice,
         ),
         buildString {
             appendLine("$source would publish $cards ${if (cards == 1) "card" else "cards"}. Nothing was written.")
@@ -292,24 +332,16 @@ suspend fun importDryRun(
                 summary.deckName?.let { appendLine("Anki deck name: $it") }
                 appendLine(summary.describe())
             }
-            append("Separator: ${draft.separatorName()}")
+            append(parsed.describeSeparator())
         },
     )
 }
-
-/**
- * A `Separator` as the envelope names it, with structured sources reported as having none.
- * `parseBulkNotes` stamps `Separator.Tab` on a draft it never split, because the field is not
- * nullable — reporting that for an `.apkg` would name a rule that did not run.
- */
-private fun ImportDraft.separatorName(): String =
-    if (structured) "none" else separator::class.simpleName.orEmpty().lowercase()
 
 private class Written(val deck: Deck, val cards: Int)
 
 /** `--check-images` over these URLs, or nothing. See [checkImageUrls]. */
 private suspend fun List<String>.checkedIfAsked(args: Args, onNote: (String) -> Unit): List<ImageCheck> =
-    if (args.checksImages()) checkImageUrls(this, onNote) else emptyList()
+    if (args.checksImages()) checkImageUrls(this, onNote, args.imageCheckConcurrency()) else emptyList()
 
 /**
  * What a `--resume` run already found on the homeserver.
@@ -482,7 +514,8 @@ private fun Deck.overlaidWith(args: Args): Deck? {
     val updated = copy(
         description = args.option("description")?.takeIf { it.isNotBlank() } ?: description,
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() } ?: coverEmoji,
-        coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage)
+        // Checked at the top of `import`, into the same advice log as every other picture.
+        coverImageRef = args.option("cover-url")?.let(::remoteImage)
             ?: coverImageRef,
         tags = args.overlaidTags(this, frontLang, backLang),
         listenEnabled = args.flagOrNull("listen") ?: listenEnabled,
@@ -535,7 +568,7 @@ private fun newDeck(
         title = args.requireOption("title").trim(),
         description = args.option("description")?.takeIf { it.isNotBlank() },
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() },
-        coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage),
+        coverImageRef = args.option("cover-url")?.let(::remoteImage),
         // A declared pair labels the deck, exactly as on a phone. This is the path most decks arrive
         // by (#46), and it was the least discoverable of the three.
         tags = deckTags(args.options("tag"), frontLang, backLang),

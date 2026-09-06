@@ -5,15 +5,11 @@ import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.CommandResult
 import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.asCliError
-import com.github.jvsena42.loopky.cli.cliJson
 import com.github.jvsena42.loopky.cli.result
-import com.github.jvsena42.loopky.cli.toView
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.CardSide
-import com.github.jvsena42.loopky.domain.model.Deck
-import kotlinx.coroutines.delay
 
 /**
  * Add one card, or a fileful.
@@ -23,31 +19,47 @@ import kotlinx.coroutines.delay
  * normal recovery is to re-run the command — and a surface where re-running duplicates the work is
  * one where a session expiry costs the deck rather than the retry.
  *
- * The batch goes through one `upsertCard` per card because that owns the chunk write and the manifest
- * patch together. What a batch saves over a shell loop is the process start, the session round trip
- * and the deck read.
+ * **A batch is appended in groups, not card by card** (#257, item 2). One `upsertCard` per card is
+ * a chunk write *plus* a whole-manifest read-modify-write each: 170 cards took ten minutes and
+ * emitted nothing until the end, where `deck create` writes 1210 in seconds. `appendCards` writes
+ * a group's chunks and patches the manifest once, so a group of [APPEND_GROUP] costs two writes
+ * rather than two hundred.
+ *
+ * Groups rather than one call for the whole file, because a group is what survives a failure. An
+ * append is all-or-nothing — the manifest patch lands last — so a batch that dies partway leaves
+ * every completed group on the homeserver and re-running skips them, which is the same recovery
+ * the per-card path gave and the reason it was worth keeping.
  *
  * **The dedupe costs a full card read** — ~200 chunk requests on a 20k-card deck before the first
  * write. There is no index to ask instead, and skipping it would trade the retry guarantee for speed.
  * That is the other reason to use `--from-file`: the read is paid once for the whole batch.
+ *
+ * **`--dry-run` stops after the planning.** Every row is read, validated and deduped against the
+ * deck, `--check-images` runs, and nothing is written — so the answer comes from the code path
+ * that would actually run, which `import --dry-run` could never give for this command (#257,
+ * item 8). It needs a session: the dedupe is a read of the deck.
  */
 suspend fun cardAdd(
     args: Args,
     decks: DeckRepository,
     cards: CardRepository,
     onNote: (String) -> Unit = System.err::println,
+    onProgress: (String) -> Unit = {},
 ): CommandResult {
     val deckId = args.requireWord(2, "deckId")
     val deck = decks.sync(deckId).getOrElse { throw asCliError(it) }
     val existing = cards.fetchByDeck(deck).getOrElse { throw asCliError(it) }
 
+    // Collected as the file is read and emptied out after `--check-images`, so the advice reaches
+    // both stderr and `--json` — see `ImageAdviceLog`.
+    val log = ImageAdviceLog()
     val rows = (
-        args.option("from-file")?.let { readCardFile(it, onNote) } ?: listOf(
+        args.option("from-file")?.let { readCardFile(it, log, onNote) } ?: listOf(
             CardFileRow(
                 front = args.option("front"),
                 back = args.option("back"),
-                frontImageUrl = args.option("front-image")?.checkedImageUrl("--front-image", onNote),
-                backImageUrl = args.option("back-image")?.checkedImageUrl("--back-image", onNote),
+                frontImageUrl = args.option("front-image")?.let { log.checked(it, "--front-image") },
+                backImageUrl = args.option("back-image")?.let { log.checked(it, "--back-image") },
             ).also {
                 if (it.isEmpty) throw CliError(ExitCode.Usage, "Give --front/--back, or --from-file.")
             },
@@ -60,7 +72,7 @@ suspend fun cardAdd(
     var skipped = 0
 
     for ((index, row) in rows.withIndex()) {
-        // No ord is computed here on purpose. `upsertCard` assigns one from the chunk the card
+        // No ord is computed here on purpose. `appendCards` assigns one from the chunk the card
         // lands in and ignores whatever the caller sent, so an ord invented here would be dead
         // weight that *looks* meaningful — which is precisely how this command came to report a
         // number the homeserver never stored.
@@ -73,7 +85,25 @@ suspend fun cardAdd(
     }
 
     val checks = planned.checkedImages(args, onNote)
-    return applyBatch(deckId, deck, decks, cards, planned, skipped, BatchVerb.Add, checks)
+    log.advice.reportStaticImageAdvice(onNote)
+    if (args.has(DRY_RUN_FLAG)) {
+        return result(
+            CardWriteResult(
+                deckId = deckId,
+                cards = emptyList(),
+                written = planned.size,
+                skipped = skipped,
+                cardCount = deck.cardCount,
+                imageChecks = checks,
+                imageAdvice = log.advice,
+                dryRun = true,
+            ),
+            "Would add ${planned.size} card(s) to $deckId" +
+                (if (skipped > 0) ", skipping $skipped already present" else "") +
+                ". Nothing was written.",
+        )
+    }
+    return appendBatch(deckId, deck, decks, cards, planned, skipped, checks, log.advice, onProgress)
 }
 
 /**
@@ -101,13 +131,14 @@ suspend fun cardEdit(
     val deck = decks.sync(deckId).getOrElse { throw asCliError(it) }
     val existing = cards.fetchByDeck(deck).getOrElse { throw asCliError(it) }.associateBy { it.id }
 
-    val rows = args.option("from-file")?.let { readCardFile(it, onNote) } ?: listOf(
+    val log = ImageAdviceLog()
+    val rows = args.option("from-file")?.let { readCardFile(it, log, onNote) } ?: listOf(
         CardFileRow(
             id = args.requireWord(3, "cardId"),
             front = args.option("front"),
             back = args.option("back"),
-            frontImageUrl = args.option("front-image")?.checkedImageUrl("--front-image", onNote),
-            backImageUrl = args.option("back-image")?.checkedImageUrl("--back-image", onNote),
+            frontImageUrl = args.option("front-image")?.let { log.checked(it, "--front-image") },
+            backImageUrl = args.option("back-image")?.let { log.checked(it, "--back-image") },
         ),
     )
 
@@ -131,16 +162,8 @@ suspend fun cardEdit(
     }
 
     val checks = planned.checkedImages(args, onNote)
-    return applyBatch(deckId, deck, decks, cards, planned, skipped, BatchVerb.Edit, checks)
-}
-
-/** One row of a batch, resolved into the card it will write. [row] is 1-based, as the file counts. */
-private class PlannedWrite(val row: Int, val card: Card)
-
-/** What a batch did, for a person. Two spellings of "skipped": the reasons genuinely differ. */
-private enum class BatchVerb(val past: String, val skipped: String) {
-    Add("Added", "already present"),
-    Edit("Edited", "already up to date"),
+    log.advice.reportStaticImageAdvice(onNote)
+    return applyBatch(deckId, deck, decks, cards, planned, skipped, BatchVerb.Edit, checks, log.advice)
 }
 
 /**
@@ -153,137 +176,8 @@ private enum class BatchVerb(val past: String, val skipped: String) {
 private suspend fun List<PlannedWrite>.checkedImages(args: Args, onNote: (String) -> Unit): List<ImageCheck> {
     if (!args.checksImages()) return emptyList()
     val urls = flatMap { listOfNotNull(it.card.front.imageRef?.url, it.card.back.imageRef?.url) }
-    return checkImageUrls(urls, onNote)
+    return checkImageUrls(urls, onNote, args.imageCheckConcurrency())
 }
-
-/**
- * Write a planned batch, and report what landed whether or not all of it did.
- *
- * Three rules, all from the same failure (#229, item 2): a 665-row `card edit --from-file` that
- * 500'd after 35 writes, said nothing about the 35, and had no way to pick up where it stopped.
- *
- * - **A row failure does not end the batch.** The rows after it are attempted, because the ones
- *   that worked when sent singly were the same rows.
- * - **A batch-ending failure does.** An expired session, a full disk or an unsupported host will
- *   refuse every remaining row identically, and 600 more round trips against it buy nothing — so
- *   the batch stops and reports how many it never reached. So does a run of consecutive failures,
- *   which is what a homeserver in trouble looks like from here.
- * - **A failed batch still reports what it wrote.** The result travels on the failure envelope as
- *   `data`, ids included, so the caller knows which rows are on the homeserver.
- */
-@Suppress("LongParameterList")
-private suspend fun applyBatch(
-    deckId: String,
-    deck: Deck,
-    decks: DeckRepository,
-    cards: CardRepository,
-    planned: List<PlannedWrite>,
-    skipped: Int,
-    verb: BatchVerb,
-    imageChecks: List<ImageCheck>,
-): CommandResult {
-    val written = mutableListOf<Card>()
-    val failures = mutableListOf<CardWriteFailure>()
-    var latest = deck
-    var consecutiveFailures = 0
-    var stopped: CliError? = null
-    var index = 0
-
-    while (index < planned.size) {
-        val entry = planned[index]
-        val result = writeWithRetry(decks, deckId, entry.card)
-        result.onSuccess {
-            latest = it
-            written += cards.stored(deckId, entry.card)
-            consecutiveFailures = 0
-        }.onFailure { error ->
-            val failure = asCliError(error)
-            failures += CardWriteFailure(
-                row = entry.row,
-                cardId = entry.card.id,
-                code = failure.exitCode.json,
-                message = failure.message.orEmpty(),
-            )
-            consecutiveFailures++
-            if (failure.exitCode in BATCH_ENDING || consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                stopped = failure
-            }
-        }
-        index++
-        if (stopped != null) break
-    }
-
-    val notAttempted = planned.size - index
-    val payload = CardWriteResult(
-        deckId = deckId,
-        cards = written.map { it.toView() },
-        written = written.size,
-        skipped = skipped,
-        cardCount = latest.cardCount,
-        failed = failures.size,
-        failures = failures,
-        notAttempted = notAttempted,
-        imageChecks = imageChecks,
-    )
-    val text = buildString {
-        append("${verb.past} ${written.size} card(s)")
-        if (skipped > 0) append(", skipped $skipped ${verb.skipped}")
-        if (failures.isNotEmpty()) append(", FAILED ${failures.size}")
-        if (notAttempted > 0) append(", $notAttempted not attempted")
-    }
-    if (failures.isEmpty()) return result(payload, text)
-
-    throw CliError(
-        // The failure that *ended* the batch when there was one, since that is the state the whole
-        // run is now in — a full disk after four unrelated 500s is a full disk, not a 500.
-        stopped?.exitCode ?: failures.first().exitCode(),
-        "$text. First failure was row ${failures.first().row} (card ${failures.first().cardId}): " +
-            "${failures.first().message} Re-run the same file — rows already applied are skipped.",
-        cliJson.encodeToJsonElement(CardWriteResult.serializer(), payload),
-    )
-}
-
-/**
- * One card write, retried through a homeserver that answered 5xx.
- *
- * The shared layer already retries an expiry, a 429 and an unreachable session round trip
- * (`withWriteRetry`); a 500 is the gap, and it is the one this saw. Bounded and short: three
- * attempts, because a homeserver that is still 500ing after two seconds is not going to be talked
- * round by a fourth, and a 665-row batch cannot afford a long backoff per row.
- */
-private suspend fun writeWithRetry(decks: DeckRepository, deckId: String, card: Card): Result<Deck> {
-    var backoff = RETRY_BACKOFF_MS
-    repeat(WRITE_ATTEMPTS - 1) {
-        val result = decks.upsertCard(deckId, card)
-        val error = result.exceptionOrNull() ?: return result
-        if (ExitCode.of(error) != ExitCode.ServerError) return result
-        delay(backoff)
-        backoff *= 2
-    }
-    return decks.upsertCard(deckId, card)
-}
-
-private fun CardWriteFailure.exitCode(): ExitCode =
-    ExitCode.entries.firstOrNull { it.json == code } ?: ExitCode.Internal
-
-/**
- * Failures that will refuse every remaining row the same way, so attempting them buys nothing but
- * round trips. [ExitCode.NotFound] is deliberately absent — that is one missing card, not a dead
- * batch.
- */
-private val BATCH_ENDING = setOf(
-    ExitCode.NotSignedIn,
-    ExitCode.SessionExpired,
-    ExitCode.StorageFull,
-    ExitCode.EnvironmentMismatch,
-    ExitCode.UnsupportedHost,
-)
-
-/** What a homeserver in trouble looks like from here: not one bad row, but a batch worth stopping. */
-private const val MAX_CONSECUTIVE_FAILURES = 5
-
-private const val WRITE_ATTEMPTS = 3
-private const val RETRY_BACKOFF_MS = 500L
 
 suspend fun cardRemove(args: Args, decks: DeckRepository): CommandResult {
     val deckId = args.requireWord(2, "deckId")
@@ -309,17 +203,6 @@ suspend fun cardRemove(args: Args, decks: DeckRepository): CommandResult {
         },
     )
 }
-
-/**
- * The card as the homeserver has it, falling back to what was sent.
- *
- * `upsertCard` **discards the caller's `ord`** and recomputes one from the chunk it lands in, so
- * echoing the local `Card` reports intent rather than result — on an empty deck the CLI said 1000
- * where 0 was stored. For a channel whose purpose is diffing intent against result, that is the one
- * thing it set out not to do. A cache read, not a round trip: the write just populated it.
- */
-private suspend fun CardRepository.stored(deckId: String, sent: Card): Card =
-    get(deckId, sent.id) ?: sent
 
 /**
  * Refuse a card an edit has emptied one side of.

@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.cli
 
 import com.github.jvsena42.loopky.cli.commands.BatchSinks
+import com.github.jvsena42.loopky.cli.commands.DRY_RUN_FLAG
 import com.github.jvsena42.loopky.cli.commands.LoginSinks
 import com.github.jvsena42.loopky.cli.commands.batch
 import com.github.jvsena42.loopky.cli.commands.cardAdd
@@ -20,6 +21,7 @@ import com.github.jvsena42.loopky.cli.commands.import
 import com.github.jvsena42.loopky.cli.commands.importDryRun
 import com.github.jvsena42.loopky.cli.commands.login
 import com.github.jvsena42.loopky.cli.commands.logout
+import com.github.jvsena42.loopky.cli.commands.requireImageCheckOptions
 import com.github.jvsena42.loopky.cli.commands.tagTrending
 import com.github.jvsena42.loopky.cli.commands.update
 import com.github.jvsena42.loopky.cli.commands.whoami
@@ -66,7 +68,9 @@ fun main(argv: Array<String>) {
 private fun run(argv: Array<String>): ExitCode {
     val args = runCatching { Args.parse(argv) }.getOrElse { error ->
         System.err.println("loopky: ${error.message}")
-        System.err.println(USAGE)
+        System.err.println("\n" + USAGE)
+        // Repeated below the block for the same reason as in [fail]: the manual buries it.
+        System.err.println("\nloopky: ${error.message}")
         return ExitCode.Usage
     }
 
@@ -119,6 +123,7 @@ private fun run(argv: Array<String>): ExitCode {
             // about the FFI. `update` is the command you reach for when the install is *broken*, and
             // `completion` prints a static string a shell rc file evaluates. See `preKoin`.
             val result = if (args.verb in PRE_KOIN_VERBS) {
+                args.requireKnownOptions()
                 preKoin(args, updates)
             } else {
                 // Inside the boundary, not before it: starting Koin resolves `PubkyClient`, which
@@ -188,6 +193,13 @@ private suspend fun dispatch(
     // stdout, and only in the human mode — the same split `emit` makes for a single command. A
     // batch operation's *result* is a result, so it belongs on the channel results go to.
     val text: (String) -> Unit = { line -> if (!json) println(line) }
+    // Here rather than in `run`, so a `batch` line is held to the same table a command line is —
+    // a flag the surface does not describe must not be silently dropped in either (#257, item 5).
+    args.requireKnownOptions()
+    // Beside it because it asks the same kind of question — is this invocation self-consistent —
+    // before any of it runs. `--check-images-concurrency` is otherwise read only from behind
+    // `--check-images`, so on its own it was accepted and ignored.
+    args.requireImageCheckOptions()
     return when (val verb = args.verb) {
         "login" -> login(
             args,
@@ -210,7 +222,9 @@ private suspend fun dispatch(
         "deck compact" -> authed(sessions, identity, environment) { deckCompact(args, koin.decks()) }
 
         "card list" -> authed(sessions, identity, environment) { cardList(args, koin.decks(), koin.cards(), note) }
-        "card add" -> authed(sessions, identity, environment) { cardAdd(args, koin.decks(), koin.cards(), note) }
+        "card add" -> authed(sessions, identity, environment) {
+            cardAdd(args, koin.decks(), koin.cards(), note, progress)
+        }
         "card edit" -> authed(sessions, identity, environment) { cardEdit(args, koin.decks(), koin.cards(), note) }
         "card rm" -> authed(sessions, identity, environment) { cardRemove(args, koin.decks()) }
 
@@ -218,7 +232,7 @@ private suspend fun dispatch(
         // nothing, so requiring a live session would put a sign-in between an agent and the check
         // that stops it publishing 9,000 cards of database ids (#96) or spending its whole media
         // quota on one deck.
-        "import" -> if (args.has("dry-run")) {
+        "import" -> if (args.has(DRY_RUN_FLAG)) {
             importDryRun(args, koin.get<ImportRepository>())
         } else {
             authed(sessions, identity, environment) { session ->
@@ -305,7 +319,13 @@ private fun fail(
         println(failureEnvelope(command, env.name, env.indexer, error, notice.available))
     } else {
         System.err.println("loopky: ${error.message}")
-        if (error.exitCode == ExitCode.Usage) System.err.println("\n" + USAGE)
+        if (error.exitCode == ExitCode.Usage) {
+            System.err.println("\n" + USAGE)
+            // And again underneath it. Sixty lines of manual scroll the one line that says what
+            // was actually wrong off the top of the terminal, and an agent capturing stderr reads
+            // the tail — so the whole output ended up saying nothing actionable (#257, item 5).
+            System.err.println("\nloopky: ${error.message}")
+        }
     }
     noteUpdate(notice)
 }
@@ -373,7 +393,7 @@ internal val USAGE = """
       deck list
       deck show <deckId>
       deck create --title T [--description D] [--tag T]... [--cover-url URL]
-                  [--cover-emoji E] [--from-file F] [--check-images]
+                  [--cover-emoji E] [--from-file F] [--check-images] [--dry-run]
                   [--id DECKID] [--if-not-exists]
                   [--listen] [--speak] [--type] [--reverse]
                   [--front-lang BCP47] [--back-lang BCP47]
@@ -387,6 +407,10 @@ internal val USAGE = """
                                 A declared pair also labels the deck — "spanish" plus the
                                 "language" umbrella — so someone learning it can find the deck.
                                 Ordinary tags you can remove. A deck with no pair gets neither.
+                                --dry-run runs all of that — the id check, this command’s own
+                                card-file reader, every row, --check-images — and stops before the
+                                publish. It is the pre-flight for a file you are about to publish
+                                with; import --dry-run reads a different format.
       deck edit <deckId> [--title T] [--description D] [--cover-url URL] [--cover-emoji E]
                   [--tag T]... [--clear-tags] [--clear-cover]
                   [--listen|--no-listen] [--speak|--no-speak]
@@ -412,7 +436,11 @@ internal val USAGE = """
       card add <deckId> --front F --back B [--front-image URL] [--back-image URL]
                                 Add --check-images to any of these to HEAD every distinct picture
                                 URL first. Warns, never refuses; see CARD IMAGES.
-      card add <deckId> --from-file cards.tsv|cards.jsonl
+      card add <deckId> --from-file cards.tsv|cards.jsonl [--dry-run]
+                                A file is appended in groups of 100 — one chunk write and one
+                                manifest patch each, not one of both per card — so a large batch
+                                lands in seconds and reports N/M as it goes. --dry-run reads,
+                                validates and dedupes the whole file and writes nothing.
       card edit <deckId> <cardId> [--front F] [--back B] [--front-image URL] [--back-image URL]
       card edit <deckId> --from-file edits.jsonl
                                 A batch is idempotent, so re-running the same file is the way to
@@ -453,6 +481,37 @@ internal val USAGE = """
                                 binary does not have. `loopky --help --json` prints the same thing.
                                 Needs no session and no network.
 
+      --json shape              One line per result, and the command's own shape is always under
+                                "data" — never at the top level:
+
+                                  {"schema":1,"ok":true,"command":"card list","environment":"…",
+                                   "indexer":"…","update_available":null,"data":{…}}
+
+                                A failure is the same object with "ok":false and an "error"
+                                {"code","exit","message"}, on stdout too, so one stream carries
+                                both outcomes. What "data" holds, for the reads worth piping:
+
+                                  card list   data.cards[], data.count, data.card_count,
+                                              data.next_cursor. A card is {"id","front":{"text",
+                                              "image":{"url","mime",…}},"back":{…}} — front is an
+                                              OBJECT with .text, not a string.
+                                  deck list   data.decks[], data.count
+                                  deck show   data.deck
+                                  card add    data.written, data.skipped, data.cards[],
+                                              data.failures[], data.image_checks[],
+                                              data.image_advice[]
+                                  import      data.deck, data.cards_written, data.image_checks[],
+                                              data.image_advice[]
+
+                                Under --dry-run, deck create's data.created says whether the deck
+                                WOULD be published: with data.dry_run it distinguishes all four
+                                outcomes, so --id X --if-not-exists --dry-run answers "is this id
+                                free" in one field.
+
+                                A card file takes the flat {"front":"…"} shape AND that nested one,
+                                so `card list --json | jq -c .data.cards[] > f` and
+                                `card edit <deckId> --from-file f` is a round trip. See CARD FILES.
+
       batch <file|->            Run a file of operations against one session — one JSON object per
                                 line, {"argv": ["card", "add", "deckid", "--front", "a",
                                 "--back", "b"]}, with an optional "id" echoed back. The bare array
@@ -487,7 +546,9 @@ internal val USAGE = """
 
     GLOBAL
       --json                    Machine-readable output on stdout. Stable, versioned schema.
-      --dry-run                 Read and report; write nothing. `import` only.
+      --dry-run                 Read and report; write nothing. On import, deck create and card add
+                                — each through its own path, so what it reports is what that
+                                command would do.
       --env staging|production  Which network to talk to. Defaults to production.
       --no-update-check         Do not look for a newer release on this invocation.
       --verbose                 Debug logging on stderr.
@@ -517,6 +578,9 @@ internal val USAGE = """
              explicit null clears. An image with no url is a homeserver blob this format cannot
              name, so it is left alone and reported.
 
+             That shape comes out of the envelope at data.cards[], not at the top level. See
+             "--json shape" under AGENTS for the whole of it.
+
     CARD IMAGES
       A card picture is a URL. Nothing is uploaded and no media quota is spent — but nothing is
       fetched either, so this client cannot tell you the picture loads. It can only tell you what
@@ -525,10 +589,19 @@ internal val USAGE = """
         https:// only.  Android and iOS both refuse cleartext, so an http:// address is a card
                         whose picture cannot render on either. Refused, not stored.
 
-        Wikimedia serves thumbnails at 120, 250, 330, 500, 960 and 1280 px and answers 400 for
-        every other width, so .../thumb/…/800px-Name.jpg is a blank card on both apps. Drop the
-        /thumb/ segment and the NNNpx- prefix to get the full-size original, which is always
+        Wikimedia serves thumbnails at 120, 250, 330, 500, 960, 1280 and 1920 px and answers 400
+        for every other width, so .../thumb/…/800px-Name.jpg is a blank card on both apps. Drop
+        the /thumb/ segment and the NNNpx- prefix to get the full-size original, which is always
         served. Warned about on stderr, never fatal — the list is theirs to change.
+
+        Only the FINAL extension is judged. Commons renders a TIFF or an SVG source to a raster
+        thumbnail and keeps the source extension in the middle of the URL, so
+        …/Cell.tif/lossy-page1-500px-Cell.tif.jpg and …/Sign.svg/500px-Sign.svg.png are both
+        ordinary pictures. …/Cell.tif and …/Sign.svg, ending there, are not.
+
+        From the imageinfo API, strip the ?utm_source=…&utm_campaign=imageinfo query it appends to
+        url and thumburl, and rewrite the thumb.wikimedia.org host it hands back to
+        upload.wikimedia.org — the rules above are written for that one.
 
       Beyond that, prefer a host that serves images to anyone: some refuse an unfamiliar client
       outright, and the result is the same blank card with nothing reporting it.
@@ -540,6 +613,25 @@ internal val USAGE = """
       is the only flag here that makes requests of its own, and it warns rather than refusing: a
       host having a bad minute must not be able to fail an import. Findings also travel in --json
       as image_checks.
+
+      It separates WRONG from COULD NOT BE CHECKED, and the difference is the whole of its
+      usefulness at scale. A 429, a timeout or a 5xx says nothing about the picture, so it is
+      counted apart and marked unverified in --json rather than folded into "look wrong". Requests
+      run 3 at a time and a 429 is retried with backoff, because at eight in flight this check
+      rate-limited itself into 432 false findings on one 475-picture deck, burying the run's one
+      real finding under them. Neither bucket prints more than 20 lines; --json carries them all.
+      --check-images-concurrency N (up to 16) is there for a host that is not Wikimedia:
+      against Wikimedia, raising it measured slower as well as noisier — 250 URLs answer
+      clean in about 80 seconds as it stands.
+
+      What a rule can say WITHOUT asking any host — an undecodable format, a thumbnail width
+      Wikimedia does not serve — travels separately, as image_advice, on deck create, card add,
+      card edit and import. Reported whether or not --check-images was passed, which is why it is
+      two arrays rather than one: they answer different questions and only one of them is opt-in.
+      One row per DISTINCT URL, as above, each listing every card and side it is on:
+      {"url": "…", "where": ["Card 201 front image", …], "advice": "…"}. On stderr it is printed
+      last, after everything the network had to say, and capped at 20 entries like the buckets
+      above.
 
     EXIT CODES
       0 ok                      6 not found

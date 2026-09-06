@@ -152,14 +152,35 @@ private val STUDY_OPT_OUTS = STUDY_OPT_INS.map {
     CliOption("no-${it.name}", "turn ${it.name} off", OptionValue.Switch)
 }
 
+/**
+ * `--check-images` and the dial for how hard it asks, shared by every command that writes a card.
+ *
+ * The dial is not decoration: the default is deliberately low, because the check rate-limited
+ * itself into 432 false findings on one Wikimedia deck (#257), and a friendlier host has no other
+ * way to be asked faster.
+ */
+private val IMAGE_CHECK_OPTIONS = listOf(
+    CliOption("check-images", "HEAD each picture URL and warn about the ones that are not images", OptionValue.Switch),
+    CliOption("check-images-concurrency", "how many of those requests may be in flight, up to 16 - 3 by default"),
+)
+
+/**
+ * `--dry-run`, on each of the three commands that take a file of cards.
+ *
+ * One list rather than a repeated literal because the three have to stay one gesture: a pre-flight
+ * that exists on `import` alone sends people through the wrong parser to get it (#257, item 8).
+ */
+private val DRY_RUN_OPTION = listOf(
+    CliOption("dry-run", "report what would be written and write nothing", OptionValue.Switch),
+)
+
 private val CARD_FIELDS = listOf(
     CliOption("front", "the front text"),
     CliOption("back", "the back text"),
     CliOption("front-image", "https URL for a picture on the front"),
     CliOption("back-image", "https URL for a picture on the back"),
     CliOption("from-file", "a TSV or JSONL card file instead of the flags above", OptionValue.Path),
-    CliOption("check-images", "HEAD each picture URL and warn about the ones that are not images", OptionValue.Switch),
-)
+) + IMAGE_CHECK_OPTIONS
 
 private val DECK_METADATA = listOf(
     CliOption("title", "the deck title"),
@@ -213,12 +234,10 @@ internal fun cliCommands(): List<CliCommand> = listOf(
                 OptionValue.Switch,
             ) +
             CliOption("from-file", "a TSV or JSONL card file to publish with it", OptionValue.Path) +
-            CliOption(
-                "check-images",
-                "HEAD each picture URL and warn about the ones that are not images",
-                OptionValue.Switch,
-            ) +
-            STUDY_OPT_INS + LANGUAGE_OPTIONS,
+            // No STUDY_OPT_OUTS: `deckCreate` reads these with `flag(name, default = false)`, so
+            // `--no-listen` could only restate the default. `deck edit` and `import --resume`
+            // overlay an existing deck and genuinely need them.
+            DRY_RUN_OPTION + IMAGE_CHECK_OPTIONS + STUDY_OPT_INS + LANGUAGE_OPTIONS,
         writes = true,
     ),
     CliCommand(
@@ -251,7 +270,13 @@ internal fun cliCommands(): List<CliCommand> = listOf(
             CliOption("has-image", "only cards with a picture", OptionValue.Switch),
         ),
     ),
-    CliCommand("card add", "add one card, or a file of them", Operand.Opaque("deckId"), CARD_FIELDS, writes = true),
+    CliCommand(
+        path = "card add",
+        summary = "add one card, or a file of them",
+        operand = Operand.Opaque("deckId"),
+        options = CARD_FIELDS + DRY_RUN_OPTION,
+        writes = true,
+    ),
     CliCommand(
         path = "card edit",
         summary = "change a card - a field you omit is left alone",
@@ -272,15 +297,13 @@ internal fun cliCommands(): List<CliCommand> = listOf(
             CliOption("tag", "a tag - repeat for several"),
             CliOption("separator", "how the columns are split", OptionValue.OneOf(SEPARATORS)),
             CliOption("resume", "carry on an import that stopped part way", OptionValue.Switch),
-            CliOption("dry-run", "report what would be published and write nothing", OptionValue.Switch),
             CliOption("front-field", "which .apkg field becomes the front, by number or name"),
             CliOption("back-field", "which .apkg field becomes the back, by number or name"),
-            CliOption(
-                "check-images",
-                "HEAD each picture URL and warn about the ones that are not images",
-                OptionValue.Switch,
-            ),
-        ) + STUDY_OPT_INS + LANGUAGE_OPTIONS,
+            // A resumed import overlays whatever metadata this invocation names, cover included,
+            // so the flags it can carry are `deck create`'s rather than a subset (#257, item 5).
+            CliOption("cover-url", "https URL for the cover image"),
+            CliOption("cover-emoji", "an emoji to use as the cover"),
+        ) + DRY_RUN_OPTION + IMAGE_CHECK_OPTIONS + STUDY_OPT_INS + STUDY_OPT_OUTS + LANGUAGE_OPTIONS,
         writes = true,
     ),
 
@@ -338,6 +361,53 @@ internal fun cliCommands(): List<CliCommand> = listOf(
         notBatchable = "It prints the command table and does no homeserver work.",
     ),
 )
+
+/**
+ * Refuse a `--flag` the command does not take, **naming it**.
+ *
+ * The parser accepts any `--long` it sees, so a flag carried over from a sibling command was
+ * silently ignored: `loopky import --dry-run --from-file deck.tsv` parsed, dropped `--from-file`
+ * on the floor, and failed with "Missing <file>" followed by sixty lines of manual — nothing in
+ * the output named the flag that was wrong (#257, item 5). An agent cannot act on that, and it is
+ * expensive in context.
+ *
+ * Checked against [cliCommands] rather than a per-command list, which is what makes it free to
+ * keep true: a flag a command reads has to be in the table anyway, or completion does not offer it
+ * and `loopky commands` does not describe it.
+ *
+ * A verb that is not in the table is left alone — `dispatch` has a better message for that.
+ */
+internal fun Args.requireKnownOptions() {
+    val command = cliCommands().firstOrNull { it.path == verb } ?: return
+    val known = (command.options + GLOBAL_OPTIONS).mapTo(mutableSetOf()) { it.name } + UNOFFERED_SWITCHES
+    val unknown = givenOptions().filterNot { it in known }
+    if (unknown.isEmpty()) return
+    throw CliError(ExitCode.Usage, unknownOptionMessage(command, unknown))
+}
+
+private fun unknownOptionMessage(command: CliCommand, unknown: List<String>): String = buildString {
+    val others = cliCommands().filter { it.path != command.path }
+    val named = unknown.joinToString(", ") { "--$it" }
+    append(if (unknown.size == 1) "Unknown option $named for" else "Unknown options $named for")
+    append(" '${command.path}'.")
+
+    unknown.forEach { name ->
+        val elsewhere = others.filter { other -> other.options.any { it.name == name } }
+        if (elsewhere.isNotEmpty()) {
+            append(" --$name belongs to ${elsewhere.joinToString(", ") { "`${it.path}`" }}.")
+        }
+        // The one substitution worth spelling out: a command whose input is a positional file,
+        // refusing a flag whose job elsewhere is naming a file. That is the mistake this exists for.
+        val takesAPath = elsewhere.any { other -> other.options.any { it.name == name && it.value == OptionValue.Path } }
+        if (takesAPath && command.operand == Operand.Path) {
+            append(" `${command.path}` takes its file as a positional operand: loopky ${command.path} <file>.")
+        }
+    }
+
+    append(" It takes: ")
+    append((command.options + GLOBAL_OPTIONS).joinToString(", ") { "--${it.name}" })
+    append(".")
+}
 
 /** The group nouns — `deck`, `card`, `tag` — mapped to the verbs that follow them. */
 internal fun commandGroups(): Map<String, List<CliCommand>> = cliCommands()

@@ -113,6 +113,7 @@ loopky update                    # fetch it, check its digest, replace this bina
 loopky deck list
 loopky deck create --title "Capitais" --tag geografia --tag "português" --from-file cards.tsv
 loopky deck create --title "Capitais" --id capitais0001 --if-not-exists   # safe to re-run
+loopky deck create --title "Capitais" --from-file cards.tsv --dry-run     # pre-flight, no write
 loopky deck show <deckId> --json
 loopky deck edit <deckId> --cover-url https://…/capitais.jpg --tag geografia --tag capitais
 loopky deck sync <deckId>
@@ -122,7 +123,8 @@ loopky deck delete <deckId>
 loopky card list <deckId> --json
 loopky card list <deckId> --json --missing-image --limit 50    # a page, not the whole deck
 loopky card add <deckId> --front "Brasília" --back "Capital do Brasil"
-loopky card add <deckId> --from-file more.tsv
+loopky card add <deckId> --from-file more.tsv          # appended in groups of 100
+loopky card add <deckId> --from-file more.tsv --dry-run
 loopky card edit <deckId> --from-file edits.jsonl
 loopky card rm <deckId> <cardId>
 
@@ -141,6 +143,35 @@ loopky completion bash               # a completion script on stdout, for eval o
 ```
 
 `loopky --help` is the full surface. Every command takes `--json`.
+
+**`--json` puts the command's own shape under `data`, never at the top level.** Every result is one
+line:
+
+```jsonc
+{"schema":1,"ok":true,"command":"card list","environment":"production","indexer":"…",
+ "update_available":null,
+ "data":{"deck_id":"…","count":1210,"card_count":1210,"next_cursor":null,
+         "cards":[{"id":"…","front":{"text":"…","image":{"url":"…","mime":"…"}},"back":{…}}]}}
+```
+
+A failure is the same object with `"ok":false` and an `error` `{code, exit, message}` — on stdout
+too, so one stream carries both outcomes. Two things worth knowing before writing the `jq`: it is
+`data.cards[]`, not `cards`, and a card's `front` is an **object** with `.text`, not a string.
+`loopky --help` lists what `data` holds for the other reads.
+
+**A flag a command does not take is refused, by name.** The parser used to accept any `--long` and
+drop the ones it did not want, so the command failed for a second, unrelated reason:
+
+```
+$ loopky import --dry-run --check-images --from-file deck.tsv
+loopky: Unknown option --from-file for 'import'. --from-file belongs to `deck create`, `card add`,
+`card edit`. `import` takes its file as a positional operand: loopky import <file>. It takes:
+--title, --description, …
+```
+
+The usage block still follows a usage error, with the message **repeated underneath it** — a
+terminal keeps its last lines, and sixty lines of manual is exactly how the one that mattered got
+scrolled away.
 
 ### Language decks
 
@@ -286,9 +317,9 @@ nothing said about the ones that answer 200 today. So the line is drawn at what 
 same, so an `http://` address is a card whose picture cannot render on either client. Exit 9, with
 the scheme named, rather than a stored ref that is broken by construction.
 
-**Warned about, on stderr, never fatal** — Wikimedia serves thumbnails at **120, 250, 330, 500, 960
-and 1280 px** and answers `400, Use thumbnail sizes listed on https://w.wiki/GHai` for every other
-width. An agent writes `320px-` or `800px-` as readily as `250px-`; they look equally plausible and
+**Warned about, on stderr, never fatal** — Wikimedia serves thumbnails at **120, 250, 330, 500, 960,
+1280 and 1920 px** and answers `400, Use thumbnail sizes listed on https://w.wiki/GHai` for every
+other width. An agent writes `320px-` or `800px-` as readily as `250px-`; they look equally plausible and
 most of them are a blank card on both apps. Drop the `/thumb/` segment and the `NNNpx-` prefix
 altogether to get the full-size original, which is always served. A warning and not an error
 because the list is Wikimedia's to change, and a stale check must not be able to fail an import.
@@ -312,7 +343,15 @@ https://upload.wikimedia.org/wikipedia/commons/0/03/Flag_of_Italy.svg
 
 Wikimedia renders `.tif` and `.webm` under `/thumb/` too, but with prefixes of their own
 (`lossy-page1-`, a frame marker), so those are named rather than rewritten — an address invented
-here that 404s would be worse than the sentence.
+here that 404s would be worse than the sentence. Those renders are **not** findings, though: only
+the **final** extension is judged, so `…/Cell.tif/lossy-page1-500px-Cell.tif.jpg` is the ordinary
+JPEG it is, exactly as `…/Sign.svg/500px-Sign.svg.png` always was. `…/Cell.tif` and `…/Sign.svg`,
+ending there, still are.
+
+If the URLs came from the **`imageinfo` API**, two cleanups first: it appends
+`?utm_source=…&utm_campaign=imageinfo` to `url` and `thumburl`, and it answers with
+`thumb.wikimedia.org` rather than `upload.wikimedia.org`. Both addresses work, so neither is
+warned about — but `upload.` is what the rules here are written for.
 
 Beyond those, prefer a host that serves images to anyone. Some refuse an unfamiliar client
 outright — Wikimedia answers `403 Please set a user-agent` to a generic one — and the result is the
@@ -334,6 +373,28 @@ the status and content type of everything that is not a 2xx picture, on stderr a
 `image_checks` — and reports **nothing** about a URL that is fine, because a finding buried in 900
 lines of "this one is fine" is no better than the check you wrote by hand.
 
+**What a string is known to be wrong about travels separately, as `image_advice`.** An
+undecodable format or a thumbnail width Wikimedia does not serve is reported on `deck create`,
+`card add`, `card edit` and `import` whether or not `--check-images` was passed, so it is a sibling
+array rather than a row in `image_checks` — which is documented as what that opt-in flag found. On
+stderr it is printed last, after everything the network had to say, and capped at 20 entries like
+the buckets below; `--json` carries them all. One row per **distinct** URL, as `image_checks` is,
+each listing every card and side it appears on — `{"url": …, "where": [ … ], "advice": …}`. It
+matters most on `deck create --from-file --dry-run`, the pre-flight for a file you are about to
+publish with.
+
+**"Wrong" and "could not be checked" are different answers.** A `429`, a timeout or a `5xx` says
+nothing about the picture, so it is `unverified` in `--json` and counted apart in the summary line:
+
+```
+loopky: picture URLs — 249 ok, 0 wrong, 1 could not be checked; writing anyway.
+```
+
+Folding the two together is what made this unusable at scale — 432 of 475 Wikimedia URLs came back
+"wrong", every one of them a rate limit the check had provoked itself, and between them they
+scrolled the run's single real finding off the screen. Neither bucket prints more than 20 lines
+now; `--json` carries every row.
+
 An `image/` prefix is not the same as a decodable picture, and that distinction is load-bearing
 here: Wikimedia serves an SVG original as `image/svg+xml` with an entirely ordinary 200, so a
 prefix check would call a whole deck of flags fine. `image/svg+xml` and `image/tiff` are findings.
@@ -344,9 +405,11 @@ Four properties, and each is a decision rather than an omission:
   `card add` stays one write and no round trips.
 - **A warning, never a refusal.** A host having a bad minute must not be able to fail an import; the
   picture may well be fine. The write goes ahead and the note says so.
-- **One request per distinct URL**, not per card, at eight at a time — a picture on forty cards is
-  one question, and 900 simultaneous connections to one host is a way to be rate-limited into a
-  false negative.
+- **One request per distinct URL**, not per card, at **three** at a time, with a `429` retried and
+  `Retry-After` honoured. A picture on forty cards is one question, and against Wikimedia more in
+  flight is *slower* as well as noisier: 100 URLs took 32 s at three and 42 s at six, and 250 came
+  back 250/250 clean in 83 s. `--check-images-concurrency N` (up to 16) is for a host that is not
+  Wikimedia, not a speed dial.
 - **It sends a real user agent.** `403 Please set a user-agent` is Wikimedia's answer to a generic
   client, which is the very failure this exists to catch; a probe that produced it on every
   Wikimedia URL would be worse than no probe. A host that refuses `HEAD` outright is asked again
@@ -437,7 +500,11 @@ renews it: writes start failing, reads keep working, and from the outside that i
 indistinguishable from a network wobble. An agent told the wrong one either retries a dead session
 forever or abandons a working network.
 
-`--dry-run` is the one `import` mode that exits 0 without a session at all: it reads a local file.
+`--dry-run` on `import` exits 0 without a session at all: it reads a local file. On `deck create`
+and `card add` it needs one, because what those two have to check — is this id free, is this row
+already in the deck — is a homeserver read. `deck create --dry-run` answers the first in
+`data.created`: `true` means the deck *would* be published, `false` that the id is taken, and
+`dry_run` beside it says nothing was written either way.
 
 `whoami --json` reports `session_live`, asked rather than assumed — worth checking before starting
 an hour-long import rather than forty cards in. There is no `expires_at` to report: the session
@@ -464,6 +531,16 @@ payload does not carry one.
 - **`card add` is idempotent** by front/back-plus-image, and reports what it skipped. `import
   --resume` checkpoints against the deck on the homeserver rather than a local cursor, matched on
   `--title` — which is why `--title` is mandatory and never derived from a filename.
+- **`card add --from-file` appends in groups of 100, and says so as it goes.** One write per card
+  is a chunk write *plus* a whole-manifest read-modify-write each — 170 cards took ten minutes and
+  printed nothing until the end, against 7.9 s now. Groups rather than one call for the file,
+  because an append is all-or-nothing: a batch that dies partway leaves every completed group on
+  the homeserver, and re-running skips them. A failed group is not retried in-process — re-run the
+  command, which is a correct recovery precisely because the dedupe reads chunk records.
+- **`--dry-run` runs the command's own path.** It is on `import`, `deck create` and `card add`, and
+  each stops just before its own write. Pre-flighting a `deck create --from-file` through `import
+  --dry-run` reads a *different* parser, which is how the two came to disagree about a well-formed
+  four-column TSV.
 - **`card edit --from-file` is idempotent too, which is why it has no `--resume`.** A row already
   holding what it asks for is skipped rather than rewritten, so re-running the same file *is* the
   resume: no cursor to keep, nothing to pass, and no `updated_at` churn on rows that did not change.

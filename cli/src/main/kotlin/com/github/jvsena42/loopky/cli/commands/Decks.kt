@@ -1,26 +1,19 @@
 package com.github.jvsena42.loopky.cli.commands
 
 import com.github.jvsena42.loopky.cli.Args
-import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.CommandResult
 import com.github.jvsena42.loopky.cli.DeckView
-import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.cli.asCliError
-import com.github.jvsena42.loopky.cli.requireUsableOperand
 import com.github.jvsena42.loopky.cli.result
 import com.github.jvsena42.loopky.cli.toLine
 import com.github.jvsena42.loopky.cli.toView
 import com.github.jvsena42.loopky.data.repository.CardRepository
 import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.domain.model.Card
-import com.github.jvsena42.loopky.domain.model.Deck
-import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.LanguageTags
 import com.github.jvsena42.loopky.domain.model.MediaRef
-import com.github.jvsena42.loopky.domain.model.Session
 import com.github.jvsena42.loopky.domain.model.Tag
 import com.github.jvsena42.loopky.domain.model.remoteImageRef
-import com.github.jvsena42.loopky.util.generateId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -29,25 +22,6 @@ data class DeckListResult(val decks: List<DeckView>, val count: Int)
 
 @Serializable
 data class DeckShowResult(val deck: DeckView)
-
-/**
- * `deck create`'s own shape, so it can report `--check-images` findings that `deck show` has no
- * way to produce. Same `deck` field either way — a caller reading the deck out of the envelope
- * does not have to know which command wrote it.
- */
-@Serializable
-data class DeckCreateResult(
-    val deck: DeckView,
-    @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
-    /**
-     * False when `--if-not-exists` found the deck already there and wrote nothing.
-     *
-     * The field exists so the two outcomes are distinguishable at all: both are exit 0 carrying
-     * the same deck, and an agent retrying an ambiguous failure needs to know whether this call
-     * or a previous one put it there.
-     */
-    val created: Boolean = true,
-)
 
 @Serializable
 data class DeckDeleteResult(val id: String, val deleted: Boolean)
@@ -105,166 +79,6 @@ private fun DeckView.describe(): String = buildString {
     )
     if (incomplete) appendLine("INCOMPLETE:  a publish did not finish; re-publish or delete it.")
     append("Uri:         $uri")
-}
-
-/**
- * Create a deck, optionally with its cards in the same call.
- *
- * `--title` is required and never derived from a filename. Derivation is not a shortcut worth
- * having: it replaced the hyphen in `Biomas e Sub-ecossistemas Brasileiros` with a space, and that
- * was caught only because a human read the result afterwards (#54, finding "explicit beats
- * inferred").
- *
- * Cards go up in the same `publish` as the manifest, which is what makes this cheap: the
- * repository writes an `incomplete: true` marker manifest first, then the chunks at
- * `MAX_IN_FLIGHT = 4`, then the real manifest — so an interrupted run leaves a deck that is
- * visible and deletable rather than orphaned chunk records under a manifest-less root.
- *
- * A declared `--front-lang`/`--back-lang` pair contributes its labels to the tag set, the way the
- * apps' language pick does — see [deckTags]. A deck that declares no pair gets none.
- */
-suspend fun deckCreate(
-    args: Args,
-    decks: DeckRepository,
-    session: Session,
-    onNote: (String) -> Unit = System.err::println,
-    onProgress: (String) -> Unit,
-): CommandResult {
-    val title = args.requireOption("title").trim()
-    if (title.isEmpty()) throw CliError(ExitCode.Usage, "--title cannot be empty.")
-
-    val deckId = args.deckIdToCreate()
-    // Before the card file is read and before any picture is probed: when the deck is already
-    // there this call has nothing left to do, and a `--from-file` of 9,000 rows should not be
-    // parsed to find that out.
-    existingDeck(args, decks, session, deckId)?.let { existing ->
-        return result(
-            DeckCreateResult(existing.toView(), created = false),
-            "${existing.id} already exists — ${existing.title} (${existing.cardCount} cards). Nothing written.",
-        )
-    }
-    val now = System.currentTimeMillis()
-    val frontLang = args.option("front-lang")
-    val backLang = args.option("back-lang")
-    val cards = args.option("from-file")
-        ?.let { readCardFile(it, onNote).requireBothSides().toCards(deckId, now) }
-        .orEmpty()
-    val imageChecks = if (args.checksImages()) {
-        checkImageUrls(cards.flatMap { listOfNotNull(it.front.imageRef?.url, it.back.imageRef?.url) }, onNote)
-    } else {
-        emptyList()
-    }
-
-    val deck = Deck(
-        id = deckId,
-        authorPubky = session.identity.pubky,
-        title = title,
-        description = args.option("description")?.takeIf { it.isNotBlank() },
-        coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() },
-        coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url", onNote)?.let(::remoteImage),
-        tags = deckTags(args.options("tag"), frontLang, backLang),
-        createdAt = now,
-        updatedAt = now,
-        cardCount = cards.size,
-        source = DeckSource(kind = DeckSource.Kind.Import, importedAt = now),
-        listenEnabled = args.flag("listen", default = false),
-        speakEnabled = args.flag("speak", default = false),
-        typeEnabled = args.flag("type", default = false),
-        reverseEnabled = args.flag("reverse", default = false),
-        frontLang = frontLang,
-        backLang = backLang,
-    )
-
-    val published = decks.publish(deck, cards) { progress ->
-        onProgress("${progress.cardsWritten}/${progress.totalCards} cards, ${progress.chunksWritten}/${progress.totalChunks} chunks")
-    }.getOrElse { throw asCliError(it) }
-
-    return result(
-        DeckCreateResult(published.toView(), imageChecks),
-        "Created ${published.id} — ${published.title} (${published.cardCount} cards)",
-    )
-}
-
-/**
- * The id the new deck gets: `--id` when one was given, otherwise a fresh one.
- *
- * A client-supplied id is what makes a retry addressable (#240, finding 5). Without one, an agent
- * whose `deck create` was killed mid-flight — the hourly expiry and a 2.5 s round trip make that
- * ordinary — can only recover by listing decks and matching on title, which is neither cheap nor
- * race-free, and a second run simply publishes a second deck.
- */
-private fun Args.deckIdToCreate(): String {
-    val supplied = option("id")?.trim() ?: return generateId().also {
-        if (has("if-not-exists")) {
-            throw CliError(
-                ExitCode.Usage,
-                "--if-not-exists needs --id. Without one this command mints a fresh id, which " +
-                    "never exists, so the flag could only mean matching on --title — a listing " +
-                    "per call, and two decks named the same are indistinguishable anyway.",
-            )
-        }
-    }
-    return requireUsableOperand(supplied, "id")
-}
-
-/**
- * The deck already at [deckId], or null when there is nothing usable there.
- *
- * Three things this has to get right, none of them visible from the call site.
- *
- * **A read failure that is not a miss is rethrown.** Treating an unreachable homeserver as "the
- * deck does not exist" is how `--if-not-exists` would publish the duplicate it exists to prevent.
- *
- * **It reads the manifest, not the deck.** `DeckRepository.sync` is `fetchRemote` *plus*
- * `fetchByDeck`, which on a cold CLI process pulls every chunk — ~200 reads for a 20k-card deck,
- * paid on every idempotent retry, to answer a question the manifest alone settles. `fetchRemote`
- * reads one record and carries everything used here: the author, `incomplete`, the title and the
- * count.
- *
- * **A deck belonging to someone else is not an answer to "is my id taken?".** Reading
- * `session.identity.pubky`'s own namespace is what guarantees that — `sync` resolves an unknown
- * id's author through the caller's *follow* records first, so a `--id` colliding with a followed
- * deck used to come back as that author's manifest: `--if-not-exists` accepting a deck you cannot
- * write, or a refusal for an id that was free all along. The author check below is then a cheap
- * consistency assertion on a record this client does not control the contents of, rather than the
- * guarantee itself.
- *
- * **An `incomplete` manifest is not a deck.** `publish` writes that marker *before* the chunks, so
- * a killed `deck create --id X` — the case `--if-not-exists` exists for — leaves one behind.
- * Accepting it would report success for a deck whose cards were never uploaded, permanently.
- *
- * Without `--if-not-exists` an existing id is refused rather than overwritten: `publish` replaces
- * the manifest and its whole chunk table, so a reused id would take a deck's cards with it — and
- * nothing here prompts, so this is the only place that can say no.
- */
-private suspend fun existingDeck(
-    args: Args,
-    decks: DeckRepository,
-    session: Session,
-    deckId: String,
-): Deck? {
-    if (args.option("id") == null) return null
-    val existing = decks.fetchRemote(session.identity.pubky, deckId).fold(
-        onSuccess = { it },
-        onFailure = { if (ExitCode.of(it) == ExitCode.NotFound) null else throw asCliError(it) },
-    ) ?: return null
-    if (existing.authorPubky != session.identity.pubky) return null
-    if (existing.incomplete) {
-        if (args.has("if-not-exists")) return null
-        throw CliError(
-            ExitCode.BadInput,
-            "Deck $deckId exists but is incomplete — a previous publish did not finish, so its " +
-                "cards are missing. Pass --if-not-exists to finish it by re-publishing, or use " +
-                "`deck delete`.",
-        )
-    }
-    if (args.has("if-not-exists")) return existing
-    throw CliError(
-        ExitCode.BadInput,
-        "Deck $deckId already exists — \"${existing.title}\", ${existing.cardCount} cards. " +
-            "Publishing over it would replace its chunk table and lose them. Pass " +
-            "--if-not-exists to accept it as it is, or use `deck edit` / `deck delete`.",
-    )
 }
 
 suspend fun deckDelete(args: Args, decks: DeckRepository): CommandResult {
@@ -355,6 +169,15 @@ internal fun deckTags(requested: List<String>, frontLang: String?, backLang: Str
 /** `--tag` as it is stored: trimmed, blanks dropped, first occurrence wins. */
 internal fun List<String>.normalizedTags(): List<String> =
     mapNotNull { it.trim().takeIf(String::isNotEmpty) }.distinct()
+
+/**
+ * `--dry-run`: read, validate, report, write nothing.
+ *
+ * On `import`, `deck create` and `card add` — the three commands that take a file of cards. Each
+ * runs its **own** path up to the write rather than borrowing another's, which is the whole point:
+ * a pre-flight through a different parser answers a question nobody asked (#257, item 8).
+ */
+internal const val DRY_RUN_FLAG = "dry-run"
 
 /** A `--name`/`--no-name` pair, since a deck opt-in has to be turnable *off* as well as on. */
 internal fun Args.flag(name: String, default: Boolean): Boolean = flagOrNull(name) ?: default

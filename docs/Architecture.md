@@ -1624,7 +1624,31 @@ It warns and never refuses — a host having a bad minute must not be able to fa
 it sends a real user agent, because `403 Please set a user-agent` is Wikimedia's answer to a
 generic client and is the very failure it exists to catch. What it does *not* report is the point:
 a URL that answers 2xx with an image type produces no row, since a finding buried in 900 lines of
-"this one is fine" is no better than no check.
+"this one is fine" is no better than no check. **Nor may a finding be buried in 432 lines of
+`429`**, which is what shipping it at eight requests in flight produced on a 475-picture deck: the
+check rate-limited itself, called every throttled answer a broken picture, and scrolled the run's
+one real finding off the screen (#257). Three fixes, and the first two are the load-bearing ones.
+"Wrong" and "could not be checked" are now separate answers — a `429`, a timeout or a `5xx` says
+nothing about the picture, so it is `unverified` in `--json` and counted apart in the summary. The
+default concurrency is **3** and a `429` is retried with backoff; measured against
+`upload.wikimedia.org`, more in flight is *slower* as well as noisier (100 URLs: 32 s at three,
+42 s at six; 250 came back 250/250 clean in 83 s), so `--check-images-concurrency` exists for a
+host that is not Wikimedia rather than as a speed dial. And neither bucket prints more than 20
+lines on stderr, with the static advice held back and printed **after** the network block, because
+what a string is knowably wrong about survives a noisy run only if it is last — capped there too,
+since each entry is several lines and a deck of 1210 bad widths would bury the block just capped to
+stay readable. That cap is only safe because the advice also travels in `--json`, as
+**`image_advice`** rather than as rows in `image_checks`: it is reported whether or not the flag
+was passed, and folding an always-on finding into the opt-in flag's field would change that field's
+meaning under the same schema version. It is on every command that writes a card, not only
+`import` — `deck create --from-file --dry-run` is *documented* as the pre-flight for a file about
+to be published, so an envelope there carrying the opt-in network findings and omitting the
+always-on knowable ones is the gap in the wrong place. Collecting it also fixes the ordering and
+the cap for those three commands, which printed one multi-line note per row as the file was parsed,
+ahead of the probe's block. It is grouped **by URL** for the reason `--check-images` asks about one
+— the same broken picture on forty cards is one thing to fix, and forty copies of the same
+paragraph would be the redundancy this whole change set removes, reappearing in the array that
+replaced it — with the per-card labels kept as a `where` list rather than deduplicated away.
 
 `card list` pages over the **chunk table** rather than the deck: `--limit`/`--cursor` fetch only
 the records a page needs, and `--missing-image`/`--has-image` narrow what comes back. There is no
@@ -2025,7 +2049,55 @@ implies — or runs on the user's own machine over stdio is open. Finding 1 push
 a different reason: a process that outlives one command is the natural place to renew a session
 before it expires, which a per-invocation CLI can never be.
 
-### 13.16 Still open
+### 13.16 Saying what was wrong, at the moment it can still be fixed
+
+Three of this surface's rough edges came from the same place: an agent built three decks with it
+and each cost it a round of guessing (#257). None was a bug — every command did what it said —
+and all three were the client failing to say something it knew.
+
+**A flag a command does not take is refused, by name.** The parser accepts any `--long` it sees,
+so `import --dry-run --check-images --from-file deck.tsv` parsed, silently dropped `--from-file`,
+and failed with "Missing \<file\>" followed by sixty lines of manual. Nothing in that output named
+the flag. `Args.requireKnownOptions` now checks what was typed against `cliCommands()` — the same
+table completion and `loopky commands` read, so it costs nothing to keep true — and the message
+names the flag, says which command it belongs to, and for the one substitution worth spelling out
+(a path-taking flag on a command whose file is an operand) says so outright. The usage block is
+still printed for a usage error, with the message **repeated underneath it**: a terminal keeps its
+last lines and an agent capturing stderr reads the tail.
+
+**`--dry-run` goes through the command's own path.** It existed only on `import`, so pre-flighting
+a `deck create --from-file` meant running `import --dry-run` over the same file — a *different*
+parser, which is why the two disagreed about a well-formed four-column TSV. It is now on
+`deck create` and `card add` too, each stopping just before its own write; unlike `import --dry-run`
+those two need a session, because what is worth checking there — is this id free, is this row
+already in the deck — is a homeserver read. `deck create --dry-run` answers the first in `created`:
+`true` for an id that is free, `false` for one already taken, so that field plus `dry_run` makes
+all four outcomes distinct. Reporting `false` for both preview branches left the one question
+`--id X --if-not-exists --dry-run` is asked with nothing able to answer it. Relatedly, the reported `separator` no longer says
+`"none"` for that TSV: both structured entry points stamp `Separator.Tab` on a draft, so the draft
+cannot tell an `.apkg` (never split) from a four-column file (split on tabs), and `ParsedSource`
+carries the answer instead.
+
+**`card add --from-file` appends in groups of 100.** One `upsertCard` per card is a chunk write
+plus a whole-manifest read-modify-write each — 170 cards took ten minutes and printed nothing until
+the end, where `deck create` writes 1210 in seconds. It goes through `appendCards` now, the same
+call `import --resume` uses and for the same reason (§13.7), and reports `N/M` as it goes: 170
+cards measured at 7.9 s. Groups rather than one call for the whole file, because a group is what
+survives a failure — an append is all-or-nothing, so a batch that dies partway leaves every
+completed group on the homeserver and re-running skips them. A failed group is **not** retried
+in-process: `appendCards` writes its chunk records before patching the manifest and refuses an id
+already in the target chunk, so a second attempt reads its own cards back and fails an assertion.
+Re-running the command is the recovery, and the dedupe reads chunk *records*, so cards a
+half-finished append left behind are seen and skipped.
+
+The rest were documentation the binary already knew: `1920` belongs in the Wikimedia thumbnail-width
+list (measured — 800, 1600 and 2560 answer 400, 1920 answers 200), an undecodable format is matched
+on the **final** extension only so a rendered `…/Cell.tif/lossy-page1-500px-Cell.tif.jpg` is the
+ordinary JPEG it is, the width rule reaches `thumb.wikimedia.org` because that is the host the
+`imageinfo` API hands back, and `--help` now shows the `--json` envelope's shape — `data.cards[]`,
+with `front` an object carrying `.text` — since two failed parses is what discovering that costs.
+
+### 13.17 Still open
 
 - **Can Loopky run behind an allowlist proxy at all?** A hard blocker for cloud sandboxes, not a
   polish item. Homegate and Nexus are fixed hosts, but the homeserver is resolved from its pubky

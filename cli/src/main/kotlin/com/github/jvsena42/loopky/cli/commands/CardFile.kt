@@ -89,7 +89,11 @@ private val cardFileJson = Json { ignoreUnknownKeys = true }
  * holding something that is not a URL: a file producing fewer cards than it has lines is exactly the
  * kind of loss `--json` exists to make visible.
  */
-fun readCardFile(path: String, onNote: (String) -> Unit = System.err::println): List<CardFileRow> {
+internal fun readCardFile(
+    path: String,
+    log: ImageAdviceLog = ImageAdviceLog(),
+    onNote: (String) -> Unit = System.err::println,
+): List<CardFileRow> {
     val text = if (path == "-") {
         System.`in`.readBytes().toString(Charsets.UTF_8)
     } else {
@@ -97,7 +101,7 @@ fun readCardFile(path: String, onNote: (String) -> Unit = System.err::println): 
         if (!file.isFile) throw CliError(ExitCode.BadInput, "No such file: $path")
         file.readText(Charsets.UTF_8)
     }
-    val rows = if (looksLikeJsonl(path, text)) parseJsonl(text, onNote) else parseTsv(text)
+    val rows = if (looksLikeJsonl(path, text)) parseJsonl(text, log, onNote) else parseTsv(text, log)
     if (rows.isEmpty()) throw CliError(ExitCode.BadInput, "$path held no cards.")
     return rows
 }
@@ -107,7 +111,7 @@ private fun looksLikeJsonl(path: String, text: String): Boolean =
         path.endsWith(".ndjson", ignoreCase = true) ||
         text.lineSequence().firstOrNull { it.isNotBlank() }?.trimStart()?.startsWith("{") == true
 
-private fun parseJsonl(text: String, onNote: (String) -> Unit): List<CardFileRow> {
+private fun parseJsonl(text: String, log: ImageAdviceLog, onNote: (String) -> Unit): List<CardFileRow> {
     var blobImages = 0
     val rows = text.lineSequence()
         .withIndex()
@@ -130,9 +134,9 @@ private fun parseJsonl(text: String, onNote: (String) -> Unit): List<CardFileRow
             // Blank is the documented way to clear a picture, here as at `--back-image=`, so it
             // skips the check rather than being refused as an address that could never render.
             row.frontImageUrl?.takeIf { it.isNotBlank() }
-                ?.checkedImageUrl("Line ${index + 1}, front_image_url", onNote)
+                ?.let { log.checked(it, "Line ${index + 1}, front_image_url") }
             row.backImageUrl?.takeIf { it.isNotBlank() }
-                ?.checkedImageUrl("Line ${index + 1}, back_image_url", onNote)
+                ?.let { log.checked(it, "Line ${index + 1}, back_image_url") }
         }
         .toList()
     if (blobImages > 0) {
@@ -201,7 +205,7 @@ private val FLAT_KEYS = listOf("id", "front", "back", "front_image_url", "back_i
 /** Each side and the flat key its picture lands under. */
 private val SIDES = listOf("front" to "front_image_url", "back" to "back_image_url")
 
-private fun parseTsv(text: String): List<CardFileRow> =
+private fun parseTsv(text: String, log: ImageAdviceLog): List<CardFileRow> =
     text.lineSequence()
         .withIndex()
         .filter { (_, line) -> line.isNotBlank() && !line.isComment() }
@@ -213,8 +217,8 @@ private fun parseTsv(text: String): List<CardFileRow> =
             CardFileRow(
                 front = fields.getOrNull(FRONT_COLUMN)?.trim(),
                 back = fields.getOrNull(BACK_COLUMN)?.trim(),
-                frontImageUrl = fields.imageUrlAt(FRONT_IMAGE_COLUMN, index),
-                backImageUrl = fields.imageUrlAt(BACK_IMAGE_COLUMN, index),
+                frontImageUrl = fields.imageUrlAt(FRONT_IMAGE_COLUMN, index, log),
+                backImageUrl = fields.imageUrlAt(BACK_IMAGE_COLUMN, index, log),
             ).also {
                 if (it.isEmpty) {
                     throw CliError(ExitCode.BadInput, "Line ${index + 1} has neither text nor an image.")
@@ -267,7 +271,7 @@ private fun String.isComment(): Boolean =
  * An error rather than a fall-through, unlike the import path: the four-column TSV is what this file
  * *documents*.
  */
-private fun List<String>.imageUrlAt(column: Int, lineIndex: Int): String? {
+private fun List<String>.imageUrlAt(column: Int, lineIndex: Int, log: ImageAdviceLog): String? {
     val value = getOrNull(column)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
     if (!value.looksLikeImageUrl()) {
         throw CliError(
@@ -277,7 +281,7 @@ private fun List<String>.imageUrlAt(column: Int, lineIndex: Int): String? {
                 "A two-column file has no image columns at all.",
         )
     }
-    return value.checkedImageUrl("Line ${lineIndex + 1}, column ${column + 1}")
+    return log.checked(value, "Line ${lineIndex + 1}, column ${column + 1}")
 }
 
 /**
