@@ -150,6 +150,13 @@ private fun iosPlatformModule(
 object IosDependencies {
     private val koin: Koin get() = KoinPlatform.getKoin()
 
+    /**
+     * Device preferences, for the app root — which reads `themeMode` to pick its palette before
+     * any screen exists to own a ViewModel. Settings writes the same value through
+     * [SettingsViewModel].
+     */
+    fun appPreferences(): AppPreferences = koin.get()
+
     fun onboardingViewModel(): OnboardingViewModel = koin.get()
 
     fun homeViewModel(): HomeViewModel = koin.get()
