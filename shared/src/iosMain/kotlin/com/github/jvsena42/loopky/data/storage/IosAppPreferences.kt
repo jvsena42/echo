@@ -60,4 +60,14 @@ class IosAppPreferences : AppPreferences {
         defaults.setObject(theme.name, KEY_THEME_MODE)
         _themeMode.update { theme }
     }
+
+    // The default is false, which is also what `boolForKey` answers for a key never written — so
+    // absence needs no probe here, unlike [shareOnPubky].
+    private val _nameNudgeDismissed = MutableStateFlow(defaults.boolForKey(KEY_NAME_NUDGE_DISMISSED))
+    override val nameNudgeDismissed: Flow<Boolean> = _nameNudgeDismissed.asStateFlow()
+
+    override suspend fun setNameNudgeDismissed(dismissed: Boolean) {
+        defaults.setBool(dismissed, KEY_NAME_NUDGE_DISMISSED)
+        _nameNudgeDismissed.update { dismissed }
+    }
 }

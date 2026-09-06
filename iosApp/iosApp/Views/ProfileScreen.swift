@@ -40,6 +40,7 @@ struct ProfileScreen: View {
                 editBio = uiState?.identity?.bio ?? ""
                 viewModel?.onEditProfileClick()
             },
+            onDismissNameNudge: { viewModel?.onDismissNameNudge() },
             onDismissEdit: { viewModel?.onDismissEditSheet() },
             onSaveEdit: { viewModel?.onSaveClick() },
             onEditNameChanged: { viewModel?.onEditNameChanged(text: $0) },
@@ -85,6 +86,7 @@ struct ProfileScreen: View {
             initial: identity?.initial ?? "?",
             avatarUrl: identity?.avatarUrl,
             needsBackup: state.needsBackup,
+            showNameNudge: state.showNameNudge,
             bio: state.identity?.bio,
             deckCount: Int(state.deckCount),
             cardCount: Int(state.cardCount),
@@ -145,6 +147,8 @@ struct ProfileViewState {
     /// Loopky holds the only copy of this account's key and no method has been completed yet.
     /// Goes away as soon as one has — Settings keeps the permanent door.
     var needsBackup: Bool = false
+    /// This account has published no display name and has not waved the prompt away.
+    var showNameNudge: Bool = false
     var bio: String?
     var deckCount: Int = 0
     var cardCount: Int = 0

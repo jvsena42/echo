@@ -5,11 +5,13 @@ import com.github.jvsena42.loopky.domain.model.BackupMethod
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.domain.model.SrsGrade
+import com.github.jvsena42.loopky.testing.FakeAppPreferences
 import com.github.jvsena42.loopky.testing.FakeDeckRepository
 import com.github.jvsena42.loopky.testing.FakeDiscoveryRepository
 import com.github.jvsena42.loopky.testing.FakeIdentityRepository
 import com.github.jvsena42.loopky.testing.FakeSrsRepository
 import com.github.jvsena42.loopky.testing.TEST_PUBKY
+import com.github.jvsena42.loopky.testing.fakeSession
 import com.github.jvsena42.loopky.testing.testCard
 import com.github.jvsena42.loopky.testing.testDeck
 import kotlinx.coroutines.CompletableDeferred
@@ -37,6 +39,7 @@ class ProfileViewModelTest {
     private val decks = FakeDeckRepository()
     private val srs = FakeSrsRepository()
     private val discovery = FakeDiscoveryRepository()
+    private val preferences = FakeAppPreferences()
     private val mainDispatcher = StandardTestDispatcher()
 
     @BeforeTest
@@ -51,11 +54,13 @@ class ProfileViewModelTest {
 
     private fun viewModel(
         environment: PubkyEnvironment = PubkyEnvironment.Production,
+        prefs: FakeAppPreferences = preferences,
     ) = ProfileViewModel(
         identityRepository = identity,
         deckRepository = decks,
         srsRepository = srs,
         discoveryRepository = discovery,
+        appPreferences = prefs,
         pubkyEnvironment = environment,
     )
 
@@ -251,5 +256,67 @@ class ProfileViewModelTest {
         advanceUntilIdle()
 
         assertFalse(vm.state.value.needsBackup, "the card outlived the backup that answered it")
+    }
+
+    @Test
+    fun aProfileWithNoNameIsInvitedToAddOne() = runTest {
+        identity.session = fakeSession(displayName = null)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.showNameNudge)
+    }
+
+    @Test
+    fun aWhitespaceNameCountsAsNoNameAtAll() = runTest {
+        identity.session = fakeSession(displayName = "   ")
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.showNameNudge, "a name of spaces is a pubky on every screen")
+    }
+
+    @Test
+    fun aNamedProfileIsNeverAsked() = runTest {
+        identity.profiles[TEST_PUBKY] = PubkyIdentity(TEST_PUBKY, "Ada", null, null)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.showNameNudge)
+    }
+
+    @Test
+    fun dismissingTheInvitationOutlivesTheScreen() = runTest {
+        identity.session = fakeSession(displayName = null)
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertTrue(vm.state.value.showNameNudge)
+
+        vm.onDismissNameNudge()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.showNameNudge)
+        // Persisted, not just cleared in state: this tab is the one visited most, and a refusal
+        // that lasted until the next launch would be a nag nobody can finish refusing.
+        assertTrue(preferences.nameNudgeDismissedValue)
+    }
+
+    @Test
+    fun aStoredDismissalIsHonouredOnTheNextVisit() = runTest {
+        identity.session = fakeSession(displayName = null)
+        val vm = viewModel(prefs = FakeAppPreferences(nameNudgeDismissed = true))
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.showNameNudge)
+    }
+
+    @Test
+    fun nothingIsAskedWhileTheProfileIsStillLoading() = runTest {
+        identity.session = fakeSession(displayName = null)
+        val vm = viewModel()
+
+        // Before the load resolves there is no identity to judge, and a prompt that flashes on
+        // every visit to this tab is worse than one that arrives a beat late.
+        assertFalse(vm.state.value.showNameNudge)
     }
 }

@@ -78,6 +78,20 @@ interface AppPreferences {
     val themeMode: StateFlow<AppTheme>
 
     suspend fun setThemeMode(theme: AppTheme)
+
+    /**
+     * Whether the reader has waved away the "add a name" prompt on their own profile.
+     *
+     * Device-local rather than a profile field, because it records what this person did with a
+     * prompt, not who they are — and the prompt has to stay dismissed for someone who signs in on
+     * a phone with no intention of naming themselves. Publishing a name retires it on its own; the
+     * flag is only for the reader who never will.
+     *
+     * Emits the current value immediately and again on every change.
+     */
+    val nameNudgeDismissed: Flow<Boolean>
+
+    suspend fun setNameNudgeDismissed(dismissed: Boolean)
 }
 
 internal const val PREFERENCES_NAME = "loopky.preferences"
@@ -89,3 +103,5 @@ internal const val KEY_CACHED_STUDY_SETTINGS = "cached_study_settings"
 internal const val DEFAULT_CACHED_STUDY_SETTINGS = ""
 internal const val KEY_THEME_MODE = "theme_mode"
 internal val DEFAULT_THEME_MODE = AppTheme.System
+internal const val KEY_NAME_NUDGE_DISMISSED = "name_nudge_dismissed"
+internal const val DEFAULT_NAME_NUDGE_DISMISSED = false

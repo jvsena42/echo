@@ -360,6 +360,10 @@
     <string name="profile_edit_bio_label">BIO</string>
     <string name="profile_edit_bio_placeholder">Conte sobre você...</string>
     <string name="profile_save">Salvar</string>
+    <string name="profile_name_nudge_title">Como podemos te chamar?</string>
+    <string name="profile_name_nudge_body">Adicione um nome para as pessoas saberem de quem são estes baralhos.</string>
+    <string name="profile_name_nudge_action">Adicionar nome</string>
+    <string name="profile_name_nudge_dismiss">Agora não</string>
 
     <!-- Friend profile -->
     <string name="friend_profile_back_content_description">Voltar</string>

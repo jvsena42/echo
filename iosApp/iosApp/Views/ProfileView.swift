@@ -10,6 +10,7 @@ struct ProfileView: View {
     @Binding var editBio: String
 
     var onEditProfile: () -> Void = {}
+    var onDismissNameNudge: () -> Void = {}
     var onDismissEdit: () -> Void = {}
     var onSaveEdit: () -> Void = {}
     var onEditNameChanged: (String) -> Void = { _ in }
@@ -101,9 +102,43 @@ struct ProfileView: View {
     private var identityPane: some View {
         VStack(spacing: 20) {
             hero
+            // Directly under the hero, because that is where the missing name is showing: with
+            // none published the hero falls back to the pubky, and this says what to do about it.
+            if state.showNameNudge { nameNudge }
             Button("profile_edit_profile", action: onEditProfile)
                 .buttonStyle(.loopkySoft)
         }
+    }
+
+    /// The one-time invitation to name a nameless profile.
+    ///
+    /// Dismissible, unlike `backupNag`, and the dismissal is remembered on the device: a name is a
+    /// courtesy to other people, not a risk to the reader, so someone who would rather stay a
+    /// pubky is asked once and never again.
+    private var nameNudge: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("profile_name_nudge_title")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(LoopkyColor.foregroundPrimary)
+            Text("profile_name_nudge_body")
+                .font(.system(size: 13))
+                .foregroundStyle(LoopkyColor.foregroundSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 16) {
+                Button("profile_name_nudge_action", action: onEditProfile)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(LoopkyColor.accentSecondary)
+                    .accessibilityIdentifier("profile_name_nudge_action")
+                Button("profile_name_nudge_dismiss", action: onDismissNameNudge)
+                    .font(.system(size: 14))
+                    .foregroundStyle(LoopkyColor.foregroundMuted)
+                    .accessibilityIdentifier("profile_name_nudge_dismiss")
+            }
+            .padding(.top, 2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 16).fill(LoopkyColor.accentPrimarySoft))
     }
 
     /// What the identity adds up to: counts, the pubky.app link, and the way out.
