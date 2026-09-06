@@ -2599,3 +2599,33 @@ shared_prefs/loopky.preferences.xml`, strip the `*_nudge_dismissed` lines on the
 to `/data/local/tmp` and `run-as … cp` it back, with the app force-stopped. `run-as sh -c` starts
 in `/data/user/0/…` where `shared_prefs` is not visible, so the redirect-in-place forms all fail;
 `run-as` without `sh -c` is the one that works.
+
+## The CLI pitch on the file-import screen — 2026-09-06, `Pixel_Tablet` + `iPhone 17` sim (staging)
+
+`journeys/14-file-import.xml`, the empty state only. The screen's premise is that the deck already
+exists somewhere else, which is exactly the reader who might rather have an agent write one — so
+the idle state now ends with a card pitching `loopky` and a button that copies a ready prompt. The
+AnkiWeb row that sat there is gone.
+
+| Step | Result |
+| --- | --- |
+| Decks → `decks_import_file` → empty state | ✅ PASS — card renders under the size ceiling, no AnkiWeb row |
+| Tap `bulk_cli_copy` | ✅ PASS on both platforms — label flips to "Copied" and back after ~2s |
+| Paste the clipboard into `paste_input` | ✅ PASS — the whole prompt, line breaks, accents and the quoted `--title` intact |
+| Portuguese (`pt-BR`) | ✅ PASS on both — Android via Settings → App language, iOS via `launch-app --launch-args -AppleLanguages "(pt-BR)"` |
+| Dark mode | ✅ PASS on both — `surfaceCard` over the ground, soft accent button legible |
+| Tablet portrait (1600dp) and landscape (2560dp) | ✅ PASS — card is inside `contentPane(Reading)`, so it caps with the rest |
+| `:composeApp:assembleDebug`, `detektAll`, `lintSwift`, iOS `simulator build-and-run` | ✅ PASS |
+
+### Worth knowing
+
+**A soft accent button on a soft accent card is invisible.** The CTA card was first painted
+`accentPrimarySoft` to set it apart from the two neutral format cards above it, and both
+`LoopkySecondaryButton` and `.loopkySoft` fill with the same token — so "Copy prompt" rendered as
+text floating on the card with no pill at all. The card is `surfaceCard` + `borderSubtle` now,
+matching the format cards, and the button carries the accent. Nothing in either build reports this;
+it is only visible in a screenshot.
+
+**`launch-app --launch-args -AppleLanguages "(pt-BR)"` is the fast way to check an iOS
+translation** — no walk through Settings → Loopky → Language, and it lasts exactly one launch, so
+there is nothing to restore afterwards.

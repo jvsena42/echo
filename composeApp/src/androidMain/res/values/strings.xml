@@ -818,8 +818,11 @@
     <string name="bulk_format_text_title">Plain text export</string>
     <string name="bulk_format_text_detail">In Anki: File → Export → “Notes in Plain Text”. Any tab- or comma-separated list works too.</string>
     <string name="bulk_idle_limit">Files up to %1$d MB</string>
-    <string name="bulk_idle_no_deck">Don\'t have a deck yet?</string>
-    <string name="bulk_idle_browse_ankiweb">Browse shared decks on AnkiWeb</string>
+    <string name="bulk_cli_title">🤖 Or let your agent build it</string>
+    <string name="bulk_cli_body">Loopky has a terminal client. Copy the prompt, paste it into your coding agent, and watch a deck land in your account.</string>
+    <string name="bulk_cli_copy">Copy prompt</string>
+    <string name="bulk_cli_copied">Copied</string>
+    <string name="bulk_cli_prompt">Install the loopky CLI and use it to build a flashcard deck for me.\n\n1. Before anything else, tell me to install Pubky Ring on my phone and to save my Loopky recovery phrase into it. My key lives there, and the CLI signs in by asking Ring for permission.\n2. curl -fsSL https://github.com/jvsena42/loopky/releases/latest/download/install.sh | sh\n3. loopky login (a QR code appears; I scan it with Pubky Ring)\n4. loopky commands --json to read the full command surface\n5. Ask me what the deck should be about, write the cards yourself into a TSV file, then publish it with: loopky deck create --title \"My deck\" --from-file cards.tsv</string>
     <string name="bulk_reading">Reading your file…</string>
     <string name="bulk_parsing">Reading %1$s…</string>
     <string name="bulk_summary_heading">Ready to import</string>

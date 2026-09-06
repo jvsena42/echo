@@ -732,6 +732,91 @@
         }
       }
     },
+    "bulk_cli_body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky has a terminal client. Copy the prompt, paste it into your coding agent, and watch a deck land in your account."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Loopky tem um cliente de terminal. Copie o prompt, cole no seu agente de código e veja um baralho aparecer na sua conta."
+          }
+        }
+      }
+    },
+    "bulk_cli_copied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiado"
+          }
+        }
+      }
+    },
+    "bulk_cli_copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy prompt"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar prompt"
+          }
+        }
+      }
+    },
+    "bulk_cli_prompt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install the loopky CLI and use it to build a flashcard deck for me.\n\n1. Before anything else, tell me to install Pubky Ring on my phone and to save my Loopky recovery phrase into it. My key lives there, and the CLI signs in by asking Ring for permission.\n2. curl -fsSL https://github.com/jvsena42/loopky/releases/latest/download/install.sh | sh\n3. loopky login (a QR code appears; I scan it with Pubky Ring)\n4. loopky commands --json to read the full command surface\n5. Ask me what the deck should be about, write the cards yourself into a TSV file, then publish it with: loopky deck create --title \"My deck\" --from-file cards.tsv"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instale a CLI do loopky e use ela para montar um baralho de flashcards para mim.\n\n1. Antes de tudo, me oriente a instalar o Pubky Ring no meu celular e a salvar minha frase de recuperação do Loopky nele. Minha chave fica lá, e a CLI entra pedindo permissão ao Ring.\n2. curl -fsSL https://github.com/jvsena42/loopky/releases/latest/download/install.sh | sh\n3. loopky login (aparece um QR code; eu escaneio com o Pubky Ring)\n4. loopky commands --json para ler toda a superfície de comandos\n5. Me pergunte sobre o que o baralho deve ser, escreva as cartas em um arquivo TSV e publique com: loopky deck create --title \"Meu baralho\" --from-file cards.tsv"
+          }
+        }
+      }
+    },
+    "bulk_cli_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🤖 Or let your agent build it"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🤖 Ou deixe seu agente montar"
+          }
+        }
+      }
+    },
     "bulk_detected_separator": {
       "extractionState": "manual",
       "localizations": {
@@ -1293,23 +1378,6 @@
         }
       }
     },
-    "bulk_idle_browse_ankiweb": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Browse shared decks on AnkiWeb"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ver baralhos compartilhados no AnkiWeb"
-          }
-        }
-      }
-    },
     "bulk_idle_limit": {
       "extractionState": "manual",
       "localizations": {
@@ -1323,23 +1391,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arquivos de até %1$lld MB"
-          }
-        }
-      }
-    },
-    "bulk_idle_no_deck": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Don't have a deck yet?"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ainda não tem um baralho?"
           }
         }
       }
