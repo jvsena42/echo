@@ -79,6 +79,13 @@ data class CardWriteResult(
      */
     @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
     /**
+     * What is wrong with a picture URL without asking any host. See [ImageAdvice].
+     *
+     * Reported whether or not `--check-images` was passed, which is why it is not folded into
+     * [imageChecks] — and why the two are separate arrays rather than one with a discriminator.
+     */
+    @SerialName("image_advice") val imageAdvice: List<ImageAdvice> = emptyList(),
+    /**
      * True when `--dry-run` reported what would be written instead of writing it.
      *
      * [written] then counts rows that *would* be written, and [cards] is empty — nothing has an id

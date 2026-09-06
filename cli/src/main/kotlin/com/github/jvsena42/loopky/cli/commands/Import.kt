@@ -159,7 +159,11 @@ suspend fun import(
     // user as exit 1 "internal" plus a Kotlin message. This is also where the /thumb/ and
     // undecodable-format advice reaches an import at all; only `card add` ever ran it before.
     val images = imports.draftImageUrls()
-    val advice = images.staticImageAdvice()
+    val log = ImageAdviceLog()
+    log.checkedAll(images)
+    // Up here rather than inside `newDeck`/`overlaidWith`, which run after the advice is reported:
+    // a cover URL is a picture like any other and belongs in the same block and the same array.
+    args.option("cover-url")?.let { log.checked(it, "--cover-url") }
     val resume = resumeState(args, decks, cards, title, onNote)
     // Minted once and threaded down: every card carries its deck's id, so deriving it twice is how
     // a resumed run writes cards addressed to a deck that does not exist.
@@ -170,7 +174,7 @@ suspend fun import(
     // there, the run most likely to want the advice, showed none of it. Ahead of the upload it
     // also gets the chance to say the pictures are wrong before the quota is spent on them.
     val imageChecks = images.map { it.second }.checkedIfAsked(args, onNote)
-    advice.reportStaticImageAdvice(onNote)
+    log.advice.reportStaticImageAdvice(onNote)
 
     // Blobs this invocation wrote, so an aborted publish of a *new* deck can take them back out.
     val uploaded = mutableListOf<MediaRef>()
@@ -211,7 +215,7 @@ suspend fun import(
             format = parsed.format.json,
             apkg = parsed.apkg,
             imageChecks = imageChecks,
-            imageAdvice = advice,
+            imageAdvice = log.advice,
         ),
         describeImport(written, title, parsed, resume),
     )
@@ -293,9 +297,10 @@ suspend fun importDryRun(
     val draft = parsed.draft
     val cards = imports.keptRows().size
     val images = imports.draftImageUrls()
-    val advice = images.staticImageAdvice()
+    val log = ImageAdviceLog()
+    log.checkedAll(images)
     val imageChecks = images.map { it.second }.checkedIfAsked(args, onNote)
-    advice.reportStaticImageAdvice(onNote)
+    log.advice.reportStaticImageAdvice(onNote)
     imports.clear()
 
     return result(
@@ -310,7 +315,7 @@ suspend fun importDryRun(
             separator = parsed.separator,
             apkg = parsed.apkg,
             imageChecks = imageChecks,
-            imageAdvice = advice,
+            imageAdvice = log.advice,
         ),
         buildString {
             appendLine("$source would publish $cards ${if (cards == 1) "card" else "cards"}. Nothing was written.")
@@ -505,7 +510,8 @@ private fun Deck.overlaidWith(args: Args): Deck? {
     val updated = copy(
         description = args.option("description")?.takeIf { it.isNotBlank() } ?: description,
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() } ?: coverEmoji,
-        coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage)
+        // Checked at the top of `import`, into the same advice log as every other picture.
+        coverImageRef = args.option("cover-url")?.let(::remoteImage)
             ?: coverImageRef,
         tags = args.overlaidTags(this, frontLang, backLang),
         listenEnabled = args.flagOrNull("listen") ?: listenEnabled,
@@ -558,7 +564,7 @@ private fun newDeck(
         title = args.requireOption("title").trim(),
         description = args.option("description")?.takeIf { it.isNotBlank() },
         coverEmoji = args.option("cover-emoji")?.takeIf { it.isNotBlank() },
-        coverImageRef = args.option("cover-url")?.checkedImageUrl("--cover-url")?.let(::remoteImage),
+        coverImageRef = args.option("cover-url")?.let(::remoteImage),
         // A declared pair labels the deck, exactly as on a phone. This is the path most decks arrive
         // by (#46), and it was the least discoverable of the three.
         tags = deckTags(args.options("tag"), frontLang, backLang),

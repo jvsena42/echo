@@ -50,6 +50,10 @@ data class ImageAdvice(
  * asked at the only moment anyone can still act on the answer. [onNote] defaults to stderr, which
  * is where every other advisory in this client goes and is what keeps `--json`'s stdout a clean
  * machine channel; it is a parameter so the behaviour is testable without capturing a stream.
+ *
+ * The **immediate** form, for the one caller whose result has nowhere to carry advice: `deck edit`
+ * takes a single `--cover-url`, so neither the cap nor the burial [ImageAdviceLog] exists for can
+ * apply, and its result shape is `deck show`'s. Everything that writes cards uses the log.
  */
 internal fun String.checkedImageUrl(where: String, onNote: (String) -> Unit = System.err::println): String {
     requireRenderableImageUrl(where)
@@ -289,22 +293,38 @@ internal suspend fun ImportRepository.draftImageUrls(): List<Pair<String, String
     }
 
 /**
- * Refuse what could never render, and **collect** the advice about what probably will not rather
- * than printing it.
+ * Somewhere to put static picture advice while a command is still deciding what it will write.
  *
- * Deferred because of where it ends up on the screen. `--check-images` runs after this and can
- * emit hundreds of lines, so advice printed here scrolls away — and it is the more valuable half,
- * since it is what a string is *known* to be wrong about rather than what a host said this minute.
- * A 1210-card import's one genuine finding was lost exactly that way (#257, item 1). The refusal
- * still happens here, at parse time: it ends the command, so nothing can bury it.
+ * Collected rather than printed as each URL is met, for two reasons that only appear at scale.
+ * Printed per row it lands *before* `--check-images`'s block and scrolls away — and it is the more
+ * valuable half, since it is what a string is *known* to be wrong about rather than what a host
+ * said this minute (#257, item 1). Printed at all, it never reaches `--json`, the channel this
+ * client calls its verification channel (#261 review).
+ *
+ * One log per command, emptied into the result and onto stderr once everything is known. The
+ * **refusal** is not deferred: [requireRenderableImageUrl] still throws where the URL is met,
+ * because it ends the command and nothing can bury that.
  */
-internal fun List<Pair<String, String>>.staticImageAdvice(): List<ImageAdvice> = mapNotNull { (where, url) ->
-    url.requireRenderableImageUrl(where)
-    imageUrlAdvice(url)?.let { ImageAdvice(where = where, url = url, advice = it) }
+internal class ImageAdviceLog {
+    private val entries = mutableListOf<ImageAdvice>()
+
+    val advice: List<ImageAdvice> get() = entries.toList()
+
+    /** [url], refused if it could never render and noted if it merely probably will not. */
+    fun checked(url: String, where: String): String {
+        url.requireRenderableImageUrl(where)
+        imageUrlAdvice(url)?.let { entries += ImageAdvice(where = where, url = url, advice = it) }
+        return url
+    }
+
+    /** The same over the `where to url` pairs an import's draft hands over. */
+    fun checkedAll(images: List<Pair<String, String>>) {
+        images.forEach { (where, url) -> checked(url, where) }
+    }
 }
 
 /**
- * [staticImageAdvice] on stderr, in one labelled block, after everything the network had to say.
+ * An [ImageAdviceLog] on stderr, in one labelled block, after everything the network had to say.
  *
  * Capped like `--check-images`'s two buckets, and for the same reason — each entry is several
  * lines, so a deck of 1210 bad thumbnail widths would bury the block that was just capped to stay

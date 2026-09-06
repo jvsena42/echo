@@ -1640,7 +1640,12 @@ since each entry is several lines and a deck of 1210 bad widths would bury the b
 stay readable. That cap is only safe because the advice also travels in `--json`, as
 **`image_advice`** rather than as rows in `image_checks`: it is reported whether or not the flag
 was passed, and folding an always-on finding into the opt-in flag's field would change that field's
-meaning under the same schema version.
+meaning under the same schema version. It is on every command that writes a card, not only
+`import` — `deck create --from-file --dry-run` is *documented* as the pre-flight for a file about
+to be published, so an envelope there carrying the opt-in network findings and omitting the
+always-on knowable ones is the gap in the wrong place. Collecting it also fixes the ordering and
+the cap for those three commands, which printed one multi-line note per row as the file was parsed,
+ahead of the probe's block.
 
 `card list` pages over the **chunk table** rather than the deck: `--limit`/`--cursor` fetch only
 the records a page needs, and `--missing-image`/`--has-image` narrow what comes back. There is no

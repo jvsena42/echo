@@ -498,7 +498,8 @@ internal val USAGE = """
                                   deck list   data.decks[], data.count
                                   deck show   data.deck
                                   card add    data.written, data.skipped, data.cards[],
-                                              data.failures[], data.image_checks[]
+                                              data.failures[], data.image_checks[],
+                                              data.image_advice[]
                                   import      data.deck, data.cards_written, data.image_checks[],
                                               data.image_advice[]
 

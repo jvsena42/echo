@@ -94,7 +94,7 @@ class CardFileTest {
                 ".jsonl",
                 """{"id":"c1","front":{"text":"a","image":{"url":null,"sha256":"ab12"}},"back":{"text":"b"}}""" + "\n",
             ),
-            notes::add,
+            onNote = notes::add,
         )
         assertNull(rows.single().frontImageUrl)
         assertTrue(notes.any { "blob" in it }, "the caller has to be told those pictures were skipped")

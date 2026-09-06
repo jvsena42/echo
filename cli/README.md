@@ -374,10 +374,12 @@ the status and content type of everything that is not a 2xx picture, on stderr a
 lines of "this one is fine" is no better than the check you wrote by hand.
 
 **What a string is known to be wrong about travels separately, as `image_advice`.** An
-undecodable format or a thumbnail width Wikimedia does not serve is reported on `import` whether or
-not `--check-images` was passed, so it is a sibling array rather than a row in `image_checks` —
-which is documented as what that opt-in flag found. On stderr it is printed last, after everything
-the network had to say, and capped at 20 entries like the buckets below; `--json` carries them all.
+undecodable format or a thumbnail width Wikimedia does not serve is reported on `deck create`,
+`card add`, `card edit` and `import` whether or not `--check-images` was passed, so it is a sibling
+array rather than a row in `image_checks` — which is documented as what that opt-in flag found. On
+stderr it is printed last, after everything the network had to say, and capped at 20 entries like
+the buckets below; `--json` carries them all. It matters most on `deck create --from-file
+--dry-run`, the pre-flight for a file you are about to publish with.
 
 **"Wrong" and "could not be checked" are different answers.** A `429`, a timeout or a `5xx` says
 nothing about the picture, so it is `unverified` in `--json` and counted apart in the summary line:
