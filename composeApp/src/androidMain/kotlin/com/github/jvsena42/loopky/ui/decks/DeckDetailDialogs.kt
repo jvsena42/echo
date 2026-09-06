@@ -1,11 +1,19 @@
 package com.github.jvsena42.loopky.ui.decks
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -17,16 +25,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jvsena42.loopky.R
+import com.github.jvsena42.loopky.domain.model.DeckLimits
 import com.github.jvsena42.loopky.domain.model.ErrorReason
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
+import com.github.jvsena42.loopky.presentation.decks.DeckDetailUiState
 import com.github.jvsena42.loopky.ui.components.errorMessage
 import com.github.jvsena42.loopky.ui.components.errorTitle
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 import com.github.jvsena42.loopky.ui.util.label
 
 // Dialogs and small caption rows lifted out of DeckDetailScreen, which grew past 900 lines once
-// Follow deck and Clone deck (#33) landed. Nothing here holds state — each takes what it renders
-// and hands taps back to the caller.
+// Follow deck and Clone deck (#33) landed. The one piece of state here is the copy dialog's title
+// field, which belongs to the field it draws; everything else takes what it renders and hands taps
+// back to the caller.
 
 /**
  * "12 following · 3 clones", from the indexer's distinct-tagger counts for the reserved labels.
@@ -72,14 +83,33 @@ internal fun ClonedFromRow(author: PubkyIdentity) {
     )
 }
 
+/**
+ * "Copy this deck?" — raised by Edit on a deck you follow, which is the only route to a copy (#254).
+ *
+ * Two jobs, and both are why it is a dialog rather than a second pill. It states the two things
+ * that make a copy different from the follow the reader already has — no author updates, progress
+ * starts over — in one sentence, because a paragraph here is a paragraph nobody reads. And it takes
+ * the copy's own name, which is **required** and may not be the source's: the copy lands in a
+ * library that already holds the deck it forked, and two rows with one title are
+ * indistinguishable. [sourceTitle] is the placeholder rather than the initial value — prefilled,
+ * everyone would tap straight past it — and [isSourceName] is the shared rule
+ * ([DeckDetailUiState.Content.isSourceName]) rather than a comparison reinvented here.
+ */
 @Composable
 internal fun CloneDeckDialog(
-    deckTitle: String,
+    sourceTitle: String,
     cardCount: Int,
-    onConfirm: () -> Unit,
+    isSourceName: (String) -> Boolean,
+    onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
+    var title by rememberSaveable { mutableStateOf("") }
+    val trimmed = title.trim()
+    // Reported as you type rather than on tapping Copy: the field is right there, and a rejection
+    // that arrives after the tap reads as the button being broken.
+    val clashes = trimmed.isNotEmpty() && isSourceName(trimmed)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = colors.surfaceCard,
@@ -93,21 +123,50 @@ internal fun CloneDeckDialog(
             )
         },
         text = {
-            // Names the card count: a clone is one write per chunk plus the manifest, and the user
-            // should know whether they are copying 20 cards or 20,000 before they wait for it.
-            Text(
-                text = pluralStringResource(
-                    R.plurals.deck_detail_clone_dialog_message,
-                    cardCount,
-                    deckTitle,
-                    cardCount,
-                ),
-                color = colors.foregroundSecondary,
-                fontSize = 14.sp,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Names the card count: a clone is one write per chunk plus the manifest, and the
+                // user should know whether they are copying 20 cards or 20,000 before they wait.
+                Text(
+                    text = pluralStringResource(
+                        R.plurals.deck_detail_clone_dialog_message,
+                        cardCount,
+                        cardCount,
+                    ),
+                    color = colors.foregroundSecondary,
+                    fontSize = 14.sp,
+                )
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it.take(DeckLimits.TITLE_MAX_LENGTH) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("deck_clone_title"),
+                    label = { Text(stringResource(R.string.deck_detail_clone_name_label)) },
+                    placeholder = { Text(text = sourceTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    isError = clashes,
+                    supportingText = if (clashes) {
+                        {
+                            Text(
+                                text = stringResource(R.string.deck_detail_clone_name_same),
+                                color = colors.danger,
+                                modifier = Modifier.testTag("deck_clone_name_error"),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = textFieldColors(),
+                )
+            }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, modifier = Modifier.testTag("deck_clone_confirm")) {
+            TextButton(
+                onClick = { onConfirm(trimmed) },
+                enabled = trimmed.isNotEmpty() && !clashes,
+                modifier = Modifier.testTag("deck_clone_confirm"),
+            ) {
                 Text(stringResource(R.string.deck_detail_clone_confirm), color = colors.accentPrimary)
             }
         },

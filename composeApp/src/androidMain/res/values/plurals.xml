@@ -91,9 +91,10 @@
         <item quantity="one">%1$d new · %2$d card</item>
         <item quantity="other">%1$d new · %2$d cards</item>
     </plurals>
+    <!-- Short on purpose: a paragraph here is a paragraph nobody reads. -->
     <plurals name="deck_detail_clone_dialog_message">
-        <item quantity="one">“%1$s” and its %2$d card become a deck you own and can edit. It won\'t get the author\'s later changes.</item>
-        <item quantity="other">“%1$s” and its %2$d cards become a deck you own and can edit. It won\'t get the author\'s later changes.</item>
+        <item quantity="one">You\'ll own an editable copy of this %1$d card. It won\'t get the author\'s updates, and your progress starts over.</item>
+        <item quantity="other">You\'ll own an editable copy of all %1$d cards. It won\'t get the author\'s updates, and your progress starts over.</item>
     </plurals>
     <plurals name="publish_progress_count">
         <item quantity="one">Publishing %1$d of %2$d card…</item>

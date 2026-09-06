@@ -897,7 +897,7 @@ private fun DeckMetadataCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun textFieldColors() = OutlinedTextFieldDefaults.colors(
+internal fun textFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = LoopkyTheme.colors.accentPrimary,
     unfocusedBorderColor = LoopkyTheme.colors.borderSubtle,
     cursorColor = LoopkyTheme.colors.accentPrimary,

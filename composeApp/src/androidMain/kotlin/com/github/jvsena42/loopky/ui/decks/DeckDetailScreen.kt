@@ -102,7 +102,7 @@ fun DeckDetailRoute(
     onOpenTag: (String) -> Unit = {},
     onOpenProfile: (String) -> Unit = {},
     onOpenClone: (String) -> Unit = {},
-    /** Leave for the sign-in flow, when a signed-out visitor reaches for Follow or Clone. */
+    /** Leave for the sign-in flow, when a signed-out visitor reaches for an action that writes. */
     onSignIn: () -> Unit = {},
 ) {
     val viewModel = koinViewModel<DeckDetailViewModel> { parametersOf(deckId, authorPubky) }
@@ -150,7 +150,6 @@ fun DeckDetailRoute(
         onConfirmDelete = viewModel::onConfirmDelete,
         onDismissDelete = viewModel::onDismissDelete,
         onToggleFollow = viewModel::onToggleFollow,
-        onCloneClick = viewModel::onCloneClick,
         onConfirmClone = viewModel::onConfirmClone,
         onDismissClone = viewModel::onDismissClone,
         onDismissError = viewModel::onDismissError,
@@ -158,7 +157,7 @@ fun DeckDetailRoute(
     )
 
     // Over the loaded deck, which stays fully readable: the manifest and the cards are public
-    // records, and only Follow and Clone need somewhere to write.
+    // records, and only Follow and the copy behind Edit need somewhere to write.
     (state as? DeckDetailUiState.Content)?.signInPrompt?.let { reason ->
         SignInPromptDialog(
             reason = reason,
@@ -197,8 +196,7 @@ fun DeckDetailScreen(
     onConfirmDelete: () -> Unit,
     onDismissDelete: () -> Unit,
     onToggleFollow: () -> Unit,
-    onCloneClick: () -> Unit,
-    onConfirmClone: () -> Unit,
+    onConfirmClone: (String) -> Unit,
     onDismissClone: () -> Unit,
     onDismissError: () -> Unit,
     onRetry: () -> Unit,
@@ -282,7 +280,6 @@ fun DeckDetailScreen(
                 onEditClick = onEditClick,
                 onDeleteClick = onDeleteClick,
                 onToggleFollow = onToggleFollow,
-                onCloneClick = onCloneClick,
             )
             if (state.showDeleteConfirm) {
                 DeleteDeckDialog(
@@ -293,8 +290,9 @@ fun DeckDetailScreen(
             }
             if (state.showCloneConfirm) {
                 CloneDeckDialog(
-                    deckTitle = state.title,
+                    sourceTitle = state.title,
                     cardCount = state.totalCards,
+                    isSourceName = state::isSourceName,
                     onConfirm = onConfirmClone,
                     onDismiss = onDismissClone,
                 )
@@ -338,7 +336,6 @@ private fun DeckDetailContent(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onToggleFollow: () -> Unit,
-    onCloneClick: () -> Unit,
 ) {
     val colors = LoopkyTheme.colors
 
@@ -348,8 +345,8 @@ private fun DeckDetailContent(
             // *Study* is offered only for a deck you have kept. Grading a deck you are merely
             // browsing would strand review state under something that never reaches your
             // library or your due queue — progress you can neither see nor resume. Keeping the
-            // deck is what earns it, so Follow and Clone sit up in the header instead, next to
-            // the stats they act on, and the bottom bar stays a single unambiguous action.
+            // deck is what earns it, so Follow sits up in the header instead, next to the stats
+            // it acts on, and the bottom bar stays a single unambiguous action.
             //
             // On a deck nobody has kept, that same bar offers a *preview* instead: a handful of
             // its cards, graded nowhere. It is what makes the deck worth opening for someone who
@@ -390,7 +387,6 @@ private fun DeckDetailContent(
                 onEditClick = onEditClick,
                 onDeleteClick = onDeleteClick,
                 onToggleFollow = onToggleFollow,
-                onCloneClick = onCloneClick,
                 modifier = Modifier.padding(innerPadding),
             )
             return@Scaffold
@@ -421,7 +417,6 @@ private fun DeckDetailContent(
                     onEditClick = onEditClick,
                     onDeleteClick = onDeleteClick,
                     onToggleFollow = onToggleFollow,
-                    onCloneClick = onCloneClick,
                 )
             }
 
@@ -507,9 +502,15 @@ internal fun CardsEmptyState(isOwned: Boolean) {
     )
 }
 
+/**
+ * [canEdit] is wider than [isOwned]: a followed deck carries the pencil too, and tapping it offers
+ * a copy rather than the editor (#254). That is the whole of the clone flow's discoverability —
+ * wanting to change someone's deck is the one moment owning your own version is the answer.
+ */
 @Composable
 internal fun HeaderBar(
     isOwned: Boolean,
+    canEdit: Boolean,
     onBackClick: () -> Unit,
     onShareClick: () -> Unit,
     onEditClick: () -> Unit,
@@ -530,13 +531,15 @@ internal fun HeaderBar(
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (isOwned) {
+            if (canEdit) {
                 HeaderCircleButton(
                     imageVector = Icons.Default.Edit,
                     contentDescription = stringResource(R.string.deck_detail_edit),
                     onClick = onEditClick,
                     modifier = Modifier.testTag("deck_edit"),
                 )
+            }
+            if (isOwned) {
                 HeaderCircleButton(
                     imageVector = Icons.Default.Delete,
                     contentDescription = stringResource(R.string.deck_detail_delete),
@@ -583,11 +586,12 @@ private fun HeaderCircleButton(
 }
 
 /**
- * Follow/Following pill for a deck you don't own.
+ * Follow/Following pill for a deck you don't own — since #254 the *only* action there.
  *
- * Deliberately worded "Follow deck", not "Save": following and cloning are different actions with
- * different owners and lifecycles, and one ambiguous verb for both is what #33 set out to remove.
- * The alpha while pending matches [AuthorRow]'s author-follow pill — the same optimistic flip.
+ * Clone used to sit beside it as an equal choice, which asked a reader who had just found a deck
+ * to decide between two words whose difference they had no reason to know yet. The copy now lives
+ * behind Edit, where the difference is the question being asked. The alpha while pending matches
+ * [AuthorRow]'s author-follow pill — the same optimistic flip.
  */
 @Composable
 internal fun FollowDeckButton(
@@ -782,7 +786,6 @@ private fun DeckDetailScreenPreview() {
             onConfirmDelete = {},
             onDismissDelete = {},
             onToggleFollow = {},
-            onCloneClick = {},
             onConfirmClone = {},
             onDismissClone = {},
             onDismissError = {},
@@ -825,7 +828,6 @@ private fun DeckDetailEmptyCardsPreview() {
             onConfirmDelete = {},
             onDismissDelete = {},
             onToggleFollow = {},
-            onCloneClick = {},
             onConfirmClone = {},
             onDismissClone = {},
             onDismissError = {},
