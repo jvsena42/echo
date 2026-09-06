@@ -29,6 +29,7 @@ struct SettingsScreen: View {
             onCopyPubky: { viewModel?.onCopyPubkyClick() },
             onCopyHomeserver: { viewModel?.onCopyHomeserverClick() },
             onShareOnPubkyChanged: { viewModel?.onShareOnPubkyChange(enabled: $0) },
+            onThemeChanged: { viewModel?.onThemeModeChange(theme: $0) },
             onGoalChanged: { viewModel?.onNewCardsGoalChange(goal: Int32($0)) },
             onIntervalChanged: { grade, days in
                 viewModel?.onIntervalChange(grade: grade.shared, days: Int32(days))
@@ -69,6 +70,7 @@ struct SettingsScreen: View {
             homeserver: state.homeserver,
             appVersion: appVersion,
             shareOnPubky: state.shareOnPubky,
+            theme: state.themeMode,
             newCardsGoal: Int(state.studySettings.newCardsPerDayGoal),
             hardDays: Int(state.studySettings.hardDays),
             goodDays: Int(state.studySettings.goodDays),
@@ -157,6 +159,7 @@ struct SettingsViewState {
     var homeserver: String = ""
     var appVersion: String = ""
     var shareOnPubky: Bool = true
+    var theme: AppTheme = AppTheme.system
     var newCardsGoal: Int = 0
     var hardDays: Int = 1
     var goodDays: Int = 3

@@ -1,3 +1,4 @@
+import Shared
 import SwiftUI
 
 /// Settings, as a native grouped `List` rather than a hand-built stack of cards — so it inherits
@@ -7,6 +8,7 @@ struct SettingsView: View {
     var onCopyPubky: () -> Void = {}
     var onCopyHomeserver: () -> Void = {}
     var onShareOnPubkyChanged: (Bool) -> Void = { _ in }
+    var onThemeChanged: (AppTheme) -> Void = { _ in }
     var onGoalChanged: (Int) -> Void = { _ in }
     var onIntervalChanged: (StudyGrade, Int) -> Void = { _, _ in }
     var onSaveUnsplashKey: (String) -> Void = { _ in }
@@ -26,6 +28,7 @@ struct SettingsView: View {
     var body: some View {
         List {
             identitySection
+            appearanceSection
             languageSection
             studyingSection
             sharingSection
@@ -90,6 +93,36 @@ struct SettingsView: View {
         }
     }
 
+    /// The palette, which Loopky owns rather than iOS — unlike the language row below it.
+    ///
+    /// A segmented `Picker` rather than a row that pushes: three mutually exclusive options that
+    /// repaint the screen behind the control, so the result of the tap is visible without leaving.
+    private var appearanceSection: some View {
+        Section {
+            Picker(
+                selection: Binding(get: { state.theme }, set: onThemeChanged),
+                label: Text("settings_theme_label")
+            ) {
+                Text("settings_theme_system").tag(AppTheme.system)
+                Text("settings_theme_auto").tag(AppTheme.scheduled)
+                Text("settings_theme_light").tag(AppTheme.light)
+                Text("settings_theme_dark").tag(AppTheme.dark)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("settings_theme")
+        } header: {
+            Text("settings_section_appearance")
+        } footer: {
+            // The hours are named rather than left to be discovered: without them "Auto" is a
+            // control whose behaviour you can only learn by waiting until evening.
+            Text(String(
+                format: NSLocalizedString("settings_theme_description", comment: ""),
+                Self.hourLabel(Int(DayNightSchedule.shared.darkFromHour)),
+                Self.hourLabel(Int(DayNightSchedule.shared.darkUntilHour))
+            ))
+        }
+    }
+
     /// The app language, which iOS owns rather than Loopky.
     ///
     /// The picker itself is the system's own per-app Language screen, so this row shows the
@@ -112,6 +145,19 @@ struct SettingsView: View {
         } footer: {
             Text("settings_language_description")
         }
+    }
+
+    /// An o'clock hour as the reader's own device writes it — "8 PM" or "20:00".
+    ///
+    /// `.short` follows the device's 24-hour switch, so this matches a setting the user has already
+    /// made elsewhere. Interpolating the raw number gave "20:00" to someone whose phone has never
+    /// shown them a 24-hour clock.
+    private static func hourLabel(_ hour: Int) -> String {
+        let date = Calendar.current.date(from: DateComponents(hour: hour, minute: 0)) ?? Date()
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 
     /// The language's own name for itself — "English", "Português (Brasil)".

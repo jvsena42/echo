@@ -28,6 +28,8 @@ struct iOSApp: App {
         )
     }
 
+    @StateObject private var theme = ThemePreference()
+
     var body: some Scene {
         WindowGroup {
             // The one place the window's width is published from. Every adaptive decision below —
@@ -35,14 +37,13 @@ struct iOSApp: App {
             // so all of them re-answer on rotation and on a Split View divider being dragged.
             RootView()
                 .provideWindowSize()
-                // Loopky's palette is a single fixed light one — `LoopkyColor` has no dark
-                // variants, and every screen paints its own cream ground. Native chrome does
-                // *not* follow it: a `List`, an alert, a sheet or a menu takes its row fills,
-                // section headers and default label colour from the system scheme. On a dark
-                // device that put near-black rows and dark-on-dark labels on Settings' cream
-                // background. Pinning the scheme is what keeps the two halves agreeing; the
-                // alternative is a dark palette, which is a design decision rather than a fix.
-                .preferredColorScheme(.light)
+                // The single point where the user's choice is expressed, and it has to be at the
+                // window root: native chrome — a `List`'s row fills, an alert, a sheet, a menu —
+                // takes its colours from the scheme rather than from `LoopkyColor`, and setting
+                // this on a screen would leave every presented surface answering to the device
+                // instead. `LoopkyColor` is dynamic, so both halves resolve from the same traits.
+                // `nil` is System, which declines to override rather than resolving it here.
+                .preferredColorScheme(theme.colorScheme)
         }
     }
 }

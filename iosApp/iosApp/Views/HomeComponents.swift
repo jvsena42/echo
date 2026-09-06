@@ -79,7 +79,7 @@ struct DueTodayHeroCard: View {
             Text("home_due_today")
                 .font(.system(size: 11, weight: .bold))
                 .kerning(1)
-                .foregroundColor(LoopkyColor.accentPrimarySoft)
+                .foregroundColor(LoopkyColor.foregroundOnAccentMuted)
             HStack(alignment: .bottom) {
                 Text("\(dueToday)")
                     .font(.system(size: 72, weight: .heavy))
@@ -91,7 +91,7 @@ struct DueTodayHeroCard: View {
                         .foregroundColor(.white)
                     Text("home_to_review")
                         .font(.system(size: 13))
-                        .foregroundColor(LoopkyColor.accentPrimarySoft)
+                        .foregroundColor(LoopkyColor.foregroundOnAccentMuted)
                 }
                 .padding(.bottom, 12)
             }
@@ -101,7 +101,7 @@ struct DueTodayHeroCard: View {
                     .tint(.white)
                 Text(String(format: NSLocalizedString("home_progress_done", comment: ""), doneToday, dueToday))
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(LoopkyColor.accentPrimarySoft)
+                    .foregroundColor(LoopkyColor.foregroundOnAccentMuted)
                 Text(verbatim: newCardsToday >= newCardsGoal
                      ? String(
                         format: NSLocalizedString("home_new_cards_goal_reached", comment: ""),
@@ -112,7 +112,7 @@ struct DueTodayHeroCard: View {
                         newCardsToday, newCardsGoal
                      ))
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(LoopkyColor.accentPrimarySoft)
+                .foregroundColor(LoopkyColor.foregroundOnAccentMuted)
             }
             Button(action: onStartStudy) {
                 HStack(spacing: 8) {
@@ -120,7 +120,14 @@ struct DueTodayHeroCard: View {
                     Text("home_start_studying")
                 }
             }
-            .buttonStyle(LoopkyFilledButtonStyle(fill: LoopkyColor.surfaceCard, foreground: LoopkyColor.accentPrimary, verticalPadding: 16))
+            // The pill sits *on the accent*, so it takes on-accent colours, not the app's surface
+            // family. `surfaceCard` happens to be white in light mode, which is why the two were
+            // indistinguishable until dark mode turned this into a hole in the orange card.
+            .buttonStyle(LoopkyFilledButtonStyle(
+                fill: LoopkyColor.foregroundOnAccent,
+                foreground: LoopkyColor.accentPrimary,
+                verticalPadding: 16
+            ))
         }
         .padding(24)
         .background(RoundedRectangle(cornerRadius: 28).fill(LoopkyColor.accentPrimary))
