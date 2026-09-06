@@ -1308,6 +1308,7 @@ class FakeAppPreferences(
     pubkyEnvironment: String = "",
     cachedStudySettings: String = "",
     themeMode: AppTheme = AppTheme.System,
+    nameNudgeDismissed: Boolean = false,
 ) : AppPreferences {
     private val _shareOnPubky = MutableStateFlow(shareOnPubky)
     override val shareOnPubky: Flow<Boolean> = _shareOnPubky.asStateFlow()
@@ -1344,6 +1345,16 @@ class FakeAppPreferences(
 
     override suspend fun setThemeMode(theme: AppTheme) {
         _themeMode.update { theme }
+    }
+
+    private val _nameNudgeDismissed = MutableStateFlow(nameNudgeDismissed)
+    override val nameNudgeDismissed: Flow<Boolean> = _nameNudgeDismissed.asStateFlow()
+
+    /** The current value, for a test that asserts on it without collecting. */
+    val nameNudgeDismissedValue: Boolean get() = _nameNudgeDismissed.value
+
+    override suspend fun setNameNudgeDismissed(dismissed: Boolean) {
+        _nameNudgeDismissed.update { dismissed }
     }
 }
 

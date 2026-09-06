@@ -81,6 +81,16 @@ internal class FileAppPreferences(private val store: JsonFileStore) : AppPrefere
         withContext(Dispatchers.IO) { store.set(KEY_THEME_MODE, theme.name) }
         _themeMode.update { theme }
     }
+
+    private val _nameNudgeDismissed = MutableStateFlow(
+        store.string(KEY_NAME_NUDGE_DISMISSED)?.toBooleanStrictOrNull() ?: DEFAULT_NAME_NUDGE_DISMISSED,
+    )
+    override val nameNudgeDismissed: Flow<Boolean> = _nameNudgeDismissed.asStateFlow()
+
+    override suspend fun setNameNudgeDismissed(dismissed: Boolean) {
+        withContext(Dispatchers.IO) { store.set(KEY_NAME_NUDGE_DISMISSED, dismissed.toString()) }
+        _nameNudgeDismissed.update { dismissed }
+    }
 }
 
 internal class FilePendingReviewStore(private val store: JsonFileStore) : PendingReviewStore {

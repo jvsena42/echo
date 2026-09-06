@@ -2505,3 +2505,49 @@ needs `.autocorrectionDisabled()`: on a Portuguese keyboard it turned "Diag copy
 
 Filed while driving this: [#255](https://github.com/jvsena42/loopky/issues/255) — Discover deck
 tiles whose cover does not fill the card, and a last row that scrolls under the tab bar.
+
+---
+
+## "What should we call you?" — the name prompt on a nameless profile — 2026-09-06, `iPhone 17 Pro` sim + `Pixel_Tablet` (staging)
+
+An account with no display name falls back to its pubky everywhere it appears, and nothing in the
+app said so. Profile now carries a one-time card under the hero — title, one line, **Add name** /
+**Not now** — and "Not now" is remembered on the device (`AppPreferences.nameNudgeDismissed`), so
+someone who would rather stay a key is asked once. Publishing a name retires it on its own.
+
+Driven on the `ma8tms` staging account, whose name was blanked and restored for the run — on the
+iPhone 17 Pro simulator and, contrary to the sign-out note above, on the
+**`Pixel_Tablet` emulator, which still holds a session for that same account** (only the phone
+emulator `emulator-5554` is signed out).
+
+| Step | Result |
+| --- | --- |
+| Named account (`Name test`) → no card | ✅ PASS |
+| Clear the name and save → hero falls back to `ma8tms`, card appears under it | ✅ PASS |
+| `profile_name_nudge_action` opens the Edit Profile sheet | ✅ PASS |
+| `profile_name_nudge_dismiss` ("Not now") removes the card | ✅ PASS |
+| Relaunch the app → card stays gone | ✅ PASS — the flag is in `NSUserDefaults`, not in state |
+| Restore the name → account back to `Name test` | ✅ PASS |
+| Android (`Pixel_Tablet`, medium 800dp and expanded 1280dp): named → no card; nameless → card under the hero in both | ✅ PASS — the card lives in `ProfileIdentityPane`, so the two-pane layout gets it in the left column without a second call site |
+| Android: `profile_name_nudge_action` opens the sheet with an empty name field; `profile_name_nudge_dismiss` removes the card; force-stop + relaunch → still gone | ✅ PASS |
+| Android: restore the name → hero back to `Name test`, no card | ✅ PASS |
+| `:shared:jvmTest`, `ciCheck` (detekt + `lintSwift` + iOS klib), `:composeApp:assembleDebug`, iOS `simulator build-and-run` | ✅ PASS |
+
+### Worth knowing
+
+**The edit sheet was seeded one tap late, and the prompt made it dangerous.** `ProfileScreen.swift`
+set `editName` from `uiState.editName` *before* calling `onEditProfileClick()`, which is the call
+that fills that field — so the first open of the sheet showed empty fields, and the second showed
+the values from the first. Saving from a first open published a blank name over a real one. It now
+seeds from `uiState.identity` instead. Fixed here rather than filed because "Add name" opens that
+same sheet: the prompt would have been an invitation to erase your own name.
+
+**`user_rotation` is inverted on this `Pixel_Tablet` AVD.** Its natural orientation is landscape
+(`init=2560x1600`), so `user_rotation 0` is the **expanded** 1280dp landscape and `1` is the
+medium 800dp portrait — the opposite of the phone emulators, and `dumpsys display`'s `rotation=`
+stayed `0` throughout while `dumpsys window displays`'s `cur=` told the truth. `wm size`,
+`adb emu rotate` and `cmd window user-rotation` all did nothing here.
+
+**A container's `.accessibilityIdentifier` overwrites its children's.** With one on the card,
+both buttons came back from `snapshot-ui` as `profile_name_nudge` — the journey could tap "Add
+name" and "Not now" only by position. The card carries no identifier now; its two buttons do.

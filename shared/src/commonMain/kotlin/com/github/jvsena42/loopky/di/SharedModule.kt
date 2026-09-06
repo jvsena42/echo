@@ -250,6 +250,7 @@ val sharedModule = module {
             deckRepository = get(),
             srsRepository = get(),
             discoveryRepository = get(),
+            appPreferences = get(),
             pubkyEnvironment = get(),
         )
     }

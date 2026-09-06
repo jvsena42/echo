@@ -9,6 +9,7 @@ import com.github.jvsena42.loopky.data.repository.DeckRepository
 import com.github.jvsena42.loopky.data.repository.DiscoveryRepository
 import com.github.jvsena42.loopky.data.repository.IdentityRepository
 import com.github.jvsena42.loopky.data.repository.SrsRepository
+import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.domain.model.KeyCustody
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
 import com.github.jvsena42.loopky.util.Log
@@ -23,11 +24,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+// TooManyFunctions: this screen is one subject — your own account — and its handlers are one
+// tap each. Splitting them across two ViewModels over the same state would cost more than it buys.
+@Suppress("TooManyFunctions")
 class ProfileViewModel(
     private val identityRepository: IdentityRepository,
     private val deckRepository: DeckRepository,
     private val srsRepository: SrsRepository,
     private val discoveryRepository: DiscoveryRepository,
+    private val appPreferences: AppPreferences,
     private val pubkyEnvironment: PubkyEnvironment,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ProfileUiState())
@@ -60,6 +65,11 @@ class ProfileViewModel(
         // [refreshDueCount].
         viewModelScope.launch {
             srsRepository.changes.collect { refreshDueCount() }
+        }
+        viewModelScope.launch {
+            appPreferences.nameNudgeDismissed.collect { dismissed ->
+                _state.update { it.copy(nameNudgeDismissed = dismissed) }
+            }
         }
     }
 
@@ -176,6 +186,17 @@ class ProfileViewModel(
                 editBio = identity?.bio.orEmpty(),
             )
         }
+    }
+
+    /**
+     * Wave away the "add a name" prompt for good, on this device.
+     *
+     * Persisted rather than kept in state: the prompt is on the tab the reader visits most, so a
+     * dismissal that lasted only until the next launch would be a nag they can never finish
+     * refusing.
+     */
+    fun onDismissNameNudge() {
+        viewModelScope.launch { appPreferences.setNameNudgeDismissed(true) }
     }
 
     fun onDismissEditSheet() {
@@ -296,6 +317,13 @@ data class ProfileUiState(
      * key has nothing on this device to lose, so nothing must flash while custody resolves.
      */
     val keyCustody: KeyCustody = KeyCustody.External,
+    /**
+     * Whether this device has been told not to ask for a display name again — see [showNameNudge].
+     *
+     * Starts suppressed and is corrected by the stored value, which is the safe direction: a
+     * prompt someone already refused must not flash on screen while the preference resolves.
+     */
+    val nameNudgeDismissed: Boolean = true,
     val showEditSheet: Boolean = false,
     val editName: String = "",
     val editBio: String = "",
@@ -318,6 +346,20 @@ data class ProfileUiState(
     val needsBackup: Boolean
         get() = (keyCustody as? KeyCustody.Loopky)
             ?.let { !it.isBackedUp && it.pubky == identity?.pubky } == true
+
+    /**
+     * Whether to invite this account to introduce itself.
+     *
+     * A nameless profile falls back to its pubky everywhere it appears — on its own decks, in
+     * someone's follower list — and nothing in the app said so. Publishing a name retires the
+     * prompt on its own, so [nameNudgeDismissed] exists only for the reader who would rather stay
+     * a key.
+     */
+    val showNameNudge: Boolean
+        get() = !isLoading &&
+            !nameNudgeDismissed &&
+            identity != null &&
+            identity.displayName.isNullOrBlank()
 }
 
 sealed interface ProfileEffect {

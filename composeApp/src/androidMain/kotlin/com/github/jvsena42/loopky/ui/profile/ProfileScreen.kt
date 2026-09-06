@@ -130,6 +130,7 @@ fun ProfileRoute(
             state.identity?.let { currentOpenFollows(it.pubky, source) }
         },
         onEditProfileClick = viewModel::onEditProfileClick,
+        onDismissNameNudge = viewModel::onDismissNameNudge,
         onShareClick = viewModel::onShareClick,
         onOpenOnPubkyApp = viewModel::onOpenOnPubkyApp,
         onCopyPubky = viewModel::onCopyPubky,
@@ -151,6 +152,7 @@ private fun ProfileScreen(
     onOpenSettings: () -> Unit,
     onOpenFollows: (FollowSource) -> Unit,
     onEditProfileClick: () -> Unit,
+    onDismissNameNudge: () -> Unit,
     onShareClick: () -> Unit,
     onOpenOnPubkyApp: () -> Unit,
     onCopyPubky: () -> Unit,
@@ -262,6 +264,7 @@ private fun ProfileScreen(
                     state = state,
                     onCopyPubky = onCopyPubky,
                     onEditProfileClick = onEditProfileClick,
+                    onDismissNameNudge = onDismissNameNudge,
                     onShareClick = onShareClick,
                     modifier = Modifier.width(PROFILE_PANE_WIDTH),
                 )
@@ -279,6 +282,7 @@ private fun ProfileScreen(
                 state = state,
                 onCopyPubky = onCopyPubky,
                 onEditProfileClick = onEditProfileClick,
+                onDismissNameNudge = onDismissNameNudge,
                 onShareClick = onShareClick,
             )
             ProfileDetailsPane(
@@ -455,6 +459,7 @@ private fun ProfileIdentityPane(
     state: ProfileUiState,
     onCopyPubky: () -> Unit,
     onEditProfileClick: () -> Unit,
+    onDismissNameNudge: () -> Unit,
     onShareClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -471,6 +476,15 @@ private fun ProfileIdentityPane(
                 identity = identity,
                 onPubkyClick = onCopyPubky,
                 modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        // Directly under the hero, because that is where the missing name is showing: with none
+        // published the hero falls back to the pubky, and this says what to do about it.
+        if (state.showNameNudge) {
+            NameNudgeCard(
+                onAddName = onEditProfileClick,
+                onDismiss = onDismissNameNudge,
             )
         }
 
@@ -616,6 +630,69 @@ private fun ProfileDetailsPane(
 }
 
 /**
+ * "What should we call you?" — the one-time invitation to name a nameless profile.
+ *
+ * Dismissible, unlike [BackupNagCard], and the dismissal is remembered on the device: a name is a
+ * courtesy to other people, not a risk to the reader, so someone who would rather stay a pubky is
+ * asked once and never again.
+ */
+@Composable
+private fun NameNudgeCard(
+    onAddName: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = LoopkyTheme.colors
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(colors.accentPrimarySoft)
+            .padding(16.dp)
+            .testTag("profile_name_nudge"),
+    ) {
+        Text(
+            text = stringResource(R.string.profile_name_nudge_title),
+            color = colors.foregroundPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.profile_name_nudge_body),
+            color = colors.foregroundSecondary,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = onAddName,
+                modifier = Modifier.testTag("profile_name_nudge_action"),
+            ) {
+                Text(
+                    text = stringResource(R.string.profile_name_nudge_action),
+                    color = colors.accentSecondary,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("profile_name_nudge_dismiss"),
+            ) {
+                Text(
+                    text = stringResource(R.string.profile_name_nudge_dismiss),
+                    color = colors.foregroundMuted,
+                )
+            }
+        }
+    }
+}
+
+/**
  * "Back up your account", shown until at least one method is done.
  *
  * Deliberately persistent rather than dismissible: the risk it describes does not go away by being
@@ -681,6 +758,7 @@ private fun ProfileScreenPreview() {
             onOpenSettings = {},
             onOpenFollows = {},
             onEditProfileClick = {},
+            onDismissNameNudge = {},
             onShareClick = {},
             onOpenOnPubkyApp = {},
             onCopyPubky = {},

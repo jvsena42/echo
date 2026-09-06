@@ -69,6 +69,18 @@ class AndroidAppPreferences(context: Context) : AppPreferences {
             prefs.edit().putString(KEY_THEME_MODE, theme.name).apply()
         }
     }
+
+    private val _nameNudgeDismissed = MutableStateFlow(
+        prefs.getBoolean(KEY_NAME_NUDGE_DISMISSED, DEFAULT_NAME_NUDGE_DISMISSED),
+    )
+    override val nameNudgeDismissed: Flow<Boolean> = _nameNudgeDismissed.asStateFlow()
+
+    override suspend fun setNameNudgeDismissed(dismissed: Boolean) {
+        withContext(Dispatchers.IO) {
+            prefs.edit().putBoolean(KEY_NAME_NUDGE_DISMISSED, dismissed).apply()
+        }
+        _nameNudgeDismissed.update { dismissed }
+    }
 }
 
 /**

@@ -371,6 +371,12 @@
     <string name="profile_edit_bio_label">BIO</string>
     <string name="profile_edit_bio_placeholder">Tell us about yourself...</string>
     <string name="profile_save">Save</string>
+    <!-- The one-time invitation to name a nameless profile. Warm and short by design: it asks
+         for something optional, and "Not now" is remembered so it is never asked twice. -->
+    <string name="profile_name_nudge_title">What should we call you?</string>
+    <string name="profile_name_nudge_body">Add a name so people know whose decks these are.</string>
+    <string name="profile_name_nudge_action">Add name</string>
+    <string name="profile_name_nudge_dismiss">Not now</string>
 
     <!-- Friend profile -->
     <string name="friend_profile_back_content_description">Back</string>
