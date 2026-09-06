@@ -1,0 +1,57 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "NSCameraUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky uses the camera to read a QR code holding someone's pubky, so you can find them without typing it."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Loopky usa a câmera para ler um código QR com o pubky de alguém, para você encontrar essa pessoa sem digitar nada."
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky listens while you practise saying a card out loud, and stops as soon as you have answered."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Loopky escuta enquanto você pratica dizer uma carta em voz alta, e para assim que você responde."
+          }
+        }
+      }
+    },
+    "NSSpeechRecognitionUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loopky turns what you say into text to check your pronunciation against the card. Nothing is stored."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Loopky transforma o que você diz em texto para conferir sua pronúncia com a carta. Nada é armazenado."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
