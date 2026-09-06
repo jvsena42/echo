@@ -499,6 +499,21 @@ the easy direction, so when you touch a file, leave its comments under these rul
 
 The same rules apply to Swift.
 
+### Strings (all languages)
+
+**Loopky ships in English and Brazilian Portuguese, and a new string is not done until both
+catalogs have it.** There are four files and every one of them has to be touched together:
+`composeApp/src/androidMain/res/values/strings.xml` and `values-pt-rBR/strings.xml` on Android,
+and the `en` **and** `pt-BR` localizations of `iosApp/iosApp/Localizable.xcstrings` on iOS. A
+missing `pt-BR` entry does not fail any build, any lint or any test — it falls back to English at
+render time, so a half-translated screen looks perfectly healthy from a green CI run and only a
+device set to Portuguese ever shows it.
+
+Two things that go with it. Never hardcode a user-facing string in a Composable or a SwiftUI
+view; and a string ported between platforms needs its format specifiers converted (`%1$s` →
+`%1$@`, `%1$d` → `%1$lld` — see Build & run above, where all three ways that segfaults are
+written down).
+
 ### Shared (Kotlin · `shared/commonMain`)
 
 - **ViewModels extend `androidx.lifecycle.ViewModel`** (the multiplatform JetBrains build) and
