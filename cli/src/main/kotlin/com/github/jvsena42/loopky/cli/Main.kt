@@ -613,12 +613,6 @@ internal val USAGE = """
       host having a bad minute must not be able to fail an import. Findings also travel in --json
       as image_checks.
 
-  What a rule can say WITHOUT asking any host — an undecodable format, a thumbnail width
-  Wikimedia does not serve — travels separately as image_advice on import, whether or not
-  --check-images was passed. Two arrays rather than one because they answer different questions
-  and only one of them is opt-in. On stderr the advice is printed last, after everything the
-  network had to say, and capped at 20 entries like the check's own buckets.
-
       It separates WRONG from COULD NOT BE CHECKED, and the difference is the whole of its
       usefulness at scale. A 429, a timeout or a 5xx says nothing about the picture, so it is
       counted apart and marked unverified in --json rather than folded into "look wrong". Requests
@@ -628,6 +622,13 @@ internal val USAGE = """
       --check-images-concurrency N (up to 16) is there for a host that is not Wikimedia:
       against Wikimedia, raising it measured slower as well as noisier — 250 URLs answer
       clean in about 80 seconds as it stands.
+
+      What a rule can say WITHOUT asking any host — an undecodable format, a thumbnail width
+      Wikimedia does not serve — travels separately, as image_advice, on deck create, card add,
+      card edit and import. Reported whether or not --check-images was passed, which is why it is
+      two arrays rather than one: they answer different questions and only one of them is opt-in.
+      On stderr it is printed last, after everything the network had to say, and capped at 20
+      entries like the buckets above.
 
     EXIT CODES
       0 ok                      6 not found
