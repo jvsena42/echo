@@ -597,10 +597,23 @@ nothing is gated on Pubky Ring.
 
 **Pubky Ring is offered after the account exists, not before it.** #147 briefly ran a Ring-redeems
 path beside the local one, selected by a nav argument. It is gone: it put a Ring install gate in
-front of the only way into the app. Ring is now reached from the **backup step**
-(`BackupRingViewModel`, straight after the account is created) and the Settings nag, where it is a
-*second copy* of a key that already exists rather than a prerequisite to satisfy. `beginSignUp` and
-`asSignupUrl` survive unused for the same reason — see `IdentityRepository.beginSignUp`.
+front of the only way into the app. Ring is now reached from the **backup menu**
+(`BackupRingViewModel`), where it is a *second copy* of a key that already exists rather than a
+prerequisite to satisfy. `beginSignUp` and `asSignupUrl` survive unused for the same reason — see
+`IdentityRepository.beginSignUp`.
+
+**Signup ends at home, and the backup menu is not part of it.** `LocalSignupViewModel` and
+`UnregisteredKeyViewModel` both emit `NavigateHome`; the backup flow is reached only from the
+Profile card above sign-out (`ProfileUiState.needsBackup`) and the Settings row. The key really is
+only on this device at that moment, and a screen saying so was the obvious answer — but it is a
+wall between finishing signup and seeing the app, in front of a user who has not yet been given a
+reason to care about a key. What actually protects the key is downstream and unchanged: the nag
+persists until a method is done, and the sign-out guard refuses to erase an un-backed-up identity
+without an explicit choice (`settings_signout_unbacked_title`). Two consequences. `BackupStartRoute`
+is now always pushed onto something, so its `onDone` is a plain pop rather than a branch on
+`previousBackStackEntry`. And on iOS backup left `IdentityRoute` entirely — it is a signed-in
+surface, so `BackupFlowView` carries its own private route enum and the signed-out path no longer
+has backup legs.
 
 **That offer is a backup, not a custody transfer, and the distinction is load-bearing.**
 `ringExportUrl` builds a `pubkyring://` import link and `onExportConfirmed` records
