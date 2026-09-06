@@ -71,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.data.unsplash.UNSPLASH_DEVELOPER_URL
 import com.github.jvsena42.loopky.data.unsplash.UnsplashError
+import com.github.jvsena42.loopky.domain.model.AppTheme
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.presentation.settings.DeletionState
 import com.github.jvsena42.loopky.presentation.settings.SettingsEffect
@@ -134,6 +135,7 @@ fun SettingsRoute(
         onCopyPubkyClick = viewModel::onCopyPubkyClick,
         onCopyHomeserverClick = viewModel::onCopyHomeserverClick,
         onShareOnPubkyChange = viewModel::onShareOnPubkyChange,
+        onThemeModeChange = viewModel::onThemeModeChange,
         onNewCardsGoalChange = viewModel::onNewCardsGoalChange,
         onIntervalChange = viewModel::onIntervalChange,
         onSaveUnsplashKey = viewModel::onSaveUnsplashKey,
@@ -161,6 +163,7 @@ private fun SettingsScreen(
     onCopyPubkyClick: () -> Unit,
     onCopyHomeserverClick: () -> Unit,
     onShareOnPubkyChange: (Boolean) -> Unit,
+    onThemeModeChange: (AppTheme) -> Unit,
     onNewCardsGoalChange: (Int) -> Unit,
     onIntervalChange: (SrsGrade, Int) -> Unit,
     onSaveUnsplashKey: (String) -> Unit,
@@ -345,6 +348,10 @@ private fun SettingsScreen(
                 testTag = "settings_share_on_pubky",
             )
         }
+
+        // --- Appearance section ---
+        SettingsSectionLabel(text = stringResource(R.string.settings_section_appearance))
+        AppearanceSection(selected = state.themeMode, onThemeChange = onThemeModeChange)
 
         // --- Language section ---
         SettingsSectionLabel(text = stringResource(R.string.settings_section_language))
@@ -1062,6 +1069,7 @@ private fun SettingsScreenPreview() {
             onCopyPubkyClick = {},
             onCopyHomeserverClick = {},
             onShareOnPubkyChange = {},
+            onThemeModeChange = {},
             onNewCardsGoalChange = {},
             onIntervalChange = { _, _ -> },
             onSaveUnsplashKey = {},

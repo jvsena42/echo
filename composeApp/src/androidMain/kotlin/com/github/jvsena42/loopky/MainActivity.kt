@@ -6,18 +6,23 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.github.jvsena42.loopky.data.storage.AppPreferences
 import com.github.jvsena42.loopky.locale.AppLocale
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
 import com.github.jvsena42.loopky.ui.importflow.FileReadException
@@ -27,11 +32,14 @@ import com.github.jvsena42.loopky.ui.layout.ProvideWindowSize
 import com.github.jvsena42.loopky.ui.nav.LoopkyNavHost
 import com.github.jvsena42.loopky.ui.nav.PendingOpen
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
+import com.github.jvsena42.loopky.ui.theme.applyApplicationNightMode
+import com.github.jvsena42.loopky.ui.theme.isDark
 import com.github.jvsena42.loopky.ui.util.importFileUri
 import com.github.jvsena42.loopky.ui.util.pubkyLink
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 class MainActivity : ComponentActivity() {
 
@@ -63,7 +71,19 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) intent?.let(::consume)
         setContent {
             val pending by pendingOpen.asStateFlow().collectAsStateWithLifecycle()
-            LoopkyTheme {
+            // Collected straight from the preference rather than through a ViewModel: this is the
+            // first frame, and a `StateFlow` is what lets it be painted in the user's own palette
+            // instead of a default that corrects itself a frame later.
+            val themeMode by koinInject<AppPreferences>().themeMode.collectAsStateWithLifecycle()
+            val darkTheme = themeMode.isDark()
+            // Re-applied on every change, because the status and navigation bar icons are a
+            // *window* property: the app repainting dark leaves black icons on a black bar until
+            // this runs again.
+            LaunchedEffect(darkTheme) { applySystemBars(darkTheme) }
+            // Not what paints the app — that is [LoopkyTheme] above. This is the splash window,
+            // which is drawn before any of this exists. See [applyApplicationNightMode].
+            LaunchedEffect(themeMode, darkTheme) { applyApplicationNightMode(themeMode, darkTheme) }
+            LoopkyTheme(darkTheme = darkTheme) {
                 // Above the nav host so every screen — including the ones reached by deeplink,
                 // which never pass through MainScreen — can size itself to the window.
                 ProvideWindowSize {
@@ -82,6 +102,21 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Transparent bars with icons legible against whatever Loopky just painted behind them.
+     *
+     * `SystemBarStyle.auto` decides that from the *lambda*, not from the system's night setting,
+     * so a user who forced Light on a dark device gets dark icons rather than the system's white
+     * ones on a cream ground.
+     */
+    private fun applySystemBars(darkTheme: Boolean) {
+        val scrim = Color.Transparent.toArgb()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(scrim, scrim) { darkTheme },
+            navigationBarStyle = SystemBarStyle.auto(scrim, scrim) { darkTheme },
+        )
     }
 
     /**

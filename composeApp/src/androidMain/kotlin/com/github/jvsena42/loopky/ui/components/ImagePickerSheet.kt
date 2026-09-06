@@ -211,7 +211,7 @@ fun ImagePickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = colors.surfacePrimary,
+        containerColor = colors.surfaceSecondary,
     ) {
         Column(
             modifier = Modifier

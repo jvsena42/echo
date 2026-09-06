@@ -58,7 +58,10 @@ fun SpeakSheets(
     ModalBottomSheet(
         onDismissRequest = onCancel,
         sheetState = sheetState,
-        containerColor = colors.surfacePrimary,
+        // A sheet is a *raised* surface, so it cannot take the ground's colour: in dark mode that
+        // left it exactly the tone of the screen behind it and the sheet had no edge at all. Light
+        // mode gains a slightly warmer ground for the same reason it always should have.
+        containerColor = colors.surfaceSecondary,
     ) {
         Column(
             modifier = Modifier

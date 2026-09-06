@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky.data.storage
 
+import com.github.jvsena42.loopky.domain.model.AppTheme
 import com.github.jvsena42.loopky.domain.model.BackupMethod
 import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
 import com.github.jvsena42.loopky.domain.model.KeyCustody
@@ -7,6 +8,7 @@ import com.github.jvsena42.loopky.domain.model.Session
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
@@ -68,6 +70,16 @@ internal class FileAppPreferences(private val store: JsonFileStore) : AppPrefere
     override suspend fun setCachedStudySettings(json: String) {
         withContext(Dispatchers.IO) { store.set(KEY_CACHED_STUDY_SETTINGS, json) }
         _cachedStudySettings.update { json }
+    }
+
+    private val _themeMode = MutableStateFlow(
+        store.string(KEY_THEME_MODE)?.let(AppTheme::fromNameOrSystem) ?: DEFAULT_THEME_MODE,
+    )
+    override val themeMode: StateFlow<AppTheme> = _themeMode.asStateFlow()
+
+    override suspend fun setThemeMode(theme: AppTheme) {
+        withContext(Dispatchers.IO) { store.set(KEY_THEME_MODE, theme.name) }
+        _themeMode.update { theme }
     }
 }
 

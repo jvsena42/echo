@@ -238,7 +238,7 @@ private fun DueTodayHeroCard(
     ) {
         Text(
             text = stringResource(R.string.home_due_today),
-            color = colors.accentPrimarySoft,
+            color = colors.foregroundOnAccentMuted,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp,
@@ -267,7 +267,7 @@ private fun DueTodayHeroCard(
                 )
                 Text(
                     text = stringResource(R.string.home_to_review),
-                    color = colors.accentPrimarySoft,
+                    color = colors.foregroundOnAccentMuted,
                     fontSize = 13.sp,
                 )
             }
@@ -276,7 +276,7 @@ private fun DueTodayHeroCard(
             ProgressBar(progress = progress)
             Text(
                 text = stringResource(R.string.home_progress_done, doneToday, plannedTotal),
-                color = colors.accentPrimarySoft,
+                color = colors.foregroundOnAccentMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
             )
@@ -286,7 +286,7 @@ private fun DueTodayHeroCard(
                 } else {
                     stringResource(R.string.home_new_cards_goal, newCardsToday, newCardsGoal)
                 },
-                color = colors.accentPrimarySoft,
+                color = colors.foregroundOnAccentMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
             )
@@ -298,8 +298,12 @@ private fun DueTodayHeroCard(
                 .fillMaxWidth(),
             shape = RoundedCornerShape(50),
             contentPadding = PaddingValues(vertical = 16.dp),
+            // The pill sits *on the accent*, so it takes on-accent colours, not the app's surface
+            // family — Material's own inverse-of-primary pairing. `surfaceCard` happens to be
+            // white in light mode, which is why the two were indistinguishable until dark mode
+            // turned this pill into a hole punched in the middle of the orange card.
             colors = ButtonDefaults.buttonColors(
-                containerColor = colors.surfaceCard,
+                containerColor = colors.foregroundOnAccent,
                 contentColor = colors.accentPrimary,
             ),
         ) {

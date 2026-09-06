@@ -822,6 +822,15 @@
     <string name="settings_language_description_system">O Android guarda isso junto com suas outras configurações de idioma por app.</string>
     <string name="settings_language_description_app">Vale só para o Loopky. O idioma do seu aparelho não muda.</string>
 
+    <!-- Appearance -->
+    <string name="settings_section_appearance">APARÊNCIA</string>
+    <string name="settings_theme_label">Tema</string>
+    <string name="settings_theme_description">Vale só para o Loopky neste aparelho. O automático escurece das %1$s às %2$s.</string>
+    <string name="settings_theme_system">Padrão do sistema</string>
+    <string name="settings_theme_auto">Automático</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_dark">Escuro</string>
+
     <!-- SRS grades -->
     <string name="srs_grade_again">Repetir</string>
     <string name="srs_grade_hard">Difícil</string>

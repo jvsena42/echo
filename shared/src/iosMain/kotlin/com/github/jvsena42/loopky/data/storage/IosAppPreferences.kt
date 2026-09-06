@@ -1,7 +1,9 @@
 package com.github.jvsena42.loopky.data.storage
 
+import com.github.jvsena42.loopky.domain.model.AppTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import platform.Foundation.NSUserDefaults
@@ -47,5 +49,15 @@ class IosAppPreferences : AppPreferences {
     override suspend fun setCachedStudySettings(json: String) {
         defaults.setObject(json, KEY_CACHED_STUDY_SETTINGS)
         _cachedStudySettings.update { json }
+    }
+
+    private val _themeMode = MutableStateFlow(
+        defaults.stringForKey(KEY_THEME_MODE)?.let(AppTheme::fromNameOrSystem) ?: DEFAULT_THEME_MODE,
+    )
+    override val themeMode: StateFlow<AppTheme> = _themeMode.asStateFlow()
+
+    override suspend fun setThemeMode(theme: AppTheme) {
+        defaults.setObject(theme.name, KEY_THEME_MODE)
+        _themeMode.update { theme }
     }
 }

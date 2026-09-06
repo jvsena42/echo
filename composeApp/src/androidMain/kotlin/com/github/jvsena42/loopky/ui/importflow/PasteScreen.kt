@@ -491,7 +491,7 @@ internal fun SeparatorOverrideSheet(
         Separator.MarkdownTable,
         Separator.BlankLine,
     )
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfacePrimary) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfaceSecondary) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
