@@ -31,6 +31,7 @@ import com.github.jvsena42.loopky.data.storage.PendingSignup
 import com.github.jvsena42.loopky.data.storage.SignupTokenStore
 import com.github.jvsena42.loopky.data.storage.StudyProgressStore
 import com.github.jvsena42.loopky.data.storage.UnsplashKeyStore
+import com.github.jvsena42.loopky.domain.model.AppTheme
 import com.github.jvsena42.loopky.domain.model.BACK_FIELD
 import com.github.jvsena42.loopky.domain.model.Card
 import com.github.jvsena42.loopky.domain.model.DailyStudyProgress
@@ -1301,6 +1302,7 @@ class FakeAppPreferences(
     shareOnPubky: Boolean = true,
     pubkyEnvironment: String = "",
     cachedStudySettings: String = "",
+    themeMode: AppTheme = AppTheme.System,
 ) : AppPreferences {
     private val _shareOnPubky = MutableStateFlow(shareOnPubky)
     override val shareOnPubky: Flow<Boolean> = _shareOnPubky.asStateFlow()
@@ -1330,6 +1332,13 @@ class FakeAppPreferences(
 
     override suspend fun setCachedStudySettings(json: String) {
         _cachedStudySettings.update { json }
+    }
+
+    private val _themeMode = MutableStateFlow(themeMode)
+    override val themeMode: StateFlow<AppTheme> = _themeMode.asStateFlow()
+
+    override suspend fun setThemeMode(theme: AppTheme) {
+        _themeMode.update { theme }
     }
 }
 

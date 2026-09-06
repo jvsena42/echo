@@ -1,6 +1,8 @@
 package com.github.jvsena42.loopky.data.storage
 
+import com.github.jvsena42.loopky.domain.model.AppTheme
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Device-local, non-secret user preferences. Deliberately separate from [SecureSessionStore]:
@@ -64,6 +66,18 @@ interface AppPreferences {
     val cachedStudySettings: Flow<String>
 
     suspend fun setCachedStudySettings(json: String)
+
+    /**
+     * Light, dark, or whatever the device is doing — see [AppTheme].
+     *
+     * A `StateFlow` rather than a `Flow`, alone among these, because the app's root reads it to
+     * decide the palette it paints the very first frame in. A `Flow` collected into Compose or
+     * SwiftUI needs an initial value to hand back before the first emission, and that value is a
+     * guess: on a light device with Dark chosen it is one frame of white.
+     */
+    val themeMode: StateFlow<AppTheme>
+
+    suspend fun setThemeMode(theme: AppTheme)
 }
 
 internal const val PREFERENCES_NAME = "loopky.preferences"
@@ -73,3 +87,5 @@ internal const val KEY_PUBKY_ENVIRONMENT = "pubky_environment"
 internal const val DEFAULT_PUBKY_ENVIRONMENT = ""
 internal const val KEY_CACHED_STUDY_SETTINGS = "cached_study_settings"
 internal const val DEFAULT_CACHED_STUDY_SETTINGS = ""
+internal const val KEY_THEME_MODE = "theme_mode"
+internal val DEFAULT_THEME_MODE = AppTheme.System
