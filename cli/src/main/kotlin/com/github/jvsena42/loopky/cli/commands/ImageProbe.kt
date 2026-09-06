@@ -84,6 +84,27 @@ internal fun Args.imageCheckConcurrency(): Int {
 }
 
 /**
+ * Refuse an image-check option that cannot mean anything as given.
+ *
+ * `--check-images-concurrency` is read only from behind `if (args.checksImages())`, so without
+ * `--check-images` it was accepted and silently ignored — and its own value went unchecked with
+ * it. Silently doing something other than what was asked for is the failure this whole flag exists
+ * to stop, and the surface already hard-errors on the two analogous cases (`--separator` on an
+ * `.apkg`, `--if-not-exists` without `--id`).
+ */
+internal fun Args.requireImageCheckOptions() {
+    if (!has(CHECK_IMAGES_CONCURRENCY_FLAG)) return
+    if (!checksImages()) {
+        throw CliError(
+            ExitCode.Usage,
+            "--$CHECK_IMAGES_CONCURRENCY_FLAG means nothing without --$CHECK_IMAGES_FLAG: there " +
+                "are no requests to spread. Pass both, or neither.",
+        )
+    }
+    imageCheckConcurrency()
+}
+
+/**
  * Probe [urls], returning **only what is worth reporting** — an address that answered 2xx with an
  * image content type produces no row and no note.
  *

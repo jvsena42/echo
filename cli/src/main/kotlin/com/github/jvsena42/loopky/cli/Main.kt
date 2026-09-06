@@ -21,6 +21,7 @@ import com.github.jvsena42.loopky.cli.commands.import
 import com.github.jvsena42.loopky.cli.commands.importDryRun
 import com.github.jvsena42.loopky.cli.commands.login
 import com.github.jvsena42.loopky.cli.commands.logout
+import com.github.jvsena42.loopky.cli.commands.requireImageCheckOptions
 import com.github.jvsena42.loopky.cli.commands.tagTrending
 import com.github.jvsena42.loopky.cli.commands.update
 import com.github.jvsena42.loopky.cli.commands.whoami
@@ -195,6 +196,10 @@ private suspend fun dispatch(
     // Here rather than in `run`, so a `batch` line is held to the same table a command line is —
     // a flag the surface does not describe must not be silently dropped in either (#257, item 5).
     args.requireKnownOptions()
+    // Beside it because it asks the same kind of question — is this invocation self-consistent —
+    // before any of it runs. `--check-images-concurrency` is otherwise read only from behind
+    // `--check-images`, so on its own it was accepted and ignored.
+    args.requireImageCheckOptions()
     return when (val verb = args.verb) {
         "login" -> login(
             args,

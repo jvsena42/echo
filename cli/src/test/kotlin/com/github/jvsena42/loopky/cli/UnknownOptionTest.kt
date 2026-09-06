@@ -1,5 +1,7 @@
 package com.github.jvsena42.loopky.cli
 
+import com.github.jvsena42.loopky.cli.commands.requireImageCheckOptions
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -70,6 +72,41 @@ class UnknownOptionTest {
     @Test
     fun `the switches this client accepts and ignores stay accepted`() {
         parse("deck", "delete", "d1", "--yes", "--force").requireKnownOptions()
+    }
+
+    /**
+     * `--check-images-concurrency` is read only from behind `--check-images`, so on its own it was
+     * accepted and silently ignored — and its value went unchecked with it (#261 review,
+     * finding 3). Silently doing something other than what was asked is the failure the flag
+     * exists to stop.
+     */
+    @Test
+    fun `the image-check dial is refused where it can do nothing`() {
+        val error = assertFailsWith<CliError> {
+            parse("card", "add", "d1", "--from-file", "f.tsv", "--check-images-concurrency", "9")
+                .requireImageCheckOptions()
+        }
+
+        assertEquals(ExitCode.Usage, error.exitCode)
+        assertContains(error.message.orEmpty(), "--check-images")
+    }
+
+    @Test
+    fun `an out-of-range dial is refused even before the probe would run`() {
+        val error = assertFailsWith<CliError> {
+            parse("import", "f.tsv", "--title", "t", "--check-images", "--check-images-concurrency", "99")
+                .requireImageCheckOptions()
+        }
+
+        assertEquals(ExitCode.Usage, error.exitCode)
+    }
+
+    @Test
+    fun `the pair together, and neither, are both fine`() {
+        parse("import", "f.tsv", "--title", "t", "--check-images", "--check-images-concurrency", "4")
+            .requireImageCheckOptions()
+        parse("import", "f.tsv", "--title", "t", "--check-images").requireImageCheckOptions()
+        parse("import", "f.tsv", "--title", "t").requireImageCheckOptions()
     }
 
     /** An unknown *verb* has a better message of its own, so this says nothing about it. */
