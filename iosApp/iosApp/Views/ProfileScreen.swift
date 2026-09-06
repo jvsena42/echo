@@ -32,8 +32,12 @@ struct ProfileScreen: View {
             editName: $editName,
             editBio: $editBio,
             onEditProfile: {
-                editName = uiState?.editName ?? ""
-                editBio = uiState?.editBio ?? ""
+                // Seeded from the identity on screen, not from `uiState.editName`: that field is
+                // filled by the `onEditProfileClick()` below, so reading it here hands back the
+                // *previous* open's values — empty on the first. Someone who opened the sheet and
+                // saved published a blank name over their own.
+                editName = uiState?.identity?.displayName ?? ""
+                editBio = uiState?.identity?.bio ?? ""
                 viewModel?.onEditProfileClick()
             },
             onDismissEdit: { viewModel?.onDismissEditSheet() },
