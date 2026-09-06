@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -39,13 +38,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,7 +66,7 @@ import com.github.jvsena42.loopky.ui.components.bulkImportErrorTitle
 import com.github.jvsena42.loopky.ui.layout.PaneWidth
 import com.github.jvsena42.loopky.ui.layout.contentPane
 import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
-import com.github.jvsena42.loopky.ui.util.openUrl
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -152,10 +152,13 @@ internal fun BulkImportRoute(
     // out legitimate Anki decks. acceptPickedFile sniffs the bytes and does the type check.
     val pickFile = { picker.launch(arrayOf("*/*")) }
 
+    val clipboard = LocalClipboardManager.current
+    val cliPrompt = stringResource(R.string.bulk_cli_prompt)
+
     BulkImportScreen(
         state = state,
         onPickFile = { pickFile() },
-        onBrowseSharedDecks = { context.openUrl(ANKIWEB_SHARED_DECKS_URL) },
+        onCopyCliPrompt = { clipboard.setText(AnnotatedString(cliPrompt)) },
         onSeparatorOverride = viewModel::onSeparatorOverride,
         onFieldMappingChange = viewModel::onFieldMappingChanged,
         onConfirm = viewModel::onConfirm,
@@ -168,7 +171,7 @@ internal fun BulkImportRoute(
 private fun BulkImportScreen(
     state: BulkImportUiState,
     onPickFile: () -> Unit,
-    onBrowseSharedDecks: () -> Unit,
+    onCopyCliPrompt: () -> Unit,
     onSeparatorOverride: (Separator) -> Unit,
     onFieldMappingChange: (ApkgFieldMapping) -> Unit,
     onConfirm: () -> Unit,
@@ -208,7 +211,7 @@ private fun BulkImportScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             when (state) {
-                BulkImportUiState.Idle -> PickFilePrompt(onPickFile, onBrowseSharedDecks)
+                BulkImportUiState.Idle -> PickFilePrompt(onPickFile, onCopyCliPrompt)
                 BulkImportUiState.Reading -> BusyIndicator(stringResource(R.string.bulk_reading))
                 is BulkImportUiState.Parsing ->
                     BusyIndicator(stringResource(R.string.bulk_parsing, state.fileName))
@@ -258,7 +261,7 @@ private fun BulkImportScreen(
  * refugees (§1) — spell out the export that produces them.
  */
 @Composable
-private fun PickFilePrompt(onPickFile: () -> Unit, onBrowseSharedDecks: () -> Unit) {
+private fun PickFilePrompt(onPickFile: () -> Unit, onCopyCliPrompt: () -> Unit) {
     val colors = LoopkyTheme.colors
     Spacer(Modifier.height(28.dp))
     Text(text = "📦", fontSize = 44.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
@@ -317,33 +320,64 @@ private fun PickFilePrompt(onPickFile: () -> Unit, onBrowseSharedDecks: () -> Un
         modifier = Modifier.fillMaxWidth(),
     )
 
-    // The screen assumes you already have a file, which an Anki refugee does and a new user
-    // doesn't. AnkiWeb's shared decks are the shortest route from empty to something to import.
-    Spacer(Modifier.height(20.dp))
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.bulk_idle_no_deck),
-            fontSize = 13.sp,
-            color = colors.foregroundMuted,
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = stringResource(R.string.bulk_idle_browse_ankiweb),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.accentPrimary,
-            textDecoration = TextDecoration.Underline,
-            modifier = Modifier
-                .clickable(onClick = onBrowseSharedDecks)
-                .testTag("bulk_browse_ankiweb"),
-        )
-    }
+    Spacer(Modifier.height(28.dp))
+    CliPromptCard(onCopyCliPrompt)
     Spacer(Modifier.height(24.dp))
 }
+
+/**
+ * A pitch for `loopky`, the headless client, on the screen whose whole premise is that the deck
+ * already exists somewhere else. The prompt is copied rather than shown, because the reader's
+ * agent lives on another machine and nobody retypes an install line from a phone.
+ */
+@Composable
+private fun CliPromptCard(onCopyPrompt: () -> Unit) {
+    val colors = LoopkyTheme.colors
+    // Copying is silent below API 33, where the system shows no confirmation of its own.
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(COPIED_LABEL_MILLIS)
+            copied = false
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .border(1.dp, colors.borderSubtle, RoundedCornerShape(14.dp))
+            .background(colors.surfaceCard)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.bulk_cli_title),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = colors.foregroundPrimary,
+        )
+        Text(
+            text = stringResource(R.string.bulk_cli_body),
+            fontSize = 13.sp,
+            color = colors.foregroundSecondary,
+        )
+        Spacer(Modifier.height(2.dp))
+        LoopkySecondaryButton(
+            text = stringResource(
+                if (copied) R.string.bulk_cli_copied else R.string.bulk_cli_copy,
+            ),
+            onClick = {
+                onCopyPrompt()
+                copied = true
+            },
+            modifier = Modifier.testTag("bulk_cli_copy"),
+        )
+    }
+}
+
+/** How long the copy button stands in for the confirmation Android 12 and below never show. */
+private const val COPIED_LABEL_MILLIS = 2_000L
 
 /** One accepted file format: what it is, and what it does and doesn't bring over. */
 @Composable
@@ -380,9 +414,6 @@ private fun FormatCard(extension: String, title: String, detail: String) {
 }
 
 private const val BYTES_PER_MB = 1024L * 1024
-
-/** AnkiWeb's public library of shared decks — the .apkg source this screen imports. */
-private const val ANKIWEB_SHARED_DECKS_URL = "https://ankiweb.net/shared/decks"
 
 @Composable
 private fun BusyIndicator(message: String) {
@@ -530,7 +561,7 @@ private fun BulkImportIdlePreview() {
         BulkImportScreen(
             state = BulkImportUiState.Idle,
             onPickFile = {},
-            onBrowseSharedDecks = {},
+            onCopyCliPrompt = {},
             onSeparatorOverride = {},
             onFieldMappingChange = {},
             onConfirm = {},
@@ -547,7 +578,7 @@ private fun BulkImportParsingPreview() {
         BulkImportScreen(
             state = BulkImportUiState.Parsing("japanese_core.apkg"),
             onPickFile = {},
-            onBrowseSharedDecks = {},
+            onCopyCliPrompt = {},
             onSeparatorOverride = {},
             onFieldMappingChange = {},
             onConfirm = {},
@@ -576,7 +607,7 @@ private fun BulkImportReadyPreview() {
                 ),
             ),
             onPickFile = {},
-            onBrowseSharedDecks = {},
+            onCopyCliPrompt = {},
             onSeparatorOverride = {},
             onFieldMappingChange = {},
             onConfirm = {},
@@ -593,7 +624,7 @@ private fun BulkImportErrorPreview() {
         BulkImportScreen(
             state = BulkImportUiState.Error(BulkImportError.NotText),
             onPickFile = {},
-            onBrowseSharedDecks = {},
+            onCopyCliPrompt = {},
             onSeparatorOverride = {},
             onFieldMappingChange = {},
             onConfirm = {},
