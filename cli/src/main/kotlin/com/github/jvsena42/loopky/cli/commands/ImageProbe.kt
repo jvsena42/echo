@@ -9,6 +9,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -122,8 +124,13 @@ internal suspend fun checkImageUrls(
     if (distinct.isEmpty()) return emptyList()
     onNote("loopky: checking ${distinct.size} distinct picture URL(s)…")
 
-    val answers = distinct.chunked(concurrency.coerceAtLeast(1))
-        .flatMap { batch -> coroutineScope { batch.map { async { probe(it) } }.awaitAll() } }
+    // A permit rather than a barrier per group. `chunked(n)` waits for the slowest URL in each
+    // group before starting the next, so with the retry path one throttled address can hold two
+    // healthy ones for a couple of `Retry-After`s — which matters now the cap is three, not eight.
+    val gate = Semaphore(concurrency.coerceAtLeast(1))
+    val answers = coroutineScope {
+        distinct.map { url -> async { gate.withPermit { probe(url) } } }.awaitAll()
+    }
     val problems = answers.filterNot { it.ok }
     val (unverified, wrong) = problems.partition { it.unverified }
 
