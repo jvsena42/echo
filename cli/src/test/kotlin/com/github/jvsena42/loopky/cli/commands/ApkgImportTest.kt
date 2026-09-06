@@ -301,6 +301,27 @@ class ApkgImportTest {
         assertEquals("none", dryRun(apkg).string("separator"))
     }
 
+    /**
+     * A four-column TSV goes through the same structured entry point as an `.apkg` and used to
+     * report `"none"` for it — which reads as a parse failure on a file that parsed perfectly, on
+     * exactly the run whose job is validating the file before a production write (#257, item 7).
+     * It is split on tabs, so it says so.
+     */
+    @Test
+    fun `a four-column TSV reports the separator its own reader used`() {
+        val tsv = tempFile("cards", ".tsv").apply {
+            writeText(
+                "hola\thello\thttps://example.test/a.png\t\n" +
+                    "adiós\tgoodbye\thttps://example.test/b.png\t\n",
+            )
+        }
+
+        val data = dryRun(tsv)
+
+        assertEquals(2, data.int("cards"))
+        assertEquals("tab", data.string("separator"))
+    }
+
     @Test
     fun `a dry run of a text file still works, and says it is text`() {
         val tsv = tempFile("cards", ".tsv").apply { writeText("hola\thello\nadiós\tgoodbye\n") }

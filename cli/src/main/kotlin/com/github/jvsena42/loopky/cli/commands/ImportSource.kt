@@ -34,6 +34,16 @@ internal class ParsedSource(
     val droppedColumns: Boolean,
     val format: ImportFormat,
     val apkg: ApkgSummary?,
+    /**
+     * How the file was split, as the envelope and the human summary both name it.
+     *
+     * Carried here rather than read off the draft because the draft cannot answer it. Both
+     * structured entry points stamp `Separator.Tab` on a draft and set `structured`, so the field
+     * says the same thing for an `.apkg` — which really is never split — and for a four-column
+     * TSV, which is split on tabs by this client's own reader. Reporting `"none"` for the second
+     * read as a parse failure of a file that had parsed perfectly (#257, item 7).
+     */
+    val separator: String,
 )
 
 internal suspend fun parseSource(
@@ -98,6 +108,9 @@ private suspend fun parseApkg(
         droppedColumns = false,
         format = ImportFormat.Apkg,
         apkg = read.toSummary(),
+        // An Anki collection stores typed fields. Nothing about it is split, so there is no
+        // separator to name — the one case where "none" is the honest answer.
+        separator = NO_SEPARATOR,
     )
 }
 
@@ -127,6 +140,9 @@ private suspend fun parseText(
         droppedColumns = read.extraColumns,
         format = ImportFormat.Text,
         apkg = null,
+        // The image-column reader splits on tabs — that is what makes it a four-column format —
+        // so it says so, rather than borrowing the `.apkg` answer for want of one of its own.
+        separator = if (read.notes != null) TAB_SEPARATOR else draft.separator::class.simpleName.orEmpty().lowercase(),
     )
 }
 
@@ -238,6 +254,11 @@ private fun separatorNamed(name: String): Separator = when (name.lowercase()) {
             "blank, markdown.",
     )
 }
+
+/** What a source that was genuinely never split reports. Today that is an `.apkg` and nothing else. */
+private const val NO_SEPARATOR = "none"
+
+private const val TAB_SEPARATOR = "tab"
 
 private const val FRONT_COLUMN = 0
 private const val BACK_COLUMN = 1

@@ -53,9 +53,9 @@ data class ImportResult(
      */
     @SerialName("columns_dropped") val columnsDropped: Int = 0,
     /**
-     * How the file was split. `"none"` for a source that was never split at all — an `.apkg` —
-     * because reporting the `Separator.Tab` the structured entry point carries would name a rule
-     * that did not run.
+     * How the file was split: `"tab"`, `"comma"`, … and `"none"` only for a source that was never
+     * split at all, which today means an `.apkg`. A four-column TSV reports `"tab"`, because that
+     * is what its reader does — see [ParsedSource.separator].
      */
     val separator: String,
     /** `"text"` or `"apkg"`. See [detectImportFormat]. */
@@ -193,7 +193,7 @@ suspend fun import(
             resumed = resume.alreadyThere.size,
             resumeMatched = if (args.has("resume")) resume.deck != null else null,
             columnsDropped = if (parsed.droppedColumns) 1 else 0,
-            separator = draft.separatorName(),
+            separator = parsed.separator,
             format = parsed.format.json,
             apkg = parsed.apkg,
             imageChecks = imageChecks,
@@ -242,8 +242,20 @@ private fun describeImport(
             )
         }
         parsed.apkg?.let { appendLine(it.describe()) }
-        append("Separator: ${draft.separatorName()}")
+        append(parsed.describeSeparator())
     }
+}
+
+/**
+ * The separator line, with the one answer that reads like a failure explained.
+ *
+ * `Separator: none` on a well-formed file is indistinguishable from a parse that found nothing,
+ * and an agent validating its input before a production write cannot tell which it is being told
+ * (#257, item 7). Only an `.apkg` reports it now, and only with the reason attached.
+ */
+private fun ParsedSource.describeSeparator(): String = when (separator) {
+    "none" -> "Separator: none — an .apkg stores typed fields, so nothing was split."
+    else -> "Separator: $separator"
 }
 
 /**
@@ -280,7 +292,7 @@ suspend fun importDryRun(
             duplicatesCollapsed = draft.duplicatesCollapsed,
             truncated = draft.truncated,
             columnsDropped = if (parsed.droppedColumns) 1 else 0,
-            separator = draft.separatorName(),
+            separator = parsed.separator,
             apkg = parsed.apkg,
             imageChecks = imageChecks,
         ),
@@ -295,18 +307,10 @@ suspend fun importDryRun(
                 summary.deckName?.let { appendLine("Anki deck name: $it") }
                 appendLine(summary.describe())
             }
-            append("Separator: ${draft.separatorName()}")
+            append(parsed.describeSeparator())
         },
     )
 }
-
-/**
- * A `Separator` as the envelope names it, with structured sources reported as having none.
- * `parseBulkNotes` stamps `Separator.Tab` on a draft it never split, because the field is not
- * nullable — reporting that for an `.apkg` would name a rule that did not run.
- */
-private fun ImportDraft.separatorName(): String =
-    if (structured) "none" else separator::class.simpleName.orEmpty().lowercase()
 
 private class Written(val deck: Deck, val cards: Int)
 
