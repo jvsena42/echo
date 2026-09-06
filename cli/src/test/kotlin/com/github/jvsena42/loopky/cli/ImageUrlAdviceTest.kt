@@ -175,6 +175,20 @@ class ImageUrlAdviceTest {
         assertNull(imageUrlAdvice("$gull/100px-art/250px-Gull.jpg"))
     }
 
+    /**
+     * The digits before `px-` are a width only where a width can be: at the start of the segment,
+     * or after a render marker's hyphen. Reading any trailing digits invented a 2px thumbnail out
+     * of an ordinary file name and warned about it (#261 review, finding 6).
+     */
+    @Test
+    fun `a digit in the file name is not read as a thumbnail width`() {
+        assertNull(imageUrlAdvice("$gull/Foo2px-bar.jpg"))
+        assertNull(imageUrlAdvice("$gull/holiday2px-cat.jpg"))
+        // The two shapes that really are widths still are.
+        assertTrue(imageUrlAdvice("$gull/800px-Gull.jpg") != null)
+        assertTrue(imageUrlAdvice("$gull/lossy-page1-800px-Gull.jpg") != null)
+    }
+
     @Test
     fun `http is refused with a message naming the scheme`() {
         val error = runCatching { "http://example.test/cat.jpg".checkedImageUrl("--front-image") }

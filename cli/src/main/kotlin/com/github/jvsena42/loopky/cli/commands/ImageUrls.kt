@@ -216,11 +216,17 @@ private fun thumbnailWidthAdvice(url: String): String? {
  * number. Parsing the whole prefix as a number gave those URLs no width at all, so the width rule
  * silently did not apply to any of them.
  */
-private fun String.wikimediaThumbWidth(): Int? = substringAfterLast('/')
-    .substringBefore(PX_MARKER, missingDelimiterValue = "")
-    .takeLastWhile { it.isDigit() }
-    .takeIf { it.isNotEmpty() }
-    ?.toIntOrNull()
+private fun String.wikimediaThumbWidth(): Int? {
+    val prefix = substringAfterLast('/').substringBefore(PX_MARKER, missingDelimiterValue = "")
+    val digits = prefix.takeLastWhile { it.isDigit() }
+    if (digits.isEmpty()) return null
+    // The digits either begin the segment or follow a render marker's hyphen. Without that,
+    // `Foo2px-bar.jpg` reads as a 2px thumbnail and draws a warning about a width nobody asked
+    // for — a new false positive in a rule the README tells agents to treat as authoritative.
+    val before = prefix.dropLast(digits.length)
+    if (before.isNotEmpty() && !before.endsWith('-')) return null
+    return digits.toIntOrNull()
+}
 
 /**
  * The widths `upload.wikimedia.org` served on 2026-09-04, measured across 35 candidates, plus
