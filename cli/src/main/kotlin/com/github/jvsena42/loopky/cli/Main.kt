@@ -1,6 +1,7 @@
 package com.github.jvsena42.loopky.cli
 
 import com.github.jvsena42.loopky.cli.commands.BatchSinks
+import com.github.jvsena42.loopky.cli.commands.DRY_RUN_FLAG
 import com.github.jvsena42.loopky.cli.commands.LoginSinks
 import com.github.jvsena42.loopky.cli.commands.batch
 import com.github.jvsena42.loopky.cli.commands.cardAdd
@@ -220,7 +221,7 @@ private suspend fun dispatch(
         // nothing, so requiring a live session would put a sign-in between an agent and the check
         // that stops it publishing 9,000 cards of database ids (#96) or spending its whole media
         // quota on one deck.
-        "import" -> if (args.has("dry-run")) {
+        "import" -> if (args.has(DRY_RUN_FLAG)) {
             importDryRun(args, koin.get<ImportRepository>())
         } else {
             authed(sessions, identity, environment) { session ->
@@ -375,7 +376,7 @@ internal val USAGE = """
       deck list
       deck show <deckId>
       deck create --title T [--description D] [--tag T]... [--cover-url URL]
-                  [--cover-emoji E] [--from-file F] [--check-images]
+                  [--cover-emoji E] [--from-file F] [--check-images] [--dry-run]
                   [--id DECKID] [--if-not-exists]
                   [--listen] [--speak] [--type] [--reverse]
                   [--front-lang BCP47] [--back-lang BCP47]
@@ -389,6 +390,10 @@ internal val USAGE = """
                                 A declared pair also labels the deck — "spanish" plus the
                                 "language" umbrella — so someone learning it can find the deck.
                                 Ordinary tags you can remove. A deck with no pair gets neither.
+                                --dry-run runs all of that — the id check, this command’s own
+                                card-file reader, every row, --check-images — and stops before the
+                                publish. It is the pre-flight for a file you are about to publish
+                                with; import --dry-run reads a different format.
       deck edit <deckId> [--title T] [--description D] [--cover-url URL] [--cover-emoji E]
                   [--tag T]... [--clear-tags] [--clear-cover]
                   [--listen|--no-listen] [--speak|--no-speak]
@@ -414,7 +419,11 @@ internal val USAGE = """
       card add <deckId> --front F --back B [--front-image URL] [--back-image URL]
                                 Add --check-images to any of these to HEAD every distinct picture
                                 URL first. Warns, never refuses; see CARD IMAGES.
-      card add <deckId> --from-file cards.tsv|cards.jsonl
+      card add <deckId> --from-file cards.tsv|cards.jsonl [--dry-run]
+                                A file is appended in groups of 100 — one chunk write and one
+                                manifest patch each, not one of both per card — so a large batch
+                                lands in seconds and reports N/M as it goes. --dry-run reads,
+                                validates and dedupes the whole file and writes nothing.
       card edit <deckId> <cardId> [--front F] [--back B] [--front-image URL] [--back-image URL]
       card edit <deckId> --from-file edits.jsonl
                                 A batch is idempotent, so re-running the same file is the way to
@@ -489,7 +498,9 @@ internal val USAGE = """
 
     GLOBAL
       --json                    Machine-readable output on stdout. Stable, versioned schema.
-      --dry-run                 Read and report; write nothing. `import` only.
+      --dry-run                 Read and report; write nothing. On import, deck create and card add
+                                — each through its own path, so what it reports is what that
+                                command would do.
       --env staging|production  Which network to talk to. Defaults to production.
       --no-update-check         Do not look for a newer release on this invocation.
       --verbose                 Debug logging on stderr.

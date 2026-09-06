@@ -47,6 +47,13 @@ data class DeckCreateResult(
      * or a previous one put it there.
      */
     val created: Boolean = true,
+    /**
+     * True when `--dry-run` reported this deck instead of publishing it. See [deckCreate].
+     *
+     * Beside [created] rather than folded into it: `created: false` already means "the deck was
+     * already there", and a caller reading one field could not tell that outcome from a preview.
+     */
+    @SerialName("dry_run") val dryRun: Boolean = false,
 )
 
 @Serializable
@@ -122,6 +129,13 @@ private fun DeckView.describe(): String = buildString {
  *
  * A declared `--front-lang`/`--back-lang` pair contributes its labels to the tag set, the way the
  * apps' language pick does — see [deckTags]. A deck that declares no pair gets none.
+ *
+ * **`--dry-run` reports the deck and stops.** It runs the real path — the `--id` existence check,
+ * this command's own card-file reader, every row's validation and `--check-images` — and returns
+ * before the publish. `import --dry-run` was the only pre-flight there was, and it goes through a
+ * *different* parser (#257, item 8), so it could not answer what this command would do with the
+ * same file. Unlike that one it needs a session, because the two things worth checking here — is
+ * this id free, and would a publish replace a deck's chunk table — are homeserver reads.
  */
 suspend fun deckCreate(
     args: Args,
@@ -139,7 +153,9 @@ suspend fun deckCreate(
     // parsed to find that out.
     existingDeck(args, decks, session, deckId)?.let { existing ->
         return result(
-            DeckCreateResult(existing.toView(), created = false),
+            // `dry_run` still travels, even though this branch writes nothing either way: a
+            // caller branching on it must not have to know which of the two reasons applied.
+            DeckCreateResult(existing.toView(), created = false, dryRun = args.has(DRY_RUN_FLAG)),
             "${existing.id} already exists — ${existing.title} (${existing.cardCount} cards). Nothing written.",
         )
     }
@@ -178,6 +194,13 @@ suspend fun deckCreate(
         frontLang = frontLang,
         backLang = backLang,
     )
+
+    if (args.has(DRY_RUN_FLAG)) {
+        return result(
+            DeckCreateResult(deck.toView(), imageChecks, created = false, dryRun = true),
+            "$deckId would be created — $title (${cards.size} cards). Nothing was written.",
+        )
+    }
 
     val published = decks.publish(deck, cards) { progress ->
         onProgress("${progress.cardsWritten}/${progress.totalCards} cards, ${progress.chunksWritten}/${progress.totalChunks} chunks")
@@ -359,6 +382,15 @@ internal fun deckTags(requested: List<String>, frontLang: String?, backLang: Str
 /** `--tag` as it is stored: trimmed, blanks dropped, first occurrence wins. */
 internal fun List<String>.normalizedTags(): List<String> =
     mapNotNull { it.trim().takeIf(String::isNotEmpty) }.distinct()
+
+/**
+ * `--dry-run`: read, validate, report, write nothing.
+ *
+ * On `import`, `deck create` and `card add` — the three commands that take a file of cards. Each
+ * runs its **own** path up to the write rather than borrowing another's, which is the whole point:
+ * a pre-flight through a different parser answers a question nobody asked (#257, item 8).
+ */
+internal const val DRY_RUN_FLAG = "dry-run"
 
 /** A `--name`/`--no-name` pair, since a deck opt-in has to be turnable *off* as well as on. */
 internal fun Args.flag(name: String, default: Boolean): Boolean = flagOrNull(name) ?: default

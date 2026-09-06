@@ -113,6 +113,7 @@ loopky update                    # fetch it, check its digest, replace this bina
 loopky deck list
 loopky deck create --title "Capitais" --tag geografia --tag "português" --from-file cards.tsv
 loopky deck create --title "Capitais" --id capitais0001 --if-not-exists   # safe to re-run
+loopky deck create --title "Capitais" --from-file cards.tsv --dry-run     # pre-flight, no write
 loopky deck show <deckId> --json
 loopky deck edit <deckId> --cover-url https://…/capitais.jpg --tag geografia --tag capitais
 loopky deck sync <deckId>
@@ -460,7 +461,9 @@ renews it: writes start failing, reads keep working, and from the outside that i
 indistinguishable from a network wobble. An agent told the wrong one either retries a dead session
 forever or abandons a working network.
 
-`--dry-run` is the one `import` mode that exits 0 without a session at all: it reads a local file.
+`--dry-run` on `import` exits 0 without a session at all: it reads a local file. On `deck create`
+and `card add` it needs one, because what those two have to check — is this id free, is this row
+already in the deck — is a homeserver read.
 
 `whoami --json` reports `session_live`, asked rather than assumed — worth checking before starting
 an hour-long import rather than forty cards in. There is no `expires_at` to report: the session

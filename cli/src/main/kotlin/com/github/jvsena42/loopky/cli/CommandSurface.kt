@@ -234,12 +234,7 @@ internal fun cliCommands(): List<CliCommand> = listOf(
                 OptionValue.Switch,
             ) +
             CliOption("from-file", "a TSV or JSONL card file to publish with it", OptionValue.Path) +
-            CliOption(
-                "check-images",
-                "HEAD each picture URL and warn about the ones that are not images",
-                OptionValue.Switch,
-            ) +
-            STUDY_OPT_INS + LANGUAGE_OPTIONS,
+            DRY_RUN_OPTION + IMAGE_CHECK_OPTIONS + STUDY_OPT_INS + STUDY_OPT_OUTS + LANGUAGE_OPTIONS,
         writes = true,
     ),
     CliCommand(
@@ -272,7 +267,13 @@ internal fun cliCommands(): List<CliCommand> = listOf(
             CliOption("has-image", "only cards with a picture", OptionValue.Switch),
         ),
     ),
-    CliCommand("card add", "add one card, or a file of them", Operand.Opaque("deckId"), CARD_FIELDS, writes = true),
+    CliCommand(
+        path = "card add",
+        summary = "add one card, or a file of them",
+        operand = Operand.Opaque("deckId"),
+        options = CARD_FIELDS + DRY_RUN_OPTION,
+        writes = true,
+    ),
     CliCommand(
         path = "card edit",
         summary = "change a card - a field you omit is left alone",

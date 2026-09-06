@@ -86,6 +86,22 @@ suspend fun cardAdd(
     }
 
     val checks = planned.checkedImages(args, onNote)
+    if (args.has(DRY_RUN_FLAG)) {
+        return result(
+            CardWriteResult(
+                deckId = deckId,
+                cards = emptyList(),
+                written = planned.size,
+                skipped = skipped,
+                cardCount = deck.cardCount,
+                imageChecks = checks,
+                dryRun = true,
+            ),
+            "Would add ${planned.size} card(s) to $deckId" +
+                (if (skipped > 0) ", skipping $skipped already present" else "") +
+                ". Nothing was written.",
+        )
+    }
     return appendBatch(deckId, deck, decks, cards, planned, skipped, checks, onProgress)
 }
 
