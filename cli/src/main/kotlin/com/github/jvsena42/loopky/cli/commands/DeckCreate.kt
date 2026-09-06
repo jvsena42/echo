@@ -86,8 +86,9 @@ data class DeckCreateResult(
  * this command's own card-file reader, every row's validation and `--check-images` — and returns
  * before the publish, with `created` saying whether the deck *would* be published.
  * `import --dry-run` was the only pre-flight there was, and it goes through a *different* parser
- * (#257, item 8), so it could not answer what this command would do with the same file. Unlike that one it needs a session, because the two things worth checking here — is
- * this id free, and would a publish replace a deck's chunk table — are homeserver reads.
+ * (#257, item 8), so it could not answer what this command would do with the same file. Unlike
+ * that one it needs a session, because the two things worth checking here — is this id free, and
+ * would a publish replace a deck's chunk table — are homeserver reads.
  */
 suspend fun deckCreate(
     args: Args,
