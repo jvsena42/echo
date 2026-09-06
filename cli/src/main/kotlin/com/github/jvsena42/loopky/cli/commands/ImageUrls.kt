@@ -4,6 +4,7 @@ import com.github.jvsena42.loopky.cli.CliError
 import com.github.jvsena42.loopky.cli.ExitCode
 import com.github.jvsena42.loopky.data.repository.ImportRepository
 import com.github.jvsena42.loopky.domain.model.isRenderableImageUrl
+import kotlinx.serialization.Serializable
 
 /**
  * What the CLI can tell an agent about a picture it will never fetch.
@@ -23,6 +24,23 @@ import com.github.jvsena42.loopky.domain.model.isRenderableImageUrl
  *   broken — on stderr, never fatal, because a host's rules are theirs to change and a stale
  *   check must not be able to fail somebody's import.
  */
+
+/**
+ * A picture a rule can call wrong **without asking any host**, and why.
+ *
+ * It rides in `--json` as `image_advice` rather than in `image_checks`, which is documented as
+ * what `--check-images` found: this runs on every import, flag or no flag, and folding an
+ * always-on finding into the opt-in flag's field would change that field's meaning under the same
+ * schema version. A sibling array adds one, which is allowed (#257).
+ */
+@Serializable
+data class ImageAdvice(
+    /** The card and the side it is on, as the stderr note names it: `"Card 201 front image"`. */
+    val where: String,
+    val url: String,
+    /** The whole note, newlines included — a rewritten address is part of it. */
+    val advice: String,
+)
 
 /**
  * The one call for an image URL arriving from outside: refuses what can never render, and notes
@@ -274,14 +292,26 @@ internal suspend fun ImportRepository.draftImageUrls(): List<Pair<String, String
  * A 1210-card import's one genuine finding was lost exactly that way (#257, item 1). The refusal
  * still happens here, at parse time: it ends the command, so nothing can bury it.
  */
-internal fun List<Pair<String, String>>.staticImageAdvice(): List<String> = mapNotNull { (where, url) ->
+internal fun List<Pair<String, String>>.staticImageAdvice(): List<ImageAdvice> = mapNotNull { (where, url) ->
     url.requireRenderableImageUrl(where)
-    imageUrlAdvice(url)?.let { "$where — $it" }
+    imageUrlAdvice(url)?.let { ImageAdvice(where = where, url = url, advice = it) }
 }
 
-/** [staticImageAdvice] on stderr, in one labelled block, after everything the network had to say. */
-internal fun List<String>.reportStaticImageAdvice(onNote: (String) -> Unit) {
+/**
+ * [staticImageAdvice] on stderr, in one labelled block, after everything the network had to say.
+ *
+ * Capped like `--check-images`'s two buckets, and for the same reason — each entry is several
+ * lines, so a deck of 1210 bad thumbnail widths would bury the block that was just capped to stay
+ * readable. The cap is only safe because every row also travels in `--json` as `image_advice`.
+ */
+internal fun List<ImageAdvice>.reportStaticImageAdvice(onNote: (String) -> Unit) {
     if (isEmpty()) return
     onNote("loopky: $size picture URL(s) are knowably wrong without asking any host:")
-    forEach { onNote("loopky:   $it") }
+    take(MAX_REPORTED_ADVICE).forEach { onNote("loopky:   ${it.where} — ${it.advice}") }
+    if (size > MAX_REPORTED_ADVICE) {
+        onNote("loopky:   … and ${size - MAX_REPORTED_ADVICE} more — every one is in --json image_advice.")
+    }
 }
+
+/** Entries printed on stderr before the rest are left to `--json`. Matches `--check-images`'s cap. */
+private const val MAX_REPORTED_ADVICE = 20

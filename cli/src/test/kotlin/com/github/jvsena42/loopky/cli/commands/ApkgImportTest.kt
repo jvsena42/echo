@@ -302,6 +302,44 @@ class ApkgImportTest {
     }
 
     /**
+     * The advice a string can give without asking any host is on the **verification channel**, not
+     * only on stderr.
+     *
+     * It is the half the code calls more valuable — what a URL is *known* to be wrong about rather
+     * than what a host answered this minute — and it was invisible to `--json` while
+     * `--check-images` findings were not (#261 review, finding 2). It is a sibling array rather
+     * than a row in `image_checks`, which is documented as what that opt-in flag found: this runs
+     * whether or not the flag was passed.
+     */
+    @Test
+    fun `static picture advice travels in the envelope, not only on stderr`() {
+        val tsv = tempFile("cards", ".tsv").apply {
+            writeText(
+                "bandeira\tflag\thttps://upload.wikimedia.org/wikipedia/commons/0/03/Flag.svg\t\n" +
+                    "gaivota\tgull\thttps://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/G.jpg/800px-G.jpg\t\n",
+            )
+        }
+
+        val advice = dryRun(tsv)["image_advice"]!!.jsonArray
+
+        assertEquals(2, advice.size)
+        assertEquals("Card 1 front image", advice[0].jsonObject.string("where"))
+        assertTrue("either app can decode" in advice[0].jsonObject.string("advice"))
+        assertTrue("800px" in advice[1].jsonObject.string("advice"))
+        // No --check-images here: the two arrays are independent, which is why they are two.
+        assertEquals(0, dryRun(tsv)["image_checks"]!!.jsonArray.size)
+    }
+
+    @Test
+    fun `a file whose pictures are all fine carries no advice`() {
+        val tsv = tempFile("cards", ".tsv").apply {
+            writeText("a\tb\thttps://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/G.jpg/500px-G.jpg\t\n")
+        }
+
+        assertEquals(0, dryRun(tsv)["image_advice"]!!.jsonArray.size)
+    }
+
+    /**
      * A four-column TSV goes through the same structured entry point as an `.apkg` and used to
      * report `"none"` for it — which reads as a parse failure on a file that parsed perfectly, on
      * exactly the run whose job is validating the file before a production write (#257, item 7).

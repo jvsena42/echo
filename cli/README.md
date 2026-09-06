@@ -373,6 +373,12 @@ the status and content type of everything that is not a 2xx picture, on stderr a
 `image_checks` — and reports **nothing** about a URL that is fine, because a finding buried in 900
 lines of "this one is fine" is no better than the check you wrote by hand.
 
+**What a string is known to be wrong about travels separately, as `image_advice`.** An
+undecodable format or a thumbnail width Wikimedia does not serve is reported on `import` whether or
+not `--check-images` was passed, so it is a sibling array rather than a row in `image_checks` —
+which is documented as what that opt-in flag found. On stderr it is printed last, after everything
+the network had to say, and capped at 20 entries like the buckets below; `--json` carries them all.
+
 **"Wrong" and "could not be checked" are different answers.** A `429`, a timeout or a `5xx` says
 nothing about the picture, so it is `unverified` in `--json` and counted apart in the summary line:
 

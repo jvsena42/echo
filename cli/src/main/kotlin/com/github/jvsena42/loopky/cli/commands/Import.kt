@@ -64,6 +64,15 @@ data class ImportResult(
     val apkg: ApkgSummary? = null,
     /** What `--check-images` found, and only what is worth reporting. Empty without the flag. */
     @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
+    /**
+     * What is wrong with a picture URL without asking any host — an undecodable format, a
+     * thumbnail width Wikimedia does not serve. See [ImageAdvice].
+     *
+     * Reported whether or not `--check-images` was passed, which is why it is not folded into
+     * [imageChecks]: it is also the *more* valuable half, since it is what a string is known to be
+     * wrong about rather than what a host happened to answer this minute.
+     */
+    @SerialName("image_advice") val imageAdvice: List<ImageAdvice> = emptyList(),
 )
 
 /**
@@ -96,6 +105,8 @@ data class ImportPreview(
      * agent can still fix 900 addresses before a single card carries one.
      */
     @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
+    /** The same as [ImportResult.imageAdvice], and worth the most here: nothing is written yet. */
+    @SerialName("image_advice") val imageAdvice: List<ImageAdvice> = emptyList(),
 )
 
 /** The `--json` spelling of a format, kept beside the enum so the two cannot drift. */
@@ -146,8 +157,7 @@ suspend fun import(
     // Before anything is built, because `remoteImage` refuses an http:// address by throwing an
     // assertion no classifier recognises — so an unrenderable column in someone's file reached the
     // user as exit 1 "internal" plus a Kotlin message. This is also where the /thumb/ and
-    // undecodable-format advice reaches an import at all; only `card add` ever ran it before. The
-    // advice is held back and printed after `--check-images` — see `staticImageAdvice`.
+    // undecodable-format advice reaches an import at all; only `card add` ever ran it before.
     val images = imports.draftImageUrls()
     val advice = images.staticImageAdvice()
     val resume = resumeState(args, decks, cards, title, onNote)
@@ -155,13 +165,17 @@ suspend fun import(
     // a resumed run writes cards addressed to a deck that does not exist.
     val deckId = resume.deck?.id ?: generateId()
 
+    // Both before a byte is written, and the advice after the probe. Inside the `try` it was
+    // printed only by a run that got past card building and media upload — so an import that died
+    // there, the run most likely to want the advice, showed none of it. Ahead of the upload it
+    // also gets the chance to say the pictures are wrong before the quota is spent on them.
+    val imageChecks = images.map { it.second }.checkedIfAsked(args, onNote)
+    advice.reportStaticImageAdvice(onNote)
+
     // Blobs this invocation wrote, so an aborted publish of a *new* deck can take them back out.
     val uploaded = mutableListOf<MediaRef>()
-    var imageChecks = emptyList<ImageCheck>()
     val written = try {
         val built = buildCards(imports, draft, resume, deckId, media, uploaded, onProgress)
-        imageChecks = images.map { it.second }.checkedIfAsked(args, onNote)
-        advice.reportStaticImageAdvice(onNote)
         val published = if (resume.deck != null) {
             appendMissing(decks, deckId, built, resume.deck.overlaidWith(args), onProgress)
         } else {
@@ -197,6 +211,7 @@ suspend fun import(
             format = parsed.format.json,
             apkg = parsed.apkg,
             imageChecks = imageChecks,
+            imageAdvice = advice,
         ),
         describeImport(written, title, parsed, resume),
     )
@@ -295,6 +310,7 @@ suspend fun importDryRun(
             separator = parsed.separator,
             apkg = parsed.apkg,
             imageChecks = imageChecks,
+            imageAdvice = advice,
         ),
         buildString {
             appendLine("$source would publish $cards ${if (cards == 1) "card" else "cards"}. Nothing was written.")

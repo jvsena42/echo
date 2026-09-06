@@ -1635,7 +1635,12 @@ default concurrency is **3** and a `429` is retried with backoff; measured again
 42 s at six; 250 came back 250/250 clean in 83 s), so `--check-images-concurrency` exists for a
 host that is not Wikimedia rather than as a speed dial. And neither bucket prints more than 20
 lines on stderr, with the static advice held back and printed **after** the network block, because
-what a string is knowably wrong about survives a noisy run only if it is last.
+what a string is knowably wrong about survives a noisy run only if it is last — capped there too,
+since each entry is several lines and a deck of 1210 bad widths would bury the block just capped to
+stay readable. That cap is only safe because the advice also travels in `--json`, as
+**`image_advice`** rather than as rows in `image_checks`: it is reported whether or not the flag
+was passed, and folding an always-on finding into the opt-in flag's field would change that field's
+meaning under the same schema version.
 
 `card list` pages over the **chunk table** rather than the deck: `--limit`/`--cursor` fetch only
 the records a page needs, and `--missing-image`/`--has-image` narrow what comes back. There is no
