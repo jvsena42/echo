@@ -2551,3 +2551,51 @@ stayed `0` throughout while `dumpsys window displays`'s `cur=` told the truth. `
 **A container's `.accessibilityIdentifier` overwrites its children's.** With one on the card,
 both buttons came back from `snapshot-ui` as `profile_name_nudge` — the journey could tap "Add
 name" and "Not now" only by position. The card carries no identifier now; its two buttons do.
+
+---
+
+## "How about a photo?" — the avatar prompt, and where a photo is actually set — 2026-09-06, `iPhone 17 Pro` + `iPad Air 13"` sims + `Pixel_Tablet` (staging)
+
+Loopky cannot set a profile photo: the write it owns is name and bio, and the picture is a file
+record uploaded by pubky.app. So the hero avatar gains a **camera badge** that raises a dialog
+pointing there, and a named account with no photo gets the same one-time card the name prompt
+uses — **only when the name card is not on screen**, with its own device-local flag
+(`AppPreferences.avatarNudgeDismissed`).
+
+Driven on the `ma8tms` staging account ("Name test", no photo), whose name was blanked and
+restored to check the precedence rule.
+
+| Step | Result |
+| --- | --- |
+| Camera badge on the hero avatar, own profile only | ✅ PASS — `ProfileHero`'s `onEditAvatar` is null on a friend's profile |
+| Tap it → "Change your photo" dialog, "Open pubky.app" / "Not now" | ✅ PASS on both platforms |
+| "Open pubky.app" → this environment's profile page in the browser | ✅ PASS — a debug build landed on `staging.pubky.app`, not production |
+| Named account with no photo → "How about a photo?" card under the hero | ✅ PASS |
+| Nameless account → **only** the name card; the photo card yields | ✅ PASS — blanked the name and saved, then restored it and the photo card came back |
+| `profile_avatar_nudge_action` ("Open pubky.app") on the card opens the browser directly, no second dialog | ✅ PASS |
+| `profile_avatar_nudge_dismiss` ("Not now") removes the card, badge stays | ✅ PASS |
+| Relaunch → card stays gone, badge stays | ✅ PASS on both platforms (SharedPreferences / `NSUserDefaults`) |
+| Android `Pixel_Tablet` at medium 800dp and expanded 1280dp | ✅ PASS — badge and card both live in `ProfileIdentityPane`, so the two-pane layout gets them in the left column |
+| iOS compact (`iPhone 17 Pro`) and regular (`iPad Air 13"`) | ✅ PASS — same `identityPane` on both |
+| `:shared:jvmTest`, `ciCheck` (detekt + `lintSwift` + iOS klib), `:composeApp:assembleDebug`, iOS `simulator build-and-run` | ✅ PASS |
+
+### Worth knowing
+
+**`Modifier.shadow` clips its content, and it cut the badge into a crescent.** The avatar's glow is
+drawn by `shadow(elevation, shape = CircleShape)` on a wrapping `Box`, and that overload's `clip`
+defaults to `elevation > 0.dp` — so a corner-aligned child is clipped to the circle. The badge
+compiled, laid out, and rendered as a pac-man on the device only. The badge now sits in an outer
+`Box` beside the shadowed one. Found by screenshot; `assembleDebug` and `snapshot-ui`/`android
+layout` all said the button was there and whole.
+
+**`user_rotation` still does nothing on `Pixel_Tablet`, but `adb emu rotate` does.** Contrary to
+the note from the name-prompt run above, `adb -s emulator-5554 emu rotate` flipped this AVD between
+`cur=1600x2560` (medium) and `cur=2560x1600` (expanded) first time, every time, while
+`settings put system user_rotation 0|1` left `cur=` untouched however many times it was set. Use
+`emu rotate` and read `dumpsys window displays`'s `cur=`.
+
+**Resetting a nudge flag without signing out:** `adb shell run-as com.github.jvsena42.loopky cat
+shared_prefs/loopky.preferences.xml`, strip the `*_nudge_dismissed` lines on the host, `adb push`
+to `/data/local/tmp` and `run-as … cp` it back, with the app force-stopped. `run-as sh -c` starts
+in `/data/user/0/…` where `shared_prefs` is not visible, so the redirect-in-place forms all fail;
+`run-as` without `sh -c` is the one that works.

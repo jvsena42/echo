@@ -41,6 +41,7 @@ struct ProfileScreen: View {
                 viewModel?.onEditProfileClick()
             },
             onDismissNameNudge: { viewModel?.onDismissNameNudge() },
+            onDismissAvatarNudge: { viewModel?.onDismissAvatarNudge() },
             onDismissEdit: { viewModel?.onDismissEditSheet() },
             onSaveEdit: { viewModel?.onSaveClick() },
             onEditNameChanged: { viewModel?.onEditNameChanged(text: $0) },
@@ -87,6 +88,7 @@ struct ProfileScreen: View {
             avatarUrl: identity?.avatarUrl,
             needsBackup: state.needsBackup,
             showNameNudge: state.showNameNudge,
+            showAvatarNudge: state.showAvatarNudge,
             bio: state.identity?.bio,
             deckCount: Int(state.deckCount),
             cardCount: Int(state.cardCount),
@@ -149,6 +151,9 @@ struct ProfileViewState {
     var needsBackup: Bool = false
     /// This account has published no display name and has not waved the prompt away.
     var showNameNudge: Bool = false
+    /// This account has published no photo, has not waved the prompt away, and is not already
+    /// being asked for a name — the two cards never stack.
+    var showAvatarNudge: Bool = false
     var bio: String?
     var deckCount: Int = 0
     var cardCount: Int = 0

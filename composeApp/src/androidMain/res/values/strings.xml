@@ -378,6 +378,17 @@
     <string name="profile_name_nudge_action">Add name</string>
     <string name="profile_name_nudge_dismiss">Not now</string>
 
+    <!-- The photo prompt. Loopky cannot set one at all, so both the card and the dialog say where
+         it is done and that the key is the same. Kept to one line: a paragraph here is skipped.
+         The card invites and the dialog answers a tap, so they say it in different registers. -->
+    <string name="profile_avatar_nudge_title">How about a photo?</string>
+    <string name="profile_avatar_nudge_body">Add yours on pubky.app, with the same key you use here.</string>
+    <string name="profile_avatar_hint">Photos are set on pubky.app. Sign in there with the same key.</string>
+    <string name="profile_avatar_dialog_title">Change your photo</string>
+    <string name="profile_avatar_open_pubky_app">Open pubky.app</string>
+    <string name="profile_avatar_not_now">Not now</string>
+    <string name="profile_edit_avatar_content_description">Change profile photo</string>
+
     <!-- Friend profile -->
     <string name="friend_profile_back_content_description">Back</string>
     <string name="friend_profile_copy_pubky">Copy pubky</string>
