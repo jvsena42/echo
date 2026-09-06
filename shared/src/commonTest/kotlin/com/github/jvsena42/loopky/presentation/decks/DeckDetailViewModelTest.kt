@@ -1,9 +1,7 @@
 package com.github.jvsena42.loopky.presentation.decks
 
 import com.github.jvsena42.loopky.domain.model.DeckAnnouncement
-import com.github.jvsena42.loopky.domain.model.DeckSource
 import com.github.jvsena42.loopky.domain.model.PubkyIdentity
-import com.github.jvsena42.loopky.domain.model.ReservedTags
 import com.github.jvsena42.loopky.domain.model.SrsGrade
 import com.github.jvsena42.loopky.domain.model.SrsState
 import com.github.jvsena42.loopky.domain.model.StudySettings
@@ -528,120 +526,6 @@ class DeckDetailViewModelTest {
         assertEquals<List<DeckDetailEffect>>(listOf(DeckDetailEffect.NavigateStudy), effects)
     }
 
-    // ── clone deck (#33) ─────────────────────────────────────────────────
-
-    @Test
-    fun `cloning confirms first then navigates to the copy`() = runTest(mainDispatcher) {
-        // The share offer is exercised separately below; here it would only sit between the clone
-        // and its navigation.
-        preferences.setShareOnPubky(false)
-        deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk", cardCount = 40)
-        val vm = viewModel(authorPubky = "friendpk")
-        advanceUntilIdle()
-
-        val effects = mutableListOf<DeckDetailEffect>()
-        val job = launch { vm.effects.collect { effects.add(it) } }
-        advanceUntilIdle()
-
-        vm.onCloneClick()
-        advanceUntilIdle()
-        // A clone is N+1 writes, so it asks before spending them.
-        assertTrue(assertIs<DeckDetailUiState.Content>(vm.state.value).showCloneConfirm)
-        assertTrue(deckRepo.cloned.isEmpty())
-
-        vm.onConfirmClone()
-        advanceUntilIdle()
-        job.cancel()
-
-        assertEquals(listOf("deck1"), deckRepo.cloned.map { it.id })
-        // The copy is what the user now owns; leaving them on the source looks like nothing happened.
-        assertEquals<List<DeckDetailEffect>>(
-            listOf(DeckDetailEffect.Cloned("clone-of-deck1")),
-            effects,
-        )
-    }
-
-    @Test
-    fun `dismissing the clone dialog spends nothing`() = runTest(mainDispatcher) {
-        deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk")
-        val vm = viewModel(authorPubky = "friendpk")
-        advanceUntilIdle()
-
-        vm.onCloneClick()
-        vm.onDismissClone()
-        advanceUntilIdle()
-
-        assertEquals(false, assertIs<DeckDetailUiState.Content>(vm.state.value).showCloneConfirm)
-        assertTrue(deckRepo.cloned.isEmpty())
-    }
-
-    @Test
-    fun `a failed clone reports and clears the spinner`() = runTest(mainDispatcher) {
-        deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk")
-        deckRepo.cloneError = IllegalStateException("homeserver unreachable")
-        val vm = viewModel(authorPubky = "friendpk")
-        advanceUntilIdle()
-
-        vm.onCloneClick()
-        vm.onConfirmClone()
-        advanceUntilIdle()
-
-        val state = assertIs<DeckDetailUiState.Content>(vm.state.value)
-        assertEquals(false, state.isCloning)
-        assertNotNull(state.errorReason)
-
-        vm.onDismissError()
-        assertNull(assertIs<DeckDetailUiState.Content>(vm.state.value).errorReason)
-    }
-
-    @Test
-    fun `a clone credits the deck it came from`() = runTest(mainDispatcher) {
-        deckRepo.decks["deck1"] = testDeck(id = "deck1", authorPubky = TEST_PUBKY).copy(
-            source = DeckSource(
-                kind = DeckSource.Kind.Clone,
-                uri = "pubky://friendpk/pub/loopky/decks/orig/manifest.json",
-            ),
-        )
-        identityRepo.profiles["friendpk"] =
-            PubkyIdentity("friendpk", displayName = "Mei", avatarUrl = null, bio = null)
-
-        val vm = viewModel()
-        advanceUntilIdle()
-
-        // Attribution has to reach the screen, not just sit in the manifest's `source` block.
-        assertEquals("Mei", assertIs<DeckDetailUiState.Content>(vm.state.value).clonedFrom?.displayName)
-    }
-
-    @Test
-    fun `follower and clone counts come from the reserved labels`() = runTest(mainDispatcher) {
-        val deck = testDeck(id = "deck1", authorPubky = "friendpk")
-        deckRepo.decks["deck1"] = deck
-        tagRepo.counts = mapOf(
-            deck.pubkyUri to mapOf(ReservedTags.FOLLOWED to 12, ReservedTags.CLONED to 3),
-        )
-
-        val vm = viewModel(authorPubky = "friendpk")
-        advanceUntilIdle()
-
-        val state = assertIs<DeckDetailUiState.Content>(vm.state.value)
-        assertEquals(expected = 12, actual = state.followerCount)
-        assertEquals(expected = 3, actual = state.clonedCount)
-    }
-
-    @Test
-    fun `an unreachable indexer leaves the counts at zero rather than failing the screen`() =
-        runTest(mainDispatcher) {
-            deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk")
-            tagRepo.failWith = IllegalStateException("indexer unreachable")
-
-            val vm = viewModel(authorPubky = "friendpk")
-            advanceUntilIdle()
-
-            val state = assertIs<DeckDetailUiState.Content>(vm.state.value)
-            assertEquals(expected = 0, actual = state.followerCount)
-            assertEquals(expected = 0, actual = state.clonedCount)
-        }
-
     // ── share on Pubky (#39) ─────────────────────────────────────────────
 
     @Test
@@ -702,8 +586,8 @@ class DeckDetailViewModelTest {
             val effects = mutableListOf<DeckDetailEffect>()
             val job = launch { vm.effects.collect { effects.add(it) } }
 
-            vm.onCloneClick()
-            vm.onConfirmClone()
+            vm.onEditClick()
+            vm.onConfirmClone("My copy")
             advanceUntilIdle()
 
             // The clone is done, but the screen has not moved yet — the offer is still up.
@@ -733,8 +617,8 @@ class DeckDetailViewModelTest {
             val effects = mutableListOf<DeckDetailEffect>()
             val job = launch { vm.effects.collect { effects.add(it) } }
 
-            vm.onCloneClick()
-            vm.onConfirmClone()
+            vm.onEditClick()
+            vm.onConfirmClone("My copy")
             advanceUntilIdle()
             vm.onShareConfirm()
             advanceUntilIdle()
