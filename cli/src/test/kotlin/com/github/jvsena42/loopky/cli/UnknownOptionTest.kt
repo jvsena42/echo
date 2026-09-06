@@ -69,7 +69,11 @@ class UnknownOptionTest {
             .findAll(text)
             .associate { it.groupValues[1] to it.groupValues[2] }
 
-        val read = Regex("""\b(?:option|options|has|flag|flagOrNull|positiveInt|positiveIntOrNull)\(\s*(?:"([^"$]+)"|(\w+))""")
+        // `requireOption` too, and it is not covered by `option`: `\b` is case-sensitive, so
+        // `requireOption("title")` matched nothing and a future `requireOption("newflag")` would
+        // have passed this guard and then exited 2 at runtime.
+        val accessors = "requireOption|options|option|has|flagOrNull|flag|positiveIntOrNull|positiveInt"
+        val read = Regex("""\b(?:$accessors)\(\s*(?:"([^"$]+)"|(\w+))""")
             .findAll(text)
             .mapNotNull { match ->
                 val literal = match.groupValues[1]
