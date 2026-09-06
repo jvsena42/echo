@@ -159,7 +159,7 @@ class FakeDeckRepository(
     override suspend fun listFollowedBy(ownerPubky: String): List<Deck> = no("listFollowedBy")
     override suspend fun hasUpdate(deckId: String): Boolean = no("hasUpdate")
     override suspend fun markSeen(deck: Deck) = no("markSeen")
-    override suspend fun clone(source: Deck): Result<Deck> = no("clone")
+    override suspend fun clone(source: Deck, title: String): Result<Deck> = no("clone")
 }
 
 class FakeCardRepository(

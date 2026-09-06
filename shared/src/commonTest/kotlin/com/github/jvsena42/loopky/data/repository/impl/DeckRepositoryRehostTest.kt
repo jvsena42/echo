@@ -102,7 +102,7 @@ class DeckRepositoryRehostTest {
     fun rehostBlobClearsTheUriOnTheStoredCard() = runTest {
         val repo = repo()
         putRemoteDeck(listOf(cardWith("c1", pinnedImage())))
-        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
 
         repo.rehostBlob(clone.id, "abc").getOrThrow()
 
@@ -115,7 +115,7 @@ class DeckRepositoryRehostTest {
     fun rehostBlobRewritesTheDeckCover() = runTest {
         val repo = repo()
         putRemoteDeck(listOf(cardWith("c1", null)), cover = pinnedImage("cov"))
-        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
 
         repo.rehostBlob(clone.id, "cov").getOrThrow()
 
@@ -126,7 +126,7 @@ class DeckRepositoryRehostTest {
     fun rehostBlobCopiesOnceForCardsThatShareABlob() = runTest {
         val repo = repo()
         putRemoteDeck((1..3).map { cardWith("c$it", pinnedImage()) })
-        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
 
         repo.rehostBlob(clone.id, "abc").getOrThrow()
 
@@ -139,7 +139,7 @@ class DeckRepositoryRehostTest {
     fun rehostBlobIsNotAttemptedTwice() = runTest {
         val repo = repo()
         putRemoteDeck(listOf(cardWith("c1", pinnedImage())))
-        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
 
         repo.rehostBlob(clone.id, "abc").getOrThrow()
         val puts = pubky.puts.size
@@ -155,7 +155,7 @@ class DeckRepositoryRehostTest {
     fun aFailedRehostIsNotRetriedForTheRestOfTheSession() = runTest {
         val repo = repo()
         putRemoteDeck(listOf(cardWith("c1", pinnedImage())))
-        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
         media.failRehostWith = PubkyError("404 Not Found")
 
         assertTrue(repo.rehostBlob(clone.id, "abc").isFailure)
@@ -189,7 +189,7 @@ class DeckRepositoryRehostTest {
     fun rehostBlobIsANoOpWhenNoCachedCardCarriesTheSha() = runTest {
         val repo = repo()
         putRemoteDeck(listOf(cardWith("c1", pinnedImage())))
-        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
 
         repo.rehostBlob(clone.id, "nothing-carries-this").getOrThrow()
 
@@ -200,7 +200,7 @@ class DeckRepositoryRehostTest {
     fun rehostBlobLeavesTheCardAloneWhenTheOriginIsGone() = runTest {
         val repo = repo()
         putRemoteDeck(listOf(cardWith("c1", pinnedImage())))
-        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
         val before = storedCards(repo.getLocal(clone.id)!!)
         media.failRehostWith = PubkyError("404 Not Found")
 
@@ -214,7 +214,7 @@ class DeckRepositoryRehostTest {
     fun rehostBlobDoesNotTouchTheDeckOrNotifyFollowers() = runTest {
         val repo = repo()
         putRemoteDeck(listOf(cardWith("c1", pinnedImage())))
-        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
         // A stamp the current clock cannot coincidentally reproduce: publish and re-host land in
         // the same millisecond here, so comparing against the clone's own stamp proves nothing.
         repo.updateMetadata(clone.copy(updatedAt = 1_234L)).getOrThrow()
@@ -239,7 +239,7 @@ class DeckRepositoryRehostTest {
     fun aPinnedFetchTriggersARehost() = runTest {
         val repo = repo()
         putRemoteDeck(listOf(cardWith("c1", pinnedImage())))
-        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow()).getOrThrow()
+        val clone = repo.clone(repo.fetchRemote("friendpk", "orig").getOrThrow(), "My copy").getOrThrow()
 
         // What MediaRepository.get emits once it has served the blob to draw the card.
         media.emitPinnedFetch(clone.id, "abc")

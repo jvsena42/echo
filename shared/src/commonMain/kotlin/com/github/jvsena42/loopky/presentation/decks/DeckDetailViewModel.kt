@@ -172,8 +172,28 @@ class DeckDetailViewModel(
         viewModelScope.launch { _effects.emit(effect) }
     }
 
+    /**
+     * Edit, and the one place a copy is offered (#254).
+     *
+     * A followed deck is the author's: it is read-only, and it keeps receiving their changes. So
+     * "edit this" is the moment — and the only moment — that owning a copy is the answer, which is
+     * why Clone is no longer a second pill competing with Follow. Nothing is copied here; the
+     * confirm names what a copy costs and collects the title it needs.
+     */
     fun onEditClick() {
-        viewModelScope.launch { _effects.emit(DeckDetailEffect.NavigateEditDeck(deckId)) }
+        val current = _state.value as? DeckDetailUiState.Content ?: return
+        if (current.isOwned) {
+            viewModelScope.launch { _effects.emit(DeckDetailEffect.NavigateEditDeck(deckId)) }
+            return
+        }
+        // Kept for a screen that offers this on a deck the reader has not followed: the copy is
+        // written under their own pubky, and a guest has none. A greyed-out button explains
+        // nothing, so the prompt is raised where the action is reached.
+        if (!current.isSignedIn) {
+            _state.update { current.copy(signInPrompt = SignInReason.CloneDeck) }
+            return
+        }
+        _state.update { current.copy(showCloneConfirm = true) }
     }
 
     fun onDeleteDeck() {
@@ -276,19 +296,6 @@ class DeckDetailViewModel(
         }
     }
 
-    /** Confirmed rather than immediate: a clone is N+1 writes, and the card count says how many. */
-    fun onCloneClick() {
-        val current = _state.value as? DeckDetailUiState.Content ?: return
-        // N+1 writes under a pubky the visitor does not have yet. The prompt replaces the confirm
-        // dialog rather than preceding it — there is nothing to confirm the size of until there
-        // is somewhere to put it.
-        if (!current.isSignedIn) {
-            _state.update { current.copy(signInPrompt = SignInReason.CloneDeck) }
-            return
-        }
-        _state.update { current.copy(showCloneConfirm = true) }
-    }
-
     /** The visitor read the prompt and stayed. Nothing was written either way. */
     fun onDismissSignInPrompt() {
         val current = _state.value as? DeckDetailUiState.Content ?: return
@@ -300,8 +307,16 @@ class DeckDetailViewModel(
         _state.update { current.copy(showCloneConfirm = false) }
     }
 
-    fun onConfirmClone() {
+    /**
+     * [title] is the copy's own name, collected in the confirm and mandatory — see
+     * [DeckRepository.clone]. Held by the screen rather than in this state: a text field that
+     * round-trips every keystroke through a ViewModel drops characters on iOS.
+     */
+    fun onConfirmClone(title: String) {
         val current = _state.value as? DeckDetailUiState.Content ?: return
+        // Guarded here as well as in the dialog, which disables its confirm: the rule is what makes
+        // the copy findable next to the deck it forked, so it cannot live only in a button's state.
+        if (title.isBlank() || current.isSourceName(title)) return
         _state.update { current.copy(showCloneConfirm = false, isCloning = true) }
         viewModelScope.launch {
             val source = deckRepository.getLocal(deckId)
@@ -311,12 +326,19 @@ class DeckDetailViewModel(
                 }
                 return@launch
             }
-            deckRepository.clone(source)
+            deckRepository.clone(source, title)
                 .onSuccess { clone ->
                     Log.d(TAG, "onConfirmClone: $deckId -> ${clone.id}")
                     // The copy is what gets announced — it is the deck the user now owns — with
                     // the source author credited in the text, matching the clone's provenance.
                     pendingCloneDeckId = clone.id
+                    // Cleared here rather than inside offerShare, which returns early — and used
+                    // to return without clearing it — when the user has announcements switched
+                    // off. The copy is written by this point either way, so leaving the spinner up
+                    // for the one setting stranded the screen on "Copying deck…" forever.
+                    _state.update { s ->
+                        (s as? DeckDetailUiState.Content)?.copy(isCloning = false) ?: s
+                    }
                     val offered = offerShare(
                         clone,
                         DeckAnnouncement.Kind.Cloned,
@@ -353,10 +375,7 @@ class DeckDetailViewModel(
         if (!appPreferences.shareOnPubky.first()) return false
         val announcement = DeckAnnouncement.of(deck, kind, authorName)
         _state.update { s ->
-            (s as? DeckDetailUiState.Content)?.copy(
-                isCloning = false,
-                sharePrompt = DeckSharePrompt(announcement),
-            ) ?: s
+            (s as? DeckDetailUiState.Content)?.copy(sharePrompt = DeckSharePrompt(announcement)) ?: s
         }
         return true
     }
@@ -623,7 +642,8 @@ sealed interface DeckDetailUiState {
         /**
          * Whether anyone is signed in. Deck detail is fully readable without an account — the
          * manifest and cards are public records — so this gates only the actions that write:
-         * Follow and Clone. Always true alongside [isOwned], which needs a session to establish.
+         * Follow, and the copy behind Edit. Always true alongside [isOwned], which needs a session
+         * to establish.
          */
         val isSignedIn: Boolean = true,
         /**
@@ -670,7 +690,7 @@ sealed interface DeckDetailUiState {
          */
         val canPreview: Boolean = false,
         /**
-         * A guest reached for Follow or Clone. Holds the prompt over the loaded deck rather than
+         * A guest reached for an action that writes. Holds the prompt over the loaded deck rather than
          * replacing it: the deck is still perfectly readable, and dismissing must leave them
          * exactly where they were.
          */
@@ -683,7 +703,24 @@ sealed interface DeckDetailUiState {
         val sharePrompt: DeckSharePrompt? = null,
         /** A recoverable failure worth showing without tearing down the loaded deck. */
         val errorReason: ErrorReason? = null,
-    ) : DeckDetailUiState
+    ) : DeckDetailUiState {
+        /**
+         * The pencil is offered. Wider than [isOwned]: a followed deck carries it too, and there it
+         * offers a copy rather than the editor (#254).
+         */
+        val canEdit: Boolean get() = isOwned || isFollowing
+
+        /**
+         * Whether [title] is just this deck's own name again — the one thing a copy's mandatory
+         * name may not be, since the point of asking is that the copy lands in a library beside
+         * the deck it forked. Case- and space-insensitive: "spanish basics " reads as the same
+         * row as "Spanish Basics", so accepting it would defeat the rule while looking like it
+         * passed. Lives on the state so both platforms' dialogs check the same rule live, rather
+         * than each reimplementing the comparison.
+         */
+        fun isSourceName(candidate: String): Boolean =
+            candidate.trim().equals(title.trim(), ignoreCase = true)
+    }
     data class Error(
         val reason: ErrorReason,
         /** False when retrying cannot possibly succeed (e.g. the deck no longer exists). */

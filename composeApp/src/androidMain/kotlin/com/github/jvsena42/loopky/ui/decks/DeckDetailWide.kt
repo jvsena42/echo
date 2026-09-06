@@ -9,31 +9,22 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.github.jvsena42.loopky.R
 import com.github.jvsena42.loopky.presentation.decks.DeckDetailUiState
 import com.github.jvsena42.loopky.ui.components.AuthorRow
 import com.github.jvsena42.loopky.ui.components.CardPreviewRow
-import com.github.jvsena42.loopky.ui.components.LoopkyPrimaryButton
 import com.github.jvsena42.loopky.ui.components.StatsBar
 import com.github.jvsena42.loopky.ui.components.TagChip
 import com.github.jvsena42.loopky.ui.layout.PaneWidth
 import com.github.jvsena42.loopky.ui.layout.contentPane
-import com.github.jvsena42.loopky.ui.theme.LoopkyTheme
 
 /**
  * Everything above the card list: cover, title, author, tags, stats and the keep/study actions.
@@ -55,15 +46,14 @@ internal fun DeckDetailHeader(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onToggleFollow: () -> Unit,
-    onCloneClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = LoopkyTheme.colors
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        // Header: Back + Edit/Delete (owner only) + Share
+        // Header: Back + Edit (owned or followed) + Delete (owner only) + Share
         if (showHeaderBar) {
             HeaderBar(
                 isOwned = state.isOwned,
+                canEdit = state.canEdit,
                 onBackClick = onBackClick,
                 onShareClick = onShareClick,
                 onEditClick = onEditClick,
@@ -137,45 +127,25 @@ internal fun DeckDetailHeader(
             dueLabel = state.dueLabel,
             newCards = state.newCards,
             masteredPercent = state.masteredPercent,
-            // Only Total means anything on a deck that is not yours yet: the actions
-            // below are Follow and Clone, and there is nothing to be due.
+            // Only Total means anything on a deck that is not yours yet: the action
+            // below is Follow, and there is nothing to be due.
             showProgress = state.isOwned || state.isFollowing,
         )
 
-        // The two ways of keeping someone else's deck, side by side and equally
-        // weighted: they are genuinely different choices, not a primary and an
-        // afterthought. They sit under the stats rather than in the bottom bar —
-        // crowded against Study they read as three competing primaries, and Study
-        // is the only action that belongs to a deck you have already kept.
+        // The one way of keeping someone else's deck. Clone stood beside it as an
+        // equal until #254, which asked a reader who had just found a deck to pick
+        // between two words whose difference they had no reason to know — and made
+        // the cheap, reversible action look like half a decision. Copying is now
+        // reached from Edit, where the difference is the question. It sits under the
+        // stats rather than in the bottom bar: crowded against Study it read as
+        // competing primaries, and Study belongs to a deck you have already kept.
         if (!state.isOwned) {
-            Row(
+            FollowDeckButton(
+                isFollowing = state.isFollowing,
+                isPending = state.isFollowPending,
+                onClick = onToggleFollow,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                FollowDeckButton(
-                    isFollowing = state.isFollowing,
-                    isPending = state.isFollowPending,
-                    onClick = onToggleFollow,
-                    modifier = Modifier.weight(1f),
-                )
-                LoopkyPrimaryButton(
-                    label = stringResource(R.string.deck_detail_clone),
-                    onClick = onCloneClick,
-                    enabled = !state.isCloning,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("deck_clone"),
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = null,
-                            tint = colors.foregroundOnAccent,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    },
-                )
-            }
+            )
         }
     }
 }
@@ -200,7 +170,6 @@ internal fun WideDeckDetail(
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onToggleFollow: () -> Unit,
-    onCloneClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -215,6 +184,7 @@ internal fun WideDeckDetail(
         // cannot find.
         HeaderBar(
             isOwned = state.isOwned,
+            canEdit = state.canEdit,
             onBackClick = onBackClick,
             onShareClick = onShareClick,
             onEditClick = onEditClick,
@@ -235,7 +205,6 @@ internal fun WideDeckDetail(
                 onEditClick = onEditClick,
                 onDeleteClick = onDeleteClick,
                 onToggleFollow = onToggleFollow,
-                onCloneClick = onCloneClick,
                 modifier = Modifier
                     .width(DETAIL_PANE_WIDTH)
                     .verticalScroll(rememberScrollState())

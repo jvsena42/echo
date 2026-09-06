@@ -68,10 +68,11 @@
     <string name="deck_detail_in_your_library">IN YOUR LIBRARY</string>
     <string name="deck_detail_follow">Follow deck</string>
     <string name="deck_detail_following">Following</string>
-    <string name="deck_detail_clone">Clone deck</string>
-    <string name="deck_detail_cloning">Cloning deck…</string>
-    <string name="deck_detail_clone_dialog_title">Clone deck</string>
-    <string name="deck_detail_clone_confirm">Clone</string>
+    <string name="deck_detail_cloning">Copying deck…</string>
+    <string name="deck_detail_clone_dialog_title">Make your own copy?</string>
+    <string name="deck_detail_clone_name_label">Name your copy</string>
+    <string name="deck_detail_clone_name_same">Pick a different name from the original.</string>
+    <string name="deck_detail_clone_confirm">Copy</string>
     <string name="deck_detail_clone_cancel">Cancel</string>
     <string name="deck_detail_cloned_from">Cloned from %1$s</string>
     <string name="deck_detail_followers">%1$d following</string>

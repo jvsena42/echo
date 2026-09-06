@@ -34,7 +34,6 @@ struct DeckDetailScreen: View {
             onStudy: { viewModel?.onStudyClick() },
             onOpenTag: onOpenTag,
             onToggleFollow: { viewModel?.onToggleFollow() },
-            onClone: { viewModel?.onCloneClick() },
             onRefresh: { viewModel?.onRefresh() }
         )
         .alert("deck_detail_delete_dialog_title", isPresented: deleteConfirmBinding) {
@@ -46,13 +45,19 @@ struct DeckDetailScreen: View {
         .sheet(item: $shareItem) { item in
             ShareSheet(items: [item.text])
         }
-        .alert("deck_detail_clone_dialog_title", isPresented: cloneConfirmBinding) {
-            Button("deck_detail_clone_cancel", role: .cancel) { viewModel?.onDismissClone() }
-            Button("deck_detail_clone_confirm") { viewModel?.onConfirmClone() }
-        } message: {
-            // Names the card count: a clone is one write per chunk plus the manifest, and the user
-            // should know whether they are copying 20 cards or 20,000 before they wait for it.
-            Text(cloneMessage)
+        // Raised by Edit on a deck you follow, the only route to a copy (#254). A sheet rather than
+        // an alert because an alert snapshots its message: the "pick a different name" line could
+        // never appear as the reader typed. See CopyDeckSheet.
+        .sheet(isPresented: cloneConfirmBinding) {
+            if let content {
+                CopyDeckSheet(
+                    sourceTitle: content.title,
+                    cardCount: Int(content.totalCards),
+                    isSourceName: { content.isSourceName(candidate: $0) },
+                    onConfirm: { viewModel?.onConfirmClone(title: $0) },
+                    onCancel: { viewModel?.onDismissClone() }
+                )
+            }
         }
         .signInPrompt(
             reason: content?.signInPrompt,
@@ -80,6 +85,14 @@ struct DeckDetailScreen: View {
         }
         .overlay(alignment: .bottom) { toastView }
         .onAppear { attach() }
+        // A copy replaces this screen in place rather than stacking a near-identical one on top,
+        // so SwiftUI keeps the same view identity and the same @State — and `attach()` bails on a
+        // ViewModel that is already there. Without this the copy showed the deck it was copied
+        // from, still saying "Following", which looked exactly like the copy having failed.
+        .onChange(of: deckId) { _, _ in
+            detach()
+            attach()
+        }
         .onDisappear { detach() }
     }
 
@@ -108,6 +121,7 @@ struct DeckDetailScreen: View {
                 isFollowing: content.isFollowing,
                 isFollowPending: content.isFollowPending,
                 isCloning: content.isCloning,
+                canEdit: content.canEdit,
                 clonedFromLabel: content.clonedFrom.map { IdentityData($0).label },
                 followerCount: Int(content.followerCount),
                 canPreview: content.canPreview
@@ -128,15 +142,6 @@ struct DeckDetailScreen: View {
         return String(
             format: NSLocalizedString("deck_detail_delete_dialog_message", comment: ""),
             content.title
-        )
-    }
-
-    private var cloneMessage: String {
-        guard let content else { return "" }
-        return String(
-            format: NSLocalizedString("deck_detail_clone_dialog_message", comment: ""),
-            content.title,
-            content.totalCards
         )
     }
 

@@ -1871,23 +1871,6 @@
         }
       }
     },
-    "deck_detail_clone": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Clone deck"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copiar baralho"
-          }
-        }
-      }
-    },
     "deck_detail_clone_cancel": {
       "extractionState": "manual",
       "localizations": {
@@ -1911,7 +1894,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clone"
+            "value": "Copy"
           }
         },
         "pt-BR": {
@@ -1931,13 +1914,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "“%1$@” and its %2$lld card become a deck you own and can edit. It won't get the author's later changes."
+                  "value": "You'll own an editable copy of this %1$lld card. It won't get the author's updates, and your progress starts over."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "“%1$@” and its %2$lld cards become a deck you own and can edit. It won't get the author's later changes."
+                  "value": "You'll own an editable copy of all %1$lld cards. It won't get the author's updates, and your progress starts over."
                 }
               }
             }
@@ -1949,13 +1932,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "“%1$@” e sua %2$lld carta viram um baralho seu, que você pode editar. Ele não recebe as mudanças futuras do autor."
+                  "value": "Você terá uma cópia editável desta %1$lld carta. Ela não recebe as atualizações do autor, e seu progresso recomeça."
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "“%1$@” e suas %2$lld cartas viram um baralho seu, que você pode editar. Ele não recebe as mudanças futuras do autor."
+                  "value": "Você terá uma cópia editável das %1$lld cartas. Ela não recebe as atualizações do autor, e seu progresso recomeça."
                 }
               }
             }
@@ -1969,13 +1952,47 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clone deck"
+            "value": "Make your own copy?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Copiar baralho"
+            "value": "Fazer sua própria cópia?"
+          }
+        }
+      }
+    },
+    "deck_detail_clone_name_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name your copy"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dê um nome à sua cópia"
+          }
+        }
+      }
+    },
+    "deck_detail_clone_name_same": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick a different name from the original."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escolha um nome diferente do original."
           }
         }
       }
@@ -1993,6 +2010,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copiado de %1$@"
+          }
+        }
+      }
+    },
+    "deck_detail_cloning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copying deck…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiando baralho…"
           }
         }
       }

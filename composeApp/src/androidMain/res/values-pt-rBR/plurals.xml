@@ -88,8 +88,8 @@
         <item quantity="other">%1$d novas · %2$d cartas</item>
     </plurals>
     <plurals name="deck_detail_clone_dialog_message">
-        <item quantity="one">“%1$s” e sua %2$d carta viram um baralho seu, que você pode editar. Ele não recebe as mudanças futuras do autor.</item>
-        <item quantity="other">“%1$s” e suas %2$d cartas viram um baralho seu, que você pode editar. Ele não recebe as mudanças futuras do autor.</item>
+        <item quantity="one">Você terá uma cópia editável desta %1$d carta. Ela não recebe as atualizações do autor, e seu progresso recomeça.</item>
+        <item quantity="other">Você terá uma cópia editável das %1$d cartas. Ela não recebe as atualizações do autor, e seu progresso recomeça.</item>
     </plurals>
     <plurals name="publish_progress_count">
         <item quantity="one">Publicando %1$d de %2$d carta…</item>

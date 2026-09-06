@@ -510,12 +510,17 @@ class FakeDeckRepository : DeckRepository {
     /** Held open so a test can act while a clone is still in flight. */
     var cloneGate: CompletableDeferred<Unit>? = null
 
-    override suspend fun clone(source: Deck): Result<Deck> {
+    /** Titles handed to [clone], so a test can assert the copy was renamed rather than duplicated. */
+    val cloneTitles = mutableListOf<String>()
+
+    override suspend fun clone(source: Deck, title: String): Result<Deck> {
         cloneError?.let { return Result.failure(it) }
         cloneGate?.await()
         cloned.add(source)
+        cloneTitles.add(title)
         val copy = source.copy(
             id = "clone-of-${source.id}",
+            title = title,
             authorPubky = TEST_PUBKY,
             source = DeckSource(kind = DeckSource.Kind.Clone, uri = source.pubkyUri.value),
         )

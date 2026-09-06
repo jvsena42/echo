@@ -2453,3 +2453,55 @@ One new detail that breaks the scripted cadence in that older note: Android now 
 **app-chooser** ("Open with Pubky Ring — Just once / Always") between `onboarding_signin` and Ring's
 Select Pubky sheet. A blind tap script written before it walks straight past the sheet and starts
 tapping the guest shell. Answer **Always** once, then the recorded cadence applies again.
+
+## Copy to edit — Follow is the only offer, and the copy is named (#254) — 2026-09-06
+
+`journeys/26-copy-to-edit.xml`, new with this change. Driven on the **`iPhone 17` simulator**
+(staging, account `aefhomm…`) end to end; Android verified as far as a signed-out emulator allows.
+
+Follow and Clone used to sit side by side as equal pills. Clone is gone from deck detail: a deck
+you do not own offers **Follow** alone, and the copy is reached by tapping **Edit** on a deck you
+*follow* — the one moment owning your own version is the answer. The confirm names what a copy
+costs in one sentence and takes the copy's own name, which is mandatory and may not be the
+source's.
+
+| Step | Result |
+| --- | --- |
+| iOS: stranger's deck, not followed → only `deck_follow`; no `deck_clone`, no `deck_edit` | ✅ PASS |
+| iOS: follow it → `deck_edit` appears; still no `deck_delete` | ✅ PASS |
+| iOS: `deck_edit` raises "Make your own copy?" instead of the editor | ✅ PASS |
+| iOS: `deck_clone_confirm` disabled while `deck_clone_title` is empty | ✅ PASS |
+| iOS: typing the source's own title (`yyyyyZ` → autocapitalised `YyyyyZ`) → `deck_clone_name_error`, confirm stays disabled | ✅ PASS — the rule is case- and space-insensitive, so this is the interesting case |
+| iOS: a distinct name → error clears, confirm enables | ✅ PASS |
+| iOS: confirm → "Copying deck…" → **screen moves to the copy** | ✅ PASS — "IN YOUR LIBRARY", "Cloned from Cosmic-Crystal-Panda", Edit + Delete, 3 cards, "Start studying · 3 new" |
+| iOS: copy in the library under its new name, beside the original | ✅ PASS |
+| Android: guest view of a stranger's deck — `deck_follow` only, full width, no `deck_clone`/`deck_edit` | ✅ PASS (`emulator-5554`) |
+| Android: follow → Edit → copy | ⚪ **NOT RUN** — the emulator is still signed out (see the note above); needs an account |
+| `:shared:jvmTest`, `detektAll`, `lintSwift`, `:composeApp:assembleDebug`, iOS `simulator build` | ✅ PASS |
+
+**Two bugs that only a device found, both older than this change and both fatal once the copy
+became the only route.**
+
+*The copy finished and the screen never came back.* `isCloning` was cleared **inside** the share
+offer, which returns early — without clearing it — when "Share on Pubky" is off. With that one
+setting off, a copy that had fully succeeded left the screen on "Copying deck…" forever. It was
+invisible before because iOS only greyed the Clone button with it; the full-screen progress state
+this change added made it fatal, and it would have shown on Android all along. Now cleared on the
+success path itself, whatever the setting says, and pinned by
+`DeckDetailViewModelTest.a copy clears its spinner even with announcements switched off`.
+
+*The copy showed the deck it was copied from.* `RootView.replaceDeck` swaps the path entry, so
+SwiftUI keeps the same view identity and the same `@State` — and `DeckDetailScreen.attach()` bails
+on a ViewModel that is already there. The result was the source deck, still saying "Following",
+which reads exactly like the copy having failed. `DeckDetailScreen` now re-attaches on
+`onChange(of: deckId)`.
+
+**Two smaller findings.** An `.alert`'s `message` is snapshotted when it is presented, so the
+"pick a different name" line could never appear as the reader typed — only the confirm button's
+disabled state updated, leaving a greyed button with nothing saying why. The iOS prompt is a
+`CopyDeckSheet` for that reason; the button-disabling half of the alert did work. And the field
+needs `.autocorrectionDisabled()`: on a Portuguese keyboard it turned "Diag copy two" into
+"Diga copa tão" before the name ever reached the ViewModel.
+
+Filed while driving this: [#255](https://github.com/jvsena42/loopky/issues/255) — Discover deck
+tiles whose cover does not fill the card, and a last row that scrolls under the tab bar.
