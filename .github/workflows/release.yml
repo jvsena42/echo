@@ -60,7 +60,7 @@ jobs:
     name: The tag and the source agree
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Compare
         run: |
@@ -122,16 +122,16 @@ jobs:
     needs: check-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       # A tag has to produce a signed APK or the release is broken, so a missing keystore is a
       # hard failure on that path. A `workflow_dispatch` dry run is allowed to skip instead, so the
@@ -246,7 +246,7 @@ jobs:
           cp composeApp/build/outputs/apk/release/composeApp-release.apk "dist/Loopky-${VERSION#v}.apk"
           cp composeApp/build/outputs/bundle/release/composeApp-release.aab "bundle/Loopky-${VERSION#v}.aab"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.keystore.outputs.present == 'true'
         with:
           name: release-asset-apk
@@ -257,7 +257,7 @@ jobs:
       # globs those, so an AAB can never be attached to a release by accident. It cannot be
       # installed from one — it exists to be downloaded from this run and uploaded to the Play
       # Console by hand.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.keystore.outputs.present == 'true'
         with:
           name: play-bundle
@@ -269,7 +269,7 @@ jobs:
     needs: check-version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # `cli/Dockerfile` is the whole build definition, so this step is identical to what a
       # developer runs locally and there is no second recipe to drift.
@@ -328,7 +328,7 @@ jobs:
           printf '{"version":"%s","schema":%s}\n' "${VERSION#v}" "$SCHEMA" > dist/latest.json
           cat dist/latest.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-asset-linux
           path: dist/*
@@ -341,7 +341,7 @@ jobs:
     # `libpubkycore` and an Intel build would have nothing to load (#54).
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: graalvm/setup-graalvm@v1
         with:
@@ -350,7 +350,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       - name: Build the binary
         run: ./gradlew :cli:nativeCompile
@@ -399,7 +399,7 @@ jobs:
           cp cli/build/native/nativeCompile/loopky dist/loopky-macos-aarch64
           ( cd dist && shasum -a 256 loopky-macos-aarch64 > loopky-macos-aarch64.sha256 )
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-asset-macos
           path: dist/*
@@ -422,9 +422,9 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -465,7 +465,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -511,13 +511,13 @@ jobs:
       # script that installs it should be too.
       #
       # The other half is the changelog, which needs the history and the previous tag.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       # `release-asset-*` and nothing else — the Play bundle is uploaded under a different name so
       # that it cannot land on a release page by widening a glob.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-asset-*
           path: dist
@@ -700,7 +700,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Should this run?
         id: guard
@@ -726,7 +726,7 @@ jobs:
 
       - name: Check out the tap
         if: steps.guard.outputs.go == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/homebrew-loopky
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
