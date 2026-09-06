@@ -59,7 +59,10 @@ class ImageAdviceEnvelopeTest {
 
         val advice = json.getValue("image_advice").jsonArray
         assertEquals(2, advice.size)
-        assertEquals("Line 1, column 3", advice[0].jsonObject.getValue("where").jsonPrimitive.content)
+        assertEquals(
+            listOf("Line 1, column 3"),
+            advice[0].jsonObject.getValue("where").jsonArray.map { it.jsonPrimitive.content },
+        )
         // One block at the end, not one note per row as the file is parsed.
         assertEquals(1, notes.count { it.startsWith("loopky: 2 picture URL(s) are knowably wrong") })
     }
@@ -80,7 +83,7 @@ class ImageAdviceEnvelopeTest {
         ).data.jsonObject
 
         val where = json.getValue("image_advice").jsonArray
-            .map { it.jsonObject.getValue("where").jsonPrimitive.content }
+            .flatMap { it.jsonObject.getValue("where").jsonArray.map { w -> w.jsonPrimitive.content } }
         assertEquals(listOf("Line 1, column 3", "--cover-url"), where)
     }
 
@@ -102,6 +105,31 @@ class ImageAdviceEnvelopeTest {
         ).data.jsonObject
 
         assertEquals(1, json.getValue("image_advice").jsonArray.size)
+    }
+
+    /**
+     * One row per distinct URL, carrying every place it appears — the property `--check-images`
+     * already states for its own findings. The same broken picture on forty cards is one thing to
+     * fix, and forty copies of the same multi-line paragraph is the redundancy this change set
+     * exists to remove, reappearing in the array that replaced it (#261 review round 3).
+     */
+    @Test
+    fun `one picture on many cards is one row, listing them all`() = runBlocking {
+        val file = File.createTempFile("cards", ".tsv").also { it.deleteOnExit() }
+        val svg = "https://upload.wikimedia.org/wikipedia/commons/0/03/Same.svg"
+        file.writeText((1..40).joinToString("\n") { "front $it\tback $it\t$svg\t" })
+
+        val json = cardAdd(
+            Args.parse(arrayOf("card", "add", "d1", "--from-file", file.absolutePath, "--dry-run")),
+            FakeDeckRepository(testDeck(cardCount = 0)),
+            FakeCardRepository(),
+            onNote = {},
+        ).data.jsonObject
+
+        val advice = json.getValue("image_advice").jsonArray
+        assertEquals(1, advice.size)
+        assertEquals(svg, advice.single().jsonObject.getValue("url").jsonPrimitive.content)
+        assertEquals(40, advice.single().jsonObject.getValue("where").jsonArray.size)
     }
 
     /** A file whose pictures are fine says nothing, on either channel. */

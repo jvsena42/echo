@@ -35,9 +35,18 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class ImageAdvice(
-    /** The card and the side it is on, as the stderr note names it: `"Card 201 front image"`. */
-    val where: String,
     val url: String,
+    /**
+     * Every card and side this picture is on, as the stderr note names them:
+     * `["Card 201 front image", "Card 340 front image"]`.
+     *
+     * A list because the advice is grouped **by URL**, the way `--check-images` asks about one.
+     * A picture on forty cards is one finding repeated forty times otherwise, each carrying the
+     * same multi-line paragraph — which is the redundancy this whole change set exists to remove,
+     * reappearing in the array that replaced it. The per-card labels are still worth having, so
+     * they are kept rather than deduplicated away.
+     */
+    val where: List<String>,
     /** The whole note, newlines included — a rewritten address is part of it. */
     val advice: String,
 )
@@ -306,14 +315,24 @@ internal suspend fun ImportRepository.draftImageUrls(): List<Pair<String, String
  * because it ends the command and nothing can bury that.
  */
 internal class ImageAdviceLog {
-    private val entries = mutableListOf<ImageAdvice>()
+    private val entries = mutableListOf<Triple<String, String, String>>()
 
-    val advice: List<ImageAdvice> get() = entries.toList()
+    /**
+     * One row per distinct URL, in the order each was first met, carrying every place it appears.
+     *
+     * Grouped rather than one row per occurrence, which is the same property `checkImageUrls`
+     * states for its own findings: a picture on forty cards is one thing to fix.
+     */
+    val advice: List<ImageAdvice>
+        get() = entries.groupBy { (url, _, _) -> url }
+            .map { (url, group) ->
+                ImageAdvice(url = url, where = group.map { it.second }, advice = group.first().third)
+            }
 
     /** [url], refused if it could never render and noted if it merely probably will not. */
     fun checked(url: String, where: String): String {
         url.requireRenderableImageUrl(where)
-        imageUrlAdvice(url)?.let { entries += ImageAdvice(where = where, url = url, advice = it) }
+        imageUrlAdvice(url)?.let { entries += Triple(url, where, it) }
         return url
     }
 
@@ -333,11 +352,24 @@ internal class ImageAdviceLog {
 internal fun List<ImageAdvice>.reportStaticImageAdvice(onNote: (String) -> Unit) {
     if (isEmpty()) return
     onNote("loopky: $size picture URL(s) are knowably wrong without asking any host:")
-    take(MAX_REPORTED_ADVICE).forEach { onNote("loopky:   ${it.where} — ${it.advice}") }
+    take(MAX_REPORTED_ADVICE).forEach { onNote("loopky:   ${it.whereSummary()} — ${it.advice}") }
     if (size > MAX_REPORTED_ADVICE) {
         onNote("loopky:   … and ${size - MAX_REPORTED_ADVICE} more — every one is in --json image_advice.")
     }
 }
 
+/**
+ * The places one picture appears, for a person: a few of them, then a count.
+ *
+ * The list itself can be as long as the deck — a shared cover on 1210 cards — and the point of the
+ * line is the picture, not the census.
+ */
+private fun ImageAdvice.whereSummary(): String = when {
+    where.size <= MAX_REPORTED_WHERE -> where.joinToString(", ")
+    else -> where.take(MAX_REPORTED_WHERE).joinToString(", ") + " and ${where.size - MAX_REPORTED_WHERE} more"
+}
+
 /** Entries printed on stderr before the rest are left to `--json`. Matches `--check-images`'s cap. */
 private const val MAX_REPORTED_ADVICE = 20
+
+private const val MAX_REPORTED_WHERE = 3

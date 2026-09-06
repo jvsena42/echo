@@ -324,7 +324,10 @@ class ApkgImportTest {
         val advice = dryRun(tsv)["image_advice"]!!.jsonArray
 
         assertEquals(2, advice.size)
-        assertEquals("Card 1 front image", advice[0].jsonObject.string("where"))
+        assertEquals(
+            listOf("Card 1 front image"),
+            advice[0].jsonObject.getValue("where").jsonArray.map { it.jsonPrimitive.content },
+        )
         assertTrue("either app can decode" in advice[0].jsonObject.string("advice"))
         assertTrue("800px" in advice[1].jsonObject.string("advice"))
         // No --check-images here: the two arrays are independent, which is why they are two.

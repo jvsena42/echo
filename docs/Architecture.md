@@ -1645,7 +1645,10 @@ meaning under the same schema version. It is on every command that writes a card
 to be published, so an envelope there carrying the opt-in network findings and omitting the
 always-on knowable ones is the gap in the wrong place. Collecting it also fixes the ordering and
 the cap for those three commands, which printed one multi-line note per row as the file was parsed,
-ahead of the probe's block.
+ahead of the probe's block. It is grouped **by URL** for the reason `--check-images` asks about one
+— the same broken picture on forty cards is one thing to fix, and forty copies of the same
+paragraph would be the redundancy this whole change set removes, reappearing in the array that
+replaced it — with the per-card labels kept as a `where` list rather than deduplicated away.
 
 `card list` pages over the **chunk table** rather than the deck: `--limit`/`--cursor` fetch only
 the records a page needs, and `--missing-image`/`--has-image` narrow what comes back. There is no

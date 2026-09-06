@@ -628,8 +628,10 @@ internal val USAGE = """
       Wikimedia does not serve — travels separately, as image_advice, on deck create, card add,
       card edit and import. Reported whether or not --check-images was passed, which is why it is
       two arrays rather than one: they answer different questions and only one of them is opt-in.
-      On stderr it is printed last, after everything the network had to say, and capped at 20
-      entries like the buckets above.
+      One row per DISTINCT URL, as above, each listing every card and side it is on:
+      {"url": "…", "where": ["Card 201 front image", …], "advice": "…"}. On stderr it is printed
+      last, after everything the network had to say, and capped at 20 entries like the buckets
+      above.
 
     EXIT CODES
       0 ok                      6 not found
