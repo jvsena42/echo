@@ -55,6 +55,15 @@ class Args private constructor(
     fun has(name: String): Boolean = name in switches || name in options
 
     /**
+     * Every `--long` name this invocation actually carried.
+     *
+     * The parser has no opinion about which of them a command accepts — that is
+     * [requireKnownOptions]'s job, against the one table that describes the surface. This is only
+     * what was typed.
+     */
+    fun givenOptions(): Set<String> = switches + options.keys
+
+    /**
      * A `--name` / `--no-name` pair as a tri-state: null when the caller said nothing about it.
      *
      * The difference matters wherever a value is being *overlaid* on something that already

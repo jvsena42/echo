@@ -68,6 +68,8 @@ private fun run(argv: Array<String>): ExitCode {
     val args = runCatching { Args.parse(argv) }.getOrElse { error ->
         System.err.println("loopky: ${error.message}")
         System.err.println(USAGE)
+        // Repeated below the block for the same reason as in [fail]: the manual buries it.
+        System.err.println("\nloopky: ${error.message}")
         return ExitCode.Usage
     }
 
@@ -120,6 +122,7 @@ private fun run(argv: Array<String>): ExitCode {
             // about the FFI. `update` is the command you reach for when the install is *broken*, and
             // `completion` prints a static string a shell rc file evaluates. See `preKoin`.
             val result = if (args.verb in PRE_KOIN_VERBS) {
+                args.requireKnownOptions()
                 preKoin(args, updates)
             } else {
                 // Inside the boundary, not before it: starting Koin resolves `PubkyClient`, which
@@ -189,6 +192,9 @@ private suspend fun dispatch(
     // stdout, and only in the human mode — the same split `emit` makes for a single command. A
     // batch operation's *result* is a result, so it belongs on the channel results go to.
     val text: (String) -> Unit = { line -> if (!json) println(line) }
+    // Here rather than in `run`, so a `batch` line is held to the same table a command line is —
+    // a flag the surface does not describe must not be silently dropped in either (#257, item 5).
+    args.requireKnownOptions()
     return when (val verb = args.verb) {
         "login" -> login(
             args,
@@ -308,7 +314,13 @@ private fun fail(
         println(failureEnvelope(command, env.name, env.indexer, error, notice.available))
     } else {
         System.err.println("loopky: ${error.message}")
-        if (error.exitCode == ExitCode.Usage) System.err.println("\n" + USAGE)
+        if (error.exitCode == ExitCode.Usage) {
+            System.err.println("\n" + USAGE)
+            // And again underneath it. Sixty lines of manual scroll the one line that says what
+            // was actually wrong off the top of the terminal, and an agent capturing stderr reads
+            // the tail — so the whole output ended up saying nothing actionable (#257, item 5).
+            System.err.println("\nloopky: ${error.message}")
+        }
     }
     noteUpdate(notice)
 }

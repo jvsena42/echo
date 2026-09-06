@@ -294,15 +294,13 @@ internal fun cliCommands(): List<CliCommand> = listOf(
             CliOption("tag", "a tag - repeat for several"),
             CliOption("separator", "how the columns are split", OptionValue.OneOf(SEPARATORS)),
             CliOption("resume", "carry on an import that stopped part way", OptionValue.Switch),
-            CliOption("dry-run", "report what would be published and write nothing", OptionValue.Switch),
             CliOption("front-field", "which .apkg field becomes the front, by number or name"),
             CliOption("back-field", "which .apkg field becomes the back, by number or name"),
-            CliOption(
-                "check-images",
-                "HEAD each picture URL and warn about the ones that are not images",
-                OptionValue.Switch,
-            ),
-        ) + STUDY_OPT_INS + LANGUAGE_OPTIONS,
+            // A resumed import overlays whatever metadata this invocation names, cover included,
+            // so the flags it can carry are `deck create`'s rather than a subset (#257, item 5).
+            CliOption("cover-url", "https URL for the cover image"),
+            CliOption("cover-emoji", "an emoji to use as the cover"),
+        ) + DRY_RUN_OPTION + IMAGE_CHECK_OPTIONS + STUDY_OPT_INS + STUDY_OPT_OUTS + LANGUAGE_OPTIONS,
         writes = true,
     ),
 
@@ -360,6 +358,52 @@ internal fun cliCommands(): List<CliCommand> = listOf(
         notBatchable = "It prints the command table and does no homeserver work.",
     ),
 )
+
+/**
+ * Refuse a `--flag` the command does not take, **naming it**.
+ *
+ * The parser accepts any `--long` it sees, so a flag carried over from a sibling command was
+ * silently ignored: `loopky import --dry-run --from-file deck.tsv` parsed, dropped `--from-file`
+ * on the floor, and failed with "Missing <file>" followed by sixty lines of manual — nothing in
+ * the output named the flag that was wrong (#257, item 5). An agent cannot act on that, and it is
+ * expensive in context.
+ *
+ * Checked against [cliCommands] rather than a per-command list, which is what makes it free to
+ * keep true: a flag a command reads has to be in the table anyway, or completion does not offer it
+ * and `loopky commands` does not describe it.
+ *
+ * A verb that is not in the table is left alone — `dispatch` has a better message for that.
+ */
+internal fun Args.requireKnownOptions() {
+    val command = cliCommands().firstOrNull { it.path == verb } ?: return
+    val known = (command.options + GLOBAL_OPTIONS).mapTo(mutableSetOf()) { it.name } + UNOFFERED_SWITCHES
+    val unknown = givenOptions().filterNot { it in known }
+    if (unknown.isEmpty()) return
+    throw CliError(ExitCode.Usage, unknownOptionMessage(command, unknown))
+}
+
+private fun unknownOptionMessage(command: CliCommand, unknown: List<String>): String = buildString {
+    val named = unknown.joinToString(", ") { "--$it" }
+    append(if (unknown.size == 1) "Unknown option $named for" else "Unknown options $named for")
+    append(" '${command.path}'.")
+
+    unknown.forEach { name ->
+        val elsewhere = cliCommands().filter { it.path != command.path && it.options.any { o -> o.name == name } }
+        if (elsewhere.isNotEmpty()) {
+            append(" --$name belongs to ${elsewhere.joinToString(", ") { "`${it.path}`" }}.")
+        }
+        // The one substitution worth spelling out: a command whose input is a positional file,
+        // refusing a flag whose job elsewhere is naming a file. That is the mistake this exists for.
+        val takesAPath = elsewhere.any { other -> other.options.any { it.name == name && it.value == OptionValue.Path } }
+        if (takesAPath && command.operand == Operand.Path) {
+            append(" `${command.path}` takes its file as a positional operand: loopky ${command.path} <file>.")
+        }
+    }
+
+    append(" It takes: ")
+    append((command.options + GLOBAL_OPTIONS).joinToString(", ") { "--${it.name}" })
+    append(".")
+}
 
 /** The group nouns — `deck`, `card`, `tag` — mapped to the verbs that follow them. */
 internal fun commandGroups(): Map<String, List<CliCommand>> = cliCommands()
