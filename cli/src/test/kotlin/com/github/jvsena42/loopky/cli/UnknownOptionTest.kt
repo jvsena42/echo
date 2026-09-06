@@ -6,6 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 /**
  * A flag a command does not take is refused, **by name**.
@@ -41,6 +42,48 @@ class UnknownOptionTest {
 
         assertContains(error.message.orEmpty(), "--json")
         assertContains(error.message.orEmpty(), "card list")
+    }
+
+    /**
+     * The derivation, and it is the one that matters after this change.
+     *
+     * An undeclared flag used to be *ignored*; it is now a hard exit 2. So a flag added to a
+     * command's code without a matching table entry stops the command dead, and the guard against
+     * that cannot be a hand-written argv list — the list is exactly what someone adding a flag
+     * forgets (#261 review, finding 9). This reads the CLI's own source instead: every option name
+     * any command actually asks [Args] for must be described somewhere in [cliCommands], the
+     * globals or [UNOFFERED_SWITCHES].
+     *
+     * It cannot say a flag is on the *right* command — the test below does that by hand — but it
+     * catches the fatal direction for free, and keeps catching it.
+     */
+    @Test
+    fun `every option name the source reads is described somewhere`() {
+        val sources = File("src/main/kotlin").walkTopDown().filter { it.extension == "kt" }.toList()
+        assertTrue(sources.isNotEmpty(), "expected to find the CLI sources next to the test's working directory")
+        val text = sources.joinToString("\n") { it.readText() }
+
+        // `internal const val CHECK_IMAGES_FLAG = "check-images"` and friends, so a read spelled
+        // as a constant is not invisible here.
+        val constants = Regex("""const val (\w+) = "([a-z][a-z0-9-]*)"""")
+            .findAll(text)
+            .associate { it.groupValues[1] to it.groupValues[2] }
+
+        val read = Regex("""\b(?:option|options|has|flag|flagOrNull|positiveInt|positiveIntOrNull)\(\s*(?:"([^"$]+)"|(\w+))""")
+            .findAll(text)
+            .mapNotNull { match ->
+                val literal = match.groupValues[1]
+                if (literal.isNotEmpty()) literal else constants[match.groupValues[2]]
+            }
+            .toSet()
+
+        val described = (cliCommands().flatMap { it.options } + GLOBAL_OPTIONS).mapTo(mutableSetOf()) { it.name } +
+            UNOFFERED_SWITCHES
+        assertEquals(
+            emptySet(),
+            read - described,
+            "read from Args but not in CommandSurface.kt — requireKnownOptions now makes that exit 2",
+        )
     }
 
     @Test
