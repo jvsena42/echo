@@ -234,7 +234,10 @@ internal fun cliCommands(): List<CliCommand> = listOf(
                 OptionValue.Switch,
             ) +
             CliOption("from-file", "a TSV or JSONL card file to publish with it", OptionValue.Path) +
-            DRY_RUN_OPTION + IMAGE_CHECK_OPTIONS + STUDY_OPT_INS + STUDY_OPT_OUTS + LANGUAGE_OPTIONS,
+            // No STUDY_OPT_OUTS: `deckCreate` reads these with `flag(name, default = false)`, so
+            // `--no-listen` could only restate the default. `deck edit` and `import --resume`
+            // overlay an existing deck and genuinely need them.
+            DRY_RUN_OPTION + IMAGE_CHECK_OPTIONS + STUDY_OPT_INS + LANGUAGE_OPTIONS,
         writes = true,
     ),
     CliCommand(
