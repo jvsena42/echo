@@ -110,6 +110,66 @@ class ImageProbeTest {
         assertEquals(false, ProbeAnswer(status = 200, contentType = null).classified("https://x.test/a").ok)
     }
 
+    /**
+     * The finding this file exists to keep: a 429 is what the check provokes in *itself*, so
+     * calling it a broken picture turned 432 working Wikimedia URLs into findings and buried the
+     * run's one real one (#257, item 1).
+     */
+    @Test
+    fun `a rate-limited host is unverified, not wrong`() {
+        val limited = ProbeAnswer(status = 429, contentType = "text/html").classified("https://x.test/a.jpg")
+
+        assertEquals(false, limited.ok)
+        assertTrue(limited.unverified, "429 says nothing about the picture")
+        assertContains(limited.reason.orEmpty(), "rate-limiting")
+    }
+
+    @Test
+    fun `a host erroring on its own account is unverified too`() {
+        assertTrue(ProbeAnswer(status = 503, contentType = null).classified("https://x.test/a.jpg").unverified)
+    }
+
+    @Test
+    fun `a host that refused the picture is wrong, not unverified`() {
+        val gone = ProbeAnswer(status = 404, contentType = "text/html").classified("https://x.test/a.jpg")
+
+        assertEquals(false, gone.ok)
+        assertEquals(false, gone.unverified)
+    }
+
+    @Test
+    fun `the summary counts the two kinds apart`() = runBlocking {
+        val notes = mutableListOf<String>()
+
+        val urls = listOf("https://x.test/ok.jpg", "https://x.test/slow.jpg", "https://x.test/gone.jpg")
+        checkImageUrls(urls, notes::add) { url ->
+            when {
+                url.endsWith("ok.jpg") -> ok(url)
+                url.endsWith("slow.jpg") ->
+                    ImageCheck(url, status = 429, unverified = true, reason = "rate-limited")
+
+                else -> ImageCheck(url, status = 404, reason = "the host refused it")
+            }
+        }
+
+        assertContains(notes.last(), "1 ok, 1 wrong, 1 could not be checked")
+    }
+
+    /** Every row travels in `--json`; stderr is capped so one real finding is not scrolled away. */
+    @Test
+    fun `a flood of one kind is capped on stderr and complete in the result`() = runBlocking {
+        val notes = mutableListOf<String>()
+        val urls = List(50) { "https://x.test/$it.jpg" }
+
+        val problems = checkImageUrls(urls, notes::add) {
+            ImageCheck(it, status = 429, unverified = true, reason = "rate-limited")
+        }
+
+        assertEquals(50, problems.size)
+        assertEquals(20, notes.count { it.startsWith("loopky:   https://") })
+        assertTrue(notes.any { "and 30 more" in it })
+    }
+
     @Test
     fun `nothing to check is silent`() = runBlocking {
         val notes = mutableListOf<String>()

@@ -152,14 +152,35 @@ private val STUDY_OPT_OUTS = STUDY_OPT_INS.map {
     CliOption("no-${it.name}", "turn ${it.name} off", OptionValue.Switch)
 }
 
+/**
+ * `--check-images` and the dial for how hard it asks, shared by every command that writes a card.
+ *
+ * The dial is not decoration: the default is deliberately low, because the check rate-limited
+ * itself into 432 false findings on one Wikimedia deck (#257), and a friendlier host has no other
+ * way to be asked faster.
+ */
+private val IMAGE_CHECK_OPTIONS = listOf(
+    CliOption("check-images", "HEAD each picture URL and warn about the ones that are not images", OptionValue.Switch),
+    CliOption("check-images-concurrency", "how many of those requests may be in flight, up to 16 - 3 by default"),
+)
+
+/**
+ * `--dry-run`, on each of the three commands that take a file of cards.
+ *
+ * One list rather than a repeated literal because the three have to stay one gesture: a pre-flight
+ * that exists on `import` alone sends people through the wrong parser to get it (#257, item 8).
+ */
+private val DRY_RUN_OPTION = listOf(
+    CliOption("dry-run", "report what would be written and write nothing", OptionValue.Switch),
+)
+
 private val CARD_FIELDS = listOf(
     CliOption("front", "the front text"),
     CliOption("back", "the back text"),
     CliOption("front-image", "https URL for a picture on the front"),
     CliOption("back-image", "https URL for a picture on the back"),
     CliOption("from-file", "a TSV or JSONL card file instead of the flags above", OptionValue.Path),
-    CliOption("check-images", "HEAD each picture URL and warn about the ones that are not images", OptionValue.Switch),
-)
+) + IMAGE_CHECK_OPTIONS
 
 private val DECK_METADATA = listOf(
     CliOption("title", "the deck title"),

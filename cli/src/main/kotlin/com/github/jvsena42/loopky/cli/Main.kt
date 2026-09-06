@@ -541,6 +541,16 @@ internal val USAGE = """
       host having a bad minute must not be able to fail an import. Findings also travel in --json
       as image_checks.
 
+      It separates WRONG from COULD NOT BE CHECKED, and the difference is the whole of its
+      usefulness at scale. A 429, a timeout or a 5xx says nothing about the picture, so it is
+      counted apart and marked unverified in --json rather than folded into "look wrong". Requests
+      run 3 at a time and a 429 is retried with backoff, because at eight in flight this check
+      rate-limited itself into 432 false findings on one 475-picture deck, burying the run's one
+      real finding under them. Neither bucket prints more than 20 lines; --json carries them all.
+      --check-images-concurrency N (up to 16) is there for a host that is not Wikimedia:
+      against Wikimedia, raising it measured slower as well as noisier — 250 URLs answer
+      clean in about 80 seconds as it stands.
+
     EXIT CODES
       0 ok                      6 not found
       1 internal                7 storage full (507 — terminal, never retried)

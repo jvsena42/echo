@@ -153,7 +153,7 @@ private enum class BatchVerb(val past: String, val skipped: String) {
 private suspend fun List<PlannedWrite>.checkedImages(args: Args, onNote: (String) -> Unit): List<ImageCheck> {
     if (!args.checksImages()) return emptyList()
     val urls = flatMap { listOfNotNull(it.card.front.imageRef?.url, it.card.back.imageRef?.url) }
-    return checkImageUrls(urls, onNote)
+    return checkImageUrls(urls, onNote, args.imageCheckConcurrency())
 }
 
 /**

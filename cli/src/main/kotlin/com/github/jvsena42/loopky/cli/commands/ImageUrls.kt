@@ -228,7 +228,24 @@ internal suspend fun ImportRepository.draftImageUrls(): List<Pair<String, String
         )
     }
 
-/** Refuse what could never render and warn about what probably will not. See `ImageUrls.kt`. */
-internal fun List<Pair<String, String>>.checkedStatically(
-    onNote: (String) -> Unit,
-): List<Pair<String, String>> = onEach { (where, url) -> url.checkedImageUrl(where, onNote) }
+/**
+ * Refuse what could never render, and **collect** the advice about what probably will not rather
+ * than printing it.
+ *
+ * Deferred because of where it ends up on the screen. `--check-images` runs after this and can
+ * emit hundreds of lines, so advice printed here scrolls away — and it is the more valuable half,
+ * since it is what a string is *known* to be wrong about rather than what a host said this minute.
+ * A 1210-card import's one genuine finding was lost exactly that way (#257, item 1). The refusal
+ * still happens here, at parse time: it ends the command, so nothing can bury it.
+ */
+internal fun List<Pair<String, String>>.staticImageAdvice(): List<String> = mapNotNull { (where, url) ->
+    url.requireRenderableImageUrl(where)
+    imageUrlAdvice(url)?.let { "$where — $it" }
+}
+
+/** [staticImageAdvice] on stderr, in one labelled block, after everything the network had to say. */
+internal fun List<String>.reportStaticImageAdvice(onNote: (String) -> Unit) {
+    if (isEmpty()) return
+    onNote("loopky: $size picture URL(s) are knowably wrong without asking any host:")
+    forEach { onNote("loopky:   $it") }
+}

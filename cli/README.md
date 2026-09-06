@@ -334,6 +334,18 @@ the status and content type of everything that is not a 2xx picture, on stderr a
 `image_checks` — and reports **nothing** about a URL that is fine, because a finding buried in 900
 lines of "this one is fine" is no better than the check you wrote by hand.
 
+**"Wrong" and "could not be checked" are different answers.** A `429`, a timeout or a `5xx` says
+nothing about the picture, so it is `unverified` in `--json` and counted apart in the summary line:
+
+```
+loopky: picture URLs — 249 ok, 0 wrong, 1 could not be checked; writing anyway.
+```
+
+Folding the two together is what made this unusable at scale — 432 of 475 Wikimedia URLs came back
+"wrong", every one of them a rate limit the check had provoked itself, and between them they
+scrolled the run's single real finding off the screen. Neither bucket prints more than 20 lines
+now; `--json` carries every row.
+
 An `image/` prefix is not the same as a decodable picture, and that distinction is load-bearing
 here: Wikimedia serves an SVG original as `image/svg+xml` with an entirely ordinary 200, so a
 prefix check would call a whole deck of flags fine. `image/svg+xml` and `image/tiff` are findings.
@@ -344,9 +356,11 @@ Four properties, and each is a decision rather than an omission:
   `card add` stays one write and no round trips.
 - **A warning, never a refusal.** A host having a bad minute must not be able to fail an import; the
   picture may well be fine. The write goes ahead and the note says so.
-- **One request per distinct URL**, not per card, at eight at a time — a picture on forty cards is
-  one question, and 900 simultaneous connections to one host is a way to be rate-limited into a
-  false negative.
+- **One request per distinct URL**, not per card, at **three** at a time, with a `429` retried and
+  `Retry-After` honoured. A picture on forty cards is one question, and against Wikimedia more in
+  flight is *slower* as well as noisier: 100 URLs took 32 s at three and 42 s at six, and 250 came
+  back 250/250 clean in 83 s. `--check-images-concurrency N` (up to 16) is for a host that is not
+  Wikimedia, not a speed dial.
 - **It sends a real user agent.** `403 Please set a user-agent` is Wikimedia's answer to a generic
   client, which is the very failure this exists to catch; a probe that produced it on every
   Wikimedia URL would be worse than no probe. A host that refuses `HEAD` outright is asked again

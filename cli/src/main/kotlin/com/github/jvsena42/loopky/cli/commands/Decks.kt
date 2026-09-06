@@ -150,7 +150,11 @@ suspend fun deckCreate(
         ?.let { readCardFile(it, onNote).requireBothSides().toCards(deckId, now) }
         .orEmpty()
     val imageChecks = if (args.checksImages()) {
-        checkImageUrls(cards.flatMap { listOfNotNull(it.front.imageRef?.url, it.back.imageRef?.url) }, onNote)
+        checkImageUrls(
+            cards.flatMap { listOfNotNull(it.front.imageRef?.url, it.back.imageRef?.url) },
+            onNote,
+            args.imageCheckConcurrency(),
+        )
     } else {
         emptyList()
     }
