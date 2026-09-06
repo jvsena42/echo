@@ -94,11 +94,8 @@ internal fun imageUrlAdvice(url: String): String? {
  * invented here that 404s is worse than a sentence pointing at the file page.
  */
 private fun undecodableFormatAdvice(url: String): String? {
-    val source = url.sourceFileName() ?: return null
-    val extension = source.substringAfterLast('.', "").lowercase()
+    val extension = url.servedExtension() ?: return null
     if (extension !in UNDECODABLE_EXTENSIONS) return null
-    // Already a thumbnail: the width rule below has whatever is left to say about it.
-    if (url.contains(THUMB_SEGMENT) && url.wikimediaThumbWidth() != null) return null
 
     val rewrite = url.asWikimediaSvgThumbnail()
     return "$url\n" +
@@ -135,6 +132,23 @@ private fun String.asWikimediaSvgThumbnail(): String? {
 }
 
 /**
+ * The extension the address actually ends in — **the last one, never one in the middle of the
+ * path**.
+ *
+ * Commons renders a TIFF or a PDF source to a raster thumbnail and keeps the source name in both
+ * a directory segment and the file stem, so `.../Cell.tif/lossy-page1-500px-Cell.tif.jpg` serves
+ * `image/jpeg` from an address containing `.tif` twice. Judging by "does `.tif` appear" flagged
+ * that as undecodable while leaving the exact SVG analogue — `.../Sign.svg/500px-Sign.svg.png` —
+ * alone, which is a rule an agent cannot learn and a false finding either way (#257, item 3).
+ * The final extension is what the host serves, and it is the only part of the string that says so.
+ */
+private fun String.servedExtension(): String? = substringBefore('?').substringBefore('#')
+    .substringAfterLast('/')
+    .substringAfterLast('.', "")
+    .lowercase()
+    .takeIf { it.isNotEmpty() }
+
+/**
  * The file the address is *of*: the last segment for an original, and for a thumbnail the segment
  * before the `NNNpx-` one, which is the source file `/thumb/` was asked to render.
  *
@@ -157,8 +171,7 @@ private fun String.sourceFileName(): String? {
  * dropping `/thumb/` is withheld and only the width list is offered.
  */
 private fun thumbnailWidthAdvice(url: String): String? {
-    if (!url.contains(WIKIMEDIA_UPLOAD_HOST, ignoreCase = true)) return null
-    if (!url.contains(THUMB_SEGMENT)) return null
+    if (!url.isWikimediaThumbnail()) return null
     val width = url.wikimediaThumbWidth() ?: return null
     if (width in WIKIMEDIA_THUMB_WIDTHS) return null
     val rendersAVector = url.sourceFileName()?.endsWith(SVG_EXTENSION, ignoreCase = true) == true
@@ -170,7 +183,7 @@ private fun thumbnailWidthAdvice(url: String): String? {
                 "SVG, which neither app decodes."
         } else {
             "  Use one of those widths, or drop the /thumb/ segment and the NNNpx- prefix to get " +
-                "the full-size original, which is always served."
+                "the full-size original on $WIKIMEDIA_UPLOAD_HOST, which is always served."
         }
 }
 
@@ -178,20 +191,30 @@ private fun thumbnailWidthAdvice(url: String): String? {
  * The `NNN` of the trailing `.../NNNpx-Name.jpg` segment, or null when the URL is not that shape.
  *
  * Read from the **last** path segment rather than by searching the whole URL: `px-` occurs in
- * plenty of file names, and a thumbnail's width is only ever the prefix of its own segment.
+ * plenty of file names, and a thumbnail's width is only ever in its own segment.
+ *
+ * The digits are taken from the *end* of what precedes `px-`, because a rendered non-raster
+ * source carries a marker in front of them — `lossy-page1-500px-Cell.tif.jpg`, `page1-`, a frame
+ * number. Parsing the whole prefix as a number gave those URLs no width at all, so the width rule
+ * silently did not apply to any of them.
  */
 private fun String.wikimediaThumbWidth(): Int? = substringAfterLast('/')
     .substringBefore(PX_MARKER, missingDelimiterValue = "")
+    .takeLastWhile { it.isDigit() }
     .takeIf { it.isNotEmpty() }
     ?.toIntOrNull()
 
 /**
- * The widths `upload.wikimedia.org` served on 2026-09-04, measured across 35 candidates.
+ * The widths `upload.wikimedia.org` served on 2026-09-04, measured across 35 candidates, plus
+ * `1920` — measured on 2026-09-06 against `Blausen_0463_HeartAttack.png`, where 1920 answers 200
+ * and 2560 answers 400 (#257, item 4).
  *
  * A snapshot, and treated as one — this drives a warning and never a refusal, so the cost of the
- * list going stale is a note nobody needed rather than an import that will not run.
+ * list going stale is a note nobody needed rather than an import that will not run. The direction
+ * that costs something is a width missing from here: an agent takes the list as authoritative and
+ * rewrites a working URL.
  */
-private val WIKIMEDIA_THUMB_WIDTHS = listOf(120, 250, 330, 500, 960, 1280)
+private val WIKIMEDIA_THUMB_WIDTHS = listOf(120, 250, 330, 500, 960, 1280, 1920)
 
 /**
  * What the two clients cannot turn into a picture, by extension.
@@ -209,7 +232,20 @@ private const val WIKIMEDIA_DEFAULT_THUMB_WIDTH = 500
 /** `commons/9/9a/` — the two hash directories every upload sits under. */
 private const val WIKIMEDIA_HASH_SEGMENTS = 2
 
+/**
+ * A Wikimedia thumbnail address, on either host it can arrive on.
+ *
+ * `thumb.wikimedia.org` is what the `imageinfo` API's `thumburl` hands back, and it serves the
+ * same picture — but a rule written for `upload.` alone silently did not apply to any of them,
+ * which is every URL an agent gets from that API (#257, smaller notes).
+ */
+private fun String.isWikimediaThumbnail(): Boolean =
+    contains(THUMB_SEGMENT) &&
+        (contains(WIKIMEDIA_UPLOAD_HOST, ignoreCase = true) || contains(WIKIMEDIA_THUMB_HOST, ignoreCase = true))
+
 private const val WIKIMEDIA_UPLOAD_HOST = "upload.wikimedia.org"
+
+private const val WIKIMEDIA_THUMB_HOST = "thumb.wikimedia.org"
 private const val THUMB_SEGMENT = "/thumb/"
 private const val PX_MARKER = "px-"
 private const val SVG_EXTENSION = ".svg"

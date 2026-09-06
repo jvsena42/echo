@@ -78,9 +78,75 @@ class ImageUrlAdviceTest {
 
     @Test
     fun `the widths wikimedia actually serves are left alone`() {
-        for (width in listOf(120, 250, 330, 500, 960, 1280)) {
+        // 1920 is served and was missing from the list, so an agent taking the list as
+        // authoritative rewrote a working URL (#257, item 4). Measured 2026-09-06: 800, 1600 and
+        // 2560 answer 400 while 1920 answers 200 image/png.
+        for (width in listOf(120, 250, 330, 500, 960, 1280, 1920)) {
             assertNull(imageUrlAdvice("$gull/${width}px-Gull.jpg"), "$width should be accepted")
         }
+        for (width in listOf(800, 1600, 2560)) {
+            assertTrue(imageUrlAdvice("$gull/${width}px-Gull.jpg") != null, "$width should be noted")
+        }
+    }
+
+    /**
+     * Only the **final** extension decides whether a picture can be decoded.
+     *
+     * Commons renders a TIFF or a PDF source to a raster thumbnail and keeps the source name in
+     * both a directory segment and the file stem, so the same address contains `.tif` twice and
+     * serves `image/jpeg`. Matching on any occurrence flagged that and left the exact SVG
+     * analogue alone — a rule with no reading anyone could act on (#257, item 3).
+     */
+    @Test
+    fun `a rendered thumbnail of a source neither app decodes is not a finding`() {
+        assertNull(
+            imageUrlAdvice(
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Typical_human_cell.tif/" +
+                    "lossy-page1-500px-Typical_human_cell.tif.jpg",
+            ),
+        )
+        assertNull(
+            imageUrlAdvice(
+                "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/First_aid_sign.svg/" +
+                    "500px-ISO_7010_E003_-_First_aid_sign.svg.png",
+            ),
+        )
+    }
+
+    /** And the same file *without* the render is still the blank card it always was. */
+    @Test
+    fun `the undecodable source itself is still a finding`() {
+        val tiff = imageUrlAdvice("https://upload.wikimedia.org/wikipedia/commons/0/02/Typical_human_cell.tif")
+        assertTrue(tiff != null)
+        assertContains(tiff, ".tif is not something either app can decode")
+    }
+
+    /**
+     * A rendered thumbnail carries a marker in front of its width — `lossy-page1-`, a frame
+     * number — so parsing the whole prefix as a number gave those URLs no width at all and the
+     * width rule silently never applied to one.
+     */
+    @Test
+    fun `a width behind a render marker is still read`() {
+        val advice = imageUrlAdvice(
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Cell.tif/" +
+                "lossy-page1-800px-Cell.tif.jpg",
+        )
+        assertTrue(advice != null)
+        assertContains(advice, "800px")
+    }
+
+    /**
+     * `thumb.wikimedia.org` is what the imageinfo API hands back, so it is what an agent has, and
+     * a rule written for `upload.` alone applied to none of them.
+     */
+    @Test
+    fun `the width rule reaches the host the imageinfo API answers with`() {
+        val advice = imageUrlAdvice(
+            "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9a/Gull.jpg/320px-Gull.jpg",
+        )
+        assertTrue(advice != null)
+        assertContains(advice, "320px")
     }
 
     /** The original file has no width to get wrong, which is why the advice recommends it. */

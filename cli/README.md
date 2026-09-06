@@ -286,9 +286,9 @@ nothing said about the ones that answer 200 today. So the line is drawn at what 
 same, so an `http://` address is a card whose picture cannot render on either client. Exit 9, with
 the scheme named, rather than a stored ref that is broken by construction.
 
-**Warned about, on stderr, never fatal** — Wikimedia serves thumbnails at **120, 250, 330, 500, 960
-and 1280 px** and answers `400, Use thumbnail sizes listed on https://w.wiki/GHai` for every other
-width. An agent writes `320px-` or `800px-` as readily as `250px-`; they look equally plausible and
+**Warned about, on stderr, never fatal** — Wikimedia serves thumbnails at **120, 250, 330, 500, 960,
+1280 and 1920 px** and answers `400, Use thumbnail sizes listed on https://w.wiki/GHai` for every
+other width. An agent writes `320px-` or `800px-` as readily as `250px-`; they look equally plausible and
 most of them are a blank card on both apps. Drop the `/thumb/` segment and the `NNNpx-` prefix
 altogether to get the full-size original, which is always served. A warning and not an error
 because the list is Wikimedia's to change, and a stale check must not be able to fail an import.
@@ -312,7 +312,15 @@ https://upload.wikimedia.org/wikipedia/commons/0/03/Flag_of_Italy.svg
 
 Wikimedia renders `.tif` and `.webm` under `/thumb/` too, but with prefixes of their own
 (`lossy-page1-`, a frame marker), so those are named rather than rewritten — an address invented
-here that 404s would be worse than the sentence.
+here that 404s would be worse than the sentence. Those renders are **not** findings, though: only
+the **final** extension is judged, so `…/Cell.tif/lossy-page1-500px-Cell.tif.jpg` is the ordinary
+JPEG it is, exactly as `…/Sign.svg/500px-Sign.svg.png` always was. `…/Cell.tif` and `…/Sign.svg`,
+ending there, still are.
+
+If the URLs came from the **`imageinfo` API**, two cleanups first: it appends
+`?utm_source=…&utm_campaign=imageinfo` to `url` and `thumburl`, and it answers with
+`thumb.wikimedia.org` rather than `upload.wikimedia.org`. Both addresses work, so neither is
+warned about — but `upload.` is what the rules here are written for.
 
 Beyond those, prefer a host that serves images to anyone. Some refuse an unfamiliar client
 outright — Wikimedia answers `403 Please set a user-agent` to a generic one — and the result is the

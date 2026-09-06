@@ -525,10 +525,19 @@ internal val USAGE = """
         https:// only.  Android and iOS both refuse cleartext, so an http:// address is a card
                         whose picture cannot render on either. Refused, not stored.
 
-        Wikimedia serves thumbnails at 120, 250, 330, 500, 960 and 1280 px and answers 400 for
-        every other width, so .../thumb/…/800px-Name.jpg is a blank card on both apps. Drop the
-        /thumb/ segment and the NNNpx- prefix to get the full-size original, which is always
+        Wikimedia serves thumbnails at 120, 250, 330, 500, 960, 1280 and 1920 px and answers 400
+        for every other width, so .../thumb/…/800px-Name.jpg is a blank card on both apps. Drop
+        the /thumb/ segment and the NNNpx- prefix to get the full-size original, which is always
         served. Warned about on stderr, never fatal — the list is theirs to change.
+
+        Only the FINAL extension is judged. Commons renders a TIFF or an SVG source to a raster
+        thumbnail and keeps the source extension in the middle of the URL, so
+        …/Cell.tif/lossy-page1-500px-Cell.tif.jpg and …/Sign.svg/500px-Sign.svg.png are both
+        ordinary pictures. …/Cell.tif and …/Sign.svg, ending there, are not.
+
+        From the imageinfo API, strip the ?utm_source=…&utm_campaign=imageinfo query it appends to
+        url and thumburl, and rewrite the thumb.wikimedia.org host it hands back to
+        upload.wikimedia.org — the rules above are written for that one.
 
       Beyond that, prefer a host that serves images to anyone: some refuse an unfamiliar client
       outright, and the result is the same blank card with nothing reporting it.
