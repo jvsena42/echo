@@ -2332,3 +2332,29 @@ need `previewIntervals` to return days and the UIs to format, which is a change 
 **iOS `home_deck_due_cards` has no plural variation**, so it says "1 cartas" — and "1 cards" in
 English, which is how long it has been there. Pre-existing, not introduced here; Android has the
 plural (`home_deck_due_cards`) and iOS has a flat key.
+
+### Follow-ups from the same session — 2026-09-06
+
+**iOS Settings was unreadable on a dark device, and it was never a Settings bug.** `LoopkyColor`
+is a single fixed light palette with no dark variants, and every screen paints its own cream
+ground — but native chrome does not follow that. A `List`, an alert, a sheet or a menu takes its
+row fills, section headers and default label colour from the *system* scheme, so on a dark device
+Settings drew near-black rows and dark-on-dark labels on cream, with the section headers and the
+language footer effectively invisible. `.preferredColorScheme(.light)` at the `WindowGroup` root
+is the fix; verified with the simulator in dark mode on Settings **and** on `FollowListScreen`,
+the other `List` screen that had it. `PasteView` is the third. The alternative is a dark palette,
+which is a design decision rather than a bug fix.
+
+**The Android picker is an `ExposedDropdownMenuBox`, not a dialog of radio rows.** The menu
+scrolls and sizes itself, so a fifth language costs a line in `AppLocale.SUPPORTED` and
+`locales_config.xml` and nothing in the UI. All three paths driven on `emulator-5554`:
+
+| Step | Result |
+| --- | --- |
+| Português (Brasil) | PASSED — `cmd locale get-app-locales` → `[pt-BR]`, screen recomposed in place |
+| English | PASSED — → `[en]` |
+| Padrão do sistema | PASSED — → `[]`, i.e. the framework preference is *cleared* rather than pinned to `en`, and the row reads "System default" |
+
+The `settings_language` test tag moved to the dropdown anchor and
+`settings_language_option_*` to the menu items, so the ids a journey would target are unchanged.
+
