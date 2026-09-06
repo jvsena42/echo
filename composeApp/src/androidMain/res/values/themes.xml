@@ -12,5 +12,12 @@
         <item name="postSplashScreenTheme">@style/Theme.Loopky</item>
     </style>
 
-    <style name="Theme.Loopky" parent="@android:style/Theme.Material.Light.NoActionBar" />
+    <!--
+      The activity's own theme. `windowBackground` is the one frame between the splash handing
+      over and Compose painting `surfacePrimary`; left at the platform's white it is a flash on
+      every dark launch.
+    -->
+    <style name="Theme.Loopky" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/brand_surface</item>
+    </style>
 </resources>
