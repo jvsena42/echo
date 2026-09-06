@@ -386,12 +386,13 @@ internal fun Args.requireKnownOptions() {
 }
 
 private fun unknownOptionMessage(command: CliCommand, unknown: List<String>): String = buildString {
+    val others = cliCommands().filter { it.path != command.path }
     val named = unknown.joinToString(", ") { "--$it" }
     append(if (unknown.size == 1) "Unknown option $named for" else "Unknown options $named for")
     append(" '${command.path}'.")
 
     unknown.forEach { name ->
-        val elsewhere = cliCommands().filter { it.path != command.path && it.options.any { o -> o.name == name } }
+        val elsewhere = others.filter { other -> other.options.any { it.name == name } }
         if (elsewhere.isNotEmpty()) {
             append(" --$name belongs to ${elsewhere.joinToString(", ") { "`${it.path}`" }}.")
         }

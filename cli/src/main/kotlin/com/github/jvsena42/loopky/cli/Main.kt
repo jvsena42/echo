@@ -68,7 +68,7 @@ fun main(argv: Array<String>) {
 private fun run(argv: Array<String>): ExitCode {
     val args = runCatching { Args.parse(argv) }.getOrElse { error ->
         System.err.println("loopky: ${error.message}")
-        System.err.println(USAGE)
+        System.err.println("\n" + USAGE)
         // Repeated below the block for the same reason as in [fail]: the manual buries it.
         System.err.println("\nloopky: ${error.message}")
         return ExitCode.Usage
