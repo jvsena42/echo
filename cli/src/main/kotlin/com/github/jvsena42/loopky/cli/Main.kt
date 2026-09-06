@@ -476,6 +476,30 @@ internal val USAGE = """
                                 binary does not have. `loopky --help --json` prints the same thing.
                                 Needs no session and no network.
 
+      --json shape              One line per result, and the command's own shape is always under
+                                "data" — never at the top level:
+
+                                  {"schema":1,"ok":true,"command":"card list","environment":"…",
+                                   "indexer":"…","update_available":null,"data":{…}}
+
+                                A failure is the same object with "ok":false and an "error"
+                                {"code","exit","message"}, on stdout too, so one stream carries
+                                both outcomes. What "data" holds, for the reads worth piping:
+
+                                  card list   data.cards[], data.count, data.card_count,
+                                              data.next_cursor. A card is {"id","front":{"text",
+                                              "image":{"url","mime",…}},"back":{…}} — front is an
+                                              OBJECT with .text, not a string.
+                                  deck list   data.decks[], data.count
+                                  deck show   data.deck
+                                  card add    data.written, data.skipped, data.cards[],
+                                              data.failures[], data.image_checks[]
+                                  import      data.deck, data.cards_written, data.image_checks[]
+
+                                A card file takes the flat {"front":"…"} shape AND that nested one,
+                                so `card list --json | jq -c .data.cards[] > f` and
+                                `card edit <deckId> --from-file f` is a round trip. See CARD FILES.
+
       batch <file|->            Run a file of operations against one session — one JSON object per
                                 line, {"argv": ["card", "add", "deckid", "--front", "a",
                                 "--back", "b"]}, with an optional "id" echoed back. The bare array
@@ -541,6 +565,9 @@ internal val USAGE = """
              read, edited with jq and fed straight back. Absent still means unchanged; an
              explicit null clears. An image with no url is a homeserver blob this format cannot
              name, so it is left alone and reported.
+
+             That shape comes out of the envelope at data.cards[], not at the top level. See
+             "--json shape" under AGENTS for the whole of it.
 
     CARD IMAGES
       A card picture is a URL. Nothing is uploaded and no media quota is spent — but nothing is

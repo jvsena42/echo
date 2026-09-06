@@ -144,6 +144,35 @@ loopky completion bash               # a completion script on stdout, for eval o
 
 `loopky --help` is the full surface. Every command takes `--json`.
 
+**`--json` puts the command's own shape under `data`, never at the top level.** Every result is one
+line:
+
+```jsonc
+{"schema":1,"ok":true,"command":"card list","environment":"production","indexer":"…",
+ "update_available":null,
+ "data":{"deck_id":"…","count":1210,"card_count":1210,"next_cursor":null,
+         "cards":[{"id":"…","front":{"text":"…","image":{"url":"…","mime":"…"}},"back":{…}}]}}
+```
+
+A failure is the same object with `"ok":false` and an `error` `{code, exit, message}` — on stdout
+too, so one stream carries both outcomes. Two things worth knowing before writing the `jq`: it is
+`data.cards[]`, not `cards`, and a card's `front` is an **object** with `.text`, not a string.
+`loopky --help` lists what `data` holds for the other reads.
+
+**A flag a command does not take is refused, by name.** The parser used to accept any `--long` and
+drop the ones it did not want, so the command failed for a second, unrelated reason:
+
+```
+$ loopky import --dry-run --check-images --from-file deck.tsv
+loopky: Unknown option --from-file for 'import'. --from-file belongs to `deck create`, `card add`,
+`card edit`. `import` takes its file as a positional operand: loopky import <file>. It takes:
+--title, --description, …
+```
+
+The usage block still follows a usage error, with the message **repeated underneath it** — a
+terminal keeps its last lines, and sixty lines of manual is exactly how the one that mattered got
+scrolled away.
+
 ### Language decks
 
 A deck that declares a language pair is also **labelled** with it, and the label is the whole
