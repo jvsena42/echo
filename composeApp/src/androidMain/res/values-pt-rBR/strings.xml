@@ -816,4 +816,9 @@
     <string name="study_preview_back">Voltar ao baralho</string>
 
 
+    <!-- SRS grades -->
+    <string name="srs_grade_again">Repetir</string>
+    <string name="srs_grade_hard">Difícil</string>
+    <string name="srs_grade_good">Bom</string>
+    <string name="srs_grade_easy">Fácil</string>
 </resources>
