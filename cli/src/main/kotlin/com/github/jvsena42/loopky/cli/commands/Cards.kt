@@ -23,19 +23,32 @@ import kotlinx.coroutines.delay
  * normal recovery is to re-run the command — and a surface where re-running duplicates the work is
  * one where a session expiry costs the deck rather than the retry.
  *
- * The batch goes through one `upsertCard` per card because that owns the chunk write and the manifest
- * patch together. What a batch saves over a shell loop is the process start, the session round trip
- * and the deck read.
+ * **A batch is appended in groups, not card by card** (#257, item 2). One `upsertCard` per card is
+ * a chunk write *plus* a whole-manifest read-modify-write each: 170 cards took ten minutes and
+ * emitted nothing until the end, where `deck create` writes 1210 in seconds. `appendCards` writes
+ * a group's chunks and patches the manifest once, so a group of [APPEND_GROUP] costs two writes
+ * rather than two hundred.
+ *
+ * Groups rather than one call for the whole file, because a group is what survives a failure. An
+ * append is all-or-nothing — the manifest patch lands last — so a batch that dies partway leaves
+ * every completed group on the homeserver and re-running skips them, which is the same recovery
+ * the per-card path gave and the reason it was worth keeping.
  *
  * **The dedupe costs a full card read** — ~200 chunk requests on a 20k-card deck before the first
  * write. There is no index to ask instead, and skipping it would trade the retry guarantee for speed.
  * That is the other reason to use `--from-file`: the read is paid once for the whole batch.
+ *
+ * **`--dry-run` stops after the planning.** Every row is read, validated and deduped against the
+ * deck, `--check-images` runs, and nothing is written — so the answer comes from the code path
+ * that would actually run, which `import --dry-run` could never give for this command (#257,
+ * item 8). It needs a session: the dedupe is a read of the deck.
  */
 suspend fun cardAdd(
     args: Args,
     decks: DeckRepository,
     cards: CardRepository,
     onNote: (String) -> Unit = System.err::println,
+    onProgress: (String) -> Unit = {},
 ): CommandResult {
     val deckId = args.requireWord(2, "deckId")
     val deck = decks.sync(deckId).getOrElse { throw asCliError(it) }
@@ -60,7 +73,7 @@ suspend fun cardAdd(
     var skipped = 0
 
     for ((index, row) in rows.withIndex()) {
-        // No ord is computed here on purpose. `upsertCard` assigns one from the chunk the card
+        // No ord is computed here on purpose. `appendCards` assigns one from the chunk the card
         // lands in and ignores whatever the caller sent, so an ord invented here would be dead
         // weight that *looks* meaningful — which is precisely how this command came to report a
         // number the homeserver never stored.
@@ -73,7 +86,7 @@ suspend fun cardAdd(
     }
 
     val checks = planned.checkedImages(args, onNote)
-    return applyBatch(deckId, deck, decks, cards, planned, skipped, BatchVerb.Add, checks)
+    return appendBatch(deckId, deck, decks, cards, planned, skipped, checks, onProgress)
 }
 
 /**
@@ -155,6 +168,109 @@ private suspend fun List<PlannedWrite>.checkedImages(args: Args, onNote: (String
     val urls = flatMap { listOfNotNull(it.card.front.imageRef?.url, it.card.back.imageRef?.url) }
     return checkImageUrls(urls, onNote, args.imageCheckConcurrency())
 }
+
+/**
+ * Write a planned batch of **new** cards, in groups, and report what landed.
+ *
+ * The counterpart to [applyBatch], which exists for `card edit` — an edit rewrites cards scattered
+ * across the chunk table, so it has no cheaper form than one `upsertCard` each. An *add* only ever
+ * lands at the end of the deck, which is exactly what `appendCards` is for.
+ *
+ * The reporting contract is [applyBatch]'s, unchanged: a failure still carries the [CardWriteResult]
+ * on the failure envelope, so a caller knows which rows are on the homeserver. What differs is the
+ * granularity — a group either lands whole or not at all, so a failed group's rows are all reported
+ * failed, and the groups after it are not attempted.
+ *
+ * **A failed group is not retried in-process**, unlike a single `upsertCard`. `appendCards` writes
+ * its chunk records before it patches the manifest and refuses an id already in the target chunk,
+ * so a second attempt after a 500 on the patch reads its own cards back and fails an assertion —
+ * exit 1 "internal" for a homeserver wobble. Re-running the command is the recovery, and it is a
+ * correct one: the dedupe reads the chunk *records*, so cards a half-finished append left behind
+ * are seen and skipped rather than written twice.
+ */
+@Suppress("LongParameterList")
+private suspend fun appendBatch(
+    deckId: String,
+    deck: Deck,
+    decks: DeckRepository,
+    cards: CardRepository,
+    planned: List<PlannedWrite>,
+    skipped: Int,
+    imageChecks: List<ImageCheck>,
+    onProgress: (String) -> Unit,
+): CommandResult {
+    val written = mutableListOf<Card>()
+    val failures = mutableListOf<CardWriteFailure>()
+    var latest = deck
+    var notAttempted = 0
+    var stopped: CliError? = null
+
+    val groups = planned.chunked(APPEND_GROUP)
+    for ((index, group) in groups.withIndex()) {
+        if (stopped != null) {
+            notAttempted += group.size
+            continue
+        }
+        decks.appendCards(deckId, group.map { it.card }).fold(
+            onSuccess = { updated ->
+                latest = updated
+                group.forEach { written += cards.stored(deckId, it.card) }
+                onProgress(
+                    "${written.size}/${planned.size} cards, ${index + 1}/${groups.size} groups",
+                )
+            },
+            onFailure = { error ->
+                val failure = asCliError(error)
+                // Every row in the group, because the append is one write: none of them landed,
+                // and reporting one would leave the rest looking like they had.
+                group.forEach {
+                    failures += CardWriteFailure(
+                        row = it.row,
+                        cardId = it.card.id,
+                        code = failure.exitCode.json,
+                        message = failure.message.orEmpty(),
+                    )
+                }
+                stopped = failure
+            },
+        )
+    }
+
+    val payload = CardWriteResult(
+        deckId = deckId,
+        cards = written.map { it.toView() },
+        written = written.size,
+        skipped = skipped,
+        cardCount = latest.cardCount,
+        failed = failures.size,
+        failures = failures,
+        notAttempted = notAttempted,
+        imageChecks = imageChecks,
+    )
+    val text = buildString {
+        append("${BatchVerb.Add.past} ${written.size} card(s)")
+        if (skipped > 0) append(", skipped $skipped ${BatchVerb.Add.skipped}")
+        if (failures.isNotEmpty()) append(", FAILED ${failures.size}")
+        if (notAttempted > 0) append(", $notAttempted not attempted")
+    }
+    val failure = stopped ?: return result(payload, text)
+
+    throw CliError(
+        failure.exitCode,
+        "$text. First failure was row ${failures.first().row}: ${failure.message} " +
+            "Re-run the same file — rows already applied are skipped.",
+        cliJson.encodeToJsonElement(CardWriteResult.serializer(), payload),
+    )
+}
+
+/**
+ * Cards appended in one `appendCards` call.
+ *
+ * Mirrors the shared `CHUNK_SIZE` so a group is about one chunk record plus one manifest patch,
+ * but nothing depends on the two matching: a group larger or smaller than a chunk still writes
+ * correctly, it only changes how much work a failure costs.
+ */
+private const val APPEND_GROUP = 100
 
 /**
  * Write a planned batch, and report what landed whether or not all of it did.

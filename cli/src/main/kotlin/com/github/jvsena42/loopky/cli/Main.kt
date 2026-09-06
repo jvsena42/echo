@@ -210,7 +210,9 @@ private suspend fun dispatch(
         "deck compact" -> authed(sessions, identity, environment) { deckCompact(args, koin.decks()) }
 
         "card list" -> authed(sessions, identity, environment) { cardList(args, koin.decks(), koin.cards(), note) }
-        "card add" -> authed(sessions, identity, environment) { cardAdd(args, koin.decks(), koin.cards(), note) }
+        "card add" -> authed(sessions, identity, environment) {
+            cardAdd(args, koin.decks(), koin.cards(), note, progress)
+        }
         "card edit" -> authed(sessions, identity, environment) { cardEdit(args, koin.decks(), koin.cards(), note) }
         "card rm" -> authed(sessions, identity, environment) { cardRemove(args, koin.decks()) }
 

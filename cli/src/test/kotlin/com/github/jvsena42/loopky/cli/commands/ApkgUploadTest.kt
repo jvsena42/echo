@@ -114,12 +114,16 @@ class ApkgUploadTest {
             .write()
         val media = FakeMediaRepository()
         val existing = testDeck(id = "d1").copy(title = TITLE)
-        val decks = FakeDeckRepository(existing, owned = listOf(existing))
+        val decks = FakeDeckRepository(
+            existing,
+            owned = listOf(existing),
+            onAppend = { Result.failure(IllegalStateException("507 Insufficient Storage")) },
+        )
 
         val error = runCatching { runImport(apkg, decks, media, "--resume") }.exceptionOrNull()
 
-        // `appendCards` is not part of this fake, so the append is the failure — which is the
-        // point: the blob went up first, and it must still be there afterwards.
+        // The append is the failure, which is the point: the blob went up first, and it must
+        // still be there afterwards.
         assertTrue(error != null, "expected the append to fail")
         assertEquals(1, media.puts.size)
         assertEquals(emptyList(), media.deleted)

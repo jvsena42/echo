@@ -37,13 +37,13 @@ class FakeDeckRepository(
     /** Decks `import --resume` matches its `--title` against. */
     private val owned: List<Deck> = emptyList(),
     /**
-     * What `appendCards` does, or null for a fake with no resume path at all.
-     *
-     * Null is the default and is load-bearing rather than lazy: `ApkgUploadTest` leans on the
-     * append being the failure, to check that an aborted resume leaves the deck's *existing*
-     * blobs where they are.
+     * What `appendCards` does. It defaults to landing them, because it is the ordinary path for
+     * `card add --from-file` as well as for `import --resume`; a test that wants the append to be
+     * the failure says so.
      */
-    private val onAppend: ((List<Card>) -> Result<Deck>)? = null,
+    private val onAppend: (List<Card>) -> Result<Deck> = { cards ->
+        Result.success(deck.copy(cardCount = deck.cardCount + cards.size))
+    },
     /**
      * What `upsertCard` should fail with for a given attempt, or null to let it through.
      *
@@ -79,6 +79,9 @@ class FakeDeckRepository(
 
     /** The cards `import --resume` appended to a deck it matched. */
     val appended = mutableListOf<Card>()
+
+    /** How many cards each `appendCards` call carried — the shape [appended] flattens away. */
+    val appendBatches = mutableListOf<Int>()
 
     override suspend fun sync(deckId: String): Result<Deck> {
         syncCalls += deckId
@@ -140,7 +143,8 @@ class FakeDeckRepository(
     override suspend fun delete(deckId: String): Result<Unit> = no("delete")
     override suspend fun appendCards(deckId: String, cards: List<Card>): Result<Deck> {
         appended += cards
-        return (onAppend ?: no("appendCards"))(cards)
+        appendBatches += cards.size
+        return onAppend(cards)
     }
     override suspend fun deleteCard(deckId: String, cardId: String): Result<Deck> = no("deleteCard")
     override suspend fun moveCard(deckId: String, cardId: String, toIndex: Int): Result<Deck> = no("moveCard")

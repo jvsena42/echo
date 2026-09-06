@@ -122,7 +122,8 @@ loopky deck delete <deckId>
 loopky card list <deckId> --json
 loopky card list <deckId> --json --missing-image --limit 50    # a page, not the whole deck
 loopky card add <deckId> --front "Brasília" --back "Capital do Brasil"
-loopky card add <deckId> --from-file more.tsv
+loopky card add <deckId> --from-file more.tsv          # appended in groups of 100
+loopky card add <deckId> --from-file more.tsv --dry-run
 loopky card edit <deckId> --from-file edits.jsonl
 loopky card rm <deckId> <cardId>
 
@@ -486,6 +487,16 @@ payload does not carry one.
 - **`card add` is idempotent** by front/back-plus-image, and reports what it skipped. `import
   --resume` checkpoints against the deck on the homeserver rather than a local cursor, matched on
   `--title` — which is why `--title` is mandatory and never derived from a filename.
+- **`card add --from-file` appends in groups of 100, and says so as it goes.** One write per card
+  is a chunk write *plus* a whole-manifest read-modify-write each — 170 cards took ten minutes and
+  printed nothing until the end, against 7.9 s now. Groups rather than one call for the file,
+  because an append is all-or-nothing: a batch that dies partway leaves every completed group on
+  the homeserver, and re-running skips them. A failed group is not retried in-process — re-run the
+  command, which is a correct recovery precisely because the dedupe reads chunk records.
+- **`--dry-run` runs the command's own path.** It is on `import`, `deck create` and `card add`, and
+  each stops just before its own write. Pre-flighting a `deck create --from-file` through `import
+  --dry-run` reads a *different* parser, which is how the two came to disagree about a well-formed
+  four-column TSV.
 - **`card edit --from-file` is idempotent too, which is why it has no `--resume`.** A row already
   holding what it asks for is skipped rather than rewritten, so re-running the same file *is* the
   resume: no cursor to keep, nothing to pass, and no `updated_at` churn on rows that did not change.
