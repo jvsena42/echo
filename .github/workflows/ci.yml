@@ -501,6 +501,14 @@ jobs:
     # caught only because somebody happened to compile it locally. An agent trusting a green CI
     # would have merged a shared module that does not build for one of its two consumers.
     #
+    # **The test source set is compiled too, not just `main`.** `compileKotlinIosSimulatorArm64`
+    # left `commonTest` unchecked, and the two backends disagree about what a declaration may be
+    # *called*: Kotlin/Native refuses a `,` inside a backticked name and the JVM accepts it. So a
+    # test named `refused, whatever its case` compiled on Android, passed both required contexts,
+    # and broke `:shared:allTests` for everyone on a Mac — found on `main`, during a release.
+    # Compiled and not **run**: that wants a booted simulator, and this whole class of failure is
+    # a compile error.
+    #
     # What this does **not** cover, so nobody reads more into a green tick than is there: the
     # SwiftUI app is linted, not compiled. Compiling it needs `linkDebugFrameworkIosSimulatorArm64`
     # plus an `xcodebuild`, which is most of an iOS build's wall clock at a 10× multiplier. The
@@ -532,8 +540,8 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
           restore-keys: konan-${{ runner.os }}-
 
-      - name: Compile the shared module for the iOS simulator
-        run: ./gradlew :shared:compileKotlinIosSimulatorArm64
+      - name: Compile the shared module for the iOS simulator, tests included
+        run: ./gradlew :shared:compileTestKotlinIosSimulatorArm64
 
       # `lintSwift` no-ops with a friendly hint when SwiftLint is absent, which is right for a
       # contributor and wrong for CI: it would turn this into a step that always passes and

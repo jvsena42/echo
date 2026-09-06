@@ -90,10 +90,15 @@ tasks.register<Exec>("lintSwift") {
  * summary in CLAUDE.md, so reproducing a CI failure locally meant reconstructing it from memory
  * and getting it subtly different each time.
  *
- * The **host-conditional half is the point**: `:shared:compileKotlinIosSimulatorArm64` and
+ * The **host-conditional half is the point**: `:shared:compileTestKotlinIosSimulatorArm64` and
  * `lintSwift` are the two checks a Linux runner cannot perform, so on a Mac this is strictly
  * stronger than CI rather than differently weak. CI covers them on its own `macos-14` job, but
  * only when the paths that can break them changed.
+ *
+ * That first one compiles `commonTest` as well as `commonMain`, and the test half is not
+ * incidental: Kotlin/Native refuses characters in a backticked name that the JVM accepts, so a
+ * test the Android backend compiles can break `:shared:allTests` on every Mac with both required
+ * CI contexts green.
  *
  * Deliberately **not** here: `:cli:nativeCompile`. It needs a GraalVM 25 in `GRAALVM_HOME`, which
  * a checkout does not come with, and adding it would make the one command every contributor is
@@ -112,6 +117,6 @@ tasks.register("ciCheck") {
         ":cli:installDist",
     )
     if (OperatingSystem.current().isMacOsX) {
-        dependsOn(":shared:compileKotlinIosSimulatorArm64", "lintSwift")
+        dependsOn(":shared:compileTestKotlinIosSimulatorArm64", "lintSwift")
     }
 }

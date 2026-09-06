@@ -114,7 +114,7 @@ class DeckDetailCloneTest {
         }
 
     @Test
-    fun `the source's own name is refused, whatever its case and spacing`() =
+    fun `the source's own name is refused whatever its case and spacing`() =
         runTest(mainDispatcher) {
             deckRepo.decks["deck1"] = testDeck(authorPubky = "friendpk").copy(title = "Animals PT")
             val vm = viewModel(authorPubky = "friendpk")
