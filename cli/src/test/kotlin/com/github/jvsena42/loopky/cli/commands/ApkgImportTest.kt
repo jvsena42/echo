@@ -19,6 +19,7 @@ import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 /**
  * `loopky import deck.apkg`, over real archives.
@@ -328,6 +329,32 @@ class ApkgImportTest {
         assertTrue("800px" in advice[1].jsonObject.string("advice"))
         // No --check-images here: the two arrays are independent, which is why they are two.
         assertEquals(0, dryRun(tsv)["image_checks"]!!.jsonArray.size)
+    }
+
+    /**
+     * The pre-flight must not be laxer than the run it previews. `import --cover-url http://…`
+     * exits 9; the same command with `--dry-run` exited 0 and said nothing, on the command whose
+     * `--dry-run` is documented as the thing you run first (#261 review round 3).
+     */
+    @Test
+    fun `a dry run refuses a cover the real run would refuse`() {
+        val tsv = tempFile("cards", ".tsv").apply { writeText("hola\thello\nadiós\tgoodbye\n") }
+
+        val error = runCatching { dryRun(tsv, "--cover-url", "http://example.test/cover.jpg") }
+            .exceptionOrNull() as? CliError ?: fail("expected a CliError")
+
+        assertEquals(ExitCode.BadInput, error.exitCode)
+        assertTrue("cleartext" in error.message.orEmpty(), error.message.orEmpty())
+    }
+
+    @Test
+    fun `a dry run reports what is knowably wrong with the cover it was given`() {
+        val tsv = tempFile("cards", ".tsv").apply { writeText("hola\thello\nadiós\tgoodbye\n") }
+        val svg = "https://upload.wikimedia.org/wikipedia/commons/0/03/Cover.svg"
+
+        val advice = dryRun(tsv, "--cover-url", svg)["image_advice"]!!.jsonArray
+
+        assertEquals(svg, advice.single().jsonObject.string("url"))
     }
 
     @Test

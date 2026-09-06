@@ -299,6 +299,10 @@ suspend fun importDryRun(
     val images = imports.draftImageUrls()
     val log = ImageAdviceLog()
     log.checkedAll(images)
+    // The cover too, as the real run does. Without it the *pre-flight* was the laxer of the two —
+    // `import --cover-url http://…` exits 9 and `--dry-run` over the same command exited 0 —
+    // on the command whose `--dry-run` is documented as the thing you run first.
+    args.option("cover-url")?.let { log.checked(it, "--cover-url") }
     val imageChecks = images.map { it.second }.checkedIfAsked(args, onNote)
     log.advice.reportStaticImageAdvice(onNote)
     imports.clear()
