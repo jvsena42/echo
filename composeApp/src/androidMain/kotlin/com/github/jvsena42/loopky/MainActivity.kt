@@ -1,5 +1,6 @@
 package com.github.jvsena42.loopky
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -17,6 +18,7 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.github.jvsena42.loopky.locale.AppLocale
 import com.github.jvsena42.loopky.presentation.importflow.BulkImportError
 import com.github.jvsena42.loopky.ui.importflow.FileReadException
 import com.github.jvsena42.loopky.ui.importflow.IncomingFile
@@ -38,6 +40,14 @@ class MainActivity : ComponentActivity() {
      * it. See [PendingOpen].
      */
     private val pendingOpen = MutableStateFlow<PendingOpen?>(null)
+
+    /**
+     * Applies the chosen app language on API < 33, where the framework has no per-app language
+     * store of its own. A no-op on 33+ — see [AppLocale.wrap].
+     */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {

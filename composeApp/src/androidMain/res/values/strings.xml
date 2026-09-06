@@ -878,6 +878,17 @@
     <string name="study_preview_action_guest">Create account</string>
     <string name="study_preview_back">Back to deck</string>
 
+    <!-- App language (#device-level per-app language). The description differs by platform
+         version because only one of the two sentences is true on each: below API 33 Loopky keeps
+         the choice itself, and it appears in no system screen. -->
+    <string name="settings_section_language">LANGUAGE</string>
+    <string name="settings_language_label">App language</string>
+    <string name="settings_language_system">System default</string>
+    <string name="settings_language_description_system">Android keeps this with your other per-app language settings.</string>
+    <string name="settings_language_description_app">Applies to Loopky only. Your device language is unchanged.</string>
+    <string name="settings_language_change">Change</string>
+    <string name="settings_language_dialog_title">App language</string>
+    <string name="settings_language_dialog_cancel">Cancel</string>
 
     <!-- The four SRS grades, as the study screen's buttons. Were `SrsGrade.name` until pt-BR
          landed, which put the raw Kotlin enum on screen in every language. -->

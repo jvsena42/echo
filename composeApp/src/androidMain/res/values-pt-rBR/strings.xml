@@ -815,6 +815,15 @@
     <string name="study_preview_action_guest">Criar conta</string>
     <string name="study_preview_back">Voltar ao baralho</string>
 
+    <!-- App language -->
+    <string name="settings_section_language">IDIOMA</string>
+    <string name="settings_language_label">Idioma do app</string>
+    <string name="settings_language_system">Padrão do sistema</string>
+    <string name="settings_language_description_system">O Android guarda isso junto com suas outras configurações de idioma por app.</string>
+    <string name="settings_language_description_app">Vale só para o Loopky. O idioma do seu aparelho não muda.</string>
+    <string name="settings_language_change">Alterar</string>
+    <string name="settings_language_dialog_title">Idioma do app</string>
+    <string name="settings_language_dialog_cancel">Cancelar</string>
 
     <!-- SRS grades -->
     <string name="srs_grade_again">Repetir</string>

@@ -61,6 +61,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.Loopky.Starting">
         <!-- windowSoftInputMode: resize, not the default pan. The study screen's answer input

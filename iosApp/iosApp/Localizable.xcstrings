@@ -8413,6 +8413,40 @@
         }
       }
     },
+    "settings_language_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS keeps Loopky's language with your other per-app language settings. Tap to change it there."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O iOS guarda o idioma do Loopky junto com suas outras configurações de idioma por app. Toque para alterar lá."
+          }
+        }
+      }
+    },
+    "settings_language_label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App language"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idioma do app"
+          }
+        }
+      }
+    },
     "settings_license": {
       "extractionState": "manual",
       "localizations": {
@@ -8613,6 +8647,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "BUSCA DE IMAGENS"
+          }
+        }
+      }
+    },
+    "settings_section_language": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LANGUAGE"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IDIOMA"
           }
         }
       }
