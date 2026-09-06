@@ -40,18 +40,23 @@ data class DeckCreateResult(
     val deck: DeckView,
     @SerialName("image_checks") val imageChecks: List<ImageCheck> = emptyList(),
     /**
-     * False when `--if-not-exists` found the deck already there and wrote nothing.
+     * Whether the deck was published by *this* call — or, under [dryRun], **would be**.
      *
      * The field exists so the two outcomes are distinguishable at all: both are exit 0 carrying
      * the same deck, and an agent retrying an ambiguous failure needs to know whether this call
      * or a previous one put it there.
+     *
+     * A preview therefore reports `true` for a free id. It reads naturally as "would be created"
+     * with [dryRun] beside it, and it is the half that makes the four combinations distinct —
+     * reporting `false` for both preview branches left `deck create --id X --if-not-exists
+     * --dry-run` unable to answer the one question it is asked, which is whether the id is free.
      */
     val created: Boolean = true,
     /**
      * True when `--dry-run` reported this deck instead of publishing it. See [deckCreate].
      *
-     * Beside [created] rather than folded into it: `created: false` already means "the deck was
-     * already there", and a caller reading one field could not tell that outcome from a preview.
+     * Read with [created]: `dry_run` says whether anything was written, `created` says what the
+     * homeserver holds.
      */
     @SerialName("dry_run") val dryRun: Boolean = false,
 )
@@ -132,7 +137,7 @@ private fun DeckView.describe(): String = buildString {
  *
  * **`--dry-run` reports the deck and stops.** It runs the real path — the `--id` existence check,
  * this command's own card-file reader, every row's validation and `--check-images` — and returns
- * before the publish. `import --dry-run` was the only pre-flight there was, and it goes through a
+ * before the publish, with `created` saying whether the deck *would* be published. `import --dry-run` was the only pre-flight there was, and it goes through a
  * *different* parser (#257, item 8), so it could not answer what this command would do with the
  * same file. Unlike that one it needs a session, because the two things worth checking here — is
  * this id free, and would a publish replace a deck's chunk table — are homeserver reads.
@@ -155,6 +160,7 @@ suspend fun deckCreate(
         return result(
             // `dry_run` still travels, even though this branch writes nothing either way: a
             // caller branching on it must not have to know which of the two reasons applied.
+            // `created = false` is what separates this from the preview of a free id.
             DeckCreateResult(existing.toView(), created = false, dryRun = args.has(DRY_RUN_FLAG)),
             "${existing.id} already exists — ${existing.title} (${existing.cardCount} cards). Nothing written.",
         )
@@ -197,7 +203,7 @@ suspend fun deckCreate(
 
     if (args.has(DRY_RUN_FLAG)) {
         return result(
-            DeckCreateResult(deck.toView(), imageChecks, created = false, dryRun = true),
+            DeckCreateResult(deck.toView(), imageChecks, created = true, dryRun = true),
             "$deckId would be created — $title (${cards.size} cards). Nothing was written.",
         )
     }

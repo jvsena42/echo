@@ -2057,7 +2057,10 @@ a `deck create --from-file` meant running `import --dry-run` over the same file 
 parser, which is why the two disagreed about a well-formed four-column TSV. It is now on
 `deck create` and `card add` too, each stopping just before its own write; unlike `import --dry-run`
 those two need a session, because what is worth checking there — is this id free, is this row
-already in the deck — is a homeserver read. Relatedly, the reported `separator` no longer says
+already in the deck — is a homeserver read. `deck create --dry-run` answers the first in `created`:
+`true` for an id that is free, `false` for one already taken, so that field plus `dry_run` makes
+all four outcomes distinct. Reporting `false` for both preview branches left the one question
+`--id X --if-not-exists --dry-run` is asked with nothing able to answer it. Relatedly, the reported `separator` no longer says
 `"none"` for that TSV: both structured entry points stamp `Separator.Tab` on a draft, so the draft
 cannot tell an `.apkg` (never split) from a four-column file (split on tabs), and `ParsedSource`
 carries the answer instead.

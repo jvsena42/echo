@@ -73,7 +73,10 @@ class DryRunTest {
         val data = result.data.jsonObject
         assertEquals(emptyList(), decks.published)
         assertEquals("true", data.getValue("dry_run").jsonPrimitive.content)
-        assertEquals("false", data.getValue("created").jsonPrimitive.content)
+        // `true` for a free id, which is what separates this from the branch below: the question
+        // `--id X --if-not-exists --dry-run` is asked is whether the id is free, and reporting
+        // `false` for both previews left nothing able to answer it.
+        assertEquals("true", data.getValue("created").jsonPrimitive.content)
         assertEquals("Capitais", data.getValue("deck").jsonObject.getValue("title").jsonPrimitive.content)
     }
 
@@ -90,7 +93,11 @@ class DryRunTest {
         assertEquals(emptyList(), decks.published)
     }
 
-    /** And with `--if-not-exists` it reports the deck that is there, still marked a dry run. */
+    /**
+     * And with `--if-not-exists` over a **taken** id it reports the deck that is there, still
+     * marked a dry run — `created = false`, the one bit that distinguishes it from the preview
+     * above. All four combinations of the two fields are distinct.
+     */
     @Test
     fun `a dry run that finds the deck says both things`() = runBlocking {
         val decks = FakeDeckRepository(testDeck(id = "mine00000001", cardCount = 40))

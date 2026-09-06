@@ -492,7 +492,9 @@ forever or abandons a working network.
 
 `--dry-run` on `import` exits 0 without a session at all: it reads a local file. On `deck create`
 and `card add` it needs one, because what those two have to check — is this id free, is this row
-already in the deck — is a homeserver read.
+already in the deck — is a homeserver read. `deck create --dry-run` answers the first in
+`data.created`: `true` means the deck *would* be published, `false` that the id is taken, and
+`dry_run` beside it says nothing was written either way.
 
 `whoami --json` reports `session_live`, asked rather than assumed — worth checking before starting
 an hour-long import rather than forty cards in. There is no `expires_at` to report: the session

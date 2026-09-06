@@ -494,7 +494,13 @@ internal val USAGE = """
                                   deck show   data.deck
                                   card add    data.written, data.skipped, data.cards[],
                                               data.failures[], data.image_checks[]
-                                  import      data.deck, data.cards_written, data.image_checks[]
+                                  import      data.deck, data.cards_written, data.image_checks[],
+                                              data.image_advice[]
+
+                                Under --dry-run, deck create's data.created says whether the deck
+                                WOULD be published: with data.dry_run it distinguishes all four
+                                outcomes, so --id X --if-not-exists --dry-run answers "is this id
+                                free" in one field.
 
                                 A card file takes the flat {"front":"…"} shape AND that nested one,
                                 so `card list --json | jq -c .data.cards[] > f` and
