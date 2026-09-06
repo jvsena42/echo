@@ -80,7 +80,7 @@ fun UnregisteredKeyRoute(
             when (effect) {
                 UnregisteredKeyEffect.NavigateBack -> currentOnBack()
                 UnregisteredKeyEffect.NavigateSignup -> currentOnVerify()
-                UnregisteredKeyEffect.NavigateBackup -> currentOnRegistered()
+                UnregisteredKeyEffect.NavigateHome -> currentOnRegistered()
             }
         }
     }

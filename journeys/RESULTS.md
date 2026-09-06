@@ -2416,3 +2416,40 @@ instead; `WindowWidthClass` reads the window, so it is the same code path.
 **The emulator clock cannot be moved** (`date: cannot set date`, and no `su`), so the live crossing
 was observed by temporarily narrowing the window to one minute a few minutes ahead, not by
 travelling in time.
+
+## Backup dropped from the create-account flow — 2026-09-06, `iPhone 17 Pro` sim (staging)
+
+Signup and the unregistered-key registration now land on **home**; the backup menu is reached only
+from the Profile card above sign-out and the Settings row. Journey **22** updated to match, and its
+"lands on the BACKUP screen" step is now "lands on HOME, with the nag present".
+
+| Check | Result |
+| --- | --- |
+| iOS: Settings → `settings_back_up_account` | ✅ PASS — opens the backup sheet over Settings |
+| iOS: push a method (`backup_method_file`) | ✅ PASS — `backup_file_passphrase` on screen, so the new private `BackupRoute` enum drives the stack |
+| iOS: `signup_back` from the method screen | ✅ PASS — back to the menu with "Encrypted file ✓ Done" still ticked |
+| iOS: `backup_later` | ✅ PASS — sheet dismissed onto **Settings**, not onto a second home |
+| Android build + `detektAll`, `:shared:jvmTest`, `lintSwift`, iOS `simulator build` | ✅ PASS |
+| Android on device | ⚪ **NOT RUN — the emulator is signed out and cannot sign back in.** See below |
+| The signup landing itself, on a device | ⚪ **NOT RUN** — needs a hand-issued invite code (the same gap recorded for #147 and #149) |
+
+Two shared tests pin the behaviour instead:
+`LocalSignupViewModelTest.aCreatedAccountGoesStraightIntoTheAppRatherThanIntoABackupWall` and
+`UnregisteredKeyViewModelTest.aRegisteredKeyGoesStraightIntoTheAppRatherThanIntoABackupWall`.
+
+**`emulator-5554` is signed out again, and both doors back in are shut.** Reaching the Android
+backup entry points needs a *Loopky-held* key — the Settings row and the Profile nag are both
+absent for the Ring-held account that was signed in — so this session signed out to restore the
+staging local-key account by phrase. Neither route came back:
+
+- **Restore by phrase** derives the right pubky (`ma8tmsmd…`, and the account is live: staging Nexus
+  answers 200 for it) and then fails inside `sign_in_cookie` — `Establishing new session exchange`
+  → `PubkyError`, five attempts, before and after a radio toggle. Nexus reads work throughout, so
+  it is not connectivity.
+- **Ring sign-in** fails with `AuthRelayUnreachable` ("O serviço de acesso não está respondendo"),
+  which is the persistent `httprelay.pubky.app` blocker already recorded above — nine attempts.
+
+One new detail that breaks the scripted cadence in that older note: Android now raises an
+**app-chooser** ("Open with Pubky Ring — Just once / Always") between `onboarding_signin` and Ring's
+Select Pubky sheet. A blind tap script written before it walks straight past the sheet and starts
+tapping the guest shell. Answer **Always** once, then the recorded cadence applies again.
